@@ -352,8 +352,9 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
     let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
     assert!(pkg.join("package.json").exists(), "the failed build's slot must stay in place");
-    assert!(
-        pkg.join(".pnpm-needs-build").is_file(),
+    assert_eq!(
+        fs::read_to_string(pkg.join(".pnpm-needs-build")).expect("read the marker"),
+        "started",
         "the failed build's slot must be marked for a rebuild",
     );
 
@@ -380,6 +381,9 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
     let pkg = pkg_in_slot(&hash_dir, PKG);
     assert!(pkg.join(".pnpm-needs-build").is_file(), "the deferred build must leave its marker");
+    // As a build that died mid-way leaves the slot, which only a re-import
+    // makes safe to build again.
+    fs::write(pkg.join(".pnpm-needs-build"), "started").expect("mark the slot mid-build");
     fs::remove_file(pkg.join("README.md")).expect("remove a pristine file");
 
     let lock = DirLock::acquire(

@@ -13,7 +13,7 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    get_pkg_id_with_patch_hash, is_failed_build_marker, mark_failed_global_virtual_store_build,
+    get_pkg_id_with_patch_hash, is_started_build_marker, mark_global_virtual_store_build_started,
     parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
 };
 
@@ -140,9 +140,10 @@ fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> V
 
 /// The package directory to build in, with the lock that serializes a
 /// build into an isolated global-virtual-store slot with every other
-/// install's build of it. `None` when there is nothing to build: the
-/// snapshot has no directory, or another install built the slot while
-/// this one waited for its lock.
+/// install's build of it. The slot is marked mid-build before it is
+/// returned. `None` when there is nothing to build: the snapshot has no
+/// directory, another install built the slot while this one waited for
+/// its lock, or another install's build of it did not finish.
 fn slot_to_build(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
@@ -163,9 +164,10 @@ fn slot_to_build(
         context.directories.layout,
         snapshot_key,
     );
-    if awaiting_build && (!marker.is_file() || is_failed_build_marker(&marker)) {
+    if is_started_build_marker(&marker) || (awaiting_build && !marker.is_file()) {
         return None;
     }
+    mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
     Some((pkg_dir, lock))
 }
 
@@ -325,11 +327,7 @@ fn apply_configured_patch(
         if !patched_dir.exists() {
             continue;
         }
-        apply_patch_to_dir(&patched_dir, patch_file_path)
-            .inspect_err(|_| {
-                mark_failed_global_virtual_store_build(context.pkg_roots(), snapshot_key);
-            })
-            .map_err(BuildModulesError::PatchApply)?;
+        apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
     Ok(true)
 }
@@ -366,9 +364,6 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            // Before the optional-skip return, so a failed optional build
-            // is retried by the next install too.
-            mark_failed_global_virtual_store_build(context.pkg_roots(), snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }

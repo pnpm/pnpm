@@ -359,7 +359,7 @@ test('GVS build failure keeps the slot and marks it for a rebuild', async () => 
   expect(hashes).toHaveLength(1)
   const pkgInGvs = path.join(pkgVersionDir, hashes[0], 'node_modules/@pnpm.e2e/failing-postinstall')
   expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
+  expect(fs.readFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'utf8')).toBe('started')
 })
 
 test('GVS build waits for another install building the same slot', async () => {
@@ -384,7 +384,8 @@ test('GVS build waits for another install building the same slot', async () => {
   expect(hashes).toHaveLength(1)
   const hashDir = path.join(pkgVersionDir, hashes[0])
   const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
-  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), '')
+  // As a build that died mid-way leaves the slot, which only a re-import makes safe to build again.
+  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'started')
   fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
   fs.unlinkSync(path.join(pkgInGvs, 'README.md'))
   rimrafSync('node_modules')
@@ -481,7 +482,8 @@ test('GVS .pnpm-needs-build marker triggers re-import on next install', async ()
 
   // Step 2: Simulate a crash between import and build — write a .pnpm-needs-build
   // marker and remove build artifacts (as if the build never completed)
-  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), '')
+  // As a build that died mid-way leaves the slot, which only a re-import makes safe to build again.
+  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'started')
   fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
 

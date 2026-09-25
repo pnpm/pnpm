@@ -37,6 +37,7 @@ import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from '
 export type { DepsStateCache }
 
 const NEEDS_BUILD_MARKER = '.pnpm-needs-build'
+const STARTED_BUILD_MARKER_CONTENT = 'started'
 const SLOT_LOCK_DIR = '.pnpm-build.lock'
 const SLOT_LOCK_WAIT_MS = 10 * 60_000
 // Comfortably above how long a build can take, so a live holder never has its lock stolen mid-build.
@@ -262,7 +263,7 @@ async function buildDependency<T extends string> (
   let slotLock: DirLock | undefined
   try {
     if (opts.enableGlobalVirtualStore && (depNode.patch != null || !opts.ignoreScripts)) {
-      const slotBuild = await lockSlotForBuild(depNode)
+      const slotBuild = await lockSlotForBuild(depNode, opts.lockfileDir)
       if (slotBuild == null) return
       slotLock = slotBuild.lock
     }
@@ -364,11 +365,6 @@ async function buildDependency<T extends string> (
     buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
-    // Other projects may already link the shared slot, so it stays in place.
-    // The marker makes the next install that reaches it re-import and re-build it.
-    if (opts.enableGlobalVirtualStore) {
-      await markFailedBuild(depNode, opts.lockfileDir)
-    }
     if (depNode.optional) {
       // TODO: add parents field to the log
       skippedOptionalDependencyLogger.debug({
@@ -408,6 +404,24 @@ async function buildDependency<T extends string> (
 }
 
 /**
+ * Serializes builds into one global virtual store slot across processes, and
+ * marks the slot as mid-build before the build writes into it. Resolves to
+ * `undefined` when another install built the slot while this one waited for
+ * its lock, or when another install's build of it did not finish.
+ */
+async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<{ lock?: DirLock } | undefined> {
+  const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
+  const awaitingBuild = await pathExists(marker)
+  const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
+  if (await isStartedBuildMarker(marker) || (awaitingBuild && !await pathExists(marker))) {
+    await lock?.release()
+    return undefined
+  }
+  await markBuildStarted(depNode, lockfileDir)
+  return { lock }
+}
+
+/**
  * Takes the lock that serializes writes into one global virtual store slot
  * across processes: builds, and re-imports of a slot that still carries its
  * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
@@ -425,42 +439,36 @@ export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promi
   }
 }
 
-const FAILED_BUILD_MARKER_CONTENT = 'failed'
-
-async function isFailedBuildMarker (markerPath: string): Promise<boolean> {
+/**
+ * Whether the slot's build started and then failed, or its process died,
+ * leaving files the build may have changed. Only a re-import of the pristine
+ * files, which rewrites the marker empty, makes it safe to build.
+ */
+async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
   try {
     const content = await fs.readFile(markerPath, 'utf8')
-    return content.trim() === FAILED_BUILD_MARKER_CONTENT
-  } catch {
-    return false
+    return content.trim() === STARTED_BUILD_MARKER_CONTENT
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
   }
 }
 
 /**
- * Serializes builds into one global virtual store slot across processes.
- * Resolves to `undefined` when another install built the slot while this one
- * waited for its lock.
+ * A successful build removes the marker. A failed patch or build script, or a
+ * process that dies mid-build, leaves it in place instead of the slot being
+ * removed, because other projects may already link the shared slot. The next
+ * install that reaches it then re-imports its pristine files and builds again.
  */
-async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>): Promise<{ lock?: DirLock } | undefined> {
-  const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
-  const awaitingBuild = await pathExists(marker)
-  const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
-  if (awaitingBuild && (!await pathExists(marker) || await isFailedBuildMarker(marker))) {
-    await lock?.release()
-    return undefined
-  }
-  return { lock }
-}
-
-async function markFailedBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
+async function markBuildStarted<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
   try {
-    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), FAILED_BUILD_MARKER_CONTENT)
+    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), STARTED_BUILD_MARKER_CONTENT)
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if ('code' in err && err.code === 'ENOENT') return
     logger.warn({
       error: err,
-      message: `Failed to mark ${depNode.dir} for a rebuild`,
+      message: `Failed to mark ${depNode.dir} as mid-build`,
       prefix: lockfileDir,
     })
   }

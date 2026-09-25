@@ -61,29 +61,35 @@ pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, Pat
             .all(|relative| pkg_dir.join(relative).exists())
 }
 
-pub(crate) const FAILED_BUILD_MARKER: &str = "failed";
+/// The `.pnpm-needs-build` content of a slot whose build has started and
+/// not finished.
+const STARTED_BUILD_MARKER: &str = "started";
 
-pub(crate) fn is_failed_build_marker(marker: &Path) -> bool {
-    std::fs::read_to_string(marker).is_ok_and(|content| content.trim() == FAILED_BUILD_MARKER)
+/// Whether the slot's build started and then failed, or its process died,
+/// leaving files the build may have changed. Only a re-import of the
+/// pristine files, which rewrites the marker empty, makes it safe to build.
+pub(crate) fn is_started_build_marker(marker: &Path) -> bool {
+    std::fs::read_to_string(marker).is_ok_and(|content| content.trim() == STARTED_BUILD_MARKER)
 }
 
-/// Mark a snapshot's global-virtual-store slot as still needing its build
-/// after its patch application or build script failed.
+/// Mark a snapshot's global-virtual-store slot as mid-build, before its
+/// patch or build script writes into it.
 ///
-/// The slot stays in place: other projects whose dependency graph hashes
-/// to it may already link it. The marker makes the next install that
-/// reaches the slot re-import its pristine files and build it again.
+/// A successful build removes the marker. A failed patch or build script,
+/// or a process that dies mid-build, leaves it in place instead of the
+/// slot being removed: other projects whose dependency graph hashes to it
+/// may already link it. The next install that reaches the slot then
+/// re-imports its pristine files and builds it again.
 ///
 /// No-op outside the isolated global virtual store: the next install
 /// rebuilds a project-local slot from scratch anyway. A failed write is
-/// logged and swallowed; the build error the caller is already returning
-/// is the one worth surfacing.
-pub(crate) fn mark_failed_global_virtual_store_build(pkg_roots: PkgRoots<'_>, key: &PackageKey) {
+/// logged and swallowed; the build itself is what the install reports.
+pub(crate) fn mark_global_virtual_store_build_started(pkg_roots: PkgRoots<'_>, key: &PackageKey) {
     if !pkg_roots.layout.enable_global_virtual_store() || pkg_roots.by_key.is_some() {
         return;
     }
     let marker = virtual_store_dir_for_key(pkg_roots.layout, key).join(NEEDS_BUILD_MARKER);
-    if let Err(error) = std::fs::write(&marker, FAILED_BUILD_MARKER)
+    if let Err(error) = std::fs::write(&marker, STARTED_BUILD_MARKER)
         && error.kind() != std::io::ErrorKind::NotFound
     {
         tracing::warn!(
@@ -91,7 +97,7 @@ pub(crate) fn mark_failed_global_virtual_store_build(pkg_roots: PkgRoots<'_>, ke
             ?error,
             dep_path = %key,
             marker = %marker.display(),
-            "failed to mark the global virtual store slot of a failed build",
+            "failed to mark the global virtual store slot as mid-build",
         );
     }
 }
