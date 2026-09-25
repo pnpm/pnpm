@@ -14,8 +14,9 @@ use std::sync::atomic::Ordering;
 /// call free anyway, but routing through one value keeps the gate-side
 /// and write-side keys provably identical.
 ///
-/// `None` when the cache gate can't fire (no engine, no graph, etc.);
-/// both downstream consumers short-circuit on `None`.
+/// `None` when the cache gate can't fire (no engine, no graph, etc.) or
+/// `sideEffectsCacheExclude` names the package; both downstream
+/// consumers short-circuit on `None`.
 ///
 /// The `deps_state_cache` is shared across all scheduled nodes via
 /// `Mutex` because `calc_dep_state` is recursive and memoizes — a
@@ -26,6 +27,9 @@ pub(super) fn side_effects_cache_key(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
 ) -> Option<String> {
+    if !context.allow_build_policy.caches_build(snapshot_key) {
+        return None;
+    }
     let (graph, engine) = context.progress.dep_graph.zip(context.cache.engine_name)?;
     // Poison-recover: `calc_dep_state` mutates the cache by
     // inserting one entry per recursive walk node, each

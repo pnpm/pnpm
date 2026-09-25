@@ -25,7 +25,10 @@ use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_graph::build_graph,
     import_indexed_dir, store_index_key_for_resolution,
-    version_policy::{VersionPolicyError, expand_package_version_specs},
+    version_policy::{
+        PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
+        expand_package_version_specs,
+    },
 };
 
 use derive_more::{Display, Error};

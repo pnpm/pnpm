@@ -936,3 +936,35 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         "rebuild must run when the cached overlay can't be materialized",
     );
 }
+
+#[test]
+fn side_effects_cache_exclude_keeps_the_named_builds_out_of_the_cache() {
+    let config = Config {
+        side_effects_cache_exclude: Some(vec![
+            "java".to_string(),
+            "@native/*".to_string(),
+            "sharp@1.0.0 || 2.0.0".to_string(),
+        ]),
+        ..Config::default()
+    };
+    let policy = AllowBuildPolicy::from_config(&config).expect("valid patterns");
+
+    for dep_path in
+        ["java@0.12.2", "java@0.12.2(node-gyp@10.0.0)", "@native/bindings@3.0.0", "sharp@2.0.0"]
+    {
+        assert!(!policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must not be cached");
+    }
+    for dep_path in ["javascript@1.0.0", "@other/bindings@3.0.0", "sharp@3.0.0"] {
+        assert!(policy.caches_build(&dep_path.parse().unwrap()), "{dep_path} must be cached");
+    }
+    assert!(AllowBuildPolicy::default().caches_build(&"java@0.12.2".parse().unwrap()));
+}
+
+#[test]
+fn side_effects_cache_exclude_rejects_an_invalid_version_union() {
+    let config = Config {
+        side_effects_cache_exclude: Some(vec!["java@^1".to_string()]),
+        ..Config::default()
+    };
+    assert!(AllowBuildPolicy::from_config(&config).is_err());
+}

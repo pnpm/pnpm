@@ -1,9 +1,9 @@
 //! Deciding which packages are allowed to run build scripts.
 
 use super::{
-    Config, Cow, HashSet, VersionPolicyError, expand_package_version_specs,
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
-    remove_suffix,
+    Config, Cow, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch, VersionPolicyError,
+    create_package_version_policy, expand_package_version_specs, get_pkg_id_with_patch_hash,
+    index_of_dep_path_suffix, parse_name_version_from_key, remove_suffix,
 };
 
 /// Build policy derived from `allowBuilds` and
@@ -24,6 +24,7 @@ pub struct AllowBuildPolicy {
     allowed_git_repos: HashSet<String>,
     disallowed_git_repos: HashSet<String>,
     dangerously_allow_all: bool,
+    side_effects_cache_exclude: Option<PackageVersionPolicy>,
 }
 
 impl AllowBuildPolicy {
@@ -45,6 +46,7 @@ impl AllowBuildPolicy {
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
+            side_effects_cache_exclude: None,
         }
     }
 
@@ -64,6 +66,7 @@ impl AllowBuildPolicy {
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
+            side_effects_cache_exclude: None,
         }
     }
 
@@ -86,7 +89,38 @@ impl AllowBuildPolicy {
             disallowed.dep_paths,
             config.dangerously_allow_all_builds,
         )
-        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
+        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos)
+        .with_side_effects_cache_exclude(
+            config.side_effects_cache_exclude.as_deref().unwrap_or_default(),
+        )?)
+    }
+
+    /// Add the `sideEffectsCacheExclude` rules [`Self::caches_build`]
+    /// reads.
+    pub fn with_side_effects_cache_exclude(
+        mut self,
+        patterns: &[String],
+    ) -> Result<Self, VersionPolicyError> {
+        self.side_effects_cache_exclude =
+            if patterns.is_empty() { None } else { Some(create_package_version_policy(patterns)?) };
+        Ok(self)
+    }
+
+    /// Whether the build of the snapshot at `snapshot_key` may be
+    /// restored from, and saved to, the side-effects cache and shared
+    /// through a global-virtual-store slot. `false` for a package
+    /// `sideEffectsCacheExclude` names.
+    #[must_use]
+    pub fn caches_build(&self, snapshot_key: &PackageKey) -> bool {
+        let Some(exclude) = &self.side_effects_cache_exclude else {
+            return true;
+        };
+        let (name, version) = parse_name_version_from_key(&snapshot_key.without_peer().to_string());
+        match exclude.matches(&name) {
+            PolicyMatch::No => true,
+            PolicyMatch::AnyVersion => false,
+            PolicyMatch::ExactVersions(versions) => !versions.contains(&version),
+        }
     }
 
     #[must_use]
