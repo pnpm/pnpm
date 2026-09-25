@@ -14,10 +14,13 @@ test('pnpm doctor pings the configured default registry with its credentials', a
     authorizationHeaders.push(req.headers.authorization)
     res.end('{}')
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const { port } = server.address() as AddressInfo
-  const registry = `http://127.0.0.1:${port}/`
   try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const { port } = server.address() as AddressInfo
+    const registry = `http://127.0.0.1:${port}/`
     const { output } = await handler({
       dir: process.cwd(),
       cacheDir: path.resolve('cache'),
@@ -34,7 +37,12 @@ test('pnpm doctor pings the configured default registry with its credentials', a
     expect(connectivity?.detail).toContain(registry)
     expect(authorizationHeaders).toStrictEqual(['Bearer secret'])
   } finally {
-    server.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
   }
 })
 
@@ -44,10 +52,13 @@ test('pnpm doctor fails the connectivity check when the configured registry resp
     res.statusCode = 500
     res.end()
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const { port } = server.address() as AddressInfo
-  const registry = `http://127.0.0.1:${port}/`
   try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const { port } = server.address() as AddressInfo
+    const registry = `http://127.0.0.1:${port}/`
     const { output, exitCode } = await handler({
       dir: process.cwd(),
       cacheDir: path.resolve('cache'),
@@ -64,6 +75,11 @@ test('pnpm doctor fails the connectivity check when the configured registry resp
     expect(connectivity?.detail).toContain(registry)
     expect(exitCode).toBe(1)
   } finally {
-    server.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
   }
 })
