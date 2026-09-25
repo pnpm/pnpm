@@ -17,16 +17,21 @@ export interface FindInjectedWorkspaceDepOptions {
  * `undefined` when there is none.
  */
 export function findInjectedWorkspaceDep (manifests: ProjectManifest[], opts: FindInjectedWorkspaceDepOptions): string | undefined {
-  const workspacePackages = new Map<string, Array<string | undefined>>()
-  for (const { name, version } of opts.workspaceManifests) {
-    if (typeof name !== 'string') continue
-    const ver = typeof version === 'string' ? version : undefined
-    const versions = workspacePackages.get(name)
-    if (versions != null) {
-      versions.push(ver)
-    } else {
-      workspacePackages.set(name, [ver])
+  let workspacePackages: Map<string, Array<string | undefined>> | undefined
+  const getWorkspacePackages = (): Map<string, Array<string | undefined>> => {
+    if (workspacePackages != null) return workspacePackages
+    workspacePackages = new Map()
+    for (const { name, version } of opts.workspaceManifests) {
+      if (typeof name !== 'string') continue
+      const ver = typeof version === 'string' ? version : undefined
+      const versions = workspacePackages.get(name)
+      if (versions != null) {
+        versions.push(ver)
+      } else {
+        workspacePackages.set(name, [ver])
+      }
     }
+    return workspacePackages
   }
   const linkWorkspacePackages = opts.linkWorkspacePackages !== false
   for (const manifest of manifests) {
@@ -39,7 +44,7 @@ export function findInjectedWorkspaceDep (manifests: ProjectManifest[], opts: Fi
         if (opts.injectWorkspacePackages !== true) continue
         if (typeof spec !== 'string') continue
         const actualSpec = dereferenceCatalog(alias, spec, opts.catalogs)
-        if (actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, workspacePackages, linkWorkspacePackages)) return alias
+        if (actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, getWorkspacePackages(), linkWorkspacePackages)) return alias
       }
     }
   }
@@ -63,12 +68,12 @@ function resolvesToWorkspacePackage (
     if (isPath(workspaceSpec)) return true
     const { name, range } = splitNameAndRange(alias, workspaceSpec)
     const versions = workspacePackages.get(name)
-    return versions != null && versions.some((version) => rangeMatches(range, version))
+    return versions != null && versions.some((version) => rangeMatches(range, version, true))
   }
   if (!linkWorkspacePackages) return false
-  const { name, range } = splitNameAndRange(alias, spec.startsWith('npm:') ? spec.slice('npm:'.length) : spec)
+  const { name, range } = splitNameAndRange(alias, spec)
   const versions = workspacePackages.get(name)
-  return versions != null && versions.some((version) => rangeMatches(range, version))
+  return versions != null && versions.some((version) => rangeMatches(range, version, false))
 }
 
 function isPath (spec: string): boolean {
@@ -77,12 +82,22 @@ function isPath (spec: string): boolean {
 
 /** `name@range`, or a bare range that belongs to `alias`. */
 function splitNameAndRange (alias: string, spec: string): { name: string, range: string } {
+  if (spec.startsWith('npm:')) {
+    const body = spec.slice('npm:'.length)
+    if (semver.validRange(body) != null) {
+      return { name: alias, range: body }
+    }
+    const at = body.lastIndexOf('@')
+    if (at < 1) return { name: body, range: '*' }
+    return { name: body.slice(0, at), range: body.slice(at + 1) }
+  }
   const at = spec.lastIndexOf('@')
   return at > 0 ? { name: spec.slice(0, at), range: spec.slice(at + 1) } : { name: alias, range: spec }
 }
 
-function rangeMatches (range: string, version: string | undefined): boolean {
+function rangeMatches (range: string, version: string | undefined, isWorkspaceProtocol: boolean): boolean {
   if (range === '' || range === '*' || range === '^' || range === '~') return true
-  if (version == null || semver.validRange(range) == null) return true
+  if (semver.validRange(range) == null) return isWorkspaceProtocol
+  if (version == null) return true
   return semver.satisfies(version, range, { includePrerelease: true })
 }

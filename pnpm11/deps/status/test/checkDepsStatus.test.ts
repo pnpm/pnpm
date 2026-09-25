@@ -1562,6 +1562,47 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
       expect(result.issue).toBe('The dependency "ui" is an injected workspace dependency and its contents may have changed')
     })
 
+    it('does not report a registry tag such as "latest" as injected', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { ui: 'latest' } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.issue ?? '').not.toContain('injected workspace dependency')
+    })
+
+    it('reports an npm: alias targeting a workspace project as injected', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { myUi: 'npm:ui@^1.0.0' } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe('The dependency "myUi" is an injected workspace dependency and its contents may have changed')
+    })
+
+    it('reports a bare npm: alias targeting a workspace project as injected', async () => {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
+
+      const result = await checkDepsStatus(workspaceOpts(
+        { dependencies: { myUi: 'npm:ui' } },
+        lastValidatedTimestamp,
+        { injectWorkspacePackages: true }
+      ))
+
+      expect(result.upToDate).toBe(false)
+      expect(result.issue).toBe('The dependency "myUi" is an injected workspace dependency and its contents may have changed')
+    })
+
     it('matches any workspace version when multiple versions of a package exist', async () => {
       const lastValidatedTimestamp = Date.now() - 10_000
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState(lastValidatedTimestamp))
