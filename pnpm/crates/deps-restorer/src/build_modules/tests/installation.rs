@@ -269,7 +269,11 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -370,7 +374,11 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -495,7 +503,11 @@ async fn write_path_disabled_skips_upload() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -642,7 +654,11 @@ async fn upload_error_does_not_interrupt_install() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,

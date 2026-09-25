@@ -128,9 +128,12 @@ skipOnWindows('a filtered install builds dependencies with the root project runt
   expect(fs.readFileSync('app/node_modules/dep/node-version', 'utf8')).toBe('v22.19.0')
 })
 
-// The slot hash does not record the workspace root's bins, so a build that
-// another project reuses must not depend on them.
-test('dependency build scripts in the global virtual store do not see the workspace root bins', async () => {
+// A dependency's build script in a shared slot sees the workspace root's bins
+// and the privately hoisted bins, as it does with a local virtual store. This
+// is by design, although the slot hash records neither: NODE_PATH already
+// exposes the root and hoisted node_modules to the same scripts, and builds
+// that run a tool they do not declare would fail without them.
+test('dependency build scripts in the global virtual store see the workspace root and hoisted bins', async () => {
   preparePackages([
     {
       location: '.',
@@ -138,42 +141,41 @@ test('dependency build scripts in the global virtual store do not see the worksp
         name: 'root',
         version: '1.0.0',
         private: true,
-        dependencies: { tool: 'file:tool', dep: 'file:dep' },
+        dependencies: { tool: 'file:tool', wrapper: 'file:wrapper', dep: 'file:dep' },
       },
     },
     {
       location: 'tool',
-      package: {
-        name: 'tool',
-        version: '1.0.0',
-        bin: { 'gvs-root-tool': 'cli.js' },
-      },
+      package: { name: 'tool', version: '1.0.0', bin: { 'gvs-root-tool': 'cli.js' } },
+    },
+    {
+      location: 'hoisted-tool',
+      package: { name: 'hoisted-tool', version: '1.0.0', bin: { 'gvs-hoisted-tool': 'cli.js' } },
+    },
+    {
+      location: 'wrapper',
+      package: { name: 'wrapper', version: '1.0.0', dependencies: { 'hoisted-tool': 'file:../hoisted-tool' } },
     },
     {
       location: 'dep',
-      package: {
-        name: 'dep',
-        version: '1.0.0',
-        scripts: {
-          postinstall: 'gvs-root-tool || node -e "require(\'fs\').writeFileSync(\'root-tool-missing\', \'\')"',
-        },
-      },
+      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: 'gvs-root-tool && gvs-hoisted-tool' } },
     },
   ])
   fs.writeFileSync('tool/cli.js', "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n")
+  fs.writeFileSync('hoisted-tool/cli.js', "#!/usr/bin/env node\nrequire('fs').writeFileSync('hoisted-tool-ran', '')\n")
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: { 'dep@file:dep': true },
     enableGlobalVirtualStore: true,
   })
 
-  await execPnpm(['install'])
-  // The first install builds before it links the root's bins, so rebuild
-  // once they are in place.
+  await execPnpm(['install', '--ignore-scripts'])
+  // The first install builds before it links the root's bins, so build once
+  // they are in place.
   await execPnpm(['rebuild', 'dep'])
 
   const depDir = fs.realpathSync('node_modules/dep')
-  expect(fs.existsSync(path.join(depDir, 'root-tool-missing'))).toBe(true)
-  expect(fs.existsSync(path.join(depDir, 'root-tool-ran'))).toBe(false)
+  expect(fs.existsSync(path.join(depDir, 'root-tool-ran'))).toBe(true)
+  expect(fs.existsSync(path.join(depDir, 'hoisted-tool-ran'))).toBe(true)
 })
 
 test('a devEngines.runtime is never promoted into a catalog under catalogMode=strict', async () => {

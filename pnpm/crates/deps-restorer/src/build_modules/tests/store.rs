@@ -162,7 +162,11 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -248,7 +252,11 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -421,7 +429,11 @@ async fn write_path_populates_side_effects_row() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,

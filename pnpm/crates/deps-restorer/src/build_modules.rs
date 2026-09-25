@@ -284,7 +284,7 @@ impl BuildModules<'_> {
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
         let slot_mutations = std::sync::atomic::AtomicBool::new(false);
-        let runtime_node_bin_dir = self.runtime_node_bin_dir(snapshots);
+        let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
             &self.snapshot_context(
@@ -293,7 +293,7 @@ impl BuildModules<'_> {
                 &dep_states,
                 &ignored_builds,
                 &slot_mutations,
-                runtime_node_bin_dir.as_deref(),
+                &project_bin_dirs,
             ),
             self.child_concurrency,
         )?;
@@ -330,13 +330,32 @@ impl BuildModules<'_> {
         })
     }
 
+    /// The project directories every dependency build script gets on `PATH`
+    /// after the ones walked up from its own package: the privately hoisted
+    /// `node_modules/.bin`, the configured extra bin paths (the workspace
+    /// root's `node_modules/.bin`), and the root project's runtime `node`.
+    ///
+    /// A global virtual store slot has no `node_modules` ancestor inside the
+    /// project, so without these its scripts would miss them. They are given
+    /// on purpose although the slot hash records only the runtime's version:
+    /// `NODE_PATH` already exposes the root and hoisted `node_modules` to the
+    /// same scripts, and builds that run a tool they do not declare would
+    /// fail without them.
+    fn project_bin_dirs(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> Vec<PathBuf> {
+        let hoisted_bin_dir = self.scripts.path.private_hoisting
+            .then_some(self.scripts.patched_engines.virtual_store_dir)
+            .flatten()
+            .map(|virtual_store_dir| virtual_store_dir.join("node_modules").join(".bin"));
+        hoisted_bin_dir
+            .into_iter()
+            .chain(self.scripts.path.extra_bin_paths.iter().cloned())
+            .chain(self.runtime_node_bin_dir(snapshots))
+            .collect()
+    }
+
     /// The directory holding the `node` binary of the root project's
-    /// `node@runtime:` dependency. The runtime pin keys the engine part of
-    /// every built slot's hash, so dependency build scripts get that `node`
-    /// even when their slot has no `node_modules` ancestor inside the
-    /// project, as in the global virtual store. Nothing else from the
-    /// project's `node_modules/.bin` is exposed, because the slot hash does
-    /// not record it. `None` when `--no-runtime` skipped the runtime.
+    /// `node@runtime:` dependency, the one that keys the engine part of every
+    /// built slot's hash. `None` when `--no-runtime` skipped the runtime.
     fn runtime_node_bin_dir(
         &self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
@@ -358,7 +377,7 @@ impl BuildModules<'_> {
         dep_states: &'a DepStates,
         ignored_builds: &'a Mutex<BTreeSet<String>>,
         slot_mutations: &'a std::sync::atomic::AtomicBool,
-        runtime_node_bin_dir: Option<&'a Path>,
+        project_bin_dirs: &'a [PathBuf],
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
             cache: self.cache,
@@ -377,7 +396,7 @@ impl BuildModules<'_> {
                 slot_mutations,
             },
             scripts: self.scripts,
-            runtime_node_bin_dir,
+            project_bin_dirs,
 
             allow_build_policy: self.allow_build_policy,
 

@@ -39,7 +39,7 @@ pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
     BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, PatchedEngineCheck,
+    BuildSnapshotInputs, PatchedEngineCheck, ScriptPath,
 };
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;

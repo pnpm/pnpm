@@ -166,7 +166,11 @@ async fn frozen_store_skips_side_effects_upload() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
