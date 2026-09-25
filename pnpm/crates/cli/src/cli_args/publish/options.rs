@@ -22,6 +22,7 @@ impl PublishArgs {
                 "--batch can only be used together with --recursive",
             ));
         }
+        self.validate_new_version()?;
         Ok(())
     }
 

@@ -9,6 +9,7 @@
 //! lives in [`recursive`].
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+mod new_version;
 mod options;
 mod recursive;
 mod wait;
@@ -164,6 +165,7 @@ impl PublishArgs {
         let publish_branch = self.flags.git.publish_branch.as_deref();
         let git_checks = config.git_checks && !self.flags.git.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch, config.ci)?;
+        self.apply_new_version(dir, config, recursive)?;
 
         if recursive {
             let published =
