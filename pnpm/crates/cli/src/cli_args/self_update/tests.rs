@@ -375,6 +375,6 @@ fn implicit_latest_message_names_both_versions_when_registry_latest_is_older_but
         message.contains(r#""latest" version on the registry (v9.5.0)"#)
             && message.contains("minimumReleaseAge is v9.0.0")
             && message.contains("downgrade"),
-        "{message}"
+        "{message}",
     );
 }
