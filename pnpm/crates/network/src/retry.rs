@@ -165,13 +165,21 @@ pub async fn send_with_retry_at_priority<'client>(
             }
             Ok(response) => return Ok((client, response)),
             Err(error) if attempt < retry_opts.retries && !is_permanent_error(&error) => {
+                if error.is_timeout() {
+                    http_client.downscale_while_peers_active();
+                }
                 drop(client);
                 let delay = retry_opts.delay_for(attempt);
                 warn_retry_error(url, error, attempt, retry_opts, delay);
                 tokio::time::sleep(delay).await;
                 attempt += 1;
             }
-            Err(error) => return Err(error),
+            Err(error) => {
+                if error.is_timeout() {
+                    http_client.downscale_while_peers_active();
+                }
+                return Err(error);
+            }
         }
     }
 }

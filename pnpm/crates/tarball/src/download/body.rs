@@ -106,6 +106,11 @@ where
     }
     let body_error =
         pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url).await;
+    if let Some(error) = &body_error
+        && error.is_fetch_timeout()
+    {
+        http_client.downscale_while_peers_active();
+    }
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
     }
@@ -279,7 +284,15 @@ where
         progress.on_chunk::<Reporter>(chunk.len());
     }
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| fetch_error(inputs.package_url, error))?;
+        let chunk = match chunk {
+            Ok(chunk) => chunk,
+            Err(error) => {
+                if error.is_timeout() {
+                    inputs.http_client.downscale_while_peers_active();
+                }
+                return Err(fetch_error(inputs.package_url, error));
+            }
+        };
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
         // Nothing above bounds how much body a server may send: a

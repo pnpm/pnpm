@@ -6,6 +6,7 @@ import type { RegistryConfig } from '@pnpm/types'
 
 import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
+import { createNetworkConcurrencyGate } from './networkConcurrencyGate.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -64,6 +65,7 @@ export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
 
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
+  const concurrencyGate = createNetworkConcurrencyGate()
   return async (url, opts): Promise<Response> => {
     const headers: Record<string, string> = {
       'user-agent': USER_AGENT,
@@ -111,6 +113,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         redirect: 'manual',
         retry: opts?.retry,
         timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
+        concurrencyGate,
       })
       if (
         opts?.redirect === 'manual' ||
@@ -124,6 +127,9 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       urlObject = resolveRedirectUrl(response, urlObject)
+      // The permit stays with the body. Drop it before the next hop so a
+      // redirect chain cannot pin a connection slot.
+      await response.body?.cancel()
       if (originalOrigin === urlObject.origin) continue
       if (headers['authorization']) {
         delete headers.authorization
