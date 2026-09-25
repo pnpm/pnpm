@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-When `minimumReleaseAge` holds `latest` back, `pnpm self-update` says the registry's latest release is still within the cutoff. It does not suggest a downgrade [#12006](https://github.com/pnpm/pnpm/issues/12006).
+`pnpm self-update` no longer suggests a downgrade when `minimumReleaseAge` holds back the registry's `latest` release. It now says that release is still within the cutoff [#12006](https://github.com/pnpm/pnpm/issues/12006).

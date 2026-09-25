@@ -237,7 +237,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     if let Some(pm) = pinned_pnpm
         && let Some(refusal) =
             Box::pin(project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest))
-                .await
+                .await?
     {
         return Ok(Some(refusal));
     }
@@ -406,7 +406,7 @@ async fn global_switch_declined(
         )));
     }
     if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
-        let registry_latest = registry_latest_ignoring_maturity(config).await;
+        let registry_latest = registry_latest_ignoring_maturity(config).await?;
         return Ok(Some(implicit_latest_no_upgrade_message(
             NoUpgradeKind::Active,
             PNPM_VERSION,

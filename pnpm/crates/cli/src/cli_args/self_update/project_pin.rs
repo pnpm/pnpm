@@ -14,22 +14,25 @@ pub(super) async fn project_pin_refusal(
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
     is_implicit_latest: bool,
-) -> Option<String> {
+) -> miette::Result<Option<String>> {
     if !is_implicit_latest || pm.version.as_deref() == Some(target_version) {
-        return None;
+        return Ok(None);
     }
     let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-    let current = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())?;
+    let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
+    else {
+        return Ok(None);
+    };
     if !version_lt(target_version, &current) {
-        return None;
+        return Ok(None);
     }
-    let registry_latest = registry_latest_ignoring_maturity(config).await;
-    Some(implicit_latest_no_upgrade_message(
+    let registry_latest = registry_latest_ignoring_maturity(config).await?;
+    Ok(Some(implicit_latest_no_upgrade_message(
         NoUpgradeKind::Project,
         &current,
         target_version,
         registry_latest.as_deref(),
-    ))
+    )))
 }
 
 #[derive(Clone, Copy)]
@@ -60,13 +63,16 @@ pub(super) fn implicit_latest_no_upgrade_message(
     }
 }
 
-pub(super) async fn registry_latest_ignoring_maturity(config: &'static Config) -> Option<String> {
-    config.resolved_minimum_release_age()?;
-    Box::pin(config_deps::resolve_engine_version_ignoring_maturity(config, "pnpm", "latest"))
-        .await
-        .ok()
-        .flatten()
-        .map(|resolved| resolved.version)
+pub(super) async fn registry_latest_ignoring_maturity(
+    config: &'static Config,
+) -> miette::Result<Option<String>> {
+    if config.resolved_minimum_release_age().is_none() {
+        return Ok(None);
+    }
+    let resolved =
+        Box::pin(config_deps::resolve_engine_version_ignoring_maturity(config, "pnpm", "latest"))
+            .await?;
+    Ok(resolved.map(|resolved| resolved.version))
 }
 
 fn age_hold_message(
