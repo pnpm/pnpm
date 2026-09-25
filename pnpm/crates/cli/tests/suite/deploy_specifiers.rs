@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, ResolvedDependencySpec};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, ResolvedDependencySpec, SnapshotEntry};
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{fs, process::Command};
@@ -125,6 +125,9 @@ fn prod_deploy_skips_a_devengines_runtime_without_failing_the_frozen_lockfile_ch
                 version: "runtime:24.0.0".parse::<ImporterDepVersion>().unwrap(),
             },
         );
+    lockfile.snapshots
+        .get_or_insert_with(Default::default)
+        .insert("node@runtime:24.0.0".parse().unwrap(), SnapshotEntry::default());
     lockfile
         .save_to_path(&workspace.join("pnpm-lock.yaml"))
         .unwrap();
