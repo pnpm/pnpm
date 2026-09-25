@@ -2,13 +2,15 @@ use super::{SelfUpdateError, install_pnpm};
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::Config;
-use pnpm_fs::force_symlink_dir;
-use pnpm_global::{create_global_cache_key, get_hash_link, read_installed_packages};
+use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
+use pnpm_global::{
+    create_global_cache_key, get_hash_link, read_installed_packages, scan_global_packages,
+};
 use std::{collections::HashSet, path::Path};
 
 /// Link the installed engine's bins into the global bin directory and
 /// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
-/// see it).
+/// see it), replacing the group of the engine it switched from.
 pub(super) fn link_into_global_bin(
     config: &Config,
     installed: &install_pnpm::InstallPnpmResult,
@@ -36,6 +38,30 @@ pub(super) fn link_into_global_bin(
     force_symlink_dir(&installed.install_dir, &hash_link)
         .into_diagnostic()
         .wrap_err("link the global pnpm install directory")?;
+    unlink_replaced_engine_groups(&global_pkg_dir, &cache_hash)
+}
+
+/// Unlink every other group that holds nothing but a pnpm engine. The engine
+/// switched from may be installed under the other alias, whose group the new
+/// hash link does not overwrite (pnpm/pnpm#14709). The install directories are
+/// left to [`pnpm_global::clean_orphaned_install_dirs`], as the running pnpm
+/// may still execute from one of them.
+fn unlink_replaced_engine_groups(global_pkg_dir: &Path, kept_hash: &str) -> miette::Result<()> {
+    let groups =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    for group in groups {
+        if group.hash == kept_hash
+            || !group.dependencies
+                .iter()
+                .all(|(alias, _)| install_pnpm::ENGINE_ALIASES.contains(&alias.as_str()))
+        {
+            continue;
+        }
+        let hash_link = get_hash_link(global_pkg_dir, &group.hash);
+        remove_symlink_dir(&hash_link)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("unlink the replaced pnpm at {}", hash_link.display()))?;
+    }
     Ok(())
 }
 

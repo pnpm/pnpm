@@ -1,6 +1,6 @@
 use super::{
-    global_bin::refresh_global_shims, install_pnpm, is_installed_globally, join_messages,
-    version_lt,
+    global_bin::{link_into_global_bin, refresh_global_shims},
+    install_pnpm, is_installed_globally, join_messages, version_lt,
 };
 use crate::{
     cli_args::self_update::project_pin::{
@@ -8,7 +8,11 @@ use crate::{
     },
     shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
 };
-use std::{fs, path::Path};
+use pnpm_config::Config;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn version_constraint_preserves_pinning_style() {
@@ -39,6 +43,16 @@ fn seed_global_engine_slot(
     version: &str,
     with_executable: bool,
 ) {
+    let install_dir = seed_engine_install_dir(global_dir, package_name, version, with_executable);
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
+}
+
+fn seed_engine_install_dir(
+    global_dir: &Path,
+    package_name: &str,
+    version: &str,
+    with_executable: bool,
+) -> PathBuf {
     let install_dir = global_dir.join(format!("pnpm-{version}"));
     let package_dir = install_pnpm::package_dir(&install_dir, package_name);
     fs::create_dir_all(&package_dir).unwrap();
@@ -56,7 +70,7 @@ fn seed_global_engine_slot(
         fs::write(install_pnpm::pnpm_executable_path(&install_dir, package_name), b"engine")
             .unwrap();
     }
-    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
+    install_dir
 }
 
 #[test]
@@ -102,6 +116,45 @@ fn is_installed_globally_requires_a_matching_global_install() {
     // the engine yet, so the update proceeds and relinks it.
     seed_global_engine_slot(global_dir, "@pnpm/exe", "12.5.0", false);
     assert!(!is_installed_globally(Some(global_dir), "12.5.0").unwrap());
+}
+
+#[test]
+fn self_update_replaces_the_engine_installed_under_the_other_alias() {
+    // pnpm/pnpm#14709
+    let root = tempfile::tempdir().unwrap();
+    let global_dir = root.path().join("global");
+    seed_global_engine(&global_dir, "@pnpm/exe", "12.3.4");
+    fs::create_dir_all(global_dir.join("tool/node_modules")).unwrap();
+    fs::write(global_dir.join("tool/package.json"), r#"{"dependencies":{"typescript":"6.0.0"}}"#)
+        .unwrap();
+    pnpm_fs::force_symlink_dir(&global_dir.join("tool"), &global_dir.join("hash-tool")).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: seed_engine_install_dir(&global_dir, "pnpm", "12.4.0", true),
+        package_name: "pnpm",
+        already_existed: false,
+    };
+    let config = Config {
+        global_bin: Some(root.path().join("bin")),
+        global_pkg_dir: Some(global_dir.clone()),
+        ..Config::default()
+    };
+    fs::create_dir_all(root.path().join("bin")).unwrap();
+
+    link_into_global_bin(&config, &installed, "12.4.0").unwrap();
+
+    let mut groups: Vec<_> = pnpm_global::scan_global_packages(&global_dir)
+        .unwrap()
+        .into_iter()
+        .map(|group| group.dependencies)
+        .collect();
+    groups.sort();
+    assert_eq!(
+        groups,
+        [
+            vec![("pnpm".to_string(), "12.4.0".to_string())],
+            vec![("typescript".to_string(), "6.0.0".to_string())],
+        ],
+    );
 }
 
 #[test]

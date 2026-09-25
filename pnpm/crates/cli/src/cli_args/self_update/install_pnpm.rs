@@ -159,7 +159,7 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
 /// earlier releases installed `@pnpm/exe` even for the versions
 /// [`pnpm_package_to_install`] resolves to `pnpm`, so a switch to either name
 /// has to recognize an install under the other (see pnpm/pnpm#14823).
-const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];
+pub(super) const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];
 
 /// Every global package group holding a pnpm engine at exactly `version`,
 /// paired with the alias it is installed under.
