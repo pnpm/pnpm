@@ -33,7 +33,9 @@ pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
             should_persist_manifest: prepared.persist_manifest,
             importer_id,
             applied: applied.as_ref(),
-            workspace_dir_for_catalogs: prepared.workspace_dir_for_catalogs.as_deref(),
+            workspace_dir_for_catalogs: prepared.catalogs
+                .workspace_dir_for_catalogs
+                .as_deref(),
         },
     )?;
 
@@ -60,7 +62,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
         prepared.persist_indices,
     );
     persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
-    let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
+    let workspace_dir = site.catalogs_dir(prepared.catalogs.workspace_dir_for_catalogs.as_deref());
     if update.version.save
         && let Some(applied) = applied
             .as_ref()

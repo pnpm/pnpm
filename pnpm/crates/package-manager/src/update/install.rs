@@ -2,11 +2,10 @@ pub(super) mod persistence;
 pub(super) use persistence::{finish_single_update, settle_selected_update};
 
 use super::{
-    SelectedProjects, UpdateError, UpdateOptions, UpdateResources, UpdateSite, manifest_dir,
-    prepare::{
-        ReadPackageHook, SelectedUpdatePreparation, UpdatePreparation,
-        apply_read_package_hook_to_update_manifest,
-    },
+    SelectedProjects, UpdateError, UpdateOptions, UpdateResources, UpdateSite,
+    hook::{ReadPackageHook, apply_read_package_hook_to_update_manifest},
+    manifest_dir,
+    prepare::{SelectedUpdatePreparation, UpdatePreparation},
     update_mutation,
 };
 use crate::{
@@ -37,14 +36,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
     mut prepared: SelectedUpdatePreparation,
 ) -> Result<(), UpdateError> {
     let update = if update.version.save {
-        write_workspace_catalogs_selected(
-            update.config,
-            site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
-            &prepared.updated_catalogs,
-            selected.projects,
-        )
-        .map_err(UpdateError::WriteWorkspaceManifest)?;
-        write_moved_overrides(update, &site, &prepared.updated_overrides)?
+        write_saved_selected_state(update, &site, &prepared, selected.projects)?
     } else {
         update
     };
@@ -90,14 +82,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
     mut prepared: UpdatePreparation,
 ) -> Result<(), UpdateError> {
     let update = if update.version.save {
-        write_workspace_catalogs(
-            update.config,
-            prepared.workspace_dir_for_catalogs.as_deref(),
-            &prepared.updated_catalogs,
-            manifest,
-        )
-        .map_err(UpdateError::WriteWorkspaceManifest)?;
-        write_moved_overrides(update, &site, &prepared.updated_overrides)?
+        write_saved_single_state(update, &site, &prepared, manifest)?
     } else {
         update
     };
@@ -169,6 +154,50 @@ fn write_moved_overrides<'a>(
         overrides.insert(key.clone(), value.clone());
     }
     Ok(UpdateOptions { config: Box::leak(Box::new(config)), ..update })
+}
+/// The `pnpm-workspace.yaml` writes a saving selected-projects update
+/// performs before its install: the catalogs it rewrote, then the overrides
+/// it moved. Hands back update options whose config carries the moved
+/// overrides; `update` unchanged when the run does not save.
+fn write_saved_selected_state<'a>(
+    update: UpdateOptions<'a>,
+    site: &UpdateSite,
+    prepared: &SelectedUpdatePreparation,
+    projects: &[pnpm_workspace::Project],
+) -> Result<UpdateOptions<'a>, UpdateError> {
+    if !update.version.save {
+        return Ok(update);
+    }
+    write_workspace_catalogs_selected(
+        update.config,
+        site.catalogs_dir(prepared.catalogs.workspace_dir_for_catalogs.as_deref()),
+        &prepared.catalogs.updated_catalogs,
+        projects,
+    )
+    .map_err(UpdateError::WriteWorkspaceManifest)?;
+    write_moved_overrides(update, site, &prepared.updated_overrides)
+}
+/// The `pnpm-workspace.yaml` writes a saving single-project update performs
+/// before its install: the catalogs it rewrote, then the overrides it moved.
+/// See [`write_saved_selected_state`] for why these writes precede the
+/// install.
+fn write_saved_single_state<'a>(
+    update: UpdateOptions<'a>,
+    site: &UpdateSite,
+    prepared: &UpdatePreparation,
+    manifest: &PackageManifest,
+) -> Result<UpdateOptions<'a>, UpdateError> {
+    if !update.version.save {
+        return Ok(update);
+    }
+    write_workspace_catalogs(
+        update.config,
+        prepared.catalogs.workspace_dir_for_catalogs.as_deref(),
+        &prepared.catalogs.updated_catalogs,
+        manifest,
+    )
+    .map_err(UpdateError::WriteWorkspaceManifest)?;
+    write_moved_overrides(update, site, &prepared.updated_overrides)
 }
 /// What the resolve seeds from: the pins it keeps or drops, the versions it
 /// prefers, and the catalogs as the update rewrote them.
