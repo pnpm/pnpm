@@ -156,13 +156,29 @@ fn index_budget_exhausted(name: &str) -> String {
     )
 }
 
-fn discover_missing(
-    mut discovery: pnpm_cargo_resolver::IndexDiscovery,
-    entries: &BTreeMap<String, String>,
+fn init_discovery(
+    metadata: &str,
+    source: &str,
 ) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
-    discovery.add_entries(entries).map_err(|err| report_message(&err))?;
+    let discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, source)
+        .map_err(|err| report_message(&err))?;
     let names = discovery.missing_names().map_err(|err| report_message(&err))?;
     Ok((discovery, names))
+}
+
+struct DiscoveryStep {
+    discovery: pnpm_cargo_resolver::IndexDiscovery,
+    missing: Vec<String>,
+    entries: BTreeMap<String, String>,
+}
+
+fn step_discovery(
+    mut discovery: pnpm_cargo_resolver::IndexDiscovery,
+    entries: BTreeMap<String, String>,
+) -> Result<DiscoveryStep, String> {
+    discovery.add_entries(&entries).map_err(|err| report_message(&err))?;
+    let missing = discovery.missing_names().map_err(|err| report_message(&err))?;
+    Ok(DiscoveryStep { discovery, missing, entries })
 }
 
 /// Reads a sparse index for one resolve: cache first, then the registry.
@@ -200,26 +216,16 @@ impl IndexFetcher {
         }
     }
 
-    /// Every index file `metadata`'s dependency graph reaches, fetched in
-    /// waves: each wave asks the resolver which names are still missing,
-    /// fetches those, and repeats until nothing is missing.
-    ///
-    /// The parsed registry is kept between waves so only the newly fetched
-    /// entries are parsed, and the discovery walk runs on a blocking thread
-    /// so it does not compete with the async runtime.
+    /// Every index file `metadata`'s dependency graph reaches, fetched in waves.
     async fn fetch_for(&self, metadata: &str) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
-        let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, &source)
-            .map_err(|err| report_message(&err))?;
-        let mut new_entries = BTreeMap::new();
+        let metadata = metadata.to_string();
+        let (mut discovery, mut missing) =
+            tokio::task::spawn_blocking(move || init_discovery(&metadata, &source))
+                .await
+                .map_err(|err| err.to_string())??;
         for _ in 0..MAX_INDEX_WAVES {
-            let entries = std::mem::take(&mut new_entries);
-            let (disc, missing) =
-                tokio::task::spawn_blocking(move || discover_missing(discovery, &entries))
-                    .await
-                    .map_err(|err| err.to_string())??;
-            discovery = disc;
             if missing.is_empty() {
                 return Ok(index_files);
             }
@@ -228,7 +234,7 @@ impl IndexFetcher {
                     "resolving this workspace needs more than {MAX_INDEX_FILES} sparse-index files",
                 ));
             }
-            new_entries = stream::iter(missing)
+            let fetched = stream::iter(missing)
                 .map(|name| async move {
                     let contents = self.index_file(&name).await?;
                     Ok::<_, String>((name, contents))
@@ -236,57 +242,52 @@ impl IndexFetcher {
                 .buffer_unordered(INDEX_FETCH_CONCURRENCY)
                 .try_collect::<BTreeMap<_, _>>()
                 .await?;
-            index_files.extend(new_entries.clone());
+            let step = tokio::task::spawn_blocking(move || step_discovery(discovery, fetched))
+                .await
+                .map_err(|err| err.to_string())??;
+            discovery = step.discovery;
+            missing = step.missing;
+            index_files.extend(step.entries);
         }
         Err(format!("Cargo sparse-index discovery did not settle within {MAX_INDEX_WAVES} waves"))
     }
 
     /// One crate's index file, from the cache when it is still fresh.
-    ///
-    /// A miss is taken under the stripe of the entry's cache path: whoever
-    /// holds it fetches and caches the entry while the rest wait and read
-    /// what it stored.
     async fn index_file(&self, name: &str) -> Result<String, String> {
         let canonical_name =
             pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Cargo)
                 .map_err(|err| err.to_string())?;
         let relative_path = pnpr_cargo::sparse_index_path(name);
         let url = format!("{}/{relative_path}", self.registry);
-        // The route policy classifies a fetch by the crate it is for, as the
-        // Cargo registry surface does, so an upstream's per-crate rules
-        // decide the credential and the cache namespace here too. Both
-        // surfaces match rules against the lowercased crate name.
-        let canonical_name = canonical_name.as_str().to_string();
-        let auth = self.auth_for(&canonical_name);
+        let auth = self.auth_for(canonical_name.as_str());
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
         }
-        // Keyed by the cache path, not the URL: it carries the route scope
-        // that decides which callers can read each other's entry, so two
-        // callers on different private scopes fetch in parallel rather than
-        // queueing for a result neither could reuse.
         let _fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
-        if let Some(cached) = self.cached(&cache_path).await {
+        if let Some(cached) = Self::cached_with_ttl(&cache_path, self.ttl).await {
             return self.hold(name, cached);
         }
-        // Nothing more is fetched once the budget is spent, so the entries
-        // still in flight bound how far past it the resolve can reach.
+        self.fetch_and_store(name, &url, &auth, cache_path).await
+    }
+
+    async fn fetch_and_store(
+        &self,
+        name: &str,
+        url: &str,
+        auth: &AuthHeaders,
+        cache_path: PathBuf,
+    ) -> Result<String, String> {
         if !index_budget_has_room(self.bytes_held.load(Ordering::Relaxed)) {
             return Err(index_budget_exhausted(name));
         }
-        // The route policy decides what this deployment may reach at all;
-        // a registry a caller merely names is refused here rather than
-        // fetched (SSRF boundary).
-        if !auth.allows_fetch(&url) {
+        if !auth.allows_fetch(url) {
             return Err(format!(
                 "{url:?} is not allowed by this pnpr server; the operator must declare its \
                  registry as a public route or an upstream",
             ));
         }
-        let contents = self.fetch_index_contents(name, &url, &auth).await?;
-        // Charged before it is cached, so an entry that spends the last of
-        // the budget is not left behind for the next resolve to read.
+        let contents = self.fetch_index_contents(name, url, auth).await?;
         let contents = self.hold(name, contents)?;
         Self::store(cache_path, contents.clone()).await;
         Ok(contents)
@@ -358,19 +359,23 @@ impl IndexFetcher {
     }
 
     async fn cached(&self, path: &Path) -> Option<String> {
-        Self::cached_with_ttl(path, self.ttl).await
+        Self::cached_entry(path, self.ttl, false).await
     }
 
-    /// The cached index file when it is younger than the TTL. A stale entry
-    /// is deleted so repeated resolves replace entries instead of
-    /// accumulating them.
+    /// Read the cached index file if fresh, deleting it when stale.
     async fn cached_with_ttl(path: &Path, ttl: Duration) -> Option<String> {
+        Self::cached_entry(path, ttl, true).await
+    }
+
+    async fn cached_entry(path: &Path, ttl: Duration, delete_stale: bool) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
         let age = SystemTime::now()
             .duration_since(metadata.modified().ok()?)
             .ok()?;
         if age >= ttl {
-            let _ = tokio::fs::remove_file(path).await;
+            if delete_stale {
+                let _ = tokio::fs::remove_file(path).await;
+            }
             return None;
         }
         tokio::fs::read_to_string(path).await.ok()

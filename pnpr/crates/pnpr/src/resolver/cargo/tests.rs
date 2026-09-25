@@ -39,6 +39,19 @@ async fn cached_deletes_stale_entries() {
 }
 
 #[tokio::test]
+async fn cached_unlocked_leaves_stale_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let stale_path = dir.path().join("stale-unlocked");
+    let one_hour_ago = SystemTime::now() - Duration::from_hours(1);
+    write_with_mtime(&stale_path, "old contents", one_hour_ago);
+
+    let result = IndexFetcher::cached_entry(&stale_path, Duration::from_mins(1), false).await;
+
+    assert!(result.is_none(), "stale entry must be a cache miss");
+    assert!(stale_path.exists(), "unlocked check must preserve stale entry on disk");
+}
+
+#[tokio::test]
 async fn cached_returns_fresh_entries() {
     let dir = tempfile::tempdir().unwrap();
     let fresh_path = dir.path().join("fresh-entry");

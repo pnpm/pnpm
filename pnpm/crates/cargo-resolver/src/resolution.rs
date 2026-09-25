@@ -25,13 +25,7 @@ struct Discovered {
     versions: BTreeSet<Version>,
 }
 
-/// Return sparse-index package names still needed to resolve `metadata`
-/// against the registry identified by `source`.
-///
-/// Edges reaching the same package are unified the way resolution unifies
-/// them, and a package is walked again whenever that union grows. Feature
-/// activation is not monotone across edges, so a union can reach a crate no
-/// single edge reaches.
+/// Sparse-index package names still needed to resolve `metadata` against `source`.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
@@ -42,9 +36,7 @@ pub fn missing_index_names(
     discovery.missing_names()
 }
 
-/// Holds parsed registry state across discovery waves so the caller can
-/// feed newly fetched index files incrementally instead of re-parsing the
-/// full set each wave.
+/// Incremental sparse-index package discovery across fetch waves.
 pub struct IndexDiscovery {
     root_dependencies: Vec<RegistryDependency>,
     registry: Registry,
@@ -89,10 +81,7 @@ impl IndexDiscovery {
     }
 }
 
-/// Fold what `dependency` asks of its package into what discovery already
-/// knows, and return the dependencies of every version that now needs
-/// walking: the ones this edge brings into range, or all of them when the
-/// unified feature selection grew.
+/// Dependencies of every version brought into range or affected by feature growth.
 fn unified_dependencies(
     discovered: &mut BTreeMap<PackageKey, Discovered>,
     dependency: &RegistryDependency,

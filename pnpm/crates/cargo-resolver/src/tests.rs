@@ -1035,8 +1035,7 @@ fn fetches_what_each_requirement_activates_on_its_own_line() {
 }
 
 mod lockfile_features;
-/// Incremental discovery adds entries to an existing registry instead of
-/// rebuilding it from scratch, and produces the same missing-names result.
+
 #[test]
 fn incremental_discovery_matches_full_rebuild() {
     use crate::resolution::IndexDiscovery;
@@ -1058,8 +1057,6 @@ fn incremental_discovery_matches_full_rebuild() {
     assert!(wave_3.is_empty());
 }
 
-/// Adding entries incrementally across multiple waves settles at the same
-/// result as a single call with all index files present.
 #[test]
 fn incremental_discovery_settles_like_the_batch_api() {
     use crate::resolution::IndexDiscovery;
@@ -1077,8 +1074,6 @@ fn incremental_discovery_settles_like_the_batch_api() {
     assert_eq!(batch_missing, incremental_missing);
 }
 
-/// Incremental discovery handles the transitive optional-feature case the
-/// same way the batch API does.
 #[test]
 fn incremental_discovery_walks_optional_features() {
     use crate::resolution::IndexDiscovery;

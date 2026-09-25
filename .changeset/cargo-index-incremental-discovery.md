@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-The Cargo sparse-index discovery walk now keeps its parsed registry between waves instead of re-parsing every accumulated index file each wave. Stale index cache entries are deleted when they expire.
+Sped up Cargo dependency resolution across sparse-index registries. Expired Cargo sparse-index cache files are removed automatically [#14611](https://github.com/pnpm/pnpm/issues/14611).
