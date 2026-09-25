@@ -1197,6 +1197,33 @@ describe('node binary linking', () => {
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
   })
 
+  // https://github.com/pnpm/pnpm/issues/5411
+  testOnWindows('linkBinsOfPackages() replaces a dangling node.exe symlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+    const exePath = path.join(binTarget, 'node.exe')
+    fs.symlinkSync(path.join(temporaryDirectory(), 'missing', 'node.exe'), exePath, 'file')
+
+    await linkBinsOfPackages(
+      [
+        {
+          location: nodeDir,
+          manifest: {
+            name: 'node',
+            version: '20.0.0',
+            bin: { node: 'node.exe' },
+          },
+        },
+      ],
+      binTarget
+    )
+
+    expect(fs.lstatSync(exePath).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
+  })
+
   testOnWindows('linkBinsOfPackages() does not warn when node.exe is already the correct hardlink', async () => {
     const binTarget = temporaryDirectory()
     const nodeDir = temporaryDirectory()
