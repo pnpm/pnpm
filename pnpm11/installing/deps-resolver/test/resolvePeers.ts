@@ -1491,6 +1491,426 @@ describe('dedupePeers', () => {
     expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
   })
 
+  // https://github.com/pnpm/pnpm/issues/12098
+  test("a peer's own peer is shared with a descendant that peer-depends both", async () => {
+    // Same diamond as above, but plugin is not a direct child of the package that
+    // provides its own parser (shadow): it sits under wrapper, a regular dependency
+    // of shadow.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const wrapperPkg = {
+      name: 'wrapper',
+      pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const shadowPkg = {
+      name: 'shadow',
+      pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['shadow', '>shadow/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>shadow/1.0.0>typescript/1.0.0>' as NodeId,
+            parser: '>shadow/1.0.0>parser/1.0.0>' as NodeId,
+            wrapper: '>shadow/1.0.0>wrapper/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: shadowPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
+    expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
+  })
+
+  test('the descendant walk stops at an aliased copy of the provider', async () => {
+    // wrapper has its own parser under an alias, so plugin below it doesn't
+    // inherit shadow's parser and doesn't close the diamond. Nothing else does,
+    // so consumer keeps the inherited parser, as it would without plugin.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const wrapperPkg = {
+      name: 'wrapper',
+      pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const consumerPkg = {
+      name: 'consumer',
+      pkgIdWithPatchHash: 'consumer/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const shadowPkg = {
+      name: 'shadow',
+      pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['shadow', '>shadow/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>shadow/1.0.0>typescript/1.0.0>' as NodeId,
+            parser: '>shadow/1.0.0>parser/1.0.0>' as NodeId,
+            wrapper: '>shadow/1.0.0>wrapper/1.0.0>' as NodeId,
+            consumer: '>shadow/1.0.0>consumer/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: shadowPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>' as NodeId, {
+          children: {
+            'my-parser': '>shadow/1.0.0>wrapper/1.0.0>parser/1.0.0>' as NodeId,
+            plugin: '>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>consumer/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: consumerPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 2,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('consumer/1.0.0(parser/1.0.0(typescript/2.0.0))')
+    expect(depPaths).not.toContain('consumer/1.0.0(parser/1.0.0(typescript/1.0.0))')
+  })
+
+  test('the descendant walk does not skip a package seen first with its own provider', async () => {
+    // Same as above, but the walk meets another occurrence of wrapper first, one
+    // that has its own parser. Cycle pruning can give two occurrences of one
+    // package different children, so that occurrence must not stop the walk from
+    // reaching plugin through the wrapper that inherits the provider.
+    const ts1Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const ts2Pkg = {
+      name: 'typescript',
+      pkgIdWithPatchHash: 'typescript/2.0.0' as PkgIdWithPatchHash,
+      version: '2.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const parserPkg = {
+      name: 'parser',
+      pkgIdWithPatchHash: 'parser/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const pluginPkg = {
+      name: 'plugin',
+      pkgIdWithPatchHash: 'plugin/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: { parser: { version: '*' }, typescript: { version: '*' } },
+      id: '' as PkgResolutionId,
+    }
+    const wrapperPkg = {
+      name: 'wrapper',
+      pkgIdWithPatchHash: 'wrapper/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const zetaPkg = {
+      name: 'zeta',
+      pkgIdWithPatchHash: 'zeta/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const shadowPkg = {
+      name: 'shadow',
+      pkgIdWithPatchHash: 'shadow/1.0.0' as PkgIdWithPatchHash,
+      version: '1.0.0',
+      peerDependencies: {} as PeerDependencies,
+      id: '' as PkgResolutionId,
+    }
+    const { dependenciesGraph } = await resolvePeers({
+      allPeerDepNames: new Set(['typescript', 'parser']),
+      projects: [
+        {
+          directNodeIdsByAlias: new Map([
+            ['typescript', '>typescript/2.0.0>' as NodeId],
+            ['parser', '>parser/1.0.0>' as NodeId],
+            ['shadow', '>shadow/1.0.0>' as NodeId],
+          ]),
+          topParents: [],
+          rootDir: '' as ProjectRootDir,
+          id: '.',
+        },
+      ],
+      resolvedImporters: {},
+      dependenciesTree: new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+        ['>typescript/2.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts2Pkg,
+          depth: 0,
+        }],
+        ['>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>' as NodeId, {
+          children: {
+            typescript: '>shadow/1.0.0>typescript/1.0.0>' as NodeId,
+            parser: '>shadow/1.0.0>parser/1.0.0>' as NodeId,
+            wrapper: '>shadow/1.0.0>wrapper/1.0.0>' as NodeId,
+            // Children are popped last first, so zeta is walked before wrapper.
+            zeta: '>shadow/1.0.0>zeta/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: shadowPkg,
+          depth: 0,
+        }],
+        ['>shadow/1.0.0>typescript/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: ts1Pkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>' as NodeId, {
+          children: {
+            plugin: '>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>zeta/1.0.0>' as NodeId, {
+          children: {
+            wrapper: '>shadow/1.0.0>zeta/1.0.0>wrapper/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: zetaPkg,
+          depth: 1,
+        }],
+        ['>shadow/1.0.0>zeta/1.0.0>wrapper/1.0.0>' as NodeId, {
+          children: {
+            parser: '>shadow/1.0.0>zeta/1.0.0>wrapper/1.0.0>parser/1.0.0>' as NodeId,
+          },
+          installable: true,
+          resolvedPackage: wrapperPkg,
+          depth: 2,
+        }],
+        ['>shadow/1.0.0>zeta/1.0.0>wrapper/1.0.0>parser/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: parserPkg,
+          depth: 3,
+        }],
+        ['>shadow/1.0.0>wrapper/1.0.0>plugin/1.0.0>' as NodeId, {
+          children: {},
+          installable: true,
+          resolvedPackage: pluginPkg,
+          depth: 2,
+        }],
+      ]),
+      virtualStoreDir: '',
+      virtualStoreDirMaxLength: 120,
+      lockfileDir: '',
+      peersSuffixMaxLength: 1000,
+      workspaceProjectIds: new Set(),
+    })
+    const depPaths = Object.keys(dependenciesGraph)
+    expect(depPaths).toContain('plugin/1.0.0(parser/1.0.0(typescript/1.0.0))(typescript/1.0.0)')
+    expect(depPaths).not.toContain('plugin/1.0.0(parser/1.0.0(typescript/2.0.0))(typescript/1.0.0)')
+  })
+
   // A linked local package is represented by a depth -1 node whose resolved package
   // carries nothing but a name and a version. Such a node can still shadow a peer
   // provider that the consumer inherits from an ancestor.
