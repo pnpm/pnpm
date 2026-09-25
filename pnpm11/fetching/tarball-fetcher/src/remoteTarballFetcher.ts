@@ -137,7 +137,7 @@ export function createDownloader (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       const cacheKey = opts.pkgId ?? url
-      const cached = opts.cacheDir && !opts.getAuthHeaderByURI(cacheKey)
+      const cached = opts.cacheDir && !authHeaderValue && !opts.getAuthHeaderByURI(url)
         ? loadTarballResolution(opts.cacheDir, cacheKey)
         : undefined
       const freshness = cached ? tarballFreshness(cached) : undefined
@@ -262,7 +262,7 @@ export function createDownloader (
         appendManifest: opts.appendManifest,
         ignoreFilePattern: opts.ignoreFilePattern,
       })
-      rememberTarballResolution(opts, cacheKey, url, res, fetched.integrity)
+      rememberTarballResolution(opts, cacheKey, url, res, fetched.integrity, authHeaderValue)
       return fetched
     }
   }
@@ -273,9 +273,10 @@ function rememberTarballResolution (
   cacheKey: string,
   requestedUrl: string,
   res: { url: string, headers: { get (name: string): string | null } },
-  integrity: string | undefined
+  integrity: string | undefined,
+  authHeaderValue?: string
 ): void {
-  if (opts.cacheDir && integrity && !opts.getAuthHeaderByURI(requestedUrl)) {
+  if (opts.cacheDir && integrity && !authHeaderValue && !opts.getAuthHeaderByURI(requestedUrl)) {
     const cacheControl = res.headers.get('cache-control') ?? undefined
     storeTarballResolution(opts.cacheDir, {
       url: cacheKey,
