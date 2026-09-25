@@ -100,34 +100,46 @@ impl CustomFetcherSession {
         {
             return;
         }
-        let mut completed = self.completed.lock().unwrap();
-        completed.insert(
-            (package_id.to_owned(), tarball.integrity.to_string()),
-            Arc::clone(&tarball),
-        );
-        // The install pass looks the session up under the lockfile-derived
-        // `name@version`, but a pnpmfile `resolvers` hook leaves `name_ver`
-        // unset, so the id filed above is the tarball URL and the lookup
-        // misses. The fetched manifest names the same package the lockfile
-        // records, so file the fetch under its `name@version` as well: one
-        // custom fetch per package per install.
-        // <https://github.com/pnpm/pnpm/issues/15025>
-        if let Some(manifest_id) = manifest_package_id(tarball.manifest.as_ref())
-            && manifest_id != package_id
-        {
-            completed.insert((manifest_id, tarball.integrity.to_string()), tarball);
-        }
+        self.completed
+            .lock()
+            .unwrap()
+            .insert((package_id.to_owned(), tarball.integrity.to_string()), tarball);
     }
 }
 
-/// The `name@version` a fetched archive's manifest carries: the identity
-/// the install pass derives from the lockfile entry of a registry-shaped
-/// package.
-fn manifest_package_id(manifest: Option<&Value>) -> Option<String> {
-    let manifest = manifest?;
-    let name = manifest.get("name")?.as_str()?;
-    let version = manifest.get("version")?.as_str()?;
-    Some(format!("{name}@{version}"))
+async fn fetch_source<Reporter: self::Reporter>(
+    download: &IngestTarballToStore<'_>,
+    source: &LockfileResolution,
+    lockfile_dir: &Path,
+    config: &Config,
+) -> Result<Option<Arc<FetchedTarball>>, InstallPackageBySnapshotError> {
+    let registry_url = registry_delegate_url(download, source, config)?;
+    let download = IngestTarballToStore {
+        package: TarballPackage {
+            url: registry_url.as_deref().unwrap_or(download.package.url),
+            ..download.package
+        },
+        ..download.clone()
+    };
+    fetch_custom_tarball::<Reporter>(download, source, lockfile_dir).await
+}
+
+/// The URL the install pass fetches a registry delegate from, when the caller
+/// has none. A custom resolution names no archive, and the install pass then
+/// derives the URL from the lockfile key, which for a resolution that reports
+/// no `name@version` is the resolver's id. An id that names no package leaves
+/// the delegate to the install pass.
+fn registry_delegate_url(
+    download: &IngestTarballToStore<'_>,
+    source: &LockfileResolution,
+    config: &Config,
+) -> Result<Option<String>, InstallPackageBySnapshotError> {
+    if !download.package.url.is_empty() || !matches!(source, LockfileResolution::Registry(_)) {
+        return Ok(None);
+    }
+    let Ok(package_key) = download.package.id.parse::<PackageKey>() else { return Ok(None) };
+    let (url, _) = tarball_url_and_integrity(source, &package_key, config)?;
+    Ok(Some(url.into_owned()))
 }
 
 async fn resolve_archive_metadata(
@@ -149,12 +161,18 @@ async fn resolve_archive_metadata(
         None => tarball.manifest.clone(),
     }
     .map(Arc::new);
-    let commit_addressed = matches!(
-        resolution,
-        LockfileResolution::Tarball(resolution)
-            if pnpm_lockfile::is_git_hosted_tarball_url(&resolution.tarball),
-    );
-    let resolution = if commit_addressed {
+    // A commit-addressed archive is anchored by its SHA, and a custom
+    // resolution by whatever identity its fetcher defines. Neither is named by
+    // the hash the bytes happen to yield, so recording that hash would replace
+    // an identity pacquet does not own.
+    let self_addressed = match resolution {
+        LockfileResolution::Tarball(resolution) => {
+            pnpm_lockfile::is_git_hosted_tarball_url(&resolution.tarball)
+        }
+        LockfileResolution::Custom(_) => true,
+        _ => false,
+    };
+    let resolution = if self_addressed {
         resolution.clone()
     } else {
         decode_resolution(serde_json::json!(resolution), Some(&tarball.integrity), package_id)?
@@ -164,4 +182,3 @@ async fn resolve_archive_metadata(
 
 #[cfg(test)]
 mod tests;
-

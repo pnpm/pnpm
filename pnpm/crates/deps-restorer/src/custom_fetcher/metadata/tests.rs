@@ -139,6 +139,7 @@ async fn resolve_time_custom_fetch_is_reused_by_the_install_pass() {
             ingest(config, &http_client, resolve_url, resolve_url, None),
             &original,
             serde_json::json!({ "lockfileDir": dir.path() }),
+            config,
         )
         .await
         .expect("the resolve-time custom fetch succeeds");
