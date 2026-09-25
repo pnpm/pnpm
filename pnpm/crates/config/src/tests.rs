@@ -219,6 +219,9 @@ fn safe_host_var(name: &str) -> Option<String> {
     if name.starts_with("PNPM_CONFIG_") || name.starts_with("pnpm_config_") {
         return None;
     }
+    if name == "PNPM_GIT_BRANCH" {
+        return None;
+    }
     Host::var(name)
 }
 
@@ -297,10 +300,13 @@ fn repo_on_branch(head: &str) -> tempfile::TempDir {
 /// [`GetCurrentDir`] with its own fixture rather than the real cwd.
 macro_rules! host_in_repo {
     ($name:ident) => {
+        host_in_repo!($name, safe_host_var);
+    };
+    ($name:ident, $env_fn:expr) => {
         struct $name;
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
-                safe_host_var(name)
+                ($env_fn)(name)
             }
         }
         impl EnvVarOs for $name {

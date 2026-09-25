@@ -9,9 +9,13 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({
+  getBranchCandidatesFromGit: jest.fn(async () => []),
+  getBranchFromCiEnv: jest.fn(() => null),
+  getCurrentBranch: jest.fn(),
+}))
 
-const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const { getBranchCandidatesFromGit, getCurrentBranch } = await import('@pnpm/network.git-utils')
 const { install, mutateModules } = await import('@pnpm/installing.deps-installer')
 
 test('install with git-branch-lockfile = true', async () => {
@@ -687,4 +691,50 @@ test.each([
       frozenLockfile: true,
     }))
   ).rejects.toThrow(/ERR_PNPM_OUTDATED_LOCKFILE|not up to date/)
+})
+
+test('frozen install with git-branch-lockfile = true on detached HEAD uses matching candidate branch lockfile', async () => {
+  prepareEmpty()
+
+  const branchName: string = 'feat-x'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+  jest.mocked(getBranchCandidatesFromGit).mockReturnValue(Promise.resolve([branchName]))
+
+  const manifest: ProjectManifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  writeYamlFileSync(`pnpm-lock.${branchName}.yaml`, {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        },
+      },
+    },
+    snapshots: {
+      'is-positive@1.0.0': {},
+    },
+  }, { lineWidth: 1000 })
+
+  await install(manifest, testDefaults({
+    useGitBranchLockfile: true,
+    frozenLockfile: true,
+  }))
+
+  expect(fs.existsSync(`pnpm-lock.${branchName}.yaml`)).toBe(true)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
 })

@@ -282,7 +282,10 @@ async function _readWantedLockfile (
 }> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
   if (opts.useGitBranchLockfile) {
-    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
+    const gitBranchLockfileName: string = await getWantedLockfileName({
+      ...opts,
+      lockfileDir: pkgPath,
+    })
     if (gitBranchLockfileName !== WANTED_LOCKFILE) {
       lockfileNames.unshift(gitBranchLockfileName)
     }

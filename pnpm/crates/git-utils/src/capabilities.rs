@@ -20,8 +20,13 @@ pub trait RunCommand {
     fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> io::Result<CommandOutput>;
 }
 
-/// Production implementation of [`RunCommand`], spawning the real
-/// process through [`std::process::Command`].
+/// Read an environment variable as a UTF-8 string.
+pub trait EnvVar {
+    fn var(name: &str) -> Option<String>;
+}
+
+/// Production implementation of [`RunCommand`] and [`EnvVar`], spawning the
+/// real process through [`std::process::Command`] and reading the real environment.
 pub struct Host;
 
 impl RunCommand for Host {
@@ -37,5 +42,11 @@ impl RunCommand for Host {
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         })
+    }
+}
+
+impl EnvVar for Host {
+    fn var(name: &str) -> Option<String> {
+        std::env::var(name).ok()
     }
 }

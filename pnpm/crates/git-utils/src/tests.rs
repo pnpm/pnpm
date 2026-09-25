@@ -112,6 +112,10 @@ fn a_head_that_is_not_a_plain_file_is_not_read() {
 
     assert_eq!(get_current_branch::<GitFails>(&repo), None);
     assert!(!is_head_detached::<NoGit>(&repo), "refused metadata must not be queried by Git");
+    assert!(
+        super::get_branch_candidates_from_git::<NoGit>(&repo).is_empty(),
+        "refused metadata must not be queried by Git for branch candidates",
+    );
 }
 
 /// A FIFO at `HEAD` must be refused rather than opened: a plain `open`
@@ -130,6 +134,8 @@ fn a_head_that_is_a_fifo_does_not_block_the_read() {
 
     assert_eq!(get_current_branch::<GitFails>(repo.path()), None);
     assert_eq!(get_current_branch::<Host>(repo.path()), None);
+    assert!(super::get_branch_candidates_from_git::<NoGit>(repo.path()).is_empty());
+    assert!(super::get_branch_candidates_from_git::<Host>(repo.path()).is_empty());
 }
 
 /// The `.git` pointer file of a worktree gets the same treatment: a FIFO
@@ -143,6 +149,8 @@ fn a_gitdir_pointer_that_is_a_fifo_does_not_block_the_read() {
     make_fifo(&worktree.join(".git"));
 
     assert_eq!(get_current_branch::<Host>(&worktree), None);
+    assert!(super::get_branch_candidates_from_git::<NoGit>(&worktree).is_empty());
+    assert!(super::get_branch_candidates_from_git::<Host>(&worktree).is_empty());
 }
 
 #[cfg(unix)]
@@ -169,4 +177,97 @@ fn a_failed_head_verification_is_not_detached() {
         !is_head_detached::<GitFails>(repo.path()),
         "a failed Git query must not confirm detachment",
     );
+}
+
+#[test]
+fn ci_env_detection_respects_variables() {
+    struct MockPnpmGitBranch;
+    impl super::EnvVar for MockPnpmGitBranch {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_GIT_BRANCH" => Some("refs/heads/custom-override".to_string()),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(
+        super::get_branch_from_ci_env::<MockPnpmGitBranch>(Path::new("/workspace/repo")).as_deref(),
+        Some("custom-override"),
+    );
+
+    struct MockGithubCi;
+    impl super::EnvVar for MockGithubCi {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("true".to_string()),
+                "GITHUB_WORKSPACE" => Some("/workspace/repo".to_string()),
+                "GITHUB_HEAD_REF" => Some("pr-branch".to_string()),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(
+        super::get_branch_from_ci_env::<MockGithubCi>(Path::new("/workspace/repo")).as_deref(),
+        Some("pr-branch"),
+    );
+    assert_eq!(super::get_branch_from_ci_env::<MockGithubCi>(Path::new("/other/location")), None);
+
+    struct MockGithubTag;
+    impl super::EnvVar for MockGithubTag {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("true".to_string()),
+                "GITHUB_WORKSPACE" => Some("/workspace/repo".to_string()),
+                "GITHUB_REF_TYPE" => Some("tag".to_string()),
+                "GITHUB_REF_NAME" => Some("v1.0.0".to_string()),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(super::get_branch_from_ci_env::<MockGithubTag>(Path::new("/workspace/repo")), None);
+
+    struct MockEmptyVars;
+    impl super::EnvVar for MockEmptyVars {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CI" => Some("true".to_string()),
+                "GITHUB_WORKSPACE" => Some("/workspace/repo".to_string()),
+                "GITHUB_HEAD_REF" => Some("   ".to_string()),
+                "GITHUB_REF_NAME" => Some(String::new()),
+                "CI_COMMIT_BRANCH" => Some("commit-branch".to_string()),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(
+        super::get_branch_from_ci_env::<MockEmptyVars>(Path::new("/workspace/repo")).as_deref(),
+        Some("commit-branch"),
+    );
+}
+
+#[test]
+fn get_branch_candidates_parses_git_output() {
+    struct GitBranchOutput;
+    impl RunCommand for GitBranchOutput {
+        fn run(_: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+            if args.contains(&"name-rev") {
+                Ok(CommandOutput {
+                    success: true,
+                    stdout: "feat/my-branch~2\n".to_string(),
+                    stderr: String::new(),
+                })
+            } else if args.contains(&"branch") {
+                Ok(CommandOutput {
+                    success: true,
+                    stdout: "(HEAD detached at 1234567)\nfeat/my-branch\nremotes/origin/main\n"
+                        .to_string(),
+                    stderr: String::new(),
+                })
+            } else {
+                Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
+            }
+        }
+    }
+    let candidates = super::get_branch_candidates_from_git::<GitBranchOutput>(Path::new("."));
+    assert_eq!(candidates, vec!["feat/my-branch", "main"]);
 }
