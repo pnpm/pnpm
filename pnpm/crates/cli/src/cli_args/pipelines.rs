@@ -122,6 +122,7 @@ async fn prepare_root_config<Reporter>(
 where
     Reporter: self::Reporter,
 {
+    crate::state::resolutions::prepare_root_resolutions::<Reporter>(config, config_root)?;
     if !config_deps::may_update_config(config, config_root) {
         check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
     }

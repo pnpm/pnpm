@@ -24,6 +24,11 @@ import { map as mapValues } from 'ramda'
 
 import { quoteAndJoin } from './quoteAndJoin.js'
 
+export type ResolutionsStatus = {
+  ignoredResolutions: boolean
+  usedResolutions: boolean
+}
+
 export type OptionsFromRootManifest = {
   scriptShell?: string
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
@@ -42,6 +47,10 @@ export type OptionsFromRootManifest = {
   registryOptionsByUrl?: Record<string, RegistryOptions>
   auditIgnorePrune?: boolean
 } & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'tasks' | 'updateConfig'>
+
+export type OptionsFromPnpmSettings = OptionsFromRootManifest & {
+  resolutionsStatus?: ResolutionsStatus
+}
 
 interface GetOptionsFromPnpmSettingsOptions {
   /**
@@ -71,7 +80,7 @@ export function getOptionsFromPnpmSettings (
   manifestDir: string | undefined,
   pnpmSettings: PnpmSettings,
   manifestOrOpts?: ProjectManifest | GetOptionsFromPnpmSettingsOptions
-): OptionsFromRootManifest {
+): OptionsFromPnpmSettings {
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
@@ -81,14 +90,21 @@ export function getOptionsFromPnpmSettings (
   if (pnpmSettings.sideEffectsCache != null && typeof pnpmSettings.sideEffectsCache !== 'boolean') {
     assertValidSideEffectsCache(pnpmSettings.sideEffectsCache, opts.trustedSource ?? false)
   }
-  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
+  const settings: OptionsFromPnpmSettings = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
   if (manifestDir != null && settings.scriptShell != null) {
     settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
   }
-  if (settings.overrides) {
-    assertValidOverrides(settings.overrides)
+  if (settings.overrides != null) assertValidOverrides(settings.overrides)
+  const resolutions = opts.manifest?.resolutions
+  if (resolutions != null) assertValidOverrides(resolutions, 'resolutions')
+  const hasOverrides = settings.overrides != null && Object.keys(settings.overrides).length > 0
+  const hasResolutions = resolutions != null && Object.keys(resolutions).length > 0
+  if (hasResolutions && !hasOverrides) {
+    settings.overrides = { ...resolutions }
+  }
+  if (settings.overrides != null) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else {
@@ -96,6 +112,12 @@ export function getOptionsFromPnpmSettings (
       if (opts.manifest) {
         settings.overrides = mapValues(createVersionReferencesReplacer(opts.manifest), settings.overrides)
       }
+    }
+  }
+  if (hasResolutions) {
+    settings.resolutionsStatus = {
+      ignoredResolutions: hasOverrides,
+      usedResolutions: !hasOverrides,
     }
   }
   if (settings.packageExtensions != null) {
@@ -580,15 +602,21 @@ function isGetOptionsFromPnpmSettingsOptions (
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
-function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
+function assertValidOverrides (overrides: unknown, fieldName: 'overrides' | 'resolutions' = 'overrides'): asserts overrides is Record<string, string> {
+  const errorCode = fieldName === 'resolutions' ? 'INVALID_RESOLUTIONS' : 'INVALID_OVERRIDES'
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${renderReceivedType(overrides)}`)
+    throw new PnpmError(errorCode, `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError(errorCode, `The value of ${fieldName}.${sanitizeForLog(selector)} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
+}
+
+export function sanitizeForLog (value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, '?')
 }
 
 const PACKAGE_EXTENSION_DEPENDENCY_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
@@ -824,10 +852,13 @@ function hasEnvPlaceholder (value: string): boolean {
 }
 
 function warnAboutDeprecatedVersionReferences (overrides: Record<string, string>): void {
-  const selectors = Object.keys(overrides).filter((selector) => overrides[selector][0] === '$')
+  const selectors = Object.keys(overrides).filter((selector) => {
+    const spec = overrides[selector]
+    return spec[0] === '$' && spec[1] !== '{'
+  })
   if (selectors.length === 0) return
   globalWarn(
-    `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.join(', ')}). ` +
+    `The "$" version reference syntax in overrides is deprecated (used by: ${selectors.map(sanitizeForLog).join(', ')}). ` +
     'Define the version in a catalog and reference it with the "catalog:" protocol instead. ' +
     'See https://pnpm.io/catalogs'
   )
@@ -843,12 +874,12 @@ function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: str
 }
 
 function replaceVersionReferences (dep: Record<string, string>, spec: string): string {
-  if (!(spec[0] === '$')) return spec
+  if (spec[0] !== '$' || spec[1] === '{') return spec
   const dependencyName = spec.slice(1)
   const newSpec = dep[dependencyName]
   if (newSpec) return newSpec
   throw new PnpmError(
     'CANNOT_RESOLVE_OVERRIDE_VERSION',
-    `Cannot resolve version ${spec} in overrides. The direct dependencies don't have dependency "${dependencyName}".`
+    `Cannot resolve version ${sanitizeForLog(spec)} in overrides. The direct dependencies don't have dependency "${sanitizeForLog(dependencyName)}".`
   )
 }

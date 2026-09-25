@@ -1,3 +1,5 @@
+pub mod resolutions;
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
@@ -76,6 +78,20 @@ pub enum InitStateError {
 
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
+
+    #[display("The value of resolutions.{selector} should be a string, but got {actual_type}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_RESOLUTIONS))]
+    InvalidResolutionValue { selector: String, actual_type: String },
+
+    #[display("The resolutions field should be an object, but got {actual_type}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_RESOLUTIONS))]
+    InvalidResolutionsType { actual_type: String },
+
+    #[display(
+        r#"Cannot resolve version {spec} in overrides. The direct dependencies don't have dependency "{dep_name}"."#
+    )]
+    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
+    CannotResolveOverrideVersion { spec: String, dep_name: String },
 }
 
 impl State {

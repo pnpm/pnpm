@@ -43,7 +43,7 @@ import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } fro
 import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
-import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings, sanitizeForLog } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
@@ -378,6 +378,7 @@ export async function getConfig (opts: {
       projectManifest: undefined,
       skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
       trustedSource: true,
+      warnings,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -588,12 +589,24 @@ export async function getConfig (opts: {
           skipSettings: opts.forSelfUpdate
             ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
             : PROJECT_MANIFEST_SKIPPED_KEYS,
+          warnings,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
         if (workspaceManifest.registries != null) {
           workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
+      } else {
+        addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+          configFromCliOpts,
+          projectManifest: pnpmConfig.rootProjectManifest,
+          skipSettings: opts.forSelfUpdate
+            ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
+            : PROJECT_MANIFEST_SKIPPED_KEYS,
+          warnings,
+          workspaceDir: pnpmConfig.workspaceDir,
+          workspaceManifest: undefined,
+        })
       }
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
@@ -602,6 +615,7 @@ export async function getConfig (opts: {
         addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
           configFromCliOpts,
           projectManifest: pnpmConfig.rootProjectManifest,
+          warnings,
           workspaceDir: pnpmConfig.globalPkgDir,
           workspaceManifest,
         })
@@ -609,6 +623,14 @@ export async function getConfig (opts: {
           workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
+    } else {
+      addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+        configFromCliOpts,
+        projectManifest: pnpmConfig.rootProjectManifest,
+        warnings,
+        workspaceDir: undefined,
+        workspaceManifest: undefined,
+      })
     }
   }
 
@@ -1691,6 +1713,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   expandRequestDestinationEnv,
   projectManifest,
   skipSettings,
+  warnings,
   workspaceManifest,
   workspaceDir,
 }: {
@@ -1701,11 +1724,35 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   skipSettings?: ReadonlySet<SkippableKey>
   /** See {@link getOptionsFromPnpmSettings}. Only the global config yaml is trusted. */
   trustedSource?: boolean
+  warnings?: string[]
   workspaceDir: string | undefined
-  workspaceManifest: WorkspaceManifest
+  workspaceManifest: WorkspaceManifest | undefined
 }): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest ?? {}, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  if (warnings != null && settingsFromManifest.resolutionsStatus != null) {
+    if (settingsFromManifest.resolutionsStatus.ignoredResolutions) {
+      warnings.push('The "resolutions" field in package.json is ignored because "overrides" in pnpm-workspace.yaml takes precedence. Remove "resolutions" from package.json.')
+    } else if (settingsFromManifest.resolutionsStatus.usedResolutions) {
+      const originalResolutions = projectManifest?.resolutions ?? {}
+      const entries = Object.entries(settingsFromManifest.overrides ?? {}).map(([selector, resolved]) => {
+        const original = originalResolutions[selector]
+        if (original != null && original !== resolved) {
+          return `  ${sanitizeForLog(selector)}: ${sanitizeForLog(original)} -> ${sanitizeForLog(resolved)}`
+        }
+        return `  ${sanitizeForLog(selector)}: ${sanitizeForLog(resolved)}`
+      })
+      const MAX_DISPLAYED_ENTRIES = 10
+      const displayed = entries.slice(0, MAX_DISPLAYED_ENTRIES)
+      if (entries.length > MAX_DISPLAYED_ENTRIES) {
+        displayed.push(`  ...and ${entries.length - MAX_DISPLAYED_ENTRIES} more`)
+      }
+      warnings.push(
+        `The "resolutions" field in package.json is deprecated. We attempted to migrate your resolutions to pnpm overrides. Please verify:\n${displayed.join('\n')}\nUse the "overrides" field in pnpm-workspace.yaml instead.`
+      )
+    }
+    delete settingsFromManifest.resolutionsStatus
+  }
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
@@ -1753,7 +1800,7 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   if (process.env.pnpm_config_verify_deps_before_run != null) {
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
-  pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest ?? {})
 }
 
 /**
