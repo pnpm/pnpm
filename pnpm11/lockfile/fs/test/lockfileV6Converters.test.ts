@@ -298,4 +298,13 @@ patchedDependencies:
 
   expect(Object.getPrototypeOf(lockfile.patchedDependencies)).toBe(Object.prototype)
   expect(Object.getOwnPropertyDescriptor(lockfile.patchedDependencies, '__proto__')?.value).toBe('abc')
+
+  const lockfileFileAgain = convertToLockfileFile(lockfile)
+  expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  expect(Object.keys(lockfileFileAgain.importers!)).toStrictEqual(['__proto__'])
+  expect(Object.keys(lockfileFileAgain.packages!)).toStrictEqual(['foo@1.0.0', '__proto__'])
+  expect(Object.keys(lockfileFileAgain.snapshots!)).toStrictEqual(['foo@1.0.0', '__proto__'])
+  expect(Object.getOwnPropertyDescriptor(lockfileFileAgain.snapshots, '__proto__')?.value).toEqual({
+    dependencies: { foo: '1.0.0' },
+  })
 })

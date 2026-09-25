@@ -14,22 +14,22 @@ import type {
 } from '@pnpm/lockfile.types'
 import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
-import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
+import { isEmpty, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
-    snapshots[depPath] = pick([
+    setOwnProperty(snapshots, depPath, pick([
       'dependencies',
       'optionalDependencies',
       'transitivePeerDependencies',
       'optional',
       'id',
-    ], pkg)
+    ], pkg))
     const pkgId = removeSuffix(depPath)
-    if (!packages[pkgId]) {
-      packages[pkgId] = pick([
+    if (!Object.hasOwn(packages, pkgId)) {
+      setOwnProperty(packages, pkgId, pick([
         'bundledDependencies',
         'cpu',
         'deprecated',
@@ -42,7 +42,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
         'peerDependenciesMeta',
         'resolution',
         'version',
-      ], pkg)
+      ], pkg))
     }
   }
   const newLockfile = {
@@ -64,7 +64,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
 function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   const lockfileToSave = {
     ...lockfile,
-    importers: _mapValues((importer) => {
+    importers: mapValues(lockfile.importers ?? {}, (importer) => {
       const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
       if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
         normalizedImporter.dependenciesMeta = importer.dependenciesMeta
@@ -81,7 +81,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
         normalizedImporter.linkDirectory = false
       }
       return normalizedImporter as LockfileFileProjectSnapshot
-    }, lockfile.importers ?? {}),
+    }),
   }
   if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
     delete lockfileToSave.packages
