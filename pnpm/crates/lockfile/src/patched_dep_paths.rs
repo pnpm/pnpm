@@ -228,13 +228,11 @@ impl<'a> Checker<'a> {
                 Some((hash, _)) => Some(hash),
                 None => return Verdict::Indeterminate,
             },
-            // pnpm writes the patch hash ahead of the peers, so a marker anywhere
-            // else is not a segment the hash can be read from.
-            None if key.suffix.peer().contains(PATCH_HASH_PREFIX) => {
-                return Verdict::Indeterminate;
-            }
             None => None,
         };
+        if has_unreadable_patch_hash(key.suffix.peer()) {
+            return Verdict::Indeterminate;
+        }
         let name = key.name.to_string();
         if self.unusable.contains(&name) {
             return Verdict::Indeterminate;
@@ -261,6 +259,39 @@ impl<'a> Checker<'a> {
             Verdict::Stale
         }
     }
+}
+
+/// Whether a depPath suffix carries a `(patch_hash=` marker that is not its
+/// leading segment: one in a top-level segment after the first, or one in a
+/// suffix whose parentheses do not balance. pnpm writes the hash ahead of the
+/// peers, and a marker nested inside a peer segment belongs to that peer's own
+/// depPath.
+fn has_unreadable_patch_hash(suffix: &str) -> bool {
+    let (segment_starts, depth) = top_level_segments(suffix);
+    segment_starts
+        .iter()
+        .skip(1)
+        .any(|&start| suffix[start..].starts_with(PATCH_HASH_PREFIX))
+        || (depth != 0 && suffix.contains(PATCH_HASH_PREFIX))
+}
+
+/// Where each top-level parenthesized segment of `suffix` starts, and the
+/// parenthesis depth left open at its end.
+fn top_level_segments(suffix: &str) -> (Vec<usize>, i32) {
+    let mut depth = 0;
+    let mut starts = Vec::new();
+    for (index, byte) in suffix.bytes().enumerate() {
+        match byte {
+            b'(' if depth == 0 => {
+                starts.push(index);
+                depth += 1;
+            }
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+    }
+    (starts, depth)
 }
 
 /// Whether which patch applies for `group`, if any, can depend on the

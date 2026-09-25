@@ -94,9 +94,7 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
 
 function judge (depPath: DepPath, ctx: JudgeContext): Verdict {
   const parsed = parse(depPath)
-  // `parse` only recognizes a well-formed suffix, so a marker it did not pick up leaves no hash
-  // to compare.
-  if (parsed.patchHash == null && depPath.includes(PATCH_HASH_PREFIX)) return 'indeterminate'
+  if (hasUnreadablePatchHash(depPath)) return 'indeterminate'
   const { name } = parsed
   if (name == null || ctx.unusableNames.has(name)) return 'indeterminate'
   // The entry can be absent: rewriting only some of a package's `(patch_hash=...)` occurrences
@@ -115,6 +113,29 @@ function judge (depPath: DepPath, ctx: JudgeContext): Verdict {
     if (!isUnusablePatchConfig(err)) throw err
     return 'indeterminate'
   }
+}
+
+/**
+ * Whether the dependency path carries a `(patch_hash=` marker that `parse` does not read as its
+ * patch hash: one in a top-level segment after the first, or one in a suffix whose parentheses do
+ * not balance. pnpm writes the hash ahead of the peers, and a marker nested inside a peer segment
+ * belongs to that peer's own dependency path.
+ */
+function hasUnreadablePatchHash (depPath: string): boolean {
+  let depth = 0
+  let topLevelSegments = 0
+  for (let i = 0; i < depPath.length; i++) {
+    if (depPath[i] === '(') {
+      if (depth === 0) {
+        if (topLevelSegments > 0 && depPath.startsWith(PATCH_HASH_PREFIX, i)) return true
+        topLevelSegments++
+      }
+      depth++
+    } else if (depPath[i] === ')') {
+      depth--
+    }
+  }
+  return depth !== 0 && depPath.includes(PATCH_HASH_PREFIX)
 }
 
 /** Whether which patch applies for `group`, if any, can depend on the package's version. */

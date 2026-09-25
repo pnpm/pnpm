@@ -655,3 +655,33 @@ snapshots:
         PatchedDepPathsStatus::Indeterminate,
     );
 }
+
+/// A peer's segment is that peer's own depPath, so a patched peer carries its
+/// hash inside the peer segment of every package that sees it.
+#[test]
+fn a_patched_peer_nested_in_a_peer_segment_is_up_to_date() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  react@18.0.0: {CURRENT}
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: 1.0.0
+        version: 1.0.0(react@18.0.0(patch_hash={CURRENT}))
+      react:
+        specifier: 18.0.0
+        version: 18.0.0(patch_hash={CURRENT})
+snapshots:
+  foo@1.0.0(react@18.0.0(patch_hash={CURRENT})):
+    dependencies:
+      react: 18.0.0(patch_hash={CURRENT})
+  react@18.0.0(patch_hash={CURRENT}): {{}}
+"
+        )),
+        PatchedDepPathsStatus::UpToDate,
+    );
+}

@@ -411,6 +411,30 @@ test('checkPatchedDepPaths() cannot judge a patch-hash marker placed after the p
   }))).toBe('indeterminate')
 })
 
+// A peer's segment is that peer's own dependency path, so a patched peer carries its hash inside
+// the peer segment of every package that sees it.
+test('checkPatchedDepPaths() accepts a patched peer nested in a peer segment', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'react@18.0.0': CURRENT },
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { foo: '1.0.0', react: '18.0.0' },
+        dependencies: {
+          foo: `1.0.0(react@18.0.0(patch_hash=${CURRENT}))`,
+          react: `18.0.0(patch_hash=${CURRENT})`,
+        },
+      },
+    },
+    packages: {
+      [`foo@1.0.0(react@18.0.0(patch_hash=${CURRENT}))` as DepPath]: {
+        resolution: { integrity: 'sha512-fake' },
+        dependencies: { react: `18.0.0(patch_hash=${CURRENT})` },
+      },
+      [`react@18.0.0(patch_hash=${CURRENT})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('up-to-date')
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',
