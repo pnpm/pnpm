@@ -39,7 +39,7 @@ function writeOrCheck (
   integrity: Integrity
 ): number {
   // Fast path: check if the file already exists on disk with correct content.
-  const existingFile = fs.statSync(fileDest, { throwIfNoEntry: false })
+  const existingFile = withFileLockRetry(() => fs.statSync(fileDest, { throwIfNoEntry: false }))
   if (existingFile) {
     if (verifyFileIntegrity(fileDest, integrity)) {
       return Date.now()
@@ -121,7 +121,7 @@ function overwriteFileInPlace (
   buffer: Buffer,
   integrity: Integrity
 ): boolean {
-  const stats = fs.lstatSync(fileDest, { throwIfNoEntry: false })
+  const stats = withFileLockRetry(() => fs.lstatSync(fileDest, { throwIfNoEntry: false }))
   if (!stats?.isFile()) return false
   const opened = openForOverwrite(fileDest, stats.mode)
   if (opened == null) return false
