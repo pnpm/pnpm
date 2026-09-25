@@ -399,13 +399,13 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
   let prog = opts.prog
   let args = opts.args || ''
   const nodePath = cmdEscape(normalizePathEnvVar(opts.nodePath).win32)
-  const prependToPath = normalizePathEnvVar(opts.prependToPath).win32
+  const prependToPath = cmdEscape(normalizePathEnvVar(opts.prependToPath).win32)
   if (!prog) {
     prog = quotedPathToTarget
     args = ''
     target = ''
   } else if (prog === 'node' && opts.nodeExecPath) {
-    prog = `"${opts.nodeExecPath}"`
+    prog = `"${cmdEscape(opts.nodeExecPath)}"`
     target = quotedPathToTarget
   } else {
     longProg = `"%~dp0\\${prog}.exe"`
