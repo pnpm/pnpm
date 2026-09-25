@@ -119,8 +119,8 @@ fn run_cli() -> miette::Result<()> {
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
-    let (command, argv) = prepare_cli_argv(argv);
-    let mut args = match parse_cli_args(command, argv.clone()) {
+    let (command, prepared_argv) = prepare_cli_argv(argv.clone());
+    let mut args = match parse_cli_args(command, &argv, prepared_argv) {
         Ok(args) => args,
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
             return print_version(&argv, &child_argv, &config_overrides);
@@ -143,9 +143,17 @@ fn run_cli() -> miette::Result<()> {
 }
 
 /// Parse argv, recording whether `--dir` or `-r` came from the command line.
-fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
+fn parse_cli_args(
+    command: clap::Command,
+    raw_argv: &[OsString],
+    argv: Vec<OsString>,
+) -> Result<CliArgs, clap::Error> {
     command
         .try_get_matches_from(argv)
+        .map_err(|mut error| {
+            install_as_add::suggest_no_frozen_lockfile(raw_argv, &mut error);
+            error
+        })
         .and_then(|matches| {
             let dir_from_command_line =
                 matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
