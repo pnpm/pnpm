@@ -441,3 +441,34 @@ fn prefer_workspace_resolves_from_the_workspace_manifest_first() {
         .expect("the default lookup prefers the installed copy");
     assert_eq!(res, "^1.0.0");
 }
+
+/// A relative spec names its target by path, so the manifest at that path
+/// stays authoritative under `prefer_workspace`: the name-keyed lookup must
+/// not hijack it when another workspace package owns the dependency name.
+#[test]
+fn prefer_workspace_does_not_override_relative_path_specs() {
+    let fixture = TempDir::new().unwrap();
+    let project = fixture.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    write_dep(&fixture.path().join("bar"), "bar", "2.0.0");
+    let mut ws_pkgs = std::collections::HashMap::new();
+    ws_pkgs.insert(
+        "foo".to_string(),
+        WorkspacePackageManifest { name: "foo".to_string(), version: "9.9.9".to_string() },
+    );
+    let lookup = super::WorkspacePackageLookup { packages: Some(&ws_pkgs), prefer_workspace: true };
+
+    let res = replace_workspace_protocol("foo", "workspace:../bar", &project, None, lookup)
+        .expect("the relative spec reads the manifest at its target path");
+    assert_eq!(res, "npm:bar@2.0.0");
+
+    let res = replace_workspace_protocol_peer_dependency(
+        "foo",
+        "workspace:../bar",
+        &project,
+        None,
+        lookup,
+    )
+    .expect("the relative peer spec reads the manifest at its target path");
+    assert_eq!(res, "npm:bar@2.0.0");
+}
