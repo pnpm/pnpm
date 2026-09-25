@@ -50,10 +50,6 @@ pub fn name_version_from_package_key(
 
 const PATCH_HASH_PREFIX: &str = "(patch_hash=";
 
-/// How deep peer depPaths nested in a suffix are followed before the depPath
-/// is judged indeterminate.
-const MAX_PEER_NESTING: usize = 32;
-
 /// What [`check_patched_dep_paths`] could establish about a lockfile's
 /// `(patch_hash=...)` segments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,26 +245,23 @@ impl<'a> Checker<'a> {
     /// `name@version` or an unpatched depPath, and has nothing to judge.
     ///
     /// A depPath holding a marker is [`Verdict::Indeterminate`] when the
-    /// marker is outside the leading segment, when its suffix's parentheses do
-    /// not balance or a peer segment does not parse, and when peers nest deeper
-    /// than [`MAX_PEER_NESTING`] levels. Peers are walked level by level, so the
-    /// depth a lockfile chooses never reaches the call stack.
+    /// marker is outside the leading segment, when its suffix is not a run of
+    /// balanced, back-to-back parenthesized segments, or when a peer segment
+    /// does not parse. Peers are walked level by level, so the depth a lockfile
+    /// chooses never reaches the call stack.
     fn judge_with_peers(&self, key: &PackageKey) -> Verdict {
         let mut verdict = Verdict::Ok;
         let mut level = vec![key.clone()];
-        for _ in 0..=MAX_PEER_NESTING {
+        while !level.is_empty() && !matches!(verdict, Verdict::Stale) {
             let mut next_level = Vec::new();
             for path in &level {
                 let (own, peers) = self.judge_own_hash(path);
                 verdict = verdict.worse(own);
                 next_level.extend(peers);
             }
-            if matches!(verdict, Verdict::Stale) || next_level.is_empty() {
-                return verdict;
-            }
             level = next_level;
         }
-        verdict.worse(Verdict::Indeterminate)
+        verdict
     }
 
     /// The verdict on the depPath's own hash, and the peer depPaths in its

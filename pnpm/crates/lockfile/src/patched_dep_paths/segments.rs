@@ -2,7 +2,9 @@ use super::PATCH_HASH_PREFIX;
 use crate::PackageKey;
 
 /// The top-level parenthesized segments of a depPath suffix, or `None` when
-/// its parentheses do not balance.
+/// the suffix is not a run of balanced, back-to-back segments. pnpm's `parse`
+/// only reads a suffix of that shape, so text between or after segments would
+/// be read differently by the two stacks.
 pub(super) fn top_level_segments(suffix: &str) -> Option<Vec<&str>> {
     let mut depth: i32 = 0;
     let mut start = 0;
@@ -14,11 +16,9 @@ pub(super) fn top_level_segments(suffix: &str) -> Option<Vec<&str>> {
                 depth = 1;
             }
             b'(' => depth += 1,
+            _ if depth == 0 => return None,
             b')' => {
                 depth -= 1;
-                if depth < 0 {
-                    return None;
-                }
                 if depth == 0 {
                     segments.push(&suffix[start..=index]);
                 }

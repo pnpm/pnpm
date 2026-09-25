@@ -726,13 +726,10 @@ fn nested_peers(depth: usize, innermost: &str) -> String {
     (0..depth).fold(innermost.to_string(), |inner, level| format!("p{level}@1.0.0({inner})"))
 }
 
-/// The walk is bounded, so a lockfile cannot choose how deep it goes.
-#[test]
-fn peers_nested_past_the_limit_cannot_be_judged() {
-    let key = nested_peers(64, &format!("react@18.0.0(patch_hash={CURRENT})"));
-    assert_eq!(
-        status(&format!(
-            r"
+fn deeply_nested_lockfile(hash: &str) -> String {
+    let key = nested_peers(64, &format!("react@18.0.0(patch_hash={hash})"));
+    format!(
+        r"
 lockfileVersion: '9.0'
 patchedDependencies:
   react@18.0.0: {CURRENT}
@@ -740,6 +737,30 @@ importers:
   .: {{}}
 snapshots:
   {key}: {{}}
+"
+    )
+}
+
+/// Nesting depth alone is not a defect: a peer many levels down is judged
+/// like any other.
+#[test]
+fn a_patched_peer_nested_many_levels_deep_is_judged() {
+    assert_eq!(status(&deeply_nested_lockfile(CURRENT)), PatchedDepPathsStatus::UpToDate);
+    assert_eq!(status(&deeply_nested_lockfile(STALE)), PatchedDepPathsStatus::Stale);
+}
+
+/// Text between segments would hide a marker from pnpm's `parse`, so the
+/// suffix has to be segments back to back.
+#[test]
+fn text_between_suffix_segments_cannot_be_judged() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0(patch_hash={STALE})junk(peer@1.0.0): {{}}
 "
         )),
         PatchedDepPathsStatus::Indeterminate,

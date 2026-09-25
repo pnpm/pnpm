@@ -456,16 +456,28 @@ test('checkPatchedDepPaths() cannot judge a marker behind an unmatched parenthes
   }
 })
 
-// The walk is bounded, so a lockfile cannot choose how deep it goes.
-test('checkPatchedDepPaths() cannot judge peers nested past the limit', () => {
-  let depPath = `react@18.0.0(patch_hash=${CURRENT})`
-  for (let level = 0; level < 64; level++) {
-    depPath = `p${level}@1.0.0(${depPath})`
+// Nesting depth alone is not a defect: a peer many levels down is judged like any other.
+test('checkPatchedDepPaths() judges a patched peer nested many levels deep', () => {
+  for (const [hash, expected] of [[CURRENT, 'up-to-date'], [STALE, 'stale']] as const) {
+    let depPath = `react@18.0.0(patch_hash=${hash})`
+    for (let level = 0; level < 64; level++) {
+      depPath = `p${level}@1.0.0(${depPath})`
+    }
+    expect(checkPatchedDepPaths(lockfile({
+      patchedDependencies: { 'react@18.0.0': CURRENT },
+      packages: {
+        [depPath as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+      },
+    }))).toBe(expected)
   }
+})
+
+// Text between segments would hide a marker from `parse`, so the suffix has to be segments back
+// to back.
+test('checkPatchedDepPaths() cannot judge text between suffix segments', () => {
   expect(checkPatchedDepPaths(lockfile({
-    patchedDependencies: { 'react@18.0.0': CURRENT },
     packages: {
-      [depPath as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+      [`foo@1.0.0(patch_hash=${STALE})junk(peer@1.0.0)` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
     },
   }))).toBe('indeterminate')
 })

@@ -15,7 +15,6 @@ export type PatchedDepPathsStatus =
   | 'indeterminate'
 
 const PATCH_HASH_PREFIX = '(patch_hash='
-const MAX_PEER_NESTING = 32
 
 /**
  * A patched dependency's hash is recorded in a lockfile multiple times.
@@ -99,20 +98,15 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
  * `name@version` or an unpatched path, and has nothing to judge.
  *
  * A path holding a marker is `'indeterminate'` when the marker is outside the leading segment,
- * when its suffix's parentheses do not balance or do not end the path, and when peers nest deeper
- * than {@link MAX_PEER_NESTING} levels. Peers are walked level by level, so the depth a lockfile
- * chooses never reaches the call stack.
+ * or when its suffix is not a run of balanced, back-to-back parenthesized segments. Peers are
+ * walked level by level, so the depth a lockfile chooses never reaches the call stack.
  */
 function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
   const cached = ctx.verdicts.get(depPath)
   if (cached != null) return cached
   let verdict: Verdict = 'ok'
   let level = [depPath]
-  for (let depth = 0; level.length > 0 && verdict !== 'stale'; depth++) {
-    if (depth > MAX_PEER_NESTING) {
-      verdict = 'indeterminate'
-      break
-    }
+  while (level.length > 0 && verdict !== 'stale') {
     const nextLevel: DepPath[] = []
     for (const path of level) {
       const judged = judgeOwnHash(path, ctx)
@@ -129,11 +123,7 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
 function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
   if (!depPath.includes(PATCH_HASH_PREFIX)) return { verdict: judge(depPath, ctx), peers: [] }
   const segments = topLevelSegments(depPath)
-  if (
-    segments == null ||
-    !depPath.endsWith(')') ||
-    segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
-  ) {
+  if (segments == null || segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))) {
     return { verdict: 'indeterminate', peers: [] }
   }
   return {
@@ -150,8 +140,9 @@ function worseVerdict (a: Verdict, b: Verdict): Verdict {
 }
 
 /**
- * The top-level parenthesized segments of a dependency path's suffix, or `undefined` when its
- * parentheses do not balance.
+ * The top-level parenthesized segments of a dependency path's suffix, or `undefined` when the
+ * suffix is not a run of balanced, back-to-back segments. `parse` only reads a suffix of that
+ * shape, so text between or after segments could hide a marker from it.
  */
 function topLevelSegments (depPath: string): string[] | undefined {
   const segments: string[] = []
@@ -161,6 +152,8 @@ function topLevelSegments (depPath: string): string[] | undefined {
     if (depPath[i] === '(') {
       if (depth === 0) start = i
       depth++
+    } else if (depth === 0 && segments.length > 0) {
+      return undefined
     } else if (depPath[i] === ')') {
       depth--
       if (depth < 0) return undefined
