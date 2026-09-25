@@ -545,6 +545,7 @@ fn install_level_patch_that_drops_gypfile_false_and_its_binding_gyp_needs_no_app
         !output.contains("ERR_PNPM_IGNORED_BUILDS"),
         "a deleted binding.gyp must not hold the install for approval; got:\n{output}",
     );
+}
 
 /// TS: `stale patch_hash depPaths are repaired when the patchedDependencies
 /// header is already up to date` (`deps-installer/test/install/patch.ts`).
