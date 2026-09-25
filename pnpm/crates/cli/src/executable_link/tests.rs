@@ -1,11 +1,8 @@
 use super::replace_executable;
-use std::fs;
+use std::{fs, os::unix::fs::PermissionsExt as _};
 
-#[cfg(unix)]
 #[test]
 fn publishes_the_target_of_a_relative_symlink() {
-    use std::os::unix::fs::PermissionsExt as _;
-
     let root = tempfile::tempdir().unwrap();
     let engine = root.path().join("Cellar/pnpm/bin/pnpm");
     fs::create_dir_all(engine.parent().unwrap()).unwrap();

@@ -83,5 +83,5 @@ fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
     fs::rename(staged, dest)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests;
