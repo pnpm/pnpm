@@ -112,7 +112,7 @@ fn engine_strict_keeps_the_global_virtual_store_slot_of_a_skipped_optional_patch
         .collect();
     assert_eq!(slots.len(), 1, "expected one slot under {}", version_dir.display());
     let manifest = slots[0].join("node_modules/@pnpm.e2e/for-legacy-node/package.json");
-    assert!(manifest.exists(), "the shared slot must keep its package at {}", manifest.display(),);
+    assert!(manifest.exists(), "the shared slot must keep its package at {}", manifest.display());
 
     drop((root, mock_instance));
 }

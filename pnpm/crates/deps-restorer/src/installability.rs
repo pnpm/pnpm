@@ -13,6 +13,7 @@
 //! host, since the host arch may have changed since the previous
 //! install wrote `.modules.yaml`.
 
+pub(crate) use patched::snapshot_is_patched;
 pub use platform::{
     InstallabilityHost, any_installability_constraint, any_optional_installability_constraint,
     check_installability, manifest_with_inferred_platform, platform_manifest_from_resolve_result,
@@ -23,7 +24,6 @@ use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
 mod patched;
 mod platform;
-pub(crate) use patched::snapshot_is_patched;
 use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
