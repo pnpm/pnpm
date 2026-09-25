@@ -106,10 +106,13 @@ fn engine_strict_keeps_the_global_virtual_store_slot_of_a_skipped_optional_patch
 
     assert_not_linked(&workspace.join("node_modules/legacy-node"));
     let version_dir = store_dir.join(STORE_VERSION).join("links/@pnpm.e2e/for-legacy-node/1.0.0");
-    let slots = fs::read_dir(&version_dir)
+    let slots: Vec<_> = fs::read_dir(&version_dir)
         .unwrap_or_else(|err| panic!("read {}: {err}", version_dir.display()))
-        .count();
-    assert_eq!(slots, 1, "the shared slot must stay in the global virtual store");
+        .map(|entry| entry.expect("read slot entry").path())
+        .collect();
+    assert_eq!(slots.len(), 1, "expected one slot under {}", version_dir.display());
+    let manifest = slots[0].join("node_modules/@pnpm.e2e/for-legacy-node/package.json");
+    assert!(manifest.exists(), "the shared slot must keep its package at {}", manifest.display(),);
 
     drop((root, mock_instance));
 }
