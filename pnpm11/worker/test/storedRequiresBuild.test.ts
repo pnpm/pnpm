@@ -15,11 +15,15 @@ test('a stored requiresBuild that predates gypfile is rechecked against the pack
   expect(await readLegacyRowRequiresBuild({ name: 'not-opted-out', version: '1.0.0' })).toBe(true)
 })
 
-async function readLegacyRowRequiresBuild (manifest: Record<string, unknown>): Promise<boolean> {
+test('a package.json with a byte-order mark is rechecked like any other', async () => {
+  expect(await readLegacyRowRequiresBuild({ name: 'bom', version: '1.0.0', gypfile: false }, '\uFEFF')).toBe(false)
+})
+
+async function readLegacyRowRequiresBuild (manifest: Record<string, unknown>, prefix = ''): Promise<boolean> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-stored-requires-build-'))
   const dir = path.join(tmp, 'pkg')
   fs.mkdirSync(dir)
-  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifest))
+  fs.writeFileSync(path.join(dir, 'package.json'), prefix + JSON.stringify(manifest))
   fs.writeFileSync(path.join(dir, 'binding.gyp'), '{}')
   const storeDir = path.join(tmp, 'store')
   const storeIndex = new StoreIndex(storeDir)

@@ -185,9 +185,11 @@ Please unset the scriptShell option, or configure it to a .exe instead.
 }
 
 /**
- * Run node-gyp when binding.gyp is available. Only do this when there are no
- * `install` and `preinstall` scripts and the manifest does not opt out with
- * `gypfile: false` (see `npm help scripts` and
+ * Set `scripts.install` to `node-gyp rebuild` when `root` holds a binding.gyp.
+ *
+ * The caller decides whether the synthesized script applies: only when the
+ * manifest declares no `install` or `preinstall` script and does not opt out
+ * with `gypfile: false` (see `npm help scripts` and
  * https://docs.npmjs.com/cli/v12/configuring-npm/package-json#gypfile).
  */
 function checkBindingGyp (
