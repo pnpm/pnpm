@@ -2897,8 +2897,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
-          engineStrict: opts.engineStrict,
+          engineStrict: installabilityUnderForce(opts).engineStrict,
           engineNodeVersion: opts.nodeVersion,
+          skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,

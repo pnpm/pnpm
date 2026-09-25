@@ -809,8 +809,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     // Dependency lifecycle scripts must not run on an unverified lockfile.
     await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
-      engineStrict: opts.engineStrict,
+      engineStrict: installabilityUnderForce(opts).engineStrict,
       engineNodeVersion: currentEngine.nodeVersion,
+      skipped,
       allowBuild,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,

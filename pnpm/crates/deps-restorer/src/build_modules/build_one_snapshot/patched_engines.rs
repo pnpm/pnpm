@@ -3,22 +3,24 @@ use super::{super::BuildModulesError, BuildCandidate, BuildOneSnapshot, PackageK
 /// `engineStrict` against the patched manifest. The earlier installability
 /// pass skipped engines for patched packages because the published manifest
 /// was still the only one on record.
+/// `Some` is the skip details for an optional package. `None` means continue.
 pub(super) fn enforce_patched_engines(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
-) -> Result<(), BuildModulesError> {
+    optional: bool,
+) -> Result<Option<String>, BuildModulesError> {
     if !context.scripts.patched_engines.engine_strict || candidate.patch.is_none() {
-        return Ok(());
+        return Ok(None);
     }
     let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
-        return Ok(());
+        return Ok(None);
     };
     let manifest = read_package_json(&pkg_dir)
         .map_err(|()| BuildModulesError::PatchedManifestUnreadable {
             dep_path: snapshot_key.to_string(),
         })?;
-    check_patched_manifest(context, snapshot_key, candidate, &manifest)
+    check_patched_manifest(context, snapshot_key, candidate, &manifest, optional)
 }
 
 fn read_package_json(pkg_dir: &std::path::Path) -> Result<serde_json::Value, ()> {
@@ -31,7 +33,8 @@ fn check_patched_manifest(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     manifest: &serde_json::Value,
-) -> Result<(), BuildModulesError> {
+    optional: bool,
+) -> Result<Option<String>, BuildModulesError> {
     let installability = pnpm_package_is_installable::PackageInstallabilityManifest {
         name: candidate.name.clone(),
         engines: wanted_engines(manifest),
@@ -41,13 +44,17 @@ fn check_patched_manifest(
         true,
         context.scripts.patched_engines.node_version.map(str::to_string),
     );
-    pnpm_package_is_installable::package_is_installable(
+    match pnpm_package_is_installable::package_is_installable(
         &snapshot_key.to_string(),
         &installability,
-        &installability_options(&host),
-    )
-    .map(|_| ())
-    .map_err(BuildModulesError::PatchedEngines)
+        &installability_options(&host, optional),
+    ) {
+        Ok(pnpm_package_is_installable::InstallabilityVerdict::SkipOptional {
+            details, ..
+        }) => Ok(Some(details)),
+        Ok(_) => Ok(None),
+        Err(source) => Err(BuildModulesError::PatchedEngines(source)),
+    }
 }
 
 fn wanted_engines(
@@ -68,10 +75,11 @@ fn wanted_engines(
 
 fn installability_options(
     host: &crate::installability::InstallabilityHost,
+    optional: bool,
 ) -> pnpm_package_is_installable::InstallabilityOptions<'_> {
     pnpm_package_is_installable::InstallabilityOptions {
         engine_strict: true,
-        optional: false,
+        optional,
         current_node_version: host.node_version.as_str(),
         pnpm_version: None,
         current_os: host.os,

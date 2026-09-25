@@ -53,7 +53,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
-        enforce_patched_engines(context, snapshot_key, &candidate)?;
+        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
         return Ok(());
     }
 
@@ -93,7 +93,10 @@ fn build_candidate<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, candidate)?;
+    let Some(is_patched) = apply_configured_patch::<Reporter>(context, snapshot_key, candidate)?
+    else {
+        return Ok(());
+    };
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
@@ -295,12 +298,37 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
 /// Every copy is patched, not just the primary slot. Under the hoisted linker
 /// a version conflict nests further copies under their consumers; leaving
 /// those unpatched would silently run the very code the patch replaces.
-fn apply_configured_patch(
+fn skip_incompatible_optional<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
 ) -> Result<bool, BuildModulesError> {
-    let Some(patch) = candidate.patch else { return Ok(false) };
+    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
+        return Ok(false);
+    };
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+        level: LogLevel::Debug,
+        details: Some(details),
+        package: SkippedOptionalPackage::Installed {
+            id: snapshot_key.to_string(),
+            name: candidate.name.clone(),
+            version: candidate.version.clone(),
+        },
+        parents: None,
+        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
+        reason: SkippedOptionalReason::UnsupportedEngine,
+    }));
+    discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
+    Ok(true)
+}
+
+fn apply_configured_patch<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+) -> Result<Option<bool>, BuildModulesError> {
+    let Some(patch) = candidate.patch else { return Ok(Some(false)) };
     let patch_file_path = patch.patch_file_path
         .as_deref()
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
@@ -313,8 +341,10 @@ fn apply_configured_patch(
         }
         apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
-    enforce_patched_engines(context, snapshot_key, candidate)?;
-    Ok(true)
+    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate)? {
+        return Ok(None);
+    }
+    Ok(Some(true))
 }
 
 // A removed GVS slot may have been imported pristine while its cached build row survived.
