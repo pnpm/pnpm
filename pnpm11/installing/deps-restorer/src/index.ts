@@ -1402,31 +1402,35 @@ async function linkAllPkgs (
 
       // The marker is also there while another install builds the slot,
       // which a re-import would overwrite.
-      const slotLock = opts.enableGlobalVirtualStore && await pathExists(path.join(depNode.dir, '.pnpm-needs-build'))
+      const slotMarker = path.join(depNode.dir, '.pnpm-needs-build')
+      const slotLock = opts.enableGlobalVirtualStore && await pathExists(slotMarker)
         ? await lockGlobalVirtualStoreSlot(depNode.modules)
         : undefined
-      let imported: Awaited<ReturnType<StoreController['importPackage']>>
+      let imported: Awaited<ReturnType<StoreController['importPackage']>> | undefined
       try {
-        imported = await storeController.importPackage(depNode.dir, {
-          filesResponse: effectiveFilesResponse,
-          force: depNode.forceImportPackage ?? opts.force,
-          disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-          requiresBuild: depNode.patch != null || depNode.requiresBuild,
-          safeToSkip: opts.enableGlobalVirtualStore,
-          sideEffectsCacheKey,
-        })
+        if (slotLock != null && !await pathExists(slotMarker)) {
+          depNode.isBuilt = true
+        } else {
+          imported = await storeController.importPackage(depNode.dir, {
+            filesResponse: effectiveFilesResponse,
+            force: depNode.forceImportPackage ?? opts.force,
+            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+            requiresBuild: depNode.patch != null || depNode.requiresBuild,
+            safeToSkip: opts.enableGlobalVirtualStore,
+            sideEffectsCacheKey,
+          })
+        }
       } finally {
         await slotLock?.release()
       }
-      const { importMethod, isBuilt } = imported
-      if (importMethod) {
+      if (imported?.importMethod) {
         reportPackageImported({
-          method: importMethod,
+          method: imported.importMethod,
           requester: opts.lockfileDir,
           to: depNode.dir,
         })
       }
-      depNode.isBuilt = isBuilt
+      if (imported != null) depNode.isBuilt = imported.isBuilt
 
       const selfDep = depNode.children[depNode.name]
       if (selfDep) {

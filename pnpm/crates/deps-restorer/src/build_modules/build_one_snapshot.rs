@@ -13,7 +13,7 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    get_pkg_id_with_patch_hash, mark_failed_global_virtual_store_build,
+    get_pkg_id_with_patch_hash, is_failed_build_marker, mark_failed_global_virtual_store_build,
     parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
 };
 
@@ -163,7 +163,7 @@ fn slot_to_build(
         context.directories.layout,
         snapshot_key,
     );
-    if awaiting_build && !marker.is_file() {
+    if awaiting_build && (!marker.is_file() || is_failed_build_marker(&marker)) {
         return None;
     }
     Some((pkg_dir, lock))

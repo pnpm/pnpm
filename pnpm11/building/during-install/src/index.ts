@@ -425,6 +425,17 @@ export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promi
   }
 }
 
+const FAILED_BUILD_MARKER_CONTENT = 'failed'
+
+async function isFailedBuildMarker (markerPath: string): Promise<boolean> {
+  try {
+    const content = await fs.readFile(markerPath, 'utf8')
+    return content.trim() === FAILED_BUILD_MARKER_CONTENT
+  } catch {
+    return false
+  }
+}
+
 /**
  * Serializes builds into one global virtual store slot across processes.
  * Resolves to `undefined` when another install built the slot while this one
@@ -434,7 +445,7 @@ async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNod
   const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
   const awaitingBuild = await pathExists(marker)
   const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
-  if (awaitingBuild && !await pathExists(marker)) {
+  if (awaitingBuild && (!await pathExists(marker) || await isFailedBuildMarker(marker))) {
     await lock?.release()
     return undefined
   }
@@ -443,7 +454,7 @@ async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNod
 
 async function markFailedBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
   try {
-    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), '')
+    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), FAILED_BUILD_MARKER_CONTENT)
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if ('code' in err && err.code === 'ENOENT') return

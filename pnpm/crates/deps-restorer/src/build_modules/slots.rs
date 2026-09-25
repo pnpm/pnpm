@@ -61,6 +61,12 @@ pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &HashMap<String, Pat
             .all(|relative| pkg_dir.join(relative).exists())
 }
 
+pub(crate) const FAILED_BUILD_MARKER: &str = "failed";
+
+pub(crate) fn is_failed_build_marker(marker: &Path) -> bool {
+    std::fs::read_to_string(marker).is_ok_and(|content| content.trim() == FAILED_BUILD_MARKER)
+}
+
 /// Mark a snapshot's global-virtual-store slot as still needing its build
 /// after its patch application or build script failed.
 ///
@@ -77,7 +83,7 @@ pub(crate) fn mark_failed_global_virtual_store_build(pkg_roots: PkgRoots<'_>, ke
         return;
     }
     let marker = virtual_store_dir_for_key(pkg_roots.layout, key).join(NEEDS_BUILD_MARKER);
-    if let Err(error) = std::fs::write(&marker, "")
+    if let Err(error) = std::fs::write(&marker, FAILED_BUILD_MARKER)
         && error.kind() != std::io::ErrorKind::NotFound
     {
         tracing::warn!(
