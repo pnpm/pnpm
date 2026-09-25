@@ -64,10 +64,43 @@ pub struct TaskCache {
     /// Per-project tracked-file hashes, shared by every task of the
     /// project: enumeration and hashing run once, per-task input specs
     /// filter the shared list.
-    project_files: Mutex<HashMap<PathBuf, ProjectInputHashes>>,
+    project_files: Mutex<HashMap<PathBuf, ProjectFiles>>,
 }
 
-/// Submodule inputs have no complete hash list and require cache bypass.
+/// A project's file set, or why it has none.
+enum ProjectFiles {
+    Hashed(Arc<Vec<HashedFile>>),
+    Unavailable(InputsUnavailable),
+}
+
+/// Why a project has no enumerable file set, which leaves its tasks without
+/// a cache key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputsUnavailable {
+    /// Submodule inputs have no complete hash list and require cache
+    /// bypass. Deliberate and silent: a submodule's own contents are not
+    /// the project's to hash.
+    Submodules,
+    /// Git cannot enumerate the project's files: the project is outside a
+    /// work tree, or `git` is not installed. The input contract makes the
+    /// default input set the project's Git-tracked and untracked, unignored
+    /// files, so there is no set to hash and the tasks bypass the cache — the
+    /// same bypass a submodule input gets. Unlike the submodule case, this one
+    /// is reported: a project Git does not cover is usually an accident the
+    /// user can fix.
+    NoGit,
+}
+
+impl ProjectFiles {
+    fn hashes(&self) -> ProjectInputHashes {
+        match self {
+            Self::Hashed(files) => Some(Arc::clone(files)),
+            Self::Unavailable(_) => None,
+        }
+    }
+}
+
+/// The project's tracked-file hashes, or `None` when it has no file set.
 type ProjectInputHashes = Option<Arc<Vec<HashedFile>>>;
 
 /// One entry of a task's last-outputs record: a file the previous run or

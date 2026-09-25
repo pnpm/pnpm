@@ -1,7 +1,7 @@
 use super::{
-    Arc, Command, Glob, IntoDiagnostic, Path, ProjectInputHashes, TaskCache, TaskKeyInputs,
-    TaskNode, TaskSettings, check_input_directories, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, env, fs, io,
+    Arc, Command, Glob, InputsUnavailable, IntoDiagnostic, Path, ProjectFiles, ProjectInputHashes,
+    TaskCache, TaskKeyInputs, TaskNode, TaskSettings, check_input_directories, create_hex_hash,
+    create_hex_hash_bytes, create_hex_hash_from_file, env, fs, io,
 };
 use wax::Program;
 
@@ -253,22 +253,55 @@ impl TaskCache {
             .expect("project-files lock is not poisoned")
             .get(project)
         {
-            return Ok(files.as_ref().map(Arc::clone));
+            return Ok(files.hashes());
         }
-        if has_submodule_inputs(project)? {
-            self.project_files
-                .lock()
-                .expect("project-files lock is not poisoned")
-                .insert(project.to_path_buf(), None);
-            return Ok(None);
-        }
-        let mut files = hash_tracked_inputs(project)?;
-        files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
-        let files = Arc::new(files);
+        let files = project_files(project)?;
+        let hashes = files.hashes();
         self.project_files
             .lock()
             .expect("project-files lock is not poisoned")
-            .insert(project.to_path_buf(), Some(Arc::clone(&files)));
-        Ok(Some(files))
+            .insert(project.to_path_buf(), files);
+        Ok(hashes)
+    }
+
+    /// Why the project has no file set, when it has none.
+    pub fn inputs_unavailable(&self, project: &Path) -> Option<InputsUnavailable> {
+        let cached = self.project_files.lock().expect("project-files lock is not poisoned");
+        match cached.get(project) {
+            Some(ProjectFiles::Unavailable(reason)) => Some(*reason),
+            _ => None,
+        }
+    }
+}
+
+/// A project's file set, or why it has none.
+fn project_files(project: &Path) -> miette::Result<ProjectFiles> {
+    if !git_work_tree(project)? {
+        return Ok(ProjectFiles::Unavailable(InputsUnavailable::NoGit));
+    }
+    if has_submodule_inputs(project)? {
+        return Ok(ProjectFiles::Unavailable(InputsUnavailable::Submodules));
+    }
+    let mut files = hash_tracked_inputs(project)?;
+    files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
+    Ok(ProjectFiles::Hashed(Arc::new(files)))
+}
+
+/// Whether git can enumerate the project's files at all.
+///
+/// The default input set is `git ls-files`, so a project outside a work
+/// tree — or a machine without `git` — has no discoverable inputs. That is
+/// a reason to run the task without a cache key, not to abort the whole
+/// pipeline: the caller reports it and the task runs uncached.
+fn git_work_tree(project: &Path) -> miette::Result<bool> {
+    let project_display = project.display();
+    match Command::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .current_dir(project)
+        .output()
+    {
+        Ok(output) => Ok(output.status.success() && output.stdout.trim_ascii() == b"true"),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(miette::miette!("probing Git work tree in {project_display}: {error}")),
     }
 }

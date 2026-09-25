@@ -449,3 +449,45 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
     run("xxx", false);
     assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "edited text");
 }
+
+#[test]
+fn a_project_outside_a_work_tree_runs_its_tasks_without_the_cache() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(project.path().join("package.json"), serde_json::json!({
+        "name": "probe", "version": "1.0.0", "scripts": {
+            "build": r#"node -e "const fs=require('fs');fs.mkdirSync('out',{recursive:true});fs.writeFileSync('out/result','built');fs.appendFileSync('runs','x')""#
+        }
+    }).to_string()).unwrap();
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    outputs: ['out/**']\n",
+    )
+    .unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(project.path())
+            .env("XDG_CACHE_HOME", storage.path())
+            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        command
+    };
+    command()
+        .arg("install")
+        .assert()
+        .success();
+    // The task's default inputs are `git ls-files`, which a project outside
+    // a work tree cannot answer. The task must still run: it is excluded
+    // from the cache, and the exclusion is reported rather than silent.
+    let run = |args: &[&str], expected_runs: &str| {
+        let result = command().args(args).assert().success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
+        assert!(output.contains("Cannot enumerate the tracked files"), "{output}");
+        assert!(!output.contains("restored from cache"), "{output}");
+        assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), expected_runs);
+    };
+    run(&["pipeline"], "x");
+    run(&["pipeline", "--full"], "xx");
+    run(&["pipeline", "--full"], "xxx");
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
+}

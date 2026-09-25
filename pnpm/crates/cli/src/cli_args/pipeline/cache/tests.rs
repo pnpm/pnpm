@@ -1,4 +1,4 @@
-use super::{RecordedFile, TaskCache, collect_output_files};
+use super::{InputsUnavailable, RecordedFile, TaskCache, collect_output_files};
 #[cfg(unix)]
 use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
@@ -356,4 +356,64 @@ fn hashing_inputs_rejects_valid_parent_symlinks() {
             .is_empty(),
         "unsafe inputs must not be cached",
     );
+}
+
+#[test]
+fn hashing_inputs_reports_a_git_work_tree_as_available() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    assert!(
+        cache
+            .hashed_project_files(&project)
+            .unwrap()
+            .is_some(),
+    );
+    assert_eq!(cache.inputs_unavailable(&project), None);
+}
+
+#[test]
+fn inputs_outside_a_work_tree_are_uncacheable() {
+    let project = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let cache = TaskCache::open(storage.path(), project.path()).unwrap();
+    assert!(
+        cache
+            .hashed_project_files(project.path())
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(cache.inputs_unavailable(project.path()), Some(InputsUnavailable::NoGit));
+    assert!(
+        !cache.project_files
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "the verdict must be memoized, or every task of the project probes git again",
+    );
+}
+
+#[test]
+fn inputs_in_bare_git_repo_are_uncacheable() {
+    let repo_dir = tempfile::tempdir().unwrap();
+    let init = std::process::Command::new("git")
+        .args(["init", "--bare"])
+        .current_dir(repo_dir.path())
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    let bare_check = std::process::Command::new("git")
+        .args(["rev-parse", "--is-bare-repository"])
+        .current_dir(repo_dir.path())
+        .output()
+        .unwrap();
+    assert!(bare_check.status.success() && bare_check.stdout.trim_ascii() == b"true");
+    let storage = tempfile::tempdir().unwrap();
+    let cache = TaskCache::open(storage.path(), repo_dir.path()).unwrap();
+    assert!(
+        cache
+            .hashed_project_files(repo_dir.path())
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(cache.inputs_unavailable(repo_dir.path()), Some(InputsUnavailable::NoGit));
 }

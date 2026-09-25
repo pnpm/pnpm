@@ -10,14 +10,13 @@
 
 pub(crate) use agent::WatchPolling;
 pub use agent::{WatchInvocation, run_watch};
-pub use arguments::{PipelineReportArgs, WatchArgs};
+pub use arguments::{DEFAULT_PIPELINE_NAME, PipelineArgs, PipelineInvocation};
 pub use report::RunUpload;
 pub use selection::{Selection, SelectionMode};
 
 mod arguments;
 
 use super::{
-    install::InstallArgs,
     recursive::{ExecutionStatus, Status, discover_workspace_projects},
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
@@ -25,7 +24,6 @@ use super::{
 use crate::cli_args::recursive::filtered_projects_dependencies;
 
 use cache::{CacheDisposition, TaskCache};
-use clap::Args;
 use derive_more::{Display, Error};
 use execution::{RunTaskOptions, run_pipeline_task, task_environment};
 use indexmap::IndexMap;
@@ -76,53 +74,6 @@ mod report;
 /// The base ref the affected selection falls back to when neither
 /// `--base` nor the `pipelineBase` setting names one.
 const DEFAULT_PIPELINE_BASE: &str = "origin/main";
-
-/// The pipeline `pnpm pipeline` runs when no name is given.
-const DEFAULT_PIPELINE_NAME: &str = "default";
-
-#[derive(Debug, Args)]
-pub struct PipelineArgs {
-    /// The pipeline to run, from the `pipelines` section of
-    /// `pnpm-workspace.yaml`. Defaults to "default".
-    pub name: Option<String>,
-    /// The install `pnpm pipeline` performs first is always a frozen
-    /// install; these flags tune the rest of it. `--dry-run` prints the
-    /// task graph without installing or running anything.
-    #[clap(flatten)]
-    pub install_args: InstallArgs,
-    /// With `--dry-run`, print the tasks and their resolved dependency
-    /// edges as JSON.
-    #[clap(long)]
-    pub json: bool,
-    /// Run every task without reading or writing cached results or Cargo snapshots.
-    #[clap(long = "no-cache")]
-    pub no_cache: bool,
-    /// Run the pipeline over every workspace project instead of the
-    /// affected-since-base selection.
-    #[clap(long)]
-    pub full: bool,
-    /// The git ref the affected selection diffs against (its merge base
-    /// with HEAD). Overrides the `pipelineBase` setting.
-    #[clap(long)]
-    pub base: Option<String>,
-    #[clap(flatten)]
-    pub agent: WatchArgs,
-    #[clap(flatten)]
-    pub reporting: PipelineReportArgs,
-}
-
-/// The pipeline-specific inputs of one invocation, split off
-/// [`PipelineArgs`] once the install half has been consumed.
-pub struct PipelineInvocation {
-    pub name: Option<String>,
-    pub dry_run: bool,
-    pub json: bool,
-    pub no_cache: bool,
-    pub full: bool,
-    pub base: Option<String>,
-    pub report: bool,
-    pub report_to: Option<String>,
-}
 
 /// How the run ended, and what a `--report` submission would carry. The
 /// failure exit is raised by the dispatcher after any reporting, so a
@@ -286,17 +237,7 @@ impl<'a> PipelineRun<'a> {
         }
 
         let cache = TaskCache::open(&self.data_dir(), self.workspace_root)?;
-        // Keys are computed for every task before anything runs, walking the
-        // sequenced order so a task's dependency keys exist when its own is
-        // built. This is also what a distributed tier would need: the whole
-        // plan, priced, without executing. `--no-cache` skips the pricing
-        // altogether: nothing reads a key, and hashing every tracked file of
-        // every project is the bulk of what the flag exists to avoid.
-        let task_keys = if self.invocation.no_cache {
-            HashMap::new()
-        } else {
-            compute_task_keys(&task_graph, &sequenced_tasks, plan.graph, &cache, self.config)?
-        };
+        let task_keys = self.compute_task_keys(&task_graph, &sequenced_tasks, plan, &cache)?;
 
         capture::install_forward(self.emit);
         let runner = TaskRunner {
@@ -315,6 +256,25 @@ impl<'a> PipelineRun<'a> {
 
         let statuses = runner.finish()?;
         self.finish_plan(plan, &statuses, &task_keys)
+    }
+
+    /// Keys are computed for every task before anything runs, walking the
+    /// sequenced order so a task's dependency keys exist when its own is
+    /// built. This is also what a distributed tier would need: the whole
+    /// plan, priced, without executing. `--no-cache` skips the pricing
+    /// altogether: nothing reads a key, and hashing every tracked file of
+    /// every project is the bulk of what the flag exists to avoid.
+    fn compute_task_keys(
+        &self,
+        task_graph: &TaskGraph,
+        sequenced_tasks: &[TaskKey],
+        plan: &PipelinePlan<'_, '_>,
+        cache: &TaskCache,
+    ) -> miette::Result<HashMap<TaskKey, Option<String>>> {
+        if self.invocation.no_cache {
+            return Ok(HashMap::new());
+        }
+        compute_task_keys(task_graph, sequenced_tasks, plan.graph, cache, self.config, self.emit)
     }
 
     fn finish_plan(
