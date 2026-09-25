@@ -1472,7 +1472,7 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
-  exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" "$@"
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" "$@"
 elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir_win/src.sh.args" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
@@ -1750,7 +1750,7 @@ if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" hello "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
-  exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" hello "$@"
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" hello "$@"
 elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir_win/src.sh.args" hello "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then

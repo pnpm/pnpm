@@ -336,8 +336,8 @@ test('linkBins() replaces a shim that resolves its helpers with node_modules on 
   expect(content).not.toContain('# outdated-helper-path')
 })
 
-// A shim written before relative targets climbed from the physical shim
-// directory still carries a matching target marker and hardened header.
+// A shim whose relative target climbs from the lexical shim directory still
+// carries a matching target marker and hardened header.
 test('linkBins() replaces a shim whose relative target climbs from the lexical basedir', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

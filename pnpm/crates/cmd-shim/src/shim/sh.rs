@@ -361,10 +361,22 @@ pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*
 
 /// Whether an already-on-disk POSIX shim anchors its target on the shim's
 /// physical directory exactly when `expected`, the shim this version writes,
-/// does. The target marker cannot tell a shim written before the anchor apart.
+/// does, and climbs to it by the same relative path. The target marker names
+/// the absolute target, so it matches a shim without the anchor, and one whose
+/// relative path was computed from a physical directory that has since moved.
 #[must_use]
 pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool {
     existing.contains(BASEDIR_ABS_PRELUDE) == expected.contains(BASEDIR_ABS_PRELUDE)
+        && anchored_target(existing) == anchored_target(expected)
+}
+
+/// The first path the shim spells from `$basedir_abs`: its target, in a shim
+/// without a relocatable `NODE_PATH`.
+fn anchored_target(shim: &str) -> Option<&str> {
+    const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
+    let start = shim.find(QUOTED_BASEDIR_ABS)? + QUOTED_BASEDIR_ABS.len();
+    let len = shim[start..].find('"')?;
+    Some(&shim[start..start + len])
 }
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can

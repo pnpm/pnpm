@@ -557,9 +557,9 @@ fn choose_bins_matches_exclusions_case_insensitively_only_on_windows() {
     assert_eq!(chosen, expected);
 }
 
-/// A shim written before relative targets were anchored on the shim's physical
-/// directory still carries a matching target marker, so a warm reinstall has
-/// to notice the missing anchor and replace it.
+/// A shim without the physical directory anchor still carries a matching
+/// target marker, so a warm reinstall has to notice the missing anchor and
+/// replace it.
 #[cfg(unix)]
 #[test]
 fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
@@ -639,4 +639,44 @@ fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
     assert!(output.status.success(), "stderr:\n{stderr}");
     let script_path = PathBuf::from(String::from_utf8(output.stdout).unwrap());
     assert_eq!(lexical_normalize(&script_path), target);
+}
+
+/// A shim whose relative target was computed from a different directory than
+/// the physical bin directory still carries the anchor and a matching target
+/// marker, so a warm reinstall has to compare the relative target and replace
+/// it.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
+    use crate::shim::{generate_sh_shim, is_shim_pointing_at};
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let pkg = root.join("pkg");
+    create_dir_all(&pkg).unwrap();
+    let target = pkg.join("cli.js");
+    write_file(&target, "#!/usr/bin/env node\n").unwrap();
+    let physical_bins_dir = root.join("storage/deep/bin");
+    create_dir_all(&physical_bins_dir).unwrap();
+    let bins_dir = root.join("bin");
+    symlink(&physical_bins_dir, &bins_dir).unwrap();
+    let shim = bins_dir.join("tool");
+    let stale = generate_sh_shim(&target, &shim, None, &[], None);
+    write_file(&shim, &stale).unwrap();
+    assert!(
+        is_shim_pointing_at(&stale, &shim, &target),
+        "precondition: the stale shim carries a matching target marker",
+    );
+    assert!(stale.contains(r#""$basedir_abs/../pkg/cli.js""#), "precondition, body was:\n{stale}");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
 }

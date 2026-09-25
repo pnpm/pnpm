@@ -61,6 +61,18 @@ export interface Options {
   nodeExecPath?: string
 
   prependToPath?: string
+
+  /**
+   * The directory the shell shim computes its relative target from, as
+   * {@link getShShimDir} returns it. Computed when omitted.
+   */
+  shShimDir?: string
+}
+
+export interface GetShShimDirOptions {
+  /** The shim directory with its symlinks resolved, when the caller already has it. */
+  physicalDir?: string
+  realpath?: (path: string) => Promise<string>
 }
 
 /**
@@ -71,11 +83,6 @@ type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPT
   isTargetMissing?: boolean
   /** Reject a missing source instead of shimming it. */
   requireSource?: boolean
-  /**
-   * The directory the shell shim computes its relative target from. See
-   * {@link getShShimDir}.
-   */
-  shShimDir?: string
 }
 
 type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
@@ -282,7 +289,7 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
   await writeShimsPreCommon(to, opts)
-  const shShimDir = await getShShimDir(src, to, opts)
+  const shShimDir = opts.shShimDir ?? await getShShimDir(src, to, { realpath: async (dir) => opts.fs_.realpath(dir) })
   return writeAllShims(src, to, srcRuntimeInfo, { ...opts, shShimDir })
 }
 
@@ -295,13 +302,11 @@ async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
  * directory: `realpath` also resolves a `subst` drive, which the MSYS shell
  * does not.
  */
-export async function getShShimDir (src: string, to: string, opts?: Options | InternalOptions): Promise<string> {
+export async function getShShimDir (src: string, to: string, opts: GetShShimDirOptions = {}): Promise<string> {
   const dir = path.dirname(to)
   if (isWindows) return dir
-  const fs_ = (opts && 'fs_' in opts && opts.fs_)
-    ? opts.fs_
-    : (opts?.fs ? opts.fs.promises : ({ ...gfsPromises, realpath: fs.promises.realpath } as unknown as FsPromises))
-  const physicalDir = await fs_.realpath(dir)
+  const realpath = opts.realpath ?? fs.promises.realpath
+  const physicalDir = opts.physicalDir ?? await realpath(dir)
   if (physicalDir === dir) return dir
   let ancestor = dir
   while (!isSubdirOrEqual(ancestor, src)) {
@@ -309,7 +314,7 @@ export async function getShShimDir (src: string, to: string, opts?: Options | In
     if (parent === ancestor) return physicalDir
     ancestor = parent
   }
-  const physicalAncestor = await fs_.realpath(ancestor)
+  const physicalAncestor = await realpath(ancestor)
   return isSubdirOrEqual(physicalAncestor, physicalDir)
     ? path.join(ancestor, path.relative(physicalAncestor, physicalDir))
     : physicalDir

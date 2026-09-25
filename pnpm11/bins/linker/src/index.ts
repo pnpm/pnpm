@@ -167,13 +167,14 @@ async function _linkBins (
   for (const cmd of allCmds) opts.linkedCommandNames?.add(cmd.name)
 
   await fs.mkdir(binsDir, { recursive: true })
+  const physicalBinsDir = IS_WINDOWS ? binsDir : await fs.realpath(binsDir)
 
   // Removals finish before any shim is written: on Windows the siblings of a
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
   const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfTargetAwaited(cmd, binsDir, opts)))
   const cmdsToLink = allCmds.filter((_, i) => removals[i].status === 'fulfilled' && !removals[i].value)
   if (cmdsToLink.length < allCmds.length) opts.heldBackBinsDirs?.add(binsDir)
-  const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, opts)))
+  const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, { ...opts, physicalBinsDir })))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of [...removals, ...results]) {
@@ -347,8 +348,9 @@ export interface LinkBinOptions {
   heldBackBinsDirs?: Set<string>
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions & { physicalBinsDir: string }): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  const shShimDir = await getShShimDir(cmd.path, externalBinPath, { physicalDir: opts.physicalBinsDir })
   // Not writing a PowerShell shim is not enough to keep one out of the bin
   // directory: an install that did want one leaves it behind, and PowerShell
   // keeps preferring it over the .cmd shim. This runs above the short-circuits
@@ -369,7 +371,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
         (!EXECUTABLE_SHEBANG_SUPPORTED || await canSymlinkExecutable(cmd.path))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
-      const shShimDir = await getShShimDir(cmd.path, externalBinPath)
       const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
       const storedRelativeTarget = readShRelativeTarget(content)
       const isRelativeTargetCurrent = path.isAbsolute(expectedRelativeTarget)
@@ -381,7 +382,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
         isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&
         isRelativeTargetCurrent &&
         (
-          (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
+          (opts.extraNodePaths == null && opts.projectModulesDir == null) ||
           isShimNodePath(content, {
             first: opts.projectModulesDir,
             // The shim lists every entry once, at its first position.
@@ -437,7 +438,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     return
   }
 
-  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
+  if (opts.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
       await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
@@ -452,7 +453,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 
   try {
     let nodePath: string[] | undefined
-    if (opts?.extraNodePaths?.length || opts?.projectModulesDir) {
+    if (opts.extraNodePaths?.length || opts.projectModulesDir) {
       nodePath = Array.from(new Set([
         ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
         ...await getBinNodePaths(cmd.path, opts.projectModulesDir),
@@ -463,6 +464,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
+      shShimDir,
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
