@@ -364,6 +364,36 @@ test('pnpm licenses: keeps packages with the same name and version but different
   expect(report.MIT.map(({ name }) => name)).toStrictEqual(['local'])
 })
 
+test('pnpm licenses: keeps local packages with the same name and version but different licenses from one lockfile', async () => {
+  const workspaceDir = tempDir()
+  for (const [dir, license] of [['local-mit', 'MIT'], ['local-isc', 'ISC']]) {
+    fs.mkdirSync(path.join(workspaceDir, dir))
+    fs.writeFileSync(path.join(workspaceDir, dir, 'package.json'), JSON.stringify({ name: 'local', version: '1.0.0', license }))
+  }
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({
+    private: true,
+    dependencies: { 'local-mit': 'file:./local-mit', 'local-isc': 'file:./local-isc' },
+  }))
+  const storeDir = path.join(workspaceDir, 'store')
+  const opts = { ...DEFAULT_OPTS, dir: workspaceDir, pnpmHomeDir: '', storeDir }
+  await install.handler(opts)
+  const { output, exitCode } = await licenses.handler({
+    ...opts,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, paths: string[] }>>
+  expect(Object.keys(report).sort()).toStrictEqual(['ISC', 'MIT'])
+  for (const license of ['ISC', 'MIT']) {
+    expect(report[license].map(({ name }) => name)).toStrictEqual(['local'])
+    expect(report[license][0].paths).toHaveLength(1)
+    const manifest = JSON.parse(fs.readFileSync(path.join(report[license][0].paths[0], 'package.json'), 'utf8'))
+    expect(manifest.license).toBe(license)
+  }
+})
+
 test('pnpm licenses: lists a registry package and a same-named local package from different lockfiles under one JSON entry', async () => {
   const workspaceDir = tempDir()
   fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')

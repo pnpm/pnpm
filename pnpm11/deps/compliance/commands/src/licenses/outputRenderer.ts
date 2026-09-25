@@ -1,10 +1,9 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
-import type { LicensePackage } from '@pnpm/deps.compliance.license-scanner'
+import { compareVersions, type LicensePackage } from '@pnpm/deps.compliance.license-scanner'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy, omit, pick, sortWith } from 'ramda'
 
-import { compareVersions } from './compareVersions.js'
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
 
 function sortLicensesPackages (licensePackages: readonly LicensePackage[]): LicensePackage[] {

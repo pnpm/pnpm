@@ -8,8 +8,8 @@ import type {
   RegistriesByScope,
   SupportedArchitectures,
 } from '@pnpm/types'
-import semver from 'semver'
 
+import { compareVersions } from './compareVersions.js'
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
@@ -117,7 +117,7 @@ export async function findDependencyLicenses (opts: {
     supportedArchitectures: opts.supportedArchitectures,
   })
 
-  // map: name@ver (qualified by named registry, when any) -> LicensePackage
+  // map: name@ver (qualified by named registry, when any) and license -> LicensePackage
   const licensePackages = new Map<string, LicensePackage>()
 
   for (const dependencyName in licenseNodeTree.dependencies) {
@@ -127,10 +127,12 @@ export async function findDependencyLicenses (opts: {
     for (const dependencyNode of dependenciesOfNode) {
       // The registry is part of the identity: the same name and version
       // served by two registries are different artifacts and may carry
-      // different licenses, so they must not collapse onto one entry.
-      const mapKey = dependencyNode.registryName == null
+      // different licenses, so they must not collapse onto one entry. Two
+      // local packages can share a name and version but not their license.
+      const pkgId = dependencyNode.registryName == null
         ? `${dependencyNode.name}@${dependencyNode.version}`
         : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
+      const mapKey = `${pkgId}\u0000${dependencyNode.license}`
       const existing = licensePackages.get(mapKey)
       if (existing === undefined) {
         licensePackages.set(mapKey, dependencyNode)
@@ -143,7 +145,7 @@ export async function findDependencyLicenses (opts: {
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
-    pkg1.name.localeCompare(pkg2.name) || semver.compare(pkg1.version, pkg2.version)
+    pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
   )
 }
 
