@@ -95,18 +95,15 @@ async function setupShell (
   const configFile = getConfigFilePath(shell)
   let newSettings: string
   const _createPathValue = createPathValue.bind(null, opts.position ?? 'start')
+  // Always export PATH. Skipping the export when the directory is already
+  // present leaves a later entry ahead of pnpm after macOS VS Code sources
+  // ~/.zshrc again.
   if (opts.proxyVarName) {
     const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
     newSettings = `export ${opts.proxyVarName}="${dir}"
-case ":$PATH:" in
-  *":${pathRef}:"*) ;;
-  *) export PATH="${_createPathValue(pathRef)}" ;;
-esac`
+export PATH="${_createPathValue(pathRef)}"`
   } else {
-    newSettings = `case ":$PATH:" in
-  *":${dir}:"*) ;;
-  *) export PATH="${_createPathValue(dir)}" ;;
-esac`
+    newSettings = `export PATH="${_createPathValue(dir)}"`
   }
   const content = wrapSettings(opts.configSectionName, newSettings)
   const { changeType, oldSettings } = await updateShellConfig(configFile, content, opts)
@@ -146,15 +143,10 @@ async function setupFishShell (dir: string, opts: AddDirToPosixEnvPathOpts): Pro
   const _createPathValue = createFishPathValue.bind(null, opts.position ?? 'start')
   if (opts.proxyVarName) {
     const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
-    const matchPattern = opts.proxyVarSubDir ? `"${pathRef}"` : pathRef
     newSettings = `set -gx ${opts.proxyVarName} "${dir}"
-if not string match -q -- ${matchPattern} $PATH
-  set -gx PATH ${_createPathValue(pathRef)}
-end`
+set -gx PATH ${_createPathValue(pathRef)}`
   } else {
-    newSettings = `if not string match -q -- "${dir}" $PATH
-  set -gx PATH ${_createPathValue(dir)}
-end`
+    newSettings = `set -gx PATH ${_createPathValue(dir)}`
   }
   const content = wrapSettings(opts.configSectionName, newSettings)
   const { changeType, oldSettings } = await updateShellConfig(configFile, content, opts)

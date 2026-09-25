@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -7,6 +8,7 @@ import { PnpmError } from '@pnpm/error'
 
 import {
   type AddDirToPosixEnvPathOpts,
+  addDirToPosixEnvPath,
   findSection,
   replaceSection,
   updateShellConfig,
@@ -314,6 +316,44 @@ esac`)
 
       expect(result.changeType).toBe('skipped')
     } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('zsh snippet prepends PNPM_HOME when it is already on PATH', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    const previousZdotdir = process.env.ZDOTDIR
+    const previousZshVersion = process.env.ZSH_VERSION
+    process.env.ZDOTDIR = dir
+    process.env.ZSH_VERSION = '5.9'
+    const pnpmHome = '/home/user/.local/share/pnpm'
+    try {
+      const report = await addDirToPosixEnvPath(pnpmHome, {
+        configSectionName: 'pnpm',
+        proxyVarName: 'PNPM_HOME',
+        proxyVarSubDir: 'bin',
+        position: 'start',
+      })
+      expect(report.newSettings).toBe(`export PNPM_HOME="${pnpmHome}"
+export PATH="$PNPM_HOME/bin:$PATH"`)
+      const script = `PATH="/usr/local/bin:${pnpmHome}/bin:/usr/bin"
+${report.newSettings}
+printf '%s' "$PATH"
+`
+      const result = spawnSync('sh', ['-c', script], { encoding: 'utf8' })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe(`${pnpmHome}/bin:/usr/local/bin:${pnpmHome}/bin:/usr/bin`)
+    } finally {
+      if (previousZdotdir == null) {
+        delete process.env.ZDOTDIR
+      } else {
+        process.env.ZDOTDIR = previousZdotdir
+      }
+      if (previousZshVersion == null) {
+        delete process.env.ZSH_VERSION
+      } else {
+        process.env.ZSH_VERSION = previousZshVersion
+      }
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })
