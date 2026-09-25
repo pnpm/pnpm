@@ -15,11 +15,11 @@ import { createStoreController, type CreateStoreControllerOptions, type StoreCon
 import type { DependenciesField, IncludedDependencies, Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
-import { pick, without } from 'ramda'
+import { pick, uniq, without } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
-import { recursive } from './recursive.js'
+import { createMatcher, recursive } from './recursive.js'
 import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 
 class RemoveMissingDepsError extends PnpmError {
@@ -240,7 +240,8 @@ async function removeRecursively (
     selectedProjectsGraph,
     targetDependenciesField,
   })
-  assertDependenciesToRemoveExist({ availableDependencies, params, targetDependenciesField })
+  const dependencyNames = selectDependenciesToRemove({ availableDependencies, params, targetDependenciesField })
+  if (dependencyNames == null) return
   await recursive(allProjects, params, {
     ...opts,
     allProjectsGraph: opts.allProjectsGraph!,
@@ -271,12 +272,26 @@ function collectDependenciesOfSelectedProjects (opts: {
   return Array.from(availableDependenciesSet).sort()
 }
 
-function assertDependenciesToRemoveExist (opts: {
+/**
+ * The dependency names to remove. Selectors with a `*` or a leading `!` are
+ * expanded against the available dependencies; every explicit name must be
+ * among them. Returns `undefined` when the patterns select nothing to remove.
+ */
+function selectDependenciesToRemove (opts: {
   availableDependencies: string[]
   params: string[]
   targetDependenciesField: DependenciesField | undefined
-}): void {
-  const nonMatchedDependencies = without(opts.availableDependencies, opts.params)
+}): string[] | undefined {
+  let dependencyNames = opts.params
+  if (opts.params.some(isRemovePattern)) {
+    if (opts.params.every(param => param.startsWith('!'))) return undefined
+    const explicitDependencies = opts.params.filter(param => !isRemovePattern(param))
+    const matcher = createMatcher(opts.params)
+    const matched = opts.availableDependencies.filter(dep => matcher(dep) !== null)
+    dependencyNames = uniq([...explicitDependencies, ...matched])
+    if (dependencyNames.length === 0) return undefined
+  }
+  const nonMatchedDependencies = without(opts.availableDependencies, dependencyNames)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
       availableDependencies: opts.availableDependencies,
@@ -284,6 +299,11 @@ function assertDependenciesToRemoveExist (opts: {
       targetDependenciesField: opts.targetDependenciesField,
     })
   }
+  return dependencyNames
+}
+
+function isRemovePattern (param: string): boolean {
+  return param.includes('*') || param.startsWith('!')
 }
 
 async function removeFromProject ({ opts, params, include, store }: RemoveContext): Promise<void> {
@@ -307,15 +327,16 @@ async function removeFromProject ({ opts, params, include, store }: RemoveContex
     manifest: currentManifest,
     writeProjectManifest,
   } = await readProjectManifest(opts.dir, opts)
-  assertDependenciesToRemoveExist({
+  const dependencyNames = selectDependenciesToRemove({
     availableDependencies: listDependencyNames(currentManifest, targetDependenciesField),
     params,
     targetDependenciesField,
   })
+  if (dependencyNames == null) return
   const mutationResult = await mutateModulesInSingleProject(
     {
       binsDir: opts.bin,
-      dependencyNames: params,
+      dependencyNames,
       manifest: currentManifest,
       mutation: 'uninstallSome',
       rootDir: opts.dir as ProjectRootDir,

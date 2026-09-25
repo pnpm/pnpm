@@ -176,6 +176,9 @@ function createUpdateMatch (
   { params, opts, cmdFullName, selectedProjects }: RecursiveInput,
   includeDirect: IncludedDependencies
 ): Pick<RecursiveContext, 'params' | 'updateMatch' | 'selectsOnlyIgnoredDependencies'> {
+  if (cmdFullName === 'remove') {
+    return { params, updateMatch: params.length ? createMatcher(params) : null, selectsOnlyIgnoredDependencies: false }
+  }
   if (cmdFullName !== 'update') return { params, updateMatch: null, selectsOnlyIgnoredDependencies: false }
   const ignoredSelection = { params, ignoredDependencies: opts.updateConfig?.ignoreDependencies }
   const updateSpecs = addIgnorePatterns(params, ignoredSelection.ignoredDependencies)
@@ -197,22 +200,46 @@ function createUpdateMatch (
  * selector on its own, direct or not, and has to report that first.
  */
 function failOnIndirectVersionedUpdates (
-  { opts, selectedProjects }: RecursiveInput,
+  { cmdFullName, opts, selectedProjects }: RecursiveInput,
   { includeDirect, params, updateMatch }: Pick<RecursiveContext, 'includeDirect' | 'params' | 'updateMatch'>
 ): UpdateDepsMatcher | null {
-  if (updateMatch != null && !opts.latest && (opts.depth ?? Infinity) > 0) {
+  if (cmdFullName === 'update' && updateMatch != null && !opts.latest && (opts.depth ?? Infinity) > 0) {
     failOnVersionsOfIndirectUpdateSpecs(params, selectedProjects.map(({ manifest }) => manifest), includeDirect)
   }
   return updateMatch
 }
 
 /**
- * The dependencies of a project that an update selects: the ones its update
- * selectors match, or else the selectors as the user passed them.
+ * The dependencies of a project that an update or a removal selects: the ones
+ * its selectors match, or else the selectors as the user passed them.
  */
 export function selectUpdateTargets (ctx: RecursiveContext, manifest: ProjectManifest): string[] {
   if (ctx.updateMatch == null) return [...ctx.params]
-  return matchDependencies(ctx.updateMatch, manifest, ctx.includeDirect)
+  return matchDependencies(ctx.updateMatch, manifest, selectorMatchInclude(ctx))
+}
+
+/**
+ * A removal matches its selectors only in the dependency field it removes
+ * from, or in every field when none is selected.
+ */
+function selectorMatchInclude (
+  { cmdFullName, includeDirect, targetDependenciesField }: Pick<RecursiveContext, 'cmdFullName' | 'includeDirect' | 'targetDependenciesField'>
+): IncludedDependencies {
+  if (cmdFullName !== 'remove') return includeDirect
+  if (targetDependenciesField == null) {
+    return {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+      peerDependencies: true,
+    }
+  }
+  return {
+    dependencies: targetDependenciesField === 'dependencies',
+    devDependencies: targetDependenciesField === 'devDependencies',
+    optionalDependencies: targetDependenciesField === 'optionalDependencies',
+    peerDependencies: false,
+  }
 }
 
 /**
