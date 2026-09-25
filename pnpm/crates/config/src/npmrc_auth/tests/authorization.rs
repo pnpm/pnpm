@@ -786,6 +786,23 @@ fn from_ini_warns_on_empty_auth_env_placeholder() {
 }
 
 #[test]
+fn from_ini_expands_optional_auth_env_placeholder_without_warning() {
+    static_env!(Env, &[("SET_TOKEN", "secret"), ("EMPTY_TOKEN", "")]);
+
+    for (variable, expected) in
+        [("SET_TOKEN", "secret"), ("EMPTY_TOKEN", ""), ("MISSING_TOKEN", "")]
+    {
+        let auth = NpmrcAuth::from_ini::<Env>(
+            &format!("//registry.npmjs.org/:_authToken=${{{variable}?}}\n"),
+            Path::new(""),
+        );
+
+        assert!(auth.warnings.is_empty(), "unexpected warning for {variable}: {:?}", auth.warnings);
+        assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some(expected)));
+    }
+}
+
+#[test]
 fn from_ini_warns_with_expanded_auth_key() {
     static_env!(
         Env,

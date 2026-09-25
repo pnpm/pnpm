@@ -149,6 +149,7 @@ export function parseLocalPath (
 ): LocalPackageSpec | null {
   if (isTarballFilename(wd.bareSpecifier) ||
     wd.bareSpecifier.includes(path.sep) ||
+    (path.sep === '\\' && wd.bareSpecifier.includes('/')) ||
     isFilespec(wd.bareSpecifier)
   ) {
     const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'

@@ -4871,6 +4871,10 @@ test.each([
   ['', '\\\\\\\\${EMPTY_TOKEN}', '\\', true],
   ['', '${EMPTY_TOKEN:-fallback}', 'fallback', false],
   ['', '${EMPTY_TOKEN-fallback}', '', false],
+  [undefined, '${EMPTY_TOKEN?}', '', false],
+  ['', '${EMPTY_TOKEN?}', '', false],
+  ['set-token', '${EMPTY_TOKEN?}', 'set-token', false],
+  ['', '\\${EMPTY_TOKEN?}', '${EMPTY_TOKEN?}', false],
 ])('trusted .npmrc auth variable %p in %p', async (token, value, expected, warns) => {
   prepare()
 
@@ -4886,6 +4890,23 @@ test.each([
     ? ['Failed to replace env in config: ${EMPTY_TOKEN} in .npmrc key "_authToken"']
     : [])
   expect(config.authConfig['//registry.example/:_authToken']).toBe(expected)
+})
+
+test.each([
+  [undefined, 'localhost'],
+  ['internal.example,', 'internal.example,localhost'],
+])('optional .npmrc env variable %p in a user-level setting', async (extraNoProxy, expected) => {
+  prepare()
+
+  fs.writeFileSync('user.npmrc', 'no-proxy=${EXTRA_NO_PROXY?}localhost\n', 'utf8')
+  const { config, warnings } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: { ...process.env, EXTRA_NO_PROXY: extraNoProxy },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.filter(warning => warning.startsWith('Failed to replace env in config:'))).toEqual([])
+  expect(config.noProxy).toBe(expected)
 })
 
 test.each([undefined, '', 'dummy-token'])('expanded .npmrc auth key warning for %p', async (token) => {
