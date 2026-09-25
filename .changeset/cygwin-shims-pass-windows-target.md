@@ -1,5 +1,6 @@
 ---
 "@pnpm/bins.cmd-shim": patch
+"@pnpm/bins.linker": patch
 "pnpm": patch
 "pacquet": patch
 ---

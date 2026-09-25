@@ -29,7 +29,8 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 // A cmd-shim is a small shell script. Anything larger is a binary and should not be read.
-const CMD_SHIM_MAX_SIZE = 4 * 1024
+// A POSIX shim written on Windows lists NODE_PATH in two forms and can pass 4 KiB.
+const CMD_SHIM_MAX_SIZE = 64 * 1024
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
