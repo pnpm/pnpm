@@ -124,7 +124,9 @@ fn dev_engines_pins(manifest: &Value) -> impl Iterator<Item = (String, Option<St
         .map(|(name, version)| (name.to_string(), version.and_then(pinned_version)))
 }
 
-/// Returns `version` if it parses as a semver range.
+/// The version a dependency pins, kept only when it is a plain semver range.
+/// Manifest input is untrusted and reaches command execution during package prepare,
+/// so references naming URLs or dist-tags are rejected and left for pnpm to resolve.
 fn pinned_version(version: &str) -> Option<String> {
     node_semver::Range::parse(version).is_ok().then(|| version.to_string())
 }
