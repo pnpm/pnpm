@@ -15,10 +15,6 @@ fn detects_pnpm_via_pnpm_lock_yaml() {
     assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
 }
 
-/// A pnpm workspace is defined by `pnpm-workspace.yaml`, and committing a
-/// lockfile is optional (`lockfile: false`). Such a dependency is a pnpm
-/// project even though it ships no lockfile, so preparing it with npm honours
-/// its `.npmrc` `ignore-scripts` and skips the build, leaving no `dist/`.
 #[test]
 fn detects_pnpm_via_pnpm_workspace_yaml_when_it_ships_no_lockfile() {
     let dir = tempdir().unwrap();
@@ -26,10 +22,6 @@ fn detects_pnpm_via_pnpm_workspace_yaml_when_it_ships_no_lockfile() {
     assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
 }
 
-/// The workspace manifest only breaks the "no lockfile at all" tie, matching
-/// `preferred-pm`, which consults it in its fallback stage after every
-/// lockfile check. A dependency that ships a lockfile has told us what
-/// installs it, and that answer is stronger evidence than a config file.
 #[test]
 fn a_shipped_lockfile_still_wins_over_pnpm_workspace_yaml() {
     let dir = tempdir().unwrap();
@@ -43,9 +35,6 @@ fn a_shipped_lockfile_still_wins_over_pnpm_workspace_yaml() {
     assert_eq!(detect_preferred_pm(dir2.path()), PreferredPm::Npm);
 }
 
-/// The prepare path calls `detect_wanted_pm`, not `detect_preferred_pm`, so the
-/// workspace-manifest signal has to survive that entry point too — and must not
-/// invent a version pin the dependency never declared.
 #[test]
 fn a_lockfile_less_pnpm_workspace_wants_pnpm_with_no_version_pin() {
     let dir = tempdir().unwrap();

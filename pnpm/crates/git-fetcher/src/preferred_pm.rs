@@ -1,11 +1,5 @@
-//! Detect the package manager a git-hosted dependency expects, and at
-//! which version, from the lockfile and manifest it ships.
-//!
-//! Implements the file-sniffing half of the
-//! [`preferred-pm`](https://www.npmjs.com/package/preferred-pm) npm
-//! package. The workspace-root walk is *not* implemented — git-hosted
-//! snapshots almost always ship a lockfile at the repo root, and the
-//! fall-through is `Npm`.
+//! Detect the package manager and version expected by a git-hosted dependency
+//! from the manifest and lockfile or workspace configuration it ships.
 
 use pnpm_package_manifest::package_manager_spec::{
     dev_engines_package_managers, engine_name_version, split_spec, version_without_build,
@@ -32,10 +26,7 @@ pub enum PreferredPm {
 pub struct WantedPm {
     pub pm: PreferredPm,
     pub version_spec: Option<String>,
-    /// Whether the dependency asked for this version itself. A pin is
-    /// what its authors test against, so it is provisioned even on a host
-    /// that already has that package manager; an inferred version only
-    /// applies when pnpm has to provide the package manager anyway.
+    /// Whether the dependency explicitly declared a version pin.
     pub pinned: bool,
 }
 
@@ -63,19 +54,11 @@ impl PreferredPm {
     }
 }
 
-/// Decide which package manager, at which version, prepares the package
-/// checked out at `dir`.
+/// Determine the package manager and version to prepare the package at `dir`.
 ///
-/// A `packageManager` / `devEngines.packageManager` pin in the
-/// dependency's own manifest wins — it is what its authors test against.
-/// Otherwise the lockfile names the package manager, or, for a pnpm workspace
-/// that commits no lockfile, its `pnpm-workspace.yaml`.
-///
-/// Either way the `yarn.lock` names the Yarn line whenever the manifest
-/// does not: Classic and Berry cannot read each other's lockfiles, so
-/// which one wrote it is a constraint rather than a preference, and a
-/// dependency that declares only "this project uses Yarn" still has to be
-/// prepared with the Yarn that can read what it ships.
+/// Manifest pins (`packageManager`, `devEngines.packageManager`) take precedence
+/// over lockfiles and `pnpm-workspace.yaml`. When Yarn is selected without an
+/// explicit version specifier, the Yarn line is inferred from `yarn.lock`.
 #[must_use]
 pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
     let wanted = manifest
@@ -91,24 +74,13 @@ pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
     WantedPm { version_spec: yarn_line_of_lockfile(dir), ..wanted }
 }
 
-/// Yarn Berry rewrote the lockfile format, so a `yarn.lock` without its
-/// `__metadata` block was written by Yarn Classic and only Classic can
-/// read it — and one carrying that block needs Berry.
 const YARN_CLASSIC_SPEC: &str = "1";
 const YARN_BERRY_SPEC: &str = ">=2";
 
-/// Sniff `dir` for a lockfile and return the matching package manager.
+/// Sniff `dir` for a lockfile or `pnpm-workspace.yaml` and return the matching package manager.
 ///
-/// A `pnpm-workspace.yaml` names pnpm too, but only once every lockfile has had
-/// its say. Committing a lockfile is optional in a pnpm workspace
-/// (`lockfile: false`), so the manifest is what identifies a pnpm project that
-/// ships none — preparing such a dependency with npm honours its `.npmrc`
-/// `ignore-scripts` and skips the build, leaving no `dist/`. A lockfile that
-/// *is* shipped remains the stronger statement of what installs the dependency,
-/// so the manifest only breaks the no-lockfile tie. This is the precedence
-/// `preferred-pm` uses, consulting the manifest in its fallback stage.
-///
-/// Defaults to [`PreferredPm::Npm`] when neither is present.
+/// Lockfiles take precedence over `pnpm-workspace.yaml`. Defaults to [`PreferredPm::Npm`]
+/// when neither is present.
 #[must_use]
 pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     if dir.join("pnpm-lock.yaml").exists() {
@@ -129,22 +101,12 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     PreferredPm::Npm
 }
 
-/// The package manager the dependency pins for itself, if it pins one
-/// pnpm can provision.
-///
-/// A pin naming something else is not a pin pnpm can honor, so the next
-/// declaration still gets a say — the next entry of a `devEngines` list,
-/// which declares alternatives, then `packageManager`, and finally the
-/// lockfile the dependency ships.
+/// Extract the first supported package manager pin declared in `manifest`.
 fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
     dev_engines_pins(manifest)
         .chain(package_manager_pin(manifest))
         .find_map(|(name, version_spec)| {
             let pm = PreferredPm::parse(&name)?;
-            // A declaration that names no version pnpm can honor claims
-            // nothing about which release the dependency was tested
-            // against, so it is not a reason to provide one the host
-            // already has.
             let pinned = version_spec.is_some();
             Some(WantedPm { pm, version_spec, pinned })
         })
@@ -162,27 +124,15 @@ fn dev_engines_pins(manifest: &Value) -> impl Iterator<Item = (String, Option<St
         .map(|(name, version)| (name.to_string(), version.and_then(pinned_version)))
 }
 
-/// The version a dependency's manifest pins, kept only when it is a plain
-/// semver range. The manifest is untrusted input and the version reaches a
-/// command line pnpm builds for the prepare, so a reference naming a URL, a
-/// dist-tag, or anything else that is not a range leaves the version open
-/// for pnpm to resolve rather than being passed through.
+/// Returns `version` if it parses as a semver range.
 fn pinned_version(version: &str) -> Option<String> {
     node_semver::Range::parse(version).is_ok().then(|| version.to_string())
 }
 
-/// The Yarn line that can read the `yarn.lock` in `dir`, or `None` when
-/// the package ships none and no line is therefore required.
-///
-/// Yarn Berry stamps every lockfile it writes with a `__metadata:` key,
-/// in the header — so only the head is read. The file comes out of a
-/// fetched artifact, and how large that is, is not pnpm's to trust.
+/// Detect whether `yarn.lock` in `dir` was written by Yarn Classic or Yarn Berry.
 fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
     const HEADER_BYTES: u64 = 64 * 1024;
 
-    // Read bytes rather than text: a lockfile is not pnpm's to validate,
-    // and a stray byte no encoding claims must not decide which Yarn
-    // prepares the package.
     let lockfile = fs::File::open(dir.join("yarn.lock")).ok()?;
     let mut header = Vec::new();
     lockfile
