@@ -5,7 +5,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
+import type { ProjectId } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -1502,5 +1504,74 @@ test.each([
   expect(deployedManifest.packageManager).toBeUndefined()
   expect(deployedManifest.devEngines).toStrictEqual({
     packageManager: { name: 'pnpm', version: '^11.0.0' },
+  })
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/15703
+test('prod deploy skips the devEngines runtime without failing the frozen lockfile check', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const baseOpts = {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }
+
+  {
+    const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+    await install.handler({ ...baseOpts, allProjects, dev: true, production: true })
+  }
+
+  // Resolving a devEngines runtime with onFail: download reaches the Node.js
+  // download mirrors, so the runtime edge is declared only after the install,
+  // in both the manifest and the lockfile, in the shape a real resolution
+  // writes.
+  const projectManifestPath = path.resolve('project-1/package.json')
+  const projectManifest = loadJsonFileSync<Record<string, unknown>>(projectManifestPath)
+  projectManifest.devEngines = {
+    runtime: { name: 'node', version: '24.0.0', onFail: 'download' },
+  }
+  fs.writeFileSync(projectManifestPath, JSON.stringify(projectManifest, undefined, 2))
+  const lockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: false })
+  const projectSnapshot = lockfile!.importers['project-1' as ProjectId]
+  projectSnapshot.devDependencies = { node: 'runtime:24.0.0' }
+  projectSnapshot.specifiers.node = 'runtime:24.0.0'
+  await writeWantedLockfile(process.cwd(), lockfile!)
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...baseOpts,
+    allProjects,
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  expect(fs.existsSync(path.join(deployDir, 'node_modules/is-positive'))).toBeTruthy()
+  expect(fs.existsSync(path.join(deployDir, 'node_modules/node'))).toBeFalsy()
+  const deployedLockfile = assertProject(deployDir).readLockfile()
+  expect(deployedLockfile.importers['.'].devDependencies).toEqual({
+    node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
   })
 })
