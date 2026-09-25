@@ -569,7 +569,10 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    let import_method = opts.import.method_for(files.source_is_mutable, false);
+    // A directory dependency with install scripts is built in place, so it
+    // must not be hard-linked to its source.
+    let needs_build = files.source_is_mutable && crate::requires_build_from_cas_paths(cas_paths);
+    let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
     if !opts.dir_clone_cache.is_some_and(|cache| {
         cache.try_import::<Reporter>(node, opts.import, cas_paths)
     }) {

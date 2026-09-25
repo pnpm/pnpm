@@ -1,8 +1,13 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id};
+use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id, publish_edits};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
-use std::{collections::HashMap, fs, io, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs, io,
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 use tempfile::TempDir;
 
 fn create_file(path: &std::path::Path, content: &str) {
@@ -227,4 +232,64 @@ fn sync_reports_a_link_error_that_is_not_cross_device() {
         "{error:?}",
     );
     assert!(!target.join("index.js").exists(), "nothing was copied");
+}
+
+fn device_and_inode(path: &std::path::Path) -> (u64, u64) {
+    let metadata = fs::metadata(path).expect("stat");
+    let id = file_id(path, &metadata).expect("file id");
+    (id.device, id.inode)
+}
+
+#[test]
+fn publish_replaces_an_edited_hardlink_with_its_own_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "old");
+    fs::create_dir_all(&target).expect("create target");
+    fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
+    fs::write(source.join("index.js"), "new").expect("rewrite the hardlink in place");
+
+    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("publish");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read published file"), "new");
+    assert_ne!(
+        device_and_inode(&source.join("index.js")),
+        device_and_inode(&target.join("index.js")),
+        "a published file has its own inode, so a watcher on the injected directory sees the write",
+    );
+}
+
+#[test]
+fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "same");
+    fs::create_dir_all(&target).expect("create target");
+    fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
+    let edited_since = SystemTime::now()
+        .checked_add(Duration::from_secs(86_400))
+        .expect("a deadline past every current mtime");
+
+    publish_edits(&source, &target, edited_since).expect("publish");
+
+    assert_eq!(
+        device_and_inode(&source.join("index.js")),
+        device_and_inode(&target.join("index.js")),
+        "an untouched hardlink stays shared",
+    );
+}
+
+#[test]
+fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "built");
+    fs::create_dir_all(&target).expect("create target");
+
+    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("first publish");
+    let published = device_and_inode(&target.join("index.js"));
+    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("second publish");
+
+    assert_eq!(published, device_and_inode(&target.join("index.js")));
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
 }

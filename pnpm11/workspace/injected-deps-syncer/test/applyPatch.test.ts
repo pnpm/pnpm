@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
@@ -6,7 +7,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
-import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
+import { applyPatch, DIR, type DirDiff, publishEditsForWatchers } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -283,4 +284,54 @@ testOnPosix('does not copy through a symlink that occupies the target when link 
   expect(fs.readFileSync('victim.txt', 'utf8')).toBe('untouched')
   expect(fs.lstatSync('target/file.txt').isSymbolicLink()).toBe(false)
   expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
+})
+
+function fileIdentity (filePath: string): string {
+  const stats = fs.statSync(filePath)
+  return `${stats.dev}:${stats.ino}`
+}
+
+test('publishEditsForWatchers replaces an edited hardlink with a file a watcher can see', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  const sourceFile = path.join(source, 'index.js')
+  const targetFile = path.join(target, 'index.js')
+  createFile(sourceFile, 'old')
+  createHardlink(sourceFile, targetFile)
+  fs.writeFileSync(sourceFile, 'new')
+
+  const events: string[] = []
+  const watcher = fs.watch(target, (_event, filename) => {
+    events.push(String(filename))
+  })
+  try {
+    await publishEditsForWatchers(source, target, 0)
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, 200)
+    })
+    expect(fs.readFileSync(targetFile, 'utf8')).toBe('new')
+    expect(fileIdentity(targetFile)).not.toBe(fileIdentity(sourceFile))
+    expect(events.length).toBeGreaterThan(0)
+  } finally {
+    watcher.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('publishEditsForWatchers leaves a hardlink that predates the watch', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  const sourceFile = path.join(source, 'index.js')
+  const targetFile = path.join(target, 'index.js')
+  createFile(sourceFile, 'same')
+  createHardlink(sourceFile, targetFile)
+
+  try {
+    await publishEditsForWatchers(source, target, Date.now() + 86_400_000)
+    expect(fileIdentity(targetFile)).toBe(fileIdentity(sourceFile))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
