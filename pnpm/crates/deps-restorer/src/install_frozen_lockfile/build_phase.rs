@@ -338,62 +338,54 @@ fn auto_installed_peer_bin_locations(
     let (Some(packages), Some(snapshots)) = (inputs.graph.packages, inputs.graph.snapshots) else {
         return Vec::new();
     };
-    let mut locations = Vec::new();
-    for (name, spec) in
-        importer.dependencies_by_groups(inputs.graph.dependency_groups.iter().copied())
-    {
-        let Some(key) = spec.version.resolved_key(name) else { continue };
-        if inputs.skipped.contains(&key) {
-            continue;
-        }
-        let (Some(metadata), Some(snapshot)) =
-            (packages.get(&key.without_peer()), snapshots.get(&key))
-        else {
-            continue;
-        };
-        let Some(peer_dependencies) = metadata.peer_dependencies.as_ref() else { continue };
-        for peer_name in peer_dependencies.keys() {
-            if metadata.peer_dependencies_meta
-                .as_ref()
-                .and_then(|meta| meta.get(peer_name))
-                .is_some_and(|meta| meta.optional)
-            {
-                continue;
-            }
-            let Ok(peer_alias) = peer_name.parse::<pnpm_lockfile::PkgName>() else { continue };
-            let Some(peer_key) = snapshot.dependencies
-                .as_ref()
-                .and_then(|deps| deps.get(&peer_alias))
-                .or_else(|| {
-                    snapshot.optional_dependencies
-                        .as_ref()
-                        .and_then(|deps| deps.get(&peer_alias))
-                })
-                .and_then(|reference| reference.resolve(&peer_alias))
-            else {
-                continue;
-            };
-            if inputs.skipped.contains(&peer_key) {
-                continue;
-            }
-            if packages
-                .get(&peer_key.without_peer())
-                .is_none_or(|peer| peer.has_bin != Some(true))
-                && !inputs.cache.requires_build_by_snapshot
-                    .get(&peer_key)
-                    .is_some_and(|requires_build| *requires_build)
-            {
-                continue;
-            }
-            locations.push(
-                inputs.directories.layout
-                    .slot_dir(&peer_key)
-                    .join("node_modules")
-                    .join(peer_key.name.to_string()),
-            );
-        }
-    }
+    let mut locations: Vec<_> = importer
+        .dependencies_by_groups(inputs.graph.dependency_groups.iter().copied())
+        .filter_map(|(name, spec)| spec.version.resolved_key(name))
+        .filter(|key| !inputs.skipped.contains(key))
+        .filter_map(|key| Some((packages.get(&key.without_peer())?, snapshots.get(&key)?)))
+        .flat_map(|(metadata, snapshot)| resolved_auto_installed_peers(metadata, snapshot))
+        .filter(|key| !inputs.skipped.contains(key))
+        .filter(|key| {
+            packages
+                .get(&key.without_peer())
+                .is_some_and(|peer| peer.has_bin == Some(true))
+                || inputs.cache.requires_build_by_snapshot.get(key) == Some(&true)
+        })
+        .map(|key| {
+            inputs.directories.layout
+                .slot_dir(&key)
+                .join("node_modules")
+                .join(key.name.to_string())
+        })
+        .collect();
     locations.sort_unstable();
     locations.dedup();
     locations
+}
+
+fn resolved_auto_installed_peers<'a>(
+    metadata: &'a PackageMetadata,
+    snapshot: &'a SnapshotEntry,
+) -> impl Iterator<Item = PackageKey> + 'a {
+    metadata.peer_dependencies
+        .iter()
+        .flat_map(|peers| peers.keys())
+        .filter(|name| {
+            !metadata.peer_dependencies_meta
+                .as_ref()
+                .and_then(|meta| meta.get(*name))
+                .is_some_and(|meta| meta.optional)
+        })
+        .filter_map(|name| {
+            let alias = name.parse::<pnpm_lockfile::PkgName>().ok()?;
+            snapshot.dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(&alias))
+                .or_else(|| {
+                    snapshot.optional_dependencies
+                        .as_ref()
+                        .and_then(|deps| deps.get(&alias))
+                })
+                .and_then(|reference| reference.resolve(&alias))
+        })
 }
