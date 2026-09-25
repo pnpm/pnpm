@@ -4,6 +4,7 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import { removeGlobalGroups } from '@pnpm/global.commands'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 
 import type { NvmNodeCommandOptions } from './node.js'
@@ -137,10 +138,12 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
   if (globalPkgDir && globalNode && versions.some((v) => matchesNodeVersion(globalNode.version, v))) {
     // In-process rather than through `pnpm remove --global`, which refuses to
     // run when the global bin directory is not on PATH.
+    // The group may hold other packages, whose bins go with its install dir.
+    const group = scanGlobalPackages(globalPkgDir).find(({ hash }) => hash === globalNode.hash)
     await removeGlobalGroups({ globalPkgDir, bin: opts.bin }, [{
       hash: globalNode.hash,
       installDir: globalNode.installDir,
-      dependencies: { node: globalNode.version },
+      dependencies: { ...group?.dependencies, node: globalNode.version },
     }])
     removedSomething = true
   }

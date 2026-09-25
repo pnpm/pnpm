@@ -4252,6 +4252,9 @@ importers:
       '@pnpm/global.commands':
         specifier: workspace:*
         version: link:../../../global/commands
+      '@pnpm/global.packages':
+        specifier: workspace:*
+        version: link:../../../global/packages
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../../network/auth-header

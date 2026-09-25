@@ -162,6 +162,36 @@ test('env remove removes the global node package when its version matches', asyn
   fs.rmSync(tempDir, { recursive: true, force: true })
 })
 
+test('env remove unlinks the bins of every package in the removed global node group', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
+  const pnpmHomeDir = path.join(tempDir, 'home')
+  const binDir = path.join(tempDir, 'bin')
+  const installDir = path.join(pnpmHomeDir, 'global', 'v11', 'install-node')
+  for (const [name, version] of [['node', '18.12.0'], ['foo', '1.0.0']]) {
+    const pkgDir = path.join(installDir, 'node_modules', name)
+    fs.mkdirSync(path.join(pkgDir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name, version, bin: { [name]: `bin/${name}` } }))
+    fs.writeFileSync(path.join(pkgDir, 'bin', name), '')
+  }
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { node: 'runtime:18.12.0', foo: '1.0.0' } }))
+  createSymlinkDir(installDir, path.join(pnpmHomeDir, 'global', 'v11', 'hash-node'))
+  fs.mkdirSync(binDir)
+  fs.symlinkSync(path.join(installDir, 'node_modules', 'node', 'bin', 'node'), path.join(binDir, 'node'))
+  fs.symlinkSync(path.join(installDir, 'node_modules', 'foo', 'bin', 'foo'), path.join(binDir, 'foo'))
+
+  await env.handler({
+    bin: binDir,
+    global: true,
+    pnpmHomeDir,
+    configByUri: {},
+  }, ['remove', '18'])
+
+  expect(fs.existsSync(installDir)).toBe(false)
+  expect(fs.readdirSync(binDir)).toStrictEqual([])
+
+  fs.rmSync(tempDir, { recursive: true, force: true })
+})
+
 test('env remove removes the global node package from the configured globalPkgDir', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-env-test-'))
   const customGlobalDir = path.join(tempDir, 'custom-global')
