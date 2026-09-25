@@ -398,6 +398,13 @@ struct SkipScan<'a, 'lock> {
     skipped: SkippedSnapshots,
 }
 
+/// A patched snapshot's published engines are replaced once the patch is
+/// applied. The key carries `(patch_hash=...)`; `snapshot.patched` is the
+/// lockfile flag for the same fact.
+fn snapshot_is_patched(snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> bool {
+    snapshot.patched == Some(true) || snapshot_key.to_string().contains("(patch_hash=")
+}
+
 impl SkipScan<'_, '_> {
     fn classify<Reporter: self::Reporter>(
         &mut self,
@@ -427,13 +434,28 @@ impl SkipScan<'_, '_> {
             (snapshot.optional, !snapshot.optional)
         };
 
-        let warn = cached_check(
-            &mut self.check_cache,
-            &metadata_key,
-            metadata,
-            skip_check_optional,
-            &self.base_options,
-        )?;
+        // A patch is applied to the extracted package after this pass. The
+        // lockfile still records the published `engines`, so a patch that
+        // relaxes them would fail here. Leave that check to the build phase,
+        // which reads the patched manifest. Platform constraints stay.
+        let warn = if self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot)
+        {
+            let mut manifest = manifest_from_metadata(&metadata_key, metadata);
+            manifest.engines = None;
+            let options = pnpm_package_is_installable::InstallabilityOptions {
+                optional: skip_check_optional,
+                ..self.base_options
+            };
+            check_installability(&metadata_key.to_string(), &manifest, &options)?
+        } else {
+            cached_check(
+                &mut self.check_cache,
+                &metadata_key,
+                metadata,
+                skip_check_optional,
+                &self.base_options,
+            )?
+        };
         // Whatever the seed recorded, this pass's verdict replaces it.
         self.skipped.remove_installability(snapshot_key);
         let Some(warn) = warn else { return Ok(()) };

@@ -5,6 +5,7 @@ import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
@@ -78,6 +79,7 @@ export async function buildModules<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -246,6 +248,7 @@ async function buildDependency<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -276,6 +279,25 @@ async function buildDependency<T extends string> (
         )
       }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
+      if (isPatched && opts.engineStrict) {
+        const patched = await safeReadPackageJsonFromDir(depNode.dir)
+        if (patched != null) {
+          packageIsInstallable(depPath, {
+            name: patched.name ?? '',
+            version: patched.version ?? '0.0.0',
+            engines: patched.engines,
+            cpu: patched.cpu,
+            os: patched.os,
+            libc: patched.libc,
+          }, {
+            engineStrict: !opts.optional,
+            lockfileDir: opts.lockfileDir,
+            nodeVersion: opts.nodeVersion,
+            optional: opts.optional,
+            supportedArchitectures: opts.supportedArchitectures,
+          })
+        }
+      }
     }
     // A patch can add install scripts - or a binding.gyp, which the lifecycle
     // runner turns into `node-gyp rebuild` - to a package that published

@@ -1121,6 +1121,7 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
     drop((root, mock_instance));
 }
 
+<<<<<<< HEAD
 /// A `readPackage` hook that leaves a dependency range as anything but a
 /// string produces a malformed manifest, and the worker sends the manifest
 /// back as JSON, which drops the entry. The install has to fail on that
@@ -1231,6 +1232,57 @@ fn read_package_accepts_a_deleted_dependency() {
             .exists(),
         "the deleted dependency is not installed",
     );
+}
+
+/// A patch that relaxes `engines.node` is the constraint `engineStrict` checks.
+/// The published manifest of `@pnpm.e2e/for-legacy-node` requires Node 0.10.
+#[test]
+fn engine_strict_respects_a_patch_that_relaxes_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/for-legacy-node": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(
+        workspace.join("patches").join("for-legacy-node.patch"),
+        "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"*\"
+   }
+ }
+",
+    )
+    .expect("write patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(
+        "\
+engineStrict: true
+patchedDependencies:
+  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
+",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

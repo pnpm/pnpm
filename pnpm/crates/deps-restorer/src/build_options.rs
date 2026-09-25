@@ -38,6 +38,11 @@ pub struct BuildScriptOptions<'a> {
     /// ignored-builds set. Patches still apply — a patch is applied
     /// even when scripts are suppressed.
     pub ignore: bool,
+    /// Mirrors `config.engineStrict`. A patched package's engines are checked
+    /// against the patched manifest, after the patch is applied.
+    pub engine_strict: bool,
+    /// Mirrors `config.nodeVersion`. `None` detects the running Node.js.
+    pub node_version: Option<&'a str>,
 }
 
 impl<'a> BuildScriptOptions<'a> {
@@ -53,6 +58,8 @@ impl<'a> BuildScriptOptions<'a> {
             shell_emulator: config.shell_emulator,
             unsafe_perm: config.unsafe_perm,
             ignore: config.ignore_scripts,
+            engine_strict: config.effective_engine_strict(),
+            node_version: config.node_version.as_deref(),
         }
     }
 }

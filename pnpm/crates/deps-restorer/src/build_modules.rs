@@ -58,6 +58,10 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     PatchApply(#[error(source)] PatchApplyError),
 
+    /// The patched `package.json` still fails `engineStrict`.
+    #[diagnostic(transparent)]
+    PatchedEngines(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
+
     /// `ERR_PNPM_PATCH_FILE_PATH_MISSING` — fired when a snapshot's
     /// resolved patch carries a hash but
     /// no `patch_file_path`. The hash-without-path shape can come

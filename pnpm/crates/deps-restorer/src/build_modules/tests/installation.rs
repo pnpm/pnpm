@@ -274,6 +274,8 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            engine_strict: false,
+            node_version: None,
         },
 
         allow_build_policy: &policy,
@@ -370,6 +372,8 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            engine_strict: false,
+            node_version: None,
         },
 
         allow_build_policy: &policy,
@@ -490,6 +494,8 @@ async fn write_path_disabled_skips_upload() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            engine_strict: false,
+            node_version: None,
         },
 
         allow_build_policy: &policy,
@@ -632,6 +638,8 @@ async fn upload_error_does_not_interrupt_install() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            engine_strict: false,
+            node_version: None,
         },
 
         allow_build_policy: &policy,

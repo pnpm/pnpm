@@ -82,7 +82,12 @@ pub(super) fn installability_skip(
     if state.opts.include_incompatible_packages {
         return Ok(false);
     }
-    let manifest = manifest_for_installability(pkg_key, metadata);
+    let mut manifest = manifest_for_installability(pkg_key, metadata);
+    // Same deferral as the isolated installability pass: a patched package's
+    // published engines are not the ones the install will check.
+    if state.opts.installability.engine_strict && pkg_key.to_string().contains("(patch_hash=") {
+        manifest.engines = None;
+    }
     let install_opts = InstallabilityOptions {
         engine_strict: state.opts.installability.engine_strict,
         optional,
