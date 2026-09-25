@@ -160,3 +160,27 @@ fn update_tag_unknown_tag_fails() {
 
     drop((root, anchor));
 }
+
+/// A value that is no dist-tag name at all is rejected before anything
+/// runs: reaching the rewrite, it would resolve through no resolver in the
+/// tag chain and the manifest would take the raw string as the
+/// dependency's new specifier.
+#[test]
+fn update_tag_rejects_a_value_that_is_not_a_dist_tag() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["update", "--tag", "file:../payload"])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "update --tag with a non-tag value should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Invalid dist-tag: file:../payload"),
+        "stderr did not name the invalid tag: {stderr}",
+    );
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+
+    drop((root, anchor));
+}

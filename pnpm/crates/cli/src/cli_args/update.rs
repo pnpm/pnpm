@@ -189,6 +189,16 @@ struct PatchesWithSelectorError;
 #[diagnostic(code(ERR_PNPM_INTERACTIVE_PEER_UNSUPPORTED))]
 struct InteractivePeerUnsupportedError;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Invalid dist-tag: {raw}. A dist-tag may only contain URI-safe characters (letters, digits, and -_.!~*'())"
+)]
+#[diagnostic(code(ERR_PNPM_UPDATE_INVALID_TAG))]
+struct InvalidTagError {
+    #[error(not(source))]
+    raw: String,
+}
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
@@ -282,8 +292,7 @@ impl UpdateArgs {
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
-        self.check_patches_options()?;
-        self.check_interactive_peer_options()?;
+        self.check_flag_combinations()?;
         self.check_workspace_option(None)?;
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
@@ -359,6 +368,31 @@ impl UpdateArgs {
         if self.selection.interactive && self.dependency_options.peer {
             return Err(InteractivePeerUnsupportedError.into());
         }
+        Ok(())
+    }
+
+    /// `--tag` names a dist-tag, so the value must be one a registry could
+    /// publish under. A protocol-like value (`file:../x`, a URL) resolves
+    /// through no resolver in the tag chain, and the rewrite would then
+    /// write the raw string into the manifest as the dependency's new
+    /// specifier — rejecting it here, before anything runs, keeps the
+    /// manifests safe.
+    fn check_tag_value(&self) -> miette::Result<()> {
+        let Some(tag) = self.selection.tag.as_deref() else {
+            return Ok(());
+        };
+        if tag.is_empty() || !pnpm_resolving_npm_resolver::is_valid_dist_tag(tag) {
+            return Err(InvalidTagError { raw: tag.to_string() }.into());
+        }
+        Ok(())
+    }
+
+    /// The flag-combination checks every dispatch path runs before any
+    /// resolution happens.
+    fn check_flag_combinations(&self) -> miette::Result<()> {
+        self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
+        self.check_tag_value()?;
         Ok(())
     }
 
