@@ -348,6 +348,26 @@ where
     triggers.requires_build()
 }
 
+fn resolve_row_requires_build<Filenames, Filename>(
+    stored: Option<bool>,
+    manifest: Option<&serde_json::Value>,
+    filenames: Filenames,
+) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    match stored {
+        Some(true)
+            if manifest.is_some_and(pnpm_package_manifest::manifest_opts_out_of_gyp_build) =>
+        {
+            row_requires_build(manifest, filenames)
+        }
+        Some(stored) => stored,
+        None => row_requires_build(manifest, filenames),
+    }
+}
+
 /// Fold the verified rows into the per-key maps the install path reads.
 fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
     let mut result = PrefetchResult {
@@ -370,9 +390,11 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         if let Some(pending_check) = pending_check {
             result.pending_checks.insert(cache_key.clone(), pending_check);
         }
-        let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
-            row_requires_build(manifest.as_deref(), verify_result.files_map.keys())
-        });
+        let calculated_requires_build = resolve_row_requires_build(
+            stored_requires_build,
+            manifest.as_deref(),
+            verify_result.files_map.keys(),
+        );
         if let Some(manifest) = manifest {
             result.manifests.insert(cache_key.clone(), manifest);
         }

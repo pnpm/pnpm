@@ -73,7 +73,11 @@ fn files_match(dir: &Path, files: &HashMap<String, CafsFileInfo>, algo: &str) ->
 }
 
 fn index_requires_build(index: &PackageFilesIndex) -> bool {
-    if index.requires_build == Some(true) {
+    if index.requires_build == Some(true)
+        && !index.manifest
+            .as_ref()
+            .is_some_and(pnpm_package_manifest::manifest_opts_out_of_gyp_build)
+    {
         return true;
     }
     let mut triggers = pnpm_package_manifest::files_build_triggers(index.files.keys());
