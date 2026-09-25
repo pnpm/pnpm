@@ -211,6 +211,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const injectedWorkspaceDep = findInjectedWorkspaceDep(manifests, {
       workspaceManifests: manifests,
       injectWorkspacePackages,
+      linkWorkspacePackages,
       include: opts.include,
       catalogs,
     })

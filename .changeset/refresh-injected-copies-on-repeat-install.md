@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm install` now refreshes the injected copies of workspace projects when the projects were rebuilt since the last install. It used to report "Already up to date" and leave the copies stale until `pnpm install --force` [#4407](https://github.com/pnpm/pnpm/issues/4407).
+`pnpm install` refreshes injected copies of workspace packages when source projects are rebuilt. Injected copies previously stayed stale until `pnpm install --force` [pnpm/pnpm#4407](https://github.com/pnpm/pnpm/issues/4407).

@@ -2482,8 +2482,6 @@ test('issue 4407: refreshes an injected copy on a repeat install after the sourc
   execPnpmSync(['install'])
   expect(fs.existsSync('app/node_modules/shared/dist/out.js')).toBe(false)
 
-  // What a build does: it adds files to the source project that the injected
-  // copy did not have, and no manifest or lockfile changes.
   fs.mkdirSync('shared/dist')
   fs.writeFileSync('shared/dist/out.js', 'module.exports = "built"\n')
   execPnpmSync(['install'])
