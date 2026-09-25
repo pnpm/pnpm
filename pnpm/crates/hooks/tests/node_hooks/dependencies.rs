@@ -32,6 +32,33 @@ async fn read_package_fails_when_peer_dependencies_is_an_array() {
 }
 
 #[tokio::test]
+async fn read_package_fails_when_a_dependency_range_is_not_a_string() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage: (pkg) => ({ ...pkg, dependencies: { ms: undefined } }) } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains(
+        "readPackage hook returned an invalid range for 'ms' in the 'dependencies' of foo@1.0.0. \
+         Expected a string, got undefined. To remove the dependency, delete the property."
+    ));
+    assert!(err.contains("Hook imported via"), "the hook's pnpmfile is named; got: {err}");
+}
+
+#[tokio::test]
+async fn read_package_fails_when_a_peer_dependency_range_is_a_number() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage: (pkg) => ({ ...pkg, peerDependencies: { ms: 1 } }) } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains(
+        "readPackage hook returned an invalid range for 'ms' in the 'peerDependencies' of foo@1.0.0. \
+         Expected a string, got number. To remove the dependency, delete the property."
+    ));
+}
+
+#[tokio::test]
 async fn read_package_normalizes_missing_dependency_fields() {
     // The manifest has no dependency fields; the hook writes into them
     // directly, relying on pnpm's normalization that defaults each to `{}`

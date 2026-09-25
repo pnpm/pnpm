@@ -39,9 +39,10 @@ pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
-/// Covers the `ERR_PNPM_PNPMFILE_FAIL` / `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
-/// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
+/// A throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
 /// returns something that is not a package manifest, aborts the install.
+/// [`HookError::BadReadPackageResult`] is the one case pnpm reports under
+/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` rather than `ERR_PNPM_PNPMFILE_FAIL`.
 #[derive(Debug, Display, Clone)]
 pub enum HookError {
     #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
@@ -49,6 +50,12 @@ pub enum HookError {
 
     #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
     Execution { pnpmfile: String, message: String },
+
+    /// A `readPackage` hook returned a package manifest whose dependency
+    /// ranges are not all strings. The worker catches this before
+    /// `JSON.stringify` can drop a non-string range, and the message names
+    /// the dependency, the field, the package, and the pnpmfile.
+    BadReadPackageResult { message: String },
 }
 
 /// Context provided to pnpmfile hooks.

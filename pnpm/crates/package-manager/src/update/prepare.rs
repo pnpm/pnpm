@@ -144,7 +144,7 @@ pub(super) async fn apply_read_package_hook_to_update_manifest(
     let value = hook
         .read_package(manifest.value().clone(), ctx)
         .await
-        .map_err(InstallError::ReadPackageHook)
+        .map_err(InstallError::from)
         .map_err(UpdateError::Install)?;
     *manifest.value_mut() = (*value).clone();
     Ok(())

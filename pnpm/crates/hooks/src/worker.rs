@@ -73,9 +73,16 @@ pub struct FetcherCapabilities {
     pub fetch: bool,
 }
 
+/// A failure the worker reported for one request: the message it sent, and the
+/// pnpm error code when the failure identifies one.
+struct WorkerFailure {
+    message: String,
+    code: Option<String>,
+}
+
 struct Pending {
     log: LogFn,
-    done: oneshot::Sender<Result<Value, String>>,
+    done: oneshot::Sender<Result<Value, WorkerFailure>>,
     callbacks: Option<FetcherCallbackSender>,
 }
 
@@ -165,6 +172,18 @@ impl NodeWorker {
 
     fn exec_err(&self, message: impl Into<String>) -> HookError {
         HookError::Execution { pnpmfile: self.pnpmfile.clone(), message: message.into() }
+    }
+
+    /// The [`HookError`] a worker failure maps to. The worker attaches a pnpm
+    /// error code only for the failures pnpm reports under a code of their own;
+    /// everything else keeps the generic `ERR_PNPM_PNPMFILE_FAIL` shape.
+    fn hook_error(&self, failure: WorkerFailure) -> HookError {
+        match failure.code.as_deref() {
+            Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") => {
+                HookError::BadReadPackageResult { message: failure.message }
+            }
+            _ => self.exec_err(failure.message),
+        }
     }
 
     /// Run `hook` with `payload`, forwarding any `context.log(...)` to `log`.
@@ -372,7 +391,7 @@ impl NodeWorker {
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(message))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(failure))) => Err(self.hook_error(failure)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
@@ -392,7 +411,10 @@ fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mute
             dispatch_line(&pending, &stdin, &line);
         }
         for (_, request) in pending.lock().unwrap().drain() {
-            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+            let _ = request.done.send(Err(WorkerFailure {
+                message: "pnpmfile worker exited".to_string(),
+                code: None,
+            }));
         }
     });
 }
@@ -419,8 +441,14 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
     }
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
-    let result = match message.get("err").and_then(Value::as_str) {
-        Some(err) => Err(err.to_string()),
+    let result = match message.get("err") {
+        Some(err) => Err(WorkerFailure {
+            message: err.as_str().map_or_else(|| err.to_string(), str::to_owned),
+            code: message
+                .get("code")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        }),
         None => Ok(message
             .get("ok")
             .cloned()

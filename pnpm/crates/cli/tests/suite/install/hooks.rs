@@ -372,6 +372,49 @@ fn ignore_pnpmfile_skips_the_read_package_hook() {
     drop((root, mock_instance));
 }
 
+/// A `readPackage` hook that rewrites a dependency range to a value that is
+/// not a string must fail the install. `JSON.stringify` drops an `undefined`
+/// value, so before the worker validated ranges the dependency vanished from
+/// the manifest and the install reported success
+/// (<https://github.com/pnpm/pnpm/issues/15705>).
+#[test]
+fn a_non_string_dependency_range_from_read_package_fails_the_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = { hooks: { readPackage: (pkg) => {
+            if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+                pkg.dependencies['is-positive'] = undefined;
+            }
+            return pkg;
+        } } }",
+    )
+    .expect("write pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("run install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(!output.status.success(), "an invalid range must fail the install");
+    assert!(stderr.contains("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT"), "STDERR:\n{stderr}");
+    // The rendered diagnostic wraps at the terminal width, so assert on the
+    // tokens naming the offending dependency and field rather than a phrase.
+    assert!(stderr.contains("is-positive"), "the dependency is named; STDERR:\n{stderr}");
+    assert!(stderr.contains("dependencies"), "the field is named; STDERR:\n{stderr}");
+
+    drop((root, mock_instance));
+}
+
 /// `add` and `update` each merge their own CLI flags into the config,
 /// on a dispatch path `install` never takes.
 #[test]
