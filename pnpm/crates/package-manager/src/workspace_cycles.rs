@@ -7,12 +7,15 @@
 //! "Already up to date" says nothing about cycles — pnpm returns before
 //! its own check in that case.
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_config_parse_overrides::ParseOverridesError;
 use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, WorkspaceCatalogs, create_projects_graph,
+    CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, WorkspaceCatalogs,
+    create_projects_graph,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -64,21 +67,29 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
 
 /// The cycles among the projects an install covers: `selected_dirs`
 /// narrows `projects` to a `--filter`ed or `-r` selection, `None` covers
-/// the whole workspace.
+/// the whole workspace. `workspace_dir` and `catalogs` build the
+/// `pnpm.overrides` hook the graph edges follow, as described on
+/// [`crate::overrides_dependency_rewriter`].
 ///
 /// A selected project keeps the dependency list it has in the full
 /// graph; [`workspace_cycles`] then drops the edges that leave the
 /// selection, which is how pnpm sequences its selected graph.
-#[must_use]
+///
+/// Overrides that fail to parse are an error rather than a graph without
+/// them: an override may be what breaks a cycle, so reporting one from
+/// the declared ranges would blame the wrong thing.
 pub fn install_scope_cycles(
     config: &Config,
+    workspace_dir: &Path,
+    catalogs: &Catalogs,
     projects: &[Project],
     selected_dirs: Option<&HashSet<PathBuf>>,
-    catalogs: Option<WorkspaceCatalogs<'_>>,
-) -> Option<Vec<Vec<PathBuf>>> {
+) -> Result<Option<Vec<Vec<PathBuf>>>, ParseOverridesError> {
     if projects.len() < 2 {
-        return None;
+        return Ok(None);
     }
+    let dependency_rewriter =
+        crate::overrides_dependency_rewriter(config, catalogs, workspace_dir)?;
     let mut graph = create_projects_graph(
         projects
             .iter()
@@ -88,7 +99,10 @@ pub fn install_scope_cycles(
             link_workspace_packages: Some(
                 config.link_workspace_packages != LinkWorkspacePackages::Off,
             ),
-            catalogs,
+            catalogs: Some(WorkspaceCatalogs { catalogs, workspace_dir }),
+            dependency_rewriter: dependency_rewriter
+                .as_ref()
+                .map(|rewriter| rewriter as &dyn DependencyRewriter),
             ..CreateProjectsGraphOptions::default()
         },
     )
@@ -96,7 +110,7 @@ pub fn install_scope_cycles(
     if let Some(selected_dirs) = selected_dirs {
         graph.retain(|dir, _| selected_dirs.contains(dir));
     }
-    workspace_cycles(&graph)
+    Ok(workspace_cycles(&graph))
 }
 
 /// Emit the cyclic-workspace-dependencies warning for `cycles`, or

@@ -13,15 +13,15 @@ pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summa
 pub use unmatched::UnmatchedFilters;
 
 mod execution_args;
+mod filter_graphs;
 mod importer_selection;
 mod unmatched;
 
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use derive_more::{Display, Error};
+use filter_graphs::{FilterGraphs, build_filter_graphs};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_config::Config;
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
@@ -31,9 +31,7 @@ use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
     parse_project_selector,
 };
-use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
-};
+use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::{
@@ -292,9 +290,7 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     prefix: &Path,
     auto_exclude_root: AutoExcludeRoot<'_>,
 ) -> miette::Result<(RecursiveSelection<'a>, Option<UnmatchedFilters>)> {
-    let catalogs = configured_catalogs(config)?;
-    let graph_options = recursive_graph_options(config, &catalogs);
-    let all = build_graph(projects, graph_options);
+    let FilterGraphs { all, prod_all } = build_filter_graphs(projects, config, prefix)?;
 
     // Routes into the selection pass whose `follow_prod_deps_only` matches: the
     // prod pass when a `--filter-prod` selector is present, otherwise the
@@ -311,8 +307,6 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
     // selectors run separately so the projects a `--filter-prod` selector
     // contributes can be sorted through the prod-pruned graph; their union is
     // the same set a single combined filter call would return.
-    let prod_all = production_filter_graph(projects, config, graph_options);
-
     let root_in_prod = !config.filter_prod.is_empty();
     let walk_opts = recursive_filter_options(config, prefix);
     let regular_selected = filter_against(
@@ -422,21 +416,6 @@ pub fn selected_importer_ids(
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
-}
-
-/// Build the workspace [`ProjectGraph`] from `projects` under `options`.
-fn build_graph<'p>(
-    projects: &'p [Project],
-    options: CreateProjectsGraphOptions<'_>,
-) -> ProjectGraph<GraphPkg<'p>> {
-    create_projects_graph(
-        projects
-            .iter()
-            .map(|project| GraphPkg { project })
-            .collect(),
-        &options,
-    )
-    .graph
 }
 
 /// Apply one group of selectors (regular or `--filter-prod`) against the
@@ -569,33 +548,6 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
             .to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
-    }
-}
-
-fn production_filter_graph<'a>(
-    projects: &'a [Project],
-    config: &Config,
-    graph_options: CreateProjectsGraphOptions<'_>,
-) -> Option<ProjectGraph<GraphPkg<'a>>> {
-    if config.filter_prod.is_empty() {
-        None
-    } else {
-        Some(build_graph(
-            projects,
-            CreateProjectsGraphOptions { ignore_dev_deps: true, ..graph_options },
-        ))
-    }
-}
-
-/// Respect the configured linking policy when determining workspace edges.
-fn recursive_graph_options<'a>(
-    config: &'a Config,
-    catalogs: &'a Catalogs,
-) -> CreateProjectsGraphOptions<'a> {
-    CreateProjectsGraphOptions {
-        link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
-        catalogs: workspace_catalogs(config, catalogs),
-        ..CreateProjectsGraphOptions::default()
     }
 }
 
