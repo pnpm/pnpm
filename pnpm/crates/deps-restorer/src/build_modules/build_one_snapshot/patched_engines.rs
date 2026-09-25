@@ -1,5 +1,4 @@
-use super::super::BuildModulesError;
-use super::{BuildCandidate, BuildOneSnapshot, PackageKey};
+use super::{super::BuildModulesError, BuildCandidate, BuildOneSnapshot, PackageKey};
 
 /// `engineStrict` against the patched manifest. The earlier installability
 /// pass skipped engines for patched packages because the published manifest
