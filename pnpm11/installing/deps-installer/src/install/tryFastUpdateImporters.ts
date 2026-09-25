@@ -262,8 +262,9 @@ function addImporterEdge (
  *   of the range applies is not a property of the lockfile;
  * - the alias appears under a key this cannot turn back into a plain importer
  *   reference: a peer-suffixed one, where picking a variant would be a guess,
- *   or a registry-qualified one, whose semver only pins a version within its
- *   named registry.
+ *   a patched one, whose reference must carry its `(patch_hash=...)`, or a
+ *   registry-qualified one, whose semver only pins a version within its named
+ *   registry.
  */
 export function lockedVersionResolutionWouldPick (
   lockfile: LockfileObject,
@@ -275,7 +276,9 @@ export function lockedVersionResolutionWouldPick (
     const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (name !== alias) continue
     if (nonSemverVersion != null) continue
-    if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '' || dp.parse(depPath).patchHash != null) {
+      return null
+    }
     if (semver.valid(version) != null && semver.satisfies(version, wanted.specifier)) {
       versions.add(version)
     }

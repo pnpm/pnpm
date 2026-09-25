@@ -201,6 +201,35 @@ test('a new project that declares a `link:` dependency falls back to the resolve
   })).toBe(false)
 })
 
+// A patched package's reference has to carry its `(patch_hash=...)`, which a bare locked version
+// does not.
+test('a new project that depends on a patched package falls back to the resolver', async () => {
+  const subject: LockfileObject = {
+    lockfileVersion: '9.0',
+    patchedDependencies: { '@pnpm.e2e/foo@1.2.0': 'foo-hash' },
+    importers: {
+      ['project-1' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '1.2.0' },
+        dependencies: { '@pnpm.e2e/foo': '1.2.0(patch_hash=foo-hash)' },
+      },
+      ['project-2' as ProjectId]: { specifiers: {} },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@1.2.0(patch_hash=foo-hash)' as DepPath]: { resolution: { integrity: 'sha512-foo' } },
+    },
+  }
+
+  expect(await tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [
+      { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
+      { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '^1.0.0' } } as ProjectManifest },
+    ],
+  })).toBe(false)
+})
+
 test('a new project that names a dependency the lockfile has never held falls back', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 
