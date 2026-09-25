@@ -90,6 +90,28 @@ fn fetch_dev_fetches_the_optional_dependencies_of_dev_dependencies() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn dev_install_without_production_dependencies_installs_the_optional_dependencies_of_dev_dependencies()
+ {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "devDependencies": { DEV_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--dev"])
+        .assert()
+        .success();
+
+    let dev_dep_dir = fs::canonicalize(workspace.join("node_modules").join(DEV_DEP))
+        .expect("the dev dependency is installed");
+    assert!(resolves_from(&dev_dep_dir, DEV_DEP_OPTIONAL));
+    drop((root, npmrc_info));
+}
+
 fn prepare_workspace() -> (tempfile::TempDir, AddMockedRegistry, PathBuf) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

@@ -171,7 +171,10 @@ test('fetch only dev dependencies', async () => {
 })
 
 // https://github.com/pnpm/pnpm/issues/9678
-test('fetch only dev dependencies includes the optional dependencies of devDependencies', async () => {
+test.each([
+  [true, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0', 'is-positive@1.0.0']],
+  [false, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0']],
+])('fetch only dev dependencies with optional = %s', async (optional, expectedVirtualStoreEntries) => {
   const project = prepare({
     dependencies: { 'is-negative': '1.0.0' },
     devDependencies: { '@pnpm.e2e/pkg-with-good-optional': '1.0.0' },
@@ -194,6 +197,7 @@ test('fetch only dev dependencies includes the optional dependencies of devDepen
     cacheDir: path.resolve('cache'),
     dev: true,
     dir: process.cwd(),
+    optional,
     production: false,
     storeDir,
   })
@@ -201,11 +205,7 @@ test('fetch only dev dependencies includes the optional dependencies of devDepen
   const virtualStoreEntries = fs.readdirSync('node_modules/.pnpm', { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name !== 'node_modules')
     .map(({ name }) => name)
-  expect(virtualStoreEntries.sort()).toStrictEqual([
-    '@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0',
-    '@pnpm.e2e+pkg-with-good-optional@1.0.0',
-    'is-positive@1.0.0',
-  ])
+  expect(virtualStoreEntries.sort()).toStrictEqual(expectedVirtualStoreEntries)
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/10460

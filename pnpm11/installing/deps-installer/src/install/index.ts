@@ -2337,12 +2337,13 @@ function rootProjectRunsPreinstallEarly (
  * from a manifest it writes `dependencies` into and nothing else.
  * `optionalDependencies` are the exception, because every package in the
  * graph can declare one and dropping the group drops those too, which no
- * importer's manifest shows.
+ * importer's manifest shows. An importer's own `optionalDependencies` drop
+ * with its `dependencies`.
  */
 function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
   if (!include.optionalDependencies) return true
   return projects.some(({ manifest }) =>
-    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.dependencies && (!isEmpty(manifest.dependencies ?? {}) || !isEmpty(manifest.optionalDependencies ?? {}))) ||
     (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
   )
 }

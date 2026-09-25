@@ -46,14 +46,14 @@ export function help (): string {
   })
 }
 
-type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'optional' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
-    optionalDependencies: true,
+    optionalDependencies: opts.optional !== false,
   }
   await mutateModulesInSingleProject({
     manifest: {},

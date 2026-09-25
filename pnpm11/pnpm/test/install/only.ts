@@ -232,6 +232,24 @@ test.each([
   }
 })
 
+test.each([
+  [{}],
+  [{ optionalDependencies: { '@pnpm.e2e/bravo': '1.0.0' } }],
+])('install --dev without production dependencies installs the optional dependencies of devDependencies (%o)', async (rootOptional) => {
+  prepare({
+    devDependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+    ...rootOptional,
+  })
+
+  execPnpmSync(['install', '--dev'], { expectSuccess: true })
+
+  expect(readInstalledVersion('@pnpm.e2e/pkg-with-good-optional', 'is-positive')).toBe('1.0.0')
+  expect(fs.existsSync('node_modules/@pnpm.e2e/bravo')).toBe(false)
+  expect(storeHolds('@pnpm.e2e/bravo@1.0.0')).toBe(false)
+})
+
 test('install --dev --no-optional skips the optional dependencies of devDependencies', async () => {
   prepare({
     devDependencies: {

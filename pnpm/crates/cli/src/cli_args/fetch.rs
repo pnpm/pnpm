@@ -50,7 +50,7 @@ impl FetchArgs {
             std::iter::empty()
                 .chain(include_prod.then_some(DependencyGroup::Prod))
                 .chain(include_dev.then_some(DependencyGroup::Dev))
-                .chain(Some(DependencyGroup::Optional)),
+                .chain(fetch_config.optional.then_some(DependencyGroup::Optional)),
         );
         base_install.lockfile_policy.frozen = true;
         base_install.lockfile_policy.ignore_manifest_check = true;
