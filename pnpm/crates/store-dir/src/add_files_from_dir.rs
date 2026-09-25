@@ -240,9 +240,10 @@ fn ingest_file(
 }
 
 /// Return the file mode bits in pnpm's canonical form.
-/// On Unix this is `metadata.mode() & 0o777`; on Windows there is
-/// no analog so a fixed `0o644` is reported (matches what pnpm
-/// itself writes for tarball entries on Windows hosts).
+/// On Unix this is `metadata.mode() & 0o777`. Off Unix there is no
+/// analog, so a fixed `0o644` is reported. [`crate::calculate_diff`]
+/// does not compare modes on those hosts: this value is not the mode
+/// stored from the tarball.
 #[cfg(unix)]
 fn file_mode_from(meta: &fs::Metadata) -> u32 {
     use std::os::unix::fs::PermissionsExt;

@@ -62,6 +62,7 @@ fn digest_change_appears_in_added() {
     assert_eq!(added.get("f.txt").unwrap().digest, "d-new");
 }
 
+#[cfg(unix)]
 #[test]
 fn mode_change_appears_in_added() {
     let base = map(&[("f.sh", info("d", 0o644, 1))]);
@@ -70,6 +71,29 @@ fn mode_change_appears_in_added() {
     assert_eq!(diff.deleted, None);
     let added = diff.added.expect("added present");
     assert_eq!(added.get("f.sh").unwrap().mode, 0o755);
+}
+
+/// Off Unix a mode-only difference is not observable build output.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/15667>.
+#[cfg(not(unix))]
+#[test]
+fn mode_change_alone_yields_no_diff() {
+    let base = map(&[("cli.js", info("d", 0o755, 1))]);
+    let current = map(&[("cli.js", info("d", 0o644, 1))]);
+    let diff = calculate_diff(&base, &current);
+    assert_eq!(diff.added, None);
+    assert_eq!(diff.deleted, None);
+}
+
+#[test]
+fn digest_change_appears_in_added_when_mode_also_changes() {
+    let base = map(&[("cli.js", info("d-old", 0o755, 1))]);
+    let current = map(&[("cli.js", info("d-new", 0o644, 1))]);
+    let diff = calculate_diff(&base, &current);
+    assert_eq!(diff.deleted, None);
+    let added = diff.added.expect("added present");
+    assert_eq!(added.get("cli.js").unwrap().digest, "d-new");
 }
 
 #[test]
