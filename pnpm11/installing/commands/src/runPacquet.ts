@@ -361,11 +361,7 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * override semantics, so a user `--no-frozen-lockfile` sitting next to
  * our injected `--frozen-lockfile` would flip the pinning back off.
  *
- * `--reporter` is stripped in any form (`--reporter=foo`,
- * `--reporter foo`): pacquet's `reporter` is a clap value option
- * with last-value-wins semantics, so a user-supplied value would
- * override our `--reporter=ndjson` and break the
- * NDJSON-to-streamParser plumbing the default reporter relies on.
+ * Reporting flags are stripped too; see {@link translateReportingFlag}.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
   const result: string[] = []
@@ -381,10 +377,10 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
       continue
     }
     if (isAlwaysInjected(arg)) continue
-    if (arg.startsWith('--reporter=')) continue
-    if (arg === '--reporter') {
-      // Consume the next token as the reporter value (`--reporter foo`).
-      i++
+    const translated = translateReportingFlag(argv.original, i)
+    if (translated != null) {
+      if (translated.replacement != null) result.push(translated.replacement)
+      i += translated.width - 1
       continue
     }
     result.push(arg)
@@ -413,9 +409,8 @@ function isAlwaysInjected (arg: string): boolean {
  * Flags pnpm itself honors before delegation are filtered out —
  * warning about them would be misleading: `--frozen-lockfile` and
  * `--ignore-manifest-check` in every shape (positive / negated /
- * `=value`); `--reporter` in every shape (`--reporter=foo`,
- * `--reporter foo`); and `--config.*` (configures pnpm's runtime,
- * not the install engine).
+ * `=value`); the reporting flags of {@link translateReportingFlag}; and
+ * `--config.*` (configures pnpm's runtime, not the install engine).
  */
 function collectDroppedFlags (argv: { original: string[] }): string[] {
   const result: string[] = []
@@ -424,12 +419,69 @@ function collectDroppedFlags (argv: { original: string[] }): string[] {
     if (!arg.startsWith('-')) continue
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--config.')) continue
-    if (arg.startsWith('--reporter=')) continue
-    if (arg === '--reporter') {
-      i++
+    const translated = translateReportingFlag(argv.original, i)
+    if (translated != null) {
+      if (translated.replacement != null) result.push(translated.replacement)
+      i += translated.width - 1
       continue
     }
     result.push(arg)
   }
   return result
+}
+
+const REPORTING_LONG_FLAGS = new Set(['--silent', '--verbose', '--quiet'])
+const REPORTING_SHORTHANDS = new Set(['s', 'd', 'q'])
+// The single-letter keys of pnpm's universal and `install` shorthand
+// tables. nopt splits a single-dash token into letters only when every
+// letter is one of them.
+const SINGLE_LETTER_SHORTHANDS = new Set([
+  's', 'd', 'L', 'r', 'q', 'h', 'H', '?', 'v', 'f', 'l', 'p', 'g', 'S', 'D', 'P', 'E', 'O', 'C', 'w', 'i', 'F', 'y',
+])
+// pnpm's multi-letter shorthands that apply to an install, with the
+// pacquet flag each one stands for, or `undefined` for a reporting flag.
+// nopt expands these before it tries to split a token into letters.
+const NAMED_SHORTHANDS = new Map<string, string | undefined>([
+  ['-silent', undefined],
+  ['-verbose', undefined],
+  ['-quiet', undefined],
+  ['-prod', '--prod'],
+  ['-development', '--dev'],
+])
+
+interface TranslatedFlag {
+  width: number
+  replacement?: string
+}
+
+/**
+ * Match the token at `index` against the flags that select pnpm's
+ * reporter or log level, and against pnpm's shorthands that contain them.
+ * Returns `undefined` for any other token. Otherwise returns how many
+ * tokens the flag spans, counting a separate value (`--reporter foo`),
+ * and the token pacquet gets in its place, if any: a cluster of
+ * single-letter shorthands (`-sP`) without its reporting letters, or the
+ * pacquet flag a named shorthand (`-prod`) stands for.
+ *
+ * pnpm's own reporter renders the NDJSON events pacquet emits, so these
+ * flags are pnpm's alone. The published pacquet releases reject
+ * `--silent`, `-s` and `--loglevel`, and a forwarded `--reporter` would
+ * override the injected `--reporter=ndjson`, since pacquet's clap parser
+ * takes the last value.
+ */
+function translateReportingFlag (argv: string[], index: number): TranslatedFlag | undefined {
+  const arg = argv[index]
+  if (REPORTING_LONG_FLAGS.has(arg)) return { width: 1 }
+  if (arg.startsWith('--reporter=') || arg.startsWith('--loglevel=')) return { width: 1 }
+  const value = argv[index + 1]
+  // nopt takes the next token as the value of a string option only when it
+  // is not an option itself, but always takes it for an enum like `loglevel`.
+  if (arg === '--reporter') return { width: value == null || value.startsWith('-') ? 1 : 2 }
+  if (arg === '--loglevel') return { width: value == null ? 1 : 2 }
+  if (NAMED_SHORTHANDS.has(arg)) return { width: 1, replacement: NAMED_SHORTHANDS.get(arg) }
+  if (arg.length < 2 || arg[0] !== '-' || arg[1] === '-') return undefined
+  const letters = [...arg.slice(1)]
+  if (!letters.every((letter) => SINGLE_LETTER_SHORTHANDS.has(letter)) || !letters.some((letter) => REPORTING_SHORTHANDS.has(letter))) return undefined
+  const kept = letters.filter((letter) => !REPORTING_SHORTHANDS.has(letter)).join('')
+  return { width: 1, replacement: kept === '' ? undefined : `-${kept}` }
 }
