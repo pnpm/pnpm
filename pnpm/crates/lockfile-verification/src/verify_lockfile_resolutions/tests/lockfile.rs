@@ -200,3 +200,22 @@ fn verify_lockfile_importer_snapshot_links_accepts_a_clean_lockfile() {
     super::super::verify_lockfile_importer_snapshot_links(&parse(TWO_PKG_LOCKFILE))
         .expect("a lockfile whose references all resolve must pass");
 }
+
+#[tokio::test]
+async fn verify_lockfile_resolutions_rejects_missing_snapshot_even_when_packages_absent() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      acme:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+    );
+    assert!(lockfile.packages.is_none(), "fixture must have no packages section");
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("missing snapshot must be rejected even with no packages section");
+    let VerifyError::MissingDependency { dep_path } = err else {
+        panic!("expected MissingDependency, got {err:?}");
+    };
+    assert_eq!(dep_path, "acme@1.0.0");
+}
