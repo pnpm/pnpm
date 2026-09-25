@@ -8,8 +8,8 @@ import type {
   RegistriesByScope,
   SupportedArchitectures,
 } from '@pnpm/types'
-import semver from 'semver'
 
+import { compareVersions } from './compareVersions.js'
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
@@ -33,6 +33,8 @@ export interface LicensePackage {
   description?: string
   repository?: string
   path?: string
+  /** Installed copies retained when several locations share one package version. */
+  paths?: string[]
 }
 
 /**
@@ -67,6 +69,7 @@ function appendDependenciesFromLicenseNode (
       description: dependencyNode.description,
       repository: dependencyNode.repository as string,
       path: dependencyNode.dir,
+      ...(dependencyNode.paths == null ? {} : { paths: dependencyNode.paths }),
     })
   }
 }
@@ -114,7 +117,7 @@ export async function findDependencyLicenses (opts: {
     supportedArchitectures: opts.supportedArchitectures,
   })
 
-  // map: name@ver (qualified by named registry, when any) -> LicensePackage
+  // map: name@ver (qualified by named registry, when any) and license -> LicensePackage
   const licensePackages = new Map<string, LicensePackage>()
 
   for (const dependencyName in licenseNodeTree.dependencies) {
@@ -124,13 +127,17 @@ export async function findDependencyLicenses (opts: {
     for (const dependencyNode of dependenciesOfNode) {
       // The registry is part of the identity: the same name and version
       // served by two registries are different artifacts and may carry
-      // different licenses, so they must not collapse onto one entry.
-      const mapKey = dependencyNode.registryName == null
+      // different licenses, so they must not collapse onto one entry. Two
+      // local packages can share a name and version but not their license.
+      const pkgId = dependencyNode.registryName == null
         ? `${dependencyNode.name}@${dependencyNode.version}`
         : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
-      const existingVersion = licensePackages.get(mapKey)?.version
-      if (existingVersion === undefined) {
+      const mapKey = `${pkgId}\u0000${dependencyNode.license}`
+      const existing = licensePackages.get(mapKey)
+      if (existing === undefined) {
         licensePackages.set(mapKey, dependencyNode)
+      } else {
+        mergeLicensePackagePaths(existing, dependencyNode)
       }
     }
   }
@@ -138,6 +145,22 @@ export async function findDependencyLicenses (opts: {
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
-    pkg1.name.localeCompare(pkg2.name) || semver.compare(pkg1.version, pkg2.version)
+    pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
   )
+}
+
+/**
+ * Adds the installed locations of `added` to `target`, which describes the
+ * same package version and license, so that every copy stays in the report.
+ * Each side contributes its `paths`, or its `path` when `paths` is unset.
+ * `target.paths` is set to the distinct locations only when there are more
+ * than one; otherwise `target` is left unchanged.
+ */
+export function mergeLicensePackagePaths (target: LicensePackage, added: LicensePackage): void {
+  const paths = [...new Set([...installedPaths(target), ...installedPaths(added)])]
+  if (paths.length > 1) target.paths = paths
+}
+
+function installedPaths (pkg: LicensePackage): string[] {
+  return pkg.paths ?? (pkg.path ? [pkg.path] : [])
 }

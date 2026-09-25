@@ -364,6 +364,36 @@ test('pnpm licenses: keeps packages with the same name and version but different
   expect(report.MIT.map(({ name }) => name)).toStrictEqual(['local'])
 })
 
+test('pnpm licenses: keeps local packages with the same name and version but different licenses from one lockfile', async () => {
+  const workspaceDir = tempDir()
+  for (const [dir, license] of [['local-mit', 'MIT'], ['local-isc', 'ISC']]) {
+    fs.mkdirSync(path.join(workspaceDir, dir))
+    fs.writeFileSync(path.join(workspaceDir, dir, 'package.json'), JSON.stringify({ name: 'local', version: '1.0.0', license }))
+  }
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({
+    private: true,
+    dependencies: { 'local-mit': 'file:./local-mit', 'local-isc': 'file:./local-isc' },
+  }))
+  const storeDir = path.join(workspaceDir, 'store')
+  const opts = { ...DEFAULT_OPTS, dir: workspaceDir, pnpmHomeDir: '', storeDir }
+  await install.handler(opts)
+  const { output, exitCode } = await licenses.handler({
+    ...opts,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, paths: string[] }>>
+  expect(Object.keys(report).sort()).toStrictEqual(['ISC', 'MIT'])
+  for (const license of ['ISC', 'MIT']) {
+    expect(report[license].map(({ name }) => name)).toStrictEqual(['local'])
+    expect(report[license][0].paths).toHaveLength(1)
+    const manifest = JSON.parse(fs.readFileSync(path.join(report[license][0].paths[0], 'package.json'), 'utf8'))
+    expect(manifest.license).toBe(license)
+  }
+})
+
 test('pnpm licenses: lists a registry package and a same-named local package from different lockfiles under one JSON entry', async () => {
   const workspaceDir = tempDir()
   fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
@@ -409,6 +439,49 @@ test('pnpm licenses: lists a registry package and a same-named local package fro
   expect(report.MIT.map(({ name }) => name)).toStrictEqual(['is-positive'])
   expect(report.MIT[0].versions).toHaveLength(2)
   expect(report.MIT[0].versions).toContain('3.1.0')
+})
+
+test('pnpm licenses: lists the installed path of every dedicated lockfile that installs one package version', async () => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ private: true }))
+  const storeDir = path.join(workspaceDir, 'store')
+  const projectDirs = ['foo', 'bar'].map((name) => path.join(workspaceDir, name))
+  for (const projectDir of projectDirs) {
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: path.basename(projectDir), dependencies: { 'is-positive': '3.1.0' } }))
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph: Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([projectDir]) => projectDir !== workspaceDir)
+    ),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, versions: string[], paths: string[] }>>
+  expect(report.MIT.map(({ name }) => name)).toStrictEqual(['is-positive'])
+  expect(report.MIT[0].versions).toStrictEqual(['3.1.0'])
+  expect([...report.MIT[0].paths].sort()).toStrictEqual(projectDirs.map((projectDir) =>
+    path.join(projectDir, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')
+  ).sort())
 })
 
 test('pnpm licenses: fails when lockfile is missing', async () => {
@@ -574,4 +647,56 @@ test('pnpm licenses: reports a runtime downloaded through devEngines', async () 
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})
+
+test.each([
+  ['hoisted', 'node_modules', undefined],
+  ['hoisted', 'custom_modules', undefined],
+  ['isolated', 'node_modules', undefined],
+  ['isolated', 'custom_modules', undefined],
+  ['isolated', 'custom_modules', 'virtual-store'],
+] as const)('pnpm licenses: reports installed paths with the %s linker in %s with virtual store %s', async (nodeLinker, modulesDir, virtualStoreDir) => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({
+    private: true,
+    dependencies: { 'is-positive': '3.1.0', a: 'file:./a', b: 'file:./b' },
+  }))
+  for (const name of ['a', 'b']) {
+    fs.mkdirSync(path.join(workspaceDir, name))
+    fs.writeFileSync(path.join(workspaceDir, name, 'package.json'), JSON.stringify({
+      name,
+      version: '1.0.0',
+      license: 'MIT',
+      dependencies: { 'is-positive': '1.0.0' },
+    }))
+  }
+  const storeDir = path.join(workspaceDir, 'store')
+  const opts = { ...DEFAULT_OPTS, dir: workspaceDir, pnpmHomeDir: '', storeDir, nodeLinker, modulesDir, virtualStoreDir }
+  await install.handler(opts)
+  const { output, exitCode } = await licenses.handler({
+    ...opts,
+    json: true,
+    storeDir: path.join(storeDir, STORE_VERSION),
+  }, ['list'])
+  expect(exitCode).toBe(0)
+  const packages = Object.values(JSON.parse(output)).flat() as Array<{ name: string, versions: string[], paths: string[] }>
+  const positive = packages.find(({ name }) => name === 'is-positive')!
+  expect(positive.versions).toEqual(['1.0.0', '3.1.0'])
+  if (nodeLinker === 'hoisted') {
+    expect(positive.paths.sort()).toEqual([
+      path.join(workspaceDir, modulesDir, 'a/node_modules/is-positive'),
+      path.join(workspaceDir, modulesDir, 'b/node_modules/is-positive'),
+      path.join(workspaceDir, modulesDir, 'is-positive'),
+    ].sort())
+  }
+  for (const pkg of packages) {
+    for (const pkgPath of pkg.paths) {
+      expect(path.isAbsolute(pkgPath)).toBe(true)
+      const manifest = JSON.parse(fs.readFileSync(path.join(pkgPath, 'package.json'), 'utf8'))
+      expect(manifest.name).toBe(pkg.name)
+      if (pkg.name === 'is-positive') {
+        expect(pkg.versions).toContain(manifest.version)
+      }
+    }
+  }
 })
