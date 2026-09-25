@@ -1,6 +1,8 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
+import { stripLockfileVersionPins } from '@pnpm/resolving.npm-resolver'
+import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
@@ -71,4 +73,31 @@ export function findStalePeerPins (
     }
   }
   return stale
+}
+
+/**
+ * Drops the lockfile pins of the given peers from the importer's locked
+ * dependencies and the lockfile's weight from its preferred versions of
+ * them, so the peers resolve the way a fresh install resolves them.
+ */
+export function releaseStalePeerPins (
+  stalePeerPins: Set<string>,
+  opts: {
+    preferredVersions: PreferredVersions
+    resolvedDependencies: ResolvedDependencies
+  }
+): { preferredVersions: PreferredVersions, resolvedDependencies: ResolvedDependencies } {
+  const resolvedDependencies = { ...opts.resolvedDependencies }
+  // Null-prototype: keyed by package names from manifests and the lockfile.
+  const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
+  for (const alias of stalePeerPins) {
+    delete resolvedDependencies[alias]
+    const selectors = stripLockfileVersionPins(opts.preferredVersions[alias])
+    if (selectors == null) {
+      delete preferredVersions[alias]
+    } else {
+      preferredVersions[alias] = selectors
+    }
+  }
+  return { preferredVersions, resolvedDependencies }
 }

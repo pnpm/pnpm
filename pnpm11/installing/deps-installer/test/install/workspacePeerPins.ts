@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { mutateModules } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -24,7 +24,9 @@ test.each([
     'is-positive': { specifier: peerRange, version: '1.0.0' },
   })
 
-  await mutateModules(mutations, testDefaults({ ...lockfileDefaults, allProjects: createPeerProviderProjects(bumpedSpec, peerRange) }))
+  const reporter = jest.fn()
+  await mutateModules(mutations, testDefaults({ ...lockfileDefaults, allProjects: createPeerProviderProjects(bumpedSpec, peerRange), reporter }))
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({ level: 'warn' }))
   const lockfile = project.readLockfile()
   expect(lockfile.importers['app'].dependencies).toStrictEqual({
     'is-positive': { specifier: bumpedSpec, version: appVersion },

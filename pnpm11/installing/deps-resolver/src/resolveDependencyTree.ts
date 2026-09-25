@@ -13,7 +13,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
 
-import { collectDirectDependencySpecs, findStalePeerPins } from './findStalePeerPins.js'
+import { collectDirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import {
@@ -267,18 +267,21 @@ export async function resolveDependencyTree<T> (
     : undefined
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
-    const resolvedDependencies = {
+    const lockedDependencies = {
       ...projectSnapshot.dependencies,
       ...projectSnapshot.devDependencies,
       ...projectSnapshot.optionalDependencies,
     }
     const stalePeerPins = directSpecsByName == null
       ? undefined
-      : findStalePeerPins(resolvedDependencies, {
+      : findStalePeerPins(lockedDependencies, {
         directSpecsByName,
         lockfile: opts.wantedLockfile,
         manifest: importer.manifest,
       })
+    const { preferredVersions, resolvedDependencies } = stalePeerPins?.size
+      ? releaseStalePeerPins(stalePeerPins, { preferredVersions: importer.preferredVersions ?? {}, resolvedDependencies: lockedDependencies })
+      : { preferredVersions: importer.preferredVersions ?? {}, resolvedDependencies: lockedDependencies }
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
@@ -307,12 +310,8 @@ export async function resolveDependencyTree<T> (
       parentPkgAliases: Object.fromEntries(
         importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
       ) as ParentPkgAliases,
-      preferredVersions: importer.preferredVersions ?? {},
-      wantedDependencies: stalePeerPins?.size
-        ? importer.wantedDependencies.map((wantedDependency) => stalePeerPins.has(wantedDependency.alias)
-          ? { ...wantedDependency, updateDepth: 0 }
-          : wantedDependency)
-        : importer.wantedDependencies,
+      preferredVersions,
+      wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
       rangeSpecStyle: importer.rangeSpecStyle,
     }
