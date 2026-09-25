@@ -3979,6 +3979,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/hooks.read-package-hook':
+        specifier: workspace:*
+        version: link:../../hooks/read-package-hook
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
