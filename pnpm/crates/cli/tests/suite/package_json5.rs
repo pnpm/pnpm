@@ -42,8 +42,8 @@ fn edits_and_runs_json5_without_creating_json() {
     assert!(text.contains("name:'fixture'"), "{text}");
     assert!(text.contains("version:'1.0.1'"), "{text}");
     assert!(text.contains("keep:true"), "{text}");
-    assert!(!text.contains("\"name\""), "{text}");
-    assert!(!text.contains("\"version\""), "{text}");
+    assert!(!text.contains(r#""name""#), "{text}");
+    assert!(!text.contains(r#""version""#), "{text}");
     assert!(!workspace.join("package.json").exists(), "JSON must not be created");
     drop(root);
 }
@@ -89,8 +89,8 @@ fn add_update_remove_preserve_json5_comments() {
     let text = fs::read_to_string(path).unwrap();
     assert!(text.contains("// project"), "{text}");
     assert!(text.contains("name:'fixture'"), "{text}");
-    assert!(!text.contains("\"name\""), "{text}");
-    assert!(!text.contains("\"version\""), "{text}");
+    assert!(!text.contains(r#""name""#), "{text}");
+    assert!(!text.contains(r#""version""#), "{text}");
     assert!(!workspace.join("package.json").exists(), "JSON must not be created");
     drop((root, npmrc_info));
 }

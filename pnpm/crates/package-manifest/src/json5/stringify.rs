@@ -2,12 +2,7 @@ use std::fmt::Write;
 
 use serde_json::{Map, Value};
 
-/// Render `value` as JSON5.
-///
-/// A non-empty `indent` pretty-prints with a trailing comma. Identifier keys
-/// stay bare. Strings use the quote that needs less escaping, and a tie uses
-/// single quotes. Non-ASCII keys are quoted, which is valid JSON5 and avoids
-/// the Unicode identifier tables.
+/// Render `value` as a JSON5 string formatted with `indent`.
 pub(crate) fn stringify(value: &Value, indent: &str) -> String {
     let mut out = String::new();
     write_value(&mut out, value, indent_unit(indent), 0);
@@ -119,6 +114,17 @@ fn is_id_continue(character: char) -> bool {
 }
 
 fn write_string(out: &mut String, value: &str) {
+    let quote = choose_quote(value);
+    out.push(quote);
+    let mut characters = value.chars().peekable();
+    while let Some(character) = characters.next() {
+        let next_is_digit = characters.peek().is_some_and(char::is_ascii_digit);
+        write_char(out, character, quote, next_is_digit);
+    }
+    out.push(quote);
+}
+
+fn choose_quote(value: &str) -> char {
     let mut single_quotes = 0usize;
     let mut double_quotes = 0usize;
     for character in value.chars() {
@@ -128,33 +134,32 @@ fn write_string(out: &mut String, value: &str) {
             _ => {}
         }
     }
-    let quote = if single_quotes > double_quotes { '"' } else { '\'' };
-    out.push(quote);
-    let mut characters = value.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            character if character == quote => {
-                out.push('\\');
-                out.push(character);
-            }
-            '\\' => out.push_str("\\\\"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{b}' => out.push_str("\\v"),
-            '\0' if characters.peek().is_some_and(char::is_ascii_digit) => out.push_str("\\x00"),
-            '\0' => out.push_str("\\0"),
-            '\u{2028}' => out.push_str("\\u2028"),
-            '\u{2029}' => out.push_str("\\u2029"),
-            character if (character as u32) < 0x20 => {
-                write!(out, "\\x{:02x}", character as u32).expect("string formatting succeeds");
-            }
-            character => out.push(character),
-        }
+    if single_quotes > double_quotes { '"' } else { '\'' }
+}
+
+fn write_char(out: &mut String, character: char, quote: char, next_is_digit: bool) {
+    if character == quote {
+        out.push('\\');
+        out.push(character);
+        return;
     }
-    out.push(quote);
+    match character {
+        '\\' => out.push_str(r"\\"),
+        '\u{8}' => out.push_str(r"\b"),
+        '\u{c}' => out.push_str(r"\f"),
+        '\n' => out.push_str(r"\n"),
+        '\r' => out.push_str(r"\r"),
+        '\t' => out.push_str(r"\t"),
+        '\u{b}' => out.push_str(r"\v"),
+        '\0' if next_is_digit => out.push_str(r"\x00"),
+        '\0' => out.push_str(r"\0"),
+        '\u{2028}' => out.push_str(r"\u2028"),
+        '\u{2029}' => out.push_str(r"\u2029"),
+        c if (c as u32) < 0x20 => {
+            write!(out, r"\x{:02x}", c as u32).expect("string formatting succeeds");
+        }
+        c => out.push(c),
+    }
 }
 
 #[cfg(test)]

@@ -601,10 +601,10 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
     assert!(written.contains("name:"));
     assert!(written.contains("'lib'"));
     assert!(written.contains("'1.0.1'"));
-    assert!(!written.contains("\"name\""));
-    assert!(!written.contains("\"version\""));
-    assert!(!written.contains("\"lib\""));
-    assert!(!written.contains("\"1.0.1\""));
+    assert!(!written.contains(r#""name""#));
+    assert!(!written.contains(r#""version""#));
+    assert!(!written.contains(r#""lib""#));
+    assert!(!written.contains(r#""1.0.1""#));
     assert!(!root_dir.join("package.json").exists());
     assert_eq!(fs::read_to_string(root_dir.join("package.yaml")).expect("read YAML"), yaml);
 }

@@ -23,9 +23,9 @@ fn quotes_keys_that_are_not_identifiers_and_keeps_identifier_keys_bare() {
 
 #[test]
 fn prefers_the_quote_that_needs_less_escaping() {
-    assert_eq!(stringify(&json!("it's"), ""), "\"it's\"");
-    assert_eq!(stringify(&json!("say \"hi\""), ""), "'say \"hi\"'");
-    assert_eq!(stringify(&json!("a'b\"c"), ""), "'a\\'b\"c'");
+    assert_eq!(stringify(&json!("it's"), ""), r#""it's""#);
+    assert_eq!(stringify(&json!(r#"say "hi""#), ""), r#"'say "hi"'"#);
+    assert_eq!(stringify(&json!(r#"a'b"c"#), ""), r#"'a\'b"c'"#);
     assert_eq!(stringify(&json!(""), ""), "''");
 }
 
@@ -44,10 +44,10 @@ fn escapes_controls_and_round_trips_through_json5() {
     });
     let text = stringify(&value, "  ");
     assert_eq!(json5::from_str::<Value>(&text).unwrap(), value);
-    assert!(text.contains("\\n"));
-    assert!(text.contains("\\u2028"));
-    assert!(text.contains("\\x00"));
-    assert!(text.contains("\\x01"));
+    assert!(text.contains(r"\n"));
+    assert!(text.contains(r"\u2028"));
+    assert!(text.contains(r"\x00"));
+    assert!(text.contains(r"\x01"));
 }
 
 #[test]
