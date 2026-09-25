@@ -170,7 +170,7 @@ export async function lockfileToDepGraph (
     const rootDeps = {
       ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
       ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
-      ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
     }
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }

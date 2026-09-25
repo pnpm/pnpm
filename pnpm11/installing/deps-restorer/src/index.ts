@@ -1294,7 +1294,7 @@ function getRootDependencyAliases (lockfile: LockfileObject, include: IncludedDe
   return Object.keys({
     ...(include.dependencies ? root.dependencies : {}),
     ...(include.devDependencies ? root.devDependencies : {}),
-    ...(include.optionalDependencies ? root.optionalDependencies : {}),
+    ...(include.dependencies && include.optionalDependencies ? root.optionalDependencies : {}),
   })
 }
 

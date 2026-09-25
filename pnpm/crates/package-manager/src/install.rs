@@ -93,6 +93,18 @@ pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> In
     }
 }
 
+/// The groups the install reads from each project's own manifest and
+/// importer. A project's `optionalDependencies` install with its
+/// production dependencies, so a run without `Prod` drops them here while
+/// [`included_dependencies`] keeps following the optional dependencies of
+/// the packages it installs.
+pub(super) fn project_dependency_groups(mut groups: Vec<DependencyGroup>) -> Vec<DependencyGroup> {
+    if !groups.contains(&DependencyGroup::Prod) {
+        groups.retain(|group| *group != DependencyGroup::Optional);
+    }
+    groups
+}
+
 mod run;
 mod workspace_state;
 

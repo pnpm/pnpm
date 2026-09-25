@@ -46,15 +46,14 @@ export function help (): string {
   })
 }
 
-type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
+type FetchCommandOptions = Pick<Config, 'production' | 'dev' | 'optional' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 
 export async function handler (opts: FetchCommandOptions): Promise<void> {
   const store = await createStoreController(opts)
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
-    // when including optional deps, production is also required when perform headless install
-    optionalDependencies: opts.production !== false,
+    optionalDependencies: opts.optional !== false,
   }
   await mutateModulesInSingleProject({
     manifest: {},

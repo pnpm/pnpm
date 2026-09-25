@@ -950,7 +950,6 @@ export async function getConfig (opts: {
   } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
     pnpmConfig.production = false
     pnpmConfig.dev = true
-    pnpmConfig.optional = false
   } else {
     pnpmConfig.production = true
     pnpmConfig.dev = true

@@ -507,10 +507,6 @@ export async function mutateModules (
     ctx.include = opts.include
   }
 
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
     extraBinPaths: opts.extraBinPaths,
     extendNodePath: opts.extendNodePath,
@@ -2388,12 +2384,13 @@ function rootProjectRunsPreinstallEarly (
  * from a manifest it writes `dependencies` into and nothing else.
  * `optionalDependencies` are the exception, because every package in the
  * graph can declare one and dropping the group drops those too, which no
- * importer's manifest shows.
+ * importer's manifest shows. An importer's own `optionalDependencies` drop
+ * with its `dependencies`.
  */
 function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
   if (!include.optionalDependencies) return true
   return projects.some(({ manifest }) =>
-    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.dependencies && (!isEmpty(manifest.dependencies ?? {}) || !isEmpty(manifest.optionalDependencies ?? {}))) ||
     (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
   )
 }
@@ -2701,7 +2698,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
-          linkedDep.optional && !opts.include.optionalDependencies ||
+          linkedDep.optional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
         )),
       linkedDependenciesByProjectId ?? {}
@@ -2713,11 +2710,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (!dep) {
           include = false
         } else {
-          const isDev = Boolean(manifest.devDependencies?.[dep.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          const isDev = Object.hasOwn(manifest.devDependencies ?? {}, alias)
+          const isOptional = Object.hasOwn(manifest.optionalDependencies ?? {}, alias)
           include = !(
             isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
+            isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
             !isDev && !isOptional && !opts.include.dependencies
           )
         }

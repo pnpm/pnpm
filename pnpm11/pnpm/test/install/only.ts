@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -196,3 +197,75 @@ test('install --no-optional does not download optional dependencies', async () =
   expect(execPnpmSync(['cat-index', '@pnpm.e2e/bravo-dep@1.1.0'], { storeDir: freshStore }).status).not.toBe(0)
   expect(execPnpmSync(['cat-index', 'is-positive@1.0.0'], { storeDir: freshStore }).status).not.toBe(0)
 })
+
+// https://github.com/pnpm/pnpm/issues/9678
+test.each([
+  ['isolated'],
+  ['hoisted'],
+])('install --dev installs the optional dependencies of devDependencies with the %s linker', async (nodeLinker) => {
+  prepare({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+    optionalDependencies: {
+      '@pnpm.e2e/bravo': '1.0.0',
+    },
+  })
+
+  execPnpmSync(['install', '--dev', `--config.node-linker=${nodeLinker}`], { expectSuccess: true })
+  expectDevInstall()
+
+  fs.rmSync('node_modules', { recursive: true, force: true })
+  execPnpmSync(['install', '--dev', '--frozen-lockfile', `--config.node-linker=${nodeLinker}`], { expectSuccess: true })
+  expectDevInstall()
+
+  function expectDevInstall (): void {
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pkg-with-good-optional')).toBe(true)
+    expect(storeHolds('is-positive@1.0.0')).toBe(true)
+    expect(readInstalledVersion('@pnpm.e2e/pkg-with-good-optional', 'is-positive')).toBe('1.0.0')
+    expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+    expect(fs.existsSync('node_modules/@pnpm.e2e/bravo')).toBe(false)
+    expect(storeHolds('@pnpm.e2e/bravo@1.0.0')).toBe(false)
+  }
+})
+
+test.each([
+  [{}],
+  [{ optionalDependencies: { '@pnpm.e2e/bravo': '1.0.0' } }],
+])('install --dev without production dependencies installs the optional dependencies of devDependencies (%o)', async (rootOptional) => {
+  prepare({
+    devDependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+    ...rootOptional,
+  })
+
+  execPnpmSync(['install', '--dev'], { expectSuccess: true })
+
+  expect(readInstalledVersion('@pnpm.e2e/pkg-with-good-optional', 'is-positive')).toBe('1.0.0')
+  expect(fs.existsSync('node_modules/@pnpm.e2e/bravo')).toBe(false)
+  expect(storeHolds('@pnpm.e2e/bravo@1.0.0')).toBe(false)
+})
+
+test('install --dev --no-optional skips the optional dependencies of devDependencies', async () => {
+  prepare({
+    devDependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  execPnpmSync(['install', '--dev', '--no-optional'], { expectSuccess: true })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pkg-with-good-optional')).toBe(true)
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain('is-positive@1.0.0')
+  expect(storeHolds('is-positive@1.0.0')).toBe(false)
+})
+
+function readInstalledVersion (parent: string, dep: string): string {
+  const parentDir = fs.realpathSync(path.join('node_modules', parent))
+  const require = createRequire(path.join(parentDir, 'package.json'))
+  return loadJsonFileSync<PackageManifest>(require.resolve(`${dep}/package.json`)).version
+}

@@ -202,7 +202,7 @@ function pickLinkedDirectDeps (
   const rootDeps = {
     ...(include.devDependencies ? importer.devDependencies : {}),
     ...(include.dependencies ? importer.dependencies : {}),
-    ...(include.optionalDependencies ? importer.optionalDependencies : {}),
+    ...(include.dependencies && include.optionalDependencies ? importer.optionalDependencies : {}),
   }
   const directDeps: Record<string, string> = {}
   for (const alias in rootDeps) {

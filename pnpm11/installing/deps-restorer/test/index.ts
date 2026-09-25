@@ -297,13 +297,14 @@ test('installing non-prod deps then all deps', async () => {
   }
 })
 
-test('installing only optional deps', async () => {
+// https://github.com/pnpm/pnpm/issues/9678
+test('installing dev deps with optional deps included skips the project optional deps', async () => {
   const prefix = f.prepare('simple')
 
   await headlessInstall(await testDefaults({
     include: {
       dependencies: false,
-      devDependencies: false,
+      devDependencies: true,
       optionalDependencies: true,
     },
     lockfileDir: prefix,
@@ -312,8 +313,8 @@ test('installing only optional deps', async () => {
   const project = assertProject(prefix)
   project.hasNot('is-positive')
   project.hasNot('rimraf')
-  project.hasNot('is-negative')
-  project.has('colors')
+  project.has('is-negative')
+  project.hasNot('colors')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1958

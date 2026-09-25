@@ -156,7 +156,7 @@ fn direct_package_keys(
     let groups = [
         (DependencyGroup::Prod, included.dependencies),
         (DependencyGroup::Dev, included.dev_dependencies),
-        (DependencyGroup::Optional, included.optional_dependencies),
+        (DependencyGroup::Optional, included.includes_project_optional_dependencies()),
     ];
     importer_ids
         .iter()
