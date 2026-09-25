@@ -646,3 +646,72 @@ module.exports = {{
         .assert().success().stdout("100.1.0\n");
     drop((root, mock_instance));
 }
+
+/// A custom resolution's integrity is opaque to pnpm's own verification, but
+/// it still tells a repeat install whether the slot holds the resolved bytes.
+/// Regression test for pnpm/pnpm#15670.
+#[test]
+fn changed_custom_resolution_integrity_re_imports_the_package() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let serve_payload = |payload: &[u8]| {
+        let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+            ("package/package.json", br#"{"name":"dep-a","version":"1.0.0"}"#),
+            ("package/payload.txt", payload),
+        ]);
+        fs::write(workspace.join("served.tgz"), body).unwrap();
+    };
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"dep-a":"1.0.0"}}"#).unwrap();
+    crate::_utils::append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const served = path.join(__dirname, 'served.tgz');
+const integrity = () => 'sha512-' + crypto.createHash('sha512').update(fs.readFileSync(served)).digest('base64');
+module.exports = {
+  resolvers: [{
+    canResolve: wanted => wanted.alias === 'dep-a',
+    resolve: () => ({
+      id: 'dep-a@1.0.0',
+      manifest: { name: 'dep-a', version: '1.0.0' },
+      resolution: { type: 'custom:served', integrity: integrity() },
+    }),
+    shouldRefreshResolution: (depPath, snapshot) => snapshot.resolution.integrity !== integrity(),
+  }],
+  fetchers: [{
+    canFetch: (id, resolution) => resolution.type === 'custom:served',
+    fetch: (cafs, resolution, opts, fetchers) =>
+      fetchers.localTarball(cafs, { tarball: 'file:' + served, integrity: integrity() }, opts),
+  }],
+};
+",
+    )
+    .unwrap();
+    let installed_payload =
+        || fs::read_to_string(workspace.join("node_modules/dep-a/payload.txt")).unwrap();
+
+    serve_payload(b"V1");
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    assert_eq!(installed_payload(), "V1");
+
+    serve_payload(b"V2");
+    pacquet_at(&workspace)
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    assert_eq!(installed_payload(), "V2");
+
+    drop((root, mock_instance));
+}
