@@ -152,11 +152,8 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
 /// without one, so the global install has a package to install.
 ///
 /// The package is `pnpm`, the name `pnpm self-update` installs the engine
-/// under, so both leave the same shims behind: the bin linker writes no
-/// `pnpm.ps1` for that name and removes one it finds, and a setup that
-/// installed under another name would leave a `.ps1` for the next
-/// self-update to delete, changing how PowerShell launches pnpm
-/// (pnpm/pnpm#15567).
+/// under, so both link the same shims (see `wants_powershell_shim` in the
+/// cmd-shim crate).
 ///
 /// `type: module` matters even though nothing here is imported as a package:
 /// without it Node.js reparses the ESM files shipped alongside the executable

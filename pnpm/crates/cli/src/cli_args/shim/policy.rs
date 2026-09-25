@@ -87,8 +87,6 @@ pub(super) fn set_policy(
 ///
 /// pnpm itself is left out: its own executable switches to the version a
 /// project pins, so a shim in front of it would dispatch to nothing new.
-/// The only global install of it is the one `pnpm setup` makes, and a
-/// shim there would hard-link the executable over its own bin.
 pub(crate) fn record_package_manager_shims<'a>(
     config: &Config,
     packages: impl IntoIterator<Item = &'a str>,
