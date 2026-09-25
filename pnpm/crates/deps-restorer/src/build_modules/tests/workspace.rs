@@ -83,8 +83,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            engine_strict: false,
-            node_version: None,
+            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
         },
 
         allow_build_policy: &policy,

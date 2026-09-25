@@ -1,7 +1,9 @@
 //! Running one package's build scripts.
 
+mod patched_engines;
 mod side_effects;
 mod slot_to_build;
+use patched_engines::enforce_patched_engines;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
@@ -91,10 +93,7 @@ fn build_candidate<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, candidate.patch)?;
-    if is_patched {
-        enforce_patched_engines(context, snapshot_key, candidate)?;
-    }
+    let is_patched = apply_configured_patch(context, snapshot_key, candidate)?;
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
@@ -289,68 +288,6 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     Ok(true)
 }
 
-/// `engineStrict` against the patched manifest. The earlier installability
-/// pass skipped engines for patched packages because the published manifest
-/// was still the only one on record.
-fn enforce_patched_engines(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
-    candidate: &BuildCandidate<'_>,
-) -> Result<(), BuildModulesError> {
-    if !context.scripts.engine_strict || candidate.patch.is_none() {
-        return Ok(());
-    }
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
-        return Ok(());
-    };
-    let Ok(raw) = std::fs::read(pkg_dir.join("package.json")) else {
-        return Ok(());
-    };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&raw) else {
-        return Ok(());
-    };
-    let engines = manifest
-        .get("engines")
-        .and_then(|engines| engines.as_object())
-        .map(|engines| pnpm_package_is_installable::WantedEngine {
-            node: engines
-                .get("node")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
-            pnpm: engines
-                .get("pnpm")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
-        });
-    let installability = pnpm_package_is_installable::PackageInstallabilityManifest {
-        name: candidate.name.clone(),
-        engines,
-        ..pnpm_package_is_installable::PackageInstallabilityManifest::default()
-    };
-    let host = crate::installability::InstallabilityHost::detect_with(
-        true,
-        context.scripts.node_version.map(str::to_string),
-    );
-    let options = pnpm_package_is_installable::InstallabilityOptions {
-        engine_strict: true,
-        optional: false,
-        current_node_version: host.node_version.as_str(),
-        pnpm_version: None,
-        current_os: host.os,
-        current_cpu: host.cpu,
-        current_libc: host.libc,
-        supported_architectures: None,
-    };
-    match pnpm_package_is_installable::package_is_installable(
-        &snapshot_key.to_string(),
-        &installability,
-        &options,
-    ) {
-        Ok(_) => Ok(()),
-        Err(source) => Err(BuildModulesError::PatchedEngines(source)),
-    }
-}
-
 /// Apply the configured patch before the postinstall hooks run, reporting
 /// whether one was applied (which feeds the cache-write gate). A snapshot with
 /// a patch entry but no resolved `patch_file_path` is a hard error.
@@ -361,9 +298,9 @@ fn enforce_patched_engines(
 fn apply_configured_patch(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    patch: Option<&pnpm_patching::ExtendedPatchInfo>,
+    candidate: &BuildCandidate<'_>,
 ) -> Result<bool, BuildModulesError> {
-    let Some(patch) = patch else { return Ok(false) };
+    let Some(patch) = candidate.patch else { return Ok(false) };
     let patch_file_path = patch.patch_file_path
         .as_deref()
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
@@ -376,6 +313,7 @@ fn apply_configured_patch(
         }
         apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
+    enforce_patched_engines(context, snapshot_key, candidate)?;
     Ok(true)
 }
 
