@@ -36,6 +36,23 @@ test.each([
   })
 })
 
+test('a filtered install of the providing project also moves the lockfile entry of an unselected project\'s auto-installed peer', async () => {
+  prepareEmpty()
+  const [appMutation, libMutation] = ['app', 'lib'].map((name) => ({ mutation: 'install' as const, rootDir: path.resolve(name) as ProjectRootDir }))
+  await mutateModules([appMutation, libMutation], testDefaults({ autoInstallPeers: true, allProjects: createPeerProviderProjects('1.0.0', '>=1.0.0') }))
+
+  await mutateModules([appMutation], testDefaults({ autoInstallPeers: true, allProjects: createPeerProviderProjects('2.0.0', '>=1.0.0') }))
+
+  const project = assertProject(process.cwd())
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['app'].dependencies).toStrictEqual({
+    'is-positive': { specifier: '2.0.0', version: '2.0.0' },
+  })
+  expect(lockfile.importers['lib'].dependencies).toStrictEqual({
+    'is-positive': { specifier: '>=1.0.0', version: '2.0.0' },
+  })
+})
+
 function createPeerProviderProjects (appSpec: string, peerRange: string) {
   return [
     {
