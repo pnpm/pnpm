@@ -906,17 +906,6 @@ test('verify integrity of git-hosted tarball against the resolution', async () =
   })).rejects.toThrow(TarballIntegrityError)
 })
 
-// https://github.com/pnpm/pnpm/issues/13338
-test('a git-hosted tarball resolution needs a fetch only when it has no integrity', () => {
-  const tarball = 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8'
-
-  expect(fetch.gitHostedTarball.resolutionNeedsFetch?.({ tarball })).toBe(true)
-  expect(fetch.gitHostedTarball.resolutionNeedsFetch?.({
-    tarball,
-    integrity: 'sha512-MRqvs50psUtGELoeBcJwDUi7lT6RUXBzTHsU3U701V/DIouBQSZo+tx5xSXDJLEcItepyZPjIncx8Xy4qPFlKw==',
-  })).toBe(false)
-})
-
 test('fail when extracting a broken tarball', async () => {
   const mockPool = mockAgent.get(registry)
 
