@@ -4,8 +4,9 @@
 
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
-    PathExtenderReport, create_alias_scripts, legacy_global_add_specs, remove_legacy_homedir_shims,
-    render_setup_output, standalone_manifest,
+    PathExtenderReport, create_alias_scripts, legacy_global_add_specs,
+    migrate_legacy_global_packages, remove_legacy_homedir_shims, render_setup_output,
+    standalone_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -302,4 +303,129 @@ fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
     let dependencies = dependencies.as_object().expect("object");
     let already_installed = std::iter::once("prettier".to_string()).collect();
     assert_eq!(legacy_global_add_specs(dependencies, &already_installed), ["typescript@^5.4.0"]);
+}
+
+fn write_legacy_manifest(home: &Path, body: &str) {
+    let dir = home.join("global").join("5");
+    std::fs::create_dir_all(&dir).expect("create legacy global dir");
+    std::fs::write(dir.join("package.json"), body).expect("write legacy manifest");
+}
+
+fn migrate(home: &Path, exec_path: &Path) -> miette::Result<()> {
+    migrate_legacy_global_packages::<pnpm_reporter::SilentReporter>(exec_path, home, home)
+}
+
+#[test]
+fn migrate_legacy_global_packages_ignores_a_missing_or_unusable_manifest() {
+    let home = tempfile::tempdir().expect("create temp dir");
+    let exec_path = home.path().join("missing-pnpm");
+    migrate(home.path(), &exec_path).expect("missing manifest is a no-op");
+
+    write_legacy_manifest(home.path(), "not json");
+    migrate(home.path(), &exec_path).expect("unreadable json is a no-op");
+
+    write_legacy_manifest(home.path(), r#"{"dependencies":[]}"#);
+    migrate(home.path(), &exec_path).expect("non-object dependencies are a no-op");
+
+    write_legacy_manifest(home.path(), r#"{"dependencies":{"pnpm":"10.15.0"}}"#);
+    migrate(home.path(), &exec_path).expect("pnpm itself is not reinstalled");
+}
+
+#[cfg(unix)]
+fn write_fake_pnpm(dir: &Path, exit_code: i32) -> PathBuf {
+    let path = dir.join("pnpm");
+    let record = dir.join("record.txt");
+    std::fs::write(
+        &path,
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nprintf '%s\\n' \"$PNPM_HOME\" >> '{}'\nprintf '%s\\n' \"$PATH\" >> '{}'\nexit {exit_code}\n",
+            record.display(),
+            record.display(),
+            record.display(),
+        ),
+    )
+    .expect("write fake pnpm");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    path
+}
+
+#[cfg(windows)]
+fn write_fake_pnpm(dir: &Path, exit_code: i32) -> PathBuf {
+    let path = dir.join("pnpm.cmd");
+    let record = dir.join("record.txt");
+    std::fs::write(
+        &path,
+        format!(
+            "@echo off\r\necho %* > \"{}\"\r\necho %PNPM_HOME% >> \"{}\"\r\necho %PATH% >> \"{}\"\r\nexit /b {exit_code}\r\n",
+            record.display(),
+            record.display(),
+            record.display(),
+        ),
+    )
+    .expect("write fake pnpm");
+    path
+}
+
+#[test]
+fn migrate_legacy_global_packages_reinstalls_recorded_packages() {
+    let home = tempfile::tempdir().expect("create temp dir");
+    write_legacy_manifest(
+        home.path(),
+        r#"{"dependencies":{"pnpm":"10.15.0","typescript":"^5.4.0"}}"#,
+    );
+    let exec_path = write_fake_pnpm(home.path(), 0);
+
+    migrate(home.path(), &exec_path).expect("migration succeeds");
+
+    let record = std::fs::read_to_string(home.path().join("record.txt")).expect("read record");
+    assert!(record.contains("typescript@^5.4.0"), "{record}");
+    assert!(record.contains(&home.path().display().to_string()), "{record}");
+}
+
+fn link_install_group(global: &Path, install: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(install, global.join("abc")).expect("link install group");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(install, global.join("abc")).expect("link install group");
+}
+
+#[test]
+fn migrate_legacy_global_packages_skips_packages_already_in_the_current_layout() {
+    let home = tempfile::tempdir().expect("create temp dir");
+    let install = home.path().join("install");
+    std::fs::create_dir_all(&install).expect("create install dir");
+    std::fs::write(install.join("package.json"), r#"{"dependencies":{"prettier":"3.0.0"}}"#)
+        .expect("write current manifest");
+    let global = home
+        .path()
+        .join("global")
+        .join(pnpm_config::GLOBAL_LAYOUT_VERSION);
+    std::fs::create_dir_all(&global).expect("create current global dir");
+    link_install_group(&global, &install);
+    write_legacy_manifest(home.path(), r#"{"dependencies":{"prettier":"3.0.0"}}"#);
+    let exec_path = home.path().join("missing-pnpm");
+
+    migrate(home.path(), &exec_path).expect("already installed package is skipped");
+    assert!(!home.path().join("record.txt").exists());
+}
+
+#[test]
+fn migrate_legacy_global_packages_fails_when_reinstall_exits_nonzero() {
+    let home = tempfile::tempdir().expect("create temp dir");
+    write_legacy_manifest(home.path(), r#"{"dependencies":{"typescript":"^5.4.0"}}"#);
+    let exec_path = write_fake_pnpm(home.path(), 1);
+
+    let error = migrate(home.path(), &exec_path).expect_err("nonzero exit fails setup");
+    assert!(error.to_string().contains("exit code 1"), "{error}");
+}
+
+#[test]
+fn migrate_legacy_global_packages_fails_when_reinstall_cannot_start() {
+    let home = tempfile::tempdir().expect("create temp dir");
+    write_legacy_manifest(home.path(), r#"{"dependencies":{"typescript":"^5.4.0"}}"#);
+
+    let error = migrate(home.path(), &home.path().join("missing-pnpm"))
+        .expect_err("missing executable fails setup");
+    assert!(error.to_string().contains("run the global package migration"), "{error}");
 }

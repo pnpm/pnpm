@@ -356,6 +356,31 @@ fn installed_global_aliases(pnpm_home_dir: &Path) -> std::collections::BTreeSet<
         .collect()
 }
 
+fn legacy_global_dependencies(
+    pnpm_home_dir: &Path,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let manifest_path = pnpm_home_dir
+        .join("global")
+        .join(LEGACY_GLOBAL_LAYOUT)
+        .join("package.json");
+    let bytes = fs::read(manifest_path).ok()?;
+    let manifest = serde_json::from_slice::<serde_json::Value>(&bytes).ok()?;
+    manifest
+        .get("dependencies")
+        .and_then(serde_json::Value::as_object)
+        .cloned()
+}
+
+fn bin_prepended_path(pnpm_home_dir: &Path) -> std::ffi::OsString {
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
+    path_value
+}
+
 /// Reinstall packages from `<PNPM_HOME>/global/5` into the current global
 /// directory. Setup points PATH at `bin/`, so binaries left in the previous
 /// layout are no longer on PATH and do not show up in `pnpm list -g`.
@@ -364,21 +389,10 @@ fn migrate_legacy_global_packages<Reporter: self::Reporter + 'static>(
     pnpm_home_dir: &Path,
     prefix_dir: &Path,
 ) -> miette::Result<()> {
-    let manifest_path = pnpm_home_dir
-        .join("global")
-        .join(LEGACY_GLOBAL_LAYOUT)
-        .join("package.json");
-    let Ok(bytes) = fs::read(&manifest_path) else {
+    let Some(dependencies) = legacy_global_dependencies(pnpm_home_dir) else {
         return Ok(());
     };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-        return Ok(());
-    };
-    let Some(dependencies) = manifest.get("dependencies").and_then(serde_json::Value::as_object)
-    else {
-        return Ok(());
-    };
-    let specs = legacy_global_add_specs(dependencies, &installed_global_aliases(pnpm_home_dir));
+    let specs = legacy_global_add_specs(&dependencies, &installed_global_aliases(pnpm_home_dir));
     if specs.is_empty() {
         return Ok(());
     }
@@ -386,18 +400,12 @@ fn migrate_legacy_global_packages<Reporter: self::Reporter + 'static>(
         &prefix_dir.to_string_lossy(),
         &format!("Migrating global packages from the previous pnpm layout: {}", specs.join(" ")),
     );
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
-    path_value.push(separator);
-    if let Some(existing) = std::env::var_os("PATH") {
-        path_value.push(existing);
-    }
     let status = Command::new(exec_path)
         .arg("add")
         .arg("-g")
         .args(&specs)
         .env("PNPM_HOME", pnpm_home_dir)
-        .env("PATH", path_value)
+        .env("PATH", bin_prepended_path(pnpm_home_dir))
         .status()
         .into_diagnostic()
         .wrap_err("run the global package migration")?;
