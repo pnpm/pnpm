@@ -361,11 +361,7 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * override semantics, so a user `--no-frozen-lockfile` sitting next to
  * our injected `--frozen-lockfile` would flip the pinning back off.
  *
- * `--reporter` is stripped in any form (`--reporter=foo`,
- * `--reporter foo`): pacquet's `reporter` is a clap value option
- * with last-value-wins semantics, so a user-supplied value would
- * override our `--reporter=ndjson` and break the
- * NDJSON-to-streamParser plumbing the default reporter relies on.
+ * Reporting flags are stripped too; see {@link reportingFlagWidth}.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
   const result: string[] = []
@@ -381,10 +377,9 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
       continue
     }
     if (isAlwaysInjected(arg)) continue
-    if (arg.startsWith('--reporter=')) continue
-    if (arg === '--reporter') {
-      // Consume the next token as the reporter value (`--reporter foo`).
-      i++
+    const reportingWidth = reportingFlagWidth(arg)
+    if (reportingWidth > 0) {
+      i += reportingWidth - 1
       continue
     }
     result.push(arg)
@@ -413,9 +408,8 @@ function isAlwaysInjected (arg: string): boolean {
  * Flags pnpm itself honors before delegation are filtered out —
  * warning about them would be misleading: `--frozen-lockfile` and
  * `--ignore-manifest-check` in every shape (positive / negated /
- * `=value`); `--reporter` in every shape (`--reporter=foo`,
- * `--reporter foo`); and `--config.*` (configures pnpm's runtime,
- * not the install engine).
+ * `=value`); the reporting flags of {@link reportingFlagWidth}; and
+ * `--config.*` (configures pnpm's runtime, not the install engine).
  */
 function collectDroppedFlags (argv: { original: string[] }): string[] {
   const result: string[] = []
@@ -424,12 +418,35 @@ function collectDroppedFlags (argv: { original: string[] }): string[] {
     if (!arg.startsWith('-')) continue
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--config.')) continue
-    if (arg.startsWith('--reporter=')) continue
-    if (arg === '--reporter') {
-      i++
+    const reportingWidth = reportingFlagWidth(arg)
+    if (reportingWidth > 0) {
+      i += reportingWidth - 1
       continue
     }
     result.push(arg)
   }
   return result
+}
+
+const REPORTING_FLAGS = new Set(['--silent', '-s', '--verbose', '--quiet', '-q', '-d', '-dd', '-ddd'])
+const REPORTING_OPTIONS = ['reporter', 'loglevel'] as const
+
+/**
+ * The number of argv tokens `arg` spans when it selects pnpm's reporter
+ * or log level, including a separate value (`--reporter foo`), or `0`
+ * for any other token.
+ *
+ * pnpm's own reporter renders the NDJSON events pacquet emits, so these
+ * flags are pnpm's alone. The published pacquet releases reject
+ * `--silent`, `-s` and `--loglevel`, and a forwarded `--reporter` would
+ * override the injected `--reporter=ndjson`, since pacquet's clap parser
+ * takes the last value.
+ */
+function reportingFlagWidth (arg: string): number {
+  if (REPORTING_FLAGS.has(arg)) return 1
+  for (const name of REPORTING_OPTIONS) {
+    if (arg === `--${name}`) return 2
+    if (arg.startsWith(`--${name}=`)) return 1
+  }
+  return 0
 }
