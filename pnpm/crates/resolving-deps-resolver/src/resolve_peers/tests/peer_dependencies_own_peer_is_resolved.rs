@@ -666,6 +666,99 @@ fn same_package_child_replaces_inherited_parent_when_descendant_closes_peer_diam
     );
 }
 
+/// Same as above, but the walk meets another occurrence of `wrapper` first,
+/// one that has its own `parser`. Cycle pruning can give two occurrences of one
+/// package different children, so that occurrence must not stop the walk from
+/// reaching `plugin` through the `wrapper` that inherits the provider.
+#[test]
+fn descendant_walk_does_not_skip_a_package_seen_first_with_its_own_provider() {
+    let ts1 = NodeId::leaf("ts@1.0.0");
+    let ts2 = NodeId::leaf("ts@2.0.0");
+    let parser_root = NodeId::next();
+    let parser_child = NodeId::next();
+    let parser_in_wrapper = NodeId::next();
+    let plugin = NodeId::next();
+    let wrapper = NodeId::next();
+    let wrapper_with_parser = NodeId::next();
+    let zeta = NodeId::next();
+    let shadow = NodeId::next();
+
+    let mut wrapper_children = BTreeMap::new();
+    wrapper_children.insert("plugin".to_string(), plugin.clone());
+
+    let mut wrapper_with_parser_children = BTreeMap::new();
+    wrapper_with_parser_children.insert("parser".to_string(), parser_in_wrapper.clone());
+
+    let mut zeta_children = BTreeMap::new();
+    zeta_children.insert("wrapper".to_string(), wrapper_with_parser.clone());
+
+    // Child edges are popped in reverse alias order, so `zeta` is walked first.
+    let mut shadow_children = BTreeMap::new();
+    shadow_children.insert("parser".to_string(), parser_child.clone());
+    shadow_children.insert("ts".to_string(), ts1.clone());
+    shadow_children.insert("wrapper".to_string(), wrapper.clone());
+    shadow_children.insert("zeta".to_string(), zeta.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep {
+                alias: "parser".to_string(),
+                node_id: parser_root.clone(),
+                id: "parser@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "shadow".to_string(),
+                node_id: shadow.clone(),
+                id: "shadow@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from_iter([
+            ("ts@1.0.0".into(), package("ts", "1.0.0", &[], true)),
+            ("ts@2.0.0".into(), package("ts", "2.0.0", &[], true)),
+            ("parser@1.0.0".into(), package("parser", "1.0.0", &[("ts", "*")], false)),
+            (
+                Arc::from("plugin@1.0.0".to_string()),
+                package("plugin", "1.0.0", &[("parser", "*"), ("ts", "*")], false),
+            ),
+            ("wrapper@1.0.0".into(), package("wrapper", "1.0.0", &[], false)),
+            ("zeta@1.0.0".into(), package("zeta", "1.0.0", &[], false)),
+            ("shadow@1.0.0".into(), package("shadow", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from_iter([
+            (ts1, tree_node("ts@1.0.0", BTreeMap::new(), 1)),
+            (ts2, tree_node("ts@2.0.0", BTreeMap::new(), 0)),
+            (parser_root, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
+            (parser_child, tree_node("parser@1.0.0", BTreeMap::new(), 1)),
+            (parser_in_wrapper, tree_node("parser@1.0.0", BTreeMap::new(), 3)),
+            (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 2)),
+            (wrapper, tree_node("wrapper@1.0.0", wrapper_children, 1)),
+            (wrapper_with_parser, tree_node("wrapper@1.0.0", wrapper_with_parser_children, 2)),
+            (zeta, tree_node("zeta@1.0.0", zeta_children, 1)),
+            (shadow, tree_node("shadow@1.0.0", shadow_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from_iter(["parser".to_string(), "ts".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let consistent = DepPath::from("plugin@1.0.0(parser@1.0.0(ts@1.0.0))(ts@1.0.0)");
+    let inconsistent = DepPath::from("plugin@1.0.0(parser@1.0.0(ts@2.0.0))(ts@1.0.0)");
+
+    assert!(
+        result.graph.contains_key(&consistent),
+        "plugin should use the nested parser context: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        !result.graph.contains_key(&inconsistent),
+        "plugin must not mix the root parser context with nested ts: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
 // Parity check for <https://github.com/pnpm/pnpm/pull/12514>.
 //
 // A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)

@@ -965,7 +965,9 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
 
   // The consumer that closes the diamond may be any descendant that inherits
   // this node's provider, not only a direct child. The children of a node
-  // depend only on its package, so each package is visited once.
+  // depend only on its package, so each package's children are expanded once.
+  // A package is marked only when it inherits the provider: cycle pruning can
+  // drop its copy of the provider from one occurrence but not another.
   // See https://github.com/pnpm/pnpm/issues/12098
   const visited = new Set<PkgIdWithPatchHash>()
   const pending = Object.values(children)
@@ -975,7 +977,6 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
     if (childNode == null) continue
     const childPkg = childNode.resolvedPackage as T
     if (visited.has(childPkg.pkgIdWithPatchHash)) continue
-    visited.add(childPkg.pkgIdWithPatchHash)
     const childPeerDependencies = childPkg.peerDependencies
     if (childPeerDependencies?.[parentPkg.name] != null) {
       for (const peerName of conflictingPeers) {
@@ -988,6 +989,7 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
     // A descendant that has its own copy of the package provides it to its
     // subtree, so the inherited one doesn't reach any deeper.
     if (childNode.children[parentPkg.name] != null) continue
+    visited.add(childPkg.pkgIdWithPatchHash)
     pending.push(...Object.values(childNode.children))
   }
   return false

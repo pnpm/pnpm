@@ -313,7 +313,10 @@ impl Walker<'_> {
     /// disagree about. The consumer need not be a direct child; any
     /// descendant that inherits this node's provider counts
     /// (<https://github.com/pnpm/pnpm/issues/12098>). A node's children
-    /// depend only on its package, so each package is visited once.
+    /// depend only on its package, so each package's children are expanded
+    /// once. A package is marked only when it inherits the provider, because
+    /// cycle pruning can cut its copy of the provider in one occurrence and
+    /// keep it in another.
     fn descendant_binds_conflicting_peer(
         &self,
         node_id: &NodeId,
@@ -324,13 +327,19 @@ impl Walker<'_> {
         let mut visited = HashSet::<&str>::default();
         let mut pending = self.child_edges_of(node);
         while let Some((_, child_pkg_id, child_node_id)) = pending.pop() {
-            if !visited.insert(child_pkg_id) {
+            if visited.contains(child_pkg_id) {
                 continue;
             }
             if self.pkg_binds_conflicting_peer(child_pkg_id, parent_pkg_name, conflicting_peers) {
                 return true;
             }
-            pending.extend(self.children_inheriting(child_pkg_id, child_node_id, parent_pkg_name));
+            let Some(grandchildren) =
+                self.children_inheriting(child_pkg_id, child_node_id, parent_pkg_name)
+            else {
+                continue;
+            };
+            visited.insert(child_pkg_id);
+            pending.extend(grandchildren);
         }
         false
     }
@@ -350,15 +359,15 @@ impl Walker<'_> {
                 .any(|peer| pkg.peer_dependencies.contains_key(peer))
     }
 
-    /// The children of a descendant that still inherit the provider. None do
-    /// when the descendant has its own copy of it, because that copy is what
-    /// its subtree inherits.
+    /// The children of a descendant that still inherits the provider, or
+    /// `None` when the descendant has its own copy of it, because that copy
+    /// is what its subtree inherits.
     fn children_inheriting<'a>(
         &'a self,
         pkg_id: &'a str,
         node_id: Option<&'a NodeId>,
         parent_pkg_name: &str,
-    ) -> Vec<(&'a str, &'a str, Option<&'a NodeId>)> {
+    ) -> Option<Vec<(&'a str, &'a str, Option<&'a NodeId>)>> {
         let children =
             match node_id.and_then(|node_id| self.tree.dependencies_tree.get(node_id)) {
                 Some(node) => self.child_edges_of(node),
@@ -368,9 +377,9 @@ impl Walker<'_> {
             .iter()
             .any(|(alias, _, _)| *alias == parent_pkg_name)
         {
-            return Vec::new();
+            return None;
         }
-        children
+        Some(children)
     }
 
     /// A node's children as `(alias, package id, node id)`, from its realized
