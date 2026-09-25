@@ -469,9 +469,9 @@ mod windows {
 
     /// Publish `staging` at `link` with an atomic rename, folding a lost race
     /// into the `AlreadyExists` reuse signal. A transient Windows file lock
-    /// on the rename is retried, one [`attempt_commit`] per try.
+    /// on inspection or rename is retried, one [`attempt_commit`] per try.
     fn commit_staged_junction(link: &Path, staging: &Path) -> io::Result<()> {
-        let rename_error = match super::retry_transient_file_locks(|| attempt_commit(link, staging))
+        let commit_error = match super::retry_transient_file_locks(|| attempt_commit(link, staging))
         {
             Ok(CommitAttempt::Committed) => return Ok(()),
             Ok(CommitAttempt::DestinationTaken) => {
@@ -483,15 +483,15 @@ mod windows {
             Err(error) => error,
         };
 
-        // The rename either lost a cross-process race or genuinely failed;
+        // The commit either lost a cross-process race or genuinely failed;
         // re-inspecting the destination tells those apart.
-        let after_rename = format!(" after a failed rename ({rename_error})");
+        let after_commit = format!(" after a failed commit ({commit_error})");
         match inspect_destination(link) {
-            Destination::Exists => Err(reuse_completed_destination(link, staging, &after_rename)),
+            Destination::Exists => Err(reuse_completed_destination(link, staging, &after_commit)),
             Destination::InspectFailed(error) => {
-                Err(inspect_failed(link, staging, &error, &after_rename))
+                Err(inspect_failed(link, staging, &error, &after_commit))
             }
-            Destination::Missing => Err(discard_staging_after_rename(staging, link, rename_error)),
+            Destination::Missing => Err(discard_staging_after_commit(staging, link, commit_error)),
         }
     }
 
@@ -510,13 +510,18 @@ mod windows {
     /// slow part — the reparse-point conversion inside [`stage_junction`] —
     /// running in parallel. Re-inspecting the destination on every try means
     /// a race lost while waiting is reused rather than retried through the
-    /// budget. Only the rename failure is returned as `Err`, so the retry
-    /// never repeats a final verdict about the destination.
+    /// budget. A delete-pending destination can deny inspection temporarily;
+    /// that error follows the same bounded retry policy as a locked rename.
     fn attempt_commit(link: &Path, staging: &Path) -> io::Result<CommitAttempt> {
         let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         match inspect_destination(link) {
             Destination::Missing => {}
             Destination::Exists => return Ok(CommitAttempt::DestinationTaken),
+            Destination::InspectFailed(error)
+                if crate::retry::is_transient_file_lock_error(&error) =>
+            {
+                return Err(error);
+            }
             Destination::InspectFailed(error) => return Ok(CommitAttempt::InspectFailed(error)),
         }
         fs::rename(staging, link).map(|()| CommitAttempt::Committed)
@@ -584,25 +589,25 @@ mod windows {
         }
     }
 
-    /// The rename genuinely failed and left nothing at `link`. Discard staging
-    /// and surface the rename error — but never as `AlreadyExists`, or
+    /// The commit genuinely failed and left nothing at `link`. Discard staging
+    /// and surface the commit error — but never as `AlreadyExists`, or
     /// [`super::force_symlink_inner`] would treat the missing link as reusable.
     /// A rename that lost the race only to have the winner vanish before the
     /// re-inspection can carry that kind, so strip it to `Other`; every other
     /// kind (including `NotFound`, which drives a mkdir + retry) is informative
     /// and safe to surface unchanged.
-    pub(super) fn discard_staging_after_rename(
+    pub(super) fn discard_staging_after_commit(
         staging: &Path,
         link: &Path,
-        rename_error: io::Error,
+        commit_error: io::Error,
     ) -> io::Error {
         match fs::remove_dir(staging) {
-            Ok(()) if rename_error.kind() != io::ErrorKind::AlreadyExists => rename_error,
+            Ok(()) if commit_error.kind() != io::ErrorKind::AlreadyExists => commit_error,
             Ok(()) => io::Error::other(format!(
-                "failed to rename staged junction {staging:?} to {link:?}: {rename_error}",
+                "failed to commit staged junction {staging:?} to {link:?}: {commit_error}",
             )),
             Err(cleanup) => io::Error::other(format!(
-                "failed to rename staged junction {staging:?} to {link:?}: {rename_error}; \
+                "failed to commit staged junction {staging:?} to {link:?}: {commit_error}; \
                  cleanup failed: {cleanup}",
             )),
         }
