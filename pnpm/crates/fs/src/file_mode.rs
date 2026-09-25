@@ -200,7 +200,8 @@ pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
 #[cfg(unix)]
 #[must_use]
 pub fn unix_creation_mode(parent: &Path, requested: Option<u32>) -> UnixCreationMode {
-    if requested.is_some_and(|mode| mode & 0o077 == 0) {
+    // Group and other permission bits are the low 6 bits.
+    if requested.is_some_and(|mode| mode.trailing_zeros() >= 6) {
         return UnixCreationMode { open_mode: requested, grant_mode: None };
     }
     let executable = requested.is_some_and(is_executable);
@@ -315,14 +316,12 @@ pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
             Ok(meta) => {
                 let mode = meta.permissions().mode() & 0o7777;
                 let merged = mode | extra;
-                if merged != mode {
-                    if let Err(error) =
+                if merged != mode
+                    && let Err(error) =
                         std::fs::set_permissions(&current, std::fs::Permissions::from_mode(merged))
-                    {
-                        if !is_unchangeable(&error) {
-                            return Err(error);
-                        }
-                    }
+                    && !is_unchangeable(&error)
+                {
+                    return Err(error);
                 }
             }
             Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {}

@@ -144,8 +144,8 @@ fn init_new_shards_inherit_group_write_and_setgid() {
             .unwrap()
             .permissions()
             .mode();
-        assert_ne!(mode & 0o020, 0, "{} must stay group-writable, mode {mode:04o}", dir.display(),);
-        assert_ne!(mode & 0o2000, 0, "{} must stay setgid, mode {mode:04o}", dir.display(),);
+        assert_ne!(mode & 0o020, 0, "{} must stay group-writable, mode {mode:04o}", dir.display());
+        assert_ne!(mode & 0o2000, 0, "{} must stay setgid, mode {mode:04o}", dir.display());
     }
     assert_eq!(
         std::fs::metadata(&versioned).unwrap().mode() & 0o7777,
