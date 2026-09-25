@@ -324,7 +324,8 @@ export async function getShShimDir (src: string, to: string, opts: GetShShimDirO
  * `dir` with its symlinks resolved, as the shell shim's `cd -P` resolves them.
  * On Windows `dir` is resolved only when a symlink or junction lies on its
  * path, since `realpath` also resolves a `subst` drive, which the MSYS shell
- * does not.
+ * does not. A missing ancestor counts as no link. Rejects with the error of
+ * any other failed `lstat`, or of `realpath`.
  */
 export async function getPhysicalShimDir (dir: string, fs_: ShimDirFs = fs.promises): Promise<string> {
   if (isWindows && !await hasLinkOnPath(dir, fs_)) return dir
