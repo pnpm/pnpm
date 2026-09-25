@@ -365,6 +365,84 @@ fn approve_builds_deny_keeps_the_build_ignored() {
     drop(harness);
 }
 
+/// Install a project of a `sharedWorkspaceLockfile: false` workspace from
+/// its own directory, with the build of `@pnpm.e2e/install-script-example`
+/// ignored. Returns the harness, the workspace root, and the project dir.
+fn install_project_with_its_own_lockfile()
+-> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf, std::path::PathBuf) {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nstrictDepBuilds: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
+        .expect("write root package.json");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({ "dependencies": { INSTALL: "1.0.0" } }).to_string(),
+    )
+    .expect("write project package.json");
+
+    pacquet(&project)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!project.join(INSTALL_MARKER).exists(), "the build must be ignored on install");
+    (harness, workspace, project)
+}
+
+#[test]
+fn ignored_builds_in_a_project_with_its_own_lockfile_lists_the_blocked_dependency() {
+    let (harness, _workspace, project) = install_project_with_its_own_lockfile();
+
+    let output = stdout_of(pacquet(&project).with_arg("ignored-builds").assert());
+    assert!(output.contains(INSTALL), "output: {output}");
+
+    drop(harness);
+}
+
+#[test]
+fn approve_builds_in_a_project_with_its_own_lockfile_runs_the_build() {
+    let (harness, workspace, project) = install_project_with_its_own_lockfile();
+
+    pacquet(&project)
+        .with_args(["approve-builds", INSTALL])
+        .assert()
+        .success();
+
+    assert!(project.join(INSTALL_MARKER).exists(), "the project's build must run");
+    assert!(!workspace.join("node_modules/.pnpm").exists(), "no virtual store at the root");
+    assert_eq!(
+        allow_builds(&workspace),
+        std::collections::BTreeMap::from([(INSTALL.to_string(), true)]),
+    );
+
+    drop(harness);
+}
+
+#[test]
+fn rebuild_in_a_project_with_its_own_lockfile_rebuilds_its_dependencies() {
+    let (harness, workspace, project) = install_project_with_its_own_lockfile();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    writeln!(yaml, "allowBuilds:\n  '{INSTALL}': true").expect("format allowBuilds");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet(&project)
+        .with_arg("rebuild")
+        .assert()
+        .success();
+
+    assert!(project.join(INSTALL_MARKER).exists(), "the project's build must run");
+    assert!(!workspace.join("node_modules/.pnpm").exists(), "no virtual store at the root");
+
+    drop(harness);
+}
+
 #[test]
 fn approve_builds_with_nothing_pending_reports_so() {
     let harness = CommandTempCwd::init().add_mocked_registry();
