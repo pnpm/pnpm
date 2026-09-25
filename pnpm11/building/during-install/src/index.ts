@@ -523,12 +523,28 @@ async function removeIncompatibleOptional<T extends string> (
   const links = nodes.flatMap((node) =>
     Object.entries(node.children)
       .filter(([, child]) => child === depPath)
-      .map(([alias]) => path.join(node.dir, 'node_modules', alias))
+      .flatMap(([alias]) => {
+        const link = containedNodeModulesLink(node.dir, alias)
+        return link == null ? [] : [link]
+      })
   )
   for (const location of opts.hoistedLocations?.[depNode.depPath] ?? []) {
     links.push(path.join(opts.lockfileDir, location))
   }
   await Promise.all(links.map(async (link) => fs.rm(link, { recursive: true, force: true })))
+}
+
+function containedNodeModulesLink (dir: string, alias: string): string | undefined {
+  const nodeModulesDir = path.resolve(dir, 'node_modules')
+  const link = path.resolve(nodeModulesDir, alias)
+  const relative = path.relative(nodeModulesDir, link)
+  if (
+    relative === '' ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) return undefined
+  return link
 }
 
 export async function linkBinsOfDependencies<T extends string> (
