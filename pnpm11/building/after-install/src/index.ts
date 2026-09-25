@@ -446,13 +446,16 @@ async function _rebuild (
       }
     }
     try {
-      const extraBinPaths = gvsDir == null ? ctx.extraBinPaths : gvsScriptBinPaths
+      let extraBinPaths: string[]
       if (opts.nodeLinker !== 'hoisted') {
         const modules = pkgModulesDir(depPath)
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        extraBinPaths = gvsDir == null ? ctx.extraBinPaths : gvsScriptBinPaths
       } else {
-        extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
+        // A hoisted package builds in the project's own node_modules, not in a
+        // shared slot.
+        extraBinPaths = [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
       }
       const resolution = (pkgSnapshot.resolution as TarballResolution)
       let sideEffectsCacheKey: string | undefined
