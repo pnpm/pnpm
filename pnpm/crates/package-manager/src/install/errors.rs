@@ -141,6 +141,9 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     ProjectBinLink(#[error(source)] LinkBinsError),
 
+    #[diagnostic(transparent)]
+    SyncInjectedDeps(#[error(source)] pnpm_injected_deps_syncer::SyncInjectedDepsError),
+
     #[display("Failed to create the workspace lifecycle scheduler: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LIFECYCLE_THREAD_POOL))]
     ProjectLifecycleThreadPool(#[error(source)] std::io::Error),

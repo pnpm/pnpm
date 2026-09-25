@@ -78,6 +78,16 @@ pub struct SyncInjectedDeps<'a> {
     pub pkg_name: Option<&'a str>,
     pub pkg_root_dir: &'a Path,
     pub workspace_dir: Option<&'a Path>,
+    /// The name of the workspace's modules directories, `node_modules`
+    /// unless `modulesDir` says otherwise.
+    pub modules_dir_name: &'a std::ffi::OsStr,
+    /// The workspace root's resolved modules directory, which holds the
+    /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
+    /// a path separator puts it deeper than `modules_dir_name` reaches.
+    pub workspace_modules_dir: &'a Path,
+    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
+    /// directory on `NODE_PATH`, as the install's shims do.
+    pub extend_node_path: bool,
     /// The package's manifest as it was before the scripts ran. A script
     /// that drops a bin leaves its shim behind, and the copies cannot say
     /// which bins they used to have: their `package.json` is hardlinked to
@@ -119,9 +129,7 @@ fn sync_workspace_injected_deps(
     workspace_dir: &Path,
 ) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
-    let modules =
-        read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
-            .map_err(|error| SyncInjectedDepsError::ReadModules { error })?;
+    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
     let Some(injected_deps) =
         modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
@@ -161,7 +169,16 @@ fn sync_workspace_injected_deps(
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir: hoisted_bin_path(workspace_dir, modules.as_ref()).as_deref(),
         ignored_directories: &opts.ignored_directories,
+        modules_dir_name: opts.modules_dir_name,
+        extend_node_path: opts.extend_node_path,
     })
+}
+
+fn read_workspace_modules(
+    workspace_modules_dir: &Path,
+) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {
+    read_modules_manifest::<pnpm_modules_yaml::Host>(workspace_modules_dir)
+        .map_err(|error| SyncInjectedDepsError::ReadModules { error })
 }
 
 fn hoisted_bin_path(
@@ -212,6 +229,8 @@ struct SyncBinLinks<'a> {
     previous_bin_names: &'a [String],
     hoisted_bin_dir: Option<&'a Path>,
     ignored_directories: &'a [PathBuf],
+    modules_dir_name: &'a std::ffi::OsStr,
+    extend_node_path: bool,
 }
 
 /// Where one injected target's dropped bins have to be cleared from.
@@ -244,7 +263,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
 
     let has_bins = manifest.get("bin").is_some();
     let manifest = Arc::new(manifest);
-    let link_options = workspace_link_options(opts.workspace_dir);
+    let link_options = workspace_link_options(opts);
 
     for target_dir in opts.resolved_targets {
         let Some(parent_modules_dir) = target_dir.parent() else {
@@ -269,14 +288,17 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
 
-    relink_project_bins(opts.workspace_dir, &stale_bin_names, opts.ignored_directories)
+    relink_project_bins(opts, has_bins, &stale_bin_names)
 }
 
 /// The workspace's bins name the paths inside it relative to themselves,
 /// as the install writes them.
-fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
+fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
     LinkBinsOptions {
-        relocatable_root: Some(workspace_dir.to_path_buf()),
+        relocatable_root: Some(opts.workspace_dir.to_path_buf()),
+        project_modules_dir_name: (opts.extend_node_path
+            && opts.modules_dir_name != "node_modules")
+            .then(|| opts.modules_dir_name.to_owned()),
         ..LinkBinsOptions::default()
     }
 }
@@ -285,21 +307,25 @@ fn workspace_link_options(workspace_dir: &Path) -> LinkBinsOptions {
 /// every project's bin directory is refreshed rather than only the
 /// ones this sync touched.
 fn relink_project_bins(
-    workspace_dir: &Path,
+    opts: &SyncBinLinks<'_>,
+    has_bins: bool,
     stale_bin_names: &[&String],
-    ignored_directories: &[PathBuf],
 ) -> Result<(), SyncInjectedDepsError> {
+    if !has_bins && stale_bin_names.is_empty() {
+        return Ok(());
+    }
+    let workspace_dir = opts.workspace_dir;
     let projects = find_workspace_projects_no_check(
         workspace_dir,
         &FindWorkspaceProjectsOpts {
             patterns: None,
-            ignored_directories: ignored_directories.to_vec(),
+            ignored_directories: opts.ignored_directories.to_vec(),
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
-    let link_options = workspace_link_options(workspace_dir);
+    let link_options = workspace_link_options(opts);
     for project in projects {
-        let project_modules_dir = project.root_dir.join("node_modules");
+        let project_modules_dir = project.root_dir.join(opts.modules_dir_name);
         // A stale name another package legitimately owns is put back by the
         // relink below, so removing first costs nothing and catches the shim
         // this package left behind.
