@@ -70,8 +70,8 @@ fn recursive_new_version_bumps_and_publishes_every_selected_package() {
     drop(root);
 }
 
-/// A private package gets the new version on disk — as `pnpm version -r`
-/// would bump it — but is not published.
+/// A private package gets the new version on disk, as `pnpm version -r`
+/// would bump it, but is not published.
 #[test]
 fn recursive_new_version_bumps_but_skips_private_packages() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

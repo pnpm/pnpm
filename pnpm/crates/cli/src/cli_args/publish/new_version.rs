@@ -1,5 +1,5 @@
-//! `--new-version`: set the package version before publishing — the one-step
-//! form of `pnpm version <version> --no-git-tag-version` followed by
+//! `--new-version`: set the package version before publishing, mirroring
+//! `pnpm version <version> --no-git-tag-version` followed by
 //! `pnpm publish`. Only an exact semver version is accepted; the bump
 //! keywords stay exclusive to `pnpm version`.
 
@@ -41,8 +41,8 @@ impl PublishArgs {
     }
 
     /// Write the `--new-version` value into the manifest of every package this
-    /// run covers — the project directory, or every selected workspace package
-    /// in recursive mode — so the pack and the already-published probe see the
+    /// run covers (the project directory, or every selected workspace package
+    /// in recursive mode) so the pack and the already-published probe see the
     /// new version. Runs after the git checks: like
     /// `pnpm version --no-git-tag-version`, the rewrite leaves the working tree
     /// dirty on purpose.
@@ -100,7 +100,7 @@ fn set_package_version(pkg_dir: &Path, new_version: &str) -> miette::Result<()> 
     manifest
         .value_mut()
         .as_object_mut()
-        .expect("the manifest is an object — its name field was just read")
+        .expect("the manifest is an object, its name field was just read")
         .insert("version".to_owned(), Value::String(new_version.to_owned()));
     manifest
         .save()
