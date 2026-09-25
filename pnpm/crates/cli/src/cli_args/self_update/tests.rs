@@ -346,10 +346,10 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
 fn implicit_latest_message_mentions_minimum_release_age_when_registry_latest_is_not_older() {
     let message =
         implicit_latest_no_upgrade_message(NoUpgradeKind::Project, "9.1.0", "9.0.0", Some("9.1.0"));
-    assert!(message.contains("minimumReleaseAge") && !message.contains("downgrade"), "{message}",);
+    assert!(message.contains("minimumReleaseAge") && !message.contains("downgrade"), "{message}");
     let active =
         implicit_latest_no_upgrade_message(NoUpgradeKind::Active, "9.1.0", "9.0.0", Some("9.1.0"));
-    assert!(active.contains("minimumReleaseAge") && !active.contains("downgrade"), "{active}",);
+    assert!(active.contains("minimumReleaseAge") && !active.contains("downgrade"), "{active}");
 }
 
 #[test]
@@ -360,5 +360,5 @@ fn implicit_latest_message_still_offers_downgrade_when_registry_latest_is_older(
         "8.15.0",
         Some("8.15.0"),
     );
-    assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}",);
+    assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}");
 }

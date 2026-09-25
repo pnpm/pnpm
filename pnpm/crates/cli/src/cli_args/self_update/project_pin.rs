@@ -32,6 +32,7 @@ pub(super) fn project_pin_refusal(
         })
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum NoUpgradeKind {
     Active,
     Project,
@@ -40,7 +41,7 @@ pub(super) enum NoUpgradeKind {
 /// The no-upgrade message for implicit `pnpm self-update`.
 ///
 /// When `registry_latest` is at least `current`, the pick is older only
-/// because `minimumReleaseAge` held the real `latest` tag back — do not
+/// because `minimumReleaseAge` held the real `latest` tag back. Do not
 /// suggest a downgrade (pnpm/pnpm#12006).
 pub(super) fn implicit_latest_no_upgrade_message(
     kind: NoUpgradeKind,
@@ -78,10 +79,10 @@ fn age_hold_message(
 ) -> String {
     match kind {
         NoUpgradeKind::Active => format!(
-            r#"The currently active pnpm v{current} is newer than the latest version that meets minimumReleaseAge (v{target}). v{registry_latest} on the registry is still within the cutoff. No update performed."#,
+            "The currently active pnpm v{current} is newer than the latest version that meets minimumReleaseAge (v{target}). v{registry_latest} on the registry is still within the cutoff. No update performed.",
         ),
         NoUpgradeKind::Project => format!(
-            r#"The current project is set to use pnpm v{current}. The latest version that meets minimumReleaseAge is v{target}. v{registry_latest} on the registry is still within the cutoff. No update performed."#,
+            "The current project is set to use pnpm v{current}. The latest version that meets minimumReleaseAge is v{target}. v{registry_latest} on the registry is still within the cutoff. No update performed.",
         ),
     }
 }
