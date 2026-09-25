@@ -239,7 +239,7 @@ catalog:
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/tgz-fixtures': 0.0.0
   '@reflink/reflink': 0.1.19
-  '@rushstack/worker-pool': 0.7.27
+  '@rushstack/worker-pool': 0.7.28
   '@stylistic/eslint-plugin': ^5.10.0
   '@types/adm-zip': ^0.5.8
   '@types/archy': 0.0.36
@@ -345,7 +345,7 @@ catalog:
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.3
-  fs-extra: ^11.4.0
+  fs-extra: ^11.4.1
   fuse-native: ^2.2.6
   # Bundled into the pnpm 12 wrapper's dist/ payload, where the Corepack entry
   # point loads it from; see pnpm/npm/pnpm/bin/pnpm.mjs.
@@ -383,7 +383,7 @@ catalog:
   lru-cache: ^11.5.3
   make-empty-dir: ^4.0.0
   mdast-util-to-string: ^4.0.0
-  memfs: ^4.78.1
+  memfs: ^4.79.0
   memoize: ^11.0.0
   micromatch: ^4.0.8
   msgpackr: 2.1.0
