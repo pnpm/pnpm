@@ -2612,8 +2612,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (!dep) {
           include = false
         } else {
-          const isDev = Boolean(manifest.devDependencies?.[alias])
-          const isOptional = Boolean(manifest.optionalDependencies?.[alias])
+          const isDev = Object.hasOwn(manifest.devDependencies ?? {}, alias)
+          const isOptional = Object.hasOwn(manifest.optionalDependencies ?? {}, alias)
           include = !(
             isDev && !opts.include.devDependencies ||
             isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
