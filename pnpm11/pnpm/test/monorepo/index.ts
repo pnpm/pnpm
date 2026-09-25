@@ -2355,6 +2355,44 @@ test('issue 7209: updates injected dependency when sharedWorkspaceLockfile is fa
   expect(appLockfile.packages).toHaveProperty(['is-negative@1.0.0'])
 })
 
+test('an injected dependency with a postinstall script is hard linked when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      scripts: {
+        postinstall: 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'\')"',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/index.js', 'module.exports = 1', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { shared: true },
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  for (const file of ['index.js', 'built.txt']) {
+    expect(fs.statSync(path.join('app/node_modules/shared', file)).ino)
+      .toBe(fs.statSync(path.join('shared', file)).ino)
+  }
+})
+
 test('pnpm install --frozen-lockfile fails when workspace package version is bumped and no longer satisfies dependency range', async () => {
   preparePackages([
     {

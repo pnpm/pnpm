@@ -174,6 +174,38 @@ fn sync_workspace_injected_deps(
     })
 }
 
+/// Bring the injected copies listed in one modules directory back in step
+/// with their sources.
+///
+/// A project with its own lockfile injects copies of workspace projects
+/// whose lifecycle scripts run in their own install, so nothing else syncs
+/// those copies after the scripts run. Only the copies of the sources in
+/// `source_dirs` are synced. `source_dirs` holds lexically normalized paths.
+pub fn sync_injected_deps_of_modules_dir(
+    lockfile_dir: &Path,
+    modules_dir: &Path,
+    source_dirs: &HashSet<PathBuf>,
+) -> Result<(), SyncInjectedDepsError> {
+    let modules = read_workspace_modules(modules_dir)?;
+    let Some(injected_deps) =
+        modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
+    else {
+        return Ok(());
+    };
+    for (source_id, target_dirs) in injected_deps {
+        let source_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(source_id));
+        if target_dirs.is_empty() || !source_dirs.contains(&source_dir) {
+            continue;
+        }
+        let resolved_targets: Vec<PathBuf> = target_dirs
+            .iter()
+            .map(|target_dir| lockfile_dir.join(target_dir))
+            .collect();
+        patch_targets(&source_dir, &resolved_targets)?;
+    }
+    Ok(())
+}
+
 fn read_workspace_modules(
     workspace_modules_dir: &Path,
 ) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {

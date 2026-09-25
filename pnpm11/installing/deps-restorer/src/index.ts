@@ -97,11 +97,11 @@ import { pathAbsolute } from 'path-absolute'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 
-import { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+import { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 import { linkHoistedModules, removeOrphanBins } from './linkHoistedModules.js'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
-export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+export { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 
 export type { HoistingLimits }
 
@@ -898,12 +898,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         }))
       }
     }
-    const injectedDeps: Record<string, string[]> = {}
-    for (const project of projectsToBeBuilt) {
-      if (project.targetDirs.length > 0) {
-        injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
-      }
-    }
+    const injectedDeps = getInjectedDeps(injectionTargetsByDepPath, opts.lockfileDir)
     await writeModulesManifest(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
       hoistPattern: opts.hoistPattern,

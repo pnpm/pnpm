@@ -81,6 +81,7 @@
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
