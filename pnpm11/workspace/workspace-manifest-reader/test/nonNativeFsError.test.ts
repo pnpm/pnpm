@@ -1,17 +1,5 @@
 import { beforeEach, expect, jest, test } from '@jest/globals'
 
-// StackBlitz WebContainers throw fs errors that carry the usual errno fields
-// but are not native errors (util.types.isNativeError() returns false).
-function createNonNativeFsError (code: string): Error {
-  return Object.assign(Object.create(Error.prototype) as Error, {
-    code,
-    errno: -2,
-    path: '/home/.config/pnpm/config.yaml',
-    syscall: 'open',
-    message: `${code}: open '/home/.config/pnpm/config.yaml'`,
-  })
-}
-
 let errorCode = 'ENOENT'
 
 jest.unstable_mockModule('read-yaml-file', () => ({
@@ -46,3 +34,15 @@ test('readWorkspaceManifestSync() rethrows other non-native fs errors', () => {
   errorCode = 'EACCES'
   expect(() => readWorkspaceManifestSync('/home/.config/pnpm', 'config.yaml')).toThrow(expect.objectContaining({ code: 'EACCES' }))
 })
+
+// StackBlitz WebContainers throw fs errors that carry the usual errno fields
+// but are not native errors (util.types.isNativeError() returns false).
+function createNonNativeFsError (code: string): Error {
+  return Object.assign(Object.create(Error.prototype) as Error, {
+    code,
+    errno: -2,
+    path: '/home/.config/pnpm/config.yaml',
+    syscall: 'open',
+    message: `${code}: open '/home/.config/pnpm/config.yaml'`,
+  })
+}

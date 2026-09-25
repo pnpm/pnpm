@@ -3,13 +3,6 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
-// StackBlitz WebContainers throw fs errors that carry the usual errno fields
-// but are not native errors (util.types.isNativeError() returns false).
-function toNonNativeError (err: unknown): unknown {
-  if (err == null || typeof err !== 'object') return err
-  return Object.assign(Object.create(Error.prototype) as Error, err, { message: (err as Error).message })
-}
-
 const originalReadIniFile = await import('read-ini-file')
 
 jest.unstable_mockModule('read-ini-file', () => ({
@@ -43,3 +36,10 @@ test('config set creates a missing auth.ini when the fs error is not a native er
     registry: 'https://npm-registry.example.com/',
   })
 })
+
+// StackBlitz WebContainers throw fs errors that carry the usual errno fields
+// but are not native errors (util.types.isNativeError() returns false).
+function toNonNativeError (err: unknown): unknown {
+  if (err == null || typeof err !== 'object') return err
+  return Object.assign(Object.create(Error.prototype) as Error, err, { message: (err as Error).message })
+}

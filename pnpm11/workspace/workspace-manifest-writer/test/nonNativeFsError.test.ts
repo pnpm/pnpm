@@ -6,13 +6,6 @@ import { GLOBAL_CONFIG_YAML_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { readYamlFileSync } from 'read-yaml-file'
 
-// StackBlitz WebContainers throw fs errors that carry the usual errno fields
-// but are not native errors (util.types.isNativeError() returns false).
-function toNonNativeError (err: unknown): unknown {
-  if (err == null || typeof err !== 'object') return err
-  return Object.assign(Object.create(Error.prototype) as Error, err, { message: (err as Error).message })
-}
-
 jest.unstable_mockModule('node:fs', () => ({
   default: {
     ...fs,
@@ -39,3 +32,10 @@ test('updateWorkspaceManifest creates a missing file when the fs error is not a 
   })
   expect(readYamlFileSync(path.join(dir, GLOBAL_CONFIG_YAML_FILENAME))).toStrictEqual({ overrides: { foo: '1.0.0' } })
 })
+
+// StackBlitz WebContainers throw fs errors that carry the usual errno fields
+// but are not native errors (util.types.isNativeError() returns false).
+function toNonNativeError (err: unknown): unknown {
+  if (err == null || typeof err !== 'object') return err
+  return Object.assign(Object.create(Error.prototype) as Error, err, { message: (err as Error).message })
+}
