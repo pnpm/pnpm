@@ -1303,7 +1303,7 @@ describe('checkDepsStatus - treatLocalFileDepsAsOutdated', () => {
       mtimeMs: lastValidatedTimestamp - 20_000,
     } as Stats))
     jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => currentLockfile)
-    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(null)
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(currentLockfile)
   }
 
   it('returns upToDate: false when the root manifest has a file: dependency', async () => {
