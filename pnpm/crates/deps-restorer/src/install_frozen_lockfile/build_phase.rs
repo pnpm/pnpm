@@ -167,13 +167,15 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // time. Idempotent for unchanged shims. Runs after `buildModules`.
     let modules_dir_name = config.modules_dir_name();
     for (importer_id, importer_snapshot) in inputs.graph.importers {
-        link_importer_top_level_bins(
-            inputs,
-            build_output.mutated_slots,
-            modules_dir_name,
+        if !needs_top_level_bin_link(
             importer_id,
-            importer_snapshot,
-        )?;
+            inputs.directories.is_hoisted,
+            build_output.mutated_slots,
+            inputs.directories.publicly_hoisted_for_post_build,
+        ) {
+            continue;
+        }
+        link_importer_top_level_bins(inputs, modules_dir_name, importer_id, importer_snapshot)?;
     }
 
     Ok(build_output)
@@ -280,7 +282,6 @@ fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseEr
 /// Re-link one importer's top-level `.bin` after the build phase.
 fn link_importer_top_level_bins(
     inputs: &BuildPhaseInputs<'_>,
-    mutated_slots: bool,
     modules_dir_name: &OsStr,
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
@@ -293,15 +294,6 @@ fn link_importer_top_level_bins(
     } else {
         &[]
     };
-    // When nothing this phase can change actually changed — no script,
-    // patch, or side-effects overlay touched a linked slot — the
-    // isolated link phase's own bin pass already shimmed exactly this
-    // candidate set, so re-resolving it would only re-read every direct
-    // dep's manifest per importer. Hoisted installs always relink: this
-    // pass is their only importer bin pass.
-    if !inputs.directories.is_hoisted && !mutated_slots && hoisted_names.is_empty() {
-        return Ok(());
-    }
     let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
     let modules_dir = project_dir.join(modules_dir_name);
     // Same filter the symlink phase used so the post-build pass sees the
@@ -315,4 +307,25 @@ fn link_importer_top_level_bins(
     );
     link_top_level_bins(&modules_dir, &direct_names, hoisted_names, inputs.directories.link_options)
         .map_err(BuildPhaseError::TopLevelBinLink)
+}
+
+/// Whether this importer needs its top-level `.bin` re-linked after the
+/// build phase.
+///
+/// When nothing this phase can change actually changed (no script,
+/// patch, or side-effects overlay touched a linked slot), the
+/// isolated link phase's own bin pass already shimmed exactly this
+/// candidate set, so re-resolving it would only re-read every direct
+/// dep's manifest per importer. Hoisted installs always relink: this
+/// pass is their only importer bin pass.
+fn needs_top_level_bin_link(
+    importer_id: &str,
+    is_hoisted: bool,
+    mutated_slots: bool,
+    publicly_hoisted_for_post_build: &[String],
+) -> bool {
+    is_hoisted
+        || mutated_slots
+        || (importer_id == Lockfile::ROOT_IMPORTER_KEY
+            && !publicly_hoisted_for_post_build.is_empty())
 }

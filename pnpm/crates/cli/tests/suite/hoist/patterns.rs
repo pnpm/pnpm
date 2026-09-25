@@ -471,3 +471,65 @@ fn should_remove_aliased_hoisted_dependencies() {
 
     drop((root, mock_instance));
 }
+
+/// An install with `--ignore-scripts` must preserve direct, publicly
+/// hoisted, and conflicting bin links.
+///
+/// Direct bins must link at `<root>/node_modules/.bin/<bin>`. Publicly
+/// hoisted bins from transitives must link there as well. When a direct
+/// dependency and a publicly hoisted transitive share a bin name, the
+/// direct dependency must win outright.
+#[test]
+fn bin_linking_under_ignore_scripts_preserves_direct_hoisted_and_conflicting_bins() {
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({
+            "@pnpm.e2e/touch-file-one-bin": "1.0.0",
+            "@pnpm.e2e/for-testing-peers-having-bins": "1.0.0",
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        }),
+    );
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\n");
+    generate_lockfile(pnpm);
+
+    pacquet
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+
+    let direct_bin = workspace.join("node_modules/.bin/t");
+    assert!(direct_bin.exists(), "direct bin must exist at {direct_bin:?}");
+    let direct_content = fs::read_to_string(&direct_bin).expect("read direct bin shim");
+    assert!(
+        direct_content.contains("touch-file-one-bin"),
+        "direct bin shim must target touch-file-one-bin",
+    );
+
+    let hoisted_bin = workspace.join("node_modules/.bin/peer-with-bin");
+    assert!(hoisted_bin.exists(), "publicly hoisted transitive bin must exist at {hoisted_bin:?}");
+    let hoisted_content = fs::read_to_string(&hoisted_bin).expect("read hoisted bin shim");
+    assert!(
+        hoisted_content.contains("peer-with-bin"),
+        "hoisted bin shim must target peer-with-bin",
+    );
+
+    let conflict_bin = workspace.join("node_modules/.bin/hello-world-js-bin");
+    assert!(conflict_bin.exists(), "conflicting bin must exist at {conflict_bin:?}");
+    let conflict_content = fs::read_to_string(&conflict_bin).expect("read conflict bin shim");
+    assert!(
+        conflict_content.contains("hello-world-js-bin-parent"),
+        "direct dependency must win over hoisted transitive for conflicting bin; got:\n{conflict_content}",
+    );
+
+    drop((root, mock_instance));
+}
