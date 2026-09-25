@@ -36,7 +36,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
     unsaved: UnsavedManifests,
     mut prepared: SelectedUpdatePreparation,
 ) -> Result<(), UpdateError> {
-    if update.version.save {
+    let update = if update.version.save {
         write_workspace_catalogs_selected(
             update.config,
             site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
@@ -44,7 +44,10 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
             selected.projects,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
-    }
+        write_moved_overrides(update, &site, &prepared.updated_overrides)?
+    } else {
+        update
+    };
 
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
         targets: std::mem::take(&mut prepared.bump_targets),
@@ -86,7 +89,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
     unsaved: UnsavedManifests,
     mut prepared: UpdatePreparation,
 ) -> Result<(), UpdateError> {
-    if update.version.save {
+    let update = if update.version.save {
         write_workspace_catalogs(
             update.config,
             prepared.workspace_dir_for_catalogs.as_deref(),
@@ -94,7 +97,10 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
             manifest,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
-    }
+        write_moved_overrides(update, &site, &prepared.updated_overrides)?
+    } else {
+        update
+    };
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
@@ -134,6 +140,35 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
 pub(super) struct UnsavedManifests {
     pub(super) hooked_paths: HashSet<PathBuf>,
     pub(super) lockfile_specifiers: Option<Vec<(PathBuf, PackageManifest)>>,
+}
+/// Write the override entries an update moved into the workspace manifest,
+/// and hand back update options whose config carries them, so this run's
+/// resolve sees the moved pins rather than the ones startup read. The
+/// write precedes the install the way the catalog write does, so a resolve
+/// that re-reads the workspace manifest and the config agree.
+///
+/// `update` unchanged when nothing moved.
+fn write_moved_overrides<'a>(
+    update: UpdateOptions<'a>,
+    site: &UpdateSite,
+    updated_overrides: &[(String, String)],
+) -> Result<UpdateOptions<'a>, UpdateError> {
+    if updated_overrides.is_empty() {
+        return Ok(update);
+    }
+    pnpm_workspace_manifest_writer::set_overrides(
+        &site.workspace_root,
+        updated_overrides
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str())),
+    )
+    .map_err(UpdateError::WriteOverrides)?;
+    let mut config = update.config.clone();
+    let overrides = config.overrides.get_or_insert_with(indexmap::IndexMap::new);
+    for (key, value) in updated_overrides {
+        overrides.insert(key.clone(), value.clone());
+    }
+    Ok(UpdateOptions { config: Box::leak(Box::new(config)), ..update })
 }
 /// What the resolve seeds from: the pins it keeps or drops, the versions it
 /// prefers, and the catalogs as the update rewrote them.

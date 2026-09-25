@@ -6,8 +6,8 @@ use super::{
     },
     latest::{LatestResolverChain, LatestRewriteCtx},
     seed_policy::{
-        OverriddenDirect, UpdatePlan, UpdateScope, importer_seed_policy, select_seed_policy,
-        selected_seed_policy,
+        BareOverrideEntry, OverriddenDirect, UpdatePlan, UpdateScope, importer_seed_policy,
+        select_seed_policy, selected_seed_policy,
     },
     selectors::{
         ParsedSelector, parse_selectors, reject_versioned_latest_selectors,
@@ -41,6 +41,10 @@ pub(super) struct UpdatePreparation {
     pub(super) updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
+    /// Override entries the update moves (`(bare-name key, new value)`),
+    /// for the run to write back into `pnpm-workspace.yaml` and resolve
+    /// against in the meantime.
+    pub(super) updated_overrides: Vec<(String, String)>,
 }
 impl UpdatePreparation {
     pub(super) fn take_seed(&mut self, patches: bool) -> UpdateSeed {
@@ -66,6 +70,8 @@ pub(super) struct SelectedUpdatePreparation {
     pub(super) catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
     pub(super) any_work: bool,
+    /// Override entries to move, merged from every prepared project.
+    pub(super) updated_overrides: Vec<(String, String)>,
 }
 impl SelectedUpdatePreparation {
     pub(super) fn take_seed(&mut self, update: UpdateOptions<'_>) -> UpdateSeed {
@@ -106,6 +112,7 @@ impl SelectedUpdatePreparation {
         if self.workspace_dir_for_catalogs.is_none() {
             self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
         }
+        self.updated_overrides.extend(prepared.updated_overrides);
     }
 }
 /// A loaded `readPackage` hook paired with the log sink its `context.log`
@@ -190,8 +197,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, update.config, catalogs.clone()))
         .transpose()?;
-    let overridden_direct =
-        overridden_direct(manifest, update, &selectors, &direct, &mut catalog_ctx)?;
+    let overridden_direct = overridden_direct(manifest, update, &direct, &mut catalog_ctx)?;
     let scope = update_scope(update, owned, &selectors, &direct, &overridden_direct);
     let mut plan = UpdatePlan::default();
     let Some(seed_policy) = select_seed_policy::<Reporter>(
@@ -237,16 +243,13 @@ pub(super) fn update_scope<'a>(
 fn overridden_direct(
     manifest: &PackageManifest,
     update: UpdateOptions<'_>,
-    selectors: &[ParsedSelector],
     direct: &[(String, DependencyGroup, String)],
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Vec<OverriddenDirect>, UpdateError> {
-    if update.version.save
-        || !selectors.iter().any(|selector| selector.version.is_some())
-        || update.config.overrides.as_ref().is_none_or(indexmap::IndexMap::is_empty)
-    {
+    if update.config.overrides.as_ref().is_none_or(indexmap::IndexMap::is_empty) {
         return Ok(Vec::new());
     }
+    let raw_overrides = update.config.overrides.as_ref().expect("overrides checked above");
     let catalogs = &ensure_catalog_ctx(catalog_ctx, manifest, update.config)?.catalogs;
     let parsed = crate::install::parse_config_overrides(update.config, catalogs)
         .map_err(|error| UpdateError::Install(error.into()))?
@@ -255,13 +258,15 @@ fn overridden_direct(
     let lockfile_root = crate::install::lockfile_root_dir(update.config, project_dir)
         .map_err(UpdateError::FindWorkspaceDir)?;
     let overrider = VersionsOverrider::new(&parsed, &lockfile_root);
-    Ok(collect_overridden_direct(manifest, direct, &overrider))
+    Ok(collect_overridden_direct(manifest, direct, &overrider, &parsed, raw_overrides))
 }
 
 fn collect_overridden_direct(
     manifest: &PackageManifest,
     direct: &[(String, DependencyGroup, String)],
     overrider: &VersionsOverrider,
+    parsed: &[pnpm_config_parse_overrides::VersionOverride],
+    raw_overrides: &indexmap::IndexMap<String, String>,
 ) -> Vec<OverriddenDirect> {
     let matcher = overrider.dependency_matcher(manifest.value());
     let matched = direct
@@ -280,10 +285,38 @@ fn collect_overridden_direct(
             effective_specifier: effective
                 .dependencies([group])
                 .find_map(|(alias, specifier)| (alias == name).then(|| specifier.to_string())),
+            bare_override: bare_override_entry(&name, parsed, raw_overrides),
             name,
             group,
         })
         .collect()
+}
+
+/// The override entry a targeted update may move for `name`: the one keyed
+/// by the package's bare name, with no parent scope, no range scope on the
+/// target, and no convergence form — anything else either governs only a
+/// transitive edge or would stop matching once its value moved.
+fn bare_override_entry(
+    name: &str,
+    parsed: &[pnpm_config_parse_overrides::VersionOverride],
+    raw_overrides: &indexmap::IndexMap<String, String>,
+) -> Option<BareOverrideEntry> {
+    parsed
+        .iter()
+        .find(|entry| {
+            entry.parent_pkg.is_none()
+                && entry.target_pkg.bare_specifier.is_none()
+                && !entry.converge
+                && entry.target_pkg.name == name
+        })
+        .and_then(|entry| {
+            raw_overrides
+                .get(&entry.selector)
+                .map(|value| BareOverrideEntry {
+                    key: entry.selector.clone(),
+                    value: value.clone(),
+                })
+        })
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.
@@ -343,6 +376,7 @@ pub(super) fn apply_update_decision<Reporter: self::Reporter>(
         catalogs_override: merged_catalogs_override(catalog_ctx.as_ref(), &updated_catalogs),
         updated_catalogs,
         workspace_dir_for_catalogs,
+        updated_overrides: plan.updated_overrides,
     })
 }
 pub(super) fn apply_rewrites(

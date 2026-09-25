@@ -149,6 +149,28 @@ pub(super) async fn tag_version(
         })?;
     Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
 }
+/// The version `--latest` picks for a dependency whose resolution answers to
+/// `spec` — for an update that moves an override, the override's own value:
+/// the higher of that range and the `latest` tag, the same pick
+/// [`latest_specifier`] makes for a declaration.
+pub(super) async fn latest_version_for_spec(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    spec: &str,
+) -> Result<Option<Version>, UpdateError> {
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(spec.to_string()),
+        prev_specifier: Some(spec.to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ctx.resolve_options(chain);
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
+        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
+    Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
+}
 /// The resolvers that can answer "what is the latest for this dependency",
 /// built on first use so an update whose deps are all local opens no
 /// client. Deliberately excludes the git, tarball and local-path

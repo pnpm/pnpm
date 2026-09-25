@@ -107,6 +107,7 @@
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
+    "semver": "catalog:",
     "string-width": "catalog:",
     "version-selector-type": "catalog:"
   },
@@ -131,6 +132,7 @@
     "@types/normalize-path": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
     "delay": "catalog:",

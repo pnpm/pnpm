@@ -11,18 +11,21 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcher } from '@pnpm/config.matcher'
 import { types as allTypes } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
 import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate, hasPnpmCliDependency, selectsPnpmCli } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import { calcVersionRange, getRangeOfSpecifier, guessDependencyType, inferRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { sanitizeInline } from '@pnpm/text.sanitize'
-import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
+import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir, RangeSpecStyle } from '@pnpm/types'
 import chalk from 'chalk'
 import { pick, unnest } from 'ramda'
 import { renderHelp } from 'render-help'
+import semver from 'semver'
 
 import type { InstallCommandOptions } from '../install.js'
 import { createVulnerabilityUpdateMatching, installDeps } from '../installDeps.js'
@@ -461,8 +464,10 @@ async function update (
   const generateChangeset = opts.changeset ?? opts.updateConfig?.changeset ?? false
   const changesetContext = generateChangeset ? await captureUpdateChangesetContext(opts) : undefined
   if (dependencies.length === 0 || packageDependencies.length > 0) {
+    const overrideMove = await planOverrideMove(packageDependencies, opts, includeDirect)
     await installDeps({
       ...opts,
+      ...(overrideMove != null ? { overrides: overrideMove.overrides } : {}),
       rebuildHandler,
       allowNew: false,
       peer: opts.cliOptions.peer === true,
@@ -480,6 +485,13 @@ async function update (
       // `dry-run` turn `update` into a no-op check.
       dryRun: false,
     }, packageDependencies)
+    if (overrideMove?.updatedOverrides != null) {
+      await writeSettings({
+        ...opts,
+        workspaceDir: opts.workspaceDir ?? (opts.rootProjectManifestDir || opts.dir),
+        updatedOverrides: overrideMove.updatedOverrides,
+      })
+    }
   }
   if (updateActions) {
     await updateGitHubActions({
@@ -494,6 +506,154 @@ async function update (
   if (changesetContext != null) {
     await generateUpdateChangeset(changesetContext)
   }
+}
+
+interface OverrideMove {
+  /**
+   * The overrides the install runs under: the configured ones with the
+   * entries this update moves replaced, so the resolution this run writes
+   * already answers to the moved pins.
+   */
+  overrides: Record<string, string>
+  /**
+   * The moved entries, for the workspace-manifest write the update owes
+   * after a successful install. `undefined` when the update only warned.
+   */
+  updatedOverrides?: Record<string, string>
+}
+
+/**
+ * What an update that names dependencies an override governs does about it
+ * (pnpm/pnpm#8701): the override, not the manifest declaration, owns the
+ * resolution, so a targeted `--latest` moves the override entry with the
+ * update — keeping the entry's own range shape — and reports the overrides
+ * it cannot move instead of failing silently. A compatible update cannot
+ * move an override that pins one version, and says so.
+ *
+ * `undefined` when nothing the update names is governed by an override.
+ */
+async function planOverrideMove (
+  dependencies: string[],
+  opts: UpdateCommandOptions,
+  includeDirect: IncludedDependencies
+): Promise<OverrideMove | undefined> {
+  const rawOverrides = opts.overrides
+  if (rawOverrides == null || dependencies.length === 0) return undefined
+  const projects = (opts.selectedProjectsGraph != null)
+    ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+    : [
+      {
+        rootDir: opts.dir as ProjectRootDir,
+        manifest: await readProjectManifestOnly(opts.dir, opts),
+      },
+    ]
+  const governed = dependencies.filter((name) =>
+    rawOverrides[name] != null && projects.some((project) => guessDependencyType(name, project.manifest) != null))
+  if (governed.length === 0) return undefined
+  if (!opts.latest) {
+    for (const name of governed) {
+      const value = rawOverrides[name]
+      const style = movableOverrideRangeStyle(value)
+      if (style === 'patch' || style === 'exact') {
+        globalWarn(`Skipping "${name}": it is pinned to "${value}" by an override, which a compatible update cannot move. Use --latest or update the override in pnpm-workspace.yaml.`)
+      }
+    }
+    return undefined
+  }
+  if (opts.save === false) return undefined
+  // Only values with a shape an update can preserve are looked up together:
+  // a value that names another dependency (`npm:`, `catalog:`, …) has no
+  // version of its own to compare against, and asking for one can fail
+  // resolution, so each of those is asked on its own.
+  const lookupNames = governed.filter((name) => movableOverrideRangeStyle(rawOverrides[name]) != null)
+  const outdatedOpts = {
+    ...opts,
+    compatible: false,
+    include: includeDirect,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+    timeout: opts.fetchTimeout,
+  } as const
+  const outdatedOfProjects = lookupNames.length === 0 ? [] : await outdatedDepsOfProjects(projects, lookupNames, outdatedOpts)
+  const latest = new Map<string, string>()
+  for (const outdated of outdatedOfProjects) {
+    for (const pkg of outdated) {
+      const version = pkg.latestManifest?.version
+      if (version != null && !latest.has(pkg.alias)) {
+        latest.set(pkg.alias, version)
+      }
+    }
+  }
+  // A value that names another dependency (`npm:`, `link:`, …) has no version
+  // of its own, and asking for one can fail resolution, so each of those is
+  // asked on its own.
+  const referencedNames = governed.filter((name) => {
+    const value = rawOverrides[name]
+    return !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
+  })
+  const referencedLatest = await Promise.all(referencedNames.map(async (name): Promise<[string, string | undefined, boolean]> => {
+    try {
+      const [outdated] = await outdatedDepsOfProjects(projects, [name], outdatedOpts)
+      return [name, outdated.find((pkg) => pkg.alias === name)?.latestManifest?.version, false]
+    } catch {
+      return [name, undefined, true]
+    }
+  }))
+  const unresolvable = new Set(referencedLatest.filter(([, , failed]) => failed).map(([name]) => name))
+  const updatedOverrides: Record<string, string> = {}
+  for (const name of governed) {
+    const value = rawOverrides[name]
+    const namesAnotherDependency = !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
+    // A `catalog:`-valued override tracks the catalog entry it points at —
+    // the catalog update path owns that entry — and a bare value with no
+    // recoverable operator (a dist tag, a partial version) tracks a moving
+    // target the way a tag-tracking declaration does. Neither is the
+    // update's to rewrite.
+    if (value.startsWith('catalog:') || (!namesAnotherDependency && movableOverrideRangeStyle(value) == null)) continue
+    if (unresolvable.has(name)) {
+      globalWarn(`Skipping "${name}": it is controlled by an override ("${name}" => "${value}") that pnpm cannot update automatically. Update the override in pnpm-workspace.yaml to update this dependency.`)
+      continue
+    }
+    const nextVersion = latest.get(name) ?? referencedLatest.find(([referenced]) => referenced === name)?.[1]
+    if (nextVersion == null) continue // already up to date
+    const range = getRangeOfSpecifier(value)
+    if (range != null && semver.validRange(range) != null && semver.satisfies(nextVersion, range)) {
+      // The override already admits the version the update picked, so the
+      // resolution moves within it and the entry stands.
+      continue
+    }
+    if (!namesAnotherDependency) {
+      const next = calcVersionRange(nextVersion, { prevSpecifier: value, isUpdate: true })
+      if (next !== value) {
+        updatedOverrides[name] = next
+      }
+    } else {
+      globalWarn(`Skipping "${name}": it is controlled by an override ("${name}" => "${value}") that pnpm cannot update automatically. Update the override in pnpm-workspace.yaml to update this dependency.`)
+    }
+  }
+  if (Object.keys(updatedOverrides).length === 0) return undefined
+  return {
+    overrides: { ...rawOverrides, ...updatedOverrides },
+    updatedOverrides,
+  }
+}
+
+/**
+ * The range style an update can preserve when it moves an override entry.
+ * A protocol reference (`npm:`, `catalog:`, `link:`, …) or a `$` reference
+ * names a dependency of its own that the update must not rewrite; a value
+ * with no single recoverable operator (`*`, a compound range) has no shape
+ * to keep.
+ */
+function movableOverrideRangeStyle (value: string): RangeSpecStyle | undefined {
+  if (value.includes(':') || value.startsWith('$')) return undefined
+  const style = inferRangeSpecStyle(value)
+  return style === 'none' ? undefined : style
 }
 
 function assertPatchesOptions (dependencies: string[], opts: UpdateCommandOptions): void {

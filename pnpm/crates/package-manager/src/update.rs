@@ -18,14 +18,18 @@ use workspace::{WorkspaceLinkTarget, workspace_specifier};
 mod latest;
 
 use latest::{
-    LatestResolverChain, LatestRewriteCtx, emit_latest_ignored, latest_specifier, tag_version,
+    LatestResolverChain, LatestRewriteCtx, emit_latest_ignored, latest_specifier,
+    latest_version_for_spec, tag_version,
 };
 
 mod catalogs;
 use catalogs::CatalogCtx;
 
 mod rewrite;
-use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
+use rewrite::{
+    MatchedRewriteInputs, override_governed, override_pins_one_version,
+    record_matched_direct_update, warn_override_pins_compatible_update,
+};
 
 mod seed_policy;
 
@@ -77,6 +81,12 @@ use std::{
 /// dependency already pinned wins over the configured default, a dist-tag or
 /// a non-registry protocol is left alone, and a `catalog:` reference moves
 /// the catalog entry rather than the manifest entry.
+///
+/// A dependency an override governs answers to the override, not its
+/// declaration: the declaration never moves, and an update that names the
+/// dependency moves a bare-name override with it — keeping the override's own
+/// range shape — or reports the overrides it cannot move
+/// ([pnpm/pnpm#8701](https://github.com/pnpm/pnpm/issues/8701)).
 ///
 /// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
@@ -178,6 +188,10 @@ pub enum UpdateError {
     /// failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
+
+    /// Writing a moved override back to `pnpm-workspace.yaml` failed.
+    #[diagnostic(transparent)]
+    WriteOverrides(#[error(source)] pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError),
 
     #[display("Failed to update the manifest: {_0}")]
     UpdateManifest(#[error(source)] PackageManifestError),
