@@ -123,7 +123,7 @@ fn selected_manifest_paths(
     };
     Ok(selection.selected_dirs
         .iter()
-        .map(|dir| project_manifest_path(dir))
+        .map(|dir| project_manifest_path(dir, config.preferred_manifest_format))
         .collect())
 }
 

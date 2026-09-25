@@ -178,11 +178,11 @@ pub(super) fn report_recursive_outcome(
     Ok(())
 }
 
-pub(super) fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Option<String> {
-    show_prefix.then(|| {
-        pnpm_workspace::read_project_name(root)
+pub(super) fn project_dep_path(root: &Path, context: &ExecTaskContext<'_>) -> Option<String> {
+    context.output.show_prefix.then(|| {
+        pnpm_workspace::read_project_name(root, context.config.preferred_manifest_format)
             .unwrap_or_else(|| {
-                pathdiff::diff_paths(root, dir)
+                pathdiff::diff_paths(root, context.dir)
                     .unwrap_or_else(|| root.to_path_buf())
                     .to_string_lossy()
                     .into_owned()

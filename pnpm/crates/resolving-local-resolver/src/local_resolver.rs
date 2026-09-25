@@ -12,7 +12,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pnpm_package_manifest::{
-    PackageManifestError, safe_read_package_json_from_dir, safe_read_project_manifest_from_dir,
+    ManifestFormat, PackageManifestError, safe_read_package_json_from_dir,
+    safe_read_project_manifest_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
@@ -414,8 +415,8 @@ fn find_parent_publish_manifest(
 ) -> Result<Option<serde_json::Value>, ResolveLocalError> {
     let normalized_target = pnpm_fs::lexical_normalize(fetch_spec);
     for parent in normalized_target.ancestors().skip(1) {
-        let Some(manifest) =
-            safe_read_project_manifest_from_dir(parent).map_err(ResolveLocalError::ReadManifest)?
+        let Some(manifest) = safe_read_project_manifest_from_dir(parent, ManifestFormat::default())
+            .map_err(ResolveLocalError::ReadManifest)?
         else {
             continue;
         };

@@ -353,7 +353,7 @@ fn select_project(
     Ok(SelectedProject {
         project,
         projects_by_path,
-        engine_pin_manifest: read_root_manifest(workspace_dir),
+        engine_pin_manifest: read_root_manifest(workspace_dir, config.preferred_manifest_format),
     })
 }
 

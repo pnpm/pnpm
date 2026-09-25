@@ -7,7 +7,7 @@ use std::{
 
 use indexmap::IndexMap;
 use pnpm_exportable_manifest::read_readme_file;
-use pnpm_package_manifest::safe_read_project_manifest_from_dir;
+use pnpm_package_manifest::{ManifestFormat, safe_read_project_manifest_from_dir};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
@@ -34,7 +34,7 @@ pub(super) async fn prepare_source<Reporter>(opts: &PackOptions) -> Result<PackS
 where
     Reporter: self::Reporter,
 {
-    let entry_manifest = read_manifest(&opts.dir)?;
+    let entry_manifest = read_manifest(&opts.dir, opts.manifest.format)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &entry_manifest)?;
 
     if !opts.scripts.ignore {
@@ -54,7 +54,7 @@ where
 
     // Re-read the manifest from `dir`: a `prepack` / `prepare` script
     // may have rewritten it.
-    let manifest = read_manifest(&dir)?;
+    let manifest = read_manifest(&dir, opts.manifest.format)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &manifest)?;
 
     let name = packed_identity(&manifest)?;
@@ -161,8 +161,8 @@ pub(super) fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Va
 }
 
 /// Read the raw manifest under `dir`, erroring when it is absent.
-fn read_manifest(dir: &Path) -> Result<Value, PackError> {
-    match safe_read_project_manifest_from_dir(dir) {
+fn read_manifest(dir: &Path, format: ManifestFormat) -> Result<Value, PackError> {
+    match safe_read_project_manifest_from_dir(dir, format) {
         Ok(Some(manifest)) => Ok(manifest),
         Ok(None) => Err(PackError::ManifestNotFound { dir: dir.display().to_string() }),
         Err(source) => Err(PackError::ReadManifest(source)),

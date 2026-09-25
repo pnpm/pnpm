@@ -34,7 +34,7 @@ impl RootArgs {
             // project without one still answers.
             let project_name = config
                 .applies_package_configs()
-                .then(|| pnpm_workspace::read_project_name(dir))
+                .then(|| pnpm_workspace::read_project_name(dir, config.preferred_manifest_format))
                 .flatten();
             println!("{}", config.project_modules_dir(dir, project_name.as_deref()).display());
         }

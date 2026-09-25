@@ -108,6 +108,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             embed_readme: options.embed_readme.unwrap_or(false),
             node_linker: NodeLinker::default(),
             skip_obfuscation: false,
+            format: pnpm_package_manifest::ManifestFormat::default(),
             // Bit drives its own `readPackage` hook through the napi bridge and
             // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
             before_packing_hooks: Vec::new(),

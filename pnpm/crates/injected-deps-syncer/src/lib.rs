@@ -320,6 +320,8 @@ fn relink_project_bins(
         &FindWorkspaceProjectsOpts {
             patterns: None,
             ignored_directories: opts.ignored_directories.to_vec(),
+            // Only the project directories are used, not their manifests.
+            ..Default::default()
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;

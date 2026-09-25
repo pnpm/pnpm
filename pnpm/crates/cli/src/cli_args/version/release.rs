@@ -161,6 +161,7 @@ impl PlannedWorkspaceRelease {
                     &self.intents,
                     Some(&config.versioning),
                     &confirmed,
+                    config.preferred_manifest_format,
                 )?;
             }
             args.report_no_pending_changes();
@@ -185,6 +186,7 @@ impl PlannedWorkspaceRelease {
             &intents,
             Some(&config.versioning),
             &confirmed,
+            config.preferred_manifest_format,
         )?;
 
         args.report_applied_releases(&applied);

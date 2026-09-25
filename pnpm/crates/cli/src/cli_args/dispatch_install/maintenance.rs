@@ -162,7 +162,8 @@ pub(in super::super) fn link<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path.to_path_buf();
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;

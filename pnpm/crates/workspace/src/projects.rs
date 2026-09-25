@@ -19,7 +19,8 @@ pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_packa
 use crate::{
     directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
     project_manifest::{
-        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
+        ManifestFormat, PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError,
+        read_exact_project_manifest,
     },
 };
 use derive_more::{Display, Error};
@@ -73,6 +74,9 @@ pub struct FindWorkspaceProjectsOpts {
     /// entries may be absolute or relative to the workspace root, and
     /// entries that do not exist simply never match anything.
     pub ignored_directories: Vec<PathBuf>,
+    /// Which manifest a project directory is read from when several
+    /// coexist. See [`ManifestFormat`].
+    pub preferred_manifest_format: ManifestFormat,
 }
 
 /// Error type of the public entry points.
@@ -162,7 +166,11 @@ pub fn find_workspace_projects_no_check(
         }
     }
 
-    read_projects(group_manifests_by_root(manifest_paths, workspace_root))
+    read_projects(group_manifests_by_root(
+        manifest_paths,
+        workspace_root,
+        opts.preferred_manifest_format,
+    ))
 }
 
 /// wax's `not` takes a single pattern; combine the ignores with
@@ -329,40 +337,6 @@ fn merge_pattern_manifests(
     Ok(merged.into_inner().expect("merge lock never poisoned"))
 }
 
-/// Group the manifests by the root directory they belong to, in `rootDir`
-/// order.
-///
-/// A root's candidates stay in manifest-precedence order — `package.json`
-/// before `package.yaml`, because the sort is stable and ties keep the set's
-/// full-path order — and share one read task, so "first readable manifest
-/// wins" holds under concurrency: a candidate that vanishes mid-run hands its
-/// root to the next candidate, never to a skipped root.
-fn group_manifests_by_root(
-    manifest_paths: BTreeSet<PathBuf>,
-    workspace_root: &Path,
-) -> Vec<(PathBuf, Vec<PathBuf>)> {
-    let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
-    sorted.sort_by(|left, right| {
-        let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
-        let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
-        dir_left.cmp(dir_right)
-    });
-    let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
-    for manifest_path in sorted {
-        let root_dir = manifest_path
-            .parent()
-            .unwrap_or(workspace_root)
-            .to_path_buf();
-        match root_groups.last_mut() {
-            Some((last_root, candidates)) if *last_root == root_dir => {
-                candidates.push(manifest_path);
-            }
-            _ => root_groups.push((root_dir, vec![manifest_path])),
-        }
-    }
-    root_groups
-}
-
 /// Expand one include pattern into the manifest paths it matches. The
 /// contract [`find_workspace_projects_no_check`] states — which error
 /// kinds are absorbed, how the fast paths and the generic walk divide
@@ -525,6 +499,9 @@ struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,
 }
+
+mod grouping;
+use grouping::group_manifests_by_root;
 
 mod managed;
 use managed::{managed_directory_ignores, resolve_ignored_directories};

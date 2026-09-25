@@ -2,6 +2,7 @@ use super::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
     find_workspace_projects, specialized_pattern,
 };
+use crate::ManifestFormat;
 use pretty_assertions::assert_eq;
 use std::{fs, io::ErrorKind, path::Path};
 use tempfile::TempDir;
@@ -388,6 +389,51 @@ fn package_json_wins_when_both_manifest_files_exist() {
         })
         .collect();
     assert_eq!(names, vec!["root".to_string(), "json-alpha".to_string()]);
+}
+
+#[test]
+fn preferred_manifest_format_selects_among_coexisting_manifests() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    fs::write(tmp.path().join("package.json5"), "{ name: 'json5-root' }").unwrap();
+    make_project(tmp.path(), "packages/alpha", "json-alpha");
+    make_yaml_project(tmp.path(), "packages/alpha", "yaml-alpha");
+    make_project(tmp.path(), "packages/beta", "json-beta");
+
+    let projects = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string()]),
+            preferred_manifest_format: ManifestFormat::Yaml,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let manifests: Vec<(String, String)> = projects
+        .iter()
+        .map(|project| {
+            let name = project.manifest.value()["name"]
+                .as_str()
+                .unwrap()
+                .to_string();
+            let file = project.manifest
+                .path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            (name, file)
+        })
+        .collect();
+    assert_eq!(
+        manifests,
+        [
+            ("root".to_string(), "package.json".to_string()),
+            ("yaml-alpha".to_string(), "package.yaml".to_string()),
+            ("json-beta".to_string(), "package.json".to_string()),
+        ],
+    );
 }
 
 #[test]

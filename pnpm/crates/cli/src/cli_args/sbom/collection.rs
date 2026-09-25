@@ -125,6 +125,7 @@ pub(super) fn collect_components(
             include,
             exclude_peers,
             root_purl: &root.purl,
+            manifest_format: state.config.preferred_manifest_format,
             ctx: &ctx,
         },
         &mut stores,
@@ -225,10 +226,11 @@ fn read_sbom_manifests(
             serde_json::json!({})
         }
     };
-    let root_manifest = safe_read_project_manifest_from_dir(lockfile_dir)
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| fallback("."));
+    let root_manifest =
+        safe_read_project_manifest_from_dir(lockfile_dir, state.config.preferred_manifest_format)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| fallback("."));
 
     let single_id = match filter_importer_ids {
         Some(&[single_id]) if single_id != "." => single_id,
@@ -236,7 +238,11 @@ fn read_sbom_manifests(
     };
 
     let project_manifest = confined_importer_dir(lockfile_dir, single_id)
-        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
+        .and_then(|dir| {
+            safe_read_project_manifest_from_dir(&dir, state.config.preferred_manifest_format)
+                .ok()
+                .flatten()
+        })
         .unwrap_or_else(|| fallback(single_id));
 
     (project_manifest, Some(root_manifest))

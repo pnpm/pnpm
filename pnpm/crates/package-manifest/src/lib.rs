@@ -7,7 +7,8 @@ pub use build_triggers::{
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
 pub use project::{
-    PROJECT_MANIFEST_BASENAMES, project_manifest_path, safe_read_project_manifest_from_dir,
+    ManifestFormat, PROJECT_MANIFEST_BASENAMES, project_manifest_path,
+    safe_read_project_manifest_from_dir,
 };
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,

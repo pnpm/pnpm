@@ -1,5 +1,5 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{PNPM_VERSION, PmOnFail};
+use pnpm_config::{ManifestFormat, PNPM_VERSION, PmOnFail};
 use pnpm_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
@@ -93,11 +93,14 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 /// path reports it with far more context.
 ///
 /// [`pnpm_workspace::try_read_project_manifest`] decides between
-/// `package.json`, `package.json5`, and `package.yaml`, the same way the
-/// install pipeline does, so a pin recorded from the pre-command checks is
-/// the one the install reads.
-pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {
-    pnpm_workspace::try_read_project_manifest(root_dir)
+/// `package.json`, `package.json5`, and `package.yaml` in `manifest_format`'s
+/// precedence order, the same way the install pipeline does, so a pin
+/// recorded from the pre-command checks is the one the install reads.
+pub(crate) fn read_root_manifest(
+    root_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> Option<Value> {
+    pnpm_workspace::try_read_project_manifest(root_dir, manifest_format)
         .ok()
         .flatten()
         .map(|(_, manifest)| manifest.value().clone())

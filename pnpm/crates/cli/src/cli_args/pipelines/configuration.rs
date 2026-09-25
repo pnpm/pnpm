@@ -121,10 +121,11 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
 pub(super) fn active_manifest_is_standin(
     active_dir: &Path,
     projects: &[pnpm_workspace::Project],
+    config: &Config,
 ) -> miette::Result<bool> {
     let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
     Ok(!active_dir.join("package.json").is_file()
-        && pnpm_workspace::try_read_project_manifest(active_dir)
+        && pnpm_workspace::try_read_project_manifest(active_dir, config.preferred_manifest_format)
             .map_err(miette::Report::new)?
             .is_none()
         && !projects

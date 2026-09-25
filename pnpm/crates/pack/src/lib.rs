@@ -51,7 +51,7 @@ use pnpm_exportable_manifest::{
 use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_sources};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, project_manifest_path};
+use pnpm_package_manifest::{ManifestFormat, PackageManifestError, project_manifest_path};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use source::{PackSource, check_packed_bins_for_crlf, prepare_source, with_registry_readme};
@@ -252,7 +252,10 @@ fn packed_files_map(
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(files);
     files_map.retain(|name, _| !is_manifest_entry(name));
-    files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
+    files_map.insert(
+        "package/package.json".to_string(),
+        project_manifest_path(&source.dir, opts.manifest.format),
+    );
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.

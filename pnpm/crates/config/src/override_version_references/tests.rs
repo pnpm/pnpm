@@ -1,5 +1,5 @@
 use super::resolve_version_references;
-use crate::workspace_yaml::LoadWorkspaceYamlError;
+use crate::{ManifestFormat, workspace_yaml::LoadWorkspaceYamlError};
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
@@ -33,7 +33,8 @@ fn a_reference_resolves_to_the_specifier_of_a_direct_dependency() {
         ("fsevents", "$fsevents"),
     ]);
 
-    resolve_version_references(&mut overrides, root.path()).expect("resolve the references");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("resolve the references");
 
     assert_eq!(
         overrides,
@@ -52,7 +53,8 @@ fn a_reference_may_name_a_dependency_other_than_the_overridden_one() {
     }));
     let mut overrides = overrides_map(&[("is-even>is-odd", "$is-odd")]);
 
-    resolve_version_references(&mut overrides, root.path()).expect("resolve the reference");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("resolve the reference");
 
     assert_eq!(overrides, overrides_map(&[("is-even>is-odd", "3.0.1")]));
 }
@@ -64,7 +66,8 @@ fn values_without_a_reference_are_left_alone() {
         overrides_map(&[("is-odd", "3.0.1"), ("is-even", "catalog:"), ("foo", "-")]);
     let untouched = overrides.clone();
 
-    resolve_version_references(&mut overrides, root.path()).expect("leave the values alone");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("leave the values alone");
 
     assert_eq!(overrides, untouched);
 }
@@ -77,7 +80,7 @@ fn a_reference_to_a_missing_dependency_is_rejected() {
     }));
     let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
 
-    let error = resolve_version_references(&mut overrides, root.path())
+    let error = resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
         .expect_err("a peer dependency is not referenceable");
 
     assert!(
@@ -99,7 +102,7 @@ fn a_reference_without_a_root_manifest_is_rejected() {
     let root = tempdir().expect("create a temporary workspace root");
     let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
 
-    let error = resolve_version_references(&mut overrides, root.path())
+    let error = resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
         .expect_err("nothing can be referenced without a root manifest");
 
     assert!(
@@ -114,7 +117,7 @@ fn a_malformed_root_manifest_reports_itself() {
     fs::write(root.path().join("package.json"), "{ not json").expect("write the root package.json");
     let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
 
-    let error = resolve_version_references(&mut overrides, root.path())
+    let error = resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
         .expect_err("the unparsable manifest is the problem to report");
 
     assert!(
@@ -130,7 +133,8 @@ fn a_missing_root_manifest_is_fine_without_references() {
     let root = tempdir().expect("create a temporary workspace root");
     let mut overrides = overrides_map(&[("is-odd", "3.0.1")]);
 
-    resolve_version_references(&mut overrides, root.path()).expect("no reference to resolve");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("no reference to resolve");
 
     assert_eq!(overrides, overrides_map(&[("is-odd", "3.0.1")]));
 }
@@ -139,7 +143,7 @@ fn a_missing_root_manifest_is_fine_without_references() {
 fn an_empty_override_map_needs_no_root_manifest() {
     let mut empty = IndexMap::new();
 
-    resolve_version_references(&mut empty, Path::new("/nonexistent"))
+    resolve_version_references(&mut empty, Path::new("/nonexistent"), ManifestFormat::default())
         .expect("no reference to resolve");
 
     assert!(empty.is_empty());
@@ -155,7 +159,8 @@ fn a_reference_resolves_from_a_json5_root_manifest() {
     .expect("write the root package.json5");
     let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
 
-    resolve_version_references(&mut overrides, root.path()).expect("resolve the reference");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("resolve the reference");
 
     dbg!(&overrides);
     assert_eq!(overrides, overrides_map(&[("is-odd", "^3.0.1")]));
@@ -170,7 +175,8 @@ fn a_reference_prefers_json_over_a_coexisting_json5_manifest() {
         .expect("write the alternate root manifest");
     let mut overrides = overrides_map(&[("is-odd", "$is-odd")]);
 
-    resolve_version_references(&mut overrides, root.path()).expect("resolve the reference");
+    resolve_version_references(&mut overrides, root.path(), ManifestFormat::default())
+        .expect("resolve the reference");
 
     dbg!(&overrides);
     assert_eq!(overrides, overrides_map(&[("is-odd", "3.0.1")]));

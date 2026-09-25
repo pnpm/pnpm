@@ -7,7 +7,9 @@ use pnpm_cmd_shim::{
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::{parse_manifest_bytes, safe_read_project_manifest_from_dir};
+use pnpm_package_manifest::{
+    ManifestFormat, parse_manifest_bytes, safe_read_project_manifest_from_dir,
+};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -293,7 +295,7 @@ fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, L
 fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
     let normalized_target = pnpm_fs::lexical_normalize(target);
     for parent in target.ancestors().skip(1) {
-        let Some(manifest) = safe_read_project_manifest_from_dir(parent)
+        let Some(manifest) = safe_read_project_manifest_from_dir(parent, ManifestFormat::default())
             .map_err(LinkBinsError::ReadProjectManifest)?
         else {
             continue;

@@ -14,7 +14,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{
-    BINDING_GYP, PackageManifestError, manifest_opts_out_of_gyp_build,
+    BINDING_GYP, ManifestFormat, PackageManifestError, manifest_opts_out_of_gyp_build,
     safe_read_project_manifest_from_dir,
 };
 use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
@@ -274,12 +274,17 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     Ok(ran_any)
 }
 
+/// Lifecycle hooks run for dependency packages, which `preferredManifestFormat`
+/// does not cover, so their manifest is picked in the default order.
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    safe_read_project_manifest_from_dir(pkg_root)
+    let format = ManifestFormat::default();
+    safe_read_project_manifest_from_dir(pkg_root, format)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pnpm_package_manifest::project_manifest_path(pkg_root).display().to_string(),
+            path: pnpm_package_manifest::project_manifest_path(pkg_root, format)
+                .display()
+                .to_string(),
             source,
         })
 }

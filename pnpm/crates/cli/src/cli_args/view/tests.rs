@@ -5,6 +5,7 @@ use crate::cli_args::view::render::{
 };
 use chrono::{DateTime, Utc};
 use miette::Diagnostic;
+use pnpm_config::ManifestFormat;
 use serde_json::{Value, json};
 
 #[test]
@@ -18,7 +19,7 @@ fn invalid_project_names_report_format_neutral_diagnostic() {
         std::fs::create_dir(&project).unwrap();
         for content in [r#"{"version":"1.0.0"}"#, r#"{"name":""}"#, r#"{"name":42}"#] {
             std::fs::write(project.join(basename), content).unwrap();
-            let error = nearest_manifest_name(&project).unwrap_err();
+            let error = nearest_manifest_name(&project, ManifestFormat::default()).unwrap_err();
             assert_eq!(error.code().unwrap().to_string(), "ERR_PNPM_INVALID_PACKAGE_JSON");
             assert_eq!(
                 error.to_string(),
@@ -39,13 +40,13 @@ fn nearest_project_name_uses_alternative_manifests_and_precedence() {
     let child = project.join("src");
     std::fs::create_dir_all(&child).unwrap();
     std::fs::write(project.join("package.yaml"), "name: yaml\n").unwrap();
-    assert_eq!(nearest_manifest_name(&child).unwrap(), "yaml");
+    assert_eq!(nearest_manifest_name(&child, ManifestFormat::default()).unwrap(), "yaml");
     std::fs::write(project.join("package.json5"), "{name: 'json5'}").unwrap();
-    assert_eq!(nearest_manifest_name(&child).unwrap(), "json5");
+    assert_eq!(nearest_manifest_name(&child, ManifestFormat::default()).unwrap(), "json5");
     std::fs::write(project.join("package.json"), r#"{"name":"json"}"#).unwrap();
-    assert_eq!(nearest_manifest_name(&child).unwrap(), "json");
+    assert_eq!(nearest_manifest_name(&child, ManifestFormat::default()).unwrap(), "json");
     std::fs::write(project.join("package.json"), "{ invalid:").unwrap();
-    let error = nearest_manifest_name(&child).unwrap_err();
+    let error = nearest_manifest_name(&child, ManifestFormat::default()).unwrap_err();
     eprintln!("ERROR: {error}");
     assert!(error.to_string().contains("package.json"));
 }

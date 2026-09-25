@@ -43,7 +43,10 @@ impl RunAnchors {
         } else {
             std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
         };
-        let manifest_path = pnpm_workspace::project_manifest_path(&dir);
+        // Config is not loaded yet, so this is the default choice;
+        // `State::init` re-selects by `preferredManifestFormat`.
+        let manifest_path =
+            pnpm_workspace::project_manifest_path(&dir, pnpm_workspace::ManifestFormat::default());
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());
         Ok(RunAnchors { dir, cli_dir, manifest_path, global_config })
     }

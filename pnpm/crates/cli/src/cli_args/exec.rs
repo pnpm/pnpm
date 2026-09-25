@@ -190,7 +190,7 @@ fn command_in_dir(
     shell_mode: bool,
 ) -> Result<Command, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
-    let project_name = read_project_name(project);
+    let project_name = read_project_name(project, config.preferred_manifest_format);
     let path = command_search_path(dirs, config, project_name.as_deref())?;
 
     let mut cmd = if shell_mode {
