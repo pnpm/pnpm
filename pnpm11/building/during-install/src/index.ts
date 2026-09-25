@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { linkBins, linkBinsOfPackages, nodeRuntimeBinDir } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
@@ -89,6 +89,9 @@ export async function buildModules<T extends string> (
   const buildDepOpts = {
     ...opts,
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
+    extraBinPaths: opts.enableGlobalVirtualStore
+      ? globalVirtualStoreScriptBinPaths(depGraph, opts.nodeVersion)
+      : opts.extraBinPaths,
     warn,
   }
   const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)
@@ -429,6 +432,24 @@ async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNod
  * writes without it: the lock avoids a race, and a race lost is better than
  * an install that refuses to run.
  */
+/**
+ * A global virtual store slot is shared by every project whose graph hashes
+ * the same, and the hash does not record the workspace root's bins. Its
+ * build scripts get only the root project's runtime `node`, whose version the
+ * hash does record.
+ */
+function globalVirtualStoreScriptBinPaths<T extends string> (
+  depGraph: DependenciesGraph<T>,
+  nodeVersion: string | undefined
+): string[] {
+  if (nodeVersion == null) return []
+  // The graph is keyed by install directory under the hoisted linker and in
+  // a headless install, so match on the depPath each node carries.
+  const runtimeDepPath = `node@runtime:${nodeVersion}`
+  const runtimeNode = Object.values<DependenciesGraphNode<T>>(depGraph).find((node) => node.depPath === runtimeDepPath)
+  return runtimeNode == null ? [] : [nodeRuntimeBinDir(runtimeNode.dir)]
+}
+
 export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promise<DirLock | undefined> {
   const lockPath = path.join(path.dirname(slotModulesDir), SLOT_LOCK_DIR)
   try {
