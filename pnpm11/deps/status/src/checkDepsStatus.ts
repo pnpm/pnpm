@@ -210,9 +210,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const localFileDepContext: LocalFileDepSearchContext = {
       include: opts.include,
       catalogs,
-      // Only parentless overrides apply here: an empty manifest is the parent of
-      // no `parent>dep` override, and whether those apply depends on which
-      // package declares the dependency.
+      // An empty manifest is the parent of no `parent>dep` override, so only
+      // overrides without a parent selector apply. Whether a parent-scoped one
+      // applies depends on which package declares the dependency.
       isOverridden: createOverriddenDependencyMatcher(overrides, workspaceDir ?? rootProjectManifestDir)?.({}),
     }
     const localFileDep = findLocalFileDep(manifests, localFileDepContext)
