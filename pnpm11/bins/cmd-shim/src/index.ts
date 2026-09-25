@@ -606,11 +606,16 @@ else
 fi
 `
       } else {
+        // On Cygwin and MSYS, the program on PATH is usually a native Windows
+        // one, such as node.exe. Cygwin doesn't convert POSIX path arguments
+        // for it, so it gets the win32 form of the target.
         return `\
 if [ -n "$exe" ] && [ -x ${shLongProgExe} ]; then
   exec ${shLongProgExe} ${execArgs} ${shTargetWin} ${progArgs}"$@"
 elif [ -x ${shLongProg} ]; then
   exec ${shLongProg} ${execArgs} ${shTarget} ${progArgs}"$@"
+elif [ -n "$msys" ] && command -v ${shProg} >/dev/null 2>&1; then
+  exec ${shProg} ${execArgs} ${shTargetWin} ${progArgs}"$@"
 elif command -v ${shProg} >/dev/null 2>&1; then
   exec ${shProg} ${execArgs} ${shTarget} ${progArgs}"$@"
 elif [ -n "$exe" ] && command -v ${shProgExe} >/dev/null 2>&1; then

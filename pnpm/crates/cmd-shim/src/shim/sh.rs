@@ -166,9 +166,12 @@ fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
         return block;
     }
     let sh_long_prog = format!(r#""$basedir/{prog}""#);
+    // On Cygwin and MSYS, the program on PATH is usually a native Windows
+    // one, such as node.exe. Cygwin doesn't convert POSIX path arguments for
+    // it, so it gets the win32 form of the target.
     writeln!(
         block,
-        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
+        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$msys\" ] && command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target_win} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
     )
     .unwrap();
     block

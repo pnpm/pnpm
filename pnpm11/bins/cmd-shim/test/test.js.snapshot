@@ -80,6 +80,8 @@ if [ -n "$msys" ]; then
     exec "$basedir/cmd.exe" //C "$basedir_win/src.bat" "$@"
   elif [ -x "$basedir/cmd" ]; then
     exec "$basedir/cmd" //C "$basedir/src.bat" "$@"
+  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
+    exec cmd //C "$basedir_win/src.bat" "$@"
   elif command -v cmd >/dev/null 2>&1; then
     exec cmd //C "$basedir/src.bat" "$@"
   elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
@@ -93,6 +95,8 @@ else
     exec "$basedir/cmd.exe" /C "$basedir_win/src.bat" "$@"
   elif [ -x "$basedir/cmd" ]; then
     exec "$basedir/cmd" /C "$basedir/src.bat" "$@"
+  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
+    exec cmd /C "$basedir_win/src.bat" "$@"
   elif command -v cmd >/dev/null 2>&1; then
     exec cmd /C "$basedir/src.bat" "$@"
   elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
@@ -341,6 +345,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -489,6 +495,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -585,6 +593,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -740,6 +750,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -887,6 +899,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/src.env.args" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  --expose_gc "$basedir/src.env.args" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_win/src.env.args" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  --expose_gc "$basedir/src.env.args" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -1023,6 +1037,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe" --preserve-symlinks "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node" --preserve-symlinks "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node --preserve-symlinks "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node --preserve-symlinks "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -1159,6 +1175,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  "$basedir/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  "$basedir/src.env" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
@@ -1295,6 +1313,8 @@ if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  "$basedir_win/src.sh" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
   exec "$basedir//usr/bin/sh"  "$basedir/src.sh" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  "$basedir_win/src.sh" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  "$basedir/src.sh" "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
@@ -1431,6 +1451,8 @@ if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
   exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_win/src.sh.args" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir/src.sh.args" "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
@@ -1567,6 +1589,8 @@ if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
   exec "$basedir//usr/bin/sh"  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
@@ -1703,6 +1727,8 @@ if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
   exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" hello "$@"
 elif [ -x "$basedir//usr/bin/sh" ]; then
   exec "$basedir//usr/bin/sh"  -x "$basedir/src.sh.args" hello "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_win/src.sh.args" hello "$@"
 elif command -v /usr/bin/sh >/dev/null 2>&1; then
   exec /usr/bin/sh  -x "$basedir/src.sh.args" hello "$@"
 elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
@@ -2052,6 +2078,8 @@ if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
   exec "$basedir/node.exe"  --expose_gc "$basedir_win/from.env.S" "$@"
 elif [ -x "$basedir/node" ]; then
   exec "$basedir/node"  --expose_gc "$basedir/from.env.S" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_win/from.env.S" "$@"
 elif command -v node >/dev/null 2>&1; then
   exec node  --expose_gc "$basedir/from.env.S" "$@"
 elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
