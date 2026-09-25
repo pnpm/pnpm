@@ -145,6 +145,17 @@ test('falls back to .pnpmfile.cjs when .pnpmfile.mjs does not exist', async () =
   expect(resolvedPnpmfilePaths).toStrictEqual([path.join(fixtureDir, '.pnpmfile.cjs')])
 })
 
+test.each(['default', 'default-esm'])('the project pnpmfile stays in the checksum when it is also the global pnpmfile (%s)', async (fixture) => {
+  const fixtureDir = path.join(import.meta.dirname, '__fixtures__', fixture)
+  const globalPnpmfile = path.join(fixtureDir, fixture === 'default' ? '.pnpmfile.cjs' : '.pnpmfile.mjs')
+  const { hooks: projectOnly } = await requireHooks(fixtureDir, { tryLoadDefaultPnpmfile: true })
+  const { hooks: both, resolvedPnpmfilePaths } = await requireHooks(fixtureDir, { globalPnpmfile, tryLoadDefaultPnpmfile: true })
+
+  expect(resolvedPnpmfilePaths).toStrictEqual([globalPnpmfile])
+  expect(both.untrackedPnpmfileReadPackageHook).not.toBe(true)
+  expect(await both.calculatePnpmfileChecksum!()).toBe(await projectOnly.calculatePnpmfileChecksum!())
+})
+
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
   const { hooks } = await requireHooks(import.meta.dirname, {})
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
