@@ -303,6 +303,10 @@ pub struct Config {
     /// `false`, matching pnpm's opt-in setting.
     pub node_experimental_package_map: bool,
 
+    /// Write `node_modules/.package-map.json` without enabling Node's
+    /// experimental package-map resolver.
+    pub write_package_map: bool,
+
     /// Selects the package-map dependency surface.
     pub node_package_map_type: NodePackageMapType,
 

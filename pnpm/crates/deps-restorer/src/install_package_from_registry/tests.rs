@@ -80,6 +80,7 @@ fn create_config(
         macos_backup: Default::default(),
         node_linker: Default::default(),
         node_experimental_package_map: false,
+        write_package_map: false,
         node_package_map_type: Default::default(),
         symlink: false,
         install_state_dir: virtual_store_dir.to_path_buf(),

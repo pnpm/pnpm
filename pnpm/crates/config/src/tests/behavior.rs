@@ -10,6 +10,7 @@ pub fn have_default_values() {
     let value = Config::new();
     assert_eq!(value.node_linker, NodeLinker::default());
     assert!(!value.node_experimental_package_map);
+    assert!(!value.write_package_map);
     assert_eq!(value.node_package_map_type, NodePackageMapType::Standard);
     assert_eq!(value.package_import_method, PackageImportMethod::default());
     assert!(value.prefer_frozen_lockfile);
