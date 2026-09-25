@@ -792,6 +792,7 @@ function installOptionalPeerUserNextToSibling (opts: {
   projectDeps: Record<string, string>
   rootDeps?: Record<string, string>
   siblingDeps?: Record<string, string>
+  additionalProjects?: Array<{ name: string, dependencies: Record<string, string> }>
 }) {
   const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
     {
@@ -819,6 +820,19 @@ function installOptionalPeerUserNextToSibling (opts: {
       rootDir: path.resolve('project2') as ProjectRootDir,
     },
   ]
+  if (opts.additionalProjects != null) {
+    for (const project of opts.additionalProjects) {
+      allProjects.push({
+        buildIndex: 0,
+        manifest: {
+          name: project.name,
+          version: '1.0.0',
+          dependencies: project.dependencies,
+        },
+        rootDir: path.resolve(project.name) as ProjectRootDir,
+      })
+    }
+  }
   if (opts.rootDeps != null) {
     allProjects.push({
       buildIndex: 0,
@@ -882,6 +896,21 @@ test('an optional peer is supplied when a canonical package precedes its alias r
 test('an optional peer is not supplied by a sibling workspace package whose own peers the workspace root provides at a rejected version', async () => {
   const project = prepareEmpty()
   await installOptionalPeerUserNextToSibling({ projectDeps: {}, rootDeps: { '@pnpm/y': '1.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is not supplied when the workspace root hoists an incompatible peer in the same wave', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {},
+    rootDeps: { '@pnpm.e2e/has-optional-y-v1': '1.0.0' },
+    additionalProjects: [
+      { name: 'project3', dependencies: { '@pnpm/y': '1.0.0' } },
+    ],
+  })
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
