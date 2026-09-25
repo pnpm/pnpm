@@ -1,5 +1,6 @@
 ---
 "@pnpm/building.during-install": patch
+"@pnpm/deps.path": patch
 "@pnpm/installing.deps-installer": patch
 "pnpm": patch
 "pacquet": patch

@@ -280,6 +280,38 @@ fn walker_errors_on_engine_strict_mismatch() {
         other => panic!("expected Installability error, got {other:?}"),
     }
 }
+/// A snapshot marked `patched: true` defers its published engines to the
+/// build phase, which checks the patched manifest instead.
+#[test]
+fn walker_defers_published_engines_of_a_patched_snapshot() {
+    let mut root_deps = ResolvedDependencyMap::new();
+    root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
+
+    let mut engines = HashMap::new();
+    engines.insert("node".to_string(), ">=99.0.0".to_string());
+    let mut packages = HashMap::new();
+    packages.insert(
+        dep_key("a", "1.0.0"),
+        PackageMetadata { engines: Some(engines), ..metadata_stub() },
+    );
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(
+        dep_key("a", "1.0.0"),
+        SnapshotEntry { patched: Some(true), ..SnapshotEntry::default() },
+    );
+
+    let lockfile = lockfile_with(root_deps, packages, snapshots);
+    let opts = LockfileToHoistedDepGraphOptions {
+        installability: crate::HoistedInstallability {
+            engine_strict: true,
+            ..host_aware_opts().installability
+        },
+        ..host_aware_opts()
+    };
+    lockfile_to_hoisted_dep_graph(&lockfile, None, &opts)
+        .expect("a patched snapshot's published engines are checked after patching");
+}
 /// `opts.include_incompatible_packages = true` bypasses the
 /// installability check entirely — even a required dep on an
 /// unsupported platform passes through. Used by the `prev_graph` walk

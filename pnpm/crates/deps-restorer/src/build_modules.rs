@@ -368,6 +368,7 @@ impl BuildModules<'_> {
                 packages: self.graph.packages,
                 patches: self.graph.patches,
                 requires_build_map,
+                importers: self.graph.importers,
             },
             progress: crate::BuildProgress {
                 dep_graph: dep_states.graph.as_ref(),

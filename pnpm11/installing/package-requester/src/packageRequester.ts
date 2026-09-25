@@ -277,7 +277,7 @@ async function resolveAndFetch (
     (
       manifest == null
         ? undefined
-        : packageIsInstallable(id, manifestForEngineCheck(manifest, options), {
+        : packageIsInstallable(id, manifestForEngineCheck(manifest, { engineStrict, options }), {
           engineStrict,
           lockfileDir: options.lockfileDir,
           nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
@@ -385,7 +385,7 @@ async function resolveAndFetch (
       }
       hooked = true
     }
-    isInstallable = packageIsInstallable(id, manifestForEngineCheck(manifest, options), {
+    isInstallable = packageIsInstallable(id, manifestForEngineCheck(manifest, { engineStrict, options }), {
       engineStrict,
       lockfileDir: options.lockfileDir,
       nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
@@ -864,8 +864,11 @@ async function fetcher (
   }
 }
 
-function manifestForEngineCheck (manifest: DependencyManifest, options: RequestPackageOptions): DependencyManifest {
-  if (options.deferEnginesCheck?.(manifest) !== true) return manifest
+function manifestForEngineCheck (
+  manifest: DependencyManifest,
+  { engineStrict, options }: { engineStrict: boolean, options: RequestPackageOptions }
+): DependencyManifest {
+  if (!engineStrict || options.deferEnginesCheck?.(manifest) !== true) return manifest
   return { ...manifest, engines: undefined }
 }
 

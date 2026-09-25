@@ -152,7 +152,11 @@ fn build_modules_collects_ignored_builds() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -227,7 +231,11 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -302,7 +310,11 @@ fn mutated_slots_is_true_when_a_script_runs() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -376,7 +388,11 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: true,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -446,7 +462,11 @@ fn cached_requires_build_false_skips_package_dir_probe() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -531,7 +551,11 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -613,7 +637,11 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -783,7 +811,11 @@ fn using_side_effects_cache_skips_rebuild() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -927,7 +959,11 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
-            patched_engines: crate::PatchedEngineCheck { engine_strict: false, node_version: None },
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,

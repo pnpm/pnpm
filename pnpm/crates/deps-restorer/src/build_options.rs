@@ -49,6 +49,10 @@ pub struct PatchedEngineCheck<'a> {
     pub engine_strict: bool,
     /// Explicit Node.js version to check against, or `None` to detect ambient version.
     pub node_version: Option<&'a str>,
+    /// The project's own virtual store directory, whose `node_modules` holds
+    /// the privately hoisted links. It stays in the project under the global
+    /// virtual store too.
+    pub virtual_store_dir: Option<&'a Path>,
 }
 
 impl<'a> BuildScriptOptions<'a> {
@@ -67,6 +71,7 @@ impl<'a> BuildScriptOptions<'a> {
             patched_engines: PatchedEngineCheck {
                 engine_strict: config.effective_engine_strict(),
                 node_version: config.node_version.as_deref(),
+                virtual_store_dir: Some(&config.virtual_store_dir),
             },
         }
     }
@@ -204,6 +209,7 @@ pub struct BuildSnapshotInputs<'a> {
     pub(crate) packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     pub(crate) patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     pub(crate) requires_build_map: &'a HashMap<PackageKey, bool>,
+    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
 }
 
 #[derive(Clone, Copy)]

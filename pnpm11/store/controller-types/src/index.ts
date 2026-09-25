@@ -172,8 +172,9 @@ export interface RequestPackageOptions {
    */
   nodeVersion?: string
   /**
-   * When this returns true, `engines` are not checked yet. A patch applied
-   * later may change them; the build phase checks the patched manifest.
+   * When this returns true under `engineStrict`, `engines` are not checked
+   * yet. A patch applied later may change them; the build phase checks the
+   * patched manifest.
    */
   deferEnginesCheck?: (manifest: { name?: string, version?: string }) => boolean
   preferredVersions: PreferredVersions
