@@ -15,6 +15,7 @@ export type PatchedDepPathsStatus =
   | 'indeterminate'
 
 const PATCH_HASH_PREFIX = '(patch_hash='
+const MAX_PEER_NESTING = 32
 
 /**
  * A patched dependency's hash is recorded in a lockfile multiple times.
@@ -89,33 +90,58 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
 }
 
 /**
- * Judges the dependency path, and each peer segment in its suffix that carries a patch hash.
+ * The worst verdict among the dependency path and every peer path nested in its suffix that
+ * carries a patch hash, cached in `ctx.verdicts`.
  *
  * pnpm writes a package's own hash as the first segment of the suffix. Unless peers are deduped,
  * a peer segment is that peer's whole dependency path, so a patched peer carries its hash inside
  * it, and that hash is part of this path's identity. A peer segment without a marker is a plain
  * `name@version` or an unpatched path, and has nothing to judge.
+ *
+ * A path holding a marker is `'indeterminate'` when the marker is outside the leading segment,
+ * when its suffix's parentheses do not balance or do not end the path, and when peers nest deeper
+ * than {@link MAX_PEER_NESTING} levels. Peers are walked level by level, so the depth a lockfile
+ * chooses never reaches the call stack.
  */
 function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
   const cached = ctx.verdicts.get(depPath)
   if (cached != null) return cached
-  let verdict: Verdict
-  const segments = topLevelSegments(depPath)
-  if (segments == null) {
-    verdict = depPath.includes(PATCH_HASH_PREFIX) ? 'indeterminate' : judge(depPath, ctx)
-  } else if (segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))) {
-    // `parse` only reads the hash from the leading segment.
-    verdict = 'indeterminate'
-  } else {
-    verdict = judge(depPath, ctx)
-    for (const segment of segments) {
-      if (verdict === 'stale') break
-      if (segment.startsWith(PATCH_HASH_PREFIX) || !segment.includes(PATCH_HASH_PREFIX)) continue
-      verdict = worseVerdict(verdict, judgeWithPeers(segment.slice(1, -1) as DepPath, ctx))
+  let verdict: Verdict = 'ok'
+  let level = [depPath]
+  for (let depth = 0; level.length > 0 && verdict !== 'stale'; depth++) {
+    if (depth > MAX_PEER_NESTING) {
+      verdict = 'indeterminate'
+      break
     }
+    const nextLevel: DepPath[] = []
+    for (const path of level) {
+      const judged = judgeOwnHash(path, ctx)
+      verdict = worseVerdict(verdict, judged.verdict)
+      nextLevel.push(...judged.peers)
+    }
+    level = nextLevel
   }
   ctx.verdicts.set(depPath, verdict)
   return verdict
+}
+
+/** The verdict on the path's own hash, and the peer paths in its suffix that carry one. */
+function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
+  if (!depPath.includes(PATCH_HASH_PREFIX)) return { verdict: judge(depPath, ctx), peers: [] }
+  const segments = topLevelSegments(depPath)
+  if (
+    segments == null ||
+    !depPath.endsWith(')') ||
+    segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
+  ) {
+    return { verdict: 'indeterminate', peers: [] }
+  }
+  return {
+    verdict: judge(depPath, ctx),
+    peers: segments
+      .filter((segment) => !segment.startsWith(PATCH_HASH_PREFIX) && segment.includes(PATCH_HASH_PREFIX))
+      .map((segment) => segment.slice(1, -1) as DepPath),
+  }
 }
 
 function worseVerdict (a: Verdict, b: Verdict): Verdict {

@@ -456,6 +456,28 @@ test('checkPatchedDepPaths() cannot judge a marker behind an unmatched parenthes
   }
 })
 
+// The walk is bounded, so a lockfile cannot choose how deep it goes.
+test('checkPatchedDepPaths() cannot judge peers nested past the limit', () => {
+  let depPath = `react@18.0.0(patch_hash=${CURRENT})`
+  for (let level = 0; level < 64; level++) {
+    depPath = `p${level}@1.0.0(${depPath})`
+  }
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'react@18.0.0': CURRENT },
+    packages: {
+      [depPath as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('indeterminate')
+})
+
+test('checkPatchedDepPaths() cannot judge a nested peer segment that is not a dependency path', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    packages: {
+      [`a@1.0.0(b@1.0.0(patch_hash=${STALE})junk)` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('indeterminate')
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',

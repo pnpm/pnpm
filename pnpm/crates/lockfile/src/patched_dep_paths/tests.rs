@@ -721,3 +721,43 @@ snapshots:
         PatchedDepPathsStatus::Indeterminate,
     );
 }
+
+fn nested_peers(depth: usize, innermost: &str) -> String {
+    (0..depth).fold(innermost.to_string(), |inner, level| format!("p{level}@1.0.0({inner})"))
+}
+
+/// The walk is bounded, so a lockfile cannot choose how deep it goes.
+#[test]
+fn peers_nested_past_the_limit_cannot_be_judged() {
+    let key = nested_peers(64, &format!("react@18.0.0(patch_hash={CURRENT})"));
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  react@18.0.0: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  {key}: {{}}
+"
+        )),
+        PatchedDepPathsStatus::Indeterminate,
+    );
+}
+
+#[test]
+fn a_nested_peer_segment_that_is_not_a_dep_path_cannot_be_judged() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+importers:
+  .: {{}}
+snapshots:
+  a@1.0.0(b@1.0.0(patch_hash={STALE})junk): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Indeterminate,
+    );
+}

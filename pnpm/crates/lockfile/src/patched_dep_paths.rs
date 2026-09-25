@@ -50,6 +50,10 @@ pub fn name_version_from_package_key(
 
 const PATCH_HASH_PREFIX: &str = "(patch_hash=";
 
+/// How deep peer depPaths nested in a suffix are followed before the depPath
+/// is judged indeterminate.
+const MAX_PEER_NESTING: usize = 32;
+
 /// What [`check_patched_dep_paths`] could establish about a lockfile's
 /// `(patch_hash=...)` segments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -235,22 +239,47 @@ impl<'a> Checker<'a> {
         verdict
     }
 
-    /// Judges the depPath, and each peer segment in its suffix that carries a
-    /// patch hash.
+    /// The worst verdict among the depPath and every peer depPath nested in
+    /// its suffix that carries a patch hash.
     ///
     /// pnpm writes a package's own hash as the first segment of the suffix.
     /// Unless peers are deduped, a peer segment is that peer's whole depPath,
     /// so a patched peer carries its hash inside it, and that hash is part of
     /// this depPath's identity. A peer segment without a marker is a plain
     /// `name@version` or an unpatched depPath, and has nothing to judge.
-    fn judge_with_peers(&mut self, key: &PackageKey) -> Verdict {
+    ///
+    /// A depPath holding a marker is [`Verdict::Indeterminate`] when the
+    /// marker is outside the leading segment, when its suffix's parentheses do
+    /// not balance or a peer segment does not parse, and when peers nest deeper
+    /// than [`MAX_PEER_NESTING`] levels. Peers are walked level by level, so the
+    /// depth a lockfile chooses never reaches the call stack.
+    fn judge_with_peers(&self, key: &PackageKey) -> Verdict {
+        let mut verdict = Verdict::Ok;
+        let mut level = vec![key.clone()];
+        for _ in 0..=MAX_PEER_NESTING {
+            let mut next_level = Vec::new();
+            for path in &level {
+                let (own, peers) = self.judge_own_hash(path);
+                verdict = verdict.worse(own);
+                next_level.extend(peers);
+            }
+            if matches!(verdict, Verdict::Stale) || next_level.is_empty() {
+                return verdict;
+            }
+            level = next_level;
+        }
+        verdict.worse(Verdict::Indeterminate)
+    }
+
+    /// The verdict on the depPath's own hash, and the peer depPaths in its
+    /// suffix that carry one.
+    fn judge_own_hash(&self, key: &PackageKey) -> (Verdict, Vec<PackageKey>) {
         let suffix = key.suffix.peer();
+        if !suffix.contains(PATCH_HASH_PREFIX) {
+            return (self.judge(key), Vec::new());
+        }
         let Some(segments) = top_level_segments(suffix) else {
-            return if suffix.contains(PATCH_HASH_PREFIX) {
-                Verdict::Indeterminate
-            } else {
-                self.judge(key)
-            };
+            return (Verdict::Indeterminate, Vec::new());
         };
         // The hash is only read from the leading segment.
         if segments
@@ -258,19 +287,17 @@ impl<'a> Checker<'a> {
             .skip(1)
             .any(|segment| segment.starts_with(PATCH_HASH_PREFIX))
         {
-            return Verdict::Indeterminate;
+            return (Verdict::Indeterminate, Vec::new());
         }
         let mut verdict = self.judge(key);
-        for segment in segments {
-            if matches!(verdict, Verdict::Stale) {
-                break;
-            }
-            if let Some(peer) = peer_to_judge(segment) {
-                verdict =
-                    verdict.worse(peer.map_or(Verdict::Indeterminate, |key| self.verdict(key)));
+        let mut peers = Vec::new();
+        for peer in segments.into_iter().filter_map(peer_to_judge) {
+            match peer {
+                Ok(peer) => peers.push(peer),
+                Err(()) => verdict = verdict.worse(Verdict::Indeterminate),
             }
         }
-        verdict
+        (verdict, peers)
     }
 
     fn judge(&self, key: &PackageKey) -> Verdict {
