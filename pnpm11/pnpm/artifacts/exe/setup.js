@@ -1,8 +1,14 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
+import { spawnSync } from 'child_process'
 import { familySync } from 'detect-libc'
 import { exePlatformPkgName } from './platform-pkg-name.js'
+
+if (process.env.npm_lifecycle_event === 'postinstall') {
+  relinkNpmWindowsShims()
+  process.exit(0)
+}
 
 // Platform package names use the legacy scheme: `@pnpm/macos-<arch>` (darwin),
 // `@pnpm/win-<arch>` (win32), `@pnpm/linux-<arch>` (glibc), and
@@ -66,9 +72,8 @@ linkSync(bin, path.resolve(ownDir, executable))
 if (platform === 'win32') {
   // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
   // npm's bin shims point to the name from publishConfig.bin, and npm
-  // does NOT re-read package.json after preinstall, so rewriting the bin
-  // entry has no effect on the shims. The file at the original name must
-  // be the real binary so the shim can execute it.
+  // does NOT re-read package.json after preinstall. This original target
+  // remains executable until postinstall regenerates npm's shims.
   linkSync(bin, path.resolve(ownDir, 'pnpm'))
 
   // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
@@ -92,6 +97,31 @@ if (platform === 'win32') {
   pkg.bin.pnpx = 'pnpx.exe'
   pkg.bin.pnx = 'pnx.exe'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
+}
+
+function relinkNpmWindowsShims() {
+  const npmExecPath = process.env.npm_execpath
+  if (
+    process.platform !== 'win32' ||
+    process.env.npm_config_global !== 'true' ||
+    npmExecPath == null ||
+    path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
+  ) return
+
+  const args = [npmExecPath, 'rebuild', '--global', '--ignore-scripts']
+  if (process.env.npm_config_prefix) {
+    args.push('--prefix', process.env.npm_config_prefix)
+  }
+  args.push('@pnpm/exe')
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
+  if (result.error != null) {
+    console.error(`Could not regenerate the npm shims for @pnpm/exe: ${result.error.message}`)
+    process.exit(1)
+  }
+  if (result.status !== 0) {
+    console.error(`npm could not regenerate the shims for @pnpm/exe (exit code ${result.status}).`)
+    process.exit(1)
+  }
 }
 
 function linkSync(src, dest) {
