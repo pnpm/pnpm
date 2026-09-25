@@ -621,7 +621,18 @@ fn optional_peer_is_not_supplied_by_a_sibling_whose_peers_the_importer_rejects()
     assert_eq!(
         install_optional_peer_user_next_to_sibling(
             &serde_json::json!({ "@pnpm/y": "1.0.0" }),
-            None
+            None,
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_when_importer_aliases_conflicting_peer() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "my-y": "npm:@pnpm/y@1.0.0" }),
+            None,
         ),
         "1.0.0",
     );
@@ -643,7 +654,7 @@ fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
     assert_eq!(
         install_optional_peer_user_next_to_sibling(
             &serde_json::json!({ "@pnpm/y": "2.0.0" }),
-            None
+            None,
         ),
         "1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))",
     );

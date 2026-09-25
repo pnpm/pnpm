@@ -8,9 +8,9 @@ use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::FxHashMap as HashMap;
 use std::cell::OnceCell;
 
-/// The version `package` installs as, the one a peer range is checked against.
-pub(crate) fn resolved_version(package: &ResolvedPackage) -> String {
-    context::pkg_name_version(&package.result).1
+/// The package's real name and installed version.
+pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, String) {
+    context::pkg_name_version(&package.result)
 }
 
 /// `peer_name → range` pairs one package declares.

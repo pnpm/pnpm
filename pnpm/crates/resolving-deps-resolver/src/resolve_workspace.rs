@@ -521,6 +521,7 @@ where
     Chain: Resolver + ?Sized,
 {
     loop {
+        refresh_root_dep_versions(states);
         let mut any_hoisted = false;
         for state in &mut *states {
             any_hoisted |= state.hoist_optional_round(resolver).await?;
@@ -531,6 +532,19 @@ where
         for state in &mut *states {
             state.run_required_round(resolver, peer_discovery).await?;
         }
+    }
+}
+
+fn refresh_root_dep_versions(states: &mut [ImporterHoistState]) {
+    let root_dep_versions = Arc::new(
+        states
+            .iter()
+            .find(|state| state.importer_id() == pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY)
+            .map(ImporterHoistState::direct_dep_versions)
+            .unwrap_or_default(),
+    );
+    for state in states.iter_mut() {
+        state.set_workspace_root_dep_versions(Arc::clone(&root_dep_versions));
     }
 }
 

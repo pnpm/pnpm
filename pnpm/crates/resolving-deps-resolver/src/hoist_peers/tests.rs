@@ -289,7 +289,7 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
             &preferred,
             &[],
             &locked,
-            &|_, _| true
+            &|_, _| true,
         ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );
@@ -315,7 +315,7 @@ fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph(
             &preferred,
             &[],
             &locked,
-            &|_, _| true
+            &|_, _| true,
         ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );

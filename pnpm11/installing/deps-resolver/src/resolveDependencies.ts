@@ -510,6 +510,12 @@ export async function resolveRootDependencies (
     }))
     let hasNewMissingPeers = false
     const getCandidatePeerRanges = createCandidatePeerRangesLookup(ctx)
+    if (rootImporterIndex !== -1) {
+      rootDepVersions = getDirectDepVersions(
+        ctx.resolvedPkgsById,
+        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
+      )
+    }
     await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
@@ -608,11 +614,19 @@ function getDirectDepVersions (
 ): Map<string, string> {
   const versions = new Map<string, string>()
   for (const pkgAddress of pkgAddresses) {
+    const pkg = pkgAddress.isLinkedDependency
+      ? undefined
+      : resolvedPkgsById[pkgAddress.pkgId]
     const version = pkgAddress.isLinkedDependency
       ? pkgAddress.version
-      : resolvedPkgsById[pkgAddress.pkgId]?.version
-    if (version != null && !versions.has(pkgAddress.alias)) {
-      versions.set(pkgAddress.alias, version)
+      : pkg?.version
+    if (version != null) {
+      if (!versions.has(pkgAddress.alias)) {
+        versions.set(pkgAddress.alias, version)
+      }
+      if (pkg?.name && pkg.name !== pkgAddress.alias && !versions.has(pkg.name)) {
+        versions.set(pkg.name, version)
+      }
     }
   }
   return versions
