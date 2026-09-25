@@ -475,11 +475,25 @@ pub(super) fn update_stale_hoist_symlink(
     {
         return Ok(());
     }
-    pnpm_fs::force_symlink_dir(dep_dir, dest)
-        .map(|_| ())
+    replace_stale_hoist_symlink(dep_dir, dest)
         .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
             symlink_target: dep_dir.to_path_buf(),
             symlink_path: dest.to_path_buf(),
             error,
         })
+}
+
+fn replace_stale_hoist_symlink(
+    dep_dir: &std::path::Path,
+    dest: &std::path::Path,
+) -> std::io::Result<()> {
+    match pnpm_fs::remove_symlink_dir(dest) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
+        _ => {}
+    }
+    // Once the stale link is removed, a collision belongs to another installer.
+    match pnpm_fs::symlink_dir(dep_dir, dest) {
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        result => result,
+    }
 }

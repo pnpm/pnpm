@@ -12,7 +12,7 @@ fn concurrent_hoists_replace_the_same_stale_dependency_link() {
     std::fs::create_dir_all(&modules).unwrap();
     std::fs::write(target.join("index.js"), "module.exports = 2").unwrap();
 
-    for iteration in 0..10 {
+    for iteration in 0..100 {
         let link = modules.join(format!("dep-{iteration}"));
         pnpm_fs::symlink_dir(&old_target, &link).unwrap();
         let barrier = std::sync::Barrier::new(32);
