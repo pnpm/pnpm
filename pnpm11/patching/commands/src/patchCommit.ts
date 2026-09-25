@@ -271,13 +271,24 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     stdout = result.stdout as string
     stderr = result.stderr as string
   } catch (err: any) { // eslint-disable-line
+    if (err.exitCode !== 1) {
+      const errorMessage = (err.stderr as string) || (err.message as string) || ''
+      throw new Error(
+        'Unable to diff directories. Make sure you have a recent version of \'git\' available in PATH.\n' +
+        `The following error was reported:\n${errorMessage}`,
+        { cause: err }
+      )
+    }
     stdout = err.stdout as string
     stderr = err.stderr as string
   }
-  // we cannot rely on exit code, because --no-index implies --exit-code
-  // i.e. git diff will exit with 1 if there were differences
-  if (stderr.length > 0)
-    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
+
+  if (stderr.length > 0) {
+    throw new Error(
+      'Unable to diff directories. Make sure you have a recent version of \'git\' available in PATH.\n' +
+      `The following error was reported by 'git':\n${stderr}`
+    )
+  }
 
   return stdout
     .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`, 'g'), '$1/')
