@@ -59,7 +59,7 @@ fn deploy_manifest_hook_copies_linked_dependencies() {
             "dependencies": { "a": "file:./a", "registry": "^1.0.0", "file": "file:./file" },
             "devDependencies": { "b": "file:../b" },
             "optionalDependencies": { "c": "file:./c" },
-        })
+        }),
     );
     assert_eq!(manifest["dependencies"]["a"], "link:./a");
 }
