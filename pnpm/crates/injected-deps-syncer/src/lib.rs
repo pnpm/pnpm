@@ -136,32 +136,11 @@ fn sync_workspace_injected_deps(
     // `injectedDeps` off that same resolved directory.
     let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
     let modules = read_workspace_modules(opts.workspace_modules_dir)?;
-    let Some(injected_deps) =
-        modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
+    let Some(resolved_targets) =
+        resolved_injected_targets(opts, workspace_dir, &content_source_dir, modules.as_ref())
     else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            "Skipping sync of injected dependencies because none were detected",
-        );
         return Ok(());
     };
-
-    let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(workspace_dir, &content_source_dir))
-        .filter(|dirs| !dirs.is_empty())
-    else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            pkg_root_dir = ?opts.pkg_root_dir,
-            "There are no injected dependencies from this package",
-        );
-        return Ok(());
-    };
-
-    let resolved_targets: Vec<PathBuf> = target_dirs
-        .iter()
-        .map(|target_dir| workspace_dir.join(target_dir))
-        .collect();
     patch_targets(&content_source_dir, &resolved_targets)?;
 
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
@@ -210,6 +189,42 @@ pub fn sync_injected_deps_of_modules_dir(
         patch_targets(&source_dir, &resolved_targets)?;
     }
     Ok(())
+}
+
+/// The resolved directories that hold injected copies of `content_source_dir`,
+/// or `None` if there are none to sync.
+fn resolved_injected_targets(
+    opts: &SyncInjectedDeps<'_>,
+    workspace_dir: &Path,
+    content_source_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+) -> Option<Vec<PathBuf>> {
+    let Some(injected_deps) = modules.and_then(|modules| modules.injected_deps.as_ref()) else {
+        tracing::debug!(
+            target: "pacquet::sync_injected_deps",
+            "Skipping sync of injected dependencies because none were detected",
+        );
+        return None;
+    };
+
+    let Some(target_dirs) = injected_deps
+        .get(&injected_dep_key(workspace_dir, content_source_dir))
+        .filter(|dirs| !dirs.is_empty())
+    else {
+        tracing::debug!(
+            target: "pacquet::sync_injected_deps",
+            pkg_root_dir = ?opts.pkg_root_dir,
+            "There are no injected dependencies from this package",
+        );
+        return None;
+    };
+
+    Some(
+        target_dirs
+            .iter()
+            .map(|target_dir| workspace_dir.join(target_dir))
+            .collect(),
+    )
 }
 
 fn read_workspace_modules(
