@@ -411,6 +411,49 @@ test('pnpm licenses: lists a registry package and a same-named local package fro
   expect(report.MIT[0].versions).toContain('3.1.0')
 })
 
+test('pnpm licenses: lists the installed path of every dedicated lockfile that installs one package version', async () => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ private: true }))
+  const storeDir = path.join(workspaceDir, 'store')
+  const projectDirs = ['foo', 'bar'].map((name) => path.join(workspaceDir, name))
+  for (const projectDir of projectDirs) {
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: path.basename(projectDir), dependencies: { 'is-positive': '3.1.0' } }))
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph: Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([projectDir]) => projectDir !== workspaceDir)
+    ),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, versions: string[], paths: string[] }>>
+  expect(report.MIT.map(({ name }) => name)).toStrictEqual(['is-positive'])
+  expect(report.MIT[0].versions).toStrictEqual(['3.1.0'])
+  expect([...report.MIT[0].paths].sort()).toStrictEqual(projectDirs.map((projectDir) =>
+    path.join(projectDir, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')
+  ).sort())
+})
+
 test('pnpm licenses: fails when lockfile is missing', async () => {
   const dir = path.resolve('./test/fixtures/invalid')
   await expect(

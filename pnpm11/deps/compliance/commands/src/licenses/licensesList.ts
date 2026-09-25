@@ -3,7 +3,7 @@ import path from 'node:path'
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { findDependencyLicenses, type LicensePackage } from '@pnpm/deps.compliance.license-scanner'
+import { findDependencyLicenses, type LicensePackage, mergeLicensePackagePaths } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
@@ -102,8 +102,11 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
   const licensePackages = new Map<string, LicensePackage>()
   for (const licensePackage of licensePackagesByLockfile.flat()) {
     const key = `${licensePackage.name}@${licensePackage.registryName ?? ''}:${licensePackage.version}\u0000${licensePackage.license}`
-    if (!licensePackages.has(key)) {
+    const existing = licensePackages.get(key)
+    if (existing === undefined) {
       licensePackages.set(key, licensePackage)
+    } else {
+      mergeLicensePackagePaths(existing, licensePackage)
     }
   }
 

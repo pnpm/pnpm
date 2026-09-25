@@ -554,6 +554,12 @@ fn licenses_lists_all_valid_copies_of_a_collapsed_hoisted_variant() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
     let root = dunce::canonicalize(workspace.path()).expect("canonicalize workspace");
+    let license_groups: Vec<_> = report
+        .as_object()
+        .expect("report object")
+        .keys()
+        .collect();
+    assert_eq!(license_groups, ["MIT"], "the location outside the project must not be read");
     assert_eq!(report["MIT"][0]["name"], "alpha");
     assert_eq!(report["MIT"][0]["versions"], json!(["1.0.0"]));
     let expected_paths: Vec<_> = locations

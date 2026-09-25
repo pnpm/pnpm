@@ -135,11 +135,7 @@ export async function findDependencyLicenses (opts: {
       if (existing === undefined) {
         licensePackages.set(mapKey, dependencyNode)
       } else {
-        const paths = [...new Set([
-          ...(existing.paths ?? (existing.path ? [existing.path] : [])),
-          ...(dependencyNode.paths ?? (dependencyNode.path ? [dependencyNode.path] : [])),
-        ])]
-        if (paths.length > 1) existing.paths = paths
+        mergeLicensePackagePaths(existing, dependencyNode)
       }
     }
   }
@@ -149,4 +145,17 @@ export async function findDependencyLicenses (opts: {
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
     pkg1.name.localeCompare(pkg2.name) || semver.compare(pkg1.version, pkg2.version)
   )
+}
+
+/**
+ * Adds the installed locations of `added` to `target`, which describes the
+ * same package version, so that every copy stays in the report.
+ */
+export function mergeLicensePackagePaths (target: LicensePackage, added: LicensePackage): void {
+  const paths = [...new Set([...installedPaths(target), ...installedPaths(added)])]
+  if (paths.length > 1) target.paths = paths
+}
+
+function installedPaths (pkg: LicensePackage): string[] {
+  return pkg.paths ?? (pkg.path ? [pkg.path] : [])
 }
