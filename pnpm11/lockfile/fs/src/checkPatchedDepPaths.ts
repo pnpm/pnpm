@@ -97,9 +97,10 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
  * it, and that hash is part of this path's identity. A peer segment without a marker is a plain
  * `name@version` or an unpatched path, and has nothing to judge.
  *
- * A path holding a marker is `'indeterminate'` when the marker is outside the leading segment,
- * or when its suffix is not a run of balanced, back-to-back parenthesized segments. Peers are
- * walked level by level, so the depth a lockfile chooses never reaches the call stack.
+ * A path holding a marker is `'indeterminate'` when the marker is anywhere but the leading segment
+ * of its suffix, which is the trailing run of balanced, back-to-back parenthesized segments that
+ * `parse` reads. Peers are walked level by level, so the depth a lockfile chooses never reaches
+ * the call stack.
  */
 function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
   const cached = ctx.verdicts.get(depPath)
@@ -111,7 +112,7 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
     for (const path of level) {
       const judged = judgeOwnHash(path, ctx)
       verdict = worseVerdict(verdict, judged.verdict)
-      nextLevel.push(...judged.peers)
+      for (const peer of judged.peers) nextLevel.push(peer)
     }
     level = nextLevel
   }
@@ -122,13 +123,17 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
 /** The verdict on the path's own hash, and the peer paths in its suffix that carry one. */
 function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
   if (!depPath.includes(PATCH_HASH_PREFIX)) return { verdict: judge(depPath, ctx), peers: [] }
-  const segments = topLevelSegments(depPath)
-  if (segments == null || segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))) {
+  const suffix = splitSuffix(depPath)
+  if (
+    suffix == null ||
+    suffix.locator.includes(PATCH_HASH_PREFIX) ||
+    suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
+  ) {
     return { verdict: 'indeterminate', peers: [] }
   }
   return {
     verdict: judge(depPath, ctx),
-    peers: segments
+    peers: suffix.segments
       .filter((segment) => !segment.startsWith(PATCH_HASH_PREFIX) && segment.includes(PATCH_HASH_PREFIX))
       .map((segment) => segment.slice(1, -1) as DepPath),
   }
@@ -140,27 +145,30 @@ function worseVerdict (a: Verdict, b: Verdict): Verdict {
 }
 
 /**
- * The top-level parenthesized segments of a dependency path's suffix, or `undefined` when the
- * suffix is not a run of balanced, back-to-back segments. `parse` only reads a suffix of that
- * shape, so text between or after segments could hide a marker from it.
+ * The trailing run of balanced, back-to-back parenthesized segments that ends the dependency
+ * path, read right to left as `parse` reads it, and the locator text in front of it. A locator
+ * such as a `file:` path can hold parentheses of its own. `undefined` when a segment's opening
+ * parenthesis is missing.
  */
-function topLevelSegments (depPath: string): string[] | undefined {
+function splitSuffix (depPath: string): { locator: string, segments: string[] } | undefined {
   const segments: string[] = []
-  let depth = 0
-  let start = 0
-  for (let i = 0; i < depPath.length; i++) {
-    if (depPath[i] === '(') {
-      if (depth === 0) start = i
-      depth++
-    } else if (depth === 0 && segments.length > 0) {
-      return undefined
-    } else if (depPath[i] === ')') {
-      depth--
-      if (depth < 0) return undefined
-      if (depth === 0) segments.push(depPath.slice(start, i + 1))
+  let end = depPath.length
+  while (end > 0 && depPath[end - 1] === ')') {
+    let depth = 0
+    let start = end - 1
+    for (; start >= 0; start--) {
+      if (depPath[start] === ')') {
+        depth++
+      } else if (depPath[start] === '(') {
+        depth--
+        if (depth === 0) break
+      }
     }
+    if (start < 0) return undefined
+    segments.push(depPath.slice(start, end))
+    end = start
   }
-  return depth === 0 ? segments : undefined
+  return { locator: depPath.slice(0, end), segments: segments.reverse() }
 }
 
 function judge (depPath: DepPath, ctx: JudgeContext): Verdict {

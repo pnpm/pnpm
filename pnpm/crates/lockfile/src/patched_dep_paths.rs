@@ -4,7 +4,7 @@ use crate::{
 use pnpm_patching::{
     PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
 };
-use segments::{peer_to_judge, top_level_segments};
+use segments::{peer_to_judge, split_suffix};
 use std::collections::{HashMap, HashSet};
 
 /// The version a patch was matched against, when the lockfile records one.
@@ -245,9 +245,9 @@ impl<'a> Checker<'a> {
     /// `name@version` or an unpatched depPath, and has nothing to judge.
     ///
     /// A depPath holding a marker is [`Verdict::Indeterminate`] when the
-    /// marker is outside the leading segment, when its suffix is not a run of
-    /// balanced, back-to-back parenthesized segments, or when a peer segment
-    /// does not parse. Peers are walked level by level, so the depth a lockfile
+    /// marker is anywhere but the leading segment of its suffix, which is the
+    /// trailing run of balanced, back-to-back parenthesized segments pnpm's
+    /// `parse` reads, or when a peer segment does not parse. Peers are walked level by level, so the depth a lockfile
     /// chooses never reaches the call stack.
     fn judge_with_peers(&self, key: &PackageKey) -> Verdict {
         let mut verdict = Verdict::Ok;
@@ -269,20 +269,24 @@ impl<'a> Checker<'a> {
     fn judge_own_hash(&self, key: &PackageKey) -> (Verdict, Vec<PackageKey>) {
         let suffix = key.suffix.peer();
         if !suffix.contains(PATCH_HASH_PREFIX) {
-            return (self.judge(key), Vec::new());
+            return (self.judge(key, None), Vec::new());
         }
-        let Some(segments) = top_level_segments(suffix) else {
+        let Some((locator, segments)) = split_suffix(suffix) else {
             return (Verdict::Indeterminate, Vec::new());
         };
         // The hash is only read from the leading segment.
-        if segments
-            .iter()
-            .skip(1)
-            .any(|segment| segment.starts_with(PATCH_HASH_PREFIX))
+        if locator.contains(PATCH_HASH_PREFIX)
+            || segments
+                .iter()
+                .skip(1)
+                .any(|segment| segment.starts_with(PATCH_HASH_PREFIX))
         {
             return (Verdict::Indeterminate, Vec::new());
         }
-        let mut verdict = self.judge(key);
+        let recorded = segments
+            .first()
+            .and_then(|segment| segment.strip_prefix(PATCH_HASH_PREFIX)?.strip_suffix(')'));
+        let mut verdict = self.judge(key, recorded);
         let mut peers = Vec::new();
         for peer in segments.into_iter().filter_map(peer_to_judge) {
             match peer {
@@ -293,14 +297,9 @@ impl<'a> Checker<'a> {
         (verdict, peers)
     }
 
-    fn judge(&self, key: &PackageKey) -> Verdict {
-        let recorded = match key.suffix.peer().strip_prefix(PATCH_HASH_PREFIX) {
-            Some(rest) => match rest.split_once(')') {
-                Some((hash, _)) => Some(hash),
-                None => return Verdict::Indeterminate,
-            },
-            None => None,
-        };
+    /// Compares `recorded`, the depPath's own patch hash, with the one
+    /// `patchedDependencies` gives its package.
+    fn judge(&self, key: &PackageKey, recorded: Option<&str>) -> Verdict {
         let name = key.name.to_string();
         if self.unusable.contains(&name) {
             return Verdict::Indeterminate;

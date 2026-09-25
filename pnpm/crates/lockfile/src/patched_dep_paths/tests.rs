@@ -782,3 +782,25 @@ snapshots:
         PatchedDepPathsStatus::Indeterminate,
     );
 }
+
+fn file_locator_lockfile(hash: &str) -> String {
+    format!(
+        r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  foo: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  foo@file:../pkg(foo).tgz(patch_hash={hash}): {{}}
+",
+    )
+}
+
+/// A locator can hold parentheses of its own, so the suffix is read from the
+/// end, as pnpm's `parse` reads it.
+#[test]
+fn parentheses_in_a_file_locator_are_not_suffix_segments() {
+    assert_eq!(status(&file_locator_lockfile(CURRENT)), PatchedDepPathsStatus::UpToDate);
+    assert_eq!(status(&file_locator_lockfile(STALE)), PatchedDepPathsStatus::Stale);
+}
