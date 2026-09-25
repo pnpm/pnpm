@@ -58,6 +58,7 @@ fn missing_file_errors_patch_not_found() {
     let missing = dir.path().join("nope.patch");
     let err = create_hex_hash_from_file(&missing).unwrap_err();
     assert!(matches!(err, super::CalcPatchHashError::PatchNotFound { .. }), "got: {err:?}");
+    assert_eq!(err.to_string(), format!("Patch file not found: {}", missing.display()));
 }
 
 #[test]
