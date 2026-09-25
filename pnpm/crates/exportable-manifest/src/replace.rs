@@ -91,7 +91,7 @@ pub fn replace_workspace_protocol(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    lookup: WorkspacePackageLookup<'_>,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     let Some(rest) = dep_spec.strip_prefix("workspace:") else {
         return Ok(dep_spec.to_string());
@@ -100,12 +100,8 @@ pub fn replace_workspace_protocol(
     if let Some(parsed) = parse_version_alias_spec(rest) {
         let installed = installed_modules_dir(dir, modules_dir);
         let target_pkg_name = parsed.alias.unwrap_or(dep_name);
-        let manifest = read_and_check_manifest(
-            dep_name,
-            target_pkg_name,
-            &installed.join(dep_name),
-            workspace_packages,
-        )?;
+        let manifest =
+            read_and_check_manifest(dep_name, target_pkg_name, &installed.join(dep_name), lookup)?;
         let token = match parsed.sentinel {
             Some('^') => "^",
             Some('~') => "~",
@@ -115,8 +111,7 @@ pub fn replace_workspace_protocol(
     }
 
     if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
-        let manifest =
-            read_and_check_manifest(dep_name, dep_name, &dir.join(relative), workspace_packages)?;
+        let manifest = read_and_check_manifest(dep_name, dep_name, &dir.join(relative), lookup)?;
         return Ok(published_spec(dep_name, &manifest, ""));
     }
 
@@ -137,7 +132,7 @@ pub fn replace_workspace_protocol_peer_dependency(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    lookup: WorkspacePackageLookup<'_>,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
@@ -145,13 +140,7 @@ pub fn replace_workspace_protocol_peer_dependency(
     match parsed_peer_spec(dep_spec) {
         Some(ParsedPeer::Alias(alias)) => return Ok(alias),
         Some(ParsedPeer::Relative) => {
-            return replace_workspace_protocol(
-                dep_name,
-                dep_spec,
-                dir,
-                modules_dir,
-                workspace_packages,
-            );
+            return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir, lookup);
         }
         None => {}
     }
@@ -168,8 +157,7 @@ pub fn replace_workspace_protocol_peer_dependency(
     }
 
     let installed = installed_modules_dir(dir, modules_dir);
-    let manifest =
-        read_and_check_manifest(dep_name, dep_name, &installed.join(dep_name), workspace_packages)?;
+    let manifest = read_and_check_manifest(dep_name, dep_name, &installed.join(dep_name), lookup)?;
     let token = if matched.range_group == "*" { "" } else { matched.range_group };
 
     let mut rewritten = String::with_capacity(dep_spec.len());
@@ -224,15 +212,24 @@ fn aliased_peer_spec(alias: &str, version: &str) -> String {
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`
 /// fields are present, falling back to the workspace package named
-/// `target_pkg_name`. Surfaces the
+/// `target_pkg_name` — or starting from it, when the lookup prefers the
+/// workspace manifests. Surfaces the
 /// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
 /// dependency hasn't been installed yet or its manifest is incomplete.
 fn read_and_check_manifest(
     dep_name: &str,
     target_pkg_name: &str,
     dependency_dir: &Path,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    lookup: WorkspacePackageLookup<'_>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
+    let workspace_manifest = lookup.packages.and_then(|pkgs| pkgs.get(target_pkg_name));
+    if lookup.prefer_workspace
+        && let Some(manifest) = workspace_manifest
+        && manifest.is_complete()
+    {
+        return Ok(manifest.clone());
+    }
+
     let manifest_from_dir = read_manifest_fields(dependency_dir)?;
     if let Some(manifest) = &manifest_from_dir
         && manifest.is_complete()
@@ -240,7 +237,6 @@ fn read_and_check_manifest(
         return Ok(manifest.clone());
     }
 
-    let workspace_manifest = workspace_packages.and_then(|pkgs| pkgs.get(target_pkg_name));
     if let Some(manifest) = workspace_manifest
         && manifest.is_complete()
     {
@@ -300,6 +296,29 @@ fn cannot_resolve_error(
 pub struct WorkspacePackageManifest {
     pub name: String,
     pub version: String,
+}
+
+/// How a workspace dependency's manifest is resolved at publish time: the
+/// packages discovered in the workspace, and whether they take precedence
+/// over the copies installed in `node_modules`.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WorkspacePackageLookup<'a> {
+    /// Workspace packages by manifest name, consulted when the dependency
+    /// is not installed — or first, when [`Self::prefer_workspace`] is set.
+    pub packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
+    /// Resolve from the workspace manifests before the installed copies.
+    /// Recursive `publish --new-version` sets this: it rewrites the
+    /// workspace manifests before packing, while `node_modules` can still
+    /// hold the pre-bump copies.
+    pub prefer_workspace: bool,
+}
+
+impl<'a> From<Option<&'a HashMap<String, WorkspacePackageManifest>>>
+    for WorkspacePackageLookup<'a>
+{
+    fn from(packages: Option<&'a HashMap<String, WorkspacePackageManifest>>) -> Self {
+        WorkspacePackageLookup { packages, prefer_workspace: false }
+    }
 }
 
 impl WorkspacePackageManifest {

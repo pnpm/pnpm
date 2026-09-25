@@ -61,6 +61,9 @@ pub fn create_publish_pack_manifest_options(
         ),
         before_packing_hooks: before_packing_hooks.to_vec(),
         workspace_packages,
+        // `--new-version` rewrites the workspace manifests before packing, so
+        // they are newer than anything installed in `node_modules`.
+        prefer_workspace_packages: manifest_flags.new_version.is_some(),
     })
 }
 
