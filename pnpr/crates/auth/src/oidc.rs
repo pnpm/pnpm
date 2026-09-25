@@ -110,9 +110,7 @@ impl OidcState {
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .no_proxy()
-            .dns_resolver(std::sync::Arc::new(network::PublicResolver(
-                pnpm_network::native_dns_resolver(),
-            )))
+            .dns_resolver(network::public_resolver())
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()

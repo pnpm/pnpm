@@ -55,6 +55,10 @@ storage: ./storage
 # always served.)
 #resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
 #  enabled: true     # and /-/pnpr/v0/verify-lockfile
+#  # The resolver connects only to public addresses and this server's own
+#  # public URL. List the non-public networks it may also reach, such as an
+#  # internal upstream registry's.
+#  allowedPrivateNetworks: [10.0.0.0/8]
 #artifacts:          # experimental shared artifacts and compiler caches
 #  enabled: false
 #  compilerCaches:  # sccache WebDAV caches, with pnpr account access rules

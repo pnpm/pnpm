@@ -17,6 +17,26 @@ resolver:
 }
 
 #[test]
+fn from_yaml_str_parses_the_resolver_private_network_exceptions() {
+    let yaml = "
+registries:
+  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
+resolver:
+  allowedPrivateNetworks: [10.20.0.0/16, fd00::1]
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let networks = &config.features.resolver.allowed_private_networks;
+    assert_eq!(networks.len(), 2);
+    assert!(networks[0].contains("10.20.3.4".parse().unwrap()));
+    assert!(networks[1].contains("fd00::1".parse().unwrap()));
+    assert!(config.features.resolver.enabled);
+
+    let invalid = yaml.replace("10.20.0.0/16", "10.20.0.0/40");
+    let error = Config::from_yaml_str(&invalid, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(error.to_string().contains(r#""10.20.0.0/40" is not an IP address or a CIDR network"#));
+}
+
+#[test]
 fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     use std::time::Duration;
     // `maxage` is a string, `timeout` a bare number (verdaccio accepts

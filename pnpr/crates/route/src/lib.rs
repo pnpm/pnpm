@@ -37,11 +37,15 @@ use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_pre
 
 mod route_hook;
 
+mod connect_policy;
+use connect_policy::ConnectPolicy;
+
 mod footprint;
 
 use std::{
     collections::BTreeSet,
     fmt,
+    net::IpAddr,
     sync::{Arc, Mutex},
 };
 
@@ -108,6 +112,8 @@ pub struct RouteContext {
     /// the alias descriptor covers every name the alias resolves, shared
     /// among callers the registry-level `access:` admits.)
     upstream_rules: IndexMap<String, PackageRules>,
+    /// The addresses a resolver connection may be opened to.
+    connect_policy: ConnectPolicy,
 }
 
 #[derive(Debug, Clone)]
@@ -206,6 +212,7 @@ impl RouteContext {
             registries,
             hosted_rules,
             upstream_rules,
+            connect_policy: ConnectPolicy::from_config(config),
         }
     }
 
@@ -434,6 +441,26 @@ impl RouteContext {
         self.upstream_origins
             .iter()
             .any(|origin| fetch.starts_with(origin))
+    }
+
+    /// Whether the resolver may fetch `url`: its registry is on the
+    /// allowlist ([`Self::allows_registry`]) and, when its host is an IP
+    /// literal, [`Self::allows_address`] admits it.
+    #[must_use]
+    pub fn allows_fetch(&self, url: &str) -> bool {
+        self.allows_registry(url) && self.connect_policy.allows_literal_host(url)
+    }
+
+    /// Whether the resolver may open a connection to `address`, resolved for
+    /// `host`: a public address, one in `resolver.allowedPrivateNetworks`, or
+    /// any address of this server's own `public_url` host. The allowlist
+    /// admits a registry by name, so this is what keeps an allowlisted name
+    /// that resolves to an internal address (DNS rebinding), or a fetch path
+    /// the allowlist does not gate, off loopback, private networks, and the
+    /// link-local cloud metadata endpoint.
+    #[must_use]
+    pub fn allows_address(&self, host: &str, address: IpAddr) -> bool {
+        self.connect_policy.allows_address(host, address)
     }
 
     /// A pnpr-hosted route is public when the hosted registry's effective

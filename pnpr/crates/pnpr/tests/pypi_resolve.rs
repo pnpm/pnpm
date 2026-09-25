@@ -28,6 +28,7 @@ fn config_for(storage: PathBuf) -> Config {
     let mut config = Config::proxy(listen, storage);
     config.http.public_url = "http://example.test".to_string();
     config.http.packument_ttl = Duration::from_mins(1);
+    config.features.resolver.allowed_private_networks = crate::network::loopback_networks();
     config
 }
 

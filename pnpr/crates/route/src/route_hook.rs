@@ -69,7 +69,7 @@ impl UpstreamRouteHook for RouteHook {
     }
 
     fn allows_fetch(&self, url: &str) -> bool {
-        self.context.allows_registry(url)
+        self.context.allows_fetch(url)
     }
 
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {

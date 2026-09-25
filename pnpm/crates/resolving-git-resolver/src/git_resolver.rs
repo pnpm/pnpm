@@ -140,13 +140,18 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
         let spec = partial.finalize();
-        let mut result = build_resolve_result(
-            spec,
-            self.probe.as_ref(),
-            self.runner.as_ref(),
-            wanted_dependency,
-        )
-        .await?;
+        let auth_headers =
+            self.fetch_context.as_ref().map(|ctx| ctx.auth_headers.as_ref());
+        if let Some(auth_headers) = auth_headers
+            && !auth_headers.allows_fetch(&spec.fetch_spec)
+        {
+            return Err(Box::new(pnpm_tarball::TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(&spec.fetch_spec),
+            }));
+        }
+        let probe = AllowlistedProbe { inner: self.probe.as_ref(), auth_headers };
+        let mut result =
+            build_resolve_result(spec, &probe, self.runner.as_ref(), wanted_dependency).await?;
         self.read_package_metadata(&mut result).await?;
         Ok(Some(result))
     }
@@ -208,6 +213,23 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
             return Ok(None);
         }
         Ok(Some(LatestInfo::default()))
+    }
+}
+
+/// A [`GitProbe`] that reports an archive URL the fetch allowlist refuses as
+/// not fetchable, so the resolution falls back to the already-admitted repo
+/// instead of reaching the archive host.
+struct AllowlistedProbe<'a, Probe: ?Sized> {
+    inner: &'a Probe,
+    auth_headers: Option<&'a AuthHeaders>,
+}
+
+impl<Probe: GitProbe + ?Sized> GitProbe for AllowlistedProbe<'_, Probe> {
+    fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
+        if self.auth_headers.is_some_and(|auth_headers| !auth_headers.allows_fetch(url)) {
+            return Box::pin(std::future::ready(false));
+        }
+        self.inner.anonymous_head_ok(url)
     }
 }
 

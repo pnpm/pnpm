@@ -50,7 +50,7 @@ async fn capped_dns_resolver_limits_concurrency() {
 }
 
 /// Fetches through a client built the way installs build theirs, so the
-/// request goes through the resolver `configure_dns` wires in. The
+/// request goes through [`native_dns_resolver`](crate::native_dns_resolver). The
 /// server listens on a loopback IP but is addressed as `localhost`, a
 /// name the platform's `getaddrinfo` answers from the host's own tables
 /// on every OS.

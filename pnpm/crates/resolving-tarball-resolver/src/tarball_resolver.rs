@@ -12,7 +12,7 @@ use pnpm_resolving_resolver_base::{
 };
 use pnpm_tarball::{
     FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
-    prefetch_cas_paths,
+    TarballError, prefetch_cas_paths,
 };
 use ssri::Integrity;
 
@@ -123,6 +123,13 @@ impl TarballResolver {
             return Ok(Some(reused));
         }
 
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && !ctx.auth_headers.allows_fetch(&normalized_bare_specifier)
+        {
+            return Err(Box::new(TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(&normalized_bare_specifier),
+            }));
+        }
         let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
         // No store context (unit tests): keep the HEAD-only shape. The

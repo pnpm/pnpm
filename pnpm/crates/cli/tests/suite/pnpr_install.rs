@@ -98,6 +98,14 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
 /// A bound port and storage directory waiting for [`Self::serve`] to start
 /// pnpr on them. Binding first lets a caller seed storage — a token store,
 /// say — with the address the server will answer on already known.
+/// The test registries pnpr resolves from listen on loopback.
+fn loopback_networks() -> Vec<pnpr::IpNetwork> {
+    ["127.0.0.0/8", "::1"]
+        .into_iter()
+        .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
+        .collect()
+}
+
 struct PnprServer {
     name: &'static str,
     listener: TcpListener,
@@ -131,6 +139,7 @@ impl PnprServer {
                 runtime.block_on(async move {
                     let mut config = pnpr::Config::proxy(addr, storage);
                     config.http.public_url = format!("http://{addr}");
+                    config.features.resolver.allowed_private_networks = loopback_networks();
                     configure(&mut config);
                     let listener =
                         tokio::net::TcpListener::from_std(listener).expect("tokio listener");

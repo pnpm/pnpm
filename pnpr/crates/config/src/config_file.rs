@@ -196,7 +196,7 @@ pub(super) struct ConfigFile {
     /// parses as null) is accepted as "default" rather than failing to
     /// deserialize into the struct.
     #[serde(default)]
-    pub(super) resolver: Option<FeatureFile>,
+    pub(super) resolver: Option<ResolverFeatureFile>,
     /// pnpr-only feature toggle for signed shared artifacts. It is a peer of
     /// the resolver because deployments may mount either surface alone.
     #[serde(default)]
@@ -354,8 +354,8 @@ pub(super) struct OsvFile {
     pub(super) path: Option<String>,
 }
 
-/// Disk shape of the `resolver:` feature block. A bare `enabled` today;
-/// sub-feature keys can be added later. The field and the whole-block
+/// Disk shape of the `resolver:` feature block: the `enabled` switch and the
+/// `allowedPrivateNetworks` connection exceptions. The field and the whole-block
 /// defaults are both `enabled: true`, so omitting the block — or writing
 /// `resolver:` with no body — keeps the surface on.
 /// `deny_unknown_fields` so a typo like `resolver: { enable: false }`
@@ -364,14 +364,16 @@ pub(super) struct OsvFile {
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct FeatureFile {
+pub(super) struct ResolverFeatureFile {
     #[serde(default = "default_true")]
     pub(super) enabled: bool,
+    #[serde(default, rename = "allowedPrivateNetworks")]
+    pub(super) allowed_private_networks: Vec<String>,
 }
 
-impl Default for FeatureFile {
+impl Default for ResolverFeatureFile {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: true, allowed_private_networks: Vec::new() }
     }
 }
 

@@ -16,6 +16,10 @@ pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
+pub use ip_network::IpNetwork;
+
+mod ip_network;
+
 mod logging;
 use logging::build_log_config;
 
@@ -31,8 +35,8 @@ mod presets;
 mod config_file;
 use config_file::{
     ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile, RegistryGroupFile,
+    ResolverFeatureFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
     parse_config_file, reject_removed_blocks,
 };
 
@@ -324,11 +328,16 @@ pub struct ResolverFeature {
     /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
     /// mounted.
     pub enabled: bool,
+    /// Non-public networks the resolver may still connect to, such as the
+    /// one an internal upstream registry sits on. The resolver refuses every
+    /// other loopback, private, link-local, and reserved address, except for
+    /// this server's own `public_url` host.
+    pub allowed_private_networks: Vec<IpNetwork>,
 }
 
 impl Default for ResolverFeature {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: true, allowed_private_networks: Vec::new() }
     }
 }
 
@@ -467,7 +476,7 @@ pub struct Features {
 /// credential resolution) key off effective enablement.
 fn build_features(
     registry_declared: bool,
-    resolver: Option<FeatureFile>,
+    resolver: Option<ResolverFeatureFile>,
     artifacts: Option<ArtifactsFeatureFile>,
     pipeline: Option<PipelineFeatureFile>,
     overrides: FeatureOverrides,
@@ -477,7 +486,13 @@ fn build_features(
     let pipeline_file = pipeline.unwrap_or_default();
     Ok(Features {
         registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
-        resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
+        resolver: ResolverFeature {
+            enabled: resolver_file.enabled && !overrides.disable_resolver,
+            allowed_private_networks: resolver_file.allowed_private_networks
+                .iter()
+                .map(|network| IpNetwork::parse(network))
+                .collect::<Result<_, _>>()?,
+        },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
             compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,

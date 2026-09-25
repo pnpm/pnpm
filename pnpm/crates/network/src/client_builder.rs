@@ -61,6 +61,7 @@ pub(super) struct ClientBuildInputs<'a> {
     pub(super) no_proxy: Arc<NoProxyMatcher>,
     pub(super) extra_ca_certs: Vec<reqwest::Certificate>,
     pub(super) redirect_guard: Option<&'a RedirectGuard>,
+    pub(super) dns_resolver: Arc<dyn Resolve>,
 }
 
 /// Build one client, falling back to the bundled roots when the platform
@@ -116,7 +117,8 @@ fn client_builder(
     trust_roots: TrustRoots,
     forbid_redirects: bool,
 ) -> Result<reqwest::ClientBuilder, ForInstallsError> {
-    let mut builder = default_client_builder(inputs.settings);
+    let mut builder =
+        default_client_builder(inputs.settings).dns_resolver(Arc::clone(&inputs.dns_resolver));
     if let Some(url) = inputs.https.clone() {
         builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&inputs.no_proxy)));
     }
@@ -260,10 +262,6 @@ impl Resolve for NativeDnsResolver {
 /// which reqwest silently falls back to Google's public nameservers
 /// (pnpm/pnpm#14469). `getaddrinfo` also consults `nsswitch.conf`
 /// sources such as `nss-resolve` and `nss-mdns` that Hickory bypasses.
-pub(super) fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    builder.dns_resolver(native_dns_resolver())
-}
-
 #[must_use]
 pub fn native_dns_resolver() -> Arc<dyn Resolve> {
     static RESOLVER: LazyLock<Arc<CappedDnsResolver<NativeDnsResolver>>> = LazyLock::new(|| {
@@ -278,7 +276,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
     let mut default_headers = HeaderMap::with_capacity(1);
     default_headers.insert(USER_AGENT, user_agent);
-    let builder = Client::builder()
+    Client::builder()
         .http1_only()
         // Request gzip and transparently decompress it. Packuments are the
         // largest payloads pulled during resolution and registries serve
@@ -292,8 +290,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .read_timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .pool_max_idle_per_host(super::DEFAULT_MAX_SOCKETS)
-        .tcp_keepalive(Some(Duration::from_secs(15)));
-    configure_dns(builder)
+        .tcp_keepalive(Some(Duration::from_secs(15)))
 }
 
 /// Build a [`Proxy`] that routes only requests whose target scheme matches

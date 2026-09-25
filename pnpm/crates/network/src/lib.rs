@@ -1,3 +1,4 @@
+pub use address_guard::{AddressGuard, GuardedDnsResolver, is_public_address};
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
     base64_encode, base64_encode_bytes, hide_auth_information, is_url_secure_for_credentials,
@@ -5,7 +6,7 @@ pub use auth::{
     redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
 };
 pub use client_builder::{RedirectGuard, default_network_concurrency, native_dns_resolver};
-pub use error_chain::{is_certificate_error, walk_reqwest_chain};
+pub use error_chain::{is_permanent_error, walk_reqwest_chain};
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{
@@ -15,6 +16,7 @@ pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
 pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
 
+mod address_guard;
 mod auth;
 mod error_chain;
 mod limited_body;
