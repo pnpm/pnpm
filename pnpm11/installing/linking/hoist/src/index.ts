@@ -6,6 +6,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
+import { withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
 import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -592,7 +593,7 @@ async function symlinkHoistedDependencies<T extends string> (
           ? opts.publicHoistedModulesDir
           : opts.privateHoistedModulesDir
         const dest = path.join(targetDir, pkgAlias)
-        return symlink(depLocation, dest)
+        return withFileLockRetryAsync(() => symlink(depLocation, dest))
       }))
     })())
   }
@@ -634,7 +635,11 @@ async function symlinkHoistedDependency (
   } catch (err: unknown) {
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
-  await symlinkDir(depLocation, dest)
+  try {
+    await symlinkDir(depLocation, dest, { overwrite: false })
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
+  }
   linkLogger.debug({ target: dest, link: depLocation })
 }
 

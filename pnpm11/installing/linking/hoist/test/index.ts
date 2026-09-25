@@ -8,7 +8,7 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 
-test('concurrent hoists can replace the same stale dependency link', async () => {
+test.each(Array.from({ length: 100 }, (_, round) => round + 1))('concurrent hoists can replace the same stale dependency link (round %i)', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-concurrent-hoist-'))
   const modulesDir = path.join(root, 'node_modules')
   const virtualStoreDir = path.join(modulesDir, '.pnpm')

@@ -6722,6 +6722,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../../fs/graceful-fs
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../../fs/symlink-dependency
