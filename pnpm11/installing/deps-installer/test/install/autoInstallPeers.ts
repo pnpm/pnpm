@@ -851,6 +851,34 @@ test('an optional peer is not supplied by a sibling workspace package when the p
   expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
 })
 
+test('an optional peer is supplied when an alias precedes its canonical package resolving to an accepted version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {
+      'my-y': 'npm:@pnpm/y@1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
+    .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
+test('an optional peer is supplied when a canonical package precedes its alias resolving to an accepted version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {
+      '@pnpm/y': '2.0.0',
+      'my-y': 'npm:@pnpm/y@1.0.0',
+    },
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
+    .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
 test('an optional peer is not supplied by a sibling workspace package whose own peers the workspace root provides at a rejected version', async () => {
   const project = prepareEmpty()
   await installOptionalPeerUserNextToSibling({ projectDeps: {}, rootDeps: { '@pnpm/y': '1.0.0' } })

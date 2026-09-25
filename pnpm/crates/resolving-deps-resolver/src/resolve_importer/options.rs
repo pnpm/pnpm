@@ -1,4 +1,7 @@
-use crate::{DependencyOverrider, ResolveDependencyTreeError, ResolvePeersResult, ResolvedTree};
+use crate::{
+    DependencyOverrider, ResolveDependencyTreeError, ResolvePeersResult, ResolvedTree,
+    resolve_dependency_tree::{TreeCtx, WorkspaceTreeCtx},
+};
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -161,6 +164,47 @@ impl std::fmt::Debug for ResolveImporterOptions {
             .field("overrides_hook", &self.hooks.overrides_hook.as_ref().map(|_| "<hook>"))
             .field("pnpmfile_hook", &self.hooks.pnpmfile_hook.as_ref().map(|_| "<hook>"))
             .finish()
+    }
+}
+
+pub(crate) struct HoistSettings {
+    pub(crate) all_preferred_versions: Arc<PreferredVersions>,
+    pub(crate) override_bare_specifier: Option<Arc<DependencyOverrider>>,
+    pub(crate) project_dir: std::path::PathBuf,
+    pub(crate) peers_suffix_max_length: usize,
+    pub(crate) peers: ImporterPeerOptions,
+    pub(crate) links: PeerLinkOptions,
+}
+
+impl ResolveImporterOptions {
+    pub(crate) fn into_tree_ctx(
+        self,
+        importer_id: &str,
+        importer_order: usize,
+        workspace: Arc<WorkspaceTreeCtx>,
+    ) -> (TreeCtx, HoistSettings) {
+        let project_dir = self.base_opts.project.project_dir.clone();
+        let tree_lockfile_dir =
+            self.links.lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
+        let ctx = TreeCtx::with_workspace(workspace, self.base_opts)
+            .with_lockfile_dir(&tree_lockfile_dir)
+            .with_importer_id(importer_id)
+            .with_importer_order(importer_order)
+            .with_patched_dependencies(self.resolution.patched_dependencies)
+            .with_resolution_mode(
+                self.resolution.pick_lowest_direct,
+                self.resolution.subdep_published_by,
+            )
+            .with_catalogs(self.resolution.catalogs, self.resolution.catalogs_dir.clone());
+        let settings = HoistSettings {
+            all_preferred_versions: self.resolution.all_preferred_versions,
+            override_bare_specifier: self.resolution.override_bare_specifier,
+            project_dir,
+            peers_suffix_max_length: self.peers_suffix_max_length,
+            peers: self.peers,
+            links: self.links,
+        };
+        (ctx, settings)
     }
 }
 

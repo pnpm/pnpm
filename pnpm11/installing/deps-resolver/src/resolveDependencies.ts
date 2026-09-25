@@ -614,19 +614,22 @@ function getDirectDepVersions (
 ): Map<string, string> {
   const versions = new Map<string, string>()
   for (const pkgAddress of pkgAddresses) {
-    const pkg = pkgAddress.isLinkedDependency
-      ? undefined
-      : resolvedPkgsById[pkgAddress.pkgId]
     const version = pkgAddress.isLinkedDependency
       ? pkgAddress.version
-      : pkg?.version
-    if (version != null) {
-      if (!versions.has(pkgAddress.alias)) {
-        versions.set(pkgAddress.alias, version)
-      }
-      if (pkg?.name && pkg.name !== pkgAddress.alias && !versions.has(pkg.name)) {
-        versions.set(pkg.name, version)
-      }
+      : resolvedPkgsById[pkgAddress.pkgId]?.version
+    if (version != null && !versions.has(pkgAddress.alias)) {
+      versions.set(pkgAddress.alias, version)
+    }
+  }
+  for (const pkgAddress of pkgAddresses) {
+    const realName = pkgAddress.isLinkedDependency
+      ? pkgAddress.name
+      : resolvedPkgsById[pkgAddress.pkgId]?.name
+    const version = pkgAddress.isLinkedDependency
+      ? pkgAddress.version
+      : resolvedPkgsById[pkgAddress.pkgId]?.version
+    if (realName && realName !== pkgAddress.alias && !versions.has(realName) && version != null) {
+      versions.set(realName, version)
     }
   }
   return versions

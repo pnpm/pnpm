@@ -28,6 +28,7 @@ pub use options::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
 };
 
+mod direct_seeds;
 mod hoist_rounds;
 mod hoist_state;
 mod local_targets;
@@ -35,12 +36,14 @@ mod locked_peers;
 mod missing_peers;
 mod options;
 
+use direct_seeds::DirectSeeds;
 use hoist_state::{
     ImporterHoistDependencies, ImporterHoistPolicy, ImporterHoistProgress, ImporterHoistSelection,
 };
 use local_targets::build_workspace_root_deps;
 use locked_peers::LockedPeers;
 use missing_peers::partition_missing_peers;
+use options::HoistSettings;
 
 use crate::{
     DirectDep,
@@ -51,8 +54,8 @@ use crate::{
     },
     parent_pkg_aliases::ParentPkgAliases,
     resolve_dependency_tree::{
-        TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree, importer_direct_wanted_specs,
-        record_changed_direct_deps, unwrap_package_name,
+        TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
+        unwrap_package_name,
     },
     resolve_peers::{
         CandidatePeerRanges, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
@@ -178,107 +181,6 @@ pub(crate) struct RequiredRound {
     walk_was_full: bool,
 }
 
-/// The importer's wanted direct deps and what the hoist state seeds from
-/// them. pnpm seeds `parentPkgAliases` from the importer's wanted
-/// dependencies, before any of them resolve, so a direct dep's own
-/// peer-shadowed dependency is dropped even when the shadowing sibling
-/// is still resolving — and stays seeded even when the sibling drops
-/// out (a skipped optional).
-struct DirectSeeds {
-    initial_wanted: Vec<WantedSpec>,
-    wanted_specifier_by_alias: BTreeMap<String, String>,
-    parent_pkg_aliases: HashSet<String>,
-}
-
-impl DirectSeeds {
-    fn of<DependencyGroupList>(
-        manifest: &PackageManifest,
-        dependency_groups: DependencyGroupList,
-        opts: &ResolveImporterOptions,
-    ) -> Result<Self, ResolveImporterError>
-    where
-        DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-    {
-        let initial_wanted = importer_direct_wanted_specs(
-            manifest,
-            dependency_groups,
-            opts.peers.auto_install_peers,
-            &opts.resolution.catalogs,
-            opts.resolution.catalogs_dir.as_deref(),
-        )?;
-        Ok(Self {
-            wanted_specifier_by_alias: initial_wanted
-                .iter()
-                .map(|(alias, range, ..)| (alias.clone(), range.clone()))
-                .collect(),
-            parent_pkg_aliases: initial_wanted
-                .iter()
-                .map(|(alias, ..)| alias.clone())
-                .collect(),
-            initial_wanted,
-        })
-    }
-}
-
-/// What the hoist state keeps of the importer's options once the tree
-/// context has taken the rest.
-struct HoistSettings {
-    all_preferred_versions: Arc<PreferredVersions>,
-    override_bare_specifier: Option<Arc<DependencyOverrider>>,
-    project_dir: std::path::PathBuf,
-    peers_suffix_max_length: usize,
-    peers: crate::ImporterPeerOptions,
-    links: crate::PeerLinkOptions,
-}
-
-impl ResolveImporterOptions {
-    /// The importer's tree context, and the settings the hoist state
-    /// keeps. The manifest hooks are workspace-wide; they live on the
-    /// shared [`WorkspaceTreeCtx`] and the caller ([`resolve_importer`]
-    /// or `resolve_workspace`) is responsible for setting them there
-    /// before handing the `Arc` over.
-    fn into_tree_ctx(
-        self,
-        importer_id: &str,
-        importer_order: usize,
-        workspace: Arc<WorkspaceTreeCtx>,
-    ) -> (TreeCtx, HoistSettings) {
-        let project_dir = self.base_opts.project.project_dir.clone();
-        let tree_lockfile_dir =
-            self.links.lockfile_dir.clone().unwrap_or_else(|| project_dir.clone());
-        let ctx = TreeCtx::with_workspace(workspace, self.base_opts)
-            .with_lockfile_dir(&tree_lockfile_dir)
-            .with_importer_id(importer_id)
-            .with_importer_order(importer_order)
-            .with_patched_dependencies(self.resolution.patched_dependencies)
-            .with_resolution_mode(
-                self.resolution.pick_lowest_direct,
-                self.resolution.subdep_published_by,
-            )
-            .with_catalogs(self.resolution.catalogs, self.resolution.catalogs_dir.clone());
-        let settings = HoistSettings {
-            all_preferred_versions: self.resolution.all_preferred_versions,
-            override_bare_specifier: self.resolution.override_bare_specifier,
-            project_dir,
-            peers_suffix_max_length: self.peers_suffix_max_length,
-            peers: crate::ImporterPeerOptions {
-                auto_install_peers: self.peers.auto_install_peers,
-                auto_install_peers_from_highest_match: self.peers
-                    .auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: self.peers.resolve_peers_from_workspace_root,
-                dedupe_peers: self.peers.dedupe_peers,
-                dedupe_peer_dependents: self.peers.dedupe_peer_dependents,
-            },
-            links: crate::PeerLinkOptions {
-                exclude_links_from_lockfile: self.links.exclude_links_from_lockfile,
-                lockfile_dir: self.links.lockfile_dir,
-                modules_dir: self.links.modules_dir,
-            },
-        };
-        (ctx, settings)
-    }
-}
-
 impl ImporterHoistState {
     /// Resolve the importer's initial direct-dependency wave and set
     /// up the hoist-round state.
@@ -345,17 +247,23 @@ impl ImporterHoistState {
     }
 
     /// `alias → version` of the importer's direct dependencies, including
-    /// the real package name when aliased.
+    /// the real package name as fallback when aliased.
     pub(crate) fn direct_dep_versions(&self) -> HashMap<String, String> {
         let mut versions = HashMap::default();
-        for dep in &self.dependencies.direct {
-            if let Some((real_name, version)) =
-                self.ctx.workspace().inspect_package(&dep.id, resolved_name_and_version)
-            {
-                versions.entry(dep.alias.clone()).or_insert_with(|| version.clone());
-                if dep.alias != real_name {
-                    versions.entry(real_name).or_insert(version);
-                }
+        let resolved: Vec<_> = self.dependencies.direct
+            .iter()
+            .filter_map(|dep| {
+                let (real_name, version) =
+                    self.ctx.workspace().inspect_package(&dep.id, resolved_name_and_version)?;
+                Some((&dep.alias, real_name, version))
+            })
+            .collect();
+        for (alias, _, version) in &resolved {
+            versions.entry((*alias).clone()).or_insert_with(|| (*version).clone());
+        }
+        for (alias, real_name, version) in resolved {
+            if *alias != real_name {
+                versions.entry(real_name).or_insert(version);
             }
         }
         versions
