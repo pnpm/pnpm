@@ -168,7 +168,7 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
   })
   const files = walkedFiles
     .map((file) => file.replace(/^\.[/\\]/, ''))
-    .filter((file) => isInternalFileOrSymlink(resolvedPkgDir, file))
+    .filter((file) => path.basename(file) !== '.env' && isInternalFileOrSymlink(resolvedPkgDir, file))
   return mapToPackedPaths(resolvedPkgDir, files, packedDirs)
 }
 

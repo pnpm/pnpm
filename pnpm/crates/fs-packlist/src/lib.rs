@@ -538,9 +538,9 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
 
 fn should_always_exclude(rel: &str) -> bool {
     let basename = rel.rsplit('/').next().unwrap_or(rel);
-    // Basename-cruft check: per-file entries (`.npmrc`, lockfiles,
-    // debug logs, OS junk) are excluded at any depth.
-    if ALWAYS_EXCLUDED_BASENAMES.contains(&basename) {
+    // Dotenv files and npm-packlist cruft (`.npmrc`, lockfiles, debug logs,
+    // OS junk) are excluded at any depth.
+    if basename == ".env" || ALWAYS_EXCLUDED_BASENAMES.contains(&basename) {
         return true;
     }
     // VCS dir check: a path is excluded if any segment is literally
