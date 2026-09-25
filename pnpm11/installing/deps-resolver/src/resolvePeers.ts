@@ -988,11 +988,23 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
     }
     // A descendant that has its own copy of the package provides it to its
     // subtree, so the inherited one doesn't reach any deeper.
-    if (childNode.children[parentPkg.name] != null) continue
+    if (childrenProvidePkg(ctx.dependenciesTree, childNode.children, parentPkg.name)) continue
     visited.add(childPkg.pkgIdWithPatchHash)
     pending.push(...Object.values(childNode.children))
   }
   return false
+}
+
+// An aliased child provides peers under its real package name too, as it does
+// in toPkgByName.
+function childrenProvidePkg<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
+  children: ChildrenMap,
+  pkgName: string
+): boolean {
+  return Object.entries(children).some(([alias, nodeId]) =>
+    alias === pkgName || dependenciesTree.get(nodeId)?.resolvedPackage.name === pkgName
+  )
 }
 
 function parentPeerDiffers<T extends PartialResolvedPackage> (

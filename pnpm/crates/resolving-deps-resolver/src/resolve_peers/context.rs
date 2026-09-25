@@ -375,11 +375,23 @@ impl Walker<'_> {
             };
         if children
             .iter()
-            .any(|(alias, _, _)| *alias == parent_pkg_name)
+            .any(|&(alias, child_pkg_id, _)| {
+                self.edge_provides(alias, child_pkg_id, parent_pkg_name)
+            })
         {
             return None;
         }
         Some(children)
+    }
+
+    /// Whether a child edge provides `pkg_name` as a peer. An aliased
+    /// dependency provides it under its real package name too, as
+    /// `index_peer_provider_edge` indexes it.
+    fn edge_provides(&self, alias: &str, pkg_id: &str, pkg_name: &str) -> bool {
+        alias == pkg_name
+            || self.tree.packages
+                .get(pkg_id)
+                .is_some_and(|pkg| pkg_name_version(&pkg.result).0 == pkg_name)
     }
 
     /// A node's children as `(alias, package id, node id)`, from its realized

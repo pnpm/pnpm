@@ -759,6 +759,91 @@ fn descendant_walk_does_not_skip_a_package_seen_first_with_its_own_provider() {
     );
 }
 
+/// `wrapper` has its own `parser` under an alias, so `plugin` below it doesn't
+/// inherit `shadow`'s `parser` and doesn't close the diamond. Nothing else
+/// does, so `consumer` keeps the inherited `parser`, as it would without
+/// `plugin`.
+#[test]
+fn descendant_walk_stops_at_an_aliased_copy_of_the_provider() {
+    let ts1 = NodeId::leaf("ts@1.0.0");
+    let ts2 = NodeId::leaf("ts@2.0.0");
+    let parser_root = NodeId::next();
+    let parser_child = NodeId::next();
+    let parser_aliased = NodeId::next();
+    let plugin = NodeId::next();
+    let wrapper = NodeId::next();
+    let consumer = NodeId::next();
+    let shadow = NodeId::next();
+
+    let mut wrapper_children = BTreeMap::new();
+    wrapper_children.insert("my-parser".to_string(), parser_aliased.clone());
+    wrapper_children.insert("plugin".to_string(), plugin.clone());
+
+    let mut shadow_children = BTreeMap::new();
+    shadow_children.insert("consumer".to_string(), consumer.clone());
+    shadow_children.insert("parser".to_string(), parser_child.clone());
+    shadow_children.insert("ts".to_string(), ts1.clone());
+    shadow_children.insert("wrapper".to_string(), wrapper.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep {
+                alias: "parser".to_string(),
+                node_id: parser_root.clone(),
+                id: "parser@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "shadow".to_string(),
+                node_id: shadow.clone(),
+                id: "shadow@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from_iter([
+            ("ts@1.0.0".into(), package("ts", "1.0.0", &[], true)),
+            ("ts@2.0.0".into(), package("ts", "2.0.0", &[], true)),
+            ("parser@1.0.0".into(), package("parser", "1.0.0", &[("ts", "*")], false)),
+            (
+                Arc::from("plugin@1.0.0".to_string()),
+                package("plugin", "1.0.0", &[("parser", "*"), ("ts", "*")], false),
+            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("parser", "*")], false)),
+            ("wrapper@1.0.0".into(), package("wrapper", "1.0.0", &[], false)),
+            ("shadow@1.0.0".into(), package("shadow", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from_iter([
+            (ts1, tree_node("ts@1.0.0", BTreeMap::new(), 1)),
+            (ts2, tree_node("ts@2.0.0", BTreeMap::new(), 0)),
+            (parser_root, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
+            (parser_child, tree_node("parser@1.0.0", BTreeMap::new(), 1)),
+            (parser_aliased, tree_node("parser@1.0.0", BTreeMap::new(), 2)),
+            (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 2)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 1)),
+            (wrapper, tree_node("wrapper@1.0.0", wrapper_children, 1)),
+            (shadow, tree_node("shadow@1.0.0", shadow_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from_iter(["parser".to_string(), "ts".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let inherited = DepPath::from("consumer@1.0.0(parser@1.0.0(ts@2.0.0))");
+    let own = DepPath::from("consumer@1.0.0(parser@1.0.0(ts@1.0.0))");
+
+    assert!(
+        result.graph.contains_key(&inherited),
+        "consumer should keep the inherited parser: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        !result.graph.contains_key(&own),
+        "plugin below an aliased parser must not switch consumer to the nested parser: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
 // Parity check for <https://github.com/pnpm/pnpm/pull/12514>.
 //
 // A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)
