@@ -18,24 +18,16 @@ pub(super) struct AliasDirectory {
 
 impl AliasDirectory {
     pub(super) fn open(path: &Path, create: bool) -> io::Result<Option<Self>> {
-        let name =
-            path.file_name().ok_or_else(|| invalid_input("bin alias directory has no name"))?;
-        let name = c_name(name)?;
-        let parent_path =
-            path.parent().ok_or_else(|| invalid_input("bin alias directory has no parent"))?;
-        let parent = match File::open(parent_path) {
-            Ok(parent) => parent,
-            Err(error) if !create && error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
+        let name = c_name(
+            path.file_name().ok_or_else(|| invalid_input("bin alias directory has no name"))?,
+        )?;
+        let Some(parent) = open_parent(path, create)? else {
+            return Ok(None);
         };
         match open_child(&parent, &name) {
             Ok(directory) => Ok(Some(Self { directory })),
             Err(error) if create && error.kind() == io::ErrorKind::NotFound => {
-                match create_child(&parent, &name) {
-                    Ok(()) => {}
-                    Err(error) if error.raw_os_error() == Some(libc::EEXIST) => {}
-                    Err(error) => return Err(error),
-                }
+                create_directory(&parent, &name)?;
                 open_child(&parent, &name).map(|directory| Some(Self { directory }))
             }
             Err(error) if !create && error.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -71,6 +63,27 @@ impl AliasDirectory {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error),
         }
+    }
+}
+
+/// The directory that holds `path`, or `None` when it is absent and this
+/// lookup may report that rather than fail.
+fn open_parent(path: &Path, create: bool) -> io::Result<Option<File>> {
+    let parent_path =
+        path.parent().ok_or_else(|| invalid_input("bin alias directory has no parent"))?;
+    match File::open(parent_path) {
+        Ok(parent) => Ok(Some(parent)),
+        Err(error) if !create && error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// Create the alias directory, treating one that appeared meanwhile as done.
+fn create_directory(parent: &File, name: &CString) -> io::Result<()> {
+    match create_child(parent, name) {
+        Ok(()) => Ok(()),
+        Err(error) if error.raw_os_error() == Some(libc::EEXIST) => Ok(()),
+        Err(error) => Err(error),
     }
 }
 

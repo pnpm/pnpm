@@ -24,16 +24,26 @@ use tempfile::tempdir;
 
 #[test]
 fn bin_layout_fingerprint_ignores_cache_local_paths() {
+    let one = std::env::temp_dir().join("one");
+    let two = std::env::temp_dir().join("two");
     let first = LinkBinsOptions {
-        extra_node_paths: vec!["/tmp/one/node_modules".to_string()],
-        relocatable_root: Some(PathBuf::from("/tmp/one")),
-        installed_modules_dir: Some(PathBuf::from("/tmp/one/node_modules")),
+        extra_node_paths: vec![
+            one.join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        ],
+        relocatable_root: Some(one.clone()),
+        installed_modules_dir: Some(one.join("node_modules")),
         ..LinkBinsOptions::default()
     };
     let second = LinkBinsOptions {
-        extra_node_paths: vec!["/tmp/two/node_modules".to_string()],
-        relocatable_root: Some(PathBuf::from("/tmp/two")),
-        installed_modules_dir: Some(PathBuf::from("/tmp/two/node_modules")),
+        extra_node_paths: vec![
+            two.join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        ],
+        relocatable_root: Some(two.clone()),
+        installed_modules_dir: Some(two.join("node_modules")),
         ..LinkBinsOptions::default()
     };
 

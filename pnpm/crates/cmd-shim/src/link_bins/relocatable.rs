@@ -46,17 +46,19 @@ fn alias_dir_is_relocatable(bin_dir: &Path, root: &Path) -> bool {
 
 fn alias_entries_are_relocatable(alias_dir: &Path, root: &Path) -> bool {
     match fs::read_dir(alias_dir) {
-        Ok(mut entries) => entries.all(|entry| {
-            entry.is_ok_and(|entry| {
-                entry
-                    .file_type()
-                    .is_ok_and(|file_type| {
-                        file_type.is_symlink() && is_relocatable_alias(&entry, alias_dir, root)
-                    })
-            })
-        }),
+        Ok(mut entries) => {
+            entries.all(|entry| entry.is_ok_and(|entry| is_alias_entry(&entry, alias_dir, root)))
+        }
         Err(error) => error.kind() == io::ErrorKind::NotFound,
     }
+}
+
+fn is_alias_entry(entry: &DirEntry, alias_dir: &Path, root: &Path) -> bool {
+    entry
+        .file_type()
+        .is_ok_and(|file_type| {
+            file_type.is_symlink() && is_relocatable_alias(entry, alias_dir, root)
+        })
 }
 
 fn is_relocatable_alias(entry: &DirEntry, alias_dir: &Path, root: &Path) -> bool {
