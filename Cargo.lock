@@ -6755,6 +6755,7 @@ dependencies = [
  "reqwest",
  "sha2",
  "tracing",
+ "url",
  "wax",
 ]
 

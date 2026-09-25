@@ -45,5 +45,6 @@ mod create_git_hosted_pkg_id;
 mod git_resolver;
 mod hosted_git;
 mod parse_bare_specifier;
+mod pinned_remote;
 mod resolve_ref;
 mod runners;

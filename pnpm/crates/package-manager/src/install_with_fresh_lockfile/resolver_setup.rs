@@ -297,7 +297,9 @@ impl ResolverChainInputs<'_> {
     fn git_resolver(&self) -> GitResolver<RealGitProbe, RealGitRunner> {
         GitResolver::new(
             Arc::new(RealGitProbe::new(Arc::clone(self.fetching.http_client))),
-            Arc::new(RealGitRunner::new()),
+            Arc::new(
+                RealGitRunner::new().with_connect_guard(self.fetching.auth_headers.connect_guard()),
+            ),
         )
         .with_fetch_context(GitFetchContext {
             source_cache: Arc::clone(self.fetching.git_sources),

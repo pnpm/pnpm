@@ -45,8 +45,8 @@ use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRule,
-    PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
+    AccessList, AuthState, Config, Ecosystem, HostedConfig, IpNetwork, MaxUsers, PackagePattern,
+    PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -75,6 +75,7 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
         upstream.to_string();
     config.http.public_url = "http://example.test".to_string();
     config.http.packument_ttl = Duration::from_mins(1);
+    config.routing.route_policy.allowed_private_networks = crate::network::loopback_networks();
     config
 }
 
@@ -206,6 +207,19 @@ async fn drain_resolve_response(response: axum::response::Response) -> (StatusCo
 }
 
 async fn spawn_git_probe() -> (String, Arc<AtomicUsize>) {
+    let (origin, request_count) = spawn_counting_server(
+        b"HTTP/1.1 500 Internal Server Error\r\n\
+          Content-Length: 0\r\n\
+          Connection: close\r\n\
+          \r\n",
+    )
+    .await;
+    (format!("{origin}/repo.git"), request_count)
+}
+
+/// A server answering every request with `response`, returning its
+/// `http://127.0.0.1:<port>` origin and how many connections it accepted.
+async fn spawn_counting_server(response: &'static [u8]) -> (String, Arc<AtomicUsize>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let request_count = Arc::new(AtomicUsize::new(0));
@@ -216,17 +230,11 @@ async fn spawn_git_probe() -> (String, Arc<AtomicUsize>) {
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 4096];
                 let _ = socket.read(&mut buf).await;
-                let _ = socket.write_all(
-                    b"HTTP/1.1 500 Internal Server Error\r\n\
-                          Content-Length: 0\r\n\
-                          Connection: close\r\n\
-                          \r\n",
-                )
-                .await;
+                let _ = socket.write_all(response).await;
             });
         }
     });
-    (format!("http://{addr}/repo.git"), request_count)
+    (format!("http://{addr}"), request_count)
 }
 
 async fn body_json(body: Body) -> Value {
