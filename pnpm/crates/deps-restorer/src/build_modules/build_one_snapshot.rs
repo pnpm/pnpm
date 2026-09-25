@@ -104,7 +104,7 @@ fn build_candidate<Reporter: self::Reporter>(
     clear_global_virtual_store_build_markers(
         context,
         snapshot_key,
-        candidate.patch.is_some() || candidate.should_run_scripts,
+        (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
     );
 
     upload_side_effects_cache(
@@ -194,6 +194,9 @@ struct BuildCandidate<'c> {
     /// suppressed by the rebuild-selection gate after it.
     force_rebuild: bool,
     should_run_scripts: bool,
+    /// `--ignore-scripts` left the build scripts for a later install to run
+    /// in the same global-virtual-store slot, so its marker has to stay.
+    build_pending: bool,
 }
 
 impl<'c> BuildCandidate<'c> {
@@ -216,7 +219,16 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+        let build_pending = requires_build && context.scripts.ignore;
+        Some(Self {
+            metadata_key,
+            patch,
+            name,
+            version,
+            force_rebuild,
+            should_run_scripts,
+            build_pending,
+        })
     }
 }
 

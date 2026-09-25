@@ -7,7 +7,11 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_fs::DirLock;
-use std::{process::Stdio, thread, time::Duration};
+use std::{
+    process::{Child, Stdio},
+    thread,
+    time::Duration,
+};
 
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
@@ -393,15 +397,17 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     )
     .expect("take the slot lock")
     .expect("the slot lock is free");
-    let mut install = pacquet(&workspace)
-        .with_arg("install")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn the install");
+    let mut install = ReapOnDrop(
+        pacquet(&workspace)
+            .with_arg("install")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn the install"),
+    );
 
     thread::sleep(Duration::from_secs(3));
-    let exited = install.try_wait().expect("poll the install");
+    let exited = install.0.try_wait().expect("poll the install");
     eprintln!("install exit status while the slot lock was held: {exited:?}");
     assert!(exited.is_none(), "the install must wait for the slot lock");
     assert!(
@@ -414,7 +420,7 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     );
 
     drop(lock);
-    let status = install.wait().expect("wait for the install");
+    let status = install.0.wait().expect("wait for the install");
     assert!(status.success(), "the install must finish once the slot lock is released");
     assert!(pkg.join("generated-by-postinstall.js").exists());
     assert!(pkg.join("README.md").exists());
@@ -763,4 +769,15 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
     );
 
     drop((root, mock_instance));
+}
+
+/// Kills and reaps a spawned install when a failed assertion unwinds past it,
+/// so it cannot keep writing into the store while later tests run.
+struct ReapOnDrop(Child);
+
+impl Drop for ReapOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
 }

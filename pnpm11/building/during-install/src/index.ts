@@ -307,9 +307,15 @@ async function buildDependency<T extends string> (
       unsafePerm: opts.unsafePerm || false,
       userAgent: opts.userAgent,
     })
+    // A package whose build was withheld - the allow-build policy said so, or
+    // ignoreScripts did - must not be cached as if it were built. The entry
+    // the patch alone produced would replay on the install that finally runs
+    // the build, and the scripts would never get their chance.
+    const buildPending = requiresBuild && ignoreScripts
     // Remove the .pnpm-needs-build marker before uploading side effects,
     // so it doesn't get cached as part of the package's side effects diff.
-    if (opts.enableGlobalVirtualStore) {
+    // A withheld build keeps it, so the install that runs the build finds it.
+    if (opts.enableGlobalVirtualStore && !buildPending) {
       await fs.unlink(path.join(depNode.dir, NEEDS_BUILD_MARKER)).catch(() => {})
     }
     // frozenStore opens the store read-only, so the side-effects cache (which
@@ -321,11 +327,6 @@ async function buildDependency<T extends string> (
       opts.pnprServer != null &&
       opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
-    // A package whose build was withheld - the allow-build policy said so, or
-    // ignoreScripts did - must not be cached as if it were built. The entry
-    // the patch alone produced would replay on the install that finally runs
-    // the build, and the scripts would never get their chance.
-    const buildPending = requiresBuild && ignoreScripts
     if ((isPatched || hasSideEffects) && !buildPending && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {

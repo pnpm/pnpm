@@ -104,6 +104,20 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     if global_slot_carries_overlay(context, snapshot_key, overlay) {
         return Ok(true);
     }
+    // Another install may be building the shared slot, which the forced
+    // re-import below would overwrite; once it finishes, its output is the
+    // overlay.
+    let _slot_lock = context.directories.pkg_roots_by_key
+        .is_none()
+        .then(|| {
+            crate::gvs_slot_lock::lock_global_virtual_store_slot(
+                context.directories.layout,
+                snapshot_key,
+            )
+        });
+    if global_slot_carries_overlay(context, snapshot_key, overlay) {
+        return Ok(true);
+    }
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
     context.progress.slot_mutations.store(true, Ordering::Relaxed);
