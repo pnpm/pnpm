@@ -175,11 +175,7 @@ function fromLocal (
   } else if (bareSpecifier.startsWith('link:')) {
     protocol = 'link:'
   } else {
-    // A `workspace:` specifier follows `injectWorkspacePackages` the same
-    // way the name/semver workspace-matching path does, in addition to the
-    // dependency's own `injected` flag. A bare path carrying no protocol
-    // (the other shape reaching this branch, via parseLocalPath) is never
-    // prefixed with `workspace:`, so the check below is a no-op for it.
+    // Matches the name/range workspace match in the npm resolver, which injects under `injectWorkspacePackages` too.
     const isInjected = injected || (bareSpecifier.startsWith('workspace:') && opts.injectWorkspacePackages === true)
     protocol = type === 'directory' && !isInjected ? 'link:' : 'file:'
   }

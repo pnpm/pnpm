@@ -52,9 +52,9 @@ pub(crate) enum LocalSpecKind {
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ParseOptions {
     pub preserve_absolute_paths: bool,
-    /// `inject-workspace-packages` config. Only takes effect for a
-    /// `workspace:` bare specifier — [`parse_local_path`] never sees one,
-    /// since `workspace:` is claimed by [`parse_local_scheme`].
+    /// `inject-workspace-packages` config. Injects a `workspace:` directory
+    /// dependency the same way the name/range workspace match in
+    /// `resolving-npm-resolver` does. Other specifiers ignore it.
     pub inject_workspace_packages: bool,
 }
 
@@ -129,12 +129,6 @@ fn from_local(
     let bare = wd.bare_specifier.as_str();
     let spec = normalize_specifier(bare);
 
-    // `inject-workspace-packages` follows a `workspace:` dep the same way a
-    // per-dep `injected` flag does, matching the name/semver
-    // workspace-matching path in `resolving-npm-resolver`. A bare path
-    // carrying no protocol (the other shape reaching `from_local`, via
-    // `parse_local_path`) is never prefixed with `workspace:`, so the check
-    // below is a no-op for it.
     let injected =
         wd.injected || (bare.starts_with("workspace:") && opts.inject_workspace_packages);
     let protocol = local_protocol(bare, kind, injected);

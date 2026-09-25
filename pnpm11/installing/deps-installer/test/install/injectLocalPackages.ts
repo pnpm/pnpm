@@ -2101,3 +2101,63 @@ test('inject local package with prepare script + bin-having dep does not crash o
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/built.txt'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
 })
+
+test('injectWorkspacePackages injects a workspace dependency declared with a relative path', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:../project-1',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers['project-2'].dependencies['project-1']).toEqual({
+    specifier: 'workspace:../project-1',
+    version: 'file:project-1',
+  })
+  expect(fs.lstatSync(path.resolve('project-2/node_modules/project-1')).isSymbolicLink()).toBe(true)
+  expect(fs.realpathSync('project-2/node_modules/project-1')).toBe(path.resolve('node_modules/.pnpm/project-1@file+project-1/node_modules/project-1'))
+})
