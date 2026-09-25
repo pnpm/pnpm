@@ -76,10 +76,11 @@ fn index_requires_build(index: &PackageFilesIndex) -> bool {
     if index.requires_build == Some(true) {
         return true;
     }
-    if index.manifest.as_ref().is_some_and(pnpm_package_manifest::manifest_requires_build) {
-        return true;
+    let mut triggers = pnpm_package_manifest::files_build_triggers(index.files.keys());
+    if let Some(manifest) = &index.manifest {
+        triggers.read_manifest(manifest);
     }
-    pnpm_package_manifest::files_include_install_scripts(index.files.keys())
+    triggers.requires_build()
 }
 
 fn is_isolated_dir(dir: &Path, files: &HashMap<String, CafsFileInfo>) -> bool {

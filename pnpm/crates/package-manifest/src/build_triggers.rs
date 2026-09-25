@@ -156,3 +156,14 @@ where
     }
     triggers
 }
+
+/// Decide whether store-index file keys imply build hooks, without consulting
+/// a manifest.
+#[must_use]
+pub fn files_include_install_scripts<Filenames, Filename>(filenames: Filenames) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    files_build_triggers(filenames).requires_build()
+}
