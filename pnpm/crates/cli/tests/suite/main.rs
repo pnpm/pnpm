@@ -173,5 +173,6 @@ mod why;
 mod with;
 mod workspace_cycles;
 mod workspace_install;
+mod workspace_peer_pins;
 mod workspace_settings_check;
 mod yarn_workspaces_field;

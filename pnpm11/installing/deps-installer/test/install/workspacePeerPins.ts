@@ -1,0 +1,50 @@
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
+import { mutateModules } from '@pnpm/installing.deps-installer'
+import { prepareEmpty } from '@pnpm/prepare'
+import type { ProjectRootDir } from '@pnpm/types'
+
+import { testDefaults } from '../utils/index.js'
+
+// https://github.com/pnpm/pnpm/issues/11800
+test.each([
+  { bumpedSpec: '2.0.0', appVersion: '2.0.0', peerRange: '>=1.0.0', expected: '2.0.0' },
+  { bumpedSpec: '^3.0.0', appVersion: '3.1.0', peerRange: '>=1.0.0', expected: '3.1.0' },
+  { bumpedSpec: '2.0.0', appVersion: '2.0.0', peerRange: '^1.0.0', expected: '1.0.0' },
+])('an auto-installed peer with range $peerRange resolves to $expected after another workspace project moves to $bumpedSpec', async ({ bumpedSpec, appVersion, peerRange, expected }) => {
+  prepareEmpty()
+  const mutations = ['app', 'lib'].map((name) => ({ mutation: 'install' as const, rootDir: path.resolve(name) as ProjectRootDir }))
+  const lockfileDefaults = { autoInstallPeers: true, lockfileOnly: true }
+
+  await mutateModules(mutations, testDefaults({ ...lockfileDefaults, allProjects: createPeerProviderProjects('1.0.0', peerRange) }))
+  const project = assertProject(process.cwd())
+  expect(project.readLockfile().importers['lib'].dependencies).toStrictEqual({
+    'is-positive': { specifier: peerRange, version: '1.0.0' },
+  })
+
+  await mutateModules(mutations, testDefaults({ ...lockfileDefaults, allProjects: createPeerProviderProjects(bumpedSpec, peerRange) }))
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['app'].dependencies).toStrictEqual({
+    'is-positive': { specifier: bumpedSpec, version: appVersion },
+  })
+  expect(lockfile.importers['lib'].dependencies).toStrictEqual({
+    'is-positive': { specifier: peerRange, version: expected },
+  })
+})
+
+function createPeerProviderProjects (appSpec: string, peerRange: string) {
+  return [
+    {
+      buildIndex: 0,
+      manifest: { name: 'app', version: '1.0.0', dependencies: { 'is-positive': appSpec } },
+      rootDir: path.resolve('app') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'lib', version: '1.0.0', peerDependencies: { 'is-positive': peerRange } },
+      rootDir: path.resolve('lib') as ProjectRootDir,
+    },
+  ]
+}

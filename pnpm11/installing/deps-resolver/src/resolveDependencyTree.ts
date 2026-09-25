@@ -13,6 +13,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PkgResolutionId, ProjectId, ProjectManifest, ProjectRootDir, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 import { partition } from 'ramda'
 
+import { collectDirectDependencySpecs, findStalePeerPins } from './findStalePeerPins.js'
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import {
@@ -261,8 +262,23 @@ export async function resolveDependencyTree<T> (
     ctx.nodeVersion = await resolveRootRuntimeNodeVersion(importers, opts) ?? opts.nodeVersion
   }
 
+  const directSpecsByName = autoInstallPeers && importers.some(({ manifest }) => manifest.peerDependencies != null)
+    ? collectDirectDependencySpecs(importers.map(({ manifest }) => manifest), opts.catalogs ?? {})
+    : undefined
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
+    const resolvedDependencies = {
+      ...projectSnapshot.dependencies,
+      ...projectSnapshot.devDependencies,
+      ...projectSnapshot.optionalDependencies,
+    }
+    const stalePeerPins = directSpecsByName == null
+      ? undefined
+      : findStalePeerPins(resolvedDependencies, {
+        directSpecsByName,
+        lockfile: opts.wantedLockfile,
+        manifest: importer.manifest,
+      })
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
@@ -278,11 +294,7 @@ export async function resolveDependencyTree<T> (
       },
       parentIds: [importer.id as unknown as PkgResolutionId],
       proceed,
-      resolvedDependencies: {
-        ...projectSnapshot.dependencies,
-        ...projectSnapshot.devDependencies,
-        ...projectSnapshot.optionalDependencies,
-      },
+      resolvedDependencies,
       updateDepth: -1,
       updateMatching: importer.updateMatching,
       updatePatches: importer.updatePatches,
@@ -296,7 +308,11 @@ export async function resolveDependencyTree<T> (
         importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
       ) as ParentPkgAliases,
       preferredVersions: importer.preferredVersions ?? {},
-      wantedDependencies: importer.wantedDependencies,
+      wantedDependencies: stalePeerPins?.size
+        ? importer.wantedDependencies.map((wantedDependency) => stalePeerPins.has(wantedDependency.alias)
+          ? { ...wantedDependency, updateDepth: 0 }
+          : wantedDependency)
+        : importer.wantedDependencies,
       options: resolveOpts,
       rangeSpecStyle: importer.rangeSpecStyle,
     }
