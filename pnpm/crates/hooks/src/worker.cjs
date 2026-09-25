@@ -3,10 +3,11 @@ let mod = null;
 let loadErr = null;
 let nextCallbackId = 0;
 const pendingCallbacks = new Map();
-function badReadPackageResult(message) {
-  const err = new Error(message + " Hook imported via " + pnpmfilePath);
-  err.code = "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT";
-  throw err;
+class BadReadPackageResultError extends Error {
+  constructor(message) {
+    super(message + " Hook imported via " + pnpmfilePath);
+    this.code = "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT";
+  }
 }
 async function ensureLoaded() {
   if (mod !== null || loadErr !== null) return;
@@ -158,16 +159,16 @@ async function handle(req) {
       pkg.peerDependencies = pkg.peerDependencies ?? {};
       const newPkg = await fn(pkg, context);
       if (!newPkg || typeof newPkg !== "object" || Array.isArray(newPkg)) {
-        badReadPackageResult("readPackage hook did not return a package manifest object.");
+        throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
       }
       for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
         const v = newPkg[dep];
         if (v != null && (typeof v !== "object" || Array.isArray(v))) {
-          badReadPackageResult("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
+          throw new BadReadPackageResultError("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
         }
         for (const [name, range] of Object.entries(v ?? {})) {
           if (typeof range !== "string") {
-            badReadPackageResult("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
+            throw new BadReadPackageResultError("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
           }
         }
       }
@@ -184,7 +185,7 @@ async function handle(req) {
       send({ ok: res === undefined ? null : res });
     }
   } catch (err) {
-    if (err && err.code === "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") {
+    if (err instanceof BadReadPackageResultError) {
       send({ err: err.message, code: err.code });
     } else {
       send({ err: err && err.stack ? err.stack : String(err) });

@@ -8,7 +8,7 @@ use pnpm_hooks::PnpmfileHooks as _;
 async fn read_package_rejects_non_object_results() {
     for result in ["'a string'", "[]", "42", "0"] {
         let (hooks, _tmp) = cjs_hooks(&format!(
-            "module.exports = {{ hooks: {{ readPackage () {{ return {result} }} }} }}"
+            "module.exports = {{ hooks: {{ readPackage () {{ return {result} }} }} }}",
         ));
         let err = hooks
             .read_package(
@@ -19,7 +19,7 @@ async fn read_package_rejects_non_object_results() {
             .expect_err("a non-object manifest must fail");
         assert!(matches!(err, pnpm_hooks::HookError::BadReadPackageResult { .. }), "{err}");
         assert!(
-            err.to_string().contains("readPackage hook did not return a package manifest object.")
+            err.to_string().contains("readPackage hook did not return a package manifest object."),
         );
         assert!(err.to_string().contains(".pnpmfile.cjs"));
     }

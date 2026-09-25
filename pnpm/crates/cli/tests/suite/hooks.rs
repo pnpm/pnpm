@@ -1236,7 +1236,9 @@ fn read_package_throw_reports_pnpmfile_fail() {
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         r"module.exports = { hooks: { readPackage (pkg) {
-  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') throw new Error('hook failed');
+  if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+    throw Object.assign(new Error('hook failed'), { code: 'ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT' });
+  }
   return pkg;
 } } };",
     )
