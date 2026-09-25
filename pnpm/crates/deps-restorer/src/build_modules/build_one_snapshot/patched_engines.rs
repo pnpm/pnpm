@@ -28,19 +28,19 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
         prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
         reason: SkippedOptionalReason::UnsupportedEngine,
     }));
-    remove_linked_copies(context, snapshot_key, &candidate.name);
+    remove_linked_copies(context, snapshot_key);
     discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
     Ok(true)
 }
 
-fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey, name: &str) {
+fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) {
     let dirs = context.pkg_roots().all(snapshot_key);
-    let modules = context.directories.lockfile_dir.join("node_modules");
-    unlink_named(&modules, name, &dirs);
-    unlink_named(&modules.join(".pnpm").join("node_modules"), name, &dirs);
-    if let Ok(store) = std::fs::read_dir(modules.join(".pnpm")) {
-        for entry in store.flatten() {
-            unlink_named(&entry.path().join("node_modules"), name, &dirs);
+    let store = context.directories.layout.package_store_dir();
+    unlink_children(context.directories.modules_dir, &dirs);
+    unlink_children(&store.join("node_modules"), &dirs);
+    if let Ok(entries) = std::fs::read_dir(store) {
+        for entry in entries.flatten() {
+            unlink_children(&entry.path().join("node_modules"), &dirs);
         }
     }
     for dir in &dirs {
@@ -48,20 +48,42 @@ fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKe
     }
 }
 
-fn unlink_named(modules: &std::path::Path, name: &str, dirs: &[std::path::PathBuf]) {
-    let link = modules.join(name);
-    let Ok(pointed) = std::fs::read_link(&link) else { return };
+fn unlink_children(dir: &std::path::Path, dirs: &[std::path::PathBuf]) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if unlink_if_points(&path, dirs) {
+            continue;
+        }
+        unlink_scope(&path, dirs);
+    }
+}
+
+fn unlink_scope(path: &std::path::Path, dirs: &[std::path::PathBuf]) {
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else { return };
+    if !name.starts_with('@') {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let _ = unlink_if_points(&entry.path(), dirs);
+    }
+}
+
+fn unlink_if_points(link: &std::path::Path, dirs: &[std::path::PathBuf]) -> bool {
+    let Ok(pointed) = std::fs::read_link(link) else { return false };
     let pointed = link
         .parent()
-        .unwrap_or(modules)
+        .unwrap_or(link)
         .join(pointed);
     let pointed = std::fs::canonicalize(&pointed).unwrap_or(pointed);
     let hits = dirs
         .iter()
         .any(|dir| std::fs::canonicalize(dir).unwrap_or_else(|_| dir.clone()) == pointed);
     if hits {
-        let _ = std::fs::remove_file(&link).or_else(|_| std::fs::remove_dir(&link));
+        let _ = std::fs::remove_file(link).or_else(|_| std::fs::remove_dir(link));
     }
+    hits
 }
 
 /// `engineStrict` against the patched manifest. The earlier installability

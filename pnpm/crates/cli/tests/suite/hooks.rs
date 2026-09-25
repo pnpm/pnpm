@@ -1299,7 +1299,7 @@ fn engine_strict_skips_an_optional_patch_with_incompatible_engines() {
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
-            "optionalDependencies": { "@pnpm.e2e/for-legacy-node": "1.0.0" }
+            "optionalDependencies": { "legacy-node": "npm:@pnpm.e2e/for-legacy-node@1.0.0" }
         })
         .to_string(),
     )
@@ -1330,19 +1330,31 @@ diff --git a/package.json b/package.json
     yaml.push_str(
         "\
 engineStrict: true
+virtualStoreDir: node_modules/.store
 patchedDependencies:
   '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
 ",
     );
     fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
 
-    let link = workspace.join("node_modules/@pnpm.e2e/for-legacy-node");
+    let links = [
+        workspace.join("node_modules/legacy-node"),
+        workspace.join("node_modules/@pnpm.e2e/for-legacy-node"),
+        workspace.join("node_modules/.store/node_modules/legacy-node"),
+        workspace.join("node_modules/.store/node_modules/@pnpm.e2e/for-legacy-node"),
+    ];
     for _ in 0..2 {
         pacquet_in(&workspace)
             .with_args(["install", "--engine-strict"])
             .assert()
             .success();
-        assert!(!link.exists(), "incompatible optional package must not stay linked");
+        for link in &links {
+            assert!(
+                fs::symlink_metadata(link).is_err(),
+                "incompatible optional package must not stay linked at {}",
+                link.display()
+            );
+        }
     }
 
     drop((root, mock_instance));
