@@ -227,7 +227,7 @@ async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResu
   const registry = opts.registriesByScope.default
   const started = Date.now()
   try {
-    await ping.handler({ ...opts, registry })
+    await ping.handler({ ...opts, registry, timeout: 15_000 })
     return { title, status: 'pass', detail: `${registry} (${Date.now() - started}ms)` }
   } catch (err: unknown) {
     return {

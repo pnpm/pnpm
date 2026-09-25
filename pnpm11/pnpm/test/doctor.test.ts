@@ -37,3 +37,33 @@ test('pnpm doctor pings the configured default registry with its credentials', a
     server.close()
   }
 })
+
+test('pnpm doctor fails the connectivity check when the configured registry responds with an error', async () => {
+  prepare()
+  const server = http.createServer((_req, res) => {
+    res.statusCode = 500
+    res.end()
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as AddressInfo
+  const registry = `http://127.0.0.1:${port}/`
+  try {
+    const { output, exitCode } = await handler({
+      dir: process.cwd(),
+      cacheDir: path.resolve('cache'),
+      pnpmHomeDir: path.resolve('pnpm-home'),
+      registriesByScope: { default: registry },
+      configByUri: {},
+      json: true,
+      pnpmCommand: [process.execPath, '-e', ''],
+    })
+    const { checks } = JSON.parse(output) as { checks: CheckResult[] }
+    const connectivity = checks.find((check) => check.title === 'Registry connectivity')
+
+    expect(connectivity?.status).toBe('fail')
+    expect(connectivity?.detail).toContain(registry)
+    expect(exitCode).toBe(1)
+  } finally {
+    server.close()
+  }
+})
