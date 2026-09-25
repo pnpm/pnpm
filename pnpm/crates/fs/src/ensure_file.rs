@@ -444,6 +444,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 /// the trade is a brief torn-read window for healing every hard-linked
 /// copy at once.
 pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
+    #[cfg(unix)]
     let expected = match fs::symlink_metadata(file_path) {
         Ok(meta) if meta.file_type().is_file() => meta,
         _ => return false,
@@ -458,7 +459,10 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
     let Some((mut file, restore_permissions)) = open_for_overwrite(file_path, &options) else {
         return false;
     };
-    let handle_matches = file.metadata().is_ok_and(|meta| same_file(&meta, &expected));
+    #[cfg(unix)]
+    let handle_matches = same_file(&file, &expected);
+    #[cfg(windows)]
+    let handle_matches = same_file(&file, file_path);
     let written = handle_matches && io::copy(reader, &mut file).is_ok();
     drop(file);
     if let Some(permissions) = restore_permissions {
@@ -473,20 +477,25 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
 /// between the metadata check and the open, which a write open would
 /// otherwise follow into a file the store does not own.
 #[cfg(unix)]
-fn same_file(handle_meta: &fs::Metadata, expected: &fs::Metadata) -> bool {
+fn same_file(file: &File, expected: &fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
-    handle_meta.file_type().is_file()
-        && handle_meta.dev() == expected.dev()
-        && handle_meta.ino() == expected.ino()
+    file.metadata()
+        .is_ok_and(|handle_meta| {
+            handle_meta.file_type().is_file()
+                && handle_meta.dev() == expected.dev()
+                && handle_meta.ino() == expected.ino()
+        })
 }
 
 #[cfg(windows)]
-fn same_file(handle_meta: &fs::Metadata, expected: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    handle_meta.file_type().is_file()
-        && handle_meta.volume_serial_number() == expected.volume_serial_number()
-        && handle_meta.file_index().is_some()
-        && handle_meta.file_index() == expected.file_index()
+fn same_file(file: &File, file_path: &Path) -> bool {
+    let (Ok(handle_a), Ok(handle_b)) = (
+        file.try_clone().and_then(same_file::Handle::from_file),
+        same_file::Handle::from_path(file_path),
+    ) else {
+        return false;
+    };
+    handle_a == handle_b
 }
 
 /// Open a store blob for truncate-and-rewrite, returning the handle and
