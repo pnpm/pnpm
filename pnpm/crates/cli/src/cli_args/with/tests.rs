@@ -1,4 +1,4 @@
-use super::{PackageManagerCheck, configure_pnpm_environment, spawn_pnpm};
+use super::{PackageManagerCheck, configure_pnpm_environment};
 use crate::{
     cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
     engine_pm::install::slot_from_package_dir,
@@ -73,6 +73,7 @@ fn resolves_scoped_package_dir_to_global_virtual_store_slot() {
 #[cfg(unix)]
 #[test]
 fn a_termination_of_pnpm_reaches_the_pnpm_it_switched_to() {
+    use super::spawn_pnpm;
     use std::{fs, os::unix::fs::PermissionsExt, thread, time::Duration};
 
     let dir = tempfile::tempdir().expect("create a temp dir");

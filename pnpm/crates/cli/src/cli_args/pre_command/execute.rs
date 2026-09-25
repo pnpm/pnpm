@@ -4,6 +4,7 @@ use super::{
     SwitchTarget, assert_release_is_installable, config_deps, install_engine_from_env,
     install_engine_to_store, slice, spawn_pnpm,
 };
+use crate::cli_args::dlx::exit_unless_success;
 
 /// Carry out what the pre-command checks planned. Returns whether the command
 /// has already been run by a delegated pnpm, in which case the caller is done.
@@ -34,7 +35,6 @@ pub(crate) async fn execute_plan(
     }
 }
 
-#[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {
     let SwitchPlan { config, target } = plan;
     let SwitchTarget { spec, source } = target;
@@ -50,9 +50,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
     )
     .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     drop(engine);
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
+    // End the way the delegated pnpm did: with its exit code, or with its
+    // signal when a signal killed it.
+    exit_unless_success(status);
     Ok(true)
 }
 
