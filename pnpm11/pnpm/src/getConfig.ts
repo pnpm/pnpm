@@ -111,13 +111,13 @@ export async function installConfigDepsAndLoadHooks (
     context.hooks = hooks
     context.finders = finders
     config.pnpmfile = resolvedPnpmfilePaths
-    if (context.hooks?.updateConfig) {
+    if (context.hooks?.updateConfig?.length) {
+      const defaultRegistryBeforeHooks = config.registriesByScope.default
       for (const updateConfig of context.hooks.updateConfig) {
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
-      // A hook may drop the `default` or `@jsr` route, which the resolver assumes is always present.
-      config.registriesByScope = normalizeRegistriesByScope(config.registriesByScope)
+      restoreRegistryInvariants(config, defaultRegistryBeforeHooks)
     }
   }
   return { config, context }
@@ -146,6 +146,28 @@ function isPluginName (configDepName: string): boolean {
   if (configDepName.startsWith('pnpm-plugin-')) return true
   if (configDepName[0] !== '@') return false
   return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
+}
+
+/**
+ * Re-establishes, after the `updateConfig` hooks, what the config reader guarantees about registry routing:
+ * `registriesByScope` holds normalized URLs including the `default` and `@jsr` routes, and `registry` names
+ * the default route.
+ *
+ * A `default` route the hooks dropped falls back to `registry`, so a configured mirror keeps serving
+ * unscoped packages. A scope a hook set to a non-string is dropped, so it routes to `default` as it would
+ * have without the hook.
+ */
+function restoreRegistryInvariants (config: Config, defaultRegistryBeforeHooks: string): void {
+  const routes = Object.fromEntries(
+    Object.entries(config.registriesByScope ?? {}).filter(([, registry]) => typeof registry === 'string')
+  )
+  config.registriesByScope = normalizeRegistriesByScope({
+    ...(typeof config.registry === 'string' ? { default: config.registry } : {}),
+    ...routes,
+  })
+  if (config.registriesByScope.default !== defaultRegistryBeforeHooks) {
+    config.registry = config.registriesByScope.default
+  }
 }
 
 // Apply derived config settings (hoist, shamefullyHoist, symlink)

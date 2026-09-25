@@ -276,6 +276,23 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
+test('an updateConfig hook that drops the default route installs from the configured registry', async () => {
+  prepare()
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    updateConfig: (config) => ({
+      ...config,
+      registriesByScope: { '@acme': 'https://acme.invalid/' },
+    }),
+  },
+}`, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  expect(fs.readdirSync('node_modules')).toContain('is-positive')
+})
+
 test('loading an ESM pnpmfile', async () => {
   prepare()
 
