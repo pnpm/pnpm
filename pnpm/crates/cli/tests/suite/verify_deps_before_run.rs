@@ -1203,6 +1203,7 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
 /// A dirty workspace state file must not make `pnpm run` open the store or
 /// the registry when `node_modules` already matches the lockfile
 /// (pnpm/pnpm#15173).
+#[cfg(unix)]
 #[test]
 fn run_with_unreadable_state_does_not_need_a_store_or_network() {
     let CommandTempCwd {
@@ -1253,6 +1254,7 @@ fn run_with_unreadable_state_does_not_need_a_store_or_network() {
 /// The same unreadable state still installs when the manifest no longer
 /// matches the lockfile. Offline, that install fails and the script does
 /// not run.
+#[cfg(unix)]
 #[test]
 fn run_with_unreadable_state_still_installs_when_the_manifest_drifted() {
     let CommandTempCwd {
@@ -1308,6 +1310,7 @@ fn run_with_unreadable_state_still_installs_when_the_manifest_drifted() {
 /// Point later commands at a store path that cannot be opened and a registry
 /// that refuses connections, so an accidental install fails instead of
 /// succeeding against the seeded store.
+#[cfg(unix)]
 fn isolate_store_and_registry(workspace: &Path) {
     fs::write(workspace.join("not-a-store"), b"x")
         .expect("create a file where a store directory cannot be");
