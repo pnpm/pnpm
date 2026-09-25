@@ -127,6 +127,7 @@ fn regex_special_chars_are_literal() {
 fn question_mark_matches_single_character() {
     let matcher = create_matcher(&pats(["a?b"]));
     assert!(matcher.matches("axb"));
+    assert!(matcher.matches("a中b"));
     assert!(matcher.matches("a?b"));
     assert!(matcher.matches("acb"));
     assert!(!matcher.matches("ab"));
