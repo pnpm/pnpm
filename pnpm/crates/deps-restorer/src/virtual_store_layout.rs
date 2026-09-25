@@ -272,39 +272,11 @@ impl VirtualStoreLayout {
                 lockfile_dir,
             );
         };
-        let mut hasher = GvsHasher::new(
-            snapshots,
-            packages,
-            engine,
-            cfg!(unix) && config.preserve_bin_name,
-            allow_build_policy,
+        Self::with_cached_suffixes(
+            config,
+            gvs_suffixes(config, engine, snapshots, packages, allow_build_policy, lockfile_dir),
             lockfile_dir,
-        );
-        let fingerprint = hasher.fingerprint(snapshots);
-        let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
-            cache_dir: &config.cache_dir,
-            lockfile_dir,
-            fingerprint: &fingerprint,
-        });
-        if let Some(cache_file) = cache_file
-            && let Some(gvs_suffixes) = gvs_layout_cache::load(
-                cache_file,
-                gvs_layout_cache::Expected { snapshots, packages },
-            )
-        {
-            tracing::info!(
-                target: "pacquet::install::phase",
-                phase = "gvs.layout_cache_hit",
-                entries = gvs_suffixes.len(),
-                "phase complete",
-            );
-            return Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir);
-        }
-        let gvs_suffixes = hasher.suffixes(snapshots);
-        if let Some(cache_file) = cache_file {
-            gvs_layout_cache::store(cache_file, &gvs_suffixes);
-        }
-        Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir)
+        )
     }
 
     fn with_cached_suffixes(
@@ -442,6 +414,52 @@ impl VirtualStoreLayout {
         // pushes it as a single component).
         join_global_virtual_store_path(&self.package_store_dir, &suffix)
     }
+}
+
+/// The suffixes for these inputs, taken from the on-disk cache when it holds
+/// an entry for them and computed otherwise.
+///
+/// The cache module documents what the key covers and what the loader refuses
+/// to trust.
+fn gvs_suffixes(
+    config: &Config,
+    engine: Option<&str>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    allow_build_policy: Option<&AllowBuildPolicy>,
+    lockfile_dir: Option<&Path>,
+) -> HashMap<PackageKey, String> {
+    let mut hasher = GvsHasher::new(
+        snapshots,
+        packages,
+        engine,
+        cfg!(unix) && config.preserve_bin_name,
+        allow_build_policy,
+        lockfile_dir,
+    );
+    let fingerprint = hasher.fingerprint(snapshots);
+    let cache_file = lockfile_dir.map(|lockfile_dir| gvs_layout_cache::CacheFile {
+        cache_dir: &config.cache_dir,
+        lockfile_dir,
+        fingerprint: &fingerprint,
+    });
+    if let Some(cache_file) = cache_file
+        && let Some(gvs_suffixes) =
+            gvs_layout_cache::load(cache_file, gvs_layout_cache::Expected { snapshots, packages })
+    {
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "gvs.layout_cache_hit",
+            entries = gvs_suffixes.len(),
+            "phase complete",
+        );
+        return gvs_suffixes;
+    }
+    let gvs_suffixes = hasher.suffixes(snapshots);
+    if let Some(cache_file) = cache_file {
+        gvs_layout_cache::store(cache_file, &gvs_suffixes);
+    }
+    gvs_suffixes
 }
 
 /// Build a lockfile's layout using the root project's runtime pin, effective

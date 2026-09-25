@@ -43,7 +43,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
     )
     .fingerprint(&snapshots);
 
-    assert_ne!(baseline, preserve, "the bin layout must partition the cached suffix map",);
+    assert_ne!(baseline, preserve, "the bin layout must partition the cached suffix map");
     assert_eq!(
         baseline,
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir)),

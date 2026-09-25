@@ -1248,18 +1248,8 @@ fn preserve_bin_name_runs_workspace_bins_through_an_alias() {
 
     let bin = consumer.join("node_modules/.bin/project-2");
     let alias = consumer.join("node_modules/.bin-symlinks/project-2");
-    assert!(
-        fs::symlink_metadata(&bin)
-            .unwrap()
-            .file_type()
-            .is_file()
-    );
-    assert!(
-        fs::symlink_metadata(&alias)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(fs::symlink_metadata(&bin).unwrap().is_file());
+    assert!(is_symlink_or_junction(&alias).unwrap());
     let output = Command::new(&bin).output().expect("run workspace bin");
     assert!(output.status.success(), "workspace bin failed: {output:?}");
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -1294,12 +1284,7 @@ fn preserve_bin_name_changes_relink_an_unchanged_workspace() {
 
     let bin = consumer.join("node_modules/.bin/project-2");
     let alias_dir = consumer.join("node_modules/.bin-symlinks");
-    assert!(
-        fs::symlink_metadata(&bin)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(is_symlink_or_junction(&bin).unwrap());
     assert!(!alias_dir.exists());
 
     let filtered = fixture.command_at(
@@ -1311,35 +1296,17 @@ fn preserve_bin_name_changes_relink_an_unchanged_workspace() {
 
     fixture.run(["install", "--config.preserve-bin-name=true"]);
 
-    assert!(
-        !fs::symlink_metadata(&bin)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(!is_symlink_or_junction(&bin).unwrap());
     let alias = alias_dir.join("project-2");
-    assert!(
-        fs::symlink_metadata(&alias)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(is_symlink_or_junction(&alias).unwrap());
     let output = Command::new(&bin).output().expect("run preserved workspace bin");
     assert!(output.status.success(), "workspace bin failed: {output:?}");
-    assert!(
-        String::from_utf8(output.stdout)
-            .unwrap()
-            .contains(alias.to_string_lossy().as_ref())
-    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(alias.to_string_lossy().as_ref()), "argv was: {stdout}");
 
     fixture.run(["install", "--no-preserve-bin-name"]);
 
-    assert!(
-        fs::symlink_metadata(&bin)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(is_symlink_or_junction(&bin).unwrap());
     assert!(alias_dir.is_dir());
     assert!(!alias.exists());
 }

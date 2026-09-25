@@ -24,6 +24,14 @@ fn javascript_package(root: &Path) -> (PathBuf, Value) {
 }
 
 #[cfg(unix)]
+fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .unwrap()
+        .file_type()
+        .is_symlink()
+}
+
+#[cfg(unix)]
 #[test]
 fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
     let tmp = tempdir().unwrap();
@@ -189,19 +197,9 @@ fn preserve_bin_name_keeps_a_shim_and_runs_the_alias() {
         .parent()
         .unwrap()
         .join(".bin-symlinks/foo");
-    assert!(
-        !std::fs::symlink_metadata(&shim)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
-    assert!(
-        std::fs::symlink_metadata(&alias)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
-    assert_eq!(std::fs::read_link(&alias).unwrap(), Path::new("../foo/cli.js"),);
+    assert!(!is_symlink(&shim));
+    assert!(is_symlink(&alias));
+    assert_eq!(std::fs::read_link(&alias).unwrap(), Path::new("../foo/cli.js"));
     let shim_body = read_to_string(&shim).unwrap();
     assert!(shim_body.contains("../.bin-symlinks/foo"));
     assert!(shim_body.contains("export NODE_PATH="));
@@ -344,12 +342,7 @@ fn preserve_bin_name_replaces_an_existing_direct_symlink() {
     )
     .unwrap();
     let shim = bins_dir.join("foo");
-    assert!(
-        std::fs::symlink_metadata(&shim)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    assert!(is_symlink(&shim));
 
     link_bins_of_packages::<Host>(
         &[package_source],
@@ -362,18 +355,9 @@ fn preserve_bin_name_replaces_an_existing_direct_symlink() {
     )
     .unwrap();
 
-    assert!(
-        !std::fs::symlink_metadata(&shim)
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
-    assert!(
-        std::fs::symlink_metadata(bins_dir.with_file_name(".bin-symlinks").join("foo"))
-            .unwrap()
-            .file_type()
-            .is_symlink()
-    );
+    let alias = bins_dir.with_file_name(".bin-symlinks").join("foo");
+    assert!(!is_symlink(&shim));
+    assert!(is_symlink(&alias));
 }
 
 #[test]

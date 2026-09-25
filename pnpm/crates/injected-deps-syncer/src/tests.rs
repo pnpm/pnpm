@@ -1,4 +1,6 @@
-use crate::{SyncInjectedDeps, sync_injected_deps, sync_injected_deps_of_modules_dir};
+use crate::{
+    SyncInjectedDeps, WorkspaceModules, sync_injected_deps, sync_injected_deps_of_modules_dir,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pretty_assertions::assert_eq;
 use std::{collections::HashSet, ffi::OsStr, fs, path::Path};
@@ -52,9 +54,11 @@ fn sync_leaves_an_injected_copy_alone_when_its_publish_directory_is_missing() {
         pkg_name: Some("project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
-        modules_dir_name: OsStr::new("node_modules"),
-        workspace_modules_dir: &workspace.join("node_modules"),
-        extend_node_path: false,
+        workspace_modules: WorkspaceModules {
+            modules_dir_name: OsStr::new("node_modules"),
+            dir: &workspace.join("node_modules"),
+            extend_node_path: false,
+        },
         manifest_before_scripts: Some(&manifest),
         ignored_directories: Vec::new(),
         link_options: LinkBinsOptions::default(),
@@ -172,9 +176,11 @@ fn sync_removes_a_stale_bin_shim_the_publish_directory_no_longer_declares() {
         pkg_name: Some("project-1"),
         pkg_root_dir: Path::new("project-1"),
         workspace_dir: Some(workspace),
-        modules_dir_name: OsStr::new("node_modules"),
-        workspace_modules_dir: &workspace.join("node_modules"),
-        extend_node_path: false,
+        workspace_modules: WorkspaceModules {
+            modules_dir_name: OsStr::new("node_modules"),
+            dir: &workspace.join("node_modules"),
+            extend_node_path: false,
+        },
         manifest_before_scripts: Some(&manifest),
         ignored_directories: Vec::new(),
         link_options: LinkBinsOptions::default(),

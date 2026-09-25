@@ -178,12 +178,9 @@ impl SettingsComparison<'_> {
             "linkWorkspacePackages",
             recorded.link_workspace_packages != live.link_workspace_packages,
         );
-        return_drift_if!(
-            self,
-            "preserveBinName",
-            recorded.preserve_bin_name.unwrap_or(false)
-                != live.preserve_bin_name.unwrap_or(false),
-        );
+        let preserve_bin_name_drift = recorded.preserve_bin_name.unwrap_or(false)
+            != live.preserve_bin_name.unwrap_or(false);
+        return_drift_if!(self, "preserveBinName", preserve_bin_name_drift);
         None
     }
     fn resolution_drift(&self) -> Option<&'static str> {

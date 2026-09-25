@@ -790,8 +790,8 @@ fn preserve_bin_name_drift_matches_the_platform() {
     write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
 
     assert_eq!(
-        !is_modules_yaml_layout_consistent(&modules_dir, config, pnpm_config::NodeLinker::Isolated,),
-        cfg!(unix)
+        !is_modules_yaml_layout_consistent(&modules_dir, config, pnpm_config::NodeLinker::Isolated),
+        cfg!(unix),
     );
 }
 

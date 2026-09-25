@@ -258,24 +258,16 @@ impl ConfigOverrides {
     fn set_boolean_install_option(&mut self, key: &str, value: &str) {
         match key {
             "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
-            "dangerously-allow-all-builds" => {
-                self.dangerously_allow_all_builds = parse_bool(value);
-            }
+            "dangerously-allow-all-builds" => self.dangerously_allow_all_builds = parse_bool(value),
             "engine-strict" => self.engine_strict = parse_bool(value),
             "force-ignores-platform" => self.force_ignores_platform = parse_bool(value),
             "frozen-store" => self.frozen_store = parse_bool(value),
             "hoist" => self.hoist = parse_bool(value),
             "ignore-pnpmfile" => self.ignore_pnpmfile = parse_bool(value),
-            "link-workspace-packages" => {
-                self.link_workspace_packages = parse_bool_or_enum(value);
-            }
+            "link-workspace-packages" => self.link_workspace_packages = parse_bool_or_enum(value),
             "lockfile" => self.lockfile = parse_bool(value),
-            "lockfile-include-tarball-url" => {
-                self.lockfile_include_tarball_url = parse_bool(value);
-            }
-            "merge-git-branch-lockfiles" => {
-                self.merge_git_branch_lockfiles = parse_bool(value);
-            }
+            "lockfile-include-tarball-url" => self.lockfile_include_tarball_url = parse_bool(value),
+            "merge-git-branch-lockfiles" => self.merge_git_branch_lockfiles = parse_bool(value),
             "offline" => self.offline = parse_bool(value),
             "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),
@@ -283,14 +275,10 @@ impl ConfigOverrides {
             "prefer-frozen-lockfile" => self.prefer_frozen_lockfile = parse_bool(value),
             "prefer-offline" => self.prefer_offline = parse_bool(value),
             "preserve-bin-name" => self.preserve_bin_name = parse_bool(value),
-            "save-workspace-protocol" => {
-                self.save_workspace_protocol = parse_bool_or_enum(value);
-            }
+            "save-workspace-protocol" => self.save_workspace_protocol = parse_bool_or_enum(value),
             "shamefully-hoist" => self.shamefully_hoist = parse_bool(value),
             "side-effects-cache" => self.side_effects_cache = parse_bool(value),
-            "side-effects-cache-readonly" => {
-                self.side_effects_cache_readonly = parse_bool(value);
-            }
+            "side-effects-cache-readonly" => self.side_effects_cache_readonly = parse_bool(value),
             "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
             "trust-lockfile" => self.trust_lockfile = parse_bool(value),
             "verify-store-integrity" => self.verify_store_integrity = parse_bool(value),

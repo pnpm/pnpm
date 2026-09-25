@@ -457,21 +457,21 @@ pub(super) fn build_modules_manifest(
             .to_string_lossy()
             .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
-        // The build-approval set this install ran under. A GVS install
-        // hashes engine-specific slots for allowed builders, so the
-        // recorded set is what a later install diffs against to decide
-        // whether its slots need re-linking.
-        allow_builds: Some(
-            config.allow_builds
-                .iter()
-                .map(|(spec, allowed)| {
-                    (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed))
-                })
-                .collect(),
-        ),
+        allow_builds: Some(allow_build_values(config)),
         virtual_store_only: config.virtual_store_only.then_some(true),
         ..Default::default()
     }
+}
+
+/// The build-approval set this install ran under, in the manifest's shape.
+/// A GVS install hashes engine-specific slots for allowed builders, so the
+/// recorded set is what a later install diffs against to decide whether its
+/// slots need re-linking.
+fn allow_build_values(config: &Config) -> BTreeMap<String, pnpm_modules_yaml::AllowBuildValue> {
+    config.allow_builds
+        .iter()
+        .map(|(spec, allowed)| (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed)))
+        .collect()
 }
 
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now

@@ -16,11 +16,11 @@ use serde_json::json;
 
 use super::{
     ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, convert_package_key,
-    convert_package_metadata, create_deploy_files, create_file_url_key, deploy_workspace_manifest,
-    index_projects, validate_lockfile_local_path,
+    convert_package_metadata, create_deploy_files, create_file_url_key, index_projects,
+    validate_lockfile_local_path,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+use super::{DeployFiles, DeployWorkspaceConfig, deploy_workspace_manifest, write_deploy_files};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{

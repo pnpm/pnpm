@@ -20,16 +20,16 @@ pub(crate) struct SyncBinLinks<'a> {
     pub(crate) previous_bin_names: &'a [String],
     pub(crate) hoisted_bin_dir: Option<&'a Path>,
     pub(crate) ignored_directories: &'a [PathBuf],
-    pub(crate) link_options: &'a LinkBinsOptions,
     pub(crate) layout: LinkLayout<'a>,
 }
 
 /// The layout the relinked shims are written for: the name of the modules
-/// directories the workspace installs into, and whether that name reaches a
-/// shim's `NODE_PATH`.
+/// directories the workspace installs into, whether that name reaches a shim's
+/// `NODE_PATH`, and the bin-link settings the install linked with.
 pub(crate) struct LinkLayout<'a> {
     pub(crate) modules_dir_name: &'a std::ffi::OsStr,
     pub(crate) extend_node_path: bool,
+    pub(crate) link_options: &'a LinkBinsOptions,
 }
 
 #[derive(Clone, Copy)]
@@ -110,7 +110,7 @@ fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
         project_modules_dir_name: (opts.layout.extend_node_path
             && opts.layout.modules_dir_name != "node_modules")
             .then(|| opts.layout.modules_dir_name.to_owned()),
-        ..opts.link_options.clone()
+        ..opts.layout.link_options.clone()
     }
 }
 

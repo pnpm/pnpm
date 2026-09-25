@@ -1,13 +1,14 @@
 use super::{
     Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
     ProcessTracker, ReporterType, RunError, RunScript, ScheduleGraphOptions, ScriptExit,
-    ScriptOutput, ScriptSelector, ScriptsPrependNodePath, SyncInjectedDeps, TaskCompletion, Value,
-    env, exec_fallback, exit_like, make_node_package_map_option, make_node_require_option,
+    ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
+    exec_fallback, exit_like, make_node_package_map_option, make_node_require_option,
     package_map_path_for_execution, pnp_path_for_execution, run_script, schedule_graph,
-    sync_injected_deps, throw_or_filter_hidden_scripts,
+    throw_or_filter_hidden_scripts,
 };
-use crate::cli_args::concurrency_group::{
-    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
+use crate::cli_args::{
+    concurrency_group::{SlotOutcome, acquire_concurrency_group_slot, with_held_group},
+    injected_deps::sync_project_injected_deps,
 };
 use pnpm_reporter::LogEvent;
 
@@ -367,21 +368,7 @@ fn run_script_stages(
         .iter()
         .any(|script| script == name)
     {
-        sync_injected_deps(&SyncInjectedDeps {
-            pkg_name: ctx.manifest
-                .value()
-                .get("name")
-                .and_then(Value::as_str),
-            pkg_root_dir: ctx.dir,
-            workspace_dir: ctx.config.workspace_dir.as_deref(),
-            modules_dir_name: ctx.config.modules_dir_name(),
-            workspace_modules_dir: &ctx.config.modules_dir,
-            extend_node_path: ctx.config.extend_node_path,
-            // Read before the script ran, so a bin it drops can still be named.
-            manifest_before_scripts: Some(ctx.manifest.value()),
-            ignored_directories: ctx.config.managed_directories(),
-            link_options: pnpm_deps_restorer::shim_link_options(ctx.config, ctx.config.node_linker),
-        })?;
+        sync_project_injected_deps(ctx.config, ctx.dir, ctx.manifest.value())?;
     }
 
     Ok(main_status)

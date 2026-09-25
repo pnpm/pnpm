@@ -1,7 +1,6 @@
-use super::super::modules_state::preserve_bin_name_diff;
 use super::super::{
     Config, HashSet, IncludedDependencies, InstallError, Lockfile, Path, PathBuf,
-    check_modules_settings_diff,
+    check_modules_settings_diff, modules_state::preserve_bin_name_diff,
 };
 
 pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {

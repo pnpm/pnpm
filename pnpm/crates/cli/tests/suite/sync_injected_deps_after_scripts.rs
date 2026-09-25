@@ -358,7 +358,7 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
             );
             assert!(
                 shim.contains("export NODE_PATH="),
-                "the relinked shim lost NODE_PATH:\n{shim}"
+                "the relinked shim lost NODE_PATH:\n{shim}",
             );
         }
     }
