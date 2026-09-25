@@ -701,7 +701,7 @@ fn generate_cmd_shim_escapes_percent_in_prog_and_args() {
     );
     assert!(
         body.contains("  /50%%OS%%bin/sh -x %%OS%% "),
-        "the prog and its args must escape `%`, body:\n{body}"
+        "the prog and its args must escape `%`, body:\n{body}",
     );
 }
 
