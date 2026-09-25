@@ -1,7 +1,8 @@
 use super::{Host, api, fixture, json, touch};
-use crate::dotenv::{is_dotenv_file, is_named_in_files};
+use crate::dotenv::{is_dotenv_file, named_in_files};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter};
-use std::sync::Mutex;
+use serde_json::Value;
+use std::{path::Path, sync::Mutex};
 
 fn warnings(events: &Mutex<Vec<LogEvent>>) -> Vec<String> {
     events
@@ -80,6 +81,14 @@ fn dotenv_files_are_recognized_by_basename() {
     assert!(!is_dotenv_file("env"));
 }
 
+fn is_named_in_files(path: &str, entries: &[&str]) -> bool {
+    let entries: Vec<Value> = entries
+        .iter()
+        .map(|entry| json!(entry))
+        .collect();
+    named_in_files(Path::new("/pkg"), &entries)(path)
+}
+
 #[test]
 fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
     assert!(is_named_in_files("config/.env", &["./config/.env"]));
@@ -88,4 +97,6 @@ fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
     assert!(!is_named_in_files("config/.env", &["config"]));
     assert!(!is_named_in_files("config/.env", &["config/**"]));
     assert!(!is_named_in_files("config/.env", &[".env"]));
+    assert!(!is_named_in_files(".env", &["dist/.env*"]));
+    assert!(!is_named_in_files("node_modules/dep/.env", &["dist/.env*"]));
 }

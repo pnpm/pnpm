@@ -4,34 +4,28 @@
 //! publish. Naming a file in `files` is how a package ships one on purpose.
 
 use super::{LogEvent, LogLevel, Path, PathBuf, Reporter, Value};
+use pnpm_fs_packlist::build_files_matcher;
 use pnpm_reporter::PnpmLog;
 
 /// Dotenv files that document variables rather than hold their values.
 const DOTENV_TEMPLATES: &[&str] = &[".env.example", ".env.sample", ".env.template"];
 
-const GLOB_CHARS: &[char] = &['*', '?', '[', '{'];
-
 /// Emit one warning listing every packed dotenv file that no `files`
 /// entry names.
 pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
-    project_dir: &Path,
+    pkg_dir: &Path,
     publish_manifest: &Value,
     files_map: &indexmap::IndexMap<String, PathBuf>,
 ) {
-    let files_entries: Vec<&str> = publish_manifest
+    let files_field = publish_manifest
         .get("files")
         .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(Value::as_str)
-                .collect()
-        })
-        .unwrap_or_default();
+        .map_or(&[][..], Vec::as_slice);
+    let is_listed = named_in_files(pkg_dir, files_field);
     let unlisted: Vec<&str> = files_map
         .keys()
         .filter_map(|name| name.strip_prefix("package/"))
-        .filter(|path| is_dotenv_file(path) && !is_named_in_files(path, &files_entries))
+        .filter(|path| is_dotenv_file(path) && !is_listed(path))
         .collect();
     if unlisted.is_empty() {
         return;
@@ -45,7 +39,7 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
              or list them in the \"files\" field of package.json to publish them on purpose. \
              pnpm 13 will refuse to pack dotenv files that \"files\" does not list.",
         ),
-        prefix: project_dir.to_string_lossy().into_owned(),
+        prefix: pkg_dir.to_string_lossy().into_owned(),
     }));
 }
 
@@ -55,16 +49,26 @@ pub(super) fn is_dotenv_file(path: &str) -> bool {
     basename == ".env" || (basename.starts_with(".env.") && !DOTENV_TEMPLATES.contains(&basename))
 }
 
-/// Whether a `files` entry names `path` itself, or is a glob whose last
-/// segment targets dotenv files (`**/.env`, `.env*`). A directory entry
-/// such as `dist` that merely contains the file does not count.
-pub(super) fn is_named_in_files(path: &str, files_entries: &[&str]) -> bool {
-    files_entries
+/// Whether a `files` entry whose last segment starts with `.env` matches
+/// the packed path, with the packlist's own `files` semantics. A
+/// directory entry such as `dist` that merely contains the file does not
+/// count, and neither does a dotenv glob rooted elsewhere.
+pub(super) fn named_in_files(pkg_dir: &Path, files_field: &[Value]) -> impl Fn(&str) -> bool {
+    let dotenv_entries: Vec<Value> = files_field
         .iter()
-        .any(|entry| {
-            let entry = entry.trim_start_matches("./").trim_start_matches('/');
-            entry == path || (entry.contains(GLOB_CHARS) && basename(entry).starts_with(".env"))
+        .filter(|entry| {
+            entry
+                .as_str()
+                .is_some_and(|entry| basename(entry.trim_end_matches('/')).starts_with(".env"))
         })
+        .cloned()
+        .collect();
+    let matcher = build_files_matcher(pkg_dir, &dotenv_entries);
+    move |path| {
+        matcher
+            .as_ref()
+            .is_some_and(|matcher| matcher.matched(path, false).is_ignore())
+    }
 }
 
 fn basename(path: &str) -> &str {
