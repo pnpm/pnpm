@@ -36,15 +36,9 @@ const PATCH_HASH_PREFIX = '(patch_hash='
  */
 export function checkPatchedDepPaths (lockfile: LockfileObject): PatchedDepPathsStatus {
   const ctx = createJudgeContext(lockfile)
-  const verdicts = new Map<DepPath, Verdict>()
   let indeterminate = false
   for (const depPath of depPathsToJudge(lockfile, ctx.patchedNames)) {
-    let verdict = verdicts.get(depPath)
-    if (verdict == null) {
-      verdict = judge(depPath, ctx)
-      verdicts.set(depPath, verdict)
-    }
-    switch (verdict) {
+    switch (judgeWithPeers(depPath, ctx)) {
       case 'stale': return 'stale'
       case 'indeterminate': indeterminate = true; break
       case 'ok': break
@@ -69,6 +63,7 @@ interface JudgeContext {
    */
   patchedNames: Set<string>
   packages: PackageSnapshots
+  verdicts: Map<DepPath, Verdict>
 }
 
 function createJudgeContext (lockfile: LockfileObject): JudgeContext {
@@ -89,12 +84,68 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
     unusableNames,
     patchedNames: new Set([...Object.keys(patchGroups), ...unusableNames]),
     packages: lockfile.packages ?? {},
+    verdicts: new Map(),
   }
+}
+
+/**
+ * Judges the dependency path, and each peer segment in its suffix that carries a patch hash.
+ *
+ * pnpm writes a package's own hash as the first segment of the suffix. Unless peers are deduped,
+ * a peer segment is that peer's whole dependency path, so a patched peer carries its hash inside
+ * it, and that hash is part of this path's identity. A peer segment without a marker is a plain
+ * `name@version` or an unpatched path, and has nothing to judge.
+ */
+function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
+  const cached = ctx.verdicts.get(depPath)
+  if (cached != null) return cached
+  let verdict: Verdict
+  const segments = topLevelSegments(depPath)
+  if (segments == null) {
+    verdict = depPath.includes(PATCH_HASH_PREFIX) ? 'indeterminate' : judge(depPath, ctx)
+  } else if (segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))) {
+    // `parse` only reads the hash from the leading segment.
+    verdict = 'indeterminate'
+  } else {
+    verdict = judge(depPath, ctx)
+    for (const segment of segments) {
+      if (verdict === 'stale') break
+      if (segment.startsWith(PATCH_HASH_PREFIX) || !segment.includes(PATCH_HASH_PREFIX)) continue
+      verdict = worseVerdict(verdict, judgeWithPeers(segment.slice(1, -1) as DepPath, ctx))
+    }
+  }
+  ctx.verdicts.set(depPath, verdict)
+  return verdict
+}
+
+function worseVerdict (a: Verdict, b: Verdict): Verdict {
+  if (a === 'stale' || b === 'stale') return 'stale'
+  return a === 'indeterminate' || b === 'indeterminate' ? 'indeterminate' : 'ok'
+}
+
+/**
+ * The top-level parenthesized segments of a dependency path's suffix, or `undefined` when its
+ * parentheses do not balance.
+ */
+function topLevelSegments (depPath: string): string[] | undefined {
+  const segments: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < depPath.length; i++) {
+    if (depPath[i] === '(') {
+      if (depth === 0) start = i
+      depth++
+    } else if (depPath[i] === ')') {
+      depth--
+      if (depth < 0) return undefined
+      if (depth === 0) segments.push(depPath.slice(start, i + 1))
+    }
+  }
+  return depth === 0 ? segments : undefined
 }
 
 function judge (depPath: DepPath, ctx: JudgeContext): Verdict {
   const parsed = parse(depPath)
-  if (hasUnreadablePatchHash(depPath)) return 'indeterminate'
   const { name } = parsed
   if (name == null || ctx.unusableNames.has(name)) return 'indeterminate'
   // The entry can be absent: rewriting only some of a package's `(patch_hash=...)` occurrences
@@ -113,29 +164,6 @@ function judge (depPath: DepPath, ctx: JudgeContext): Verdict {
     if (!isUnusablePatchConfig(err)) throw err
     return 'indeterminate'
   }
-}
-
-/**
- * Whether the dependency path carries a `(patch_hash=` marker that `parse` does not read as its
- * patch hash: one in a top-level segment after the first, or one in a suffix whose parentheses do
- * not balance. pnpm writes the hash ahead of the peers, and a marker nested inside a peer segment
- * belongs to that peer's own dependency path.
- */
-function hasUnreadablePatchHash (depPath: string): boolean {
-  let depth = 0
-  let topLevelSegments = 0
-  for (let i = 0; i < depPath.length; i++) {
-    if (depPath[i] === '(') {
-      if (depth === 0) {
-        if (topLevelSegments > 0 && depPath.startsWith(PATCH_HASH_PREFIX, i)) return true
-        topLevelSegments++
-      }
-      depth++
-    } else if (depPath[i] === ')') {
-      depth--
-    }
-  }
-  return depth !== 0 && depPath.includes(PATCH_HASH_PREFIX)
 }
 
 /** Whether which patch applies for `group`, if any, can depend on the package's version. */

@@ -435,6 +435,27 @@ test('checkPatchedDepPaths() accepts a patched peer nested in a peer segment', (
   }))).toBe('up-to-date')
 })
 
+test('checkPatchedDepPaths() reports a stale hash nested in a peer segment', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { 'react@18.0.0': CURRENT },
+    packages: {
+      [`foo@1.0.0(react@18.0.0(patch_hash=${STALE}))` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+    },
+  }))).toBe('stale')
+})
+
+// An unmatched `)` must not let later parentheses rebalance the suffix and hide a marker the
+// leading segment does not hold.
+test('checkPatchedDepPaths() cannot judge a marker behind an unmatched parenthesis', () => {
+  for (const depPath of [`foo@1.0.0)(patch_hash=${STALE}`, `foo@1.0.0(peer@1.0.0))(patch_hash=${STALE})((x)`]) {
+    expect(checkPatchedDepPaths(lockfile({
+      packages: {
+        [depPath as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+      },
+    }))).toBe('indeterminate')
+  }
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',

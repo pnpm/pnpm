@@ -4,6 +4,7 @@ use crate::{
 use pnpm_patching::{
     PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
 };
+use segments::{peer_to_judge, top_level_segments};
 use std::collections::{HashMap, HashSet};
 
 /// The version a patch was matched against, when the lockfile records one.
@@ -105,6 +106,16 @@ enum Verdict {
     Indeterminate,
 }
 
+impl Verdict {
+    fn worse(self, other: Verdict) -> Verdict {
+        match (self, other) {
+            (Verdict::Stale, _) | (_, Verdict::Stale) => Verdict::Stale,
+            (Verdict::Indeterminate, _) | (_, Verdict::Indeterminate) => Verdict::Indeterminate,
+            (Verdict::Ok, Verdict::Ok) => Verdict::Ok,
+        }
+    }
+}
+
 struct Checker<'a> {
     groups: PatchGroupRecord,
     /// Packages with a `patchedDependencies` key that does not resolve to a
@@ -204,14 +215,7 @@ impl<'a> Checker<'a> {
         if !ver_peer.peer().contains(PATCH_HASH_PREFIX) && !self.patched_names.contains(name) {
             return false;
         }
-        let key = PackageKey::new(name.clone(), ver_peer.clone());
-        let verdict = if let Some(verdict) = self.verdicts.get(&key) {
-            *verdict
-        } else {
-            let verdict = self.judge(&key);
-            self.verdicts.insert(key, verdict);
-            verdict
-        };
+        let verdict = self.verdict(PackageKey::new(name.clone(), ver_peer.clone()));
         match verdict {
             Verdict::Ok => false,
             Verdict::Stale => true,
@@ -222,6 +226,53 @@ impl<'a> Checker<'a> {
         }
     }
 
+    fn verdict(&mut self, key: PackageKey) -> Verdict {
+        if let Some(verdict) = self.verdicts.get(&key) {
+            return *verdict;
+        }
+        let verdict = self.judge_with_peers(&key);
+        self.verdicts.insert(key, verdict);
+        verdict
+    }
+
+    /// Judges the depPath, and each peer segment in its suffix that carries a
+    /// patch hash.
+    ///
+    /// pnpm writes a package's own hash as the first segment of the suffix.
+    /// Unless peers are deduped, a peer segment is that peer's whole depPath,
+    /// so a patched peer carries its hash inside it, and that hash is part of
+    /// this depPath's identity. A peer segment without a marker is a plain
+    /// `name@version` or an unpatched depPath, and has nothing to judge.
+    fn judge_with_peers(&mut self, key: &PackageKey) -> Verdict {
+        let suffix = key.suffix.peer();
+        let Some(segments) = top_level_segments(suffix) else {
+            return if suffix.contains(PATCH_HASH_PREFIX) {
+                Verdict::Indeterminate
+            } else {
+                self.judge(key)
+            };
+        };
+        // The hash is only read from the leading segment.
+        if segments
+            .iter()
+            .skip(1)
+            .any(|segment| segment.starts_with(PATCH_HASH_PREFIX))
+        {
+            return Verdict::Indeterminate;
+        }
+        let mut verdict = self.judge(key);
+        for segment in segments {
+            if matches!(verdict, Verdict::Stale) {
+                break;
+            }
+            if let Some(peer) = peer_to_judge(segment) {
+                verdict =
+                    verdict.worse(peer.map_or(Verdict::Indeterminate, |key| self.verdict(key)));
+            }
+        }
+        verdict
+    }
+
     fn judge(&self, key: &PackageKey) -> Verdict {
         let recorded = match key.suffix.peer().strip_prefix(PATCH_HASH_PREFIX) {
             Some(rest) => match rest.split_once(')') {
@@ -230,9 +281,6 @@ impl<'a> Checker<'a> {
             },
             None => None,
         };
-        if has_unreadable_patch_hash(key.suffix.peer()) {
-            return Verdict::Indeterminate;
-        }
         let name = key.name.to_string();
         if self.unusable.contains(&name) {
             return Verdict::Indeterminate;
@@ -261,39 +309,6 @@ impl<'a> Checker<'a> {
     }
 }
 
-/// Whether a depPath suffix carries a `(patch_hash=` marker that is not its
-/// leading segment: one in a top-level segment after the first, or one in a
-/// suffix whose parentheses do not balance. pnpm writes the hash ahead of the
-/// peers, and a marker nested inside a peer segment belongs to that peer's own
-/// depPath.
-fn has_unreadable_patch_hash(suffix: &str) -> bool {
-    let (segment_starts, depth) = top_level_segments(suffix);
-    segment_starts
-        .iter()
-        .skip(1)
-        .any(|&start| suffix[start..].starts_with(PATCH_HASH_PREFIX))
-        || (depth != 0 && suffix.contains(PATCH_HASH_PREFIX))
-}
-
-/// Where each top-level parenthesized segment of `suffix` starts, and the
-/// parenthesis depth left open at its end.
-fn top_level_segments(suffix: &str) -> (Vec<usize>, i32) {
-    let mut depth = 0;
-    let mut starts = Vec::new();
-    for (index, byte) in suffix.bytes().enumerate() {
-        match byte {
-            b'(' if depth == 0 => {
-                starts.push(index);
-                depth += 1;
-            }
-            b'(' => depth += 1,
-            b')' => depth -= 1,
-            _ => {}
-        }
-    }
-    (starts, depth)
-}
-
 /// Whether which patch applies for `group`, if any, can depend on the
 /// package's version. No entry resolves to no patch for every version, and a
 /// bare-name entry to the same patch for every version. Either way the version
@@ -301,6 +316,8 @@ fn top_level_segments(suffix: &str) -> (Vec<usize>, i32) {
 fn patch_selects_on_version(group: Option<&PatchGroup>) -> bool {
     group.is_some_and(|group| !group.exact.is_empty() || !group.range.is_empty())
 }
+
+mod segments;
 
 #[cfg(test)]
 mod tests;

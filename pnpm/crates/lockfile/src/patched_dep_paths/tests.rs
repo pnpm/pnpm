@@ -685,3 +685,39 @@ snapshots:
         PatchedDepPathsStatus::UpToDate,
     );
 }
+
+#[test]
+fn a_stale_hash_nested_in_a_peer_segment_is_stale() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  react@18.0.0: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0(react@18.0.0(patch_hash={STALE})): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Stale,
+    );
+}
+
+/// An unmatched `)` must not let later parentheses rebalance the suffix and
+/// hide a marker the leading segment does not hold.
+#[test]
+fn a_marker_behind_an_unmatched_parenthesis_cannot_be_judged() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0(peer@1.0.0))(patch_hash={STALE})((x): {{}}
+"
+        )),
+        PatchedDepPathsStatus::Indeterminate,
+    );
+}
