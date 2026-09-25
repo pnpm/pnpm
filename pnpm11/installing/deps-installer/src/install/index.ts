@@ -10,7 +10,7 @@ import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalo
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
@@ -125,7 +125,7 @@ import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
-import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
+import { clone, equals, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
 import { isSameSource } from '../isSameSource.js'
@@ -135,6 +135,7 @@ import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersion
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import {
   type BeforeLifecycleScriptsResult,
+  createInstallReadPackageHook,
   extendOptions,
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
@@ -2351,6 +2352,10 @@ function materializesGroupSubset (include: IncludedDependencies, projects: Impor
   )
 }
 
+function policyViolationKey ({ code, name, version }: ResolutionPolicyViolation): string {
+  return `${code}:${name}@${version}`
+}
+
 interface InstallFunctionResult {
   updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
@@ -2507,18 +2512,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
-  let {
-    dependenciesGraph,
-    dependenciesByProjectId,
-    linkedDependenciesByProjectId,
-    updatedCatalogs,
-    newLockfile,
-    outdatedDependencies,
-    peerDependencyIssuesByProjects,
-    wantedToBeSkippedPackageIds,
-    waitTillAllFetchingsFinish,
-    resolutionPolicyViolations,
-  } = await resolveDependencies(
+  const resolveDependencyGraph = async (
+    catalogs: Catalogs | undefined,
+    parsedOverrides: VersionOverride[],
+    readPackageHook: ReadPackageHook | undefined,
+    handleResolutionPolicyViolations = opts.handleResolutionPolicyViolations
+  ) => resolveDependencies(
     projects,
     {
       allowBuild: opts.allowBuild,
@@ -2526,7 +2525,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
-      catalogs: opts.catalogs,
+      catalogs,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -2545,9 +2544,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
-        readPackage: opts.readPackageHook,
+        readPackage: readPackageHook,
       },
-      overrideBareSpecifier: createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir),
+      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
@@ -2581,9 +2580,62 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
       allProjectIds: Object.values(ctx.projects).map((p) => p.id),
-      handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
+      handleResolutionPolicyViolations,
     }
   )
+  let parsedOverrides = opts.parsedOverrides
+  let {
+    dependenciesGraph,
+    dependenciesByProjectId,
+    linkedDependenciesByProjectId,
+    updatedCatalogs,
+    newLockfile,
+    outdatedDependencies,
+    peerDependencyIssuesByProjects,
+    wantedToBeSkippedPackageIds,
+    waitTillAllFetchingsFinish,
+    resolutionPolicyViolations,
+  } = await resolveDependencyGraph(opts.catalogs, parsedOverrides, opts.readPackageHook)
+  // `pnpm update` may bump catalog entries during resolution, while the
+  // overrides that reference a catalog (e.g. `overrides: { foo: 'catalog:' }`)
+  // were resolved against the pre-update catalog when the install options
+  // were extended. When a bump changes such an override, resolve again with
+  // the updated catalog so that the graph applies the override the lockfile
+  // records.
+  if (updatedCatalogs != null && !isEmpty(opts.overrides ?? {})) {
+    const updatedCatalogsConfig = mergeCatalogs(opts.catalogs, updatedCatalogs)
+    const overridesWithUpdatedCatalogs = parseOverrides(opts.overrides!, updatedCatalogsConfig)
+    if (!equals(createOverridesMapFromParsed(overridesWithUpdatedCatalogs), createOverridesMapFromParsed(parsedOverrides))) {
+      parsedOverrides = overridesWithUpdatedCatalogs
+      const waitTillFirstResolutionFetchingsFinish = waitTillAllFetchingsFinish
+      const handledViolations = new Set(resolutionPolicyViolations.map(policyViolationKey))
+      const resolutionWithUpdatedCatalogs = await resolveDependencyGraph(
+        updatedCatalogsConfig,
+        parsedOverrides,
+        createInstallReadPackageHook(opts, parsedOverrides),
+        opts.handleResolutionPolicyViolations && (async (violations) => {
+          const unhandled = violations.filter((violation) => !handledViolations.has(policyViolationKey(violation)))
+          if (unhandled.length > 0) await opts.handleResolutionPolicyViolations!(unhandled)
+        })
+      )
+      ;({
+        dependenciesGraph,
+        dependenciesByProjectId,
+        linkedDependenciesByProjectId,
+        newLockfile,
+        outdatedDependencies,
+        peerDependencyIssuesByProjects,
+        wantedToBeSkippedPackageIds,
+        waitTillAllFetchingsFinish,
+        resolutionPolicyViolations,
+      } = resolutionWithUpdatedCatalogs)
+      waitTillAllFetchingsFinish = async () => {
+        await Promise.all([waitTillFirstResolutionFetchingsFinish(), resolutionWithUpdatedCatalogs.waitTillAllFetchingsFinish()])
+      }
+      updatedCatalogs = mergeCatalogs(updatedCatalogs, resolutionWithUpdatedCatalogs.updatedCatalogs)
+      newLockfile.overrides = createOverridesMapFromParsed(parsedOverrides)
+    }
+  }
   // Only a full resolution walks every manifest through the versions
   // overrider, making the collected declared ranges complete enough for the
   // staleness verdict; partial resolutions must stay silent to avoid false
@@ -2591,7 +2643,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   if (opts.convergeDeclaredRanges != null && (forceFullResolution || opts.dedupe)) {
     await warnOnStaleConvergenceOverrides({
       convergeDeclaredRanges: opts.convergeDeclaredRanges,
-      parsedOverrides: opts.parsedOverrides,
+      parsedOverrides,
       requestPackage: opts.storeController.requestPackage,
       lockfileDir: opts.lockfileDir,
       minimumReleaseAge: opts.minimumReleaseAge,
@@ -2648,20 +2700,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     prefix: ctx.lockfileDir,
     stage: 'resolution_done',
   })
-
-  // `pnpm update` may bump catalog entries during resolution. Overrides that
-  // reference a catalog (e.g. `overrides: { foo: 'catalog:' }`) were resolved
-  // against the pre-update catalog when the install options were extended, so
-  // re-resolve them against the updated catalog. Done before `afterAllResolved`
-  // so that hook still sees (and can amend) the final overrides. Otherwise
-  // lockfile `overrides` keeps pointing at the old version while `catalogs`
-  // advances, and a later `--frozen-lockfile` install fails with
-  // ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
-    newLockfile.overrides = createOverridesMapFromParsed(
-      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs, updatedCatalogs))
-    )
-  }
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
