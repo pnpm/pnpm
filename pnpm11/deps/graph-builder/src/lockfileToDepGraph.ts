@@ -383,13 +383,13 @@ function promoteChildrenOfSkippedLocalDeps (
     }
   }
   if (promotedDepsByDepPath.size === 0) return
+  const targetImporterId = directDependenciesByImporterId['.'] ? '.' : Object.keys(directDependenciesByImporterId)[0]
+  if (!targetImporterId) return
   for (const [key, { alias, ref }] of promotedDepsByDepPath) {
     const resolved = getChildren({ [alias]: ref }, null, '.')
     const dir = resolved[alias]
     if (!dir) continue
-    for (const importerId of Object.keys(directDependenciesByImporterId)) {
-      directDependenciesByImporterId[importerId][key] = dir
-    }
+    directDependenciesByImporterId[targetImporterId][key] = dir
   }
 }
 
