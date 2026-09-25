@@ -6,6 +6,7 @@ use super::{
     fetch_and_extract_with_retry, integrity, store_index_key, tempdir_with_leaked_path,
     test_retry_opts, write_zip_entry_to_cas,
 };
+use pnpm_testing_utils::untrusted_tls_server::UntrustedTlsServer;
 
 #[tokio::test]
 async fn retries_other_4xx_codes() {
@@ -44,6 +45,35 @@ async fn retries_other_4xx_codes() {
         other => panic!("expected HttpStatus(410), got: {other:?}"),
     }
     mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/9134>
+#[tokio::test]
+async fn does_not_retry_an_untrusted_certificate() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let server = UntrustedTlsServer::start();
+    let url = format!("{}/pkg.tgz", server.url);
+
+    let err = fetch_and_extract_with_retry::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        Some(&integrity(FASTIFY_ERROR_INTEGRITY)),
+        None,
+        0,
+        "test-pkg",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &AuthHeaders::default(),
+        None,
+        None,
+        false,
+    )
+    .await
+    .expect_err("an untrusted certificate must fail the fetch");
+    assert!(matches!(err, TarballError::FetchTarball(_)), "got: {err:?}");
+    assert_eq!(server.connections(), 1);
     drop(store_dir_keep);
 }
 

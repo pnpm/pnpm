@@ -4953,6 +4953,9 @@ importers:
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
+      '@pnpm/network.fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
@@ -4981,9 +4984,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
-      '@pnpm/network.fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/store.cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types

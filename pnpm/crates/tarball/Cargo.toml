@@ -45,6 +45,7 @@ libc = { workspace = true }
 [dev-dependencies]
 dashmap = { workspace = true, features = ["raw-api"] }
 mockito = { workspace = true }
+pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 

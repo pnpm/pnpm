@@ -648,6 +648,34 @@ test('do not retry when package does not exist', async () => {
   )
 })
 
+// https://github.com/pnpm/pnpm/issues/9134
+test('do not retry when the server certificate is untrusted', async () => {
+  const certificateError = Object.assign(
+    new Error('unable to verify the first certificate'),
+    { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' }
+  )
+  mockAgent.get(registry)
+    .intercept({ path: '/foo.tgz', method: 'GET' })
+    .replyWithError(certificateError)
+    .times(2)
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}/foo.tgz`,
+  }
+
+  const err = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  }).then(() => undefined, (error: unknown) => error)
+  expect(err).toHaveProperty('code', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE')
+  expect(err).toHaveProperty('message', 'unable to verify the first certificate')
+  expect(mockAgent.pendingInterceptors()).toHaveLength(1)
+})
+
 test('accessing private packages', async () => {
   const tarballContent = fs.readFileSync(tarballPath)
   const mockPool = mockAgent.get(registry)
