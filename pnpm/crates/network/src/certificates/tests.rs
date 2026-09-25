@@ -1,4 +1,4 @@
-use core::ptr;
+use std::ptr;
 
 use security_framework::{
     certificate::SecCertificate, secure_transport::SslProtocolSide, trust::SecTrust,
