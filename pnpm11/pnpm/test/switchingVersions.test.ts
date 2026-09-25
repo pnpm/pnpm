@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -356,6 +357,31 @@ test('devEngines.packageManager with onFail=download writes no lockfile when loc
 
   expect(stdout.toString()).toContain('Version 9.3.0')
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
+test('a global command does not switch to the pnpm version pinned by the project (#14531)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const globalBinDir = path.join(pnpmHome, 'bin')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH_NAME]: `${globalBinDir}${path.delimiter}${process.env[PATH_NAME]}`,
+  }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['bin', '--global'], { env })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(globalBinDir)
+  expect(stderr.toString()).toContain('Using --global skips the package manager check for this project')
 })
 
 test('devEngines.packageManager without onFail=download does not switch version', async () => {

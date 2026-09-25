@@ -539,6 +539,21 @@ fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turne
 }
 
 #[test]
+fn pre_command_plan_does_not_switch_a_global_command_to_the_pinned_pnpm() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "0.0.1");
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");
     write_manifest(
