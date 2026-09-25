@@ -64,11 +64,20 @@ pub(crate) struct Registry {
 
 impl Registry {
     pub(crate) fn new(index_files: &BTreeMap<String, String>, source: &str) -> Result<Self> {
-        let mut packages = BTreeMap::new();
+        let mut registry = Self::empty(source);
+        registry.add_entries(index_files)?;
+        Ok(registry)
+    }
+
+    pub(crate) fn empty(source: &str) -> Self {
+        Self { packages: BTreeMap::new(), source: source.to_string() }
+    }
+
+    pub(crate) fn add_entries(&mut self, index_files: &BTreeMap<String, String>) -> Result<()> {
         for (name, contents) in index_files {
-            packages.insert(normalize_name(name), parse_index_file(name, contents)?);
+            self.packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
-        Ok(Self { packages, source: source.to_string() })
+        Ok(())
     }
 
     /// Reject a dependency that names a registry other than the one being

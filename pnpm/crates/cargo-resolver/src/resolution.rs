@@ -37,32 +37,56 @@ pub fn missing_index_names(
     index_files: &BTreeMap<String, String>,
     source: &str,
 ) -> Result<Vec<String>> {
-    let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new(index_files, source)?;
-    let mut pending = VecDeque::from(root_dependencies(&metadata)?);
-    let mut discovered = BTreeMap::<PackageKey, Discovered>::new();
-    let mut visited = BTreeSet::new();
-    let mut missing = BTreeSet::new();
+    let mut discovery = IndexDiscovery::new(metadata, source)?;
+    discovery.add_entries(index_files)?;
+    discovery.missing_names()
+}
 
-    while let Some(dependency) = pending.pop_front() {
-        registry.validate_dependency_source(dependency.registry.as_deref())?;
-        let visit_key = (
-            dependency.name.clone(),
-            dependency.requirement.to_string(),
-            dependency.default_features,
-            dependency.features.clone(),
-        );
-        if !visited.insert(visit_key) {
-            continue;
-        }
-        let Some(versions) = registry.versions(&dependency.name) else {
-            missing.insert(dependency.name);
-            continue;
-        };
-        pending.extend(unified_dependencies(&mut discovered, &dependency, versions)?);
+/// Holds parsed registry state across discovery waves so the caller can
+/// feed newly fetched index files incrementally instead of re-parsing the
+/// full set each wave.
+pub struct IndexDiscovery {
+    root_dependencies: Vec<RegistryDependency>,
+    registry: Registry,
+}
+
+impl IndexDiscovery {
+    pub fn new(metadata: &str, source: &str) -> Result<Self> {
+        let parsed = parse_metadata(metadata)?;
+        let root_dependencies = root_dependencies(&parsed)?;
+        Ok(Self { root_dependencies, registry: Registry::empty(source) })
     }
 
-    Ok(missing.into_iter().collect())
+    pub fn add_entries(&mut self, index_files: &BTreeMap<String, String>) -> Result<()> {
+        self.registry.add_entries(index_files)
+    }
+
+    pub fn missing_names(&self) -> Result<Vec<String>> {
+        let mut pending = VecDeque::from(self.root_dependencies.clone());
+        let mut discovered = BTreeMap::<PackageKey, Discovered>::new();
+        let mut visited = BTreeSet::new();
+        let mut missing = BTreeSet::new();
+
+        while let Some(dependency) = pending.pop_front() {
+            self.registry.validate_dependency_source(dependency.registry.as_deref())?;
+            let visit_key = (
+                dependency.name.clone(),
+                dependency.requirement.to_string(),
+                dependency.default_features,
+                dependency.features.clone(),
+            );
+            if !visited.insert(visit_key) {
+                continue;
+            }
+            let Some(versions) = self.registry.versions(&dependency.name) else {
+                missing.insert(dependency.name);
+                continue;
+            };
+            pending.extend(unified_dependencies(&mut discovered, &dependency, versions)?);
+        }
+
+        Ok(missing.into_iter().collect())
+    }
 }
 
 /// Fold what `dependency` asks of its package into what discovery already

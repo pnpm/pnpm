@@ -156,6 +156,15 @@ fn index_budget_exhausted(name: &str) -> String {
     )
 }
 
+fn discover_missing(
+    mut discovery: pnpm_cargo_resolver::IndexDiscovery,
+    entries: &BTreeMap<String, String>,
+) -> Result<(pnpm_cargo_resolver::IndexDiscovery, Vec<String>), String> {
+    discovery.add_entries(entries).map_err(|err| report_message(&err))?;
+    let names = discovery.missing_names().map_err(|err| report_message(&err))?;
+    Ok((discovery, names))
+}
+
 /// Reads a sparse index for one resolve: cache first, then the registry.
 struct IndexFetcher {
     client: Arc<ThrottledClient>,
@@ -194,12 +203,23 @@ impl IndexFetcher {
     /// Every index file `metadata`'s dependency graph reaches, fetched in
     /// waves: each wave asks the resolver which names are still missing,
     /// fetches those, and repeats until nothing is missing.
+    ///
+    /// The parsed registry is kept between waves so only the newly fetched
+    /// entries are parsed, and the discovery walk runs on a blocking thread
+    /// so it does not compete with the async runtime.
     async fn fetch_for(&self, metadata: &str) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
         let source = pnpm_cargo_resolver::registry_source(&self.registry);
+        let mut discovery = pnpm_cargo_resolver::IndexDiscovery::new(metadata, &source)
+            .map_err(|err| report_message(&err))?;
+        let mut new_entries = BTreeMap::new();
         for _ in 0..MAX_INDEX_WAVES {
-            let missing = pnpm_cargo_resolver::missing_index_names(metadata, &index_files, &source)
-                .map_err(|err| report_message(&err))?;
+            let entries = std::mem::take(&mut new_entries);
+            let (disc, missing) =
+                tokio::task::spawn_blocking(move || discover_missing(discovery, &entries))
+                    .await
+                    .map_err(|err| err.to_string())??;
+            discovery = disc;
             if missing.is_empty() {
                 return Ok(index_files);
             }
@@ -208,15 +228,15 @@ impl IndexFetcher {
                     "resolving this workspace needs more than {MAX_INDEX_FILES} sparse-index files",
                 ));
             }
-            let fetched = stream::iter(missing)
+            new_entries = stream::iter(missing)
                 .map(|name| async move {
                     let contents = self.index_file(&name).await?;
                     Ok::<_, String>((name, contents))
                 })
                 .buffer_unordered(INDEX_FETCH_CONCURRENCY)
-                .try_collect::<Vec<_>>()
+                .try_collect::<BTreeMap<_, _>>()
                 .await?;
-            index_files.extend(fetched);
+            index_files.extend(new_entries.clone());
         }
         Err(format!("Cargo sparse-index discovery did not settle within {MAX_INDEX_WAVES} waves"))
     }
@@ -337,15 +357,20 @@ impl IndexFetcher {
         self.cache_dir.join(scope).join(relative_path)
     }
 
-    /// The cached index file when it is younger than the TTL. Every failure
-    /// (absent, unreadable, stale) is a miss: the registry is the source of
-    /// truth and refetching is always correct.
     async fn cached(&self, path: &Path) -> Option<String> {
+        Self::cached_with_ttl(path, self.ttl).await
+    }
+
+    /// The cached index file when it is younger than the TTL. A stale entry
+    /// is deleted so repeated resolves replace entries instead of
+    /// accumulating them.
+    async fn cached_with_ttl(path: &Path, ttl: Duration) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
         let age = SystemTime::now()
             .duration_since(metadata.modified().ok()?)
             .ok()?;
-        if age >= self.ttl {
+        if age >= ttl {
+            let _ = tokio::fs::remove_file(path).await;
             return None;
         }
         tokio::fs::read_to_string(path).await.ok()

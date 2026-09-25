@@ -1035,3 +1035,66 @@ fn fetches_what_each_requirement_activates_on_its_own_line() {
 }
 
 mod lockfile_features;
+/// Incremental discovery adds entries to an existing registry instead of
+/// rebuilding it from scratch, and produces the same missing-names result.
+#[test]
+fn incremental_discovery_matches_full_rebuild() {
+    use crate::resolution::IndexDiscovery;
+
+    let source = CRATES_IO_SOURCE;
+    let mut discovery = IndexDiscovery::new(METADATA, source).unwrap();
+
+    let wave_1 = discovery.missing_names().unwrap();
+    assert_eq!(wave_1, ["foo"]);
+
+    let new_files = BTreeMap::from([("foo".to_string(), FOO_INDEX.to_string())]);
+    discovery.add_entries(&new_files).unwrap();
+    let wave_2 = discovery.missing_names().unwrap();
+    assert_eq!(wave_2, ["bar"]);
+
+    let new_files = BTreeMap::from([("bar".to_string(), BAR_INDEX.to_string())]);
+    discovery.add_entries(&new_files).unwrap();
+    let wave_3 = discovery.missing_names().unwrap();
+    assert!(wave_3.is_empty());
+}
+
+/// Adding entries incrementally across multiple waves settles at the same
+/// result as a single call with all index files present.
+#[test]
+fn incremental_discovery_settles_like_the_batch_api() {
+    use crate::resolution::IndexDiscovery;
+
+    let all_files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    let batch_missing = missing_index_names(METADATA, &all_files, CRATES_IO_SOURCE).unwrap();
+
+    let mut discovery = IndexDiscovery::new(METADATA, CRATES_IO_SOURCE).unwrap();
+    discovery.add_entries(&all_files).unwrap();
+    let incremental_missing = discovery.missing_names().unwrap();
+
+    assert_eq!(batch_missing, incremental_missing);
+}
+
+/// Incremental discovery handles the transitive optional-feature case the
+/// same way the batch API does.
+#[test]
+fn incremental_discovery_walks_optional_features() {
+    use crate::resolution::IndexDiscovery;
+
+    let mut discovery = IndexDiscovery::new(METADATA, CRATES_IO_SOURCE).unwrap();
+
+    let new_files = BTreeMap::from([("foo".to_string(), DEFAULT_FEATURE_FOO_INDEX.to_string())]);
+    discovery.add_entries(&new_files).unwrap();
+    assert_eq!(discovery.missing_names().unwrap(), ["bar"]);
+
+    let new_files = BTreeMap::from([("bar".to_string(), BAR_INDEX.to_string())]);
+    discovery.add_entries(&new_files).unwrap();
+    assert!(
+        discovery
+            .missing_names()
+            .unwrap()
+            .is_empty(),
+    );
+}
