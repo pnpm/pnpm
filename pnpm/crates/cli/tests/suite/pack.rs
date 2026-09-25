@@ -584,24 +584,28 @@ fn pack_preserves_on_disk_executable_file_permissions() {
 
 #[test]
 fn pack_json_preserves_lifecycle_streams_before_the_result() {
-    assert_pack_json_lifecycle_streams(None, false);
+    assert_pack_json_lifecycle_streams(None, false, &[]);
 }
 
 #[test]
 fn pack_json_preserves_lifecycle_streams_before_the_error() {
     for stage in ["prepack", "prepare", "postpack"] {
-        assert_pack_json_lifecycle_streams(Some(stage), false);
+        assert_pack_json_lifecycle_streams(Some(stage), false, &[]);
     }
 }
 
 #[test]
 fn recursive_pack_json_preserves_lifecycle_streams_before_the_error() {
     for stage in ["prepack", "prepare", "postpack"] {
-        assert_pack_json_lifecycle_streams(Some(stage), true);
+        assert_pack_json_lifecycle_streams(Some(stage), true, &[]);
     }
 }
 
-fn assert_pack_json_lifecycle_streams(failing_stage: Option<&str>, recursive: bool) {
+fn assert_pack_json_lifecycle_streams(
+    failing_stage: Option<&str>,
+    recursive: bool,
+    flags: &[&str],
+) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     if recursive {
         fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
@@ -635,6 +639,7 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
 
     let output = pacquet
         .with_args(["pack", "--json"])
+        .with_args(flags)
         .with_args(recursive.then_some("--recursive"))
         .with_env("FAILING_STAGE", failing_stage.unwrap_or(""))
         .output()

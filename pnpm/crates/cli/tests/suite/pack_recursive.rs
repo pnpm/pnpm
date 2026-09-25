@@ -62,6 +62,7 @@ fn recursive_pack_silent_preserves_json_output() {
         .stderr("");
     let results: Vec<serde_json::Value> =
         serde_json::from_slice(&assertion.get_output().stdout).expect("parse pack JSON");
+    dbg!(&results);
     assert_eq!(results.len(), 2);
     for result in results {
         let tarball = result["filename"].as_str().expect("packed filename");

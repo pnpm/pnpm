@@ -5,6 +5,8 @@ use super::{
     prints_json_errors, warn_shared_workspace_lockfile_outside_workspace,
 };
 use crate::config_overrides::{ConfigOverrides, apply_registry_override};
+use pnpm_hooks::PnpmfileHooks;
+use std::sync::Arc;
 
 /// The directories a run is anchored at.
 pub(super) struct RunAnchors {
@@ -330,15 +332,14 @@ pub(in super::super) async fn apply_update_config(
     config: &mut Config,
     dir: &Path,
     reporter: ReporterType,
-) -> miette::Result<()> {
+) -> miette::Result<Vec<Arc<dyn PnpmfileHooks>>> {
     match reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            prepare_config::<DefaultReporter>(config, dir).await?
+            prepare_config::<DefaultReporter>(config, dir).await
         }
-        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
-        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
-    };
-    Ok(())
+        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await,
+        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await,
+    }
 }
 
 pub(super) fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
