@@ -121,7 +121,9 @@ async fn cache_hit_emits_cached_event() {
         &opts,
     )
     .await
-    .expect("first run");
+    .expect("first run")
+    .expect("a passing run yields a record")
+    .record();
     verify_lockfile_resolutions::<RecordingReporter>(
         &lockfile,
         std::slice::from_ref(&verifier),

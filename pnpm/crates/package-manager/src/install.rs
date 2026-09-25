@@ -54,8 +54,8 @@ use pnpm_lockfile::{
     StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    ReplacedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
-    verify_lockfile_resolutions,
+    PendingVerificationRecord, ReplacedEntries, VerifyLockfileResolutionsOptions,
+    record_lockfile_verified, verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
     Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -136,14 +136,18 @@ mod tests;
 /// up-to-date short-circuits); the frozen materialization path instead
 /// runs verification concurrently with the fetch inside
 /// [`InstallFrozenLockfile`]. A no-op when `verifiers` is empty.
+///
+/// The verdict is returned unrecorded: see [`PendingVerificationRecord`]
+/// for why a caller that goes on to run lifecycle scripts must persist it
+/// after them.
 async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     lockfile_path: Option<&Path>,
     cache_dir: &Path,
-) -> Result<(), InstallError> {
+) -> Result<Option<PendingVerificationRecord>, InstallError> {
     if verifiers.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     verify_lockfile_resolutions::<Reporter>(
         lockfile,
@@ -171,7 +175,9 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
 /// the gate doesn't leave verification requests running in the host
 /// process (the napi embedding outlives a failed install).
 pub struct LockfileVerificationGate(
-    tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
+    tokio::task::JoinHandle<
+        Result<Option<PendingVerificationRecord>, pnpm_lockfile_verification::VerifyError>,
+    >,
 );
 
 /// Owned form of [`ReplacedEntries`], for the spawned gate.
@@ -234,7 +240,9 @@ impl LockfileVerificationGate {
     }
 
     /// Block on the verdict.
-    pub(crate) async fn wait(mut self) -> Result<(), pnpm_lockfile_verification::VerifyError> {
+    pub(crate) async fn wait(
+        mut self,
+    ) -> Result<Option<PendingVerificationRecord>, pnpm_lockfile_verification::VerifyError> {
         (&mut self.0).await.expect(
             "the lockfile verification task is only aborted by dropping the gate unawaited",
         )

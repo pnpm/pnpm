@@ -121,8 +121,15 @@ impl<'a> InstallFrozenLockfile<'a> {
         &self,
         ctx: &'p crate::InstallContext<'p>,
         phase: FetchInputs<'p>,
-    ) -> impl Future<Output = Result<CreateVirtualStoreOutput, InstallFrozenLockfileError>>
-    + Send
+    ) -> impl Future<
+        Output = Result<
+            (
+                CreateVirtualStoreOutput,
+                Option<pnpm_lockfile_verification::PendingVerificationRecord>,
+            ),
+            InstallFrozenLockfileError,
+        >,
+    > + Send
     + use<'p, 'a, Reporter>
     where
         'a: 'p,
@@ -139,7 +146,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             // Timed from here: a pnpmfile's fetcher setup is hook work, not
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
-            let output = fetch_verified::<Reporter>(
+            let (output, pending_record) = fetch_verified::<Reporter>(
                 install.virtual_store(
                     ctx,
                     (phase.cas_prefetch, phase.dir_clone_cache),
@@ -163,7 +170,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 elapsed_ms = phase_start.elapsed().as_millis() as u64,
                 "phase complete",
             );
-            Ok(output)
+            Ok((output, pending_record))
         }
     }
     /// Resolve the host probe the plan left pending, settle the engine

@@ -57,8 +57,11 @@ pub(super) fn build_extra_env(
 /// only.
 pub(super) async fn await_lockfile_gate(
     gate: &mut Option<crate::install::LockfileVerificationGate>,
-) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(gate) = gate.take() else { return Ok(()) };
+) -> Result<
+    Option<pnpm_lockfile_verification::PendingVerificationRecord>,
+    InstallWithFreshLockfileError,
+> {
+    let Some(gate) = gate.take() else { return Ok(None) };
     gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 /// What the on-disk phases read once the lockfile is built and the
@@ -322,7 +325,7 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     // lockfile must have its verdict before anything sensitive: the
     // symlink / bin-link phases, the dependency builds, and the
     // lockfile save below all run on a trusted lockfile only.
-    await_lockfile_gate(lockfile_verification_gate).await?;
+    let pending_pre_resolve_record = await_lockfile_gate(lockfile_verification_gate).await?;
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
@@ -331,6 +334,10 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
         deferred_builds,
         mutated_slots: _,
     } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;
+
+    if let Some(pending_record) = pending_pre_resolve_record {
+        pending_record.record();
+    }
 
     let injected_deps = crate::collect_injected_deps(
         ctx.linker.layout,

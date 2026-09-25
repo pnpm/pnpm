@@ -13,6 +13,8 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
+pub use pending_record::PendingVerificationRecord;
+
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -28,8 +30,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     cache::{
-        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
-        try_lockfile_verification_cache,
+        CachePrecomputed, lockfile_verification_is_cached_by_hash, try_lockfile_verification_cache,
     },
     errors::{RenderedViolation, VerifyError},
     hash_lockfile,
@@ -142,7 +143,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
-) -> Result<(), VerifyError> {
+) -> Result<Option<PendingVerificationRecord>, VerifyError> {
     // Offline structural gate first: reject invalid dependency names
     // before the `packages`-absent short-circuit and the cache lookup,
     // so a lockfile that carries a path-traversal alias but no
@@ -150,7 +151,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     verify_lockfile_dependency_names(lockfile)?;
 
     if lockfile.packages.is_none() {
-        return Ok(());
+        return Ok(None);
     }
 
     // Caching activates only when both `cache_dir` and
@@ -176,28 +177,26 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
             lockfile_path: lockfile_path_str.as_ref(),
         },
     ) {
-        CacheOutcome::Hit => return Ok(()),
+        CacheOutcome::Hit => return Ok(None),
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
     let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
     if verifiers.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
+    let record =
+        || pending_record(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
     if candidates.is_empty() {
-        // Persist the success so the next install can stat-only the
-        // lockfile. An empty fan-out is still a successful run.
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
-        return Ok(());
+        return Ok(record());
     }
 
     let violations =
         verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
             .await?;
     if violations.is_empty() {
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
-        return Ok(());
+        return Ok(record());
     }
     Err(build_verification_error(violations))
 }
@@ -311,18 +310,6 @@ fn reuse_cached_verdict<Reporter: self::Reporter>(
         );
     }
     CacheOutcome::Hit
-}
-
-/// Persist a successful verification, when caching is wired up.
-fn record_verdict(
-    cache_inputs: Option<(&Path, &Path)>,
-    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
-    hash_once: &mut impl FnMut() -> String,
-    precomputed: CachePrecomputed,
-) {
-    if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
-    }
 }
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
@@ -594,3 +581,6 @@ mod tests;
 
 mod candidates;
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
+
+mod pending_record;
+use pending_record::pending_record;

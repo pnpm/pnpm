@@ -1,7 +1,9 @@
 use super::{InstallFrozenLockfileError, LockfileVerificationOverride};
 use crate::{CreateVirtualStore, CreateVirtualStoreOutput};
 use pnpm_lockfile::Lockfile;
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_lockfile_verification::{
+    PendingVerificationRecord, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use std::{path::Path, sync::Arc};
@@ -34,7 +36,8 @@ pub(super) struct ConcurrentVerification<'a> {
 pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     create_virtual_store: CreateVirtualStore<'_>,
     verification: ConcurrentVerification<'_>,
-) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+) -> Result<(CreateVirtualStoreOutput, Option<PendingVerificationRecord>), InstallFrozenLockfileError>
+{
     let verify = verification.run::<Reporter>();
     let fetch = async {
         create_virtual_store
@@ -47,12 +50,14 @@ pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     let mut fetch = std::pin::pin!(fetch);
     tokio::select! {
         verdict = &mut verify => {
-            verdict?;
-            fetch.await
+            let pending_record = verdict?;
+            let output = fetch.await?;
+            Ok((output, pending_record))
         }
         output = &mut fetch => {
-            verify.await?;
-            output
+            let pending_record = verify.await?;
+            let output = output?;
+            Ok((output, pending_record))
         }
     }
 }
@@ -82,7 +87,9 @@ pub(super) async fn load_custom_fetcher_session(
 }
 
 impl ConcurrentVerification<'_> {
-    async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallFrozenLockfileError> {
+    async fn run<Reporter: self::Reporter>(
+        self,
+    ) -> Result<Option<PendingVerificationRecord>, InstallFrozenLockfileError> {
         let ConcurrentVerification {
             lockfile,
             verifiers,
@@ -91,10 +98,10 @@ impl ConcurrentVerification<'_> {
             cache_dir,
         } = self;
         if let Some(precomputed) = precomputed {
-            return precomputed.await;
+            return precomputed.await.map(|()| None);
         }
         if verifiers.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
