@@ -4,7 +4,9 @@ import type { PatchGroup, PatchGroupRecord, PatchInfo } from '@pnpm/patching.typ
 import { validRange } from 'semver'
 
 export function groupPatchedDependencies (patchedDependencies: Record<string, string | PatchInfo>): PatchGroupRecord {
-  const result: PatchGroupRecord = {}
+  // Keys come from `patchedDependencies`, so one named after an `Object.prototype` member must not
+  // resolve to that member.
+  const result: PatchGroupRecord = Object.create(null)
   function getGroup (name: string): PatchGroup {
     let group: PatchGroup | undefined = result[name]
     if (group) return group

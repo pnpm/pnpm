@@ -76,7 +76,8 @@ pub fn resolve_snapshot_patches(
             let mut map = HashMap::new();
             for key in snaps.keys() {
                 let metadata_key = key.without_peer();
-                let (name, version) = crate::name_version_from_package_key(&metadata_key, packages);
+                let (name, version) =
+                    pnpm_lockfile::name_version_from_package_key(&metadata_key, packages);
                 // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather than
                 // silently skipping the snapshot. Failing here makes the
                 // user add an exact-version entry to disambiguate.

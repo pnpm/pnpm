@@ -517,3 +517,17 @@ fn rejects_a_missing_patch_file() {
         "the resolver reports the unreadable patch file instead",
     );
 }
+
+#[test]
+fn declines_a_lockfile_whose_paths_contradict_its_own_map_when_the_map_drifted() {
+    let dir = workspace(&["foo@1.1.0"]);
+    let mut lockfile = lockfile(PATCHED_LOCKFILE);
+    lockfile.patched_dependencies =
+        Some(BTreeMap::from([("foo@1.1.0".to_string(), "cafebabe".to_string())]));
+
+    assert!(
+        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true))
+            .is_none(),
+        "a path that disagrees with the lockfile's own map is the resolver's to rewrite",
+    );
+}

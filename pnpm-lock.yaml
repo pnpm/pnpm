@@ -7138,6 +7138,12 @@ importers:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
+      '@pnpm/patching.types':
+        specifier: workspace:*
+        version: link:../../patching/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
