@@ -83,7 +83,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
     };
     assert_eq!(
         auto_installed_peer_bin_locations(&inputs, &importer),
-        vec![layout.slot_dir(&peer_key).join("node_modules/peer")]
+        vec![layout.slot_dir(&peer_key).join("node_modules/peer"),]
     );
     drop(writer);
     writer_task.await.expect("join store writer").expect("drain store writer");
