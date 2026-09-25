@@ -32,7 +32,7 @@ fn an_injected_project_with_a_postinstall_script_is_hard_linked() {
             "name": "shared",
             "version": "1.0.0",
             "scripts": {
-                "postinstall": "node -e \"require('fs').writeFileSync('built.txt', '')\"",
+                "postinstall": r#"node -e "require('fs').writeFileSync('built.txt', '')""#,
             },
         })
         .to_string(),
