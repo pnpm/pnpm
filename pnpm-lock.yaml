@@ -6755,6 +6755,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../../fs/graceful-fs
       '@pnpm/fs.symlink-dependency':
         specifier: workspace:*
         version: link:../../../fs/symlink-dependency
@@ -6777,6 +6780,9 @@ importers:
         specifier: 'catalog:'
         version: 10.0.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/installing.linking.hoist':
         specifier: workspace:*
         version: 'link:'
