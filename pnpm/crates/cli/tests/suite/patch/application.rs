@@ -471,7 +471,7 @@ fn install_level_name_only_patch_that_does_not_apply_fails() {
 }
 
 /// TS: `patch package should fail when the patch file is missing`
-/// (`patch.ts:831`).
+/// (`patch.ts:928`).
 #[test]
 fn install_level_missing_patch_file_fails() {
     let (root, workspace, npmrc_info) =
