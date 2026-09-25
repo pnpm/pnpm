@@ -18,7 +18,9 @@ export type ModuleSchema =
   | typeof path
   | typeof url
 
-export type ValueSchema = ValueConstructor | ModuleSchema
+export type CustomParser = (envVar: string, env: { HOME?: string }) => unknown
+
+export type ValueSchema = ValueConstructor | ModuleSchema | CustomParser
 
 export type LiteralSchema = string | boolean | null
 
@@ -55,11 +57,18 @@ export function * parseEnvVars (getSchema: GetSchema, env: NodeJS.ProcessEnv): G
   }
 }
 
+function isValueConstructor (schema: unknown): schema is ValueConstructor {
+  return schema === Array || schema === Boolean || schema === Number || schema === Object || schema === String
+}
+
 function parseValueBySchema (schema: Schema, envVar: string, env: { HOME?: string }): unknown {
   if (Array.isArray(schema)) {
     return parseValueByTypeUnion(schema, envVar, env)
   } else if (typeof schema === 'function') {
-    return parseValueByConstructor(schema, envVar)
+    if (isValueConstructor(schema)) {
+      return parseValueByConstructor(schema, envVar)
+    }
+    return (schema as CustomParser)(envVar, env)
   } else if (schema && typeof schema === 'object') {
     return parseValueByModule(schema, envVar, env)
   }
@@ -79,7 +88,9 @@ function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string,
         value = parseBooleanLiteral(variant, envVar)
         break
       case 'function':
-        value = parseValueByConstructor(variant, envVar)
+        value = isValueConstructor(variant)
+          ? parseValueByConstructor(variant, envVar)
+          : (variant as CustomParser)(envVar, env)
         break
       case 'object':
         value = variant === null
@@ -185,6 +196,14 @@ function isStringRecord (value: object | unknown[] | undefined): value is Record
     Object.values(value).every(item => typeof item === 'string')
 }
 
+export function parseAllowBuilds (envVar: string): Record<string, boolean | string> | undefined {
+  const value = tryParseObjectOrArray(envVar)
+  if (value == null || Array.isArray(value) || typeof value !== 'object') return undefined
+  for (const item of Object.values(value)) {
+    if (typeof item !== 'boolean' && typeof item !== 'string') return undefined
+  }
+  return value as Record<string, boolean | string>
+}
 /**
  * Return the lowercase suffix if {@link envKey} starts with {@link PREFIX} or
  * {@link PREFIX_UPPER} and the suffix is fully snake_case (in matching case).

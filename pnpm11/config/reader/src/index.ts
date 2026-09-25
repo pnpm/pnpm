@@ -41,7 +41,7 @@ import type {
 import { isConfigFileKey } from './configFileKey.js'
 import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
-import { parseEnvVars } from './env.js'
+import { parseAllowBuilds, parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
 import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
@@ -687,6 +687,7 @@ export async function getConfig (opts: {
     // match no schema and be dropped. Env-only: the CLI flag and
     // `pnpm config` keys keep npm's spelling.
     'max-sockets': Number,
+    'allow-builds': parseAllowBuilds,
   }
 
   let virtualStoreTypeFromEnv: VirtualStoreType | undefined
@@ -875,6 +876,42 @@ export async function getConfig (opts: {
         : 'node_modules/.pnpm'
 
     pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
+  }
+  const forwardedConfigEntries: Array<[settingKey: keyof Config, envKey: string]> = [
+    ['allowBuilds', 'pnpm_config_allow_builds'],
+    ['trustPolicyExclude', 'pnpm_config_trust_policy_exclude'],
+  ]
+  for (const [settingKey, envKey] of forwardedConfigEntries) {
+    if (envKey in pnpmConfig.extraEnv) continue
+    const value = pnpmConfig[settingKey]
+    if (value == null) continue
+
+    let serialized: string | undefined
+    if (settingKey === 'allowBuilds') {
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        serialized = JSON.stringify(value)
+      }
+    } else if (settingKey === 'trustPolicyExclude') {
+      if (Array.isArray(value)) {
+        serialized = JSON.stringify(value)
+      } else if (typeof value === 'string') {
+        serialized = JSON.stringify([value])
+      }
+    }
+    if (serialized == null) continue
+
+    const lowerVal = process.env[envKey]
+    const upperVal = process.env[envKey.toUpperCase()]
+    const matchesProcessEnv = !opts.env && (
+      (lowerVal === serialized && upperVal == null) ||
+      (upperVal === serialized && lowerVal == null) ||
+      (lowerVal === serialized && upperVal === serialized)
+    )
+    if (matchesProcessEnv) {
+      continue
+    }
+
+    pnpmConfig.extraEnv[envKey] = serialized
   }
 
   if (!pnpmConfig.cacheDir) {
