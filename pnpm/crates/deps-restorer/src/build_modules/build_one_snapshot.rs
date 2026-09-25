@@ -79,7 +79,7 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate) else {
+    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
 

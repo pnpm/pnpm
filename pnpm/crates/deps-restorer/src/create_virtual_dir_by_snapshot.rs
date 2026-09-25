@@ -175,15 +175,13 @@ impl CreateVirtualDirBySnapshot<'_> {
     ) -> Result<(SlotPaths, Option<pnpm_fs::DirLock>, bool), CreateVirtualDirError> {
         let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
         let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
-        let lock = marker
-            .is_file()
-            .then(|| {
-                crate::gvs_slot_lock::lock_global_virtual_store_slot(
-                    self.layout,
-                    self.dependencies.package_key,
-                )
-            })
-            .flatten();
+        if !marker.is_file() {
+            return Ok((slot, None, false));
+        }
+        let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
+            self.layout,
+            self.dependencies.package_key,
+        );
         let interrupted_build = marker.is_file();
         Ok((slot, lock, interrupted_build))
     }

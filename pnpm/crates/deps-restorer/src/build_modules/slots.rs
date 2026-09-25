@@ -68,8 +68,14 @@ const STARTED_BUILD_MARKER: &str = "started";
 /// Whether the slot's build started and then failed, or its process died,
 /// leaving files the build may have changed. Only a re-import of the
 /// pristine files, which rewrites the marker empty, makes it safe to build.
-pub(crate) fn is_started_build_marker(marker: &Path) -> bool {
-    std::fs::read_to_string(marker).is_ok_and(|content| content.trim() == STARTED_BUILD_MARKER)
+/// A missing marker is `false`; any other read failure is an error, since
+/// the slot's state is then unknown.
+pub(crate) fn is_started_build_marker(marker: &Path) -> std::io::Result<bool> {
+    match std::fs::read(marker) {
+        Ok(content) => Ok(content.trim_ascii() == STARTED_BUILD_MARKER.as_bytes()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// Mark a snapshot's global-virtual-store slot as mid-build, before its

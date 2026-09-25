@@ -2,7 +2,7 @@
 
 use super::{
     super::{
-        NEEDS_BUILD_MARKER, PackageKey, PathBuf, is_started_build_marker,
+        BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, PathBuf, is_started_build_marker,
         mark_global_virtual_store_build_started,
     },
     BuildCandidate, BuildOneSnapshot,
@@ -18,15 +18,18 @@ pub(super) fn slot_to_build(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
-) -> Option<(PathBuf, Option<pnpm_fs::DirLock>)> {
-    let pkg_dir = context
+) -> Result<Option<(PathBuf, Option<pnpm_fs::DirLock>)>, BuildModulesError> {
+    let Some(pkg_dir) = context
         .pkg_roots()
         .canonical(snapshot_key)
-        .filter(|dir| dir.exists())?;
+        .filter(|dir| dir.exists())
+    else {
+        return Ok(None);
+    };
     if context.directories.pkg_roots_by_key.is_some()
         || !(candidate.patch.is_some() || candidate.should_run_scripts)
     {
-        return Some((pkg_dir, None));
+        return Ok(Some((pkg_dir, None)));
     }
     let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
     let awaiting_build = marker.is_file();
@@ -34,9 +37,11 @@ pub(super) fn slot_to_build(
         context.directories.layout,
         snapshot_key,
     );
-    if is_started_build_marker(&marker) || (awaiting_build && !marker.is_file()) {
-        return None;
+    let started = is_started_build_marker(&marker)
+        .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?;
+    if started || (awaiting_build && !marker.is_file()) {
+        return Ok(None);
     }
     mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
-    Some((pkg_dir, lock))
+    Ok(Some((pkg_dir, lock)))
 }

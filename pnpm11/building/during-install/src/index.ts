@@ -443,7 +443,9 @@ export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promi
 /**
  * Whether the slot's build started and then failed, or its process died,
  * leaving files the build may have changed. Only a re-import of the pristine
- * files, which rewrites the marker empty, makes it safe to build.
+ * files, which rewrites the marker empty, makes it safe to build. A missing
+ * marker resolves to `false`; any other read failure rejects, since the slot's
+ * state is then unknown.
  */
 async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
   try {
