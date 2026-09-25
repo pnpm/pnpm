@@ -47,6 +47,33 @@ test('retries a Windows lock when inspecting a stale hoist link owner', async ()
   }
 })
 
+test('retries a Windows lock when creating a workspace hoist link', async () => {
+  const { root, opts } = await prepareStaleHoist()
+  const workspace = path.join(root, 'workspace')
+  const link = path.join(opts.privateHoistedModulesDir, 'workspace')
+  fs.mkdirSync(workspace)
+  const workspaceOpts = {
+    ...opts,
+    hoistedWorkspacePackages: { ['workspace' as ProjectId]: { name: 'workspace', dir: workspace } },
+  }
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const symlink = fs.promises.symlink
+  let attempts = 0
+  jest.spyOn(fs.promises, 'symlink').mockImplementation(async (...args) => {
+    if (args[1] === link && attempts++ === 0) {
+      throw Object.assign(new Error('file is busy'), { code: 'EBUSY' })
+    }
+    return symlink(...args)
+  })
+  try {
+    await hoist(workspaceOpts)
+    expect(await resolveLinkTarget(link)).toBe(workspace)
+    expect(attempts).toBeGreaterThan(1)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test.each(['same', 'different', 'directory'])('checks a %s replacement created by another installer', async (replacement) => {
   const { root, link, target, opts } = await prepareStaleHoist()
   const winner = replacement === 'same' ? target : path.join(root, 'external')

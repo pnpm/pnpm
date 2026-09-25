@@ -593,7 +593,7 @@ async function symlinkHoistedDependencies<T extends string> (
           ? opts.publicHoistedModulesDir
           : opts.privateHoistedModulesDir
         const dest = path.join(targetDir, pkgAlias)
-        return withFileLockRetryAsync(() => symlink(depLocation, dest))
+        return symlink(depLocation, dest)
       }))
     })())
   }
@@ -601,6 +601,14 @@ async function symlinkHoistedDependencies<T extends string> (
 }
 
 async function symlinkHoistedDependency (
+  opts: { virtualStoreDir: string, internalPnpmDir: string },
+  depLocation: string,
+  dest: string
+): Promise<void> {
+  return withFileLockRetryAsync(() => symlinkHoistedDependencyOnce(opts, depLocation, dest))
+}
+
+async function symlinkHoistedDependencyOnce (
   opts: { virtualStoreDir: string, internalPnpmDir: string },
   depLocation: string,
   dest: string
