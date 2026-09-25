@@ -16,6 +16,8 @@ test('a package with a huge amount of circular dependencies and many peer depend
   await addDependenciesToPackage({},
     ['@teambit/bit@0.0.745'],
     testDefaults({
+      dir: process.cwd(),
+      lockfileDir: process.cwd(),
       fastUnpack: true,
       lockfileOnly: true,
       registriesByScope: registries,
