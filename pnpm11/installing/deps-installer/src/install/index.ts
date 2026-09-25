@@ -180,7 +180,7 @@ class UncheckablePatchHashError extends PnpmError {
     super('UNCHECKABLE_PATCH_HASH',
       'Cannot proceed with the frozen installation. The lockfile\'s patch hashes cannot be checked ' +
       'against its own "patchedDependencies"', {
-        hint: 'The lockfile is missing a package version or a usable "patchedDependencies" entry that checking needs. ' +
+        hint: 'The lockfile has a malformed patch hash, or is missing a package version or a usable "patchedDependencies" entry that checking needs. ' +
           'Repair your lockfile using "pnpm install --no-frozen-lockfile"',
       })
   }

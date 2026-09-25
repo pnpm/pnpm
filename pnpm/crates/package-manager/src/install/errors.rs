@@ -294,7 +294,7 @@ pub enum InstallError {
     #[diagnostic(
         code(ERR_PNPM_UNCHECKABLE_PATCH_HASH),
         help(
-            r#"The lockfile is missing a package version or a usable "patchedDependencies" entry that checking needs. Repair your lockfile using "pnpm install --no-frozen-lockfile""#
+            r#"The lockfile has a malformed patch hash, or is missing a package version or a usable "patchedDependencies" entry that checking needs. Repair your lockfile using "pnpm install --no-frozen-lockfile""#
         )
     )]
     UncheckablePatchHash,
