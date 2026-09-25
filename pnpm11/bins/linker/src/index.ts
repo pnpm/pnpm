@@ -1,4 +1,4 @@
-import { existsSync, promises as fs } from 'node:fs'
+import { promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
@@ -395,7 +395,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // control npm's cmd shims, which break when node resolves to node.cmd.
     // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
     const isNodeExe = cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')
-    if (existsSync(exePath)) {
+    // A dangling symlink must be removed too, so the check can't follow links.
+    if (await isPathPresent(exePath)) {
       // Skip warning and re-linking when the existing node.exe already matches
       // the target, otherwise every command that re-links node would spam the
       // warning below on warm installs.
@@ -584,6 +585,16 @@ function isOwnBinsDir (pkgDir: string, binsDir: string): boolean {
 async function isBinTargetMissing (target: string): Promise<boolean> {
   if (!await isMissing(target)) return false
   return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)
+}
+
+async function isPathPresent (file: string): Promise<boolean> {
+  try {
+    await fs.lstat(file)
+    return true
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 async function isMissing (file: string): Promise<boolean> {
