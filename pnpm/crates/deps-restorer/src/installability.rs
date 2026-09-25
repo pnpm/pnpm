@@ -440,22 +440,7 @@ impl SkipScan<'_, '_> {
         // here, so that check waits for the patched manifest.
         let defer_engines =
             self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
-        let warn = if defer_engines {
-            without_published_engines(
-                &metadata_key,
-                metadata,
-                skip_check_optional,
-                &self.base_options,
-            )?
-        } else {
-            cached_check(
-                &mut self.check_cache,
-                &metadata_key,
-                metadata,
-                skip_check_optional,
-                &self.base_options,
-            )?
-        };
+        let warn = self.snapshot_warn(&metadata_key, metadata, skip_check_optional, defer_engines)?;
         // Whatever the seed recorded, this pass's verdict replaces it.
         self.skipped.remove_installability(snapshot_key);
         let Some(warn) = warn else { return Ok(()) };
@@ -471,6 +456,19 @@ impl SkipScan<'_, '_> {
             skip_check_optional,
             defer_engines,
         )
+    }
+
+    fn snapshot_warn(
+        &mut self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+        optional: bool,
+        defer_engines: bool,
+    ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+        if defer_engines {
+            return without_published_engines(metadata_key, metadata, optional, &self.base_options);
+        }
+        cached_check(&mut self.check_cache, metadata_key, metadata, optional, &self.base_options)
     }
 
     fn record_skip<Reporter: self::Reporter>(
