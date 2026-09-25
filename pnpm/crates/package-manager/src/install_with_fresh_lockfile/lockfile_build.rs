@@ -42,8 +42,10 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         pnpm_hooks::untracked_read_package_hook(resolved.hooks.after_all_resolved_hook.as_ref())
             .await
             .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
-    if install.execution.lockfile_only {
-        await_lockfile_gate(lockfile_verification_gate).await?;
+    if install.execution.lockfile_only
+        && let Some(pending_record) = await_lockfile_gate(lockfile_verification_gate).await?
+    {
+        pending_record.record();
     }
     let phase_start = std::time::Instant::now();
     let built_lockfile = build_resolved_lockfile(
@@ -55,7 +57,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         untracked_pnpmfile_read_package_hook,
     )?;
     if verify_filtered_repair {
-        await_lockfile_gate(lockfile_verification_gate).await?;
+        let _ = await_lockfile_gate(lockfile_verification_gate).await?;
     }
     verify_repair_if_filtered::<Reporter>(
         verify_filtered_repair,

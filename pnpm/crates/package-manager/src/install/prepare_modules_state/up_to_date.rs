@@ -278,13 +278,19 @@ pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'stati
 ) -> Result<(), InstallError> {
     let (derived_lockfile_path, cache_dir) = paths;
     let Some(lockfile_verification_override) = lockfile_verification_override else {
-        return verify_lockfile_eagerly::<Reporter>(
+        if let Some(pending_verification_record) = verify_lockfile_eagerly::<Reporter>(
             wanted_lockfile,
             resolution_verifiers,
             derived_lockfile_path,
             cache_dir,
         )
-        .await;
+        .await?
+        {
+            // The up-to-date path materializes nothing, so no lifecycle
+            // script runs between the verdict and this record.
+            pending_verification_record.record();
+        }
+        return Ok(());
     };
     lockfile_verification_override.await.map_err(map_frozen_lockfile_error)
 }

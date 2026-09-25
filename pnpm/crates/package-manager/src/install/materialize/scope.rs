@@ -118,13 +118,20 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
     derived_lockfile_path: Option<&Path>,
     cache_dir: &Path,
-) -> Result<Option<super::super::LockfileVerificationOverride<'install>>, InstallError> {
+) -> Result<
+    (
+        Option<super::super::LockfileVerificationOverride<'install>>,
+        Option<pnpm_lockfile_verification::PendingVerificationRecord>,
+    ),
+    InstallError,
+> {
     if requested_importer_ids.is_none() {
-        return Ok(verification_override);
+        return Ok((verification_override, None));
     }
-    match verification_override {
+    let pending_record = match verification_override {
         Some(verification_override) => {
             verification_override.await.map_err(map_frozen_lockfile_error)?;
+            None
         }
         None => {
             verify_lockfile_eagerly::<Reporter>(
@@ -133,10 +140,10 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
                 derived_lockfile_path,
                 cache_dir,
             )
-            .await?;
+            .await?
         }
-    }
-    Ok(None)
+    };
+    Ok((None, pending_record))
 }
 /// The importers whose own project manifests the frozen install anchors on.
 pub(super) fn frozen_project_anchor_ids(
