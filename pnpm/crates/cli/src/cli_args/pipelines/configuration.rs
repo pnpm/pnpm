@@ -74,6 +74,30 @@ fn warn_about_config_settings(cfg: &Config, reporter: ReporterType) {
     warn_unapplied_package_configs(cfg);
 }
 
+fn apply_fetching_cli_config(
+    cfg: &mut Config,
+    fetching: &crate::cli_args::install::InstallFetchArgs,
+) {
+    if let Some(network_concurrency) = fetching.concurrency {
+        cfg.network_concurrency = network_concurrency;
+    }
+    if let Some(fetch_timeout) = fetching.timeout {
+        cfg.fetch_timeout = fetch_timeout;
+    }
+    if let Some(fetch_warn_timeout_ms) = fetching.warn_timeout_ms {
+        cfg.fetch_warn_timeout_ms = fetch_warn_timeout_ms;
+    }
+    if let Some(fetch_min_speed_ki_bps) = fetching.min_speed_ki_bps {
+        cfg.fetch_min_speed_ki_bps = fetch_min_speed_ki_bps;
+    }
+    if let Some(user_agent) = fetching.user_agent.clone() {
+        cfg.user_agent = user_agent;
+    }
+    if let Some(pnpr_server) = fetching.pnpr_server.clone() {
+        cfg.pnpr_server = Some(pnpr_server);
+    }
+}
+
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
     args.network_cache.apply(cfg);
     args.lockfile_updates.dedupe.apply(cfg);
@@ -83,25 +107,12 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
         cfg.frozen_store,
     );
     args.scripts.apply(cfg);
-    cfg.force = args.materialization.force || cfg.force;
-    if let Some(network_concurrency) = args.fetching.concurrency {
-        cfg.network_concurrency = network_concurrency;
-    }
-    if let Some(fetch_timeout) = args.fetching.timeout {
-        cfg.fetch_timeout = fetch_timeout;
-    }
-    if let Some(fetch_warn_timeout_ms) = args.fetching.warn_timeout_ms {
-        cfg.fetch_warn_timeout_ms = fetch_warn_timeout_ms;
-    }
-    if let Some(fetch_min_speed_ki_bps) = args.fetching.min_speed_ki_bps {
-        cfg.fetch_min_speed_ki_bps = fetch_min_speed_ki_bps;
-    }
-    if let Some(user_agent) = args.fetching.user_agent.clone() {
-        cfg.user_agent = user_agent;
-    }
-    if let Some(pnpr_server) = args.fetching.pnpr_server.clone() {
-        cfg.pnpr_server = Some(pnpr_server);
-    }
+    cfg.ignore_platform_checks =
+        args.materialization.ignore_platform_checks || cfg.ignore_platform_checks;
+    cfg.reinstall = args.materialization.reinstall || args.materialization.force || cfg.reinstall;
+    cfg.force =
+        args.materialization.force || (cfg.ignore_platform_checks && cfg.reinstall) || cfg.force;
+    apply_fetching_cli_config(cfg, &args.fetching);
     // pnpm merges its CLI options into the config *before* deciding
     // `mergeGitBranchLockfiles`, so a pattern given on the command line
     // still gets matched against the current branch — and an explicit

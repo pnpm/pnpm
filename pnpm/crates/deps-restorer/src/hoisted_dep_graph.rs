@@ -177,25 +177,21 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// hoisted-specific typing is a set of raw `String`s (rather than
     /// `DepPath`s), so the wrapper here is `BTreeSet<String>`.
     pub skipped: BTreeSet<String>,
-    /// When true, no package is reused from the previous install:
-    /// every node is re-materialized whether or not its recorded
-    /// location still holds it.
-    pub force: bool,
     /// When true, suppress the installability check and emit every
     /// dep into the graph regardless of cpu / os / libc / engines.
-    /// Set for `--force` under `forceIgnoresPlatform`, and by the
+    /// Set for `--ignore-platform-checks`, `--force` under `forceIgnoresPlatform`, or by the
     /// `prev_graph` walk where the previous lockfile is replayed
-    /// wholesale to compute orphans — that walk starts from an empty
-    /// skip set so the diff catches packages that previously
-    /// installed but would now be filtered.
+    /// wholesale to compute orphans.
     pub include_incompatible_packages: bool,
+    /// When true, bypass the repeat-install fast path and re-materialize every slot.
+    pub reinstall: bool,
 
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`. A package the walker places at a directory
     /// listed here, which still holds a `package.json` of the expected
     /// version, is marked [`DependenciesGraphNode::present`] so the
     /// linker skips it. `None` on a first install, and ignored when
-    /// `force` is set.
+    /// `reinstall` is set.
     pub current_hoisted_locations: Option<&'a HoistedLocations>,
 }
 
@@ -220,7 +216,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
             root_modules_dir: PathBuf::from("node_modules"),
 
             skipped: BTreeSet::new(),
-            force: false,
+            reinstall: false,
             include_incompatible_packages: false,
 
             // Match the hoister's default-on behavior so a
@@ -309,7 +305,7 @@ pub fn lockfile_to_hoisted_dep_graph(
                 .is_some_and(|packages| !packages.is_empty()) =>
         {
             let prev_opts = LockfileToHoistedDepGraphOptions {
-                force: true,
+                reinstall: true,
                 include_incompatible_packages: true,
                 skipped: BTreeSet::new(),
                 ..opts.clone()

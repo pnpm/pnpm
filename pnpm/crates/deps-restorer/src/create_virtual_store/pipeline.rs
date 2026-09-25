@@ -126,7 +126,7 @@ impl<'a> CreateVirtualStore<'a> {
         SlotReuse {
             packages,
             current_packages: self.current_entries.packages,
-            force: self.ctx.config.force,
+            force: self.ctx.config.reinstall || self.ctx.config.force,
         }
     }
 
@@ -187,6 +187,7 @@ impl<'a> CreateVirtualStore<'a> {
             policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
                 skipped: self.selection.skipped,
                 link_dependencies: !self.is_hoisted() && config.symlink,
+                reinstall: config.reinstall,
                 force: config.force,
                 is_hoisted: self.is_hoisted(),
                 include_optional: self.selection.include_optional,

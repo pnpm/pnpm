@@ -239,7 +239,7 @@ fn hoisted_walker_options<'a>(
         root_modules_dir: config.modules_dir.clone(),
 
         skipped: walker_skipped,
-        force: config.force,
+        reinstall: config.reinstall,
         include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
     }

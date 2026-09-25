@@ -876,12 +876,25 @@ pub struct Config {
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
 
-    /// pnpm's `--force`. Refetch every package and re-materialize every
-    /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
-    /// so an `engines` mismatch on a required package warns instead of
-    /// failing. Optional dependencies whose `cpu` / `os` / `libc` don't
-    /// match the host stay skipped unless
-    /// [`force_ignores_platform`](Self::force_ignores_platform) is set.
+    /// Bypass per-snapshot installability checks (`cpu` / `os` / `libc` / `engines`)
+    /// so packages for foreign platforms are materialized instead of skipped.
+    ///
+    /// CLI-only (merged from `--ignore-platform-checks` or `--force` on `pnpm install` /
+    /// `pnpm add` / `pnpm deploy` at dispatch); not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub ignore_platform_checks: bool,
+
+    /// Re-materialize every package slot, bypassing repeat-install fast paths,
+    /// up-to-date checks, and recorded skip sets.
+    ///
+    /// CLI-only (merged from `--reinstall` or `--force` on `pnpm install` /
+    /// `pnpm add` / `pnpm deploy` at dispatch); not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub reinstall: bool,
+
+    /// pnpm's `--force`. Re-materialize every package slot the lockfile
+    /// names, relinking packages an earlier install already materialized.
+    /// In pnpm v12, `--force` does not bypass platform compatibility checks
+    /// unless configured via `forceIgnoresPlatform: true`; use
+    /// `--ignore-platform-checks` to bypass platform checks directly.
     ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
@@ -1772,10 +1785,11 @@ pub struct Config {
 impl Config {
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
-    /// under [`force_ignores_platform`](Self::force_ignores_platform).
+    /// under [`force_ignores_platform`](Self::force_ignores_platform) or
+    /// `--ignore-platform-checks`.
     /// Every installability gate reads this rather than `force` alone.
     pub fn installs_incompatible_packages(&self) -> bool {
-        self.force && self.force_ignores_platform
+        self.ignore_platform_checks || (self.force && self.force_ignores_platform)
     }
 
     /// [`engine_strict`](Self::engine_strict) as an install applies it.

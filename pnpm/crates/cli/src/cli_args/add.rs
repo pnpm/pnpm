@@ -249,7 +249,12 @@ impl AddArgs {
         );
         config.optional =
             resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
-        config.force = self.install.force || config.force;
+        config.ignore_platform_checks =
+            self.install.ignore_platform_checks || config.ignore_platform_checks;
+        config.reinstall = self.install.reinstall || self.install.force || config.reinstall;
+        config.force = self.install.force
+            || (config.ignore_platform_checks && config.reinstall)
+            || config.force;
     }
 
     /// The dependency groups the install that follows the manifest edit

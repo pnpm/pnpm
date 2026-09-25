@@ -108,6 +108,14 @@ impl InstallArgs {
         true
     }
 
+    fn materialization_bypasses_fast_path(&self) -> bool {
+        self.materialization.reinstall
+            || self.materialization.ignore_platform_checks
+            || self.materialization.force
+            || self.materialization.verify_deps_before_run_install
+            || !self.materialization.allow_build.is_empty()
+    }
+
     /// Whether the up-to-date fast path may run at all, before it looks
     /// at the project on disk. Every flag here either asks for work the
     /// fast path cannot do, or describes an install whose verdict a
@@ -116,9 +124,7 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
-            || self.materialization.force
-            || self.materialization.verify_deps_before_run_install
-            || !self.materialization.allow_build.is_empty()
+            || self.materialization_bypasses_fast_path()
         {
             return false;
         }

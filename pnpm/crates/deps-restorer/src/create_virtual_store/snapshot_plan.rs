@@ -225,8 +225,9 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     // it, and without this probe such a restore re-links every slot the
     // store already holds (pnpm/pnpm#14510). Mirrors the GVS fast path
     // in pnpm's `lockfileToDepGraph`.
-    let gvs_slot_is_authoritative =
-        probe.layout.enable_global_virtual_store() && !probe.policy.force;
+    let gvs_slot_is_authoritative = probe.layout.enable_global_virtual_store()
+        && !probe.policy.reinstall
+        && !probe.policy.force;
     if !current_entry_unchanged && !gvs_slot_is_authoritative {
         return Ok(false);
     }
@@ -269,7 +270,8 @@ fn current_entry_unchanged(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
 ) -> bool {
-    !probe.policy.force
+    !probe.policy.reinstall
+        && !probe.policy.force
         && probe.current_entries.snapshots
             .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
             .is_some_and(|current_snapshot| {
@@ -366,6 +368,7 @@ pub(crate) struct SnapshotReusePolicy<'b> {
     pub link_dependencies: bool,
     /// Disable both the current-lockfile reuse check and the global-store
     /// existence probe to re-materialize every slot.
+    pub reinstall: bool,
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional: bool,
