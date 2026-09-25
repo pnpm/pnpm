@@ -1,4 +1,4 @@
-use super::{bundled_node_gyp_bin_beside, bundled_node_gyp_bin_in};
+use super::bundled_node_gyp_bin_in;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
@@ -99,6 +99,8 @@ fn absent_when_the_wrapper_is_a_directory() {
 #[cfg(unix)]
 #[test]
 fn finds_the_wrapper_dir_beside_the_symlink_target() {
+    use super::bundled_node_gyp_bin_beside;
+
     let package_dir = tempfile::tempdir().unwrap();
     ship_payload(package_dir.path());
     let exe = package_dir.path().join("pnpm");
