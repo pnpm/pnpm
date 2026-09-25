@@ -36,3 +36,31 @@ fn does_not_follow_a_linked_scope_directory() {
         "a link reached through a linked scope directory must stay",
     );
 }
+
+#[cfg(windows)]
+#[test]
+fn does_not_follow_a_junction_scope_directory() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let target = root.path().join("slot/node_modules/@scope/pkg");
+    fs::create_dir_all(&target).expect("create target");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    let outside_link = outside.join("pkg");
+    junction::create(&target, &outside_link).expect("junction package outside");
+    let modules = root.path().join("node_modules");
+    fs::create_dir_all(&modules).expect("create modules dir");
+    junction::create(&outside, modules.join("@scope")).expect("junction scope");
+    let direct_link = modules.join("pkg");
+    junction::create(&target, &direct_link).expect("junction package");
+
+    unlink_children(&modules, &[target]);
+
+    assert!(
+        fs::symlink_metadata(&direct_link).is_err(),
+        "a junction to the package must be removed",
+    );
+    assert!(
+        fs::symlink_metadata(&outside_link).is_ok(),
+        "a junction reached through a junction scope directory must stay",
+    );
+}
