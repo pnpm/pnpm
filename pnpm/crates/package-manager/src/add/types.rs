@@ -60,7 +60,7 @@ async fn resolve_companion_selector(
         .and_then(|entries| entries.get(types_alias));
     let specifier = catalog_entry.map_or("latest", String::as_str);
     let types_package = match pick_types_metadata(types_name, specifier, inputs, None).await {
-        Ok(package) => package,
+        Ok(package) => package.filter(|(package, _registry)| package.deprecated.is_none()),
         Err(AddError::ResolveSpec(error)) if is_not_found(&error) => return Ok(None),
         Err(error) => return Err(error),
     };
