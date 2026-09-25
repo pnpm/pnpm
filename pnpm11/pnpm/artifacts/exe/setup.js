@@ -103,14 +103,22 @@ function relinkNpmWindowsShims() {
   const npmExecPath = process.env.npm_execpath
   if (
     process.platform !== 'win32' ||
-    process.env.npm_config_global !== 'true' ||
     npmExecPath == null ||
     path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
   ) return
 
-  const args = [npmExecPath, 'rebuild', '--global', '--ignore-scripts']
-  if (process.env.npm_config_prefix) {
-    args.push('--prefix', process.env.npm_config_prefix)
+  const args = [npmExecPath, 'rebuild', '--ignore-scripts']
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
+    args.push('--global')
+    if (process.env.npm_config_prefix) {
+      args.push('--prefix', process.env.npm_config_prefix)
+    }
+  } else {
+    // The script runs inside the installed package, so a project install
+    // names its project explicitly.
+    const projectPrefix = findNpmProjectPrefix()
+    if (projectPrefix == null) return
+    args.push('--prefix', projectPrefix)
   }
   args.push('@pnpm/exe')
   const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
@@ -122,6 +130,27 @@ function relinkNpmWindowsShims() {
     console.error(`npm could not regenerate the shims for @pnpm/exe (exit code ${result.status}).`)
     process.exit(1)
   }
+}
+
+/**
+ * The npm project whose `node_modules` holds this package, or `null` when npm's
+ * project prefix does not contain it. `npm exec` installs into its own cache
+ * while the prefix still names the caller's project, and rebuilding there
+ * would touch an unrelated project.
+ */
+function findNpmProjectPrefix() {
+  const prefix = process.env.npm_config_local_prefix
+  if (!prefix) return null
+  let realPrefix
+  try {
+    realPrefix = fs.realpathSync(prefix)
+  } catch {
+    return null
+  }
+  // import.meta.dirname is resolved through symlinks.
+  const relative = path.relative(path.join(realPrefix, 'node_modules'), import.meta.dirname)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) return null
+  return prefix
 }
 
 function linkSync(src, dest) {
