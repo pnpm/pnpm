@@ -279,8 +279,8 @@ impl IndexFetcher {
         // that decides which callers can read each other's entry, so two
         // callers on different private scopes fetch in parallel rather than
         // queueing for a result neither could reuse.
-        let _fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
-        if let Some(cached) = Self::cached_or_evict(&cache_path, self.ttl).await {
+        let fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
+        if let Some(cached) = Self::cached_or_evict(&cache_path, self.ttl, &fetching).await {
             return self.hold(name, cached);
         }
         self.fetch_and_store(name, &url, &auth, cache_path).await
@@ -387,8 +387,13 @@ impl IndexFetcher {
     /// [`Self::cached_entry`], removing a stale entry so resolving the same
     /// crates past their TTL replaces entries instead of accumulating them.
     /// Only the holder of the entry's fetch lock may call this, or it could
-    /// remove an entry another caller has just refreshed.
-    async fn cached_or_evict(path: &Path, ttl: Duration) -> Option<String> {
+    /// remove an entry another caller has just refreshed, so the caller
+    /// passes that lock's guard.
+    async fn cached_or_evict(
+        path: &Path,
+        ttl: Duration,
+        _fetching: &tokio::sync::MutexGuard<'_, ()>,
+    ) -> Option<String> {
         Self::cached_entry(path, ttl, true).await
     }
 
