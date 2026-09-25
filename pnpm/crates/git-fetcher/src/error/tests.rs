@@ -1,8 +1,11 @@
-use super::GitFetcherError;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
+
+use miette::Diagnostic;
+
+use super::GitFetcherError;
 
 #[test]
 fn direct_checkout_errors_redact_credentials_without_changing_error_payloads() {
@@ -41,4 +44,21 @@ fn direct_checkout_errors_redact_credentials_without_changing_error_payloads() {
             assert_eq!(original, stderr);
         }
     }
+}
+
+#[test]
+fn an_ssh_clone_failure_explains_a_publickey_refusal_and_how_to_re_record_https() {
+    let error = GitFetcherError::FetchOverSsh {
+        package: "@scope/pkg".to_string(),
+        repo: "git@github.com:acme/widget.git".to_string(),
+        host: "github.com".to_string(),
+        stderr: "git@github.com: Permission denied (publickey).".to_string(),
+    };
+
+    let help = Diagnostic::help(&error).expect("SSH remediation").to_string();
+    assert!(help.contains("needs an SSH key for github.com"), "{help}");
+    assert!(help.contains("Permission denied (publickey)"), "{help}");
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("pnpm update @scope/pkg"), "{help}");
+    assert!(help.contains("do not re-resolve git dependencies"), "{help}");
 }

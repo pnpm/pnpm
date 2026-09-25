@@ -215,7 +215,7 @@ function gitResolveError (err: Error, bareSpecifier: string, repo: string): Erro
   return new PnpmError(
     'GIT_RESOLVE_FAILED',
     `Failed to resolve git dependency "${redactAndSanitize(bareSpecifier)}": ${err.message}`,
-    { hint: httpsTransportHint(repo) }
+    { hint: httpsTransportHint(repo) ?? sshPublicKeyHint(repo, err.message) }
   )
 }
 
@@ -244,6 +244,94 @@ function httpsTransportHint (repo: string): string | undefined {
 If git can only reach ${hostname} over SSH here, substitute the transport locally, leaving the recorded URL alone:
 
     git config --global url."git@${hostname}:".insteadOf "${url.protocol}//${host}/"`
+}
+
+/**
+ * Guidance when `git ls-remote` of an SSH remote fails with
+ * `Permission denied (publickey)`, or `undefined` for any other failure.
+ *
+ * The specifier asked for SSH, so the hint is how to authenticate that
+ * transport, plus a local HTTPS rewrite that leaves the recorded URL alone.
+ * It does not apply to a lockfile clone: resolution is skipped while the
+ * lockfile is up to date, and that failure is reported by the git fetcher.
+ */
+function sshPublicKeyHint (repo: string, detail: string): string | undefined {
+  if (!detail.toLowerCase().includes('publickey')) return undefined
+  const rewrite = sshHttpsRewrite(repo)
+  if (rewrite == null) return undefined
+  return `Git refused the SSH key for ${rewrite.hostname} (Permission denied (publickey)).
+
+Make sure ssh-agent has a key for that host loaded:
+
+    ssh-add -l
+
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key. To reach it over HTTPS on this machine only, leaving the recorded URL alone:
+
+    git config --global url."https://${rewrite.hostname}/".insteadOf "${rewrite.insteadOf}"`
+}
+
+/**
+ * The `insteadOf` prefix that matches `repo`, or `undefined` when `repo` is
+ * not an SSH reference.
+ *
+ * The example always uses the user `git` and never copies userinfo out of
+ * `repo`, so a password embedded in the URL cannot reach the hint.
+ */
+function sshHttpsRewrite (repo: string): { hostname: string, insteadOf: string } | undefined {
+  const sshUrl = repo.replace(/^git\+/, '')
+  if (sshUrl.startsWith('ssh://')) {
+    let url: URL
+    try {
+      url = new URL(sshUrl)
+    } catch {
+      return undefined
+    }
+    if (url.hostname === '') return undefined
+    const hostname = redactAndSanitize(url.hostname)
+    if (!isShellSafeHost(hostname)) return undefined
+    const port = url.port === '' ? '' : `:${url.port}`
+    return {
+      hostname,
+      insteadOf: `ssh://git@${hostname}${port}/`,
+    }
+  }
+  if (repo.includes('://')) return undefined
+  const colonPos = repo.indexOf(':')
+  if (colonPos === -1) return undefined
+  const authority = repo.slice(0, colonPos)
+  const atPos = authority.lastIndexOf('@')
+  if (atPos === -1) return undefined
+  const rawHostname = authority.slice(atPos + 1)
+  if (rawHostname === '') return undefined
+  const hostname = redactAndSanitize(rawHostname)
+  if (!isShellSafeHost(hostname)) return undefined
+  return {
+    hostname,
+    insteadOf: `git@${hostname}:`,
+  }
+}
+
+/**
+ * A host safe to interpolate into the `git config` line of {@link sshPublicKeyHint}.
+ *
+ * The line is a command a user may paste. `URL` already rejects most
+ * metacharacters in an `ssh://` authority; an SCP-style `user@host:path`
+ * reference does not, so the host is checked again here.
+ */
+function isShellSafeHost (hostname: string): boolean {
+  const bracketed = hostname.startsWith('[') && hostname.endsWith(']')
+  const body = bracketed ? hostname.slice(1, -1) : hostname
+  if (body === '' || body.startsWith('-') || body.startsWith('.') || body.endsWith('-') || body.endsWith('.')) return false
+  for (const char of body) {
+    const code = char.charCodeAt(0)
+    const digit = code >= 48 && code <= 57
+    const upper = code >= 65 && code <= 90
+    const lower = code >= 97 && code <= 122
+    if (digit || upper || lower || char === '.' || char === '-' || char === '_') continue
+    if (bracketed && char === ':') continue
+    return false
+  }
+  return true
 }
 
 function isSsh (gitSpec: string): boolean {

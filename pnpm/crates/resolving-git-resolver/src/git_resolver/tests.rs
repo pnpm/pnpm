@@ -356,13 +356,35 @@ async fn unreachable_remote_names_the_dependency_and_how_to_substitute_the_trans
 }
 
 // A known host's SSH URL is an identity that finalises to HTTPS (see
-// `parse_bare_specifier`), so the hint applies there too. Only an unknown
-// host's URL keeps the transport the user wrote.
+// `parse_bare_specifier`), so the HTTPS hint applies there too. Only an
+// unknown host's URL keeps the transport the user wrote.
 #[tokio::test]
-async fn unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+async fn unreachable_ssh_remote_that_refuses_the_key_explains_ssh_agent() {
     let err = resolve_unreachable(
         "git+ssh://git@example.com/foo/bar.git",
         "git@example.com: Permission denied (publickey).",
+    )
+    .await;
+
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(
+        help.contains(
+            r#"git config --global url."https://example.com/".insteadOf "ssh://git@example.com/""#
+        ),
+        "{help}",
+    );
+    assert!(!help.contains(r#"url."git@example.com:".insteadOf"#), "{help}");
+}
+
+#[tokio::test]
+async fn unreachable_ssh_remote_that_is_not_a_key_refusal_carries_no_auth_hint() {
+    let err = resolve_unreachable(
+        "git+ssh://git@example.com/foo/bar.git",
+        "ssh: connect to host example.com port 22: Connection refused",
     )
     .await;
 

@@ -271,7 +271,7 @@ impl GitResolveError {
         Self {
             specifier: redact_and_sanitize(specifier),
             detail: redact_and_sanitize_multiline(detail),
-            hint: https_transport_hint(repo),
+            hint: https_transport_hint(repo).or_else(|| ssh_publickey_hint(repo, detail)),
         }
     }
 }
@@ -314,6 +314,123 @@ If git can only reach {hostname} over SSH here, substitute the transport locally
 
     git config --global url."git@{hostname}:".insteadOf "{scheme}://{host}/""#,
     ))
+}
+
+/// Guidance when `git ls-remote` of an SSH remote fails with
+/// `Permission denied (publickey)`, or `None` for any other failure.
+///
+/// The specifier asked for SSH, so the hint is how to authenticate that
+/// transport, plus a local HTTPS rewrite that leaves the recorded URL alone.
+/// A lockfile clone is a different failure: resolution is skipped while the
+/// lockfile is up to date, and the git fetcher reports it.
+fn ssh_publickey_hint(repo: &str, detail: &str) -> Option<String> {
+    if !detail.to_ascii_lowercase().contains("publickey") {
+        return None;
+    }
+    let (hostname, instead_of) = ssh_https_rewrite(repo)?;
+    Some(format!(
+        r#"Git refused the SSH key for {hostname} (Permission denied (publickey)).
+
+Make sure ssh-agent has a key for that host loaded:
+
+    ssh-add -l
+
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key. To reach it over HTTPS on this machine only, leaving the recorded URL alone:
+
+    git config --global url."https://{hostname}/".insteadOf "{instead_of}""#,
+    ))
+}
+
+/// The `insteadOf` prefix that matches `repo`, or `None` when `repo` is not
+/// an SSH reference.
+///
+/// The example always uses the user `git` and never copies userinfo out of
+/// `repo`, so a password embedded in the URL cannot reach the hint.
+fn ssh_https_rewrite(repo: &str) -> Option<(String, String)> {
+    let ssh_url = repo.strip_prefix("git+").unwrap_or(repo);
+    if let Some(rest) = ssh_url.strip_prefix("ssh://") {
+        let authority = rest.split('/').next().unwrap_or(rest);
+        if authority.is_empty() {
+            return None;
+        }
+        let hostport = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        if hostport.is_empty() {
+            return None;
+        }
+        let (hostname, port) = ssh_host_and_port(hostport)?;
+        let port_suffix = if port.is_empty() { String::new() } else { format!(":{port}") };
+        // Redact the host before building the prefix. Redacting
+        // `ssh://git@host/` afterwards would strip the `git@` it has to match.
+        let hostname = redact_and_sanitize(&hostname);
+        if !is_shell_safe_host(&hostname) {
+            return None;
+        }
+        let instead_of = format!("ssh://git@{hostname}{port_suffix}/");
+        return Some((hostname, instead_of));
+    }
+    if repo.contains("://") {
+        return None;
+    }
+    let (authority, _path) = repo.split_once(':')?;
+    let (_user, hostname) = authority.rsplit_once('@')?;
+    if hostname.is_empty() {
+        return None;
+    }
+    let hostname = redact_and_sanitize(hostname);
+    if !is_shell_safe_host(&hostname) {
+        return None;
+    }
+    let instead_of = format!("git@{hostname}:");
+    Some((hostname, instead_of))
+}
+
+/// A host safe to interpolate into the `git config` line of [`ssh_publickey_hint`].
+///
+/// That line is a command a user may paste. An `ssh://` authority is parsed
+/// as a URL, which rejects most metacharacters; an SCP-style `user@host:path`
+/// reference is not, so the host is checked again here.
+fn is_shell_safe_host(hostname: &str) -> bool {
+    let bracketed = hostname.starts_with('[') && hostname.ends_with(']');
+    let body = if bracketed { &hostname[1..hostname.len() - 1] } else { hostname };
+    if body.is_empty()
+        || body.starts_with('-')
+        || body.starts_with('.')
+        || body.ends_with('-')
+        || body.ends_with('.')
+    {
+        return false;
+    }
+    body.bytes()
+        .all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || byte == b'.'
+                || byte == b'-'
+                || byte == b'_'
+                || (bracketed && byte == b':')
+        })
+}
+
+/// Host and numeric port of an SSH authority's host[:port] portion.
+///
+/// A bracketed IPv6 literal keeps its brackets. A non-numeric tail after the
+/// colon is not a port: SCP-style references are rejected before this runs.
+fn ssh_host_and_port(hostport: &str) -> Option<(String, &str)> {
+    let (hostname, port) = match hostport.split_once(']') {
+        Some((address, after)) if hostport.starts_with('[') => {
+            let hostname = &hostport[..=address.len()];
+            let port = after.strip_prefix(':').unwrap_or("");
+            (hostname, port)
+        }
+        _ => match hostport.split_once(':') {
+            Some((hostname, port)) => (hostname, port),
+            None => (hostport, ""),
+        },
+    };
+    if hostname.is_empty() || (!port.is_empty() && !port.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return None;
+    }
+    Some((hostname.to_string(), port))
 }
 
 #[cfg(test)]
