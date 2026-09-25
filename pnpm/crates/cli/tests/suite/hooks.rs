@@ -1352,7 +1352,7 @@ patchedDependencies:
             assert!(
                 fs::symlink_metadata(link).is_err(),
                 "incompatible optional package must not stay linked at {}",
-                link.display()
+                link.display(),
             );
         }
     }
