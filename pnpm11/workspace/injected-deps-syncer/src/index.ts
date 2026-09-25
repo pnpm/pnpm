@@ -53,7 +53,7 @@ export interface InjectedEditWatch {
  * reports that error, so it does not stop the script from starting.
  */
 export async function injectedEditDirs (
-  opts: SyncInjectedDepsOptions,
+  opts: SyncInjectedDepsOptions
 ): Promise<{ sourceDir: string, targetDirs: string[] } | undefined> {
   if (!opts.pkgName || opts.workspaceDir == null) return undefined
   let located: Awaited<ReturnType<typeof readInjectedTargets>>
