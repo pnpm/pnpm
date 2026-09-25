@@ -199,14 +199,14 @@ fn matches_candidate(
     false
 }
 
-/// A lockfile-relative location resolved against `lockfile_dir`, rebuilt
-/// component by component so a location recorded with `/` or `\` gets the
-/// platform's separator. `None` for a location that could leave
-/// `lockfile_dir`.
 fn is_safe_part(part: &str) -> bool {
     matches!(Path::new(part).components().next(), Some(Component::Normal(_))) && !part.contains(':')
 }
 
+/// A lockfile-relative location resolved against `lockfile_dir`, rebuilt
+/// component by component so a location recorded with `/` or `\` gets the
+/// platform's separator. `None` for a location that could leave
+/// `lockfile_dir`.
 fn hoisted_dir(lockfile_dir: &Path, location: &str) -> Option<PathBuf> {
     if location.starts_with('/') || location.starts_with('\\') || Path::new(location).is_absolute()
     {
