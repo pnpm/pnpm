@@ -24,7 +24,10 @@ use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
-use project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin};
+use project_pin::{
+    NoUpgradeKind, implicit_latest_no_upgrade_message, project_pin_refusal,
+    read_project_pinned_pnpm_version, registry_latest_ignoring_maturity, update_project_pin,
+};
 use serde_json::Value;
 use std::{io::IsTerminal, path::Path};
 
@@ -219,6 +222,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let bare_specifier = params.unwrap_or("latest");
 
     let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
+    let registry_latest =
+        Box::pin(registry_latest_ignoring_maturity(config, is_implicit_latest)).await;
 
     let wanted = super::package_manager::read_manifest_json(&dir.join("package.json"))?
         .as_ref()
@@ -232,8 +237,14 @@ async fn handler<Reporter: self::Reporter + 'static>(
         .as_ref()
         .filter(|pm| pm.name == "pnpm");
     if let Some(pm) = pinned_pnpm
-        && let Some(refusal) =
-            project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest)
+        && let Some(refusal) = project_pin_refusal(
+            config,
+            dir,
+            pm,
+            &target_version,
+            is_implicit_latest,
+            registry_latest.as_deref(),
+        )
     {
         return Ok(Some(refusal));
     }
@@ -246,6 +257,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         &target_version,
         bare_specifier,
         is_implicit_latest,
+        registry_latest.as_deref(),
     )? {
         Some(declined) => Some(declined),
         None => {
@@ -368,6 +380,7 @@ fn global_switch_declined(
     target_version: &str,
     bare_specifier: &str,
     is_implicit_latest: bool,
+    registry_latest: Option<&str>,
 ) -> miette::Result<Option<String>> {
     // Version equality with the running binary alone must not skip the
     // update: a removed global install can be recovered by running a local
@@ -380,8 +393,11 @@ fn global_switch_declined(
         )));
     }
     if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        return Ok(Some(implicit_latest_no_upgrade_message(
+            NoUpgradeKind::Active,
+            PNPM_VERSION,
+            target_version,
+            registry_latest,
         )));
     }
     Ok(None)

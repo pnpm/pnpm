@@ -128,20 +128,26 @@ export async function handler (
   }
 
   const pinsPnpm = opts.wantedPackageManager?.name === packageManager.name
+  const registryLatest = await registryLatestIgnoringAge(opts, isImplicitLatest)
   if (pinsPnpm && isImplicitLatest && opts.wantedPackageManager?.version !== targetVersion) {
     // Prefer the lockfile-pinned version when available — for range
     // specs like `>=8.0.0`, the spec's lower bound understates the
     // version that was actually installed (see #11418 review).
     const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
     if (projectCurrentVersion != null && semver.lt(targetVersion, projectCurrentVersion)) {
-      return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
+      return implicitLatestNoUpgradeMessage({
+        kind: 'project',
+        current: projectCurrentVersion,
+        target: targetVersion,
+        registryLatest,
+      })
     }
   }
 
   // The global install moves forward even when the project pins pnpm, or the
   // machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747). The pin
   // is written last so a failed switch leaves the project as it was.
-  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion })
+  const globalMessage = await switchGlobalPnpm(opts, { bareSpecifier, bootstrapConfig, isImplicitLatest, registryLatest, targetVersion })
   if (!pinsPnpm) return globalMessage
   const projectPinMessage = await updateProjectPin(opts, targetVersion, bootstrapConfig)
   return `${projectPinMessage}\n${globalMessage}`
@@ -149,10 +155,11 @@ export async function handler (
 
 async function switchGlobalPnpm (
   opts: SelfUpdateCommandOptions,
-  { bareSpecifier, bootstrapConfig, isImplicitLatest, targetVersion }: {
+  { bareSpecifier, bootstrapConfig, isImplicitLatest, registryLatest, targetVersion }: {
     bareSpecifier: string
     bootstrapConfig: PackageManagerBootstrapConfig
     isImplicitLatest: boolean
+    registryLatest: string | undefined
     targetVersion: string
   }
 ): Promise<string> {
@@ -167,7 +174,12 @@ async function switchGlobalPnpm (
   }
 
   if (isImplicitLatest && semver.lt(targetVersion, packageManager.version)) {
-    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
+    return implicitLatestNoUpgradeMessage({
+      kind: 'active',
+      current: packageManager.version,
+      target: targetVersion,
+      registryLatest,
+    })
   }
 
   globalInfo(`Switching pnpm from v${packageManager.version} to v${targetVersion}...`)
@@ -271,6 +283,36 @@ async function updateProjectPin (
     await writeProjectManifest(manifest)
   }
   return `The current project has been updated to use pnpm v${targetVersion}`
+}
+
+async function registryLatestIgnoringAge (
+  opts: SelfUpdateCommandOptions,
+  isImplicitLatest: boolean
+): Promise<string | undefined> {
+  if (!isImplicitLatest || !opts.minimumReleaseAge) return undefined
+  const resolved = await resolvePnpmVersion({
+    ...opts,
+    minimumReleaseAge: undefined,
+  }, 'latest')
+  return resolved?.version
+}
+
+function implicitLatestNoUpgradeMessage (
+  { kind, current, target, registryLatest }: {
+    kind: 'active' | 'project'
+    current: string
+    target: string
+    registryLatest: string | undefined
+  }
+): string {
+  if (registryLatest != null && !semver.lt(registryLatest, current)) {
+    return kind === 'project'
+      ? `The current project is set to use pnpm v${current}. The latest version that meets minimumReleaseAge is v${target}. v${registryLatest} on the registry is still within the cutoff. No update performed.`
+      : `The currently active ${packageManager.name} v${current} is newer than the latest version that meets minimumReleaseAge (v${target}). v${registryLatest} on the registry is still within the cutoff. No update performed.`
+  }
+  return kind === 'project'
+    ? `The current project is set to use pnpm v${current}, which is newer than the "latest" version on the registry (v${target}). No update performed. Run "pnpm self-update latest" to downgrade.`
+    : `The currently active ${packageManager.name} v${current} is newer than the "latest" version on the registry (v${target}). No update performed. Run "pnpm self-update latest" to downgrade.`
 }
 
 /**

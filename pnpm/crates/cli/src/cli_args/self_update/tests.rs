@@ -4,7 +4,8 @@ use super::{
 };
 use crate::{
     cli_args::self_update::project_pin::{
-        package_manager_pin_specifier, update_version_constraint,
+        NoUpgradeKind, implicit_latest_no_upgrade_message, package_manager_pin_specifier,
+        update_version_constraint,
     },
     shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
 };
@@ -339,4 +340,25 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
     let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
 
     assert!(err.to_string().contains("exited with code 1"), "{err}");
+}
+
+#[test]
+fn implicit_latest_message_mentions_minimum_release_age_when_registry_latest_is_not_older() {
+    let message =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Project, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(message.contains("minimumReleaseAge") && !message.contains("downgrade"), "{message}",);
+    let active =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Active, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(active.contains("minimumReleaseAge") && !active.contains("downgrade"), "{active}",);
+}
+
+#[test]
+fn implicit_latest_message_still_offers_downgrade_when_registry_latest_is_older() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Active,
+        "9.0.0",
+        "8.15.0",
+        Some("8.15.0"),
+    );
+    assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}",);
 }
