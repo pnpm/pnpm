@@ -1,10 +1,12 @@
 use super::{
-    Command, Config, CreateProjectsGraphOptions, GetChangedProjectsOptions, GraphPkg, HashMap,
-    HashSet, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Project, ProjectGraph,
-    create_projects_graph, get_changed_projects,
+    Command, Config, GetChangedProjectsOptions, GraphPkg, HashMap, HashSet, LogEvent, LogLevel,
+    Path, PathBuf, PnpmLog, Project, ProjectGraph, get_changed_projects,
 };
 use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
-use pnpm_workspace_projects_graph::BaseProject;
+use miette::{Context, IntoDiagnostic};
+use pnpm_workspace_projects_graph::{
+    BaseProject, CreateProjectsGraphOptions, create_projects_graph,
+};
 
 /// The identity runs are recorded under on the server: the workspace
 /// directory's name plus the same path hash that keys the local pipeline
@@ -26,13 +28,21 @@ pub(super) fn workspace_identity(workspace_root: &Path) -> String {
 pub(super) fn build_full_graph<'a>(
     projects: &'a [Project],
     config: &Config,
+    workspace_root: &Path,
 ) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
     let catalogs = configured_catalogs(config)?;
+    let dependency_rewriter =
+        pnpm_package_manager::overrides_dependency_rewriter(config, &catalogs, workspace_root)
+            .into_diagnostic()
+            .wrap_err("parsing the overrides")?;
     let graph_options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(
             config.link_workspace_packages != pnpm_config::LinkWorkspacePackages::Off,
         ),
         catalogs: workspace_catalogs(config, &catalogs),
+        dependency_rewriter: dependency_rewriter
+            .as_ref()
+            .map(|rewriter| rewriter as &dyn pnpm_workspace_projects_graph::DependencyRewriter),
         ..CreateProjectsGraphOptions::default()
     };
     Ok(create_projects_graph(

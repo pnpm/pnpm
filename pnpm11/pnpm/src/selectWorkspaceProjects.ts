@@ -132,6 +132,9 @@ function createProjectsFilterOptions (config: Config, wsDir: string): Parameters
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
     linkWorkspacePackages: !!config.linkWorkspacePackages,
+    overrides: config.overrides == null
+      ? undefined
+      : { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? wsDir },
     prefix: process.cwd(),
     workspaceDir: wsDir,
     testPattern: config.testPattern,

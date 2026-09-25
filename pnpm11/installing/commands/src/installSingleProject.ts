@@ -393,6 +393,9 @@ async function installLinkedWorkspaceProjects (
     },
   ], {
     catalogs: opts.catalogs,
+    overrides: opts.overrides == null
+      ? undefined
+      : { overrides: opts.overrides, catalogs: opts.catalogs, lockfileDir: opts.lockfileDir ?? workspaceDir },
     workspaceDir,
   })
   await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {
