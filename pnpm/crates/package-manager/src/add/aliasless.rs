@@ -113,6 +113,7 @@ pub(super) async fn resolve_aliasless_tarball(
             auth_headers: Arc::clone(&config.auth_headers),
             retry_opts: crate::retry_config::retry_opts_from_config(config),
             prior_tarball_entries: Arc::new(HashMap::new()),
+            cache_dir: Some(config.cache_dir.clone()),
             store: pnpm_tarball::ArchiveStoreContext {
                 strict_pkg_content_check: false,
                 prefetched_cas_paths: None,

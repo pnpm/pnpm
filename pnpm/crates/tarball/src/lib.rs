@@ -9,7 +9,9 @@ pub(crate) use extract::{
     normalize_bundled_manifest, oversized_manifest_error, stream_extract_gzipped_channel,
     tar_entry_payload,
 };
-pub use fetch_for_resolution::{FetchTarballForResolution, ResolvedTarball};
+pub use fetch_for_resolution::{
+    FetchTarballForResolution, ResolvedTarball, TarballResolutionFetch,
+};
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;
 pub(crate) use prefetch::CachedCasPaths;

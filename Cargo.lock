@@ -6197,6 +6197,7 @@ dependencies = [
  "pretty_assertions",
  "reqwest",
  "serde_json",
+ "sha2",
  "ssri",
  "tokio",
 ]

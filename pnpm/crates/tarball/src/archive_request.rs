@@ -4,6 +4,13 @@ use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogL
 
 /// Authorize and start one archive request. The returned permit must remain
 /// alive until the caller finishes consuming the body.
+pub(crate) struct ArchiveResponseMeta {
+    pub not_modified: bool,
+    pub etag: Option<String>,
+    pub cache_control: Option<String>,
+    pub final_url: String,
+}
+
 pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     http_client: &'client ThrottledClient,
     package_url: &str,
@@ -12,7 +19,8 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     priority: u64,
     attempt: u32,
     revision_addressed: bool,
-) -> Result<(ThrottledClientGuard<'client>, reqwest::Response), TarballError> {
+    if_none_match: Option<&str>,
+) -> Result<(ThrottledClientGuard<'client>, reqwest::Response, ArchiveResponseMeta), TarballError> {
     if !auth_headers.allows_fetch(package_url) {
         return Err(TarballError::OffAllowlist {
             url: pnpm_network::redact_url_credentials(package_url),
@@ -23,7 +31,8 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     } else {
         http_client.acquire_for_url_with_priority(package_url, priority).await
     };
-    let sent = send_archive_request(&client, package_url, package_id, auth_headers).await;
+    let sent =
+        send_archive_request(&client, package_url, package_id, auth_headers, if_none_match).await;
     // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()
@@ -39,15 +48,37 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     }));
     let response =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
-    let response = check_archive_status(response, package_url).await?;
-    Ok((client, response))
+    let not_modified = response.status() == reqwest::StatusCode::NOT_MODIFIED;
+    let meta = ArchiveResponseMeta {
+        not_modified,
+        etag: header_string(&response, reqwest::header::ETAG),
+        cache_control: header_string(&response, reqwest::header::CACHE_CONTROL),
+        final_url: response.url().to_string(),
+    };
+    let response = check_archive_status(response, package_url, if_none_match.is_some()).await?;
+    Ok((client, response, meta))
+}
+
+fn header_string(
+    response: &reqwest::Response,
+    name: reqwest::header::HeaderName,
+) -> Option<String> {
+    response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
 }
 
 async fn check_archive_status(
     response: reqwest::Response,
     package_url: &str,
+    conditional: bool,
 ) -> Result<reqwest::Response, TarballError> {
     let status = response.status();
+    if conditional && status == reqwest::StatusCode::NOT_MODIFIED {
+        return Ok(response);
+    }
     if !status.is_success() {
         // Fully draining a small error body lets the connection be reused.
         const DRAIN_CAP: u64 = 64 * 1024;
@@ -70,10 +101,12 @@ async fn send_archive_request(
     package_url: &str,
     package_id: &str,
     auth_headers: &AuthHeaders,
+    if_none_match: Option<&str>,
 ) -> Result<reqwest::Response, reqwest::Error> {
     let mut attempt = 0;
     loop {
-        let request = build_archive_request(client, package_url, package_id, auth_headers);
+        let request =
+            build_archive_request(client, package_url, package_id, auth_headers, if_none_match);
         let error = match request.send().await {
             Ok(response) => return Ok(response),
             Err(error) => error,
@@ -91,10 +124,14 @@ fn build_archive_request(
     package_url: &str,
     package_id: &str,
     auth_headers: &AuthHeaders,
+    if_none_match: Option<&str>,
 ) -> reqwest::RequestBuilder {
     let mut request = client.get(package_url);
     if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
         request = request.header("authorization", value);
+    }
+    if let Some(etag) = if_none_match.filter(|etag| !etag.is_empty()) {
+        request = request.header(reqwest::header::IF_NONE_MATCH, etag);
     }
     request
 }

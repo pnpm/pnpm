@@ -525,3 +525,67 @@ fn repeat_install_of_a_remote_tarball_reuses_the_lockfile() {
 
     drop((root, mock_instance));
 }
+
+/// A lockfile-less repeat install of an `https:` tarball must not GET the
+/// archive again while `Cache-Control` still says the response is fresh.
+/// The store already has the bytes; the URL → integrity record is what
+/// lets resolution find them without a request.
+#[test]
+fn fresh_remote_tarball_skips_the_network_without_a_lockfile() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}lockfile: false\n")).expect("disable the lockfile");
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
+        .expect(1)
+        .create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(1)
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    head_mock.assert();
+    get_mock.assert();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let head_again = tarball_server
+        .mock("HEAD", tarball_path)
+        .expect(0)
+        .create();
+    let get_again = tarball_server
+        .mock("GET", tarball_path)
+        .expect(0)
+        .create();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    head_again.assert();
+    get_again.assert();
+
+    drop((root, mock_instance, tarball_server));
+}
