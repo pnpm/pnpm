@@ -1518,6 +1518,15 @@ describe('patch and commit in workspaces', () => {
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('./project-2/node_modules/hi/index.js', 'utf8')).toContain('// test patching')
+
+    // re-patch
+    fs.rmSync(patchDir, { recursive: true })
+    const repatchOutput = await patch.handler({
+      ...defaultPatchOption,
+      patchedDependencies: workspaceManifest!.patchedDependencies,
+    }, ['hi'])
+    const repatchDir = getPatchDirFromPatchOutput(repatchOutput)
+    expect(fs.readFileSync(path.join(repatchDir, 'index.js'), 'utf8')).toContain('// test patching')
   })
 })
 

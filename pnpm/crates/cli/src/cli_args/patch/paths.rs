@@ -1,6 +1,7 @@
 use super::{
     Component, PatchError, PatchTarget, Path, PathBuf, fs, io, is_subdir, lexical_normalize,
 };
+use indexmap::IndexMap;
 
 pub(super) fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() { path.to_path_buf() } else { dir.join(path) }
@@ -163,15 +164,9 @@ pub(super) fn apply_existing_patch_file(
     edit_dir: &Path,
 ) -> Result<(), PatchError> {
     let Some(patched_dependencies) = &config.patched_dependencies else { return Ok(()) };
-    let exact_key = format!("{}@{}", target.alias, target.bare_specifier);
-    let patch_file = patched_dependencies
-        .get(&exact_key)
-        .or_else(|| {
-            target.apply_to_all
-                .then(|| patched_dependencies.get(&target.alias))
-                .flatten()
-        });
-    let Some(patch_file) = patch_file else { return Ok(()) };
+    let Some(patch_file) = find_existing_patch_file(patched_dependencies, target) else {
+        return Ok(());
+    };
     let base_dir = config.workspace_dir
         .as_deref()
         .unwrap_or_else(|| config.modules_dir_anchor().unwrap_or_else(|| Path::new(".")));
@@ -185,6 +180,23 @@ pub(super) fn apply_existing_patch_file(
     }
     pnpm_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
         .map_err(PatchError::ApplyExistingPatch)
+}
+
+/// The patch file configured for `target`, if any. `patch-commit` keys the
+/// patch of a git-hosted package by its version, while the target's bare
+/// specifier is the package's tarball URL, so both are tried.
+pub(super) fn find_existing_patch_file<'a>(
+    patched_dependencies: &'a IndexMap<String, String>,
+    target: &PatchTarget,
+) -> Option<&'a String> {
+    [&target.bare_specifier, &target.version]
+        .into_iter()
+        .find_map(|specifier| patched_dependencies.get(&format!("{}@{specifier}", target.alias)))
+        .or_else(|| {
+            target.apply_to_all
+                .then(|| patched_dependencies.get(&target.alias))
+                .flatten()
+        })
 }
 
 struct ExistingPatchFileContext {

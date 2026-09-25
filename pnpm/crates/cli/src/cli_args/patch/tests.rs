@@ -5,7 +5,8 @@ use super::{
 };
 #[cfg(unix)]
 use crate::cli_args::patch::paths::checked_existing_patch_file_path;
-use crate::cli_args::patch::paths::default_edit_dir_name;
+use crate::cli_args::patch::paths::{default_edit_dir_name, find_existing_patch_file};
+use indexmap::IndexMap;
 use std::{io::IsTerminal, path::Path};
 use tempfile::tempdir;
 
@@ -221,6 +222,27 @@ fn default_edit_dir_name_falls_back_to_alias_then_requested_package() {
 
     target.alias.clear();
     assert_eq!(default_edit_dir_name("chalk@npm:chalk@5.3.0", &target), "chalk@npm:chalk@5.3.0");
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/9699>.
+#[test]
+fn existing_patch_file_of_a_git_hosted_package_is_found_by_version() {
+    let tarball = "https://codeload.github.com/example/hi/tar.gz/deadbeef";
+    let target = PatchTarget {
+        alias: "hi".to_string(),
+        version: "1.0.0".to_string(),
+        bare_specifier: tarball.to_string(),
+        apply_to_all: false,
+        git_tarball_url: Some(tarball.to_string()),
+        package_key: format!("hi@{tarball}").parse().expect("package key"),
+    };
+    let patched_dependencies =
+        IndexMap::from([("hi@1.0.0".to_string(), "patches/hi@1.0.0.patch".to_string())]);
+
+    assert_eq!(
+        find_existing_patch_file(&patched_dependencies, &target).map(String::as_str),
+        Some("patches/hi@1.0.0.patch"),
+    );
 }
 
 struct FakePrompt {
