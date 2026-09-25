@@ -44,6 +44,7 @@
 //! wall-clock by the dedup factor and putting the resolve walk
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
+pub use errors::PickPackageError;
 pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
 pub use options::{
     MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, PackagePickPolicy,
@@ -57,6 +58,8 @@ pub use metadata_cache::{
     PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+
+mod errors;
 
 mod options;
 
@@ -77,7 +80,6 @@ mod metadata_cache;
 
 use std::{
     collections::HashSet,
-    fmt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -97,17 +99,15 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError,
-    errors::legacy_mirror_hint,
-    fetch_full_metadata, fetch_full_metadata_cached,
+    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
         save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
-        PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
+        PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
+        dominant_lockfile_version, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
@@ -122,133 +122,6 @@ use crate::{
 pub struct PickPackageResult {
     pub meta: Arc<Package>,
     pub picked_package: Option<Arc<PackageVersion>>,
-}
-
-/// Failure modes for [`pick_package`]. Distinguishes the pure-pick
-/// errors ([`PickPackageError::Pick`]) from the fetch / IO errors so
-/// the install layer can route them through different reporters
-/// (a missing time gets a warning; a network failure gets a retry
-/// prompt).
-#[derive(Debug, Display, Error)]
-#[non_exhaustive]
-pub enum PickPackageError {
-    /// `ERR_PNPM_INVALID_PACKAGE_NAME`: a package name contains a `/`
-    /// but doesn't begin with a `@scope/` prefix.
-    #[display("Package name {pkg_name} is invalid, it should have a @scope")]
-    InvalidPackageName {
-        #[error(not(source))]
-        pkg_name: String,
-    },
-    /// `ERR_PNPM_NO_OFFLINE_META`: offline mode is active and the
-    /// on-disk mirror doesn't have the package.
-    #[display("Failed to resolve {spec_name}@{spec_fetch_spec} in package mirror {pkg_mirror:?}")]
-    NoOfflineMeta {
-        #[error(not(source))]
-        spec_name: String,
-        spec_fetch_spec: String,
-        pkg_mirror: PathBuf,
-        /// Set when the pre-#14081 mirror for the same registry still
-        /// exists on disk, so the message can point at it. See
-        /// `legacy_mirror_hint`.
-        #[error(not(source))]
-        hint: Option<String>,
-    },
-    /// Underlying picker error (no versions, unpublished, missing
-    /// time, etc.). The picker errors are described on
-    /// [`PickPackageFromMetaError`].
-    Pick(PickPackageFromMetaError),
-    /// Underlying metadata-fetch error (network, decode, 304 with
-    /// no cache, etc.). Bubbles up from
-    /// [`fetch_full_metadata_cached()`].
-    Fetch(FetchMetadataError),
-}
-
-/// Hand-rolled because [`PickPackageError::NoOfflineMeta`]'s help is
-/// conditional on its `hint` field, which the derive macro cannot express.
-/// `Pick` and `Fetch` forward every method to their inner error, replicating
-/// what `#[diagnostic(transparent)]` generated before this hand roll.
-impl Diagnostic for PickPackageError {
-    fn code(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        match self {
-            PickPackageError::InvalidPackageName { .. } => {
-                Some(Box::new("ERR_PNPM_INVALID_PACKAGE_NAME"))
-            }
-            PickPackageError::NoOfflineMeta { .. } => Some(Box::new("ERR_PNPM_NO_OFFLINE_META")),
-            PickPackageError::Pick(inner) => inner.code(),
-            PickPackageError::Fetch(inner) => inner.code(),
-        }
-    }
-
-    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        match self {
-            PickPackageError::NoOfflineMeta { hint, .. } => hint
-                .as_ref()
-                .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>),
-            PickPackageError::Pick(inner) => inner.help(),
-            PickPackageError::Fetch(inner) => inner.help(),
-            _ => None,
-        }
-    }
-
-    fn severity(&self) -> Option<miette::Severity> {
-        match self {
-            PickPackageError::Pick(inner) => inner.severity(),
-            PickPackageError::Fetch(inner) => inner.severity(),
-            _ => None,
-        }
-    }
-
-    fn url(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        match self {
-            PickPackageError::Pick(inner) => inner.url(),
-            PickPackageError::Fetch(inner) => inner.url(),
-            _ => None,
-        }
-    }
-
-    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
-        match self {
-            PickPackageError::Pick(inner) => inner.source_code(),
-            PickPackageError::Fetch(inner) => inner.source_code(),
-            _ => None,
-        }
-    }
-
-    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
-        match self {
-            PickPackageError::Pick(inner) => inner.labels(),
-            PickPackageError::Fetch(inner) => inner.labels(),
-            _ => None,
-        }
-    }
-
-    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
-        match self {
-            PickPackageError::Pick(inner) => inner.related(),
-            PickPackageError::Fetch(inner) => inner.related(),
-            _ => None,
-        }
-    }
-
-    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
-        match self {
-            PickPackageError::Pick(inner) => inner.diagnostic_source(),
-            PickPackageError::Fetch(inner) => inner.diagnostic_source(),
-            _ => None,
-        }
-    }
-}
-
-impl From<PickPackageFromMetaError> for PickPackageError {
-    fn from(error: PickPackageFromMetaError) -> Self {
-        PickPackageError::Pick(error)
-    }
-}
-
-impl From<FetchMetadataError> for PickPackageError {
-    fn from(error: FetchMetadataError) -> Self {
-        PickPackageError::Fetch(error)
-    }
 }
 
 /// Resolve `spec` to a [`PackageVersion`] backed by the registry
@@ -333,7 +206,7 @@ struct PickState<'a> {
     full_metadata: bool,
     use_filtered_full_metadata: bool,
     pkg_mirror: Option<PathBuf>,
-    /// The pre-#14081 mirror path for the same registry, checked only when
+    /// The pre-`#14081` mirror path for the same registry, checked only when
     /// [`PickPackageError::NoOfflineMeta`] is about to be raised. See
     /// `legacy_mirror_hint`.
     legacy_pkg_mirror: Option<PathBuf>,
@@ -371,34 +244,16 @@ impl<'a> PickState<'a> {
         // mirror. `Public` for the CLI, leaving the global mirror unchanged.
         let scope = ctx.metadata.http.auth_headers.metadata_scope(&url, Some(&spec.name));
 
-        // The per-registry answer is authoritative when the caller can give
-        // one: it already folds in the reasons that hold for every registry,
-        // so a registry that carries `time` is free to stay on abbreviated
-        // metadata while the others do not.
-        let policy_wants_full_metadata =
-            ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
-                needs_full_metadata(opts.registry)
-            });
-        let full_metadata = opts.request.optional || policy_wants_full_metadata;
-        let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
-        let base_meta_dir = if full_metadata {
-            if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
-        } else {
-            ABBREVIATED_META_DIR
-        };
+        let (full_metadata, use_filtered_full_metadata, base_meta_dir) =
+            Self::metadata_shape(ctx, opts);
 
-        // A `Private` route relocates the mirror under its descriptor
-        // namespace so it can never be read by a caller who doesn't reproduce
-        // the same descriptor; a `Public` route keeps the global mirror.
-        let pkg_mirror = ctx.metadata.cache_dir.and_then(|dir| {
-            let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
-            get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
-        });
-        // Unscoped: a legacy mirror predates per-descriptor private-metadata
-        // scoping, so it can only ever sit under the unscoped directory.
-        let legacy_pkg_mirror = ctx.metadata.cache_dir.and_then(|dir| {
-            get_legacy_pkg_mirror_path(dir, base_meta_dir, opts.registry, &spec.name)
-        });
+        let (pkg_mirror, legacy_pkg_mirror) = Self::mirror_paths(
+            ctx.metadata.cache_dir,
+            &scope,
+            base_meta_dir,
+            opts.registry,
+            &spec.name,
+        );
 
         PickState {
             picker_opts: PickerOpts {
@@ -423,6 +278,51 @@ impl<'a> PickState<'a> {
             legacy_pkg_mirror,
             use_mem_cache: !opts.request.update_checksums,
         }
+    }
+
+    /// Whether this pick wants full metadata, whether that full metadata is
+    /// filtered, and the mirror directory that selection reads/writes. The
+    /// per-registry answer is authoritative when the caller can give one: it
+    /// already folds in the reasons that hold for every registry, so a
+    /// registry that carries `time` is free to stay on abbreviated metadata
+    /// while the others do not.
+    fn metadata_shape<Cache: PackageMetaCache>(
+        ctx: &PickPackageContext<'_, Cache>,
+        opts: &PickPackageOptions<'_>,
+    ) -> (bool, bool, &'static str) {
+        let policy_wants_full_metadata =
+            ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
+                needs_full_metadata(opts.registry)
+            });
+        let full_metadata = opts.request.optional || policy_wants_full_metadata;
+        let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
+        let base_meta_dir = if full_metadata {
+            if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+        } else {
+            ABBREVIATED_META_DIR
+        };
+        (full_metadata, use_filtered_full_metadata, base_meta_dir)
+    }
+
+    /// The current mirror path (scoped to a private route when applicable)
+    /// and its pre-`#14081` counterpart. The `Private` route relocates the
+    /// current mirror under its descriptor namespace so it can never be read
+    /// by a caller who doesn't reproduce the same descriptor; the legacy
+    /// path stays unscoped, since it predates that scoping and can only
+    /// ever sit under the unscoped directory. `cache_dir: None` yields
+    /// `(None, None)`.
+    fn mirror_paths(
+        cache_dir: Option<&Path>,
+        scope: &MetadataCacheScope,
+        base_meta_dir: &str,
+        registry: &str,
+        pkg_name: &str,
+    ) -> (Option<PathBuf>, Option<PathBuf>) {
+        let Some(dir) = cache_dir else { return (None, None) };
+        let meta_dir = scoped_meta_dir(scope, base_meta_dir);
+        let pkg_mirror = get_pkg_mirror_path(dir, &meta_dir, registry, pkg_name).ok();
+        let legacy_pkg_mirror = get_legacy_pkg_mirror_path(dir, base_meta_dir, registry, pkg_name);
+        (pkg_mirror, legacy_pkg_mirror)
     }
 
     async fn cached_pick<Cache: PackageMetaCache>(

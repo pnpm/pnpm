@@ -105,7 +105,7 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     Ok(key)
 }
 
-/// The pre-#14081 registry key: `<host>[+<port>]`, with no scheme, path
+/// The pre-`#14081` registry key: `<host>[+<port>]`, with no scheme, path
 /// segments, or hash suffix — the shape metadata mirrors used before they
 /// were keyed on the full registry URL (`node-registry-fetch`'s
 /// `encode-registry`, ported verbatim: the URL's host, and its port only

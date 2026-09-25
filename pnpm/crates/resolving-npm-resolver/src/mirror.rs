@@ -190,7 +190,7 @@ pub fn get_pkg_mirror_path(
         .join(format!("{encoded_name}.jsonl")))
 }
 
-/// The pre-#14081 counterpart of [`get_pkg_mirror_path`], for detecting a
+/// The pre-`#14081` counterpart of [`get_pkg_mirror_path`], for detecting a
 /// mirror written by a pnpm older than 11.27 / 12.4. `None` when the
 /// registry doesn't parse or has no host, matching [`get_pkg_mirror_path`]'s
 /// own failure case.

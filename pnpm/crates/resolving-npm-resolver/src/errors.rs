@@ -28,7 +28,7 @@ pub enum FetchMetadataError {
         pkg_name: String,
         #[error(not(source))]
         pkg_mirror: std::path::PathBuf,
-        /// Set when the pre-#14081 mirror for the same registry still
+        /// Set when the pre-`#14081` mirror for the same registry still
         /// exists on disk, so the message can point at it. See
         /// `legacy_mirror_hint`.
         #[error(not(source))]
@@ -140,7 +140,7 @@ impl Diagnostic for FetchMetadataError {
 }
 
 /// Explanatory help for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror`
-/// exists: the package's metadata is on disk, just under the pre-#14081
+/// exists: the package's metadata is on disk, just under the pre-`#14081`
 /// mirror path this pnpm version no longer reads.
 #[must_use]
 pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
@@ -148,7 +148,7 @@ pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
         "The cache layout for registry metadata changed in pnpm 11.27 and 12.4. {} holds a mirror \
          from an older pnpm version, which this offline install cannot read. Run one online install \
          to repopulate the cache under the new layout, then retry offline.",
-        legacy_mirror.display()
+        legacy_mirror.display(),
     )
 }
 

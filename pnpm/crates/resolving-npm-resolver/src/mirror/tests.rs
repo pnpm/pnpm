@@ -158,7 +158,7 @@ fn get_registry_name_cannot_collide_with_an_earlier_pnpm_version() {
 }
 
 /// [`get_legacy_registry_name`] reproduces `encode-registry`, the package
-/// mirror keys were built from before #14081: the URL's host, with `:`
+/// mirror keys were built from before `#14081`: the URL's host, with `:`
 /// replaced by `+` for a non-default port, and no scheme, path, or hash
 /// suffix at all.
 #[test]
@@ -211,7 +211,7 @@ fn get_legacy_pkg_mirror_path_sits_next_to_the_current_mirror() {
             .path()
             .join(ABBREVIATED_META_DIR)
             .join("registry.npmjs.org")
-            .join("acme.jsonl")
+            .join("acme.jsonl"),
     );
 }
 

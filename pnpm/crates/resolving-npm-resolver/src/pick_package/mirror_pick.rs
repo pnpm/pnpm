@@ -1,9 +1,10 @@
 use super::{
     Arc, Package, PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
     PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec, RegistryPackageSpecType,
-    TrustPolicy, dominant_lockfile_version, get_file_mtime, legacy_mirror_hint, load_meta_async,
-    pick_from_meta, pick_from_meta_fast, pick_stable_cached_range_version,
+    TrustPolicy, dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
+    pick_from_meta_fast, pick_stable_cached_range_version,
 };
+use crate::errors::legacy_mirror_hint;
 
 impl PickState<'_> {
     /// The picks a read-only mirror can answer without taking the fetch
