@@ -12,7 +12,6 @@ import AdmZip from 'adm-zip'
 import { isSubdir } from 'is-subdir'
 import { renameOverwrite } from 'rename-overwrite'
 import ssri from 'ssri'
-import { temporaryDirectory } from 'tempy'
 
 export interface CreateBinaryFetcherOptions {
   fetch: FetchFromRegistry
@@ -146,6 +145,8 @@ export async function downloadAndUnpackZip (
   assetInfo: AssetInfo,
   targetDir: string
 ): Promise<void> {
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const tmp = path.join(temporaryDirectory(), 'pnpm.zip')
 
   try {
