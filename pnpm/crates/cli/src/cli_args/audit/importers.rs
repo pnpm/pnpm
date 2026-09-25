@@ -8,22 +8,31 @@ use crate::cli_args::recursive::{
     no_projects_matched_message, notice_workspace_dir, selected_workspace_importer_ids,
     selectors_narrow_the_run,
 };
-use std::borrow::Cow;
+use pnpm_workspace::importer_id_from_root_dir;
+use std::{borrow::Cow, collections::HashSet};
 
 /// The lockfile narrowed to the importers of the projects that `--filter`,
-/// `--filter-prod`, or `--workspace-root` selected, or the whole lockfile
-/// when no selector narrows the run. `None` when the selectors matched no
-/// project, after printing pnpm's notice for it. A selected project without
-/// an importer entry is an error: auditing the rest would report it clean.
+/// `--filter-prod`, or `--workspace-root` selected. Without a selector, a
+/// non-recursive run from a workspace project is narrowed to that project's
+/// importer, and any other run keeps the whole lockfile. `None` when the
+/// selectors matched no project, after printing pnpm's notice for it. A
+/// selected project without an importer entry is an error: auditing the
+/// rest would report it clean.
 pub(super) fn select_audited_importers<'lockfile>(
     state: &State,
     lockfile: &'lockfile Lockfile,
 ) -> miette::Result<Option<Cow<'lockfile, Lockfile>>> {
-    if !selectors_narrow_the_run(state.config) {
+    let selected = if selectors_narrow_the_run(state.config) {
+        selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?
+    } else if state.config.recursive {
         return Ok(Some(Cow::Borrowed(lockfile)));
-    }
-    let selected =
-        selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
+    } else {
+        let current = importer_id_from_root_dir(state.lockfile_dir(), state.project_dir());
+        if current == "." {
+            return Ok(Some(Cow::Borrowed(lockfile)));
+        }
+        HashSet::from([current])
+    };
     if selected.is_empty() {
         let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
         println!("{}", no_projects_matched_message(workspace_dir));

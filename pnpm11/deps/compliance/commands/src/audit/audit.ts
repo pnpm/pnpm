@@ -5,7 +5,7 @@ import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { RegistriesByScope } from '@pnpm/types'
@@ -213,7 +213,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
 | 'configByUri'
 | 'virtualStoreDirMaxLength'
 | 'workspaceDir'
-> & Partial<Pick<Config, 'filter' | 'filterProd' | 'workspaceRoot'>> & Pick<ConfigContext,
+> & Partial<Pick<Config, 'filter' | 'filterProd' | 'recursive' | 'workspaceRoot'>> & Pick<ConfigContext,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 > & InstallCommandOptions
@@ -232,7 +232,7 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     }
     throw new PnpmError('AUDIT_UNKNOWN_SUBCOMMAND', `Unknown audit subcommand: ${params[0]}`)
   }
-  const { envLockfile, include, lockfile } = await loadAuditContext(opts)
+  const { coversEveryImporter, envLockfile, include, lockfile } = await loadAuditContext(opts)
   const networkOptions = createAuditNetworkOptions(opts)
   let auditReport!: AuditReport
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri)
@@ -285,7 +285,11 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${fixOption}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
-    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
+    // The ignore list is shared by the whole workspace, so a report that
+    // covers only some of its projects cannot tell which entries are unused.
+    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length && !coversEveryImporter) {
+      globalWarn('Ignored GHSAs were not pruned because the audit covers only some of the workspace projects')
+    } else if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
       const configuredGhsas = opts.auditConfig.ignoreGhsas
       const { pruned, retained } = pruneIgnoredGhsas(configuredGhsas, auditReport)
       if (pruned.length > 0) {

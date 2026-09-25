@@ -744,6 +744,42 @@ fn audit_filter_fails_when_a_selected_project_is_missing_from_the_lockfile() {
     mock.assert();
 }
 
+#[test]
+fn audit_in_a_workspace_project_audits_only_that_project() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}")
+        .match_body(Matcher::Json(serde_json::json!({ "minimist": ["1.2.0"] })))
+        .create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+
+    let output = pacquet_cmd(&workspace.join("packages/project-b"), ["audit"])
+        .output()
+        .expect("run pacquet audit");
+
+    assert_success(&output);
+    mock.assert();
+}
+
+#[test]
+fn audit_recursive_in_a_workspace_project_audits_the_whole_workspace() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}")
+        .match_body(Matcher::Json(
+            serde_json::json!({ "lodash": ["1.0.0"], "minimist": ["1.2.0"] }),
+        ))
+        .create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+
+    let output = pacquet_cmd(&workspace.join("packages/project-b"), ["-r", "audit"])
+        .output()
+        .expect("run pacquet audit");
+
+    assert_success(&output);
+    mock.assert();
+}
+
 /// Build a fresh single-shot `pacquet` command bound to `workspace`, for
 /// multi-step tests (install, then audit) that can't reuse the one-shot
 /// command from [`CommandTempCwd`].

@@ -6,19 +6,31 @@ use super::{
     fix_override, fix_with_update, format_fix_with_update_output, interactive_select,
     print_command_output, prune_ignored_ghsas, sanitize_inline, satisfies_including_prerelease,
 };
+use pnpm_reporter::emit_global_warning;
+
+/// Printed in place of pruning when the audit covers only some projects.
+const PARTIAL_SCOPE_PRUNE_WARNING: &str =
+    "Ignored GHSAs were not pruned because the audit covers only some of the workspace projects";
 
 /// Drop ignored GHSAs that no longer appear in the report, mirroring
-/// pnpm's `audit.ignorePrune` handling.
-fn prune_ignored_advisories(
+/// pnpm's `audit.ignorePrune` handling. The ignore list is shared by the
+/// whole workspace, so a report that covers only some of its projects
+/// cannot tell which entries are unused and leaves the list alone.
+fn prune_ignored_advisories<Reporter: self::Reporter>(
     config: &Config,
     report: &AuditReport,
-    settings_dir: &std::path::Path,
+    context: &FixContext<'_>,
 ) -> miette::Result<()> {
     if !config.audit_ignore_prune.unwrap_or(false)
         || config.audit_config.ignore_ghsas.is_empty()
     {
         return Ok(());
     }
+    if !context.covers_every_importer {
+        emit_global_warning::<Reporter>(PARTIAL_SCOPE_PRUNE_WARNING);
+        return Ok(());
+    }
+    let settings_dir = context.settings_dir;
     let configured_ghsas = &config.audit_config.ignore_ghsas;
     let prune = prune_ignored_ghsas(configured_ghsas, report);
     report_pruned_ghsas(&prune.pruned);
@@ -121,7 +133,7 @@ impl AuditArgs {
         report: &AuditReport,
         context: &FixContext<'_>,
     ) -> miette::Result<AuditOutcome> {
-        prune_ignored_advisories(state.config, report, context.settings_dir)?;
+        prune_ignored_advisories::<Reporter>(state.config, report, context)?;
         // Pre-filter by audit-level and ignored GHSAs so the interactive
         // prompt and both fix methods see the same advisory set the
         // override path's fixable filter would.

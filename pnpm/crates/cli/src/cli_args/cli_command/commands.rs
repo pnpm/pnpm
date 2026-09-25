@@ -332,8 +332,17 @@ impl CliCommand {
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)
                 | CliCommand::Peers(_)
-                | CliCommand::Ci(_),
+                | CliCommand::Ci(_)
+                | CliCommand::Audit(_),
         )
+    }
+
+    /// Whether a recursive-by-default command stays scoped to the current
+    /// project when run from a workspace project without a selector:
+    /// `list` prints that project's tree and `audit` checks that
+    /// project's dependencies. See [`Self::recursive_by_default`].
+    pub(in super::super) fn scoped_to_current_project(&self) -> bool {
+        matches!(self, CliCommand::List(_) | CliCommand::Ll(_) | CliCommand::Audit(_))
     }
 
     /// Whether this run prints the `Scope:` line naming the workspace

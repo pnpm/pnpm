@@ -7,6 +7,7 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { type LogBase, streamParser } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readYamlFileSync } from 'read-yaml-file'
 
 import { caretRangeForPatched, createMinimumReleaseAgeExcludes, createOverrides } from '../../src/audit/fix.js'
@@ -16,9 +17,11 @@ import * as responses from './utils/responses/index.js'
 const f = fixtures(import.meta.dirname)
 
 const collectedInfos: string[] = []
+const collectedWarns: string[] = []
 
 beforeEach(async () => {
   collectedInfos.length = 0
+  collectedWarns.length = 0
   streamParser.on('data', collectInfos as (msg: LogBase) => void)
   await setupMockAgent()
 })
@@ -29,8 +32,11 @@ afterEach(async () => {
 })
 
 function collectInfos (msg: LogBase & { message?: string }): void {
-  if (msg.level === 'info' && typeof msg.message === 'string') {
+  if (typeof msg.message !== 'string') return
+  if (msg.level === 'info') {
     collectedInfos.push(msg.message)
+  } else if (msg.level === 'warn') {
+    collectedWarns.push(msg.message)
   }
 }
 
@@ -297,6 +303,61 @@ test('audit.ignorePrune removes ignored GHSAs that are no longer in the report',
   expect(rawContent).not.toContain('trailing comment')
 
   expect(collectedInfos).toContain('Removed 1 unused ignored GHSA: GHSA-xxxx-xxxx-xxxx')
+})
+
+test('audit.ignorePrune keeps every ignored GHSA when the audit covers only the current project', async () => {
+  const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\nauditConfig:\n  ignoreGhsas:\n    - GHSA-xxxx-xxxx-xxxx\n')
+
+  // The sub-project's report holds no advisory at all, so pruning against
+  // it would drop an ignore that the root or a sibling still needs.
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, {})
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditConfig: { ignoreGhsas: ['GHSA-xxxx-xxxx-xxxx'] },
+    auditIgnorePrune: true,
+    dir: path.join(workspaceDir, 'packages/a'),
+    lockfileDir: workspaceDir,
+    workspaceDir,
+    rootProjectManifestDir: workspaceDir,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(workspaceDir, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas).toStrictEqual(['GHSA-xxxx-xxxx-xxxx'])
+  expect(collectedWarns).toContain('Ignored GHSAs were not pruned because the audit covers only some of the workspace projects')
+})
+
+test('audit.ignorePrune prunes when a --filter selects every workspace project', async () => {
+  const workspaceDir = f.prepare('workspace-has-vulnerabilities')
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\nauditConfig:\n  ignoreGhsas:\n    - GHSA-xxxx-xxxx-xxxx\n')
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: '*' }])
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, {})
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditConfig: { ignoreGhsas: ['GHSA-xxxx-xxxx-xxxx'] },
+    auditIgnorePrune: true,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    workspaceDir,
+    rootProjectManifestDir: workspaceDir,
+    filter: ['*'],
+    selectedProjectsGraph,
+    fix: true,
+  })
+
+  expect(exitCode).toBe(0)
+  const manifest = readYamlFileSync<{ auditConfig?: { ignoreGhsas?: string[] } }>(path.join(workspaceDir, 'pnpm-workspace.yaml'))
+  expect(manifest.auditConfig?.ignoreGhsas ?? []).toStrictEqual([])
+  expect(collectedWarns).toStrictEqual([])
 })
 
 test('audit.ignorePrune is disabled by default - no pruning', async () => {

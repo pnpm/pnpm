@@ -413,7 +413,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["install", "dedupe", "import", "list", "why", "peers"] {
+    for command in ["install", "dedupe", "import", "list", "why", "peers", "audit"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -432,7 +432,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
 }
 
 #[test]
-fn list_stays_non_recursive_in_workspace_subdirectory() {
+fn list_and_audit_stay_non_recursive_in_workspace_subdirectory() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
         .expect("writes workspace manifest");
@@ -441,7 +441,7 @@ fn list_stays_non_recursive_in_workspace_subdirectory() {
     std::fs::write(pkg_dir.join("package.json"), r#"{"name": "pkg", "version": "1.0.0"}"#)
         .expect("writes package.json");
 
-    for command in ["list", "ll"] {
+    for command in ["list", "ll", "audit"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",

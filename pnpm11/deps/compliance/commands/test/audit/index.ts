@@ -588,7 +588,7 @@ describe('audit in a workspace', () => {
     await teardownMockAgent()
   })
 
-  async function auditedPackageNames (filter: string[]): Promise<string[]> {
+  async function auditedPackageNames (filter: string[], opts?: { projectDir?: string, recursive?: boolean }): Promise<string[]> {
     const workspaceDir = f.prepare('workspace-has-vulnerabilities')
     const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
       workspaceDir,
@@ -603,11 +603,12 @@ describe('audit in a workspace', () => {
       })
     await audit.handler({
       ...AUDIT_REGISTRY_OPTS,
-      dir: workspaceDir,
+      dir: opts?.projectDir ? path.join(workspaceDir, opts.projectDir) : workspaceDir,
       lockfileDir: workspaceDir,
       workspaceDir,
       rootProjectManifestDir: workspaceDir,
       filter,
+      recursive: opts?.recursive,
       selectedProjectsGraph,
     })
     return requestedPackageNames.sort()
@@ -619,6 +620,18 @@ describe('audit in a workspace', () => {
 
   test('audits every project without --filter', async () => {
     expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('audits only the current project when run from a workspace project without --filter', async () => {
+    expect(await auditedPackageNames([], { projectDir: 'packages/a' })).toStrictEqual(['lodash'])
+  })
+
+  test('audits every project when run from a workspace project with --recursive', async () => {
+    expect(await auditedPackageNames([], { projectDir: 'packages/a', recursive: true })).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('audits the projects selected by --filter when run from another workspace project', async () => {
+    expect(await auditedPackageNames(['workspace-audit-b'], { projectDir: 'packages/a' })).toStrictEqual(['minimist'])
   })
 
   test('audit signatures checks only the projects selected by --filter', async () => {

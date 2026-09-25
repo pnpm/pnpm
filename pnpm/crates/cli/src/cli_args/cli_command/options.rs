@@ -159,9 +159,7 @@ impl CliArgs {
             && self.command.recursive_by_default()
             && let Ok(Some(workspace_dir)) = pnpm_workspace::find_workspace_dir(&dir)
         {
-            if matches!(self.command, CliCommand::List(_) | CliCommand::Ll(_))
-                && dir != resolve_real_dir(&workspace_dir)
-            {
+            if self.command.scoped_to_current_project() && dir != resolve_real_dir(&workspace_dir) {
                 return;
             }
             self.workspace.recursive = true;

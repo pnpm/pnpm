@@ -1,7 +1,7 @@
 use super::{
     CommandTempCwd, advisory_entry, advisory_response, assert_failure, assert_success,
     audit_config_ignore_ghsas, audit_mock, fs, pacquet_cmd, set_minimum_release_age, stderr,
-    stdout, write_audit_workspace,
+    stdout, write_audit_workspace, write_two_project_audit_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -331,6 +331,56 @@ fn audit_fix_ignore_prune_removes_unused_ignored_ghsas() {
         manifest.contains("GHSA-test-1111-2222") && !manifest.contains("GHSA-test-9999-9999"),
         "manifest should retain the still-relevant GHSA and drop the unused one:\n{manifest}",
     );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_keeps_every_ignored_ghsa_when_run_from_a_workspace_project() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    // The sub-project's report holds no advisory at all, so pruning against
+    // it would drop an ignore that the root or a sibling still needs.
+    let mock = audit_mock(&mut registry, "{}").create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "fetchRetries: 0\npackages:\n  - packages/*\naudit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-9999-9999\n",
+    )
+    .expect("write workspace manifest");
+
+    let output = pacquet_cmd(&workspace.join("packages/project-b"), ["audit", "--fix"])
+        .output()
+        .expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-9999-9999".to_string()]);
+    assert!(
+        stdout(&output).contains("[WARN] Ignored GHSAs were not pruned"),
+        "stdout should explain why nothing was pruned:\n{}",
+        stdout(&output),
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_ignore_prune_prunes_when_a_filter_selects_every_workspace_project() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(&mut registry, "{}").create();
+    write_two_project_audit_workspace(&workspace, &registry.url());
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "fetchRetries: 0\npackages:\n  - packages/*\naudit:\n  ignorePrune: true\nauditConfig:\n  ignoreGhsas:\n    - GHSA-test-9999-9999\n",
+    )
+    .expect("write workspace manifest");
+
+    let output = pacquet_cmd(&workspace, ["audit", "--fix", "--filter", "*"])
+        .output()
+        .expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    assert!(audit_config_ignore_ghsas(&workspace).is_empty(), "{}", stdout(&output));
+    assert!(!stdout(&output).contains("Ignored GHSAs were not pruned"), "{}", stdout(&output));
     mock.assert();
 }
 

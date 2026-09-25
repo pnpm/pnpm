@@ -267,13 +267,17 @@ export async function main (inputArgv: string[]): Promise<void> {
   const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
   const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
     getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
-  const isListCommand = cmd === 'list' || cmd === 'll'
+  // Commands that report on one project stay scoped to the current directory
+  // when run from a workspace project: `list` prints that project's tree and
+  // `audit` checks that project's dependencies. A selector or an explicit
+  // `--recursive` widens them to the workspace.
+  const scopedToCurrentProject = cmd === 'list' || cmd === 'll' || cmd === 'audit'
   const hasExplicitRecursive = cliOptions['recursive'] === true
 
   if (
     cmd != null && recursiveByDefaultCommands.has(cmd) &&
     typeof workspaceDir === 'string' &&
-    !(isListCommand && isWorkspaceSubdirectory && !hasFilter)
+    !(scopedToCurrentProject && isWorkspaceSubdirectory && !hasFilter)
   ) {
     cliOptions['recursive'] = true
     config.recursive = true

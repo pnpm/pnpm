@@ -58,6 +58,7 @@ use pnpm_resolving_resolver_base::{
 
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     io::Write,
     path::Path,
@@ -127,6 +128,16 @@ struct FixContext<'a> {
     lockfile_dir: &'a std::path::Path,
     settings_dir: &'a std::path::Path,
     publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
+    /// Whether the report covers every importer in the lockfile. A report
+    /// narrowed to some projects cannot decide which workspace-wide ignored
+    /// advisories are still needed.
+    covers_every_importer: bool,
+}
+
+/// An audit report and the scope of the lockfile it was built from.
+struct FetchedReport {
+    report: AuditReport,
+    covers_every_importer: bool,
 }
 
 /// Which `--fix` strategy to apply. Mirrors pnpm's `'override' | 'update'`.
@@ -219,7 +230,7 @@ impl AuditArgs {
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some(mut report) =
+        let Some(FetchedReport { mut report, covers_every_importer }) =
             self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
         else {
             return Ok(AuditOutcome::Clean);
@@ -245,6 +256,7 @@ impl AuditArgs {
                     lockfile_dir: &lockfile_dir,
                     settings_dir: &settings_dir,
                     publish_infos: &publish_infos,
+                    covers_every_importer,
                 },
             )
             .await;
@@ -316,15 +328,23 @@ impl AuditArgs {
         include: Include,
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
-    ) -> miette::Result<Option<AuditReport>> {
+    ) -> miette::Result<Option<FetchedReport>> {
         let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let Some(lockfile) = lockfile else {
+        let Some(full_lockfile) = lockfile else {
             return Err(AuditError::NoLockfile.into());
         };
-        let Some(lockfile) = select_audited_importers(state, lockfile)? else {
+        let Some(lockfile) = select_audited_importers(state, full_lockfile)? else {
             return Ok(None);
+        };
+        // A selector can name every project, so compare the importers rather
+        // than relying on the borrowed-or-owned shape of the selection.
+        let covers_every_importer = match &lockfile {
+            Cow::Borrowed(_) => true,
+            Cow::Owned(narrowed) => full_lockfile.importers
+                .keys()
+                .all(|importer_id| narrowed.importers.contains_key(importer_id)),
         };
         let lockfile = lockfile.as_ref();
         let env_lockfile = EnvLockfile::read(lockfile_dir)
@@ -338,7 +358,7 @@ impl AuditArgs {
         )
         .await
         {
-            Ok(report) => Ok(Some(report)),
+            Ok(report) => Ok(Some(FetchedReport { report, covers_every_importer })),
             Err(err) if self.ignore_registry_errors => {
                 eprintln!("{err}");
                 let _ = std::io::stderr().flush();
