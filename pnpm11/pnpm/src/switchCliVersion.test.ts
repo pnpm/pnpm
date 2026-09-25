@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import path from 'node:path'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
@@ -56,7 +57,26 @@ const installPnpmToStore = jest.fn<(version: string, opts: object) => Promise<{ 
 const isPackageManagerResolved = jest.fn<(envLockfile: EnvLockfile | undefined, pnpmVersion: string, specifier?: string) => boolean>(() => true)
 const readEnvLockfile = jest.fn<(rootDir: string) => Promise<EnvLockfile | null>>(async () => envLockfile)
 const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: object) => Promise<EnvLockfile>>(async () => envLockfile)
-const spawnSync = jest.fn<(command: string, args: string[], options: object) => { status: number }>(() => ({ status: 0 }))
+// The child pnpm the switch runs. It ends on its own with status 0 unless a
+// test takes over `closeChild`, as one that checks signal relaying does.
+class FakeChild extends EventEmitter {
+  kill = jest.fn<(signal?: NodeJS.Signals | number) => boolean>(() => true)
+  pid = 4242
+}
+let onSpawn: ((child: FakeChild) => void) | undefined
+let endChildOnItsOwn = true
+const spawn = jest.fn<(command: string, args: string[], options: object) => FakeChild>(() => {
+  const child = new FakeChild()
+  onSpawn?.(child)
+  if (endChildOnItsOwn) setImmediate(() => child.emit('close', 0, null))
+  return child
+})
+
+// Mocked before @pnpm/engine.pm.commands is first imported, because the spawn
+// of the switched-to pnpm lives there.
+jest.unstable_mockModule('cross-spawn', () => ({
+  default: spawn,
+}))
 
 // Mutable so a test can pretend the running pnpm is itself a broken release.
 const mockPackageManager = { name: 'pnpm', version: '11.0.0' }
@@ -83,9 +103,6 @@ jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
 jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
   createStoreController,
 }))
-jest.unstable_mockModule('cross-spawn', () => ({
-  default: { sync: spawnSync },
-}))
 
 const { switchCliVersion } = await import('./switchCliVersion.js')
 
@@ -100,7 +117,9 @@ beforeEach(() => {
   readEnvLockfile.mockResolvedValue(envLockfile)
   resolvePackageManagerIntegrities.mockClear()
   resolvePackageManagerIntegrities.mockResolvedValue(envLockfile)
-  spawnSync.mockClear()
+  spawn.mockClear()
+  endChildOnItsOwn = true
+  onSpawn = undefined
 })
 
 test('switchCliVersion does not save the project lockfile when lockfile is disabled (#14728)', async () => {
@@ -153,7 +172,7 @@ test('switchCliVersion resolves nothing when the running pnpm satisfies a pin th
   expect(readEnvLockfile).not.toHaveBeenCalled()
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(createStoreController).not.toHaveBeenCalled()
-  expect(spawnSync).not.toHaveBeenCalled()
+  expect(spawn).not.toHaveBeenCalled()
 })
 
 test('switchCliVersion uses trusted package-manager registries instead of project registries', async () => {
@@ -476,7 +495,7 @@ test('switchCliVersion rejects a package-manager lockfile that is still invalid 
   } as unknown as ConfigContext)).rejects.toThrow('integrity-only resolution')
 
   expect(installPnpmToStore).not.toHaveBeenCalled()
-  expect(spawnSync).not.toHaveBeenCalled()
+  expect(spawn).not.toHaveBeenCalled()
 })
 
 test('refuses to switch to a broken release instead of failing inside the installer', async () => {
@@ -531,7 +550,7 @@ test('still switches to a release that is not broken', async () => {
   }
 
   expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
-  expect(spawnSync).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2), {
+  expect(spawn).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2), {
     stdio: 'inherit',
   })
 })
@@ -541,3 +560,36 @@ test('still switches to a release that is not broken', async () => {
 function envLockfileFor (version: string): EnvLockfile {
   return JSON.parse(JSON.stringify(envLockfile).replaceAll('9.3.0', version)) as EnvLockfile
 }
+
+// A signal sent to pnpm while it runs the pnpm it switched to has to reach that
+// pnpm (pnpm/pnpm#9948). The switch used to block on a synchronous spawn, which
+// left the signal undelivered until the child was done.
+test('relays a SIGTERM sent to pnpm to the pnpm it switched to', async () => {
+  endChildOnItsOwn = false
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.13.1', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    const spawned = new Promise<FakeChild>((resolve) => {
+      onSpawn = resolve
+    })
+    const switched = switchCliVersion(config, context)
+    const child = await spawned
+
+    process.emit('SIGTERM')
+
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM')
+    // The switch waits for the child instead of ending with the signal.
+    expect(exit).not.toHaveBeenCalled()
+    child.emit('close', 0, null)
+    await switched
+    expect(exit).toHaveBeenCalledWith(0)
+  } finally {
+    exit.mockRestore()
+  }
+})

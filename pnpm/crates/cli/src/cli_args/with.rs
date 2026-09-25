@@ -117,7 +117,13 @@ where
     cmd.args(args);
     configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
 
-    cmd.status()
+    // The child runs under the interrupt relay, so a signal sent to this pnpm
+    // reaches the pnpm it switched to, and this one waits for it to shut down.
+    let mut child = pnpm_executor::spawn_child(&mut cmd, None)
+        .into_diagnostic()
+        .wrap_err("run the requested pnpm version")?;
+    child
+        .wait()
         .into_diagnostic()
         .wrap_err("run the requested pnpm version")
 }

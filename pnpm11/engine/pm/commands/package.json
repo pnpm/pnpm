@@ -42,6 +42,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
