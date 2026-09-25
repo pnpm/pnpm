@@ -729,6 +729,7 @@ function fetchToStore (
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
           requiresBuild: fetchedPackage.requiresBuild,
           requiresPrepare: fetchedPackage.requiresPrepare,
+          sourceExists: (fetchedPackage as DirectoryFetcherResult).sourceExists,
         },
         bundledManifest: fetchedPackage.manifest,
         integrity,

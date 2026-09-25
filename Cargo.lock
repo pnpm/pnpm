@@ -5784,6 +5784,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-fs",
  "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",

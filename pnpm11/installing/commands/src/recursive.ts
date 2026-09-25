@@ -636,9 +636,18 @@ export async function recursive (
     // own lifecycle scripts run. Here each project was installed and built on
     // its own, so the copies are synced once every project has been built.
     if (!opts.dryRun) {
-      const builtProjectDirs = new Set<string>(installedModulesDirs.keys())
+      // A project that publishes from `publishConfig.directory` is injected
+      // from that directory rather than from its root.
+      const injectedSourceDirs = new Set<string>()
+      for (const rootDir of installedModulesDirs.keys()) {
+        injectedSourceDirs.add(rootDir)
+        const publishConfig = manifestsByPath[rootDir]?.manifest.publishConfig
+        if (publishConfig?.directory != null && publishConfig.linkDirectory !== false) {
+          injectedSourceDirs.add(path.resolve(rootDir, publishConfig.directory))
+        }
+      }
       const syncResults = await Promise.allSettled(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
-        syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: builtProjectDirs })
+        syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: injectedSourceDirs })
       ))
       const syncFailure = syncResults.find((syncResult): syncResult is PromiseRejectedResult => syncResult.status === 'rejected')
       if (syncFailure != null) throw syncFailure.reason

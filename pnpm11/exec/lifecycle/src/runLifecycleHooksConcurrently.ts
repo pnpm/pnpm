@@ -41,6 +41,7 @@ export interface Importer {
   modulesDir: string
   stages?: string[]
   targetDirs?: string[]
+  publishTargetDirs?: string[]
 }
 
 export async function runLifecycleHooksConcurrently (
@@ -75,7 +76,13 @@ export async function runLifecycleHooksConcurrently (
     bail: true,
     concurrency: childConcurrency,
     runNode: async (rootDir): Promise<TaskCompletion> => {
-      const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
+      const { manifest, modulesDir, stages: importerStages, targetDirs, publishTargetDirs } = importersByRootDir.get(rootDir)!
+
+      // A project that publishes from `publishConfig.directory` injects the
+      // built content of that directory, not of the project root.
+      const publishDir = manifest.publishConfig?.directory != null && manifest.publishConfig?.linkDirectory !== false
+        ? path.resolve(rootDir, manifest.publishConfig.directory)
+        : undefined
       try {
         const binsDir = path.join(modulesDir, '.bin')
         if (!skipBinLinking) {
@@ -109,7 +116,16 @@ export async function runLifecycleHooksConcurrently (
             isBuilt = true
           }
         }
-        if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return 'passed'
+        // A `file:` dependency on this project bypasses the `workspace:`
+        // protocol's publish-directory redirect, so its injected copy is
+        // built from the project root even when other copies are built
+        // from the publish directory. Each group is refreshed from its own
+        // source rather than one response applied to every copy.
+        const targetGroups = [
+          { sourceDir: rootDir, targetDirs: targetDirs ?? [] },
+          { sourceDir: publishDir, targetDirs: publishTargetDirs ?? [] },
+        ].filter((group): group is { sourceDir: string, targetDirs: string[] } => group.sourceDir != null && group.targetDirs.length > 0)
+        if (targetGroups.length === 0 || !isBuilt) return 'passed'
         // Re-import only the freshly-built source — fetchFromDir already
         // excludes the source's node_modules/. `keepModulesDir: true` makes
         // importIndexedDir skip the destructive makeEmptyDir fast path
@@ -119,18 +135,22 @@ export async function runLifecycleHooksConcurrently (
         // workaround (#4299) that the fast path then wiped, causing ENOENT
         // on .bin/<tool>. Stays on storeController.importPackage so source
         // files keep their hardlinks (no copy-loop).
-        const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
-          targetDirs.map(async (targetDir) =>
-            opts.storeController.importPackage(targetDir, {
-              filesResponse: {
-                resolvedFrom: 'local-dir',
-                ...filesResponse,
-              },
-              force: false,
-              keepModulesDir: true,
-            })
-          )
+          targetGroups.map(async ({ sourceDir, targetDirs: groupTargetDirs }) => {
+            const filesResponse = await fetchFromDir(sourceDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
+            await Promise.all(
+              groupTargetDirs.map(async (targetDir) =>
+                opts.storeController.importPackage(targetDir, {
+                  filesResponse: {
+                    resolvedFrom: 'local-dir',
+                    ...filesResponse,
+                  },
+                  force: false,
+                  keepModulesDir: true,
+                })
+              )
+            )
+          })
         )
         return 'passed'
       } catch (error: unknown) {

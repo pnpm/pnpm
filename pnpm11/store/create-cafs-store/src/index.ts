@@ -45,6 +45,7 @@ export function createPackageImporterAsync (
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
       safeToSkip: opts.safeToSkip,
+      sourceExists: opts.filesResponse.sourceExists,
     })
     return { importMethod, isBuilt }
   }
@@ -78,6 +79,7 @@ function createPackageImporter (
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
       safeToSkip: opts.safeToSkip,
+      sourceExists: opts.filesResponse.sourceExists,
     })
     return { importMethod, isBuilt }
   }

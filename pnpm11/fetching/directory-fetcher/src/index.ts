@@ -8,7 +8,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -23,12 +23,34 @@ export function createDirectoryFetcher (
   const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
-  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
+  const directoryFetcher: DirectoryFetcher = async (cafs, resolution, opts) => {
     // Use path.resolve so absolute directories (e.g. cross-drive Windows paths
     // stored by `file:` deps) are respected instead of being concatenated
     // onto lockfileDir.
     const dir = path.resolve(opts.lockfileDir, resolution.directory)
-    return fetchFromDir(dir)
+    // An injected dependency whose packed content is the output of its own
+    // lifecycle scripts (a project with `publishConfig.directory` built by
+    // `prepare`) has no source directory on a fresh install: the scripts run
+    // after linking, and the built output is imported afterwards. Inject an
+    // empty copy so the install can proceed instead of failing on the
+    // not-yet-built directory. Any other missing directory still fails.
+    if (!await dirExists(dir)) {
+      const manifest = await safeReadParentPublishManifest(dir) as DependencyManifest | null
+      if (manifest != null) {
+        return {
+          local: true,
+          filesMap: new Map(),
+          packageImportMethod: 'hardlink',
+          manifest,
+          requiresBuild: false,
+          sourceExists: false,
+        }
+      }
+    }
+    return {
+      ...await fetchFromDir(dir),
+      sourceExists: true,
+    }
   }
 
   return {
@@ -37,6 +59,16 @@ export function createDirectoryFetcher (
 }
 
 export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
+
+async function dirExists (dir: string): Promise<boolean> {
+  try {
+    await fs.stat(dir)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
 
 export interface FetchResult {
   local: true

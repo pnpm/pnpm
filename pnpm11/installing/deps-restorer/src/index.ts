@@ -856,7 +856,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     warn: (message) => logger.info({ message, prefix: path.dirname(path.dirname(binsDir)) }),
   })))
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath)
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, injectionTargetsByDepPath, opts.lockfileDir)
 
   if (opts.enableModulesDir !== false) {
     if (!skipPostImportLinking) {
