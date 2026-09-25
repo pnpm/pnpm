@@ -106,11 +106,7 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// A dependency reachable from an importer resolves to no
-    /// `snapshots:` entry, so the install would create a symlink into a
-    /// virtual-store slot that is never materialized. Surfaces
-    /// `ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY`, the same code the
-    /// TypeScript CLI raises while linking.
+    /// Dependency reachable from an importer that is missing from lockfile snapshots.
     #[display("Broken lockfile: no entry for '{dep_path}' in pnpm-lock.yaml")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY), help("{MISSING_DEPENDENCY_HINT}"))]
     MissingDependency {
@@ -146,8 +142,7 @@ impl VerifyError {
         VerifyError::InvalidDependencyAlias { count, breakdown }
     }
 
-    /// Build the [`VerifyError::MissingDependency`] variant for an
-    /// importer dependency with no `snapshots:` entry.
+    /// Constructs [`VerifyError::MissingDependency`].
     #[must_use]
     pub fn missing_dependency(dep_path: &str) -> Self {
         VerifyError::MissingDependency { dep_path: dep_path.to_string() }

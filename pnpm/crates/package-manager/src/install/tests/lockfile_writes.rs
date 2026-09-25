@@ -246,21 +246,16 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
 
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    // Manifest must match the fixture lockfile below — the freshness
+    // Manifest must match the fixture lockfile below. The freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("sibling", "link:./sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
-    // The `link:` target must exist so the direct-dependency link pass can
-    // read its manifest.
     let sibling_dir = dirs.path().join("sibling");
     std::fs::create_dir_all(&sibling_dir).unwrap();
-    std::fs::write(
-        sibling_dir.join("package.json"),
-        r#"{ "name": "sibling", "version": "1.0.0" }"#,
-    )
-    .unwrap();
+    std::fs::write(sibling_dir.join("package.json"), r#"{"name":"sibling","version":"1.0.0"}"#)
+        .unwrap();
 
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();

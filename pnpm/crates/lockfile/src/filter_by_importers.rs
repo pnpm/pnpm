@@ -116,14 +116,8 @@ impl Lockfile {
         Ok(filtered)
     }
 
-    /// Verify that every dependency reference reachable from an importer
-    /// resolves to an entry in the `snapshots:` map.
-    ///
-    /// Runs the same walk as [`Self::filter_by_importers`] with
-    /// `fail_on_missing_dependencies` set and nothing skipped or excluded,
-    /// and returns the first key with no snapshot. A lockfile that fails
-    /// this check would otherwise install a direct-dependency symlink into
-    /// a virtual-store slot that is never materialized.
+    /// Verifies that every dependency reference reachable from an importer
+    /// resolves to an entry in `snapshots`. Returns the first missing key.
     pub fn verify_importer_snapshot_links(&self) -> Result<(), LockfileMissingDependencyError> {
         let options = FilterByImportersOptions {
             include: IncludedDependencies::default(),
