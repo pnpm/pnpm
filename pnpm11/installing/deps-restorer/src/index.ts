@@ -861,9 +861,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       if (!opts.ignorePackageManifest) {
         await Promise.all(selectedProjects.map(async (project) => {
           const projectModulesDir = await getProjectNodePath(project, opts)
+          const protectedBins = new Set<string>()
           if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
             await linkBinsOfImporter(project, {
               extraNodePaths: opts.extraNodePaths,
+              linkedCommandNames: protectedBins,
               preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
               projectModulesDir,
             })
@@ -895,10 +897,36 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
               project.binsDir,
               {
                 extraNodePaths: opts.extraNodePaths,
+                linkedCommandNames: protectedBins,
                 preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
                 projectModulesDir,
               }
             )
+          }
+          if (opts.autoInstallPeers !== false && opts.nodeLinker !== 'hoisted') {
+            const peerPkgDirs = autoInstalledPeerBinDirs(
+              directDependenciesByImporterId[project.id],
+              project.id,
+              filteredLockfile
+            )
+            if (peerPkgDirs.length > 0) {
+              await linkBinsOfPackages(
+                (
+                  await Promise.all(peerPkgDirs.map(async (dir) => ({
+                    location: dir,
+                    manifest: await safeReadPublishManifest(dir),
+                  })))
+                )
+                  .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
+                project.binsDir,
+                {
+                  excludeBins: protectedBins,
+                  extraNodePaths: opts.extraNodePaths,
+                  preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+                  projectModulesDir,
+                }
+              )
+            }
           }
         }))
       }
@@ -1210,6 +1238,30 @@ async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependen
 }
 
 const WINDOWS_BIN_EXTENSIONS = new Set(['.cmd', '.ps1', '.exe'])
+
+function autoInstalledPeerBinDirs (
+  directPkgDirs: Record<string, string>,
+  importerId: ProjectId,
+  lockfile: LockfileObject
+): string[] {
+  const peerDirs = new Set<string>()
+  const importer = lockfile.importers[importerId]
+  const directRefs = { ...importer.dependencies, ...importer.devDependencies, ...importer.optionalDependencies }
+  for (const [alias, dir] of Object.entries(directPkgDirs)) {
+    const ref = directRefs[alias]
+    const depPath = ref ? dp.refToRelative(ref, alias) : null
+    if (depPath == null) continue
+    const metadata = lockfile.packages?.[depPath]
+    const parent = path.dirname(dir)
+    const modulesDir = path.basename(parent).startsWith('@') ? path.dirname(parent) : parent
+    for (const peerName of Object.keys(metadata?.peerDependencies ?? {})) {
+      if (metadata?.peerDependenciesMeta?.[peerName]?.optional) continue
+      if (metadata?.dependencies?.[peerName] == null && metadata?.optionalDependencies?.[peerName] == null) continue
+      peerDirs.add(safeJoinModulesDir(modulesDir, peerName))
+    }
+  }
+  return Array.from(peerDirs).sort()
+}
 
 /**
  * The commands already linked into `binsDir`, so that a workspace project's

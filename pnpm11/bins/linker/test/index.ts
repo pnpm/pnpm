@@ -519,6 +519,7 @@ test('linkBins() does not link own bins', async () => {
 test('linkBinsOfPackages()', async () => {
   const binTarget = temporaryDirectory()
   const simpleFixture = f.prepare('simple-fixture')
+  const linkedCommandNames = new Set<string>()
 
   await linkBinsOfPackages(
     [
@@ -527,9 +528,11 @@ test('linkBinsOfPackages()', async () => {
         manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
       },
     ],
-    binTarget
+    binTarget,
+    { linkedCommandNames }
   )
 
+  expect([...linkedCommandNames]).toEqual(['simple'])
   expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)

@@ -164,6 +164,7 @@ async function _linkBins (
 
   // deduplicate bin names to prevent race conditions (multiple writers for the same file)
   allCmds = deduplicateCommands(allCmds, binsDir)
+  for (const cmd of allCmds) opts.linkedCommandNames?.add(cmd.name)
 
   await fs.mkdir(binsDir, { recursive: true })
 
@@ -319,6 +320,8 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 }
 
 export interface LinkBinOptions {
+  /** The command names selected by this bin-link pass. */
+  linkedCommandNames?: Set<string>
   /**
    * `NODE_PATH` entries after the bin's own dependency directories. An empty
    * list means none. When omitted, an existing shim keeps its `NODE_PATH`.
@@ -367,6 +370,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
+        (!IS_WINDOWS || existsSync(`${externalBinPath}.cmd`)) &&
         (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
         (
           (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
