@@ -2,8 +2,8 @@ use super::{
     DepType, HashMap, HashSet, ImporterComponents, IncludeFilter, Lockfile, PackageKey, Path,
     PathBuf, PeerSatisfactionEdges, SbomComponentType, SbomResult, SnapshotEntry, State,
     TransitiveEdges, WalkStores, build_purl, component_walk_context, confined_importer_dir,
-    extract_author, extract_bugs_url, extract_repository, required_sbom_lockfile,
-    safe_read_project_manifest_from_dir, walk_importer_components,
+    extract_author, extract_bugs_url, extract_description, extract_license, extract_repository,
+    required_sbom_lockfile, safe_read_project_manifest_from_dir, walk_importer_components,
 };
 
 /// Every package's dependency type. A peer-satisfaction edge does not pass
@@ -94,7 +94,8 @@ pub(super) fn collect_components(
     let lockfile = required_sbom_lockfile(state)?;
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
-    let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
+    let (manifest, root_manifest) = read_sbom_manifests(state, &lockfile_dir, filter_importer_ids);
+    let root = RootMetadata::from_manifests(&manifest, root_manifest.as_ref());
     let peer_edges = PeerSatisfactionEdges::of_lockfile(lockfile, state.config.peer_edge_options());
     let dep_types = detect_dep_types(lockfile, TransitiveEdges::classifying(include, &peer_edges));
 
@@ -145,7 +146,10 @@ struct RootMetadata {
 }
 
 impl RootMetadata {
-    pub(super) fn of(manifest: &serde_json::Value) -> Self {
+    pub(super) fn from_manifests(
+        manifest: &serde_json::Value,
+        root_manifest: Option<&serde_json::Value>,
+    ) -> Self {
         let name = manifest
             .get("name")
             .and_then(|v| v.as_str())
@@ -156,23 +160,40 @@ impl RootMetadata {
             .and_then(|v| v.as_str())
             .unwrap_or("0.0.0")
             .to_string();
+
+        let resolve = |field_keys: &[&str], extract: fn(&serde_json::Value) -> Option<String>| {
+            resolve_root_field(manifest, root_manifest, field_keys, extract)
+        };
+
         RootMetadata {
             purl: build_purl(&name, &version),
-            license: manifest
-                .get("license")
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string),
-            description: manifest
-                .get("description")
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string),
-            author: extract_author(manifest),
-            repository: extract_repository(manifest),
-            bugs_url: extract_bugs_url(manifest),
+            license: resolve(&["license", "licenses"], extract_license),
+            description: resolve(&["description"], extract_description),
+            author: resolve(&["author"], extract_author),
+            repository: resolve(&["repository"], extract_repository),
+            bugs_url: resolve(&["bugs"], extract_bugs_url),
             name,
             version,
         }
     }
+}
+
+/// The root component's value for one manifest field, read from the workspace
+/// root manifest only when the filtered project declares none of `field_keys`.
+///
+/// A field the project declares stays the project's own even when the value
+/// resolves to nothing: blank, `null`, or a form no SBOM may publish. The
+/// workspace root's author, license, or repository would name the wrong party.
+fn resolve_root_field(
+    manifest: &serde_json::Value,
+    root_manifest: Option<&serde_json::Value>,
+    field_keys: &[&str],
+    extract: fn(&serde_json::Value) -> Option<String>,
+) -> Option<String> {
+    let declared = field_keys
+        .iter()
+        .any(|key| manifest.get(key).is_some());
+    if declared { extract(manifest) } else { root_manifest.and_then(extract) }
 }
 
 fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]>) -> Vec<String> {
@@ -183,18 +204,20 @@ fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]
         .collect()
 }
 
-/// The manifest the SBOM's root component describes: the single filtered
-/// importer's, or the lockfile directory's.
+/// The manifest the SBOM's root component describes, and the workspace root
+/// manifest it inherits absent fields from. Only a `--filter` that narrows the
+/// run to one importer below the lockfile directory has the second: otherwise
+/// the root component already describes the lockfile directory's own manifest.
 ///
 /// An importer id is a raw lockfile key, so it is confined to the
 /// workspace before it turns into an on-disk path: neither a crafted
 /// `../foo` / absolute key nor a symlinked importer dir may read a
 /// project manifest outside the workspace.
-fn read_root_manifest(
+fn read_sbom_manifests(
     state: &State,
     lockfile_dir: &Path,
     filter_importer_ids: Option<&[&str]>,
-) -> serde_json::Value {
+) -> (serde_json::Value, Option<serde_json::Value>) {
     let fallback = |importer_id: &str| {
         if state.active_importer_id() == importer_id {
             state.manifest.value().clone()
@@ -202,15 +225,21 @@ fn read_root_manifest(
             serde_json::json!({})
         }
     };
-    let Some(&[single_id]) = filter_importer_ids else {
-        return safe_read_project_manifest_from_dir(lockfile_dir)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| fallback("."));
+    let root_manifest = safe_read_project_manifest_from_dir(lockfile_dir)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| fallback("."));
+
+    let single_id = match filter_importer_ids {
+        Some(&[single_id]) if single_id != "." => single_id,
+        _ => return (root_manifest, None),
     };
-    confined_importer_dir(lockfile_dir, single_id)
+
+    let project_manifest = confined_importer_dir(lockfile_dir, single_id)
         .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
-        .unwrap_or_else(|| fallback(single_id))
+        .unwrap_or_else(|| fallback(single_id));
+
+    (project_manifest, Some(root_manifest))
 }
 
 fn assemble_sbom_result(

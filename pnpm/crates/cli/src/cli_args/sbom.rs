@@ -20,8 +20,8 @@ use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
 use indexmap::IndexMap;
 use license::classify_license;
 use metadata::{
-    base64_to_hex, build_purl, extract_bugs_url, extract_repository, generate_uuid_v4,
-    integrity_string, normalize_link_path, peer_names_from_manifest,
+    base64_to_hex, build_purl, extract_bugs_url, extract_description, extract_repository,
+    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
     platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
     sanitize_path_segment, tarball_url_for_component,
 };
@@ -35,7 +35,7 @@ use pnpm_package_is_installable::{
 };
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
 use pnpm_package_manifest::{
-    extract_author, extract_homepage, safe_read_package_json_from_dir,
+    extract_author, extract_homepage, extract_license, safe_read_package_json_from_dir,
     safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
