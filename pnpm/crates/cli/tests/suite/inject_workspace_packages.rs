@@ -823,7 +823,7 @@ fn injected_copy_of_a_file_dependency_gets_the_project_root_not_the_publish_dire
     );
     assert!(
         !workspace_copy.join("dist").exists(),
-        "the workspace: copy should not nest the publish directory"
+        "the workspace: copy should not nest the publish directory",
     );
     // The `file:` dependency's copy is packed from the project root,
     // unaffected by the publish-directory redirect.
@@ -834,7 +834,7 @@ fn injected_copy_of_a_file_dependency_gets_the_project_root_not_the_publish_dire
     );
     assert!(
         !root_copy.join("index.js").exists(),
-        "the file: copy should nest the publish directory instead"
+        "the file: copy should nest the publish directory instead",
     );
 
     drop((root, mock_instance));

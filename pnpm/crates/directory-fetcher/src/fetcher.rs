@@ -90,16 +90,7 @@ impl DirectoryFetcher {
             });
         }
 
-        let symlinks = self.symlinks();
-        let files_map = if self.include_only_package_files {
-            let mut files_map = walker::walk_package_files(&self.directory)?;
-            if !self.allow_path_escape {
-                walker::resolve_paths_in_directory(&self.directory, &mut files_map, symlinks)?;
-            }
-            files_map
-        } else {
-            walker::walk_all_files(&self.directory, symlinks, self.allow_path_escape)?
-        };
+        let files_map = self.walk_files()?;
         let manifest = safe_read_package_json_from_dir(&self.directory)
             .map_err(DirectoryFetcherError::ReadManifest)?;
         // `pkg_requires_build(pkg_root)` checks scripts.preinstall /
@@ -112,6 +103,19 @@ impl DirectoryFetcher {
         // Revisit when a real package surfaces it.
         let requires_build = pkg_requires_build(&self.directory);
         Ok(DirectoryFetchOutput { files_map, manifest, requires_build, exists: true })
+    }
+
+    fn walk_files(&self) -> Result<HashMap<String, PathBuf>, DirectoryFetcherError> {
+        let symlinks = self.symlinks();
+        if self.include_only_package_files {
+            let mut files_map = walker::walk_package_files(&self.directory)?;
+            if !self.allow_path_escape {
+                walker::resolve_paths_in_directory(&self.directory, &mut files_map, symlinks)?;
+            }
+            Ok(files_map)
+        } else {
+            walker::walk_all_files(&self.directory, symlinks, self.allow_path_escape)
+        }
     }
 
     fn symlinks(&self) -> Symlinks {
