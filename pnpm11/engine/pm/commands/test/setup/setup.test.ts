@@ -36,7 +36,7 @@ jest.unstable_mockModule('fs', () => {
 const { addDirToEnvPath } = await import('../../lib/setup/pathExtender.js')
 const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
 const { spawnSync } = await import('node:child_process')
-const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
+const { setup, LEGACY_HOME_DIR_SHIM_NAMES, legacyGlobalAddSpecs } = await import('@pnpm/engine.pm.commands')
 
 const originalGithubActions = process.env.GITHUB_ACTIONS
 const originalGithubEnv = process.env.GITHUB_ENV
@@ -319,6 +319,47 @@ test('global install of the standalone executable skips its build scripts', asyn
   const args = jest.mocked(spawnSync).mock.calls[0][1] as string[]
   expect(args).toContain('--ignore-scripts')
   expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
+})
+
+test('setup reinstalls global packages recorded by the previous layout', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  jest.mocked(spawnSync).mockClear()
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-migrate-'))
+  const home = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(path.join(home, 'global', '5'), { recursive: true })
+  actualFs.writeFileSync(path.join(home, 'global', '5', 'package.json'), JSON.stringify({
+    dependencies: {
+      pnpm: '10.15.0',
+      typescript: '^5.4.0',
+    },
+  }))
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir: home })
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).toHaveBeenCalledTimes(2)
+  const migrateArgs = jest.mocked(spawnSync).mock.calls[1][1] as string[]
+  expect(migrateArgs).toEqual(['add', '-g', 'typescript@^5.4.0'])
+})
+
+test('legacy global migration skips pnpm and packages already installed', () => {
+  expect(legacyGlobalAddSpecs({
+    pnpm: '10.15.0',
+    '@pnpm/exe': '10.15.0',
+    typescript: '^5.4.0',
+    prettier: '3.0.0',
+    empty: '',
+    broken: 1,
+  }, new Set(['prettier']))).toEqual(['typescript@^5.4.0'])
 })
 
 test('the manifest written next to the standalone executable declares its package files', () => {

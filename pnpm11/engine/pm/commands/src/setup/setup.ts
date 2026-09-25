@@ -84,7 +84,6 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   })
 
   try {
-    const binDir = path.join(pnpmHomeDir, 'bin')
     // @pnpm/exe ships a `preinstall`/`prepare` pair (setup.js/prepare.js) that
     // hardlinks the platform-specific binary out of its optional platform
     // packages. None of that applies here: this `file:` dependency is the
@@ -93,19 +92,7 @@ function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
     // have no `node` to run the scripts at all. Skipping them avoids a build
     // approval prompt for pnpm's own install. See
     // https://github.com/pnpm/pnpm/issues/12377.
-    const { status, error } = spawnSync(execPath, ['add', '-g', '--ignore-scripts', `file:${execDir}`], {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        PNPM_HOME: pnpmHomeDir,
-        [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
-      },
-    })
-
-    if (error) throw error
-    if (status !== 0) {
-      throw new Error(`Failed to install pnpm globally (exit code ${status})`)
-    }
+    spawnPnpm(execPath, ['add', '-g', '--ignore-scripts', `file:${execDir}`], pnpmHomeDir, 'Failed to install pnpm globally')
   } finally {
     if (createdPkgJson) {
       fs.unlinkSync(pkgJsonPath)
@@ -245,6 +232,91 @@ exec "\${self%/*}/pnpm"${subcommand} "$@"
   }
 }
 
+/** Previous global layout, before bins moved under `PNPM_HOME/bin`. */
+const LEGACY_GLOBAL_LAYOUT = '5'
+const CURRENT_GLOBAL_LAYOUT = 'v11'
+const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
+
+/**
+ * `pnpm add -g` specs for dependencies recorded by the previous global layout.
+ * pnpm itself is installed by setup separately, and names already present in
+ * the current global directory are left alone.
+ */
+export function legacyGlobalAddSpecs (
+  dependencies: Record<string, unknown> | undefined,
+  alreadyInstalled: ReadonlySet<string>
+): string[] {
+  if (dependencies == null) return []
+  const specs: string[] = []
+  for (const [name, spec] of Object.entries(dependencies)) {
+    if (PNPM_PACKAGE_NAMES.has(name) || alreadyInstalled.has(name)) continue
+    if (typeof spec !== 'string' || spec === '') continue
+    specs.push(`${name}@${spec}`)
+  }
+  return specs.sort()
+}
+
+function installedGlobalAliases (pnpmHomeDir: string): Set<string> {
+  const names = new Set<string>()
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(path.join(pnpmHomeDir, 'global', CURRENT_GLOBAL_LAYOUT))
+  } catch {
+    return names
+  }
+  for (const entry of entries) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(pnpmHomeDir, 'global', CURRENT_GLOBAL_LAYOUT, entry, 'package.json'), 'utf8')) as {
+        dependencies?: Record<string, unknown>
+      }
+      for (const name of Object.keys(manifest.dependencies ?? {})) {
+        names.add(name)
+      }
+    } catch {}
+  }
+  return names
+}
+
+/**
+ * Reinstall packages from `<PNPM_HOME>/global/5` into the current global
+ * directory. Setup already points PATH at `bin/`, so binaries left in the
+ * previous layout are no longer on PATH and do not show up in `pnpm list -g`.
+ */
+function migrateLegacyGlobalPackages (execPath: string, pnpmHomeDir: string): void {
+  const manifestPath = path.join(pnpmHomeDir, 'global', LEGACY_GLOBAL_LAYOUT, 'package.json')
+  if (!fs.existsSync(manifestPath)) return
+  let dependencies: Record<string, unknown> | undefined
+  try {
+    dependencies = (JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { dependencies?: Record<string, unknown> }).dependencies
+  } catch {
+    return
+  }
+  const specs = legacyGlobalAddSpecs(dependencies, installedGlobalAliases(pnpmHomeDir))
+  if (specs.length === 0) return
+  logger.info({
+    message: `Migrating global packages from the previous pnpm layout: ${specs.join(' ')}`,
+    prefix: pnpmHomeDir,
+  })
+  spawnPnpm(execPath, ['add', '-g', ...specs], pnpmHomeDir, 'Failed to migrate global packages')
+}
+
+function spawnPnpm (execPath: string, args: string[], pnpmHomeDir: string, failureMessage: string): void {
+  const isScript = execPath.match(/\.[cm]?js$/) != null
+  const binDir = path.join(pnpmHomeDir, 'bin')
+  const { status, error } = spawnSync(isScript ? process.execPath : execPath, isScript ? [execPath, ...args] : args, {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      PNPM_HOME: pnpmHomeDir,
+      [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
+    },
+  })
+  if (error) throw error
+  if (status !== 0) {
+    throw new Error(`${failureMessage} (exit code ${status})`)
+  }
+}
+
 // v10-layout shim names that v11 writes under pnpmHomeDir/bin instead.
 export const LEGACY_HOME_DIR_SHIM_NAMES = [
   'pnpm', 'pnpm.cmd', 'pnpm.ps1',
@@ -274,6 +346,7 @@ export async function handler (
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
   }
+  migrateLegacyGlobalPackages(execPath, opts.pnpmHomeDir)
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',

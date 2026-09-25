@@ -13,8 +13,9 @@ use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_config::{GLOBAL_LAYOUT_VERSION, Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_fs::write_atomic;
+use pnpm_global::scan_global_packages;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
 
@@ -58,6 +59,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -316,6 +318,94 @@ fn write_windows_alias_wrappers(
         )
         .as_bytes(),
     )
+}
+
+/// Previous global layout, before bins moved under `PNPM_HOME/bin`.
+const LEGACY_GLOBAL_LAYOUT: &str = "5";
+
+/// `pnpm add -g` specs for dependencies recorded by the previous global layout.
+/// pnpm itself is installed by setup separately, and names already present in
+/// the current global directory are left alone.
+pub(crate) fn legacy_global_add_specs(
+    dependencies: &serde_json::Map<String, serde_json::Value>,
+    already_installed: &std::collections::BTreeSet<String>,
+) -> Vec<String> {
+    let mut specs = Vec::new();
+    for (name, spec) in dependencies {
+        if name == "pnpm" || name == "@pnpm/exe" || already_installed.contains(name) {
+            continue;
+        }
+        let Some(spec) = spec
+            .as_str()
+            .filter(|spec| !spec.is_empty())
+        else {
+            continue;
+        };
+        specs.push(format!("{name}@{spec}"));
+    }
+    specs.sort();
+    specs
+}
+
+fn installed_global_aliases(pnpm_home_dir: &Path) -> std::collections::BTreeSet<String> {
+    let global_dir = pnpm_home_dir.join("global").join(GLOBAL_LAYOUT_VERSION);
+    scan_global_packages(&global_dir)
+        .unwrap_or_default()
+        .into_iter()
+        .flat_map(|package| package.aliases())
+        .collect()
+}
+
+/// Reinstall packages from `<PNPM_HOME>/global/5` into the current global
+/// directory. Setup points PATH at `bin/`, so binaries left in the previous
+/// layout are no longer on PATH and do not show up in `pnpm list -g`.
+fn migrate_legacy_global_packages<Reporter: self::Reporter + 'static>(
+    exec_path: &Path,
+    pnpm_home_dir: &Path,
+    prefix_dir: &Path,
+) -> miette::Result<()> {
+    let manifest_path = pnpm_home_dir
+        .join("global")
+        .join(LEGACY_GLOBAL_LAYOUT)
+        .join("package.json");
+    let Ok(bytes) = fs::read(&manifest_path) else {
+        return Ok(());
+    };
+    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return Ok(());
+    };
+    let Some(dependencies) = manifest.get("dependencies").and_then(serde_json::Value::as_object)
+    else {
+        return Ok(());
+    };
+    let specs = legacy_global_add_specs(dependencies, &installed_global_aliases(pnpm_home_dir));
+    if specs.is_empty() {
+        return Ok(());
+    }
+    info::<Reporter>(
+        &prefix_dir.to_string_lossy(),
+        &format!("Migrating global packages from the previous pnpm layout: {}", specs.join(" ")),
+    );
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
+    let status = Command::new(exec_path)
+        .arg("add")
+        .arg("-g")
+        .args(&specs)
+        .env("PNPM_HOME", pnpm_home_dir)
+        .env("PATH", path_value)
+        .status()
+        .into_diagnostic()
+        .wrap_err("run the global package migration")?;
+    if !status.success() {
+        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
+        return Err(miette::miette!("Failed to migrate global packages (exit code {code})"));
+    }
+    Ok(())
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.

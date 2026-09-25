@@ -4,8 +4,8 @@
 
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
-    PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    standalone_manifest,
+    PathExtenderReport, create_alias_scripts, legacy_global_add_specs, remove_legacy_homedir_shims,
+    render_setup_output, standalone_manifest,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -287,4 +287,19 @@ fn remove_legacy_homedir_shims_tolerates_missing_files() {
     // not treat absent files as an error.
     let dir = tempfile::tempdir().expect("create temp dir");
     remove_legacy_homedir_shims(dir.path());
+}
+
+#[test]
+fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
+    let dependencies = serde_json::json!({
+        "pnpm": "10.15.0",
+        "@pnpm/exe": "10.15.0",
+        "typescript": "^5.4.0",
+        "prettier": "3.0.0",
+        "empty": "",
+        "broken": 1,
+    });
+    let dependencies = dependencies.as_object().expect("object");
+    let already_installed = ["prettier".to_string()].into_iter().collect();
+    assert_eq!(legacy_global_add_specs(dependencies, &already_installed), ["typescript@^5.4.0"]);
 }
