@@ -2154,7 +2154,7 @@ test('injectWorkspacePackages injects a workspace dependency declared with a rel
   }))
 
   const lockfile = assertProject(process.cwd()).readLockfile()
-  expect(lockfile.importers['project-2'].dependencies['project-1']).toEqual({
+  expect(lockfile.importers['project-2'].dependencies?.['project-1']).toEqual({
     specifier: 'workspace:../project-1',
     version: 'file:project-1',
   })
