@@ -101,7 +101,11 @@ fn top_level_node_modules_link_is_not_reported_as_build_output() {
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
     assert!(!added.has_symlinks);
-    assert!(!added.files.keys().any(|path| path.starts_with("node_modules/")));
+    assert!(
+        !added.files
+            .keys()
+            .any(|path| path.starts_with("node_modules/")),
+    );
 }
 
 #[test]

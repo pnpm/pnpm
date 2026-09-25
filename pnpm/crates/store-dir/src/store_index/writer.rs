@@ -17,7 +17,6 @@ use super::{
 /// (one writer thread, not one per tarball).
 pub struct StoreIndexWriter {
     tx: tokio::sync::mpsc::UnboundedSender<WriteMsg>,
-    /// A disabled writer cannot acknowledge a persisted invalidation.
     disabled: bool,
     /// One-shot log guard for the "channel closed" case in [`Self::queue`].
     /// A dead writer (task panicked, [`StoreIndex::open`] failed) means
@@ -210,7 +209,7 @@ fn drain_queued(
     }
 }
 
-/// Coalesce ordinary writes by key and flush them in one transaction.
+/// Coalesce the batch by key and write it in one transaction.
 ///
 /// Multiple writes for the same store-index row arriving in the same batch
 /// get applied in order against a single in-memory [`PackageFilesIndex`]
@@ -218,8 +217,6 @@ fn drain_queued(
 /// `SideEffectsUpload`s for the same row commutative: each builds on the
 /// previous one's mutation rather than re-reading the pre-batch state from
 /// `SQLite`.
-/// Invalidation persists its own row before acknowledging success, then removes
-/// it from `pending`; later messages therefore read that committed state.
 fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
     for msg in batch.drain(..) {
@@ -322,9 +319,7 @@ fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_dige
     }
 }
 
-/// Persist invalidation before acknowledging it. A pending row includes earlier
-/// writes and must reach disk even if its map already lacks the requested key.
-/// On failure keep that row pending so ordinary batch writes still get a chance.
+/// Remove `cache_key` from `key`'s side-effects map and persist the updated row.
 fn invalidate_side_effects(
     index: &StoreIndex,
     pending: &mut HashMap<String, PackageFilesIndex>,
@@ -456,8 +451,7 @@ impl StoreIndexWriter {
         self.send_msg(WriteMsg::RemoteSideEffects { key, cache_key, diff });
     }
 
-    /// Wait for this exact cache-key invalidation to persist on the writer
-    /// thread. Unlike optional cache writes, failure must reach the caller.
+    /// Wait for this side-effects invalidation to persist on the writer thread.
     pub(crate) fn queue_side_effects_invalidation(
         &self,
         key: String,

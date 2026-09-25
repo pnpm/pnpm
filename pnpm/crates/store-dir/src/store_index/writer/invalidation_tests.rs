@@ -32,7 +32,15 @@ fn check_read_failure(with_diff: bool) {
 
     let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
     lock.execute_batch("ROLLBACK").unwrap();
-    assert!(index.get(KEY).unwrap().unwrap().side_effects.unwrap().contains_key(CACHE_KEY));
+    assert!(
+        index
+            .get(KEY)
+            .unwrap()
+            .unwrap()
+            .side_effects
+            .unwrap()
+            .contains_key(CACHE_KEY),
+    );
     assert!(matches!(result, Err(UploadError::StoreIndex(StoreIndexError::Read { .. }))));
 }
 
@@ -48,8 +56,7 @@ fn symlink_upload_with_diff_reports_sqlite_flush_failure() {
 
 fn check_flush_failure(with_diff: bool) {
     let (_root, package, store_dir, index) = fixture();
-    index
-        .conn
+    index.conn
         .execute_batch(
             "CREATE TRIGGER fail_write BEFORE INSERT ON package_index
          BEGIN SELECT RAISE(FAIL, 'injected write failure'); END",
@@ -58,7 +65,15 @@ fn check_flush_failure(with_diff: bool) {
     assert!(index.get(KEY).unwrap().is_some());
     let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
     index.conn.execute_batch("DROP TRIGGER fail_write").unwrap();
-    assert!(index.get(KEY).unwrap().unwrap().side_effects.unwrap().contains_key(CACHE_KEY));
+    assert!(
+        index
+            .get(KEY)
+            .unwrap()
+            .unwrap()
+            .side_effects
+            .unwrap()
+            .contains_key(CACHE_KEY),
+    );
     assert!(matches!(result, Err(UploadError::StoreIndex(StoreIndexError::Write { .. }))));
 }
 
@@ -66,7 +81,9 @@ fn check_flush_failure(with_diff: bool) {
 fn symlink_upload_missing_row_is_a_noop() {
     for with_diff in [false, true] {
         let (_root, package, store_dir, index) = fixture();
-        index.conn.execute("DELETE FROM package_index WHERE key = ?", [KEY]).unwrap();
+        index.conn
+            .execute("DELETE FROM package_index WHERE key = ?", [KEY])
+            .unwrap();
         index.conn.execute_batch("PRAGMA query_only=ON").unwrap();
         let writes = index.conn.total_changes();
         let (result, index) = run_upload(index, &store_dir, package.path(), with_diff);
@@ -81,8 +98,15 @@ fn symlink_upload_unchanged_row_needs_no_write() {
     for with_diff in [false, true] {
         let (_root, package, store_dir, index) = fixture();
         let mut row = index.get(KEY).unwrap().unwrap();
-        let diff = row.side_effects.as_mut().unwrap().remove(CACHE_KEY).unwrap();
-        row.side_effects.as_mut().unwrap().insert("other-engine".to_string(), diff);
+        let diff = row.side_effects
+            .as_mut()
+            .unwrap()
+            .remove(CACHE_KEY)
+            .unwrap();
+        row.side_effects
+            .as_mut()
+            .unwrap()
+            .insert("other-engine".to_string(), diff);
         index.set(KEY, &row).unwrap();
         index.conn.execute_batch("PRAGMA query_only=ON").unwrap();
         let writes = index.conn.total_changes();
@@ -124,9 +148,29 @@ fn failed_invalidation_keeps_pending_writes_for_the_batch() {
     assert!(pending[KEY].side_effects.is_none());
     index.conn.execute_batch("PRAGMA query_only=OFF").unwrap();
     index.set_many(pending.drain()).unwrap();
-    assert_eq!(index.get(KEY).unwrap().unwrap().requires_build, Some(true));
-    assert!(index.get(KEY).unwrap().unwrap().side_effects.is_none());
-    assert_eq!(index.get("other-package").unwrap().unwrap(), sample_index());
+    assert_eq!(
+        index
+            .get(KEY)
+            .unwrap()
+            .unwrap()
+            .requires_build,
+        Some(true),
+    );
+    assert!(
+        index
+            .get(KEY)
+            .unwrap()
+            .unwrap()
+            .side_effects
+            .is_none(),
+    );
+    assert_eq!(
+        index
+            .get("other-package")
+            .unwrap()
+            .unwrap(),
+        sample_index(),
+    );
 }
 
 fn apply_invalidation(

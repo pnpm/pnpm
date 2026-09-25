@@ -140,8 +140,12 @@ async fn check_symlinked_output(with_diff: bool, cached_keys: &[&str]) {
         deleted: None,
         remote_origin: None,
     };
-    base_index.side_effects = (!cached_keys.is_empty())
-        .then(|| cached_keys.iter().map(|key| ((*key).to_string(), cached_diff.clone())).collect());
+    base_index.side_effects = (!cached_keys.is_empty()).then(|| {
+        cached_keys
+            .iter()
+            .map(|key| ((*key).to_string(), cached_diff.clone()))
+            .collect()
+    });
     let files_index_file = "symlink-side-effects-pkg";
     let index = StoreIndex::open(store_dir.root()).expect("open store index");
     index.set(files_index_file, &base_index).expect("write base package index");
@@ -174,8 +178,10 @@ async fn check_symlinked_output(with_diff: bool, cached_keys: &[&str]) {
     writer_task.await.expect("join store writer").expect("flush store writer");
 
     let index = StoreIndex::open(store_dir.root()).expect("reopen store index");
-    let files_index =
-        index.get(files_index_file).expect("read package index").expect("package index exists");
+    let files_index = index
+        .get(files_index_file)
+        .expect("read package index")
+        .expect("package index exists");
     assert_eq!(files_index.files, base_index.files);
     assert_eq!(files_index.requires_build, Some(true));
     if cached_keys.contains(&"other-engine") {
@@ -233,8 +239,10 @@ async fn top_level_node_modules_link_does_not_prevent_caching() {
         writer_task.await.expect("join store writer").expect("flush store writer");
 
         let index = StoreIndex::open(store_dir.root()).expect("reopen store index");
-        let files_index =
-            index.get(files_index_file).expect("read package index").expect("package index exists");
+        let files_index = index
+            .get(files_index_file)
+            .expect("read package index")
+            .expect("package index exists");
         let side_effects = files_index.side_effects.expect("side effects cached");
         let diff = &side_effects["test-engine"];
         let added = diff.added.as_ref().expect("built file added");

@@ -20,8 +20,7 @@ use std::{
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
 /// path *relative to `pkg_root`*, with forward-slash separators, so the
 /// resulting `FilesIndex` round-trips through pnpm without
-/// renormalisation. `has_symlinks` records metadata that the file map
-/// cannot represent.
+/// renormalisation.
 #[derive(Debug)]
 pub struct AddedFiles {
     pub files: HashMap<String, CafsFileInfo>,

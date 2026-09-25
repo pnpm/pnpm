@@ -97,7 +97,6 @@ export interface FileWriteResult {
 
 export interface AddToStoreResult {
   filesIndex: FilesIndex
-  // Symlink metadata cannot be represented by FilesIndex.
   hasSymlinks?: boolean
   manifest?: DependencyManifest
 }

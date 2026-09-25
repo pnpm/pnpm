@@ -75,7 +75,6 @@ interface File {
  * Resolves a path and validates it stays within the allowed root directory.
  * If the path is a symlink, resolves it and validates the target.
  * Returns a null stat if the path is missing, points outside the root, or has an inaccessible target.
- * The symlink flag remains true when a link target cannot be read.
  */
 function getStatIfContained (
   absolutePath: string,
