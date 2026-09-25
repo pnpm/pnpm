@@ -197,6 +197,7 @@ where
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
     let files_map = packed_files_map(opts, &source)?;
+    warn_about_unlisted_dotenv_files::<Reporter>(&opts.dir, &source.publish_manifest, &files_map);
     check_packed_bins_for_crlf(&files_map, &source.bins)?;
     let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
         .expect("publish manifest serializes to JSON")
@@ -306,6 +307,9 @@ mod contents;
 use contents::{
     build_files_map, inject_workspace_license, packed_contents_with_injected, unpacked_size,
 };
+
+mod dotenv;
+use dotenv::warn_about_unlisted_dotenv_files;
 
 mod lifecycle;
 use lifecycle::apply_before_packing;

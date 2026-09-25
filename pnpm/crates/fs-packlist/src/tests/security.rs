@@ -4,19 +4,6 @@ use super::{PacklistOptions, fs, json, packlist, packlist_with_options, tempdir,
 use super::write;
 
 #[test]
-fn dotenv_files_are_not_packed() {
-    let dir = tempdir().unwrap();
-    let root = dir.path();
-    touch(root, "package.json");
-    touch(root, ".env");
-    touch(root, "config/.env");
-    touch(root, "config/settings.json");
-
-    let out = packlist(root, &json!({ "name": "x", "version": "1.0.0" })).unwrap();
-    assert_eq!(out, vec!["config/settings.json", "package.json"]);
-}
-
-#[test]
 fn bundle_dependencies_rejects_path_traversal() {
     // Defense-in-depth: a malicious manifest with a `..` in
     // bundleDependencies must not let the fetcher read files outside

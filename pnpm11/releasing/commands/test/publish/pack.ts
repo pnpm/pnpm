@@ -30,33 +30,6 @@ test('pack: package with package.json', async () => {
   expect(fs.existsSync('package.json')).toBeTruthy()
 })
 
-test('pack: excludes dotenv files', async () => {
-  prepare({ name: 'test-publish-dotenv', version: '1.0.0' })
-  fs.writeFileSync('.env', 'SECRET=example')
-  fs.mkdirSync('config')
-  fs.writeFileSync('config/.env', 'SECRET=example')
-  fs.writeFileSync('config/settings.json', '{}')
-
-  await pack.handler({
-    ...DEFAULT_OPTS,
-    argv: { original: [] },
-    dir: process.cwd(),
-    extraBinPaths: [],
-  })
-
-  const names: string[] = []
-  await tar.list({
-    file: 'test-publish-dotenv-1.0.0.tgz',
-    onReadEntry: (entry) => {
-      names.push(entry.path)
-    },
-  })
-  expect(names.sort()).toStrictEqual([
-    'package/config/settings.json',
-    'package/package.json',
-  ])
-})
-
 test('pack: package with package.yaml', async () => {
   prepare({
     name: 'test-publish-package.yaml',
@@ -1813,3 +1786,4 @@ test('pack: preserves internal symlinks in package tarball and excludes external
     fs.rmSync(outsideDir, { recursive: true, force: true })
   }
 })
+
