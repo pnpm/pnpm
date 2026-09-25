@@ -7,6 +7,58 @@ use super::{
     write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
+use std::process::Command;
+
+#[test]
+fn legacy_deploy_includes_nested_linked_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app", "version": "1.0.0", "dependencies": { "lib": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib", "version": "1.0.0", "files": ["index.js"], "dependencies": { "leaf": "link:./leaf" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "lib/leaf",
+        &serde_json::json!({
+            "name": "leaf", "version": "1.0.0",
+        }),
+    );
+    fs::write(workspace.join("packages/lib/leaf/index.js"), "module.exports = 'nested leaf'")
+        .unwrap();
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = require('leaf')").unwrap();
+    fs::write(workspace.join("packages/app/index.js"), "console.log(require('lib'))").unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "deployed"])
+        .assert()
+        .success();
+
+    fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
+    Command::new("node")
+        .current_dir(workspace.join("deployed"))
+        .arg("index.js")
+        .assert()
+        .success()
+        .stdout("nested leaf\n");
+    drop((root, mock_instance));
+}
 
 #[test]
 fn legacy_deploy_installs_selected_project() {

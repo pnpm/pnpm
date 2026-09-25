@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -33,6 +34,45 @@ beforeEach(async () => {
 
 afterEach(() => {
   jest.restoreAllMocks()
+})
+
+test('legacy deploy includes nested linked dependencies of workspace packages', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0', private: true } },
+    { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*' } },
+    { name: 'lib', version: '1.0.0', files: ['index.js'], dependencies: { leaf: 'link:./leaf' } },
+  ])
+  fs.mkdirSync('lib/leaf')
+  fs.writeFileSync('lib/leaf/package.json', JSON.stringify({ name: 'leaf', version: '1.0.0' }))
+  fs.writeFileSync('lib/leaf/index.js', 'module.exports = "nested leaf"')
+  fs.writeFileSync('lib/index.js', 'module.exports = require("leaf")')
+  fs.writeFileSync('app/index.js', 'console.log(require("lib"))')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - app\n  - lib\n')
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    forceLegacyDeploy: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  fs.renameSync('lib', 'source-lib')
+  expect(execFileSync(process.execPath, ['index.js'], { cwd: 'deploy', encoding: 'utf8' }).trim()).toBe('nested leaf')
 })
 
 test('deploy without existing lockfile', async () => {
