@@ -8,6 +8,9 @@
 
 Normalizes `catalog` and `catalogs` definitions from a workspace manifest into a single `Catalogs` object. The `default` catalog may be defined either via top-level `catalog` or `catalogs.default`.
 
+- If `workspaceManifest` is `undefined` or `null`, it returns `{}`.
+- If both `catalog` and `catalogs.default` are defined, it throws a `PnpmError` with code `INVALID_CATALOGS_CONFIGURATION`.
+
 ```ts
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 
