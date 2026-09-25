@@ -4,7 +4,7 @@ use super::{
         override_governed, override_governed_compatible_rewrite, override_owned_latest_rewrite,
         override_owned_rewrite,
     },
-    seed_policy::{OverriddenDirect, UpdatePlan, UpdateScope},
+    seed_policy::{UpdatePlan, UpdateScope},
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
     tag_version,
 };
