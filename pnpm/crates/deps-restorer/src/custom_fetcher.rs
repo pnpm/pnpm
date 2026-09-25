@@ -59,11 +59,11 @@ impl CustomFetcherSession {
             package: pnpm_tarball::TarballPackage { integrity: locked, ..download.package },
             ..download
         };
-        if let Some(integrity) = locked
+        if let Some(identity) = fetch_identity(original, locked)
             && let Some(tarball) = self.completed
                 .lock()
                 .unwrap()
-                .get(&(package_id.to_owned(), integrity.to_string()))
+                .get(&(package_id.to_owned(), identity))
                 .cloned()
         {
             return Ok(CustomFetchOutcome::Fetched { resolution: original.clone(), tarball });
@@ -91,6 +91,19 @@ impl CustomFetcherSession {
         )
         .await?;
         decode_fetch_outcome(result, verified, selected_resolution, locked, package_id)
+    }
+}
+
+/// What a completed fetch of `resolution` is filed under besides its package
+/// id: the integrity its archive was checked against, or for a custom
+/// resolution, which carries none pacquet can check, the resolution itself.
+fn fetch_identity(
+    resolution: &LockfileResolution,
+    integrity: Option<&Integrity>,
+) -> Option<String> {
+    match resolution {
+        LockfileResolution::Custom(_) => serde_json::to_string(resolution).ok(),
+        _ => integrity.map(ToString::to_string),
     }
 }
 
