@@ -53,6 +53,9 @@ pub(super) fn implicit_latest_no_upgrade_message(
         Some(registry_latest) if !version_lt(registry_latest, current) => {
             age_hold_message(kind, current, target, registry_latest)
         }
+        Some(registry_latest) if registry_latest != target => {
+            lagging_latest_behind_cutoff_message(kind, current, target, registry_latest)
+        }
         _ => lagging_latest_message(kind, current, target),
     }
 }
@@ -78,6 +81,22 @@ fn age_hold_message(
         ),
         NoUpgradeKind::Project => format!(
             "The current project is set to use pnpm v{current}. The latest version that meets minimumReleaseAge is v{target}. v{registry_latest} on the registry is still within the cutoff. No update performed.",
+        ),
+    }
+}
+
+fn lagging_latest_behind_cutoff_message(
+    kind: NoUpgradeKind,
+    current: &str,
+    target: &str,
+    registry_latest: &str,
+) -> String {
+    match kind {
+        NoUpgradeKind::Active => format!(
+            r#"The currently active pnpm v{current} is newer than the "latest" version on the registry (v{registry_latest}). The latest version that meets minimumReleaseAge is v{target}. No update performed. Run "pnpm self-update latest" to downgrade."#,
+        ),
+        NoUpgradeKind::Project => format!(
+            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{registry_latest}). The latest version that meets minimumReleaseAge is v{target}. No update performed. Run "pnpm self-update latest" to downgrade."#,
         ),
     }
 }

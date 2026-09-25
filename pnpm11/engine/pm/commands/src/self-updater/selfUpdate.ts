@@ -307,6 +307,11 @@ function implicitLatestNoUpgradeMessage (
       ? `The current project is set to use pnpm v${current}. The latest version that meets minimumReleaseAge is v${target}. v${registryLatest} on the registry is still within the cutoff. No update performed.`
       : `The currently active ${packageManager.name} v${current} is newer than the latest version that meets minimumReleaseAge (v${target}). v${registryLatest} on the registry is still within the cutoff. No update performed.`
   }
+  if (registryLatest != null && registryLatest !== target) {
+    return kind === 'project'
+      ? `The current project is set to use pnpm v${current}, which is newer than the "latest" version on the registry (v${registryLatest}). The latest version that meets minimumReleaseAge is v${target}. No update performed. Run "pnpm self-update latest" to downgrade.`
+      : `The currently active ${packageManager.name} v${current} is newer than the "latest" version on the registry (v${registryLatest}). The latest version that meets minimumReleaseAge is v${target}. No update performed. Run "pnpm self-update latest" to downgrade.`
+  }
   return kind === 'project'
     ? `The current project is set to use pnpm v${current}, which is newer than the "latest" version on the registry (v${target}). No update performed. Run "pnpm self-update latest" to downgrade.`
     : `The currently active ${packageManager.name} v${current} is newer than the "latest" version on the registry (v${target}). No update performed. Run "pnpm self-update latest" to downgrade.`

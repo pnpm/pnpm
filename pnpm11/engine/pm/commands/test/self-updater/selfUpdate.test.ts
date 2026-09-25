@@ -832,6 +832,30 @@ test('self-update still offers a downgrade when latest is actually older, even w
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@10.0.0')
 })
 
+test('self-update names the immature registry latest when it is still older than the pin', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@10.0.0',
+  })
+  const now = Date.now()
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registriesByScope.default, ['9.0.0'], {
+      '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.5.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). The latest version that meets minimumReleaseAge is v9.0.0. No update performed. Run "pnpm self-update latest" to downgrade.')
+})
+
 test('self-update refuses to downgrade the project pin when latest is older', async () => {
   const opts = prepare({
     packageManager: 'pnpm@10.0.0',

@@ -362,3 +362,19 @@ fn implicit_latest_message_still_offers_downgrade_when_registry_latest_is_older(
     );
     assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}");
 }
+
+#[test]
+fn implicit_latest_message_names_both_versions_when_registry_latest_is_older_but_immature() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Project,
+        "10.0.0",
+        "9.0.0",
+        Some("9.5.0"),
+    );
+    assert!(
+        message.contains(r#""latest" version on the registry (v9.5.0)"#)
+            && message.contains("minimumReleaseAge is v9.0.0")
+            && message.contains("downgrade"),
+        "{message}"
+    );
+}
