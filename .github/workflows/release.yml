@@ -698,6 +698,7 @@ jobs:
           mkdir stage
           mv target/${{ matrix.target }}/release/pnpm stage/pnpm
           tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C stage
+          rm -f stage/dist/node-gyp-bin/node-gyp.cmd
           tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
 
       - name: Attest build provenance
