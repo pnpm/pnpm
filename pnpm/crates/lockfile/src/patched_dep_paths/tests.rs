@@ -783,7 +783,7 @@ snapshots:
     );
 }
 
-fn file_locator_lockfile(hash: &str) -> String {
+fn file_locator_lockfile(locator: &str, hash: &str) -> String {
     format!(
         r"
 lockfileVersion: '9.0'
@@ -792,7 +792,7 @@ patchedDependencies:
 importers:
   .: {{}}
 snapshots:
-  foo@file:../pkg(foo).tgz(patch_hash={hash}): {{}}
+  foo@{locator}(patch_hash={hash}): {{}}
 ",
     )
 }
@@ -801,6 +801,11 @@ snapshots:
 /// end, as pnpm's `parse` reads it.
 #[test]
 fn parentheses_in_a_file_locator_are_not_suffix_segments() {
-    assert_eq!(status(&file_locator_lockfile(CURRENT)), PatchedDepPathsStatus::UpToDate);
-    assert_eq!(status(&file_locator_lockfile(STALE)), PatchedDepPathsStatus::Stale);
+    for locator in ["file:../pkg(foo).tgz", r"file:..\pkg(foo).tgz"] {
+        assert_eq!(
+            status(&file_locator_lockfile(locator, CURRENT)),
+            PatchedDepPathsStatus::UpToDate,
+        );
+        assert_eq!(status(&file_locator_lockfile(locator, STALE)), PatchedDepPathsStatus::Stale);
+    }
 }

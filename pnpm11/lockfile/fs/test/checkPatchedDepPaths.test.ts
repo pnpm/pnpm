@@ -493,13 +493,15 @@ test('checkPatchedDepPaths() cannot judge a nested peer segment that is not a de
 // A locator can hold parentheses of its own, so the suffix is read from the end, as `parse` reads
 // it.
 test('checkPatchedDepPaths() does not read parentheses in a file locator as suffix segments', () => {
-  for (const [hash, expected] of [[CURRENT, 'up-to-date'], [STALE, 'stale']] as const) {
-    expect(checkPatchedDepPaths(lockfile({
-      patchedDependencies: { foo: CURRENT },
-      packages: {
-        [`foo@file:../pkg(foo).tgz(patch_hash=${hash})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
-      },
-    }))).toBe(expected)
+  for (const locator of ['file:../pkg(foo).tgz', 'file:..\\pkg(foo).tgz']) {
+    for (const [hash, expected] of [[CURRENT, 'up-to-date'], [STALE, 'stale']] as const) {
+      expect(checkPatchedDepPaths(lockfile({
+        patchedDependencies: { foo: CURRENT },
+        packages: {
+          [`foo@${locator}(patch_hash=${hash})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+        },
+      }))).toBe(expected)
+    }
   }
 })
 
