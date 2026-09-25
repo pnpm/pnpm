@@ -1,3 +1,6 @@
+// The script under test backgrounds a POSIX `sleep`.
+#![cfg(unix)]
+
 use super::StreamedScript;
 use crate::process_tracker::spawn_child;
 use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
@@ -12,7 +15,6 @@ use std::{
 use tempfile::tempdir;
 
 /// [pnpm/pnpm#5730](https://github.com/pnpm/pnpm/issues/5730)
-#[cfg(unix)]
 #[test]
 fn pump_stops_reading_output_held_open_by_a_background_process() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
