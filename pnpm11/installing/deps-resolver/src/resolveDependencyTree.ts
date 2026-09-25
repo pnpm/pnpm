@@ -443,7 +443,7 @@ async function resolveRootRuntimeNodeVersion<T> (
   const wantedNode = rootImporter.wantedDependencies.find(({ alias, bareSpecifier }) =>
     alias === 'node' && bareSpecifier.startsWith('runtime:'))
   if (wantedNode == null) return undefined
-  const updateRequested = wantedNode.updateDepth >= 0 && (rootImporter.updateMatching?.('node') ?? true)
+  const updateRequested = wantedNode.updateDepth >= 0 && (rootImporter.updateMatching?.('node', locked?.version) ?? true)
   if (locked != null && locked.specifier === wantedNode.bareSpecifier && !updateRequested) {
     return locked.version
   }

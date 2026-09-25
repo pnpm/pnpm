@@ -11,6 +11,10 @@ const RUNTIME_PREFIX = 'runtime:'
 /**
  * The Node.js runtime the root project's `node` dependency is locked to: the
  * Node.js pnpm installs for the project.
+ *
+ * Returns `undefined` when the lockfile has no root importer or the root
+ * importer has no `node` dependency with a `runtime:` reference. `specifier`
+ * is absent when the lockfile records no specifier for that dependency.
  */
 export function findLockedRootNodeRuntime (lockfile: LockfileObject): LockedNodeRuntime | undefined {
   const rootImporter = lockfile.importers['.' as ProjectId]
