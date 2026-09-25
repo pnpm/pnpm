@@ -1,6 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
+    borrow::Cow,
     env,
     ffi::OsString,
     io,
@@ -103,6 +104,55 @@ pub fn select_shell(
         args: vec![OsString::from("-c")],
         windows_verbatim_args: false,
     })
+}
+
+/// The text `shell` executes for `command`.
+///
+/// A Bourne shell that stays the script's parent holds a terminal `SIGINT`
+/// until the foreground command exits, then dies from that signal even
+/// when the command already exited with a status. pnpm would report that
+/// as a lifecycle failure and lose the command's status
+/// (<https://github.com/pnpm/pnpm/issues/9945>). The trap returns the
+/// command's status, and re-raises `SIGINT` only when the command itself
+/// died from it (status 130).
+pub(crate) fn script_body<'a>(shell: &SelectedShell, command: &'a str) -> Cow<'a, str> {
+    if !returns_interrupted_child_status(shell) {
+        return Cow::Borrowed(command);
+    }
+    Cow::Owned(format!("{INTERRUPT_STATUS_TRAP}{command}"))
+}
+
+/// `sh -c` prefix. Status 130 is the shell's report of a command killed by
+/// `SIGINT`; anything else is the command's own exit code.
+const INTERRUPT_STATUS_TRAP: &str = "\
+trap 'st=$?; if [ \"$st\" -eq 130 ]; then trap - INT; kill -s INT $$; else exit \"$st\"; fi' INT; ";
+
+fn returns_interrupted_child_status(shell: &SelectedShell) -> bool {
+    if shell.windows_verbatim_args {
+        return false;
+    }
+    let Some(flag) = shell.args.first().and_then(|arg| arg.to_str()) else {
+        return false;
+    };
+    if flag != "-c" {
+        return false;
+    }
+    matches!(
+        shell_program_name(&shell.program).as_str(),
+        "sh" | "dash" | "bash" | "ash" | "zsh" | "ksh" | "mksh"
+    )
+}
+
+fn shell_program_name(program: &Path) -> String {
+    let mut name = program
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if name.ends_with(".exe") {
+        name.truncate(name.len() - 4);
+    }
+    name
 }
 
 fn cmd_exe_args() -> Vec<OsString> {

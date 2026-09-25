@@ -19,6 +19,25 @@ afterEach(() => {
   }
 })
 
+// A shell that stays the script's parent holds the terminal's SIGINT. On
+// dash the shell returns the script's own status once the script has
+// handled the signal and exited, so a clean shutdown is not a failed
+// lifecycle script.
+// https://github.com/pnpm/pnpm/issues/9945
+skipOnWindows('Ctrl+C leaves a script behind a shell with the script\'s own exit status', () => {
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    runScript,
+    'dev-behind-shell',
+  ], { encoding: 'utf8', timeout: shutdownTimeout })
+  expect(error).toBeUndefined()
+  expect(fs.existsSync(markers[1])).toBe(true)
+  expect(stdout).not.toContain('lifecycle failed')
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(status).toBe(0)
+})
+
 skipOnWindows('Ctrl+C in a terminal interrupts the child once', () => {
   const { status, error } = spawnSync('python3', [terminalScript, process.execPath, runScript], { encoding: 'utf8', timeout: shutdownTimeout })
   expect(error).toBeUndefined()

@@ -8,7 +8,7 @@ use crate::{
     script_working_dir::{
         emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
     },
-    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
+    shell::{ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -524,7 +524,7 @@ fn run_in_shell<Reporter: self::Reporter>(
     // Windows `cmd /d /s /c` path needs `raw_arg` rather than `arg`
     // (see [`push_script_arg`]) — a branch the method chain can't
     // express.
-    push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, script), shell.windows_verbatim_args);
     // Stripping inherited env so leftover npm_* keys from a wrapping
     // invocation cannot leak in. `build_env` already folded the
     // surviving parent keys into `built.env`.

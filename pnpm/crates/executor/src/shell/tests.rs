@@ -1,4 +1,4 @@
-use super::{ScriptShellError, SelectedShell, missing_script_shell, select_shell};
+use super::{ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, io, path::Path};
 
@@ -119,6 +119,23 @@ fn cmd_exe_script_shell_uses_d_s_c_and_verbatim_args_on_windows() {
             "scriptShell={path}",
         );
     }
+}
+
+#[test]
+fn a_bourne_shell_returns_the_interrupted_child_status() {
+    let shell = select_shell(None, false).expect("select_shell");
+    let body = script_body(&shell, "node dev.js");
+    assert!(body.starts_with("trap "), "the shell would otherwise die from SIGINT after the child");
+    assert!(body.ends_with("node dev.js"));
+    assert!(body.contains("-eq 130"), "only a command killed by SIGINT is re-raised");
+}
+
+#[test]
+fn a_non_bourne_shell_runs_the_command_unchanged() {
+    let shell = select_shell(Some(Path::new("/usr/bin/fish")), false).expect("select_shell");
+    assert_eq!(script_body(&shell, "node dev.js"), "node dev.js");
+    let cmd = select_shell(Some(Path::new("cmd.exe")), true).expect("select_shell");
+    assert_eq!(script_body(&cmd, "node dev.js"), "node dev.js");
 }
 
 #[test]

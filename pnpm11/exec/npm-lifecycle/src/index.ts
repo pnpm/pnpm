@@ -13,7 +13,7 @@ import uidNumber from 'uid-number'
 import { extendPath } from './extendPath.js'
 import { makePackageManagerEnv } from './makePackageManagerEnv.js'
 import { missingScriptShellError, SCRIPT_SHELL_NOT_FOUND } from './missingScriptShell.js'
-import { selectShell } from './selectShell.js'
+import { scriptBody, selectShell } from './selectShell.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
@@ -352,20 +352,20 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     conf.gid = owner.gid ^ 0
   }
 
-  const { sh, shFlag, windowsVerbatimArguments } = selectShell(opts.scriptShell || undefined, process.platform, process.env.comspec)
-  if (windowsVerbatimArguments) {
+  const shell = selectShell(opts.scriptShell || undefined, process.platform, process.env.comspec)
+  if (shell.windowsVerbatimArguments) {
     conf.windowsVerbatimArguments = true
   }
 
   opts.log.verbose('lifecycle', logId(pkg, stage), 'PATH:', env[PATH])
   opts.log.verbose('lifecycle', logId(pkg, stage), 'CWD:', wd)
-  opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shFlag, cmd])
+  opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shell.shFlag, cmd])
 
   if (opts.shellEmulator) {
     runEmulated(run, cb)
     return
   }
-  const proc = spawn(sh, [shFlag, cmd], { ...conf, log: opts.log })
+  const proc = spawn(shell.sh, [shell.shFlag, scriptBody(shell, cmd)], { ...conf, log: opts.log })
   runSpawned(run, { proc, ownProcessGroup }, cb)
 }
 

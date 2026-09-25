@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 
-import { selectShell } from '../src/selectShell.js'
+import { scriptBody, selectShell } from '../src/selectShell.js'
 
 test('uses sh -c by default on POSIX', () => {
   expect(selectShell(undefined, 'linux', undefined)).toEqual({ sh: 'sh', shFlag: '-c', windowsVerbatimArguments: false })
@@ -31,4 +31,18 @@ test('passes -c to a non-cmd scriptShell on Windows', () => {
 
 test('passes -c to a scriptShell named cmd on POSIX', () => {
   expect(selectShell('/usr/local/bin/cmd', 'linux', undefined)).toEqual({ sh: '/usr/local/bin/cmd', shFlag: '-c', windowsVerbatimArguments: false })
+})
+
+test('a Bourne shell returns the interrupted child status', () => {
+  const shell = selectShell(undefined, 'linux', undefined)
+  const body = scriptBody(shell, 'node dev.js')
+  expect(body.startsWith('trap ')).toBe(true)
+  expect(body.endsWith('node dev.js')).toBe(true)
+  expect(body).toContain('-eq 130')
+  expect(scriptBody(selectShell('/usr/bin/bash.exe', 'win32', undefined), 'node dev.js').startsWith('trap ')).toBe(true)
+})
+
+test('a non-Bourne shell runs the command unchanged', () => {
+  expect(scriptBody(selectShell('/usr/bin/fish', 'linux', undefined), 'node dev.js')).toBe('node dev.js')
+  expect(scriptBody(selectShell('cmd.exe', 'win32', undefined), 'node dev.js')).toBe('node dev.js')
 })

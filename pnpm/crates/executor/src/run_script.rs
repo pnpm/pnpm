@@ -4,7 +4,7 @@ use crate::{
     make_env::{EnvOptions, build_env, path_value},
     process_tracker::{ProcessTracker, spawn_child},
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
+    shell::{ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -209,7 +209,7 @@ fn run_in_shell(
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env);
@@ -232,7 +232,7 @@ fn run_piped(
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env)
