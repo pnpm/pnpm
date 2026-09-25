@@ -4,13 +4,13 @@ use super::{
     seed_placeholder_virtual_store_slot,
 };
 use crate::{InstallWithFreshLockfileError, MinimumReleaseAgeError, PolicyExcludes};
-use pnpm_config::Config;
+use pnpm_config::{Config, StoreRelocation};
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{
-    BrokenModulesLog, ContextLog, IgnoredScriptsLog, LogEvent, PackageManifestLog,
-    PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, ScopeLog, SilentReporter,
-    Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    BrokenModulesLog, ContextLog, GlobalLog, IgnoredScriptsLog, LogEvent, LogLevel,
+    PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter, ScopeLog,
+    SilentReporter, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::registry::TestRegistry;
@@ -313,6 +313,126 @@ async fn install_emits_pnpm_event_sequence() {
         unreachable!("last event is summary, asserted above");
     };
     assert_eq!(summary_prefix, &expected_prefix);
+
+    drop(dirs.dir);
+}
+/// An install whose default store was moved off an existing pnpm home
+/// store warns about it before the install header names the store in use.
+#[tokio::test]
+async fn install_warns_when_the_default_store_bypasses_an_existing_home_store() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let dirs = InstallDirs::new();
+
+    let manifest_path = dirs.path().join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.lockfile = false;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    let home_store_dir = dirs.path().join("home-store");
+    std::fs::create_dir_all(home_store_dir.join(STORE_VERSION)).unwrap();
+    let relocation = StoreRelocation {
+        home_store_dir: home_store_dir.into(),
+        store_dir: config.store_dir.clone(),
+    };
+    config.store_relocation = Some(Box::new(relocation.clone()));
+    let config = config.leak();
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+    })
+    .expect("parse minimal v9 lockfile");
+
+    Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
+    }
+    .run::<RecordingReporter>()
+    .await
+    .expect("empty-lockfile frozen install should succeed");
+
+    let captured = EVENTS.lock().unwrap();
+    let warnings: Vec<&str> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }) => {
+                Some(message.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(warnings, [relocation.warning()]);
+    let warning_index = captured
+        .iter()
+        .position(|event| matches!(event, LogEvent::Global(_)))
+        .unwrap();
+    let context_index = captured
+        .iter()
+        .position(|event| matches!(event, LogEvent::Context(_)))
+        .unwrap();
+    assert!(warning_index < context_index, "unexpected event sequence: {captured:?}");
 
     drop(dirs.dir);
 }

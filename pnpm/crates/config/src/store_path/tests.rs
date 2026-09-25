@@ -251,3 +251,86 @@ fn host_can_link_between_dirs_missing_from_dir_is_false() {
     fs::create_dir_all(&to).expect("create to");
     assert!(!host_can_link_between_dirs(&missing_from, &to));
 }
+
+/// Set up `<tmp>/home` as the pnpm home and `<tmp>/volume/project` as a
+/// project whose volume is `<tmp>/volume`, then resolve the default store
+/// with a [`LinkProbe`] that only links within that volume.
+#[cfg(unix)]
+macro_rules! resolve_relocated_store {
+    ($tmp:ident => $config:ident, $root:ident, $home_store:ident) => {
+        prefix_probe!();
+        impl crate::api::GetHomeDir for PrefixProbe {
+            fn home_dir() -> Option<PathBuf> {
+                Some(PathBuf::from("/home/test-user"))
+            }
+        }
+
+        let $root = fs::canonicalize($tmp.path()).expect("canonicalize tempdir");
+        let $home_store = $root.join("home/store").join(pnpm_store_dir::STORE_VERSION);
+        fs::create_dir_all($root.join("volume/project")).expect("create project dir");
+        set_allow(&[&$root.join("volume")]);
+        let mut config = crate::Config::new();
+        config.resolve_store_dir_from_home::<PrefixProbe>(
+            &$root.join("home"),
+            &$root.join("volume/project"),
+        );
+        let $config = config;
+    };
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_names_both_stores_when_home_store_exists() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let relocated = root.join("volume/.pnpm-store").join(pnpm_store_dir::STORE_VERSION);
+
+    assert_eq!(config.store_dir.root(), relocated);
+    assert_eq!(
+        config.bypassed_home_store_warning(),
+        Some(format!(
+            "The store at {} is not used because packages cannot be hard linked from it into this project. Using the store at {} instead. Set storeDir to choose the store.",
+            home_store.display(),
+            relocated.display(),
+        )),
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_without_a_home_store() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    assert!(config.store_relocation.is_some());
+    assert!(!home_store.exists(), "{} must not exist", root.display());
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_after_an_explicit_store_dir() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let mut config = config;
+    config.store_dir = root.join("explicit-store").into();
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_when_the_home_store_is_linkable() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let mut config = config;
+    set_allow(&[&root]);
+    config.resolve_store_dir_from_home::<PrefixProbe>(
+        &root.join("home"),
+        &root.join("volume/project"),
+    );
+    assert_eq!(config.store_dir.root(), home_store);
+    assert_eq!(config.store_relocation, None);
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}

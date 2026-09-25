@@ -1,7 +1,10 @@
+import { promises as fs } from 'node:fs'
+
 import type { Config } from '@pnpm/config.reader'
+import { globalWarn } from '@pnpm/logger'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller'
-import { getStorePath } from '@pnpm/store.path'
+import { getStorePath, getStorePathInPnpmHome } from '@pnpm/store.path'
 
 import { createNewStoreController, type CreateNewStoreControllerOptions, type FullMetadataPolicyOptions, shouldFetchFullMetadata } from './createNewStoreController.js'
 
@@ -43,7 +46,28 @@ export async function createStoreController (
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
+  if (!opts.storeDir) {
+    await warnIfHomeStoreIsBypassed(opts.pnpmHomeDir, storeDir)
+  }
   return createNewStoreController(Object.assign(opts, {
     storeDir,
   }))
+}
+
+const warnedBypassedHomeStores = new Set<string>()
+
+async function warnIfHomeStoreIsBypassed (pnpmHomeDir: string, storeDir: string): Promise<void> {
+  const homeStoreDir = getStorePathInPnpmHome(pnpmHomeDir)
+  if (storeDir === homeStoreDir || warnedBypassedHomeStores.has(homeStoreDir)) return
+  warnedBypassedHomeStores.add(homeStoreDir)
+  if (!await isDirectory(homeStoreDir)) {
+    warnedBypassedHomeStores.delete(homeStoreDir)
+    return
+  }
+  globalWarn(`The store at ${homeStoreDir} is not used because packages cannot be hard linked from it into this project. Using the store at ${storeDir} instead. Set storeDir to choose the store.`)
+}
+
+async function isDirectory (dir: string): Promise<boolean> {
+  // Only decides whether to print a warning, so an unreadable path must not fail the command.
+  return fs.stat(dir).then((stats) => stats.isDirectory(), () => false)
 }

@@ -266,6 +266,10 @@ pub struct Config {
     /// [`Config::place_skipped_store_dir`] places it. A pinned store is never
     /// marked.
     pub store_dir_placement_skipped: bool,
+    /// Set when the default store resolution moved the store off the pnpm
+    /// home directory because the project cannot hard link from it. See
+    /// [`Config::bypassed_home_store_warning`].
+    pub store_relocation: Option<Box<crate::StoreRelocation>>,
 
     /// Whether macOS Time Machine may back up newly created pnpm directories.
     /// Set `macosBackup.excludeModulesDir` or `macosBackup.excludeStoreDir` to `true` in

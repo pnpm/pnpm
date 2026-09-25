@@ -1,8 +1,8 @@
 use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
-    Lockfile, NodeLinker, Path, StoreDir, WantedLockfileSelection, WorkspaceSettings,
-    collect_explicit_settings, create_matcher, default_store_dir, esm_node_path_loader,
-    get_current_branch, store_path,
+    Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, WantedLockfileSelection,
+    WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
+    esm_node_path_loader, get_current_branch, store_path,
 };
 
 impl Config {
@@ -534,8 +534,28 @@ impl Config {
             .parent()
             .unwrap_or(&home_dir)
             .to_path_buf();
-        let resolved = store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
-        self.store_dir = StoreDir::from(resolved);
+        let resolved = StoreDir::from(store_path::resolve_store_dir::<Sys>(
+            store_root.clone(),
+            &pnpm_home_dir,
+            start_dir,
+        ));
+        let home_store_dir = StoreDir::from(store_root);
+        self.store_relocation = (resolved != home_store_dir).then(|| {
+            Box::new(StoreRelocation { home_store_dir, store_dir: resolved.clone() })
+        });
+        self.store_dir = resolved;
+    }
+
+    /// The warning to print when the default store was moved off the pnpm
+    /// home directory while a store already exists there, so packages
+    /// already in it are downloaded again. [`None`] when the store in use
+    /// is not the relocated one (an explicit `storeDir` replaced it) or the
+    /// home store does not exist.
+    pub fn bypassed_home_store_warning(&self) -> Option<String> {
+        let relocation = self.store_relocation.as_ref()?;
+        (relocation.store_dir == self.store_dir && relocation.home_store_dir.root().is_dir()).then(
+            || relocation.warning(),
+        )
     }
 
     /// Return the `virtualStoreDir` value pnpm exposes externally — the
