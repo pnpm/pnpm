@@ -853,3 +853,23 @@ fn a_linked_peer_named_like_a_patched_package_needs_no_hash() {
         PatchedDepPathsStatus::UpToDate,
     );
 }
+
+/// A `file:` locator can end in text shaped like a peer segment, so a peer
+/// without a hash is only inferred behind a registry version.
+#[test]
+fn peer_shaped_text_at_the_end_of_a_file_locator_needs_no_hash() {
+    assert_eq!(
+        status(&format!(
+            r"
+lockfileVersion: '9.0'
+patchedDependencies:
+  react: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  foo@file:./dir(react@18.0.0): {{}}
+"
+        )),
+        PatchedDepPathsStatus::UpToDate,
+    );
+}

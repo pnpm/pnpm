@@ -525,6 +525,17 @@ test('checkPatchedDepPaths() judges a patched peer segment that carries no hash'
   }
 })
 
+// A `file:` locator can end in text shaped like a peer segment, so a peer without a hash is only
+// inferred behind a registry version.
+test('checkPatchedDepPaths() infers no peer from peer-shaped text at the end of a file locator', () => {
+  expect(checkPatchedDepPaths(lockfile({
+    patchedDependencies: { react: CURRENT },
+    packages: {
+      ['foo@file:./dir(react@18.0.0)' as DepPath]: { resolution: { directory: 'dir(react@18.0.0)', type: 'directory' } },
+    },
+  }))).toBe('up-to-date')
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',

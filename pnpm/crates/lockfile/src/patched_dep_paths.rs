@@ -309,9 +309,13 @@ impl<'a> Checker<'a> {
             .and_then(|segment| segment.strip_prefix(PATCH_HASH_PREFIX)?.strip_suffix(')'));
         let mut verdict = self.judge(key, recorded);
         let mut peers = Vec::new();
+        // Only a registry version is known to end before the suffix. A `file:`
+        // or other locator can end in text shaped like a peer segment, so a
+        // peer without a hash is not inferred there.
+        let infers_unmarked_peers = is_registry_version(&key.suffix);
         for peer in segments
             .into_iter()
-            .filter_map(|segment| self.peer_to_judge(segment))
+            .filter_map(|segment| self.peer_to_judge(segment, infers_unmarked_peers))
         {
             match peer {
                 Ok(peer) => peers.push(peer),
@@ -323,11 +327,16 @@ impl<'a> Checker<'a> {
 
     /// The peer depPath a suffix segment names, when it has a patch hash to
     /// judge: one it carries, or one it should carry because it names a
-    /// registry version of a patched package and peers are not deduped. A
+    /// registry version of a patched package, `infers_unmarked_peers` holds
+    /// for the depPath around it, and peers are not deduped. A
     /// `link:` peer is written with a path where the version goes, and patches
     /// never apply to it. `Some(Err(()))` for a segment carrying a marker that
     /// does not parse as a depPath.
-    fn peer_to_judge(&self, segment: &str) -> Option<Result<PackageKey, ()>> {
+    fn peer_to_judge(
+        &self,
+        segment: &str,
+        infers_unmarked_peers: bool,
+    ) -> Option<Result<PackageKey, ()>> {
         if segment.starts_with(PATCH_HASH_PREFIX) {
             return None;
         }
@@ -339,13 +348,13 @@ impl<'a> Checker<'a> {
                     .map_err(|_| ()),
             );
         }
-        if self.patched_peer_markers.is_empty() {
+        if !infers_unmarked_peers || self.patched_peer_markers.is_empty() {
             return None;
         }
         let peer = inner.parse::<PackageKey>().ok()?;
-        let registry_version =
-            peer.suffix.version_semver().is_some() || peer.suffix.registry_qualified().is_some();
-        (registry_version && self.patched_names.contains(&peer.name)).then_some(Ok(peer))
+        (is_registry_version(&peer.suffix) && self.patched_names.contains(&peer.name)).then_some(
+            Ok(peer),
+        )
     }
 
     /// Compares `recorded`, the depPath's own patch hash, with the one
@@ -377,6 +386,11 @@ impl<'a> Checker<'a> {
             Verdict::Stale
         }
     }
+}
+
+/// Whether the version slot holds a registry version rather than a locator.
+fn is_registry_version(suffix: &PkgVerPeer) -> bool {
+    suffix.version_semver().is_some() || suffix.registry_qualified().is_some()
 }
 
 /// Whether which patch applies for `group`, if any, can depend on the

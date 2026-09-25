@@ -101,8 +101,8 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
  * pnpm writes a package's own hash as the first segment of the suffix. Unless peers are deduped,
  * a peer segment is that peer's whole dependency path, so a patched peer carries its hash inside
  * it, and that hash is part of this path's identity. A peer segment is judged when it carries a
- * marker, or when it should: it names a registry version of a patched package and peers are not
- * deduped.
+ * marker, or when it should: it names a registry version of a patched package, the path itself is
+ * a registry version, and peers are not deduped.
  *
  * A path holding a marker is `'indeterminate'` when the marker is anywhere but the leading segment
  * of its suffix, which is the trailing run of balanced, back-to-back parenthesized segments that
@@ -139,11 +139,14 @@ function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict,
   ) {
     return { verdict: 'indeterminate', peers: [] }
   }
+  // Only a registry version is known to end before the suffix. A `file:` or other locator can end
+  // in text shaped like a peer segment, so a peer without a hash is not inferred there.
+  const infersUnmarkedPeers = ctx.peersCarryPatchHashes && parse(depPath).version != null
   const peers: DepPath[] = []
   for (const segment of suffix?.segments ?? []) {
     if (segment.startsWith(PATCH_HASH_PREFIX)) continue
     const peer = segment.slice(1, -1) as DepPath
-    if (segment.includes(PATCH_HASH_PREFIX) || (ctx.peersCarryPatchHashes && isPatchedRegistryPeer(peer, ctx))) {
+    if (segment.includes(PATCH_HASH_PREFIX) || (infersUnmarkedPeers && isPatchedRegistryPeer(peer, ctx))) {
       peers.push(peer)
     }
   }
