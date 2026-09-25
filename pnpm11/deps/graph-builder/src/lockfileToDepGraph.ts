@@ -349,11 +349,8 @@ async function buildGraphFromPackages (
 }
 
 /**
- * When local (file:) dependencies are skipped (e.g. during `pnpm fetch`),
- * their transitive registry dependencies become orphaned in the graph —
- * no importer direct dependency root reaches them. This function promotes
- * those transitive dependencies into `directDependenciesByImporterId` so
- * that downstream traversals (like patch application) can still reach them.
+ * Promotes dependencies of skipped local packages into importer roots so
+ * downstream traversals reach them when the parent package is omitted.
  */
 function promoteChildrenOfSkippedLocalDeps (
   lockfile: LockfileObject,
@@ -362,10 +359,8 @@ function promoteChildrenOfSkippedLocalDeps (
   getChildren: (allDeps: Record<string, string>, peerDeps: Set<string> | null, importerId: string) => Record<string, string>,
   directDependenciesByImporterId: DirectDependenciesByImporterId
 ): void {
-  // Collect all dependency refs from skipped local deps (transitively,
-  // since one local dep may depend on another local dep that was also skipped).
   const visited = new Set<DepPath>()
-  const promotedDeps: Record<string, string> = {}
+  const promotedDepsByDepPath = new Map<string, { alias: string, ref: string }>()
   const queue = [...skippedLocalDepPaths]
   while (queue.length > 0) {
     const depPath = queue.pop()!
@@ -382,14 +377,19 @@ function promoteChildrenOfSkippedLocalDeps (
       if (childDepPath && skippedLocalDepPaths.has(childDepPath)) {
         queue.push(childDepPath)
       } else {
-        promotedDeps[alias] = ref
+        const key = childDepPath ?? `${alias}@${ref}`
+        promotedDepsByDepPath.set(key, { alias, ref })
       }
     }
   }
-  if (Object.keys(promotedDeps).length === 0) return
-  const resolved = getChildren(promotedDeps, null, '.')
-  for (const importerId of Object.keys(directDependenciesByImporterId)) {
-    Object.assign(directDependenciesByImporterId[importerId], resolved)
+  if (promotedDepsByDepPath.size === 0) return
+  for (const [key, { alias, ref }] of promotedDepsByDepPath) {
+    const resolved = getChildren({ [alias]: ref }, null, '.')
+    const dir = resolved[alias]
+    if (!dir) continue
+    for (const importerId of Object.keys(directDependenciesByImporterId)) {
+      directDependenciesByImporterId[importerId][key] = dir
+    }
   }
 }
 
