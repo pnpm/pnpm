@@ -51,6 +51,9 @@ pub struct AutoDedupeArgs {
 
 impl AutoDedupeArgs {
     pub(crate) fn apply(&self, config: &mut Config) {
+        if self.auto_dedupe || self.no_auto_dedupe {
+            config.cli_settings.insert("autoDedupe".to_string());
+        }
         config.auto_dedupe =
             resolve_bool_override(self.auto_dedupe, self.no_auto_dedupe, config.auto_dedupe);
     }
@@ -58,15 +61,27 @@ impl AutoDedupeArgs {
 
 impl ScriptExecutionArgs {
     pub(crate) fn apply(&self, config: &mut Config) {
+        if self.ignore || self.no_ignore {
+            config.cli_settings.insert("ignoreScripts".to_string());
+        }
         config.ignore_scripts =
             resolve_bool_override(self.ignore, self.no_ignore, config.ignore_scripts);
+        if self.ignore_pnpmfile {
+            config.cli_settings.insert("ignorePnpmfile".to_string());
+        }
         config.ignore_pnpmfile |= self.ignore_pnpmfile;
     }
 }
 
 impl OfflineArgs {
     pub(crate) fn apply(&self, config: &mut Config) {
+        if self.offline || self.no_offline {
+            config.cli_settings.insert("offline".to_string());
+        }
         config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
+        if self.prefer_offline || self.no_prefer_offline {
+            config.cli_settings.insert("preferOffline".to_string());
+        }
         config.prefer_offline = resolve_bool_override(
             self.prefer_offline,
             self.no_prefer_offline,
