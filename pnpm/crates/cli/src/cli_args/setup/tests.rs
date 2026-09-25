@@ -324,7 +324,8 @@ fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manif
     );
     let expected_local =
         LocalSpec::parse("file:../packages/cli", &manifest_dir).expect("local spec").render(None);
-    assert_eq!(specs, ["abs@file:/tmp/pkg".to_string(), format!("my-cli@{expected_local}")],);
+    let expected = vec!["abs@file:/tmp/pkg".to_string(), format!("my-cli@{expected_local}")];
+    assert_eq!(specs, expected);
 }
 
 fn write_legacy_manifest(home: &Path, body: &str) {
