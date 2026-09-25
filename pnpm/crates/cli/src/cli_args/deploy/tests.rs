@@ -20,7 +20,10 @@ use super::{
     validate_lockfile_local_path,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, deploy_workspace_manifest, write_deploy_files};
+use super::{
+    DeployFiles, DeployWorkspaceConfig, workspace_manifest::deploy_workspace_manifest,
+    write_deploy_files,
+};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{

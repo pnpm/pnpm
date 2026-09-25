@@ -4,7 +4,7 @@ use super::{
 };
 use serde_json::{Map, Number, Value};
 
-fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
+pub(super) fn deploy_workspace_manifest(config: &Config) -> Map<String, Value> {
     let mut manifest = Map::from_iter([
         ("autoInstallPeers".to_string(), Value::Bool(config.auto_install_peers)),
         ("dedupeInjectedDeps".to_string(), Value::Bool(false)),
