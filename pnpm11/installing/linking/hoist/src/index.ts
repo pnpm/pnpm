@@ -696,10 +696,13 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
 /**
  * A junction is created as an empty directory that gets its reparse point
  * afterwards, so a concurrent hoist can find an empty plain directory in its
- * place for a moment.
+ * place for a moment. A junction completed after `stat` was read lists its
+ * target's entries, so a non-empty directory is checked again.
  */
 async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
-  return process.platform === 'win32' && stat.isDirectory() && (await fs.promises.readdir(dest)).length === 0
+  if (process.platform !== 'win32' || !stat.isDirectory()) return false
+  if ((await fs.promises.readdir(dest)).length === 0) return true
+  return (await fs.promises.lstat(dest)).isSymbolicLink()
 }
 
 export function graphWalker<T extends string> (

@@ -184,6 +184,30 @@ test('waits for a Windows junction another installer is creating', async () => {
   }
 })
 
+test('rechecks a Windows junction completed while its directory is listed', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const unlink = fs.promises.unlink
+  const readdir = fs.promises.readdir
+  jest.spyOn(fs.promises, 'unlink').mockImplementationOnce(async (dest) => {
+    await unlink(dest)
+    fs.mkdirSync(link)
+    jest.spyOn(fs.promises, 'readdir').mockImplementation(async (...args) => {
+      if (args[0] === link && !fs.lstatSync(link).isSymbolicLink()) {
+        fs.rmdirSync(link)
+        await symlinkDir(target, link)
+      }
+      return readdir(...args)
+    })
+  })
+  try {
+    await hoist(opts)
+    expect(await resolveLinkTarget(link)).toBe(target)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('stops retrying when a competing link stays unreadable', async () => {
   const { root, link, target, opts } = await prepareStaleHoist()
   const unlink = fs.promises.unlink

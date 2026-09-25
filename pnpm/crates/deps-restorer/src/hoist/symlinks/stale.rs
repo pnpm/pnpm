@@ -115,11 +115,14 @@ fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
 
 /// A junction is created as an empty directory that gets its reparse point
 /// afterwards, so a concurrent hoist can find an empty plain directory in its
-/// place for a moment.
+/// place for a moment. A junction completed after `metadata` was read lists
+/// its target's entries, so a non-empty directory is checked again.
 fn may_be_junction_in_creation(dest: &Path, metadata: &std::fs::Metadata) -> bool {
     cfg!(windows)
         && metadata.is_dir()
-        && std::fs::read_dir(dest).is_ok_and(|mut entries| entries.next().is_none())
+        && (std::fs::read_dir(dest).is_ok_and(|mut entries| entries.next().is_none())
+            || pnpm_fs::symlink_metadata_with_retry(dest)
+                .is_ok_and(|metadata| is_link_metadata(&metadata)))
 }
 
 fn is_link_metadata(metadata: &std::fs::Metadata) -> bool {
