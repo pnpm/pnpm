@@ -92,6 +92,7 @@ pub use version_policy::*;
 pub use virtual_store_layout::*;
 
 mod custom_fetcher;
+mod gvs_slot_lock;
 mod installed_hoisted_state;
 mod shared_side_effects;
 

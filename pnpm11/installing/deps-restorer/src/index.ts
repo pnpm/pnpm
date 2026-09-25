@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
-import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
+import { buildModules, linkBinsOfRuntimeDependencies, lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import {
@@ -94,6 +94,7 @@ import { symlinkAllModules } from '@pnpm/worker'
 import { readProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
+import { pathExists } from 'path-exists'
 import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 
@@ -1394,22 +1395,37 @@ async function linkAllPkgs (
         }
       }
 
-      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse: effectiveFilesResponse,
-        force: depNode.forceImportPackage ?? opts.force,
-        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patch != null || depNode.requiresBuild,
-        safeToSkip: opts.enableGlobalVirtualStore,
-        sideEffectsCacheKey,
-      })
-      if (importMethod) {
+      // The marker is also there while another install builds the slot,
+      // which a re-import would overwrite.
+      const slotMarker = path.join(depNode.dir, '.pnpm-needs-build')
+      const slotLock = opts.enableGlobalVirtualStore && await pathExists(slotMarker)
+        ? await lockGlobalVirtualStoreSlot(depNode.modules)
+        : undefined
+      let imported: Awaited<ReturnType<StoreController['importPackage']>> | undefined
+      try {
+        if (slotLock != null && !await pathExists(slotMarker)) {
+          depNode.isBuilt = true
+        } else {
+          imported = await storeController.importPackage(depNode.dir, {
+            filesResponse: effectiveFilesResponse,
+            force: depNode.forceImportPackage ?? opts.force,
+            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+            requiresBuild: depNode.patch != null || depNode.requiresBuild,
+            safeToSkip: opts.enableGlobalVirtualStore,
+            sideEffectsCacheKey,
+          })
+        }
+      } finally {
+        await slotLock?.release()
+      }
+      if (imported?.importMethod) {
         reportPackageImported({
-          method: importMethod,
+          method: imported.importMethod,
           requester: opts.lockfileDir,
           to: depNode.dir,
         })
       }
-      depNode.isBuilt = isBuilt
+      if (imported != null) depNode.isBuilt = imported.isBuilt
 
       const selfDep = depNode.children[depNode.name]
       if (selfDep) {

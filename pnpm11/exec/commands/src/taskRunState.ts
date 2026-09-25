@@ -5,10 +5,9 @@ import util from 'node:util'
 
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
+import { DirLock } from '@pnpm/fs.dir-lock'
 import type { TaskGraph, TaskKey, TaskNode } from '@pnpm/workspace.task-scheduler'
 import writeFileAtomic from 'write-file-atomic'
-
-import { DirLock } from './dirLock.js'
 
 const STATE_VERSION = 1
 const STATE_DIR = '.pnpm-task-run-state-v1'

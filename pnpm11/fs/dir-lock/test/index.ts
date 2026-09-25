@@ -5,8 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-
-import { DirLock } from '../src/dirLock.js'
+import { DirLock } from '@pnpm/fs.dir-lock'
 
 const OPTS = { waitMs: 0, abandonedMs: 60_000 }
 const temporaryDirectories: string[] = []

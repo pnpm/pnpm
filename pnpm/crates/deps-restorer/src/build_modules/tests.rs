@@ -18,6 +18,9 @@ mod patches_and_approvals;
 
 mod build_policy;
 
+#[cfg(unix)]
+mod gvs_markers;
+
 use super::{BuildModules, allow_build_policy::AllowBuildPolicy};
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.

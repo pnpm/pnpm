@@ -10,8 +10,8 @@ pub(crate) use build_requirements::deferred_builds;
 pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
-    materialize_side_effects, slot_carries_overlay,
+    PkgRoots, bin_dirs_in_all_parent_dirs, is_started_build_marker,
+    mark_global_virtual_store_build_started, materialize_side_effects, slot_carries_overlay,
 };
 
 mod build_requirements;
@@ -108,6 +108,16 @@ pub enum BuildModulesError {
     /// stored `added` / `deleted` diff on top of the pristine files.
     #[diagnostic(transparent)]
     MaterializeSideEffects(#[error(source)] ImportIndexedDirError),
+
+    /// A global-virtual-store slot's `.pnpm-needs-build` marker exists but
+    /// cannot be read, so whether another install's build left the slot
+    /// half-built is unknown.
+    #[display("Failed to read the build marker at {}: {source}", path.display())]
+    ReadBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 }
 
 /// Drives a forced rebuild of already-installed packages. Constructed by

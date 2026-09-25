@@ -9,10 +9,9 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
+import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
 import { realpathMissing } from 'realpath-missing'
-
-import { DirLock } from './dirLock.js'
 
 const INSTALL_LOCK_NAMESPACE = 'pnpm-verify-deps-install-locks'
 // How long a gate waits for another gate's install in the same workspace

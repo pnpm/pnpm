@@ -105,8 +105,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
-        let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let (slot, _slot_lock, interrupted_build) = self.open_slot()?;
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
             &slot.save_path,
@@ -165,6 +164,26 @@ impl CreateVirtualDirBySnapshot<'_> {
         }));
 
         Ok(())
+    }
+
+    /// The slot's directories, and whether it carries a `.pnpm-needs-build`
+    /// marker. The marker is also there while another install builds the
+    /// slot, which a forced re-import would clobber, so a marked slot is
+    /// returned with its lock held.
+    fn open_slot(
+        &self,
+    ) -> Result<(SlotPaths, Option<pnpm_fs::DirLock>, bool), CreateVirtualDirError> {
+        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
+        let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
+        if !marker.is_file() {
+            return Ok((slot, None, false));
+        }
+        let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
+            self.layout,
+            self.dependencies.package_key,
+        );
+        let interrupted_build = marker.is_file();
+        Ok((slot, lock, interrupted_build))
     }
 
     /// The method this slot's files are imported with — the configured one,

@@ -11,6 +11,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
+import { DirLock } from '@pnpm/fs.dir-lock'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -28,11 +29,19 @@ import type {
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pDefer, { type DeferredPromise } from 'p-defer'
+import { pathExists } from 'path-exists'
 import { pickBy } from 'ramda'
 
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export type { DepsStateCache }
+
+const NEEDS_BUILD_MARKER = '.pnpm-needs-build'
+const STARTED_BUILD_MARKER_CONTENT = 'started'
+const SLOT_LOCK_DIR = '.pnpm-build.lock'
+const SLOT_LOCK_WAIT_MS = 10 * 60_000
+// Comfortably above how long a build can take, so a live holder never has its lock stolen mid-build.
+const SLOT_LOCK_ABANDONED_MS = 30 * 60_000
 
 export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
@@ -251,7 +260,13 @@ async function buildDependency<T extends string> (
     opts.builtHoistedDeps[depNode.depPath] = pDefer()
   }
   let buildSucceeded = false
+  let slotLock: DirLock | undefined
   try {
+    if (opts.enableGlobalVirtualStore && (depNode.patch != null || !opts.ignoreScripts)) {
+      const slotBuild = await lockSlotForBuild(depNode, opts.lockfileDir)
+      if (slotBuild == null) return
+      slotLock = slotBuild.lock
+    }
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
@@ -292,10 +307,16 @@ async function buildDependency<T extends string> (
       unsafePerm: opts.unsafePerm || false,
       userAgent: opts.userAgent,
     })
+    // A package whose build was withheld - the allow-build policy said so, or
+    // ignoreScripts did - must not be cached as if it were built. The entry
+    // the patch alone produced would replay on the install that finally runs
+    // the build, and the scripts would never get their chance.
+    const buildPending = requiresBuild && ignoreScripts
     // Remove the .pnpm-needs-build marker before uploading side effects,
     // so it doesn't get cached as part of the package's side effects diff.
-    if (opts.enableGlobalVirtualStore) {
-      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+    // A withheld build keeps it, so the install that runs the build finds it.
+    if (opts.enableGlobalVirtualStore && !buildPending) {
+      await fs.unlink(path.join(depNode.dir, NEEDS_BUILD_MARKER)).catch(() => {})
     }
     // frozenStore opens the store read-only, so the side-effects cache (which
     // lives in the store) cannot be written. extendInstallOptions already forces
@@ -306,11 +327,6 @@ async function buildDependency<T extends string> (
       opts.pnprServer != null &&
       opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
-    // A package whose build was withheld - the allow-build policy said so, or
-    // ignoreScripts did - must not be cached as if it were built. The entry
-    // the patch alone produced would replay on the install that finally runs
-    // the build, and the scripts would never get their chance.
-    const buildPending = requiresBuild && ignoreScripts
     if ((isPatched || hasSideEffects) && !buildPending && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
@@ -350,16 +366,6 @@ async function buildDependency<T extends string> (
     buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
-    // In GVS mode, remove the entire hash directory so the next install
-    // sees the directory is absent, re-fetches, and re-builds.
-    if (opts.enableGlobalVirtualStore) {
-      // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
-      // hash directory for scoped and unscoped names alike. Deriving it from
-      // `depNode.dir` instead would land on `node_modules` for a scoped name,
-      // whose extra path segment makes `../..` one level short.
-      const hashDir = path.dirname(depNode.modules)
-      await fs.rm(hashDir, { recursive: true, force: true })
-    }
     if (depNode.optional) {
       // TODO: add parents field to the log
       skippedOptionalDependencyLogger.debug({
@@ -376,6 +382,7 @@ async function buildDependency<T extends string> (
     }
     throw err
   } finally {
+    await slotLock?.release()
     if (buildSucceeded) {
       const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
       if (hoistedLocationsOfDep) {
@@ -394,6 +401,79 @@ async function buildDependency<T extends string> (
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
     }
+  }
+}
+
+/**
+ * Serializes builds into one global virtual store slot across processes, and
+ * marks the slot as mid-build before the build writes into it. Resolves to
+ * `undefined` when another install built the slot while this one waited for
+ * its lock, or when another install's build of it did not finish.
+ */
+async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<{ lock?: DirLock } | undefined> {
+  const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
+  const awaitingBuild = await pathExists(marker)
+  const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
+  if (await isStartedBuildMarker(marker) || (awaitingBuild && !await pathExists(marker))) {
+    await lock?.release()
+    return undefined
+  }
+  await markBuildStarted(depNode, lockfileDir)
+  return { lock }
+}
+
+/**
+ * Takes the lock that serializes writes into one global virtual store slot
+ * across processes: builds, and re-imports of a slot that still carries its
+ * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
+ * Resolves to `undefined` when the lock cannot be taken, and the caller then
+ * writes without it: the lock avoids a race, and a race lost is better than
+ * an install that refuses to run.
+ */
+export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promise<DirLock | undefined> {
+  const lockPath = path.join(path.dirname(slotModulesDir), SLOT_LOCK_DIR)
+  try {
+    return await DirLock.acquire(lockPath, { waitMs: SLOT_LOCK_WAIT_MS, abandonedMs: SLOT_LOCK_ABANDONED_MS })
+  } catch (err: unknown) {
+    logger.debug({ message: `Failed to lock ${lockPath}`, error: err })
+    return undefined
+  }
+}
+
+/**
+ * Whether the slot's build started and then failed, or its process died,
+ * leaving files the build may have changed. Only a re-import of the pristine
+ * files, which rewrites the marker empty, makes it safe to build. A missing
+ * marker resolves to `false`; any other read failure rejects, since the slot's
+ * state is then unknown.
+ */
+async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
+  try {
+    const content = await fs.readFile(markerPath, 'utf8')
+    return content === STARTED_BUILD_MARKER_CONTENT
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
+/**
+ * A successful build removes the marker. A failed patch or build script, or a
+ * process that dies mid-build, leaves it in place instead of the slot being
+ * removed, because other projects may already link the shared slot. The next
+ * install that reaches it then re-imports its pristine files and builds again.
+ */
+async function markBuildStarted<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
+  try {
+    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), STARTED_BUILD_MARKER_CONTENT)
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    if ('code' in err && err.code === 'ENOENT') return
+    logger.warn({
+      error: err,
+      message: `Failed to mark ${depNode.dir} as mid-build`,
+      prefix: lockfileDir,
+    })
   }
 }
 

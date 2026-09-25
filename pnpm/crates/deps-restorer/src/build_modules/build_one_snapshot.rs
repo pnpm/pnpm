@@ -1,10 +1,12 @@
 //! Running one package's build scripts.
 
 mod side_effects;
+mod slot_to_build;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
 };
+use slot_to_build::slot_to_build;
 
 use std::sync::atomic::Ordering;
 
@@ -13,8 +15,8 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
+    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -77,12 +79,9 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
+    let Some((pkg_dir, _slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
-    if !pkg_dir.exists() {
-        return Ok(());
-    }
 
     let extra_bin_paths = snapshot_extra_bin_paths(context, &pkg_dir);
 
@@ -107,7 +106,7 @@ fn build_candidate<Reporter: self::Reporter>(
     clear_global_virtual_store_build_markers(
         context,
         snapshot_key,
-        candidate.patch.is_some() || candidate.should_run_scripts,
+        (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
     );
 
     upload_side_effects_cache(
@@ -164,6 +163,9 @@ struct BuildCandidate<'c> {
     /// suppressed by the rebuild-selection gate after it.
     force_rebuild: bool,
     should_run_scripts: bool,
+    /// `--ignore-scripts` left the build scripts for a later install to run
+    /// in the same global-virtual-store slot, so its marker has to stay.
+    build_pending: bool,
 }
 
 impl<'c> BuildCandidate<'c> {
@@ -186,7 +188,16 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+        let build_pending = requires_build && context.scripts.ignore;
+        Some(Self {
+            metadata_key,
+            patch,
+            name,
+            version,
+            force_rebuild,
+            should_run_scripts,
+            build_pending,
+        })
     }
 }
 
@@ -297,11 +308,7 @@ fn apply_configured_patch(
         if !patched_dir.exists() {
             continue;
         }
-        apply_patch_to_dir(&patched_dir, patch_file_path)
-            .inspect_err(|_| {
-                discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
-            })
-            .map_err(BuildModulesError::PatchApply)?;
+        apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
     Ok(true)
 }
@@ -338,9 +345,6 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            // Before the optional-skip return, so a failed optional build
-            // leaves no half-built slot behind either.
-            discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }

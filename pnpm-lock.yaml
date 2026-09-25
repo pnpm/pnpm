@@ -1921,6 +1921,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -1954,6 +1957,9 @@ importers:
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
+      path-exists:
+        specifier: 'catalog:'
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -4415,6 +4421,9 @@ importers:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: link:../pnpm-cli-runner
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../installing/client
@@ -5028,6 +5037,15 @@ importers:
         version: 0.2.0
     devDependencies:
       '@pnpm/fetching.types':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm11/fs/dir-lock:
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
+      '@pnpm/fs.dir-lock':
         specifier: workspace:*
         version: 'link:'
 
@@ -6139,6 +6157,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/fs.dir-lock':
+        specifier: workspace:*
+        version: link:../../fs/dir-lock
       '@pnpm/hooks.pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
