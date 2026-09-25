@@ -27,11 +27,6 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  * as `bareSpecifier` and whose manifest entry, if it already had one, read
  * `prevSpecifier`.
  *
- * The existing entry's range style wins over the requested specifier's, which
- * wins over the configured default, so a re-add keeps the pinning style the
- * manifest already used. A newly added prerelease is pinned exactly, while an
- * updated prerelease keeps the existing entry's range style.
- *
  * An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
  * `1 || 2`) is kept as written when it still admits `version` and the request
  * names no specifier of its own, so an update moves the version without
@@ -44,6 +39,7 @@ export function calcVersionRange (
     prevSpecifier?: string
     bareSpecifier?: string
     defaultRangeSpecStyle?: RangeSpecStyle
+    isUpdate?: boolean
   }
 ): string {
   const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
@@ -53,12 +49,16 @@ export function calcVersionRange (
       return prevRange
     }
   }
+  const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
+  if (!opts.isUpdate && (requestedRangeSpecStyle === 'patch' || requestedRangeSpecStyle === 'exact')) {
+    return versionWithRangeSpecStyle(version, requestedRangeSpecStyle)
+  }
   if (semver.parse(version)?.prerelease.length) {
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
-  const rangeSpecStyle = prevRangeSpecStyle ??
-    (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??
-    opts.defaultRangeSpecStyle
+  const rangeSpecStyle = opts.isUpdate
+    ? prevRangeSpecStyle ?? requestedRangeSpecStyle ?? opts.defaultRangeSpecStyle
+    : requestedRangeSpecStyle ?? prevRangeSpecStyle ?? opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
 

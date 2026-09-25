@@ -507,7 +507,20 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:2.1.0"));
+
+    let wanted_latest = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:latest".to_string()),
+        prev_specifier: Some("gh:~2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result_latest = resolver
+        .resolve(&wanted_latest, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
 }
 
 #[tokio::test]

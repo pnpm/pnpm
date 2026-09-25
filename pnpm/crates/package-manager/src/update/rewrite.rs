@@ -18,7 +18,7 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
-use pnpm_resolving_npm_resolver::calc_version_range;
+use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
 use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
 
 /// What one matched direct dependency is rewritten against.
@@ -221,7 +221,7 @@ pub(super) fn requested_version_rewrite(
     alias: &str,
     requested: &str,
     previous: &str,
-    default_style: RangeSpecStyle,
+    _default_style: RangeSpecStyle,
 ) -> String {
     if previous.starts_with(RUNTIME_PROTOCOL) {
         return requested_runtime_rewrite(alias, requested, previous);
@@ -232,7 +232,20 @@ pub(super) fn requested_version_rewrite(
     let Some((prefix, declared_range)) = split_registry_alias(previous) else {
         return requested.to_string();
     };
-    let range = calc_version_range(&version, Some(declared_range), Some(requested), default_style);
+    let range = match infer_range_spec_style(declared_range) {
+        Some(style) => format!("{}{version}", style.range_prefix()),
+        None => {
+            if let Some(prev_range) = range_of_specifier(declared_range)
+                && prev_range
+                    .parse::<node_semver::Range>()
+                    .is_ok_and(|range| range.satisfies(&version))
+            {
+                prev_range.to_string()
+            } else {
+                requested.to_string()
+            }
+        }
+    };
     format!("{prefix}{range}")
 }
 /// The declaration a `<name>@<requested>` selector writes over the `runtime:`

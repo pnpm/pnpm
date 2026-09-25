@@ -339,12 +339,8 @@ fn save_workspace_protocol_decides_the_saved_workspace_range() {
         (None, "workspace:1.2.3", "1.2.3", true, "workspace:*"),
         (None, "workspace:*", "1.2.3", true, "workspace:*"),
         (Some("true"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
-        // The typed `~` loses to the default `^`: the pinned form reads
-        // its operator off the previous entry, and there is none here.
-        (Some("true"), "workspace:~1.2.3", "1.2.3", true, "workspace:^1.2.3"),
-        // The local version wins over the typed range.
+        (Some("true"), "workspace:~1.2.3", "1.2.3", true, "workspace:~1.2.3"),
         (Some("true"), "workspace:^1.0.0", "2.5.0", true, "workspace:^2.5.0"),
-        // A range over a prerelease would not match it, so it is exact.
         (Some("true"), "workspace:^1.0.0", "2.0.0-beta.1", true, "workspace:2.0.0-beta.1"),
         (Some("false"), "workspace:^1.2.3", "1.2.3", true, "workspace:^1.2.3"),
     ];

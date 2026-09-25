@@ -15,12 +15,6 @@ use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 /// manifest entry, if it already had one, read `prev_specifier`, and that
 /// the request, if it named one, asked for as `requested`.
 ///
-/// The existing entry's style wins over the requested specifier's, which
-/// wins over `default_style`, so a re-add keeps the pinning style the
-/// manifest already used. A prerelease keeps the existing entry's style and
-/// is otherwise pinned exactly — neither the requested specifier nor
-/// `default_style` widens a prerelease the manifest did not already widen.
-///
 /// An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
 /// `1 || 2`) is kept as written when it still admits `version` and the
 /// request names no specifier of its own, so an update moves the version
@@ -46,15 +40,18 @@ pub fn calc_version_range(
     {
         return prev_range.to_string();
     }
+    let requested_style = requested.and_then(infer_range_spec_style);
+    if matches!(requested_style, Some(RangeSpecStyle::Patch | RangeSpecStyle::Exact)) {
+        let style = requested_style.unwrap();
+        return format!("{}{version}", style.range_prefix());
+    }
     if !version.pre_release.is_empty() {
         return match prev_style {
             Some(style) => format!("{}{version}", style.range_prefix()),
             None => version.to_string(),
         };
     }
-    let style = prev_style
-        .or_else(|| requested.and_then(infer_range_spec_style))
-        .unwrap_or(default_style);
+    let style = requested_style.or(prev_style).unwrap_or(default_style);
     format!("{}{version}", style.range_prefix())
 }
 

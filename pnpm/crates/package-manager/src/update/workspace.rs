@@ -151,6 +151,7 @@ pub(super) fn workspace_specifier(
         Some(&version),
         protocol,
         default_pin,
+        true,
     )
 }
 /// The workspace version a `workspace:<range>` specifier would resolve

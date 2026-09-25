@@ -34,7 +34,7 @@ pub use fetch_full_metadata::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, MetadataHttpClient, fetch_full_metadata,
 };
 pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
-pub use infer_range_spec_style::infer_range_spec_style;
+pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
 pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
 pub use named_registry::{
     BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,

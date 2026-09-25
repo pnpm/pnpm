@@ -46,6 +46,7 @@ pub fn calc_specifier_for_workspace_dep(
     resolved_version: Option<&str>,
     save_workspace_protocol: SaveWorkspaceProtocol,
     default_pin: RangeSpecStyle,
+    is_update: bool,
 ) -> String {
     // An aliased dependency has to name its target inside the protocol
     // (`workspace:<real name>@<range>`), otherwise the entry would point
@@ -61,10 +62,26 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    if is_saved_exactly(resolved_version) {
-        return format!("{prefix}{resolved_version}");
+    let prev_style = declared.prev.and_then(infer_range_spec_style);
+    let requested_style = declared.bare.and_then(infer_range_spec_style);
+
+    if !is_update && matches!(requested_style, Some(RangeSpecStyle::Patch | RangeSpecStyle::Exact))
+    {
+        let style = requested_style.unwrap();
+        return format!("{prefix}{}{resolved_version}", style.range_prefix());
     }
-    let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
+
+    if is_saved_exactly(resolved_version) {
+        return match prev_style {
+            Some(style) => format!("{prefix}{}{resolved_version}", style.range_prefix()),
+            None => format!("{prefix}{resolved_version}"),
+        };
+    }
+    let pin = if is_update {
+        prev_style.or(requested_style).unwrap_or(default_pin)
+    } else {
+        requested_style.or(prev_style).unwrap_or(default_pin)
+    };
     format!("{prefix}{}{resolved_version}", pin.range_prefix())
 }
 

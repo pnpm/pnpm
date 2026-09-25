@@ -292,6 +292,7 @@ pub(super) fn workspace_save_specifier(
         resolved_version.as_deref(),
         config.save_workspace_protocol,
         range_spec_style,
+        false,
     );
     if config.save_workspace_protocol == SaveWorkspaceProtocol::Off
         && !explicit_spec.is_some_and(|specifier| specifier.starts_with("workspace:"))

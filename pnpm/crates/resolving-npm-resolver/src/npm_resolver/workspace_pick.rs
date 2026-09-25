@@ -223,6 +223,10 @@ pub(super) fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOp
         calc_specifier: opts.specifier.calc_specifier,
         range_spec_style: opts.specifier.range_spec_style,
         save_workspace_protocol: opts.specifier.save_workspace_protocol,
+        is_update: matches!(
+            opts.refresh.update,
+            UpdateBehavior::Compatible | UpdateBehavior::Latest | UpdateBehavior::Patches,
+        ) || opts.refresh.update_requested,
     }
 }
 

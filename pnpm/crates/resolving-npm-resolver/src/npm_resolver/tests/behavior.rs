@@ -39,7 +39,20 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.1.0"));
+
+    let wanted_latest = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("latest".to_string()),
+        prev_specifier: Some("~1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result_latest = resolver
+        .resolve(&wanted_latest, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
 }
 
 #[tokio::test]
@@ -109,7 +122,20 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:1.1.0"));
+
+    let wanted_latest = WantedDependency {
+        alias: Some("@foo/bar".to_string()),
+        bare_specifier: Some("jsr:@foo/bar@latest".to_string()),
+        prev_specifier: Some("jsr:@foo/bar@~1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result_latest = resolver
+        .resolve(&wanted_latest, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
 /// `optionalDependencies` and `peerDependenciesMeta` round-trip from the
