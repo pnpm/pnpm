@@ -62,6 +62,20 @@ test('npm installs local Windows shims that name the native executable', (t) => 
   }
 })
 
+// `--location=global` leaves `npm_config_global` unset and sets npm's project
+// prefix to the global prefix, so only `npm_config_location` marks it global.
+test('npm installs global Windows shims that name the native executable with --location=global', (t) => {
+  const { prefix } = installFixtureWithNpm(t, ['--dangerously-allow-all-scripts', '--location=global'], { global: false })
+
+  assert.equal(fs.existsSync(path.join(prefix, 'node_modules', '.bin')), false)
+  if (process.platform === 'win32') {
+    assert.match(fs.readFileSync(path.join(prefix, 'pnpm.cmd'), 'utf8'), /pnpm\.exe/)
+    assert.match(fs.readFileSync(path.join(prefix, 'pnpm.ps1'), 'utf8'), /pnpm\.exe/)
+  } else {
+    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  }
+})
+
 // npm's bin points straight at the placeholder rather than naming an
 // interpreter for it, which is what keeps it working once the native binary
 // takes the same path. Windows has no shell that could run it instead.

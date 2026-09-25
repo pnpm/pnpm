@@ -6,9 +6,9 @@
 // the native binary at the same path. npm's global Windows shims still target
 // the extensionless path after the `bin` rewrite, so postinstall asks npm to
 // regenerate them against `pnpm.exe`. A global install uses `npm rebuild
-// --global`. A local install must pass the project prefix: the script's
-// working directory is the installed package, not the project that owns
-// `node_modules/.bin`. When lifecycle scripts are blocked
+// --global`. A project install passes the project prefix, because the
+// script's working directory is the installed package. Any other install,
+// such as `npm exec`, keeps its shims. When lifecycle scripts are blocked
 // (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and runs pnpm
 // through Node.js wherever a shell reaches it (see the `pnpm` file).
 //
@@ -143,12 +143,12 @@ function relinkNpmWindowsShims () {
     'rebuild',
     '--ignore-scripts',
   ]
-  if (process.env.npm_config_global === 'true') {
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
     args.push('--global', packageName)
   } else {
-    const prefix = process.env.npm_config_local_prefix
-    if (typeof prefix !== 'string' || prefix === '') {
-      fail('Could not determine the npm project prefix when regenerating local shims.')
+    const prefix = findNpmProjectPrefix()
+    if (prefix == null) {
+      return
     }
     args.push('--prefix', prefix, packageName)
   }
@@ -159,6 +159,33 @@ function relinkNpmWindowsShims () {
   if (result.status !== 0) {
     fail('npm could not regenerate the shims for pnpm.')
   }
+}
+
+/**
+ * The npm project whose `node_modules` holds this wrapper, or `null` when npm's
+ * project prefix does not contain it. `npm exec` installs into its own cache
+ * while the prefix still names the caller's project, and rebuilding there
+ * would touch an unrelated project.
+ *
+ * @returns {string | null}
+ */
+function findNpmProjectPrefix () {
+  const prefix = process.env.npm_config_local_prefix
+  if (typeof prefix !== 'string' || prefix === '') {
+    return null
+  }
+  let realPrefix
+  try {
+    realPrefix = fs.realpathSync(prefix)
+  } catch {
+    return null
+  }
+  // `wrapperDir` comes from the module URL, which Node resolves through symlinks.
+  const relative = path.relative(path.join(realPrefix, 'node_modules'), wrapperDir)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) {
+    return null
+  }
+  return prefix
 }
 
 function removeFileIfPossible (filePath) {
