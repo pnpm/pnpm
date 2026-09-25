@@ -195,15 +195,21 @@ fn sweep_preserves_an_in_progress_lockfile_write() {
     use std::io::Write;
 
     let store = tempfile::tempdir().unwrap();
-    fs::create_dir(store.path().join("surplus@1.0.0")).unwrap();
-    let mut pending = tempfile::NamedTempFile::new_in(store.path()).unwrap();
-    pending.write_all(b"pending lockfile").unwrap();
-    pending.flush().unwrap();
+    for name in ["lock.yaml.123456789", ".lock.yaml.123.456.tmp"] {
+        fs::create_dir(store.path().join("surplus@1.0.0")).unwrap();
+        fs::write(store.path().join("stray-file"), "remove").unwrap();
+        let pending_path = store.path().join(name);
+        let mut pending = fs::File::create_new(&pending_path).unwrap();
+        pending.write_all(b"pending lockfile").unwrap();
+        pending.flush().unwrap();
 
-    let removed = prune_virtual_store(store.path(), [].iter(), &SkippedSnapshots::new(), 120);
+        let removed = prune_virtual_store(store.path(), [].iter(), &SkippedSnapshots::new(), 120);
 
-    assert_eq!(removed, Some(1));
-    let destination = store.path().join("lock.yaml");
-    pending.persist(&destination).unwrap();
-    assert_eq!(fs::read_to_string(destination).unwrap(), "pending lockfile");
+        assert_eq!(removed, Some(2));
+        drop(pending);
+        let destination = store.path().join("lock.yaml");
+        fs::rename(pending_path, &destination).unwrap();
+        assert_eq!(fs::read_to_string(destination).unwrap(), "pending lockfile");
+        assert!(!store.path().join("stray-file").exists());
+    }
 }

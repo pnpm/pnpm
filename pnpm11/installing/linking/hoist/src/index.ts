@@ -615,7 +615,10 @@ async function symlinkHoistedDependency (
   let existingSymlink!: string
   try {
     existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
-  } catch {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return createHoistedDependencyLink(depLocation, dest)
+    }
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',
@@ -635,6 +638,10 @@ async function symlinkHoistedDependency (
   } catch (err: unknown) {
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
+  await createHoistedDependencyLink(depLocation, dest)
+}
+
+async function createHoistedDependencyLink (depLocation: string, dest: string): Promise<void> {
   while (true) {
     try {
       // eslint-disable-next-line no-await-in-loop

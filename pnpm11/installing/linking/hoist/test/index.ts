@@ -102,6 +102,24 @@ test.each(['ENOENT', 'EINVAL'])('rechecks a winning link after readlink reports 
   }
 })
 
+test('recreates a link removed before ownership inspection', async () => {
+  const { root, link, target, opts } = await prepareStaleHoist()
+  const readlink = fs.promises.readlink
+  let reads = 0
+  jest.spyOn(fs.promises, 'readlink').mockImplementation(async (...args) => {
+    if (args[0] === link && ++reads === 2) {
+      await fs.promises.unlink(link)
+    }
+    return readlink(...args)
+  })
+  try {
+    await hoist(opts)
+    expect(await resolveLinkTarget(link)).toBe(target)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 async function prepareStaleHoist () {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-concurrent-hoist-'))
   const modulesDir = path.join(root, 'node_modules')

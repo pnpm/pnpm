@@ -73,3 +73,29 @@ fn preserves_a_directory_created_by_another_writer() {
     assert!(!pnpm_fs::is_symlink_or_junction(&link).unwrap());
     assert_eq!(std::fs::read_to_string(link.join("sentinel")).unwrap(), "keep");
 }
+
+#[cfg(windows)]
+#[test]
+fn rechecks_a_link_after_a_reparse_point_read_race() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    junction::create(&target, &link).unwrap();
+    let not_a_reparse_point = std::io::Error::from_raw_os_error(4390);
+    assert!(super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+    pnpm_fs::remove_symlink_dir(&link).unwrap();
+    assert!(super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+    std::fs::create_dir(&link).unwrap();
+    assert!(!super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+}
+
+#[test]
+fn recreates_a_link_removed_before_ownership_inspection() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    update_stale_hoist_symlink(&target, &link, root.path(), root.path()).unwrap();
+    assert_eq!(std::fs::canonicalize(link).unwrap(), std::fs::canonicalize(target).unwrap());
+}

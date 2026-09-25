@@ -68,8 +68,8 @@ fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool
 ///
 /// The needed set is `node_modules` plus one
 /// [`PkgNameVerPeer::to_virtual_store_name`] per non-skipped snapshot
-/// key; any other directory or symlink is surplus and removed. Regular files
-/// are preserved because they may belong to concurrent lockfile writers.
+/// key; other on-disk entries are surplus and removed, except regular
+/// lockfiles and their temporary files, which may have concurrent writers.
 ///
 /// `snapshot_keys` are the wanted lockfile's `snapshots:` keys — the
 /// peer-suffixed dep paths that name the per-package subdirectories of
@@ -167,7 +167,7 @@ fn needed_virtual_store_names<'a>(
     needed
 }
 
-/// List the immediate directory and symlink names in the virtual store.
+/// List immediate virtual-store entries other than regular lockfile files.
 /// A missing directory yields an empty list (a first install has
 /// nothing to prune). Any other read error returns `None` so the sweep
 /// can't delete packages it failed to enumerate, and the caller knows
@@ -189,9 +189,10 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
         entries
             .filter_map(Result::ok)
             .filter(|entry| {
-                entry
-                    .file_type()
-                    .is_ok_and(|kind| kind.is_dir() || kind.is_symlink())
+                !is_lockfile_name(&entry.file_name().to_string_lossy())
+                    || entry
+                        .file_type()
+                        .is_ok_and(|kind| !kind.is_file())
             })
             .map(|entry| {
                 entry
@@ -201,6 +202,12 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
             })
             .collect(),
     )
+}
+
+fn is_lockfile_name(name: &str) -> bool {
+    name == Lockfile::CURRENT_FILE_NAME
+        || name.starts_with("lock.yaml.")
+        || (name.starts_with(".lock.yaml.") && name.ends_with(".tmp"))
 }
 
 /// `rimraf` a surplus virtual-store entry, returning whether the entry is

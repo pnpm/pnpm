@@ -91,12 +91,18 @@ test.each([false, true])('pruning preserves an in-progress lockfile write (froze
   const manifest = { dependencies: { 'is-positive': '1.0.0' } }
   await install(manifest, testDefaults())
   const virtualStoreDir = path.resolve('node_modules/.pnpm')
-  const pendingLockfile = path.join(virtualStoreDir, 'lock.yaml.123456789')
-  fs.writeFileSync(pendingLockfile, 'pending lockfile')
+  const pendingNames = ['lock.yaml.123456789', '.lock.yaml.123.456.tmp']
+  for (const name of pendingNames) {
+    fs.writeFileSync(path.join(virtualStoreDir, name), 'pending lockfile')
+  }
+  fs.writeFileSync(path.join(virtualStoreDir, 'stray-file'), 'remove')
   fs.mkdirSync(path.join(virtualStoreDir, 'surplus@1.0.0'))
 
   await install(manifest, testDefaults({ frozenLockfile, preferFrozenLockfile: frozenLockfile, modulesCacheMaxAge: 0 }))
 
-  expect(fs.readFileSync(pendingLockfile, 'utf8')).toBe('pending lockfile')
+  for (const name of pendingNames) {
+    expect(fs.readFileSync(path.join(virtualStoreDir, name), 'utf8')).toBe('pending lockfile')
+  }
+  expect(fs.existsSync(path.join(virtualStoreDir, 'stray-file'))).toBe(false)
   expect(fs.existsSync(path.join(virtualStoreDir, 'surplus@1.0.0'))).toBe(false)
 })

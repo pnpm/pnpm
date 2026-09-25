@@ -206,8 +206,9 @@ function getScopeFromPackageName (pkgName: string): string | undefined {
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(virtualStoreDir, { withFileTypes: true })
-    // Regular files may belong to concurrent lockfile writers.
-    return entries.filter(entry => entry.isDirectory() || entry.isSymbolicLink()).map(entry => entry.name)
+    return entries
+      .filter(entry => !entry.isFile() || !isLockfileName(entry.name))
+      .map(entry => entry.name)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       logger.warn({
@@ -218,6 +219,11 @@ async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string
     }
     return []
   }
+}
+
+function isLockfileName (name: string): boolean {
+  return name === 'lock.yaml' || name.startsWith('lock.yaml.') ||
+    (name.startsWith('.lock.yaml.') && name.endsWith('.tmp'))
 }
 
 async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string): Promise<void> {

@@ -23,8 +23,17 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
     package_store_dir: &Path,
     internal_pnpm_dir: &Path,
 ) -> Result<(), crate::SymlinkPackageError> {
-    let Ok(existing) = read_hoist_symlink(dest) else {
-        return Ok(());
+    let symlink_error = |error| crate::SymlinkPackageError::SymlinkDir {
+        symlink_target: dep_dir.to_path_buf(),
+        symlink_path: dest.to_path_buf(),
+        error,
+    };
+    let existing = match read_hoist_symlink(dest) {
+        Ok(existing) => existing,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return create_hoist_symlink(dep_dir, dest).map_err(symlink_error);
+        }
+        Err(_) => return Ok(()),
     };
     if pnpm_fs::lexical_normalize(&existing) == pnpm_fs::lexical_normalize(dep_dir) {
         return Ok(());
@@ -34,12 +43,7 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
     {
         return Ok(());
     }
-    replace_stale_hoist_symlink(dep_dir, dest)
-        .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
-            symlink_target: dep_dir.to_path_buf(),
-            symlink_path: dest.to_path_buf(),
-            error,
-        })
+    replace_stale_hoist_symlink(dep_dir, dest).map_err(symlink_error)
 }
 
 fn replace_stale_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
@@ -63,7 +67,23 @@ fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
                 return Ok(());
             }
             Err(read_error) if should_retry_hoist_link_read(dest, &read_error) => {}
-            _ => return Err(error),
+            Ok(existing) => {
+                return Err(io::Error::new(
+                    error.kind(),
+                    format!(
+                        "{error}; link at {} points to {}, expected {}",
+                        dest.display(),
+                        existing.display(),
+                        dep_dir.display(),
+                    ),
+                ));
+            }
+            Err(read_error) => {
+                return Err(io::Error::new(
+                    error.kind(),
+                    format!("{error}; failed to inspect link at {}: {read_error}", dest.display()),
+                ));
+            }
         }
     }
 }
@@ -72,14 +92,28 @@ fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
     if error.kind() == io::ErrorKind::NotFound {
         return true;
     }
-    if error.kind() != io::ErrorKind::InvalidInput {
+    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
+    let not_a_link = error.kind() == io::ErrorKind::InvalidInput
+        || (cfg!(windows) && error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT));
+    if !not_a_link {
         return false;
     }
-    // macOS can report EINVAL when a concurrent unlink interrupts read_link.
+    // A concurrent unlink can make a link read report that the entry is not a link.
     match pnpm_fs::symlink_metadata_with_retry(dest) {
-        Ok(metadata) => metadata.file_type().is_symlink(),
+        Ok(metadata) => is_link_metadata(&metadata),
         Err(error) => error.kind() == io::ErrorKind::NotFound,
     }
+}
+
+fn is_link_metadata(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(windows))]
+    metadata.file_type().is_symlink()
 }
 
 fn read_hoist_symlink(dest: &Path) -> io::Result<PathBuf> {
