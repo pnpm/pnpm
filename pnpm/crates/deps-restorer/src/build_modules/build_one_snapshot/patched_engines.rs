@@ -85,8 +85,8 @@ fn unlink_children(dir: &std::path::Path, dirs: &[std::path::PathBuf]) {
 
 fn unlink_scope(path: &std::path::Path, dirs: &[std::path::PathBuf]) {
     let Some(name) = path.file_name().and_then(|name| name.to_str()) else { return };
-    let is_real_dir = std::fs::symlink_metadata(path)
-        .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink());
+    let is_real_dir = std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_dir())
+        && pnpm_fs::is_symlink_or_junction(path).is_ok_and(|linked| !linked);
     if !name.starts_with('@') || !is_real_dir {
         return;
     }
@@ -199,3 +199,6 @@ fn installability_options(
         supported_architectures: None,
     }
 }
+
+#[cfg(test)]
+mod tests;

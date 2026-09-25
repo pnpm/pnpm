@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { createHexHashFromFile } from '@pnpm/crypto.hash'
+import { depPathToFilename } from '@pnpm/deps.path'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
@@ -266,4 +268,23 @@ test('engine-strict keeps the global virtual store slot of a skipped optional pa
   const slots = fs.readdirSync(versionDir)
   expect(slots).toHaveLength(1)
   expect(fs.existsSync(path.join(versionDir, slots[0], 'node_modules/@pnpm.e2e/for-legacy-node/package.json'))).toBe(true)
+})
+
+test('engine-strict cleanup does not follow a linked scope directory', async () => {
+  prepareEmpty()
+  const manifest = { optionalDependencies: { '@pnpm.e2e/for-legacy-node': '1.0.0' } }
+  const patchedDependencies = writeLegacyNodeEnginesPatch('99')
+  const patchHash = await createHexHashFromFile(patchedDependencies['@pnpm.e2e/for-legacy-node@1.0.0'])
+  const slot = depPathToFilename(`@pnpm.e2e/for-legacy-node@1.0.0(patch_hash=${patchHash})`, 120)
+  const packageDir = path.resolve('node_modules/.pnpm', slot, 'node_modules/@pnpm.e2e/for-legacy-node')
+  const outsideLink = path.resolve('outside/for-legacy-node')
+  fs.mkdirSync('outside')
+  fs.symlinkSync(packageDir, outsideLink, 'junction')
+  fs.mkdirSync('node_modules')
+  fs.symlinkSync(path.resolve('outside'), path.resolve('node_modules/@linked-scope'), 'junction')
+
+  await install(manifest, testDefaults({ engineStrict: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  expect(() => fs.lstatSync('node_modules/@pnpm.e2e/for-legacy-node')).toThrow()
+  expect(fs.lstatSync(outsideLink).isSymbolicLink()).toBe(true)
 })
