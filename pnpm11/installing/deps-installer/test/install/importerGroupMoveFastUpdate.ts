@@ -39,6 +39,28 @@ test('a move between prod and dev only edits the importer', async () => {
   expect(subject.packages).toStrictEqual(packagesBefore)
 })
 
+test('a legacy prod-only record is copied to both dependencies and devDependencies', async () => {
+  const subject = lockfile()
+  const packagesBefore = clone(subject.packages)
+
+  expect(hasChangedProjectSpecifiers(subject, [
+    project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' }, devDependencies: { foo: '^1.0.0' } }),
+  ])).toBe(true)
+
+  expect(await tryFastUpdateImporters(subject, [
+    project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' }, devDependencies: { foo: '^1.0.0' } }),
+  ])).toBe(true)
+  const importer = subject.importers['.' as ProjectId]
+  expect(importer.dependencies).toStrictEqual({ foo: '1.1.0', bar: '2.0.0' })
+  expect(importer.devDependencies).toStrictEqual({ foo: '1.1.0' })
+  expect(importer.specifiers).toStrictEqual({ foo: '^1.0.0', bar: '^2.0.0' })
+  expect(subject.packages).toStrictEqual(packagesBefore)
+
+  expect(hasChangedProjectSpecifiers(subject, [
+    project({ dependencies: { foo: '^1.0.0', bar: '^2.0.0' }, devDependencies: { foo: '^1.0.0' } }),
+  ])).toBe(false)
+})
+
 test('a move into optionalDependencies marks the subtree optional', async () => {
   const subject = lockfile()
 
