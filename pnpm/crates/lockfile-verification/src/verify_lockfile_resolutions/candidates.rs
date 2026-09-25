@@ -101,10 +101,14 @@ fn has_registry_shape_mismatch(
 /// Run every active verifier against every candidate with a
 /// concurrency cap. Each candidate stops at the first verifier that
 /// rejects it.
+///
+/// `on_entry_checked` is called once per candidate as its check
+/// completes, and no more once a transport failure aborts the pass.
 pub(super) async fn run_fan_out(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
+    on_entry_checked: &mut (dyn FnMut() + Send),
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
     let semaphore = Arc::new(Semaphore::new(limit));
@@ -112,6 +116,7 @@ pub(super) async fn run_fan_out(
     for candidate in candidates {
         let verifiers = candidate_verifiers(&candidate, verifiers);
         if verifiers.is_empty() {
+            on_entry_checked();
             continue;
         }
 
@@ -138,6 +143,9 @@ pub(super) async fn run_fan_out(
                     fetch_error = Some(message);
                 }
             }
+        }
+        if fetch_error.is_none() {
+            on_entry_checked();
         }
     }
     // A registry that couldn't be reached takes precedence over collected
