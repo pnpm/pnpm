@@ -396,24 +396,30 @@ impl Walker<'_> {
 
     /// A node's children as `(alias, package id, node id)`, from its realized
     /// map or, while it is still lazy, from the tree's per-package child edges.
+    /// Either way, the cycle edges the peer walk cuts at every occurrence
+    /// ([`Self::cuts_cycle_edge`]) are left out. A realized map keeps such an
+    /// edge as a record-only node that the walk does not descend into.
     fn child_edges_of<'a>(
         &'a self,
         node: &'a crate::DependenciesTreeNode,
     ) -> Vec<(&'a str, &'a str, Option<&'a NodeId>)> {
-        match &node.children {
-            TreeChildren::Realized(children) => children
-                .iter()
-                .filter_map(|(alias, child_node_id)| {
-                    let child = self.tree.dependencies_tree.get(child_node_id)?;
-                    Some((alias.as_str(), &*child.resolved_package_id, Some(child_node_id)))
-                })
-                .collect(),
-            TreeChildren::Lazy { .. } => self.child_edges_of_pkg(&node.resolved_package_id),
-        }
+        let TreeChildren::Realized(children) = &node.children else {
+            return self.child_edges_of_pkg(&node.resolved_package_id);
+        };
+        let canonical_scc = self.canonical_scc();
+        children
+            .iter()
+            .filter_map(|(alias, child_node_id)| {
+                let child = self.tree.dependencies_tree.get(child_node_id)?;
+                Some((alias.as_str(), &*child.resolved_package_id, Some(child_node_id)))
+            })
+            .filter(|(_, child_pkg_id, _)| {
+                !Self::cuts_cycle_edge(&canonical_scc, &node.resolved_package_id, child_pkg_id)
+            })
+            .collect()
     }
 
-    /// A package's child edges, without the cycle edges realization cuts at
-    /// every occurrence ([`Self::cuts_cycle_edge`]).
+    /// See [`Self::child_edges_of`].
     fn child_edges_of_pkg(&self, pkg_id: &str) -> Vec<(&str, &str, Option<&NodeId>)> {
         let canonical_scc = self.canonical_scc();
         self.tree.children_by_id

@@ -844,13 +844,24 @@ fn descendant_walk_stops_at_an_aliased_copy_of_the_provider() {
     );
 }
 
-/// `zed` is still lazy when the walk reaches it, and its only edge is the
-/// cycle edge back to `app`, which realization cuts. The walk must drop it
-/// too. Following it would reach `app`'s `plugin`, which is not below `shadow`
-/// and does not inherit `shadow`'s `parser`, and would switch `consumer` to
-/// `shadow`'s own `parser`.
+/// `zed`'s only edge is the cycle edge back to its ancestor `app`, which the
+/// peer walk cuts. A lazy `zed` still lists it among its package edges, and a
+/// realized one keeps it as a record-only node. The descendant walk must drop
+/// it either way. Following it would reach `app`'s `plugin`, which is not below
+/// `shadow` and does not inherit `shadow`'s `parser`, and would switch
+/// `consumer` to `shadow`'s own `parser`.
 #[test]
 fn descendant_walk_skips_a_cut_cycle_edge_of_a_lazy_node() {
+    assert_descendant_walk_skips_cut_cycle_edge(false);
+}
+
+/// See [`descendant_walk_skips_a_cut_cycle_edge_of_a_lazy_node`].
+#[test]
+fn descendant_walk_skips_a_cut_cycle_edge_of_a_realized_node() {
+    assert_descendant_walk_skips_cut_cycle_edge(true);
+}
+
+fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
     let ts1 = NodeId::leaf("ts@1.0.0");
     let ts2 = NodeId::leaf("ts@2.0.0");
     let parser_root = NodeId::next();
@@ -876,14 +887,21 @@ fn descendant_walk_skips_a_cut_cycle_edge_of_a_lazy_node() {
         pkg_id: Arc::from(pkg_id),
         optional: false,
     };
-    let zed_node = crate::resolved_tree::DependenciesTreeNode::new(
-        Arc::from("zed@1.0.0"),
-        crate::resolved_tree::TreeChildren::Lazy {
-            parent_ids: Arc::new(vec!["app@1.0.0".to_string(), "shadow@1.0.0".to_string()]).into(),
-        },
-        2,
-        true,
-    );
+    let zed_node = if realized_zed {
+        let mut zed_children = BTreeMap::new();
+        zed_children.insert("app".to_string(), app.clone());
+        tree_node("zed@1.0.0", zed_children, 2)
+    } else {
+        crate::resolved_tree::DependenciesTreeNode::new(
+            Arc::from("zed@1.0.0"),
+            crate::resolved_tree::TreeChildren::Lazy {
+                parent_ids: Arc::new(vec!["app@1.0.0".to_string(), "shadow@1.0.0".to_string()])
+                    .into(),
+            },
+            2,
+            true,
+        )
+    };
 
     let mut tree = ResolvedTree {
         direct: vec![
