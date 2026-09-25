@@ -42,7 +42,7 @@ use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
     GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, is_plain_version_spec,
-    pins_for_downgrades, run_group_install,
+    run_group_install,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
