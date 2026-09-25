@@ -381,13 +381,13 @@ task. Start every new branch in a fresh worktree instead:
 git worktree add ../<dir-name> -b <branch-name> origin/main
 ```
 
-A `post-checkout` hook (`.husky/reject-worktree-rebind.mjs`) enforces
-this for agent sessions: a checkout or commit binds the worktree to its
-branch (a first-observed *switch* binds to the branch it left, so even
-that switch is checked), and branch switches away from the bound branch
-are rejected. Returning to the bound branch is always allowed.
-A human who genuinely wants to rebind a worktree can re-run the
-checkout with `PNPM_ALLOW_WORKTREE_REBIND=1`.
+Hooks (`post-checkout` and `pre-commit`, via
+`.husky/reject-worktree-rebind.mjs`) enforce this for agent sessions:
+a checkout or commit binds the worktree to its branch (a first-observed
+*switch* binds to the branch it left, so even that switch is checked),
+and branch switches or commits away from the bound branch are rejected.
+Returning to the bound branch is always allowed. A human who genuinely
+wants to rebind a worktree can re-run with `PNPM_ALLOW_WORKTREE_REBIND=1`.
 
 Remember that hooks are installed per worktree: a fresh worktree has no
 active hooks (including this guard) until `pnpm install` or

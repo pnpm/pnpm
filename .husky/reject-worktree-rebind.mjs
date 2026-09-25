@@ -14,8 +14,8 @@
 // Invoked two ways:
 //   post-checkout: reject-worktree-rebind.mjs <old> <new> <flag>
 //   other hooks:   reject-worktree-rebind.mjs --bind-only
-// `--bind-only` records the binding if missing and never rejects, so a
-// worktree in which this hook has never observed a checkout still
+// `--bind-only` records the binding if missing without checkout arguments,
+// so a worktree in which this hook has never observed a checkout still
 // becomes bound through its normal use (commits).
 
 import { execFileSync } from 'node:child_process'
@@ -92,7 +92,7 @@ if (bound === null) {
   writeFileSync(markerPath, `${bound}\n`)
 }
 
-if (bound === branch || bindOnly) {
+if (bound === branch) {
   process.exit(0)
 }
 
@@ -118,14 +118,14 @@ console.error(
 )
 process.exit(1)
 
-// Resolves the branch a first-observed checkout binds the worktree to:
+// Resolves the branch a worktree binds to when no binding is recorded yet:
 // the most recent branch named as a checkout source in the worktree's HEAD
-// reflog, skipping detached sources (such as an in-progress rebase or bisect).
-// Worktree creation (null old ref) and `--bind-only` bind to currentBranch.
-// Returns null when no branch source is recorded in the reflog.
+// reflog, skipping detached sources. Binds to currentBranch on worktree
+// creation or when no checkout is recorded. Returns null for agent sessions
+// when checkouts occurred but no source branch is recorded in the reflog.
 function initialBinding (currentBranch) {
   const oldRef = bindOnly ? null : process.argv[2]
-  if (!oldRef || /^0+$/.test(oldRef)) {
+  if (oldRef && /^0+$/.test(oldRef)) {
     return currentBranch
   }
   let subjects
@@ -134,14 +134,18 @@ function initialBinding (currentBranch) {
   } catch {
     subjects = ''
   }
-  // The newest entry is the checkout that fired this hook; its source
-  // is where the worktree stood before.
+  let sawCheckout = !bindOnly
   for (const line of subjects.split('\n')) {
-    const source = /^checkout: moving from (\S+) to /.exec(line)?.[1]
-    if (!source || /^[0-9a-f]{40}$/.test(source)) {
+    const match = /^checkout: moving from (\S+) to /.exec(line)
+    if (!match) {
+      continue
+    }
+    sawCheckout = true
+    const source = match[1]
+    if (/^[0-9a-f]{40}$/.test(source)) {
       continue
     }
     return source
   }
-  return isAgent && !overridden ? null : currentBranch
+  return sawCheckout && isAgent && !overridden ? null : currentBranch
 }
