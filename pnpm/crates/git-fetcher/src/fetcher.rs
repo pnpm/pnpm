@@ -13,10 +13,14 @@
 pub(crate) mod tests;
 
 pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
+pub(crate) use remote::should_use_shallow;
 pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
 
 mod bundles;
+mod remote;
 mod revision;
+
+use remote::download_commit;
 
 use crate::{
     GitSource, GitSourceCache,
@@ -317,14 +321,7 @@ pub struct CheckoutOptions<'a> {
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
 pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions {
-        repo,
-        commit,
-        git_shallow_hosts,
-        git_bin,
-        dest,
-        git_config,
-    } = opts;
+    let &CheckoutOptions { repo, commit, git_bin, dest, .. } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -336,26 +333,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     }
 
     let git_bin = git_bin.unwrap_or_else(|| Path::new("git"));
-    // `--` keeps the repository positional out of git's option parser,
-    // belt and braces with the `is_safe_repo_arg` check above.
-    if should_use_shallow(repo, git_shallow_hosts) {
-        exec_git_with(git_bin, &["init"], Some(dest))?;
-        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
-        exec_git_with_config(
-            git_bin,
-            git_config,
-            &["fetch", "--depth", "1", "origin", commit],
-            Some(dest),
-        )?;
-    } else {
-        exec_git_with_config(
-            git_bin,
-            git_config,
-            &["clone", "--", repo, &dest.to_string_lossy()],
-            None,
-        )?;
-    }
-
+    download_commit(opts, git_bin)?;
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
     let received = exec_git_with(git_bin, &["rev-parse", "HEAD"], Some(dest))?;
     let received_trimmed = received.trim();
@@ -451,41 +429,6 @@ fn is_valid_commit_hash(commit: &str) -> bool {
 /// See [`GitFetcherError::InvalidRepo`].
 fn is_safe_repo_arg(repo: &str) -> bool {
     !repo.is_empty() && !repo.starts_with('-') && !repo.contains('\0')
-}
-
-/// True iff `repo` parses to a host that pacquet should clone via the
-/// shallow `init` + `fetch --depth 1` path.
-pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
-    if allowed_hosts.is_empty() {
-        return false;
-    }
-    let Some(host) = extract_host(repo) else { return false };
-    allowed_hosts
-        .iter()
-        .any(|allowed| allowed == host)
-}
-
-/// Pluck the host portion out of a git URL. Handles the three forms
-/// git resolution produces: `https://host/path/...`,
-/// `git+ssh://user@host/path/...`, and `git://host/path/...`. Falls
-/// through to `None` for `file://` paths and SSH-style
-/// `user@host:path/...` (those don't appear in `git_shallow_hosts`
-/// defaults and a future PR can flesh them out if needed).
-fn extract_host(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))
-        .or_else(|| url.strip_prefix("git://"))
-        .or_else(|| url.strip_prefix("git+ssh://"))
-        .or_else(|| url.strip_prefix("git+https://"))?;
-    let authority_end = rest.find('/').unwrap_or(rest.len());
-    let authority = &rest[..authority_end];
-    let host = authority
-        .rsplit('@')
-        .next()
-        .unwrap_or(authority);
-    let host = host.split(':').next().unwrap_or(host);
-    if host.is_empty() { None } else { Some(host) }
 }
 
 /// On Windows, prepend `-c core.longpaths=true` to every git

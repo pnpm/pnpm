@@ -92,8 +92,9 @@ fn probe_verdict(status: Option<StatusCode>) -> Option<bool> {
 /// attempt on transient failure.
 pub struct RealGitRunner {
     pub git_bin: Option<PathBuf>,
-    /// When set, an `http(s)` remote is pinned to addresses this admits
-    /// (see [`crate::pinned_remote::pinned_git_config`]).
+    /// When set, `git ls-remote` connects to an `http(s)` remote only at
+    /// addresses this admits, resolved before git runs. Other transports are
+    /// not pinned.
     pub connect_guard: Option<AddressGuard>,
 }
 

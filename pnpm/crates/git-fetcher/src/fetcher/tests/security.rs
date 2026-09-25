@@ -59,8 +59,13 @@ fn prepare_git_cmd_removes_repository_location_overrides() {
 #[test]
 fn prepare_git_cmd_applies_settings_before_the_subcommand() {
     let setting = "http.curloptResolve=git.example:443:8.8.8.8".to_string();
-    let cmd =
-        prepare_git_cmd(Path::new("git"), &[setting.clone()], &["fetch", "origin"], None).unwrap();
+    let cmd = prepare_git_cmd(
+        Path::new("git"),
+        std::slice::from_ref(&setting),
+        &["fetch", "origin"],
+        None,
+    )
+    .unwrap();
     let args: Vec<_> = cmd
         .get_args()
         .map(|arg| arg.to_string_lossy().into_owned())
