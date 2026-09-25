@@ -3,14 +3,13 @@ import util from 'node:util'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
-import { assertReleaseIsInstallable, installPnpmToStore } from '@pnpm/engine.pm.commands'
+import { assertReleaseIsInstallable, installPnpmToStore, spawnPnpm } from '@pnpm/engine.pm.commands'
 import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
-import spawn from 'cross-spawn'
 import semver from 'semver'
 
 import { exit } from './exit.js'
@@ -171,7 +170,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     await storeToUse.ctrl.close()
   }
 
-  // Specify the exact pnpm file path that's expected to execute to spawn.sync()
+  // Specify the exact pnpm file path that's expected to execute to spawn()
   //
   // It's not safe spawn 'pnpm' (without specifying an absolute path) and expect
   // it to resolve to the same file path computed above due to the $PATH
@@ -182,12 +181,12 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   // at https://github.com/pnpm/pnpm/pull/8679.
   const pnpmBinPath = path.join(wantedPnpmBinDir, 'pnpm')
 
-  const { status, signal, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
-    stdio: 'inherit',
-  })
-
-  if (error) {
-    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir, error)
+  let status: number | null
+  let signal: NodeJS.Signals | null
+  try {
+    ;({ status, signal } = await spawnPnpm(pnpmBinPath, process.argv.slice(2)))
+  } catch (err: unknown) {
+    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir, err)
   }
 
   if (signal) {

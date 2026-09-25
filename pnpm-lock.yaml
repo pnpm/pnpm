@@ -4055,6 +4055,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../../core/error
+      '@pnpm/exec.npm-lifecycle':
+        specifier: workspace:*
+        version: link:../../../exec/npm-lifecycle
       '@pnpm/global.commands':
         specifier: workspace:*
         version: link:../../../global/commands

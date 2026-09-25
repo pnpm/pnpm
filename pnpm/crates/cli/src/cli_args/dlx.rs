@@ -219,7 +219,7 @@ impl DlxArgs {
 
 /// End pnpm the way a failed child did. `exit_like` runs no destructors,
 /// so a caller drops what has to be cleaned up before calling this.
-fn exit_unless_success(status: std::process::ExitStatus) {
+pub(crate) fn exit_unless_success(status: std::process::ExitStatus) {
     if !status.success() {
         pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
