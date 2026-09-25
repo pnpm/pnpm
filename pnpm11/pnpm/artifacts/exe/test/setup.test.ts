@@ -156,7 +156,9 @@ npmShimTest('npm project shims name the standalone executable', () => {
 
 /**
  * Install a minimal @pnpm/exe, whose platform package carries node.exe as the
- * standalone executable, with npm into `<root>/prefix`.
+ * standalone executable, with npm into `<root>/prefix` and return that prefix.
+ * Without a `--global` or `--location` flag the prefix is a project, and the
+ * shims land in its `node_modules/.bin`. Throws when npm fails.
  */
 function installExeFixtureWithNpm (root: string, npmFlags: string[]): string {
   const nativePackageDir = path.join(root, 'native-package')
@@ -170,7 +172,10 @@ function installExeFixtureWithNpm (root: string, npmFlags: string[]): string {
   try {
     fs.linkSync(process.execPath, nativeBinary)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    // EPERM is a same-volume link the process may not create, such as
+    // node.exe under Program Files.
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'EXDEV' && code !== 'EPERM') throw err
     fs.copyFileSync(process.execPath, nativeBinary)
   }
 

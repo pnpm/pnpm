@@ -200,13 +200,14 @@ test('an architecture released for both libcs still offers the other as a fallba
 })
 
 /**
- * Install the wrapper fixture globally with npm into a prefix of its own.
+ * Install the wrapper fixture with npm into a prefix of its own, globally by
+ * default or as a project dependency.
  * Throws when npm fails; the temp tree is removed when `t` ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {string[]} npmFlags Extra `npm install` flags, e.g. `--ignore-scripts`.
- * @param {{ global?: boolean }} [options] Pass `global: false` for a project
- *   install. The default is the global prefix the first test covers.
+ * @param {{ global?: boolean }} [options] Pass `global: false` to install into
+ *   the prefix as a project, whose shims land in `node_modules/.bin`.
  * @returns {{ prefix: string, fixtureDir: string }} The npm prefix the shims
  *   landed in, and the fixture wrapper it was installed from.
  */

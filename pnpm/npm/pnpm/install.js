@@ -162,10 +162,11 @@ function relinkNpmWindowsShims () {
 }
 
 /**
- * The npm project whose `node_modules` holds this wrapper, or `null` when npm's
- * project prefix does not contain it. `npm exec` installs into its own cache
- * while the prefix still names the caller's project, and rebuilding there
- * would touch an unrelated project.
+ * The resolved path of the npm project whose `node_modules` holds this
+ * wrapper. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the wrapper. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
  *
  * @returns {string | null}
  */
@@ -175,17 +176,19 @@ function findNpmProjectPrefix () {
     return null
   }
   let realPrefix
+  let realModulesDir
   try {
     realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
   } catch {
     return null
   }
   // `wrapperDir` comes from the module URL, which Node resolves through symlinks.
-  const relative = path.relative(path.join(realPrefix, 'node_modules'), wrapperDir)
+  const relative = path.relative(realModulesDir, wrapperDir)
   if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) {
     return null
   }
-  return prefix
+  return realPrefix
 }
 
 function removeFileIfPossible (filePath) {

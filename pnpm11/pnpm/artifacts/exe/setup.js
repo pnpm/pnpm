@@ -133,24 +133,27 @@ function relinkNpmWindowsShims() {
 }
 
 /**
- * The npm project whose `node_modules` holds this package, or `null` when npm's
- * project prefix does not contain it. `npm exec` installs into its own cache
- * while the prefix still names the caller's project, and rebuilding there
- * would touch an unrelated project.
+ * The resolved path of the npm project whose `node_modules` holds this
+ * package. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the package. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
  */
 function findNpmProjectPrefix() {
   const prefix = process.env.npm_config_local_prefix
   if (!prefix) return null
   let realPrefix
+  let realModulesDir
   try {
     realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
   } catch {
     return null
   }
   // import.meta.dirname is resolved through symlinks.
-  const relative = path.relative(path.join(realPrefix, 'node_modules'), import.meta.dirname)
+  const relative = path.relative(realModulesDir, import.meta.dirname)
   if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) return null
-  return prefix
+  return realPrefix
 }
 
 function linkSync(src, dest) {
