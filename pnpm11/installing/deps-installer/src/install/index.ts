@@ -2604,12 +2604,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // records.
   if (updatedCatalogs != null && !isEmpty(opts.overrides ?? {})) {
     const updatedCatalogsConfig = mergeCatalogs(opts.catalogs, updatedCatalogs)
-    const reparsedOverrides = parseOverrides(opts.overrides!, updatedCatalogsConfig)
-    if (!equals(createOverridesMapFromParsed(reparsedOverrides), createOverridesMapFromParsed(parsedOverrides))) {
-      parsedOverrides = reparsedOverrides
-      const firstPassWaitTillAllFetchingsFinish = waitTillAllFetchingsFinish
+    const overridesWithUpdatedCatalogs = parseOverrides(opts.overrides!, updatedCatalogsConfig)
+    if (!equals(createOverridesMapFromParsed(overridesWithUpdatedCatalogs), createOverridesMapFromParsed(parsedOverrides))) {
+      parsedOverrides = overridesWithUpdatedCatalogs
+      const waitTillFirstResolutionFetchingsFinish = waitTillAllFetchingsFinish
       const handledViolations = new Set(resolutionPolicyViolations.map(policyViolationKey))
-      const reresolved = await resolveDependencyGraph(
+      const resolutionWithUpdatedCatalogs = await resolveDependencyGraph(
         updatedCatalogsConfig,
         parsedOverrides,
         createInstallReadPackageHook(opts, parsedOverrides),
@@ -2628,11 +2628,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedToBeSkippedPackageIds,
         waitTillAllFetchingsFinish,
         resolutionPolicyViolations,
-      } = reresolved)
+      } = resolutionWithUpdatedCatalogs)
       waitTillAllFetchingsFinish = async () => {
-        await Promise.all([firstPassWaitTillAllFetchingsFinish(), reresolved.waitTillAllFetchingsFinish()])
+        await Promise.all([waitTillFirstResolutionFetchingsFinish(), resolutionWithUpdatedCatalogs.waitTillAllFetchingsFinish()])
       }
-      updatedCatalogs = mergeCatalogs(updatedCatalogs, reresolved.updatedCatalogs)
+      updatedCatalogs = mergeCatalogs(updatedCatalogs, resolutionWithUpdatedCatalogs.updatedCatalogs)
       newLockfile.overrides = createOverridesMapFromParsed(parsedOverrides)
     }
   }
