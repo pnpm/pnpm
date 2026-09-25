@@ -141,7 +141,7 @@ fn prod_deploy_skips_a_devengines_runtime_without_failing_the_frozen_lockfile_ch
     assert!(deploy_dir.join("node_modules/@pnpm.e2e/abc").exists());
     assert!(
         !deploy_dir.join("node_modules/node").exists(),
-        "the devEngines runtime is a dev dependency, so --prod must skip it"
+        "the devEngines runtime is a dev dependency, so --prod must skip it",
     );
     let deployed_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let runtime = &deployed_lockfile.importers["."].dev_dependencies.as_ref().unwrap()
