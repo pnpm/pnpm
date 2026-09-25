@@ -423,6 +423,23 @@ fn bin_reports_the_named_project_modules_dir() {
     assert_eq!(bin_dir(&fixture, &plain), canonical_bin_dir(&plain, "vendor"));
 }
 
+#[test]
+fn root_reports_the_named_project_modules_dir() {
+    let fixture = dedicated_lockfile_workspace(
+        "modulesDir: vendor\npackageConfigs:\n  aside:\n    modulesDir: private_modules\n",
+    );
+    let aside = fixture.project("aside", "aside", ManifestDeps::default());
+    let plain = fixture.project("plain", "plain", ManifestDeps::default());
+
+    for (project, modules_dir) in [(&aside, "private_modules"), (&plain, "vendor")] {
+        let output = fixture.command_at(project, ["root"]);
+        assert_success(&output);
+        let expected =
+            dunce::canonicalize(project).expect("canonicalize the project dir").join(modules_dir);
+        assert_eq!(PathBuf::from(String::from_utf8_lossy(&output.stdout).trim_end()), expected);
+    }
+}
+
 /// The entries are inert under a shared lockfile, so a command must not
 /// read one back either.
 #[test]

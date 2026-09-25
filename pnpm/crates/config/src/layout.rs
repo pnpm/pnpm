@@ -267,6 +267,37 @@ impl Config {
             .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
     }
 
+    /// The modules directory an install gives the project at
+    /// `project_dir`: the `packageConfigs` entry naming it, else the
+    /// configured `modulesDir`, resolved against `project_dir` and
+    /// lexically normalized. Unlike [`Self::modules_dir_name_for`] it
+    /// keeps a multi-component or absolute setting whole, as pnpm's
+    /// `pathAbsolute` does.
+    #[must_use]
+    pub fn project_modules_dir(
+        &self,
+        project_dir: &Path,
+        project_name: Option<&str>,
+    ) -> std::path::PathBuf {
+        let modules_dir = self
+            .applies_package_configs()
+            .then(|| {
+                self.package_configs
+                    .as_ref()?
+                    .get(project_name?)?
+                    .modules_dir_for(project_dir)
+            })
+            .flatten()
+            .unwrap_or_else(|| {
+                let raw = self.explicit_settings
+                    .get("modulesDir")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("node_modules");
+                project_dir.join(raw)
+            });
+        pnpm_fs::lexical_normalize(&modules_dir)
+    }
+
     /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
     /// `env`, the environment of that project's scripts and commands, when
     /// it is a custom modules directory and the project's executables are
