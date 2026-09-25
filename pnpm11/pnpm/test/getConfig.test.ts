@@ -288,7 +288,6 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
   })
 
-<<<<<<< HEAD
   test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
     prepare()
 
@@ -378,7 +377,6 @@ describe('installConfigDepsAndLoadHooks', () => {
       default: 'https://mirror.example/',
       '@jsr': 'https://npm.jsr.io/',
     })
-  })
   })
 
   test.each([

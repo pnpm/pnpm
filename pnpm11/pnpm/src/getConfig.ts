@@ -163,7 +163,7 @@ interface RegistryRouting {
  * reader guarantees: `registriesByScope` holds normalized URLs including the `default` and `@jsr` routes, and
  * `registry` is the `default` route.
  *
- * Only a changed value counts, and a value the hooks removed is unchanged, matching pnpm 12. A changed
+ * Only a changed value counts, and a value the hooks removed is unchanged. A changed
  * `registriesByScope` replaces the scope routes, and its `default` entry, if any, the default registry. A
  * changed `registry` is applied after it, so it wins. A dropped `default` keeps the registry configured before
  * the hooks, and a dropped `@jsr` falls back to the built-in JSR registry.
