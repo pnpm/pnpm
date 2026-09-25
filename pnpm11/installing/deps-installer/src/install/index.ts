@@ -2909,6 +2909,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
           engineStrict: installabilityUnderForce(opts).engineStrict,
           engineNodeVersion: opts.nodeVersion,
+          linkedModulesDirs: [...projects.map(({ modulesDir }) => modulesDir), ctx.hoistedModulesDir],
           skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,

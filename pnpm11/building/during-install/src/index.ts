@@ -82,6 +82,11 @@ export async function buildModules<T extends string> (
     engineStrict?: boolean
     /** Node version the installability check used. Separate from the script runner. */
     engineNodeVersion?: string
+    /**
+     * The `node_modules` directories of the installed projects and the hoisted
+     * one. A skipped optional dependency's links are removed from them.
+     */
+    linkedModulesDirs?: string[]
     skipped?: Set<DepPath>
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
@@ -257,6 +262,11 @@ async function buildDependency<T extends string> (
     engineStrict?: boolean
     /** Node version the installability check used. Separate from the script runner. */
     engineNodeVersion?: string
+    /**
+     * The `node_modules` directories of the installed projects and the hoisted
+     * one. A skipped optional dependency's links are removed from them.
+     */
+    linkedModulesDirs?: string[]
     skipped?: Set<DepPath>
     warn: (message: string) => void
   }
@@ -534,29 +544,81 @@ async function removeIncompatibleOptional<T extends string> (
   depPath: T,
   depNode: DependenciesGraphNode<T>,
   depGraph: DependenciesGraph<T>,
-  opts: { enableGlobalVirtualStore?: boolean, hoistedLocations?: Record<string, string[]>, lockfileDir: string, skipped?: Set<DepPath> }
+  opts: {
+    enableGlobalVirtualStore?: boolean
+    hoistedLocations?: Record<string, string[]>
+    linkedModulesDirs?: string[]
+    lockfileDir: string
+    skipped?: Set<DepPath>
+  }
 ): Promise<void> {
   depNode.installable = false
   opts.skipped?.add(depNode.depPath)
-  const removed = opts.enableGlobalVirtualStore ? path.dirname(depNode.modules) : depNode.dir
-  await fs.rm(removed, { recursive: true, force: true })
-  const nodes = Object.values(depGraph) as Array<DependenciesGraphNode<T>>
-  const links = nodes.flatMap((node) =>
-    Object.entries(node.children)
-      .filter(([, child]) => child === depPath)
-      .flatMap(([alias]) => {
-        const link = containedNodeModulesLink(node.dir, alias)
-        return link == null ? [] : [link]
-      })
-  )
-  for (const location of opts.hoistedLocations?.[depNode.depPath] ?? []) {
-    links.push(path.join(opts.lockfileDir, location))
+  if (opts.hoistedLocations != null) {
+    const copies = opts.hoistedLocations[depNode.depPath] ?? []
+    await removeAll([depNode.dir, ...copies.map((location) => path.join(opts.lockfileDir, location))])
+    return
   }
-  await Promise.all(links.map(async (link) => fs.rm(link, { recursive: true, force: true })))
+  const removed = await linksTo(depNode.dir, opts.linkedModulesDirs ?? [])
+  // A global virtual store slot, and the links between slots, are shared with
+  // every other project that resolves to them.
+  if (!opts.enableGlobalVirtualStore) {
+    removed.push(depNode.dir)
+    for (const node of Object.values(depGraph) as Array<DependenciesGraphNode<T>>) {
+      for (const [alias, child] of Object.entries(node.children)) {
+        if (child !== depPath) continue
+        const link = containedNodeModulesLink(node.modules, alias)
+        if (link != null) removed.push(link)
+      }
+    }
+  }
+  await removeAll(removed)
 }
 
-function containedNodeModulesLink (dir: string, alias: string): string | undefined {
-  const nodeModulesDir = path.resolve(dir, 'node_modules')
+async function removeAll (paths: string[]): Promise<void> {
+  await Promise.all(paths.map(async (target) => fs.rm(target, { recursive: true, force: true })))
+}
+
+async function linksTo (target: string, modulesDirs: string[]): Promise<string[]> {
+  const realTarget = await realpathOrUndefined(target)
+  if (realTarget == null) return []
+  const candidates = (await Promise.all(modulesDirs.map(listModulesDirEntries))).flat()
+  const matches = await Promise.all(candidates.map(async (candidate) =>
+    await realpathOrUndefined(candidate) === realTarget ? candidate : undefined
+  ))
+  return matches.filter((match): match is string => match != null)
+}
+
+async function listModulesDirEntries (modulesDir: string): Promise<string[]> {
+  const entries = await readdirOrEmpty(modulesDir)
+  const nested = await Promise.all(entries.map(async (entry) =>
+    entry.startsWith('@')
+      ? (await readdirOrEmpty(path.join(modulesDir, entry))).map((name) => path.join(modulesDir, entry, name))
+      : [path.join(modulesDir, entry)]
+  ))
+  return nested.flat()
+}
+
+async function readdirOrEmpty (dir: string): Promise<string[]> {
+  try {
+    return await fs.readdir(dir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return []
+    throw err
+  }
+}
+
+async function realpathOrUndefined (target: string): Promise<string | undefined> {
+  try {
+    return await fs.realpath(target)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+function containedNodeModulesLink (modulesDir: string, alias: string): string | undefined {
+  const nodeModulesDir = path.resolve(modulesDir)
   const link = path.resolve(nodeModulesDir, alias)
   const relative = path.relative(nodeModulesDir, link)
   if (

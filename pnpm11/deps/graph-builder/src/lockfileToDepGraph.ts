@@ -205,7 +205,7 @@ async function buildGraphFromPackages (
       const pkg = {
         name: pkgName,
         version: pkgVersion,
-        engines: depPath.includes('(patch_hash=') ? undefined : pkgSnapshot.engines,
+        engines: opts.engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
         cpu: pkgSnapshot.cpu,
         os: pkgSnapshot.os,
         libc: pkgSnapshot.libc,

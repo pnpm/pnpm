@@ -1,9 +1,29 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { addDependenciesToPackage, type PackageManifest } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 
 import { testDefaults } from '../utils/index.js'
+
+function writeLegacyNodeEnginesPatch (nodeRange: string): Record<string, string> {
+  const patchPath = path.resolve('for-legacy-node.patch')
+  fs.writeFileSync(patchPath, `diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   "name": "@pnpm.e2e/for-legacy-node",
+   "version": "1.0.0",
+   "engines": {
+-    "node": "0.10"
++    "node": "${nodeRange}"
+   }
+ }
+`)
+  return { '@pnpm.e2e/for-legacy-node@1.0.0': patchPath }
+}
 
 function relaxNodeEngine (manifest: PackageManifest): PackageManifest {
   if (manifest.name === '@pnpm.e2e/for-legacy-node') {
@@ -161,4 +181,46 @@ test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "e
   const lockfile = project.readLockfile()
 
   expect(lockfile.packages['jsonify@0.0.0']).not.toHaveProperty(['engines'])
+})
+
+test('engine-strict checks the patched engines of a patched dependency', async () => {
+  const project = prepareEmpty()
+  const manifest = { dependencies: { '@pnpm.e2e/for-legacy-node': '1.0.0' } }
+  const patchedDependencies = writeLegacyNodeEnginesPatch('*')
+
+  await install(manifest, testDefaults({ engineStrict: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  project.has('@pnpm.e2e/for-legacy-node')
+  expect(JSON.parse(fs.readFileSync('node_modules/@pnpm.e2e/for-legacy-node/package.json', 'utf8')).engines)
+    .toStrictEqual({ node: '*' })
+
+  fs.rmSync('node_modules', { recursive: true })
+  await install(manifest, testDefaults({ engineStrict: true, frozenLockfile: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  project.has('@pnpm.e2e/for-legacy-node')
+})
+
+test('engine-strict skips an optional dependency whose patch makes its engines incompatible', async () => {
+  prepareEmpty()
+  const manifest = { optionalDependencies: { 'legacy-node': 'npm:@pnpm.e2e/for-legacy-node@1.0.0' } }
+  const patchedDependencies = writeLegacyNodeEnginesPatch('99')
+
+  await install(manifest, testDefaults({ engineStrict: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  expect(() => fs.lstatSync('node_modules/legacy-node')).toThrow()
+
+  fs.rmSync('node_modules', { recursive: true })
+  await install(manifest, testDefaults({ engineStrict: true, frozenLockfile: true, patchedDependencies }, {}, {}, { engineStrict: true }))
+
+  expect(() => fs.lstatSync('node_modules/legacy-node')).toThrow()
+})
+
+test('without engine-strict, a patched optional dependency with incompatible engines is skipped', async () => {
+  prepareEmpty()
+  const manifest = { optionalDependencies: { '@pnpm.e2e/for-legacy-node': '1.0.0' } }
+  const patchedDependencies = writeLegacyNodeEnginesPatch('99')
+
+  await install(manifest, testDefaults({ patchedDependencies }))
+
+  expect(() => fs.lstatSync('node_modules/@pnpm.e2e/for-legacy-node')).toThrow()
 })
