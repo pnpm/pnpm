@@ -99,6 +99,7 @@ jobs:
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
+              - '.github/scripts/check-static-crt.mjs'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
@@ -284,6 +285,16 @@ jobs:
           cp target/debug/libpnpm_napi.so "$RUNNER_TEMP/pnpm-napi.node"
           PNPM_NAPI_BINARY="$RUNNER_TEMP/pnpm-napi.node" \
             node --test pnpm/npm/napi/test/*.test.mjs
+
+      # `.cargo/config.toml` links the C runtime statically on Windows. Every
+      # binary the release ships must keep it that way.
+      - name: Check Windows binaries link the C runtime statically
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo build --locked -p pnpm-cli -p pnpr --bin pnpm --bin pnpr
+          cargo build --locked -p pnpm-napi
+          node .github/scripts/check-static-crt.mjs target/debug/pnpm.exe target/debug/pnpr.exe target/debug/pnpm_napi.dll
 
       - name: Test pnpr
         shell: bash

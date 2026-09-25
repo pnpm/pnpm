@@ -664,6 +664,13 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
+      - name: Check the C runtime is linked statically
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node .github/scripts/check-static-crt.mjs "target/$TARGET/release/pnpm.exe"
+
       - name: Download node-gyp payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -823,6 +830,13 @@ jobs:
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
+
+      - name: Check the C runtime is linked statically
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node .github/scripts/check-static-crt.mjs "target/$TARGET/napi-release/pnpm_napi.dll"
 
       - name: Prepare NAPI addon
         shell: bash
@@ -1286,6 +1300,13 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
+
+      - name: Check the C runtime is linked statically
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node .github/scripts/check-static-crt.mjs "target/$TARGET/release/pnpr.exe"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive

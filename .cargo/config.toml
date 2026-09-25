@@ -2,6 +2,12 @@
 # Do not append `--` or it will break IDEs
 codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --exclude pnpm-micro-benchmark --exclude pnpm-registry-mock --ignore-filename-regex tasks"
 
+# A clean Windows install lacks the Visual C++ runtime (VCRUNTIME140.dll), so
+# a binary linking it dynamically cannot start there. `RUSTFLAGS` replaces
+# these flags, so a Windows release build must leave it unset.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
+
 # >>> pnpm-managed cargo sources >>>
 [source.crates-io]
 replace-with = "pnpm-crates-io"
