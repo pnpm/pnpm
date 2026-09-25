@@ -678,7 +678,7 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
             "name": "dep",
             "version": "1.0.0",
             "scripts": {
-                "postinstall": "gvs-root-tool || node -e \"require('fs').writeFileSync('root-tool-missing', '')\"",
+                "postinstall": r#"gvs-root-tool || node -e "require('fs').writeFileSync('root-tool-missing', '')""#,
             },
         })
         .to_string(),
