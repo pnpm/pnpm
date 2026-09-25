@@ -156,9 +156,11 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   }
 
   await writeInheritedPackageManager(deployDir, opts.enginePinManifest)
-  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
-  if (deployedProject) {
-    deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
+  const deployNodeModules = path.join(deployDir, 'node_modules')
+  if (opts.allProjects) {
+    for (const project of opts.allProjects) {
+      project.modulesDir = path.relative(project.rootDir, deployNodeModules)
+    }
   }
   await install.handler({
     ...opts,
