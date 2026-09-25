@@ -60,6 +60,13 @@ fn missing_file_errors_patch_not_found() {
     assert!(matches!(err, super::CalcPatchHashError::PatchNotFound { .. }), "got: {err:?}");
 }
 
+#[test]
+fn unreadable_path_errors_read_file() {
+    let dir = tempdir().unwrap();
+    let err = create_hex_hash_from_file(dir.path()).unwrap_err();
+    assert!(matches!(err, super::CalcPatchHashError::ReadFile { .. }), "got: {err:?}");
+}
+
 /// Invalid UTF-8 bytes are replaced with U+FFFD rather than
 /// erroring, matching Node.js `fs.readFile(path, 'utf8')`.
 /// Three stray invalid bytes hash as three U+FFFD chars (each
