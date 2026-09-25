@@ -36,7 +36,7 @@ export function getInjectedDeps (
   injectionTargetsByDepPath: Map<string, string[]>,
   lockfileDir: string
 ): Record<string, string[]> {
-  const injectedDeps: Record<string, string[]> = {}
+  const injectedDeps: Record<string, string[]> = Object.create(null)
   for (const [depPath, locations] of injectionTargetsByDepPath) {
     const sourceId = getInjectedSourceId(depPath)
     if (sourceId == null || locations.length === 0) continue

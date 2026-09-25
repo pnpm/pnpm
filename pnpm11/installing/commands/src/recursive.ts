@@ -569,7 +569,7 @@ export async function recursive (
             allResolutionPolicyViolations.push(violation)
           }
         }
-        installedModulesDirs.set(rootDir, path.join(rootDir, localConfig.modulesDir ?? opts.modulesDir ?? 'node_modules'))
+        installedModulesDirs.set(rootDir, path.resolve(rootDir, localConfig.modulesDir ?? opts.modulesDir ?? 'node_modules'))
         result[rootDir].status = 'passed'
         return 'passed'
       } catch (err: any) { // eslint-disable-line
@@ -635,10 +635,12 @@ export async function recursive (
     // With a shared lockfile, an injected project is imported again after its
     // own lifecycle scripts run. Here each project was installed and built on
     // its own, so the copies are synced once every project has been built.
-    const builtProjectDirs = new Set<string>(installedModulesDirs.keys())
-    await Promise.all(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
-      syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: builtProjectDirs })
-    ))
+    if (!opts.dryRun) {
+      const builtProjectDirs = new Set<string>(installedModulesDirs.keys())
+      await Promise.all(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
+        syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: builtProjectDirs })
+      ))
+    }
   }
 
   throwOnFail(result)
