@@ -8,11 +8,12 @@ use install::{
     run_prepared_selected_update, run_prepared_update,
 };
 
+mod hook;
+use hook::{ReadPackageHook, apply_read_package_hook_to_update_manifest, update_read_package_hook};
+
 mod prepare;
 use prepare::{
-    ReadPackageHook, apply_read_package_hook_to_update_manifest, prepare_manifest,
-    prepare_selected_manifests, selection::selection_matches_ignored_direct,
-    update_read_package_hook,
+    prepare_manifest, prepare_selected_manifests, selection::selection_matches_ignored_direct,
 };
 
 mod workspace;
@@ -28,11 +29,13 @@ use latest::{
 mod catalogs;
 use catalogs::CatalogCtx;
 
-mod rewrite;
-use rewrite::{
-    MatchedRewriteInputs, override_governed, override_pins_one_version,
-    record_matched_direct_update, tag_rewrite, warn_override_pins_compatible_update,
+mod overrides;
+use overrides::{
+    override_governed, override_pins_one_version, warn_override_pins_compatible_update,
 };
+
+mod rewrite;
+use rewrite::{MatchedRewriteInputs, record_matched_direct_update, tag_rewrite};
 
 mod seed_policy;
 

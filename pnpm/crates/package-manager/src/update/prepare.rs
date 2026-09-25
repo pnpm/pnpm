@@ -4,8 +4,8 @@ use selection::should_reject_unmatched_selection;
 use super::{
     UpdateError, UpdateOptions, UpdateResources, UpdateSeed,
     catalogs::{
-        CatalogCtx, ensure_catalog_ctx, merge_catalogs, read_catalog_ctx_with_catalogs,
-        reconcile_catalog_rewrites,
+        CatalogCtx, CatalogUpdates, ensure_catalog_ctx, merge_catalogs,
+        read_catalog_ctx_with_catalogs, reconcile_catalog_rewrites,
     },
     latest::{LatestResolverChain, LatestRewriteCtx},
     seed_policy::{
@@ -19,19 +19,14 @@ use super::{
     workspace::workspace_targets,
 };
 use crate::{
-    DIRECT_GROUPS, ImporterUpdateSeedPolicy, InstallError, UpdateSeedPolicy, VersionsOverrider,
+    DIRECT_GROUPS, ImporterUpdateSeedPolicy, UpdateSeedPolicy, VersionsOverrider,
     emit_initial_package_manifest,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::Path};
 
 pub(super) struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,
@@ -41,9 +36,7 @@ pub(super) struct UpdatePreparation {
     /// the version it resolves, each mapped to the group and specifier the
     /// manifest declares for it. See [`crate::ManifestSpecBumps`].
     pub(super) bump_targets: Vec<(String, DependencyGroup, String)>,
-    pub(super) updated_catalogs: Catalogs,
-    catalogs_override: Option<Catalogs>,
-    pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
+    pub(super) catalogs: CatalogUpdates,
     /// Override entries the update moves (`(bare-name key, new value)`),
     /// for the run to write back into `pnpm-workspace.yaml` and resolve
     /// against in the meantime.
@@ -58,7 +51,7 @@ impl UpdatePreparation {
                 std::mem::replace(&mut self.seed_policy, UpdateSeedPolicy::KeepAll)
             },
             preferred_versions_override: std::mem::take(&mut self.preferred_versions_override),
-            catalogs_override: self.catalogs_override.take(),
+            catalogs_override: self.catalogs.catalogs_override.take(),
         }
     }
 }
@@ -69,9 +62,7 @@ pub(super) struct SelectedUpdatePreparation {
     pub(super) persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
     pub(super) bump_targets: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
-    pub(super) updated_catalogs: Catalogs,
-    pub(super) catalogs_override: Option<Catalogs>,
-    pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
+    pub(super) catalogs: CatalogUpdates,
     work: SelectedUpdateWork,
     /// Override entries to move, merged from every prepared project.
     pub(super) updated_overrides: Vec<(String, String)>,
@@ -82,42 +73,6 @@ enum SelectedUpdateWork {
     None,
     IgnoredDirectMatch,
     Prepared,
-}
-/// A loaded `readPackage` hook paired with the log sink its `context.log`
-/// calls are forwarded to.
-pub(super) type ReadPackageHook = (Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn);
-pub(super) fn update_read_package_hook<Reporter: self::Reporter>(
-    workspace_root: &Path,
-    config: &Config,
-) -> Result<Option<ReadPackageHook>, UpdateError> {
-    let Some(hook) = crate::load_install_pnpmfiles(config, workspace_root)
-        .map_err(UpdateError::MissingPnpmfile)?
-    else {
-        return Ok(None);
-    };
-    let log = match hook.source_path() {
-        Some(from) => crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-            workspace_root,
-            from,
-            "readPackage",
-        ),
-        None => Arc::new(|_| {}) as pnpm_hooks::LogFn,
-    };
-    Ok(Some((hook, log)))
-}
-pub(super) async fn apply_read_package_hook_to_update_manifest(
-    manifest: &mut PackageManifest,
-    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
-    log: &pnpm_hooks::LogFn,
-) -> Result<(), UpdateError> {
-    let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
-    let value = hook
-        .read_package(manifest.value().clone(), ctx)
-        .await
-        .map_err(InstallError::from)
-        .map_err(UpdateError::Install)?;
-    *manifest.value_mut() = (*value).clone();
-    Ok(())
 }
 pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     manifest: &mut PackageManifest,
@@ -346,9 +301,11 @@ pub(super) fn apply_update_decision<Reporter: self::Reporter>(
         preferred_versions_override: plan.preferred_versions_override,
         persist_manifest,
         bump_targets: plan.bump_targets,
-        catalogs_override: merged_catalogs_override(catalog_ctx.as_ref(), &updated_catalogs),
-        updated_catalogs,
-        workspace_dir_for_catalogs,
+        catalogs: CatalogUpdates {
+            catalogs_override: merged_catalogs_override(catalog_ctx.as_ref(), &updated_catalogs),
+            updated_catalogs,
+            workspace_dir_for_catalogs,
+        },
         updated_overrides: plan.updated_overrides,
     })
 }
@@ -412,7 +369,7 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
             &importer_id,
             update,
             owned,
-            prepared_all.catalogs_override.as_ref(),
+            prepared_all.catalogs.catalogs_override.as_ref(),
             &mut latest_chain,
         )
         .await?

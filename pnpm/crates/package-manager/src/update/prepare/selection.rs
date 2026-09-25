@@ -1,6 +1,7 @@
 use super::{
     super::{
         UpdateOptions, UpdateSeed,
+        catalogs::CatalogUpdates,
         seed_policy::{
             importer_seed_policy, matching::selectors_match_ignored_direct, selected_seed_policy,
         },
@@ -42,7 +43,7 @@ impl SelectedUpdatePreparation {
                 update.selection.depth,
             ),
             preferred_versions_override: std::mem::take(&mut self.preferred_versions_override),
-            catalogs_override: self.catalogs_override.take(),
+            catalogs_override: self.catalogs.catalogs_override.take(),
         }
     }
 
@@ -76,12 +77,17 @@ impl SelectedUpdatePreparation {
         if prepared.persist_manifest {
             self.persist_indices.push(index);
         }
-        merge_catalogs(&mut self.updated_catalogs, &prepared.updated_catalogs);
-        if let Some(complete_catalogs) = prepared.catalogs_override {
-            self.catalogs_override = Some(complete_catalogs);
+        let CatalogUpdates {
+            updated_catalogs,
+            catalogs_override,
+            workspace_dir_for_catalogs,
+        } = prepared.catalogs;
+        merge_catalogs(&mut self.catalogs.updated_catalogs, &updated_catalogs);
+        if let Some(complete_catalogs) = catalogs_override {
+            self.catalogs.catalogs_override = Some(complete_catalogs);
         }
-        if self.workspace_dir_for_catalogs.is_none() {
-            self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
+        if self.catalogs.workspace_dir_for_catalogs.is_none() {
+            self.catalogs.workspace_dir_for_catalogs = workspace_dir_for_catalogs;
         }
         self.updated_overrides.extend(prepared.updated_overrides);
     }
