@@ -222,8 +222,6 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let bare_specifier = params.unwrap_or("latest");
 
     let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
-    let registry_latest =
-        Box::pin(registry_latest_ignoring_maturity(config, is_implicit_latest)).await;
 
     let wanted = super::package_manager::read_manifest_json(&dir.join("package.json"))?
         .as_ref()
@@ -237,14 +235,9 @@ async fn handler<Reporter: self::Reporter + 'static>(
         .as_ref()
         .filter(|pm| pm.name == "pnpm");
     if let Some(pm) = pinned_pnpm
-        && let Some(refusal) = project_pin_refusal(
-            config,
-            dir,
-            pm,
-            &target_version,
-            is_implicit_latest,
-            registry_latest.as_deref(),
-        )
+        && let Some(refusal) =
+            Box::pin(project_pin_refusal(config, dir, pm, &target_version, is_implicit_latest))
+                .await
     {
         return Ok(Some(refusal));
     }
@@ -252,18 +245,14 @@ async fn handler<Reporter: self::Reporter + 'static>(
     // The global install moves forward even when the project pins pnpm, or
     // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
     // The pin is written last so a failed switch leaves the project as it was.
-    let global_message = match global_switch_declined(
+    let global_message = Box::pin(decline_or_switch_global::<Reporter>(
         config,
         &target_version,
+        &prefix,
         bare_specifier,
         is_implicit_latest,
-        registry_latest.as_deref(),
-    )? {
-        Some(declined) => Some(declined),
-        None => {
-            switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await?
-        }
-    };
+    ))
+    .await?;
 
     let project_pin_message = match pinned_pnpm {
         Some(pm) => Some(Box::pin(update_project_pin(config, dir, pm, &target_version)).await?),
@@ -374,13 +363,37 @@ fn crossed_major_hint(
 }
 
 /// The message explaining why the global install is left alone, when this
+/// update would not move it forward. Otherwise install and activate the
+/// target engine.
+async fn decline_or_switch_global<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+    bare_specifier: &str,
+    is_implicit_latest: bool,
+) -> miette::Result<Option<String>> {
+    match Box::pin(global_switch_declined(
+        config,
+        target_version,
+        bare_specifier,
+        is_implicit_latest,
+    ))
+    .await?
+    {
+        Some(declined) => Ok(Some(declined)),
+        None => {
+            switch_global_pnpm::<Reporter>(config, target_version, prefix, bare_specifier).await
+        }
+    }
+}
+
+/// The message explaining why the global install is left alone, when this
 /// update would not move it forward.
-fn global_switch_declined(
-    config: &Config,
+async fn global_switch_declined(
+    config: &'static Config,
     target_version: &str,
     bare_specifier: &str,
     is_implicit_latest: bool,
-    registry_latest: Option<&str>,
 ) -> miette::Result<Option<String>> {
     // Version equality with the running binary alone must not skip the
     // update: a removed global install can be recovered by running a local
@@ -393,11 +406,12 @@ fn global_switch_declined(
         )));
     }
     if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
+        let registry_latest = registry_latest_ignoring_maturity(config, true).await;
         return Ok(Some(implicit_latest_no_upgrade_message(
             NoUpgradeKind::Active,
             PNPM_VERSION,
             target_version,
-            registry_latest,
+            registry_latest.as_deref(),
         )));
     }
     Ok(None)

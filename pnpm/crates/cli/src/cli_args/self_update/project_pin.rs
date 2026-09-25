@@ -8,28 +8,28 @@ use crate::config_deps;
 /// project pinned to a newer pnpm than the registry's `latest`. The env
 /// lockfile lives at the workspace root, not necessarily the command's
 /// `--dir`.
-pub(super) fn project_pin_refusal(
-    config: &Config,
+pub(super) async fn project_pin_refusal(
+    config: &'static Config,
     dir: &Path,
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
     is_implicit_latest: bool,
-    registry_latest: Option<&str>,
 ) -> Option<String> {
     if !is_implicit_latest || pm.version.as_deref() == Some(target_version) {
         return None;
     }
     let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
     let current = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())?;
-    version_lt(target_version, &current)
-        .then(|| {
-            implicit_latest_no_upgrade_message(
-                NoUpgradeKind::Project,
-                &current,
-                target_version,
-                registry_latest,
-            )
-        })
+    if !version_lt(target_version, &current) {
+        return None;
+    }
+    let registry_latest = registry_latest_ignoring_maturity(config, true).await;
+    Some(implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Project,
+        &current,
+        target_version,
+        registry_latest.as_deref(),
+    ))
 }
 
 #[derive(Clone, Copy)]
