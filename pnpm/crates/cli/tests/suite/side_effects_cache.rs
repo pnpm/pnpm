@@ -107,6 +107,20 @@ fn assert_side_effects_materialized(hoisted: bool) {
 /// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
 #[test]
 fn a_build_with_nothing_to_restore_runs_on_every_install() {
+    assert_build_runs_on_every_install("1.0.0");
+}
+
+/// Version 1.1.0 of the fixture ships an executable file. Windows cannot
+/// record the execute bit when it rehashes the built package, which must
+/// not make the side-effects row look non-empty.
+///
+/// Regression for <https://github.com/pnpm/pnpm/issues/15667>.
+#[test]
+fn a_build_with_nothing_to_restore_runs_on_every_install_when_the_package_ships_an_executable() {
+    assert_build_runs_on_every_install("1.1.0");
+}
+
+fn assert_build_runs_on_every_install(version: &str) {
     let CommandTempCwd {
         pacquet,
         root,
@@ -127,7 +141,7 @@ fn a_build_with_nothing_to_restore_runs_on_every_install() {
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
-            "dependencies": { "@pnpm.e2e/postinstall-writes-outside-package": "1.0.0" },
+            "dependencies": { "@pnpm.e2e/postinstall-writes-outside-package": version },
         })
         .to_string(),
     )

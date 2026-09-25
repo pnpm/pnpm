@@ -110,7 +110,11 @@ pub fn calculate_diff(
             (None, Some(now)) => {
                 added.insert(file.to_string(), clone_info(now));
             }
-            (Some(before), Some(now)) if before.digest != now.digest || before.mode != now.mode => {
+            // `add_files_from_dir` cannot observe a mode off Unix, so a mode
+            // difference there only says the tarball entry was executable.
+            (Some(before), Some(now))
+                if before.digest != now.digest || (cfg!(unix) && before.mode != now.mode) =>
+            {
                 added.insert(file.to_string(), clone_info(now));
             }
             _ => {}

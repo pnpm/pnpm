@@ -479,7 +479,8 @@ function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles)
     } else if (
       !baseFiles.has(file) ||
       baseFiles.get(file)!.digest !== sideEffectsFiles.get(file)!.digest ||
-      baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode
+      // A mode read from disk on Windows reflects no execute bit, so it never matches a tarball entry's mode.
+      (process.platform !== 'win32' && baseFiles.get(file)!.mode !== sideEffectsFiles.get(file)!.mode)
     ) {
       added.set(file, sideEffectsFiles.get(file)!)
     }
