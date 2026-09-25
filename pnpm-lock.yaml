@@ -5609,6 +5609,9 @@ importers:
       '@pnpm/installing.env-installer':
         specifier: workspace:*
         version: link:../env-installer
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../modules-yaml
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -5748,9 +5751,6 @@ importers:
       '@pnpm/installing.commands':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/installing.modules-yaml':
-        specifier: workspace:*
-        version: link:../modules-yaml
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../core/logger
