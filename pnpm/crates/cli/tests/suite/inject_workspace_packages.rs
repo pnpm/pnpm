@@ -683,8 +683,7 @@ fn injected_copy_gets_the_output_of_the_prepare_script_with_a_nested_modules_dir
 
 /// project-1 publishes from `publishConfig.directory: dist`, which its own
 /// `prepare` script builds. The directory does not exist until the script
-/// runs, so a fresh install used to fail while linking project-2's injected
-/// copy of it (pnpm/pnpm#7811).
+/// runs, after project-2's injected copy of it is linked (pnpm/pnpm#7811).
 fn write_workspace_with_publish_directory(workspace: &std::path::Path) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),

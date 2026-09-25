@@ -731,7 +731,7 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
     );
     assert!(
         !interrupted_build.force,
-        "interrupted_build must not force a reimport of a missing source"
+        "interrupted_build must not force a reimport of a missing source",
     );
 
     let force_import = slot_import_opts(

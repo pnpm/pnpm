@@ -1,9 +1,15 @@
 ---
 "@pnpm/fetching.directory-fetcher": patch
 "@pnpm/exec.lifecycle": patch
+"@pnpm/fetching.fetcher-base": patch
+"@pnpm/fs.indexed-pkg-importer": patch
 "@pnpm/installing.deps-installer": patch
 "@pnpm/installing.deps-restorer": patch
+"@pnpm/installing.package-requester": patch
 "@pnpm/lockfile.verification": patch
+"@pnpm/store.cafs-types": patch
+"@pnpm/store.controller-types": patch
+"@pnpm/store.create-cafs-store": patch
 "pnpm": patch
 "pacquet": patch
 ---

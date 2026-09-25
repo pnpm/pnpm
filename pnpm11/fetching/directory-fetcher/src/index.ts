@@ -8,7 +8,7 @@ import { packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
-import { safeReadProjectManifestOnly, safeReadPublishManifest } from '@pnpm/workspace.project-manifest-reader'
+import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 const directoryFetcherLogger = logger('directory-fetcher')
 
@@ -33,22 +33,18 @@ export function createDirectoryFetcher (
     // `prepare`) has no source directory on a fresh install: the scripts run
     // after linking, and the built output is imported afterwards. Inject an
     // empty copy so the install can proceed instead of failing on the
-    // not-yet-built directory.
-    let dirStat: Stats | null = null
-    try {
-      dirStat = await fs.stat(dir)
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-    }
-    if (!dirStat?.isDirectory()) {
-      const manifest = await safeReadPublishManifest(dir) as DependencyManifest ?? undefined
-      return {
-        local: true,
-        filesMap: new Map(),
-        packageImportMethod: 'hardlink',
-        manifest,
-        requiresBuild: false,
-        sourceExists: false,
+    // not-yet-built directory. Any other missing directory still fails.
+    if (!await dirExists(dir)) {
+      const manifest = await safeReadParentPublishManifest(dir) as DependencyManifest | null
+      if (manifest != null) {
+        return {
+          local: true,
+          filesMap: new Map(),
+          packageImportMethod: 'hardlink',
+          manifest,
+          requiresBuild: false,
+          sourceExists: false,
+        }
       }
     }
     return {
@@ -63,6 +59,16 @@ export function createDirectoryFetcher (
 }
 
 export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
+
+async function dirExists (dir: string): Promise<boolean> {
+  try {
+    await fs.stat(dir)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
 
 export interface FetchResult {
   local: true

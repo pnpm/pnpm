@@ -2167,9 +2167,8 @@ test('inject local package that publishes from a directory built by prepare', as
     name: 'project-1',
     version: '1.0.0',
     scripts: {
-      // The publish directory does not exist until `prepare` creates it, so a
-      // fresh install used to fail with ERR_PNPM_FS_PACKLIST_IO while linking
-      // the injected copy (pnpm/pnpm#7811).
+      // The publish directory does not exist until `prepare` creates it,
+      // after the injected copy is linked (pnpm/pnpm#7811).
       prepare: 'pwd > prepare-cwd.txt && mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
     },
     publishConfig: {

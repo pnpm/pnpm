@@ -12,7 +12,9 @@ use crate::{
     error::DirectoryFetcherError,
     walker::{self, Symlinks},
 };
-use pnpm_package_manifest::{pkg_requires_build, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    find_parent_publish_manifest, pkg_requires_build, safe_read_package_json_from_dir,
+};
 use std::{collections::HashMap, path::PathBuf};
 
 /// One directory-fetch request. The `directory` is the absolute
@@ -51,10 +53,11 @@ pub struct DirectoryFetchOutput {
     pub files_map: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,
-    /// Whether `directory` was there to walk. `false` only for the
-    /// not-yet-built injected-dependency case above, where `files_map` is
+    /// Whether `directory` was there to walk. `false` only when `directory`
+    /// is a project's `publishConfig.directory` that has not been built yet;
+    /// `manifest` is then that project's manifest, and `files_map` is
     /// empty because there was nothing to read, not because the directory
-    /// is genuinely empty. A caller that would otherwise force-reimport a
+    /// is genuinely empty. Any other missing directory is an error. A caller that would otherwise force-reimport a
     /// mutable source (a directory dependency's content can change without
     /// the lockfile changing, so it re-imports on every install) must not
     /// do so from this empty, nonexistent-directory result: that would
@@ -71,20 +74,22 @@ impl DirectoryFetcher {
         // own lifecycle scripts (a project with `publishConfig.directory`
         // built by `prepare`) has no source directory on a fresh install:
         // the scripts run after linking, and the built output is imported
-        // afterwards. Tolerate the not-yet-built directory here instead of
+        // afterwards. Tolerate that not-yet-built directory instead of
         // failing the walk, so the install can proceed to run the script.
+        // Any other missing directory still fails the walk below.
         let exists = self.directory
             .try_exists()
             .map_err(|source| DirectoryFetcherError::Io {
                 dir: self.directory.display().to_string(),
                 source,
             })?;
-        if !exists {
-            let manifest = safe_read_package_json_from_dir(&self.directory)
-                .map_err(DirectoryFetcherError::ReadManifest)?;
+        if !exists
+            && let Some(manifest) = find_parent_publish_manifest(&self.directory)
+                .map_err(DirectoryFetcherError::ReadManifest)?
+        {
             return Ok(DirectoryFetchOutput {
                 files_map: HashMap::new(),
-                manifest,
+                manifest: Some(manifest),
                 requires_build: false,
                 exists: false,
             });
