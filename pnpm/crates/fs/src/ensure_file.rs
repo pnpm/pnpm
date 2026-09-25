@@ -463,35 +463,40 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
 }
 
 /// Open a store blob for truncate-and-rewrite, returning the handle and
-/// the permissions to restore after writing. When the first open is
-/// refused and the blob is write-protected, lift the protection and
-/// retry: tar entries keep modes like `0o444`, and the readonly
-/// attribute that maps to on Windows refuses a write open with
-/// `ERROR_ACCESS_DENIED`. The repair changes the file's content, not
-/// its protection, so the saved permissions go back on afterwards.
+/// the permissions to restore after writing. When the blob is
+/// write-protected, lift the protection before writing: tar entries keep
+/// modes like `0o444`, and the readonly attribute that maps to on
+/// Windows refuses a write open with `ERROR_ACCESS_DENIED`. The repair
+/// changes the file's content, not its protection, so the saved
+/// permissions go back on afterwards.
 ///
-/// The opens run under [`retry_transient_file_locks`]: antivirus and
+/// The open runs under [`retry_transient_file_locks`]: antivirus and
 /// indexer scans briefly hold just-written Windows paths open, failing
 /// an unlucky open with an access-denied error that clears moments
-/// later.
+/// later. Lifting write protection beforehand avoids consuming the
+/// Windows permission-denied retry budget on a read-only file.
 fn open_for_overwrite(
     file_path: &Path,
     options: &OpenOptions,
 ) -> Option<(File, Option<fs::Permissions>)> {
-    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
-    if let Ok(file) = open() {
-        return Some((file, None));
-    }
     let meta = fs::symlink_metadata(file_path).ok()?;
-    if !meta.file_type().is_file() || !meta.permissions().readonly() {
+    if !meta.file_type().is_file() {
         return None;
     }
-    fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
+    let restore_permissions = if meta.permissions().readonly() {
+        fs::set_permissions(file_path, make_writable(&meta.permissions())).ok()?;
+        Some(meta.permissions())
+    } else {
+        None
+    };
+    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
     if let Ok(file) = open() {
-        return Some((file, Some(meta.permissions())));
+        return Some((file, restore_permissions));
     }
-    // Best-effort restore; the repair falls back to temp+rename.
-    let _ = fs::set_permissions(file_path, meta.permissions());
+    if let Some(ref permissions) = restore_permissions {
+        // Best-effort restore; the repair falls back to temp+rename.
+        let _ = fs::set_permissions(file_path, permissions.clone());
+    }
     None
 }
 

@@ -158,14 +158,20 @@ function overwriteFileInPlace (
  * The opens run under the store's transient-lock retry policy:
  * antivirus and indexer scans briefly hold just-written Windows paths
  * open, failing an unlucky open with EPERM/EACCES that clears moments
- * later.
+ * later. When the file lacks the owner-write bit, the initial open
+ * bypasses lock retries so the permission error fails fast to chmod.
  */
 function openForOverwrite (
   fileDest: string,
   mode: number
 ): { fd: number, modeToRestore?: number } | null {
   try {
-    return { fd: withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN)) }
+    return {
+      fd:
+        (mode & 0o200) === 0
+          ? fs.openSync(fileDest, IN_PLACE_OPEN)
+          : withFileLockRetry(() => fs.openSync(fileDest, IN_PLACE_OPEN)),
+    }
   } catch {
     if ((mode & 0o200) !== 0) return null
   }
