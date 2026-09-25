@@ -73,19 +73,26 @@ fn imported_files(workspace: &Path) -> Vec<String> {
     out
 }
 
-/// The file names each installed package holds, by package, so an assertion
-/// fails when any one package is missing a file.
+/// The files each installed package holds, as paths inside the package, by
+/// package, so an assertion fails when any one package is missing a file or
+/// holds it in the wrong directory.
 fn files_by_package(files: &[String]) -> BTreeMap<&str, Vec<&str>> {
     let mut by_package: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for file in files {
-        let (slot, _) = file.split_once('/').expect("a file under a slot");
+        let (slot, rest) = file.split_once("/node_modules/").expect("a file under a slot");
+        // Skip the package name, which has two segments when it is scoped.
+        let name_segments = if rest.starts_with('@') { 2 } else { 1 };
+        let path = rest
+            .splitn(name_segments + 1, '/')
+            .nth(name_segments)
+            .expect("a file in the package");
         by_package
             .entry(slot)
             .or_default()
-            .push(file.rsplit('/').next().unwrap_or(file));
+            .push(path);
     }
-    for names in by_package.values_mut() {
-        names.sort_unstable();
+    for paths in by_package.values_mut() {
+        paths.sort_unstable();
     }
     by_package
 }
