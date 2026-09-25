@@ -197,12 +197,13 @@ export async function getPkgInfo (
 }
 
 /**
- * A lockfile-relative hoisted location resolved against `lockfileDir`, or
- * `undefined` for a location that leaves it.
+ * A lockfile-relative hoisted location resolved against `lockfileDir`, with
+ * `/` and `\` both read as separators, or `undefined` for a location that
+ * leaves it.
  */
 function hoistedPackageDir (lockfileDir: string, location: string | undefined): string | undefined {
-  if (location == null || path.isAbsolute(location)) return undefined
-  const dir = path.join(lockfileDir, location)
+  if (location == null || path.isAbsolute(location) || location.startsWith('\\')) return undefined
+  const dir = path.join(lockfileDir, ...location.split(/[/\\]/))
   const relative = path.relative(lockfileDir, dir)
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return undefined
   return dir
