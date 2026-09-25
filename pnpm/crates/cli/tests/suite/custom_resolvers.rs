@@ -89,7 +89,7 @@ fn manifest_less_pnpmfile(registry_url: &str) -> String {
 }
 
 /// Prepended to a pnpmfile `fetch` body so a test can count how often it ran.
-const RECORD_FETCH: &str = "require('node:fs').appendFileSync(require('node:path').join(__dirname, 'fetches.log'), 'fetch\\n');";
+const RECORD_FETCH: &str = r"require('node:fs').appendFileSync(require('node:path').join(__dirname, 'fetches.log'), 'fetch\n');";
 
 fn fetch_count(workspace: &Path) -> usize {
     fs::read_to_string(workspace.join("fetches.log"))
