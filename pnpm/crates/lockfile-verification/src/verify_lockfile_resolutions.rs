@@ -7,33 +7,46 @@
 //! resolutions outside their scope; the runner is policy-neutral and
 //! dispatch-free at this layer.
 //!
-//! Cache lookup / record are out of scope for this slice (Phase 6
-//! splits the runner from the JSONL cache). The shape that supports
-//! the cache — `lockfile_path` on the options bag, the runner-side
-//! emit boundaries — is in place so the cache slice only needs to
-//! plug into the existing call sites.
+//! [`ResolutionVerification::Ok`]: pnpm_resolving_resolver_base::ResolutionVerification::Ok
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
-
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
-use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_reporter::{
-    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
+pub(crate) use cache_verdict::with_offline_check_cache_identities;
+pub use cache_verdict::{
+    lockfile_verification_is_cached, lockfile_verification_is_cached_by_content,
 };
-use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
-};
-use tokio::sync::Semaphore;
+pub use candidates::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE;
+pub use dependency_names::verify_lockfile_dependency_names;
 
-use crate::{
-    cache::{
-        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
-        try_lockfile_verification_cache,
+use std::{
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
     },
-    errors::{RenderedViolation, VerifyError},
-    hash_lockfile,
+    time::Instant,
 };
+
+use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_reporter::{LockfileVerificationMessage, LogLevel, Reporter};
+use pnpm_resolving_resolver_base::{ResolutionPolicyViolation, ResolutionVerifier};
+
+use crate::{cache::CachePrecomputed, errors::VerifyError};
+
+use cache_verdict::{
+    CacheOutcome, CachedVerdict, memoized_lockfile_hash, record_verdict, reuse_cached_verdict,
+};
+use candidates::{
+    Candidate, build_verification_error, collect_candidates, collect_candidates_to_verify,
+    run_fan_out,
+};
+use progress::{TerminalEmitGuard, emit, progress_reporter};
+
+mod cache_verdict;
+mod candidates;
+mod dependency_names;
+mod progress;
+
+#[cfg(test)]
+mod tests;
 
 /// Default concurrency cap for the per-candidate fan-out: `64`, the
 /// floor of the `package-requester` network-concurrency formula.
@@ -45,30 +58,16 @@ pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
     /// the internal `DEFAULT_CONCURRENCY` (`64`).
     pub concurrency: Option<usize>,
-    /// Absolute path of the lockfile being verified. Required for
-    /// the on-disk verification cache (the stat shortcut + per-path
-    /// index key off it) and surfaced in the
-    /// `pnpm:lockfile-verification` reporter payload.
+    /// Absolute path of the lockfile being verified.
     pub lockfile_path: Option<&'a Path>,
-    /// The on-disk cache directory. When set together with
-    /// `lockfile_path`, a successful run is memoised in
-    /// `<cache_dir>/lockfile-verified.jsonl` and the gate
-    /// short-circuits on a repeat run against an unchanged lockfile
-    /// (under the same or stricter policy). Omitting either field
-    /// disables the cache (every call rehashes + reruns the gate).
+    /// The on-disk cache directory.
     pub cache_dir: Option<&'a Path>,
-    /// Entries the install re-resolves instead of reusing. See
-    /// [`ReplacedEntries`].
+    /// Entries the install re-resolves instead of reusing.
     pub replaced: Option<ReplacedEntries<'a>>,
 }
 
 /// Matches the lockfile entries, by name and version, that the install
-/// re-resolves instead of reusing, such as the targets of
-/// `pnpm update <pkg>`. The resolver applies the policies to whatever it
-/// picks for them, so the verifiers skip their locked versions, which the
-/// registry may no longer serve. The offline shape and alias checks still
-/// cover them. A run that skips an entry does not record the lockfile as
-/// verified.
+/// re-resolves instead of reusing.
 #[derive(Clone, Copy)]
 pub struct ReplacedEntries<'a>(pub &'a (dyn Fn(&PkgName, &str) -> bool + Send + Sync));
 
@@ -78,150 +77,79 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
     }
 }
 
-/// Whether a recorded verification already covers `lockfile` as it sits
-/// at `lockfile_path` under the policy `verifiers` currently demand —
-/// i.e. whether a [`verify_lockfile_resolutions`] call would
-/// short-circuit on the cache without running the fan-out. The offline
-/// structural dependency-name gate runs here too (it is cheap and the
-/// cache never covers a lockfile that fails it), so a `true` return
-/// carries the same guarantee as the runner's cache hit.
-///
-/// Lets the pnpr client decide locally whether the server-side
-/// `verify_lockfile` round trip can be skipped
-/// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
-pub fn lockfile_verification_is_cached(
-    cache_dir: &Path,
-    lockfile_path: &Path,
-    lockfile: &Lockfile,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> bool {
-    if verify_lockfile_dependency_names(lockfile).is_err() {
-        return false;
-    }
-    if lockfile.packages.is_none() {
-        return true;
-    }
-    try_lockfile_verification_cache(
-        cache_dir,
-        lockfile_path,
-        &with_offline_check_cache_identities(verifiers),
-        || hash_lockfile(lockfile),
-    )
-    .hit
-}
-
-/// Whether a recorded verification covers the exact in-memory
-/// `lockfile` content under the currently active policy. Unlike
-/// [`lockfile_verification_is_cached`], this never consults path or
-/// filesystem metadata.
-pub fn lockfile_verification_is_cached_by_content(
-    cache_dir: &Path,
-    lockfile: &Lockfile,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> bool {
-    if verify_lockfile_dependency_names(lockfile).is_err() {
-        return false;
-    }
-    if lockfile.packages.is_none() {
-        return true;
-    }
-    lockfile_verification_is_cached_by_hash(
-        cache_dir,
-        &hash_lockfile(lockfile),
-        &with_offline_check_cache_identities(verifiers),
-    )
-}
-
 /// Run every active [`ResolutionVerifier`] against every entry in
 /// `lockfile.packages`.
-///
-/// The failure variant of the terminal emit is fired from the drop
-/// guard so the reporter never leaves a hanging "Verifying..." frame
-/// even if the fan-out panics.
 pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     opts: &VerifyLockfileResolutionsOptions<'_>,
 ) -> Result<(), VerifyError> {
-    // Offline structural gate first: reject invalid dependency names
-    // before the `packages`-absent short-circuit and the cache lookup,
-    // so a lockfile that carries a path-traversal alias but no
-    // `packages:` section (e.g. only `link:` deps) is still rejected.
     verify_lockfile_dependency_names(lockfile)?;
-
     if lockfile.packages.is_none() {
         return Ok(());
     }
 
-    // Caching activates only when both `cache_dir` and
-    // `lockfile_path` are supplied. Production wiring always passes
-    // both; tests that skip them exercise the gate without
-    // memoization (and still cover the runner's emit + violation
-    // logic via the same code path).
     let cache_inputs = opts.cache_dir.zip(opts.lockfile_path);
-
     let cache_verifiers = with_offline_check_cache_identities(verifiers);
-
     let mut hash_once = memoized_lockfile_hash(lockfile);
+    let path_str = opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
 
-    let lockfile_path_str =
-        opts.lockfile_path.map(Path::to_string_lossy).map(std::borrow::Cow::into_owned);
-
-    let cache_precomputed = match reuse_cached_verdict::<Reporter>(
+    let Some(precomputed) = check_verification_cache::<Reporter>(
         cache_inputs,
         &cache_verifiers,
         &mut hash_once,
-        CachedVerdict {
-            has_policy_verifiers: !verifiers.is_empty(),
-            lockfile_path: lockfile_path_str.as_ref(),
-        },
-    ) {
-        CacheOutcome::Hit => return Ok(()),
-        CacheOutcome::Miss(precomputed) => precomputed,
+        !verifiers.is_empty(),
+        path_str.as_ref(),
+    ) else {
+        return Ok(());
     };
 
     let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
     if verifiers.is_empty() {
         return Ok(());
     }
+    execute_verification::<Reporter>(candidates, verifiers, opts.concurrency, path_str).await?;
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
+    record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, precomputed);
+    Ok(())
+}
+
+fn check_verification_cache<Reporter: self::Reporter>(
+    cache_inputs: Option<(&Path, &Path)>,
+    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_once: &mut impl FnMut() -> String,
+    has_policy_verifiers: bool,
+    lockfile_path_str: Option<&String>,
+) -> Option<CachePrecomputed> {
+    match reuse_cached_verdict::<Reporter>(
+        cache_inputs,
+        cache_verifiers,
+        hash_once,
+        CachedVerdict { has_policy_verifiers, lockfile_path: lockfile_path_str },
+    ) {
+        CacheOutcome::Hit => None,
+        CacheOutcome::Miss(precomputed) => Some(precomputed),
+    }
+}
+
+async fn execute_verification<Reporter: self::Reporter>(
+    candidates: Vec<Candidate>,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    concurrency: Option<usize>,
+    lockfile_path_str: Option<String>,
+) -> Result<(), VerifyError> {
     if candidates.is_empty() {
-        // Persist the success so the next install can stat-only the
-        // lockfile. An empty fan-out is still a successful run.
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
 
     let violations =
-        verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
-            .await?;
+        verify_candidates::<Reporter>(candidates, verifiers, concurrency, lockfile_path_str).await?;
     if violations.is_empty() {
-        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
     Err(build_verification_error(violations))
 }
 
-/// The lockfile entries the policy verifiers check, after the offline
-/// shape check passes. Entries `replaced` matches are left out, and the
-/// returned flag tells whether any was.
-fn collect_candidates_to_verify(
-    lockfile: &Lockfile,
-    replaced: Option<ReplacedEntries<'_>>,
-) -> Result<(Vec<Candidate>, bool), VerifyError> {
-    let (mut candidates, shape_violations) = collect_candidates(lockfile);
-    if !shape_violations.is_empty() {
-        return Err(build_verification_error(shape_violations));
-    }
-    let Some(ReplacedEntries(is_replaced)) = replaced else { return Ok((candidates, false)) };
-    let entries = candidates.len();
-    candidates.retain(|candidate| !is_replaced(&candidate.name, &candidate.version));
-    let skipped_replaced = candidates.len() < entries;
-    Ok((candidates, skipped_replaced))
-}
-
-/// Run the verifiers over every candidate, reporting the run's start and,
-/// when nothing is violated, its completion.
 async fn verify_candidates<Reporter: self::Reporter>(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -235,101 +163,63 @@ async fn verify_candidates<Reporter: self::Reporter>(
         LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
-    // The drop guard fires `Failed` for early-return / panic paths.
-    // The success path replaces it with the `Done` payload before
-    // returning, so the guard's drop only fires on a panic or on the
-    // throw-violations branch.
-    let mut emit_guard =
-        TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
+    let observed_checked = AtomicU64::new(0u64);
+    let mut emit_guard = TerminalEmitGuard::<Reporter>::failed(
+        entries,
+        started_at,
+        lockfile_path_str.clone(),
+        Some(&observed_checked),
+    );
 
-    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
+    let mut on_entry_checked = progress_reporter::<Reporter>(
+        entries,
+        started_at,
+        lockfile_path_str.clone(),
+        &observed_checked,
+    );
+
+    let fan_out_result =
+        run_fan_out(candidates, verifiers, concurrency, Some(&mut on_entry_checked)).await;
+    finish_candidates_verification(
+        fan_out_result,
+        entries,
+        started_at,
+        lockfile_path_str,
+        &observed_checked,
+        &mut emit_guard,
+    )
+}
+
+fn finish_candidates_verification<Reporter: self::Reporter>(
+    fan_out_result: Result<Vec<ResolutionPolicyViolation>, String>,
+    entries: u64,
+    started_at: Instant,
+    lockfile_path_str: Option<String>,
+    observed_checked: &AtomicU64,
+    emit_guard: &mut TerminalEmitGuard<'_, Reporter>,
+) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
+    let violations = match fan_out_result {
         Ok(violations) => violations,
-        // The registry couldn't be reached to verify an entry: abort with its
-        // own error (already credential-redacted) instead of a policy batch.
-        // `emit_guard` is still armed to emit `failed` on drop.
-        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
+        Err(message) => {
+            emit_guard.fail(entries, observed_checked.load(Ordering::Relaxed), lockfile_path_str);
+            return Err(VerifyError::RegistryMetaFetchFailed { message });
+        }
     };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
+            checked: entries,
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
+    } else {
+        emit_guard.fail(entries, entries, lockfile_path_str);
     }
     Ok(violations)
 }
 
-/// What the verification cache had to say about this lockfile.
-enum CacheOutcome {
-    /// A previous run already verified it under the same identities.
-    Hit,
-    /// Nothing reusable; carries what the recorder need not recompute.
-    Miss(CachePrecomputed),
-}
-
-/// What a cache lookup needs to report a hit.
-#[derive(Clone, Copy)]
-struct CachedVerdict<'a> {
-    /// Whether any policy verifier is active. The shape-only run that every
-    /// install performs reports nothing.
-    has_policy_verifiers: bool,
-    lockfile_path: Option<&'a String>,
-}
-
-/// Share the lazy hash between cache lookup and recording. A stat-only
-/// lookup never computes it.
-fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
-    let mut cached_hash: Option<String> = None;
-    move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
-}
-
-/// Reuse a previous verdict for this lockfile, if the cache holds one.
-///
-/// A silent short-circuit would look like the policy gate never ran, so a
-/// reused verdict is surfaced.
-fn reuse_cached_verdict<Reporter: self::Reporter>(
-    cache_inputs: Option<(&Path, &Path)>,
-    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
-    hash_once: &mut impl FnMut() -> String,
-    verdict: CachedVerdict<'_>,
-) -> CacheOutcome {
-    let Some((cache_dir, lockfile_path)) = cache_inputs else {
-        return CacheOutcome::Miss(CachePrecomputed::default());
-    };
-    let result =
-        try_lockfile_verification_cache(cache_dir, lockfile_path, cache_verifiers, hash_once);
-    if !result.hit {
-        return CacheOutcome::Miss(result.precomputed);
-    }
-    if verdict.has_policy_verifiers {
-        emit::<Reporter>(
-            LogLevel::Debug,
-            LockfileVerificationMessage::Cached {
-                verified_at: result.verified_at,
-                lockfile_path: verdict.lockfile_path.cloned(),
-            },
-        );
-    }
-    CacheOutcome::Hit
-}
-
-/// Persist a successful verification, when caching is wired up.
-fn record_verdict(
-    cache_inputs: Option<(&Path, &Path)>,
-    cache_verifiers: &[Arc<dyn ResolutionVerifier>],
-    hash_once: &mut impl FnMut() -> String,
-    precomputed: CachePrecomputed,
-) {
-    if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
-    }
-}
-
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
 /// returns violations as data instead of throwing on the first batch.
-/// No reporter emits, no cache wiring — for callers that need to
-/// inspect violations (auto-collect into `minimumReleaseAgeExclude`,
-/// strict-mode prompts, future custom policies).
 pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
@@ -338,259 +228,6 @@ pub async fn collect_resolution_policy_violations(
     if verifiers.is_empty() || lockfile.packages.is_none() {
         return Ok(Vec::new());
     }
-    // Shape violations and invalid aliases are deliberately not
-    // collected here: they are hard tampering failures, not policy
-    // picks a caller may auto-exclude.
     let (candidates, _shape_violations) = collect_candidates(lockfile);
-    // `Err(message)` is a transport failure the caller must surface rather than
-    // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency).await
+    run_fan_out(candidates, verifiers, concurrency, None).await
 }
-
-pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
-
-/// Cache-key participant for an always-on offline structural check
-/// (resolution-shape, dependency-alias): a record written before the
-/// check's rule existed lacks its `flag`, so `can_trust_past_check`
-/// rejects it and forces a re-verification. `verify` is never invoked —
-/// the identity is appended only to the verifier lists handed to the
-/// cache lookup and recorder.
-struct OfflineCheckCacheIdentity {
-    policy: serde_json::Map<String, serde_json::Value>,
-    flag: &'static str,
-}
-
-fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "resolutionShapeCheck" })
-}
-
-fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("dependencyAliasCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
-}
-
-/// Every verifier list that flows into the verification cache must
-/// carry the always-on offline structural checks' identities, so a
-/// record written before one of those rules existed cannot
-/// stat-fast-path around it — its missing flag fails
-/// `can_trust_past_check`, forcing a re-verification that runs the new
-/// check. Used by the gate itself and by
-/// [`crate::record_lockfile_verified()`], whose freshly-resolved
-/// lockfile satisfies these invariants by construction (the resolver
-/// validates aliases at manifest-read time and derives every resolution
-/// key from the resolution it just produced).
-pub(crate) fn with_offline_check_cache_identities(
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> Vec<Arc<dyn ResolutionVerifier>> {
-    verifiers
-        .iter()
-        .cloned()
-        .chain([resolution_shape_cache_identity(), dependency_alias_cache_identity()])
-        .collect()
-}
-
-impl ResolutionVerifier for OfflineCheckCacheIdentity {
-    fn verify<'a>(
-        &'a self,
-        _resolution: &'a LockfileResolution,
-        _ctx: VerifyCtx<'a>,
-    ) -> VerifyFuture<'a> {
-        Box::pin(async { ResolutionVerification::Ok })
-    }
-
-    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
-        &self.policy
-    }
-
-    fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
-        cached.get(self.flag) == Some(&serde_json::Value::Bool(true))
-    }
-}
-
-/// Whether a resolution is registry-shaped. A plain tarball
-/// resolution is registry-shaped because the npm verifier unconditionally
-/// binds explicit tarball URLs of semver-keyed entries to the registry's
-/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
-/// the tarball URL rather than the `gitHosted` flag alone.
-fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
-    match resolution {
-        LockfileResolution::Registry(_) => true,
-        LockfileResolution::Tarball(tarball) => {
-            // The tarball URL must be an http(s) registry artifact and not
-            // git-hosted. The npm verifier's tarball-URL binding skips
-            // non-http(s) schemes (file:, etc.), so a `file:` tarball under a
-            // name@semver key would otherwise be trusted with no safety net.
-            is_http_tarball_url(&tarball.tarball)
-                && tarball.git_hosted != Some(true)
-                && !is_git_hosted_tarball_url(&tarball.tarball)
-        }
-        LockfileResolution::Variations(variations) => variations.variants
-            .iter()
-            .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
-        // Custom resolutions are opaque to the npm verifier — they are
-        // fetched by a pnpmfile custom fetcher, never bound to the
-        // registry's `dist.tarball`.
-        LockfileResolution::Directory(_)
-        | LockfileResolution::Git(_)
-        | LockfileResolution::Binary(_)
-        | LockfileResolution::Custom(_) => false,
-    }
-}
-
-/// Whether a tarball URL uses an http(s) scheme — the only schemes a
-/// registry artifact is served over. Case-insensitive to reject a
-/// tampered uppercase scheme.
-fn is_http_tarball_url(url: &str) -> bool {
-    let lower = url.to_ascii_lowercase();
-    lower.starts_with("https://") || lower.starts_with("http://")
-}
-
-/// Add every alias in `aliases` that fails
-/// `is_valid_old_npm_package_name` (the `validForOldPackages` rule the
-/// dependency-alias check applies) to `invalid`. Only pass maps
-/// whose keys become `node_modules/<alias>` directories — not
-/// `overrides`, `patched_dependencies`, or peer dependencies.
-fn push_invalid_aliases<'alias>(
-    aliases: impl Iterator<Item = &'alias PkgName>,
-    invalid: &mut std::collections::BTreeSet<String>,
-) {
-    for alias in aliases {
-        let alias = alias.to_string();
-        if !is_valid_old_npm_package_name(&alias) {
-            invalid.insert(alias);
-        }
-    }
-}
-
-/// Collect every lockfile-controlled dependency name that isn't a valid
-/// npm package name. Three sources, each of which becomes a
-/// `node_modules/<name>` path component at install time:
-///
-/// - every importer's direct-dependency aliases,
-/// - every snapshot's own package name (the `snapshots:` map key), and
-/// - every snapshot's `dependencies` / `optionalDependencies` aliases.
-///
-/// A name carrying a `..` traversal, a `/`, or a reserved value such as
-/// `node_modules` / `.bin` / `.pnpm` could make an install write outside
-/// the intended directory or overwrite pnpm-owned layout.
-fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BTreeSet<String> {
-    let mut invalid = std::collections::BTreeSet::new();
-    for importer in lockfile.importers.values() {
-        for deps in
-            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        {
-            push_invalid_aliases(
-                deps.iter()
-                    .flatten()
-                    .map(|(alias, _)| alias),
-                &mut invalid,
-            );
-        }
-    }
-    let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
-    for (key, snapshot) in snapshots {
-        push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
-        for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-            push_invalid_aliases(
-                deps.iter()
-                    .flatten()
-                    .map(|(alias, _)| alias),
-                &mut invalid,
-            );
-        }
-    }
-    invalid
-}
-
-/// Reject a lockfile whose dependency names or aliases are not valid npm
-/// package names.
-///
-/// This is an offline, network-free structural check — it does **not**
-/// depend on the resolution-policy verifiers, so it must run on every
-/// install, **including under `trustLockfile`**, which disables the
-/// policy fan-out. A crafted lockfile alias becomes a filesystem path
-/// (`node_modules/<alias>`, a virtual-store slot's inner
-/// `node_modules/<name>`, a bin, a hoisted link), and pacquet's
-/// [`PkgName`] parser does not validate against npm's package-name
-/// rules, so an unchecked `..`/`/`-bearing name escapes the intended
-/// directory.
-///
-/// Surfaces [`VerifyError::InvalidDependencyAlias`]
-/// (`ERR_PNPM_INVALID_DEPENDENCY_NAME`) listing every offender.
-pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), VerifyError> {
-    let invalid = collect_invalid_dependency_names(lockfile);
-    if invalid.is_empty() {
-        return Ok(());
-    }
-    let invalid: Vec<String> = invalid.into_iter().collect();
-    Err(VerifyError::invalid_dependency_aliases(&invalid))
-}
-
-fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
-    Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
-}
-
-/// Drop guard that fires the terminal `Failed` payload when the
-/// runner panics or returns early through `?`. On the success path
-/// the runner calls [`Self::cancel`] with the `Done` payload, which
-/// replaces the queued message and emits it on drop instead.
-struct TerminalEmitGuard<Reporter: self::Reporter> {
-    pending: Option<LockfileVerificationMessage>,
-    /// `Started` instant captured at runner entry. The Drop impl uses
-    /// it to refresh `elapsed_ms` on the Failed branch (the field is
-    /// stale on the `pending` payload — it was built at guard
-    /// construction, before the fan-out ran). `Done` payloads land
-    /// via [`Self::cancel`] with their own up-to-date `elapsed_ms`.
-    started_at: Instant,
-    _reporter: std::marker::PhantomData<Reporter>,
-}
-
-impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
-    fn failed(entries: u64, started_at: Instant, lockfile_path: Option<String>) -> Self {
-        Self {
-            pending: Some(LockfileVerificationMessage::Failed {
-                entries,
-                // Placeholder; the Drop impl overwrites this with
-                // the real elapsed when the guard actually fires.
-                elapsed_ms: 0,
-                lockfile_path,
-            }),
-            started_at,
-            _reporter: std::marker::PhantomData,
-        }
-    }
-
-    fn cancel(&mut self, success: LockfileVerificationMessage) {
-        self.pending = Some(success);
-    }
-}
-
-impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
-    fn drop(&mut self) {
-        if let Some(message) = self.pending.take() {
-            // Refresh `elapsed_ms` on the Failed branch only — the
-            // success branch already filled the up-to-date value via
-            // `cancel(Done { elapsed_ms: <now> })`.
-            let message = match message {
-                LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
-                    LockfileVerificationMessage::Failed {
-                        entries,
-                        elapsed_ms: self.started_at.elapsed().as_millis() as u64,
-                        lockfile_path,
-                    }
-                }
-                other => other,
-            };
-            emit::<Reporter>(LogLevel::Debug, message);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests;
-
-mod candidates;
-use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};

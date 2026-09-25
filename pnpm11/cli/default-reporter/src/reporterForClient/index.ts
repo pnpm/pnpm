@@ -133,6 +133,7 @@ export function reporterForClient (
       reportInstallChecks(log$.installCheck, { cwd }),
       reportInstallingConfigDeps(log$.installingConfigDeps),
       reportLockfileVerification(log$.lockfileVerification, {
+        appendOnly: opts.appendOnly,
         cwd,
         workspaceDir: opts.pnpmConfig?.workspaceDir,
       }),

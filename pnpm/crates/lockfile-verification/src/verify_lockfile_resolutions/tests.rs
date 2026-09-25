@@ -14,8 +14,9 @@ use pnpm_resolving_resolver_base::{
 use tempfile::TempDir;
 
 use super::{
-    ReplacedEntries, VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
-    verify_lockfile_resolutions,
+    ReplacedEntries, VerifyLockfileResolutionsOptions,
+    candidates::{collect_candidates, run_fan_out},
+    collect_resolution_policy_violations, verify_lockfile_resolutions,
 };
 use crate::VerifyError;
 
@@ -64,6 +65,47 @@ snapshots:
 
   acme@1.0.0: {}
   bravo@2.0.0: {}
+";
+
+const FOUR_PKG_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      acme:
+        specifier: ^1.0.0
+        version: 1.0.0
+      bravo:
+        specifier: ^2.0.0
+        version: 2.0.0
+      charlie:
+        specifier: ^3.0.0
+        version: 3.0.0
+      delta:
+        specifier: ^4.0.0
+        version: 4.0.0
+
+packages:
+
+  acme@1.0.0:
+    resolution: {tarball: 'https://registry.npmjs.org/acme/-/acme-1.0.0.tgz'}
+
+  bravo@2.0.0:
+    resolution: {tarball: 'https://registry.npmjs.org/bravo/-/bravo-2.0.0.tgz'}
+
+  charlie@3.0.0:
+    resolution: {tarball: 'https://registry.npmjs.org/charlie/-/charlie-3.0.0.tgz'}
+
+  delta@4.0.0:
+    resolution: {tarball: 'https://registry.npmjs.org/delta/-/delta-4.0.0.tgz'}
+
+snapshots:
+
+  acme@1.0.0: {}
+  bravo@2.0.0: {}
+  charlie@3.0.0: {}
+  delta@4.0.0: {}
 ";
 
 fn parse(yaml: &str) -> Lockfile {
