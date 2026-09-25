@@ -844,6 +844,122 @@ fn descendant_walk_stops_at_an_aliased_copy_of_the_provider() {
     );
 }
 
+/// `zed` is still lazy when the walk reaches it, and its only edge is the
+/// cycle edge back to `app`, which realization cuts. The walk must drop it
+/// too. Following it would reach `app`'s `plugin`, which is not below `shadow`
+/// and does not inherit `shadow`'s `parser`, and would switch `consumer` to
+/// `shadow`'s own `parser`.
+#[test]
+fn descendant_walk_skips_a_cut_cycle_edge_of_a_lazy_node() {
+    let ts1 = NodeId::leaf("ts@1.0.0");
+    let ts2 = NodeId::leaf("ts@2.0.0");
+    let parser_root = NodeId::next();
+    let parser_child = NodeId::next();
+    let plugin = NodeId::next();
+    let consumer = NodeId::next();
+    let zed = NodeId::next();
+    let shadow = NodeId::next();
+    let app = NodeId::next();
+
+    let mut app_children = BTreeMap::new();
+    app_children.insert("plugin".to_string(), plugin.clone());
+    app_children.insert("shadow".to_string(), shadow.clone());
+
+    let mut shadow_children = BTreeMap::new();
+    shadow_children.insert("consumer".to_string(), consumer.clone());
+    shadow_children.insert("parser".to_string(), parser_child.clone());
+    shadow_children.insert("ts".to_string(), ts1.clone());
+    shadow_children.insert("zed".to_string(), zed.clone());
+
+    let edge = |alias: &str, pkg_id: &str| crate::resolved_tree::ChildEdge {
+        alias: alias.to_string(),
+        pkg_id: Arc::from(pkg_id),
+        optional: false,
+    };
+    let zed_node = crate::resolved_tree::DependenciesTreeNode::new(
+        Arc::from("zed@1.0.0"),
+        crate::resolved_tree::TreeChildren::Lazy {
+            parent_ids: Arc::new(vec!["app@1.0.0".to_string(), "shadow@1.0.0".to_string()]).into(),
+        },
+        2,
+        true,
+    );
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep { alias: "ts".to_string(), node_id: ts2.clone(), id: "ts@2.0.0".to_string() },
+            DirectDep {
+                alias: "parser".to_string(),
+                node_id: parser_root.clone(),
+                id: "parser@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "app".to_string(),
+                node_id: app.clone(),
+                id: "app@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from_iter([
+            ("ts@1.0.0".into(), package("ts", "1.0.0", &[], true)),
+            ("ts@2.0.0".into(), package("ts", "2.0.0", &[], true)),
+            ("parser@1.0.0".into(), package("parser", "1.0.0", &[("ts", "*")], false)),
+            (
+                Arc::from("plugin@1.0.0".to_string()),
+                package("plugin", "1.0.0", &[("parser", "*"), ("ts", "*")], false),
+            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("parser", "*")], false)),
+            ("zed@1.0.0".into(), package("zed", "1.0.0", &[], false)),
+            ("shadow@1.0.0".into(), package("shadow", "1.0.0", &[], false)),
+            ("app@1.0.0".into(), package("app", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from_iter([
+            (ts1, tree_node("ts@1.0.0", BTreeMap::new(), 2)),
+            (ts2, tree_node("ts@2.0.0", BTreeMap::new(), 0)),
+            (parser_root, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
+            (parser_child, tree_node("parser@1.0.0", BTreeMap::new(), 2)),
+            (plugin, tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
+            (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 2)),
+            (zed, zed_node),
+            (shadow, tree_node("shadow@1.0.0", shadow_children, 1)),
+            (app, tree_node("app@1.0.0", app_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from_iter(["parser".to_string(), "ts".to_string()]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::from_iter([
+            (
+                Arc::from("app@1.0.0"),
+                Arc::new(vec![edge("plugin", "plugin@1.0.0"), edge("shadow", "shadow@1.0.0")]),
+            ),
+            (
+                Arc::from("shadow@1.0.0"),
+                Arc::new(vec![
+                    edge("consumer", "consumer@1.0.0"),
+                    edge("parser", "parser@1.0.0"),
+                    edge("ts", "ts@1.0.0"),
+                    edge("zed", "zed@1.0.0"),
+                ]),
+            ),
+            (Arc::from("zed@1.0.0"), Arc::new(vec![edge("app", "app@1.0.0")])),
+        ]),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let inherited = DepPath::from("consumer@1.0.0(parser@1.0.0(ts@2.0.0))");
+    let own = DepPath::from("consumer@1.0.0(parser@1.0.0(ts@1.0.0))");
+
+    assert!(
+        result.graph.contains_key(&inherited),
+        "consumer should keep the inherited parser: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+    assert!(
+        !result.graph.contains_key(&own),
+        "a cut cycle edge must not switch consumer to the nested parser: {:#?}",
+        result.graph.keys().collect::<Vec<_>>(),
+    );
+}
+
 // Parity check for <https://github.com/pnpm/pnpm/pull/12514>.
 //
 // A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)

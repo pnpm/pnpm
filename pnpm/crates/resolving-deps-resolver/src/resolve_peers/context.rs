@@ -412,11 +412,15 @@ impl Walker<'_> {
         }
     }
 
+    /// A package's child edges, without the cycle edges realization cuts at
+    /// every occurrence ([`Self::cuts_cycle_edge`]).
     fn child_edges_of_pkg(&self, pkg_id: &str) -> Vec<(&str, &str, Option<&NodeId>)> {
+        let canonical_scc = self.canonical_scc();
         self.tree.children_by_id
             .get(pkg_id)
             .into_iter()
             .flat_map(|children| children.iter())
+            .filter(|child| !Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child.pkg_id))
             .map(|child| (child.alias.as_str(), &*child.pkg_id, None))
             .collect()
     }
