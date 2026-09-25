@@ -138,7 +138,7 @@ fn dev_preinstall_user_npmrc_token_is_used_for_the_same_install() {
     let tarball = minimal_tarball(package, "1.0.0");
     let integrity = sha512_integrity(&tarball);
     let tarball_path = "/private-pkg-1.0.0.tgz";
-    let packument_path = format!("/{}", package);
+    let packument_path = format!("/{package}");
     let packument = serde_json::json!({
         "name": package,
         "dist-tags": { "latest": "1.0.0" },
