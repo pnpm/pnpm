@@ -47,6 +47,37 @@ test('retries a Windows lock when inspecting a stale hoist link owner', async ()
   }
 })
 
+test('reports a Windows link-ownership lock that does not clear', async () => {
+  const { root, link, opts } = await prepareStaleHoist()
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  const readlink = fs.promises.readlink
+  let reads = 0
+  jest.spyOn(fs.promises, 'readlink').mockImplementation(async (...args) => {
+    if (args[0] === link && ++reads >= 2) {
+      throw Object.assign(new Error('access denied'), { code: 'EPERM' })
+    }
+    return readlink(...args)
+  })
+  try {
+    await expect(hoist(opts)).rejects.toMatchObject({ code: 'EPERM' })
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('preserves a directory occupying a hoist destination', async () => {
+  const { root, link, opts } = await prepareStaleHoist()
+  await fs.promises.unlink(link)
+  fs.mkdirSync(link)
+  fs.writeFileSync(path.join(link, 'sentinel'), 'keep')
+  try {
+    await hoist(opts)
+    expect(fs.readFileSync(path.join(link, 'sentinel'), 'utf8')).toBe('keep')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('retries a Windows lock when creating a workspace hoist link', async () => {
   const { root, opts } = await prepareStaleHoist()
   const workspace = path.join(root, 'workspace')

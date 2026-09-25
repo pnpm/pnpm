@@ -627,6 +627,7 @@ async function symlinkHoistedDependencyOnce (
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       return createHoistedDependencyLink(depLocation, dest)
     }
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',

@@ -33,7 +33,8 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return create_hoist_symlink(dep_dir, dest).map_err(symlink_error);
         }
-        Err(_) => return Ok(()),
+        Err(error) if is_non_link_read_error(&error) => return Ok(()),
+        Err(error) => return Err(symlink_error(error)),
     };
     if pnpm_fs::lexical_normalize(&existing) == pnpm_fs::lexical_normalize(dep_dir) {
         return Ok(());
@@ -44,6 +45,12 @@ pub(in crate::hoist) fn update_stale_hoist_symlink(
         return Ok(());
     }
     replace_stale_hoist_symlink(dep_dir, dest).map_err(symlink_error)
+}
+
+fn is_non_link_read_error(error: &io::Error) -> bool {
+    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
+    error.kind() == io::ErrorKind::InvalidInput
+        || (cfg!(windows) && error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT))
 }
 
 fn replace_stale_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
@@ -95,10 +102,7 @@ fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
     if error.kind() == io::ErrorKind::NotFound {
         return true;
     }
-    const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-    let not_a_link = error.kind() == io::ErrorKind::InvalidInput
-        || (cfg!(windows) && error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT));
-    if !not_a_link {
+    if !is_non_link_read_error(error) {
         return false;
     }
     // A concurrent unlink can make a link read report that the entry is not a link.
