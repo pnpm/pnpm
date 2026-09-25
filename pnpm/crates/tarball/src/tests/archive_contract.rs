@@ -138,6 +138,37 @@ async fn archive_store_write_out_of_space_fails_without_retry() {
 }
 
 #[tokio::test]
+async fn archive_store_write_interrupted_retries() {
+    let mut attempts = 0;
+    let result = crate::archive_retry::retry_archive::<SilentReporter, _, _>(
+        "https://example.test/pkg.tgz",
+        "fixture",
+        "test",
+        None,
+        fast_retry_opts(),
+        |_| {
+            attempts += 1;
+            let attempt = attempts;
+            async move {
+                if attempt == 1 {
+                    Err(TarballError::WriteCasFile(WriteCasFileError::WriteFile(
+                        EnsureFileError::WriteFile {
+                            file_path: PathBuf::from("store/file"),
+                            error: std::io::Error::from(std::io::ErrorKind::Interrupted),
+                        },
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
+        },
+    )
+    .await;
+    assert!(result.is_ok(), "interrupted store write should be retried: {result:?}");
+    assert_eq!(attempts, 2);
+}
+
+#[tokio::test]
 async fn archive_network_errors_remove_urls_from_the_source_chain() {
     let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = socket.local_addr().unwrap().port();
