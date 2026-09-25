@@ -357,11 +357,18 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
-            discard_skipped_optional_dependency(
-                context.pkg_roots(),
-                context.directories.lockfile_dir,
-                snapshot_key,
-            )?;
+            // A rebuild may re-run the scripts of a global virtual store
+            // slot that other projects use with a working build, so a failed
+            // rebuild keeps the slot.
+            if context.rebuild.is_none()
+                || !context.directories.layout.enable_global_virtual_store()
+            {
+                discard_skipped_optional_dependency(
+                    context.pkg_roots(),
+                    context.directories.lockfile_dir,
+                    snapshot_key,
+                )?;
+            }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
                 details: Some(err.to_string()),

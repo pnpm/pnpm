@@ -108,23 +108,22 @@ pub(crate) fn mark_global_virtual_store_build_started(pkg_roots: PkgRoots<'_>, k
     }
 }
 
-/// Remove every project-local copy of an optional dependency whose build
+/// Remove every installed copy of an optional dependency whose build
 /// failed, so a consumer that probes for it finds it absent rather than
-/// half-built.
+/// half-built. The next install finds the directory missing and retries
+/// the build.
 ///
-/// A no-op under the global virtual store: other projects may link the
-/// shared slot, so a failed build leaves it marked for the next install to
-/// rebuild (see [`mark_global_virtual_store_build_started`]). A directory that is not a
-/// plain descendant of the virtual store or the lockfile directory is left
-/// alone, since its path comes from a lockfile-controlled package name.
+/// Under the global virtual store this removes the package directory of
+/// the shared slot, and the caller must hold the slot's lock. The slot
+/// keeps its lock and its dependency links, and every project that links
+/// it finds the package absent. A directory that is not a plain descendant
+/// of the virtual store or the lockfile directory is left alone, since its
+/// path comes from a lockfile-controlled package name.
 pub(crate) fn discard_skipped_optional_dependency(
     pkg_roots: PkgRoots<'_>,
     lockfile_dir: &Path,
     key: &PackageKey,
 ) -> Result<(), BuildModulesError> {
-    if pkg_roots.layout.enable_global_virtual_store() {
-        return Ok(());
-    }
     let virtual_store_dir = pkg_roots.layout.package_store_dir();
     for pkg_dir in pkg_roots.all(key) {
         if !is_contained_descendant(virtual_store_dir, &pkg_dir)

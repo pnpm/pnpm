@@ -413,6 +413,39 @@ test('GVS build failure keeps the slot and marks it for a rebuild', async () => 
   expect(fs.readFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'utf8')).toBe('started')
 })
 
+test('GVS removes an optional dependency whose build failed from its slot', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-failing-optional-dependency': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/pkg-with-failing-postinstall': true },
+  })
+  const failedVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-postinstall/1.0.0')
+  const parentVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-failing-optional-dependency/1.0.0')
+
+  // A repeat install, which finds the package missing and builds it again, removes it again.
+  for (let i = 0; i < 2; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    await install(manifest, opts)
+
+    const hashes = fs.readdirSync(failedVersionDir)
+    expect(hashes).toHaveLength(1)
+    expect(fs.existsSync(path.join(failedVersionDir, hashes[0], 'node_modules/@pnpm.e2e/pkg-with-failing-postinstall'))).toBeFalsy()
+    const parentHashes = fs.readdirSync(parentVersionDir)
+    expect(parentHashes).toHaveLength(1)
+    const parentModules = path.join(parentVersionDir, parentHashes[0], 'node_modules')
+    expect(fs.existsSync(path.join(parentModules, '@pnpm.e2e/pkg-with-failing-optional-dependency/package.json'))).toBeTruthy()
+    expect(fs.existsSync(path.join(parentModules, '@pnpm.e2e/pkg-with-failing-postinstall/package.json'))).toBeFalsy()
+  }
+})
+
 test('GVS build waits for another install building the same slot', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
