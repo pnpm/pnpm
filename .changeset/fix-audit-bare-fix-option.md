@@ -1,5 +1,7 @@
 ---
+"@pnpm/deps.compliance.commands": patch
 "pnpm": patch
+"pacquet": patch
 ---
 
-Fix `pnpm audit --fix` (without value) throwing `ERR_PNPM_INVALID_FIX_OPTION` in pnpm v11.
+`pnpm audit --fix=true` now applies the default override fix method [#13261](https://github.com/pnpm/pnpm/issues/13261).

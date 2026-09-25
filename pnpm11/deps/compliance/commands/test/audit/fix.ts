@@ -202,10 +202,10 @@ test('audit --fix without value (string "true") works like boolean true', async 
   expect(output).toMatch(/Run "pnpm install"/)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('^1.15.0')
 })
 
-  test('no overrides are added if no vulnerabilities are found', async () => {
+test('no overrides are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
