@@ -103,7 +103,8 @@ fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
         )
     } else {
         let quoted = sh_quote(dir);
-        format!("export PATH={path_value}", path_value = create_path_value(opts.position, &quoted),)
+        let path_value = create_path_value(opts.position, &quoted);
+        format!("export PATH={path_value}")
     }
 }
 
