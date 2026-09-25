@@ -1121,8 +1121,6 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
     drop((root, mock_instance));
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 /// A `readPackage` hook that leaves a dependency range as anything but a
 /// string produces a malformed manifest, and the worker sends the manifest
 /// back as JSON, which drops the entry. The install has to fail on that
@@ -1233,6 +1231,8 @@ fn read_package_accepts_a_deleted_dependency() {
             .exists(),
         "the deleted dependency is not installed",
     );
+
+    drop((root, mock_instance));
 }
 
 #[test]

@@ -23,7 +23,7 @@ use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
 mod patched;
 mod platform;
-use patched::without_published_engines;
+use patched::{snapshot_is_patched, without_published_engines};
 use platform::manifest_from_metadata;
 
 use std::collections::{HashMap, HashSet};
@@ -398,11 +398,6 @@ struct SkipScan<'a, 'lock> {
     /// emit a single skip log.
     seen_emit: HashSet<PackageKey>,
     skipped: SkippedSnapshots,
-}
-
-/// Returns whether the snapshot has an applied patch.
-fn snapshot_is_patched(snapshot_key: &PackageKey, snapshot: &SnapshotEntry) -> bool {
-    snapshot.patched == Some(true) || snapshot_key.to_string().contains("(patch_hash=")
 }
 
 impl SkipScan<'_, '_> {
