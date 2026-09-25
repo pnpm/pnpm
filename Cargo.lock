@@ -6038,6 +6038,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
+ "pnpm-config-parse-overrides",
  "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-hooks",

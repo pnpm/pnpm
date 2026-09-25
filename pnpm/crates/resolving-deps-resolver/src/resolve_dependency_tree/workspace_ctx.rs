@@ -254,6 +254,10 @@ pub(super) struct WorkspaceResolutionPolicy {
     ///
     /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
+    /// Parsed `pnpm.overrides`, used to reframe
+    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
+    /// when an override forces a version the registry does not serve.
+    pub(super) parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
 }
 
 /// The per-package missing-peer names
@@ -400,6 +404,18 @@ impl WorkspaceTreeCtx {
     #[must_use]
     pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
         self.hooks.manifests.overrides_hook = overrides_hook;
+        self
+    }
+
+    /// Attach parsed `pnpm.overrides`, used to reframe
+    /// `ERR_PNPM_NO_MATCHING_VERSION` onto the responsible override entry
+    /// when an override forces a version the registry does not serve.
+    #[must_use]
+    pub fn with_parsed_overrides(
+        mut self,
+        parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
+    ) -> Self {
+        self.policy.parsed_overrides = parsed_overrides;
         self
     }
 

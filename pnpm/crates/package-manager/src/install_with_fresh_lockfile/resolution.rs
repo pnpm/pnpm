@@ -314,6 +314,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
 
             registries_by_prefix: self.registries.named.clone(),
             registries: self.registries.by_scope.clone(),
+            parsed_overrides: self.prep.transforms.parsed_overrides.clone().map(Arc::<[_]>::from),
         }
     }
 

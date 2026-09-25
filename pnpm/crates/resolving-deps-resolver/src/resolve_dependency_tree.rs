@@ -1,3 +1,4 @@
+pub use override_reframe::OverrideNoMatchingVersionError;
 pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine};
 
 pub use reuse::real_package_name_of;
@@ -43,6 +44,7 @@ mod catalogs;
 mod finalized;
 mod importer;
 mod manifest;
+mod override_reframe;
 mod reuse;
 mod tree_ctx;
 mod walk;
@@ -233,6 +235,16 @@ pub enum ResolveDependencyTreeError {
     /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
     #[diagnostic(transparent)]
     NoMatchingVersion(#[error(source)] NoMatchingVersionError),
+
+    /// Reframed `ERR_PNPM_NO_MATCHING_VERSION` for the override-caused case:
+    /// the user's override forced a specifier no registry version satisfies.
+    /// Names the override entry (and, when the override selector carries a
+    /// range, the highest matching version) instead of the parent dependency
+    /// that happened to depend on it. Boxed so the variant does not bloat the
+    /// enum (and the `Result` Err types that carry it) past
+    /// `clippy::result_large_err`.
+    #[diagnostic(transparent)]
+    OverrideNoMatchingVersion(#[error(source)] Box<OverrideNoMatchingVersionError>),
 
     /// The registry answered the metadata request with a non-2xx status,
     /// raised with the matching `ERR_PNPM_FETCH_<status>` code.

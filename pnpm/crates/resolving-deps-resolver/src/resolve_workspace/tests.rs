@@ -308,6 +308,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
             depth: crate::UpdateDepth::UNLIMITED,
         },
         version: crate::WorkspaceVersionResolution { pick_lowest_direct, time_based },
+        parsed_overrides: None,
     }
 }
 
@@ -450,6 +451,7 @@ impl FailureShape {
                 dep: format!("{alias}@{range}"),
                 registry: "https://registry.example/".to_string(),
                 published_versions: format!(r#"The latest release of {alias} is "2.0.0"."#),
+                versions: Vec::new(),
             }),
             FailureShape::RegistryResponse => {
                 Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {

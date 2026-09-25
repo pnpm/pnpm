@@ -34,12 +34,22 @@ pub struct NoMatchingVersionError {
     /// What the registry *does* publish: the latest release, the other
     /// dist-tags, and how to list every version.
     pub published_versions: String,
+    /// Every published version key, for callers that need to compute a
+    /// satisfying version themselves (e.g. pointing an override at the
+    /// highest version its selector actually admits).
+    #[error(not(source))]
+    pub versions: Vec<String>,
 }
 
 impl NoMatchingVersionError {
     #[must_use]
     pub fn new(dep: String, registry: String, meta: &Package) -> Self {
-        Self { dep, registry, published_versions: describe_published_versions(meta) }
+        Self {
+            dep,
+            registry,
+            published_versions: describe_published_versions(meta),
+            versions: meta.versions.keys().cloned().collect(),
+        }
     }
 }
 

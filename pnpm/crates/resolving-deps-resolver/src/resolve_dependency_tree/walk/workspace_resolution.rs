@@ -1,8 +1,7 @@
 use super::{
-    Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveDependencyTreeError, ResolveError, ResolveOptions, Resolver,
-    SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey, WorkspaceFinalWantedKey,
-    lock_recoverable, render_specifier,
+    super::override_reframe::map_resolve_error, Arc, CurrentPkg, Path, PreferredVersionsOverlay,
+    ResolveDependencyTreeError, ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx,
+    WantedDependency, WantedKey, WorkspaceFinalWantedKey, lock_recoverable, render_specifier,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -272,27 +271,40 @@ where
             &opts.project.lockfile_dir,
         ));
     }
-    let result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
+    let overrides = ctx.workspace.policy.parsed_overrides.as_deref();
+    let result = resolver
+        .resolve(wanted, opts)
+        .await
+        .map_err(|err| map_resolve_error(err, wanted, overrides))?;
     let Some(result) = result else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),
         });
     };
-    if let Some(shared_workspace_key) = shared_workspace_key
+    if let Some(key) = shared_workspace_key
         && let Some(canonical) = canonical_workspace_resolution(
             &result,
             &opts.project.project_dir,
             &opts.project.lockfile_dir,
         )
     {
-        let canonical = Arc::new(canonical);
-        *canonical_workspace = Some(Arc::clone(
-            lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted)
-                .entry(shared_workspace_key.clone())
-                .or_insert(canonical),
-        ));
+        cache_canonical_workspace(ctx, canonical_workspace, key, canonical);
     }
     Ok(result)
+}
+
+fn cache_canonical_workspace(
+    ctx: &TreeCtx,
+    canonical_workspace: &mut Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>,
+    key: &SharedWorkspaceWantedKey,
+    canonical: pnpm_resolving_resolver_base::ResolveResult,
+) {
+    let canonical = Arc::new(canonical);
+    *canonical_workspace = Some(Arc::clone(
+        lock_recoverable(&ctx.workspace.cache.resolved_workspace_by_wanted)
+            .entry(key.clone())
+            .or_insert(canonical),
+    ));
 }
 
 /// Combine two per-package opts adjustments into one clone, or `None` when
@@ -395,28 +407,6 @@ fn stamp_fallback_identity(result: &mut pnpm_resolving_resolver_base::ResolveRes
             obj.insert("version".to_string(), serde_json::Value::String("0.0.0".to_string()));
         }
         *manifest = Arc::new(updated);
-    }
-}
-
-/// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
-/// that carry one. The chain hands back a type-erased
-/// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
-/// that are part of pnpm's public contract are recovered by downcast; every
-/// other failure keeps the generic envelope.
-pub(super) fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
-    let err = match err.downcast::<NoMatchingVersionError>() {
-        Ok(no_matching_version) => {
-            return ResolveDependencyTreeError::NoMatchingVersion(*no_matching_version);
-        }
-        Err(err) => err,
-    };
-    let err = match err.downcast::<RegistryResponseError>() {
-        Ok(response) => return ResolveDependencyTreeError::RegistryResponse(*response),
-        Err(err) => err,
-    };
-    match err.downcast::<GitResolveError>() {
-        Ok(git) => ResolveDependencyTreeError::GitResolve(*git),
-        Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
     }
 }
 
