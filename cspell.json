@@ -413,6 +413,7 @@
     "sheetjs",
     "Sherov",
     "shlex",
+    "SIGPIPE",
     "sigstore",
     "sindresorhus",
     "sirv",

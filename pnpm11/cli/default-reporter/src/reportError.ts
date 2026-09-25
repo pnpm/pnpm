@@ -367,8 +367,12 @@ function reportLifecycleError (
   msg: {
     stage: string
     errno?: number | string
+    signal?: string
   }
 ): ErrorInfo {
+  if (msg.signal) {
+    return { title: `Command failed with signal ${msg.signal}.` }
+  }
   if (msg.stage === 'test') {
     return { title: 'Test failed. See above for more details.' }
   }

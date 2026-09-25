@@ -166,7 +166,7 @@ skipOnWindows('exit with error on INT signal from child', async () => {
       log,
       dir: countTo10,
     })
-  ).rejects.toThrow()
+  ).rejects.toMatchObject({ code: 'ELIFECYCLE', signal: 'SIGINT' })
 
   expect(log.info).toHaveBeenCalledWith('lifecycle', 'undefined~signal-int:', 'Failed to exec signal-int script')
   expect(log.silly).toHaveBeenCalledWith('lifecycle', 'undefined~signal-int:', 'Returned: code:', null, ' signal:', 'SIGINT')

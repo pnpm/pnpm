@@ -478,10 +478,9 @@ pub(in super::super) fn run_stage(
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        // The `test` stage gets a fixed message; a numeric exit code is
-        // reported verbatim; a signal-terminated child (no code) is
-        // "Command failed." with no number.
-        if stage == "test" {
+        if let Some(signal) = status.signal_name() {
+            eprintln!("[ELIFECYCLE] Command failed with signal {signal}.");
+        } else if stage == "test" {
             eprintln!("[ELIFECYCLE] Test failed. See above for more details.");
         } else if let Some(code) = status.code() {
             eprintln!("[ELIFECYCLE] Command failed with exit code {code}.");

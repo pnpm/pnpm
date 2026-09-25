@@ -31,6 +31,54 @@ impl ScriptExit {
             Self::Emulated(code) => Some(code),
         }
     }
+
+    /// The name of the signal that killed the child, such as `SIGKILL`.
+    /// `None` for a script that exited with a code, and for a signal
+    /// without a POSIX name.
+    #[must_use]
+    pub fn signal_name(self) -> Option<&'static str> {
+        #[cfg(unix)]
+        if let Self::Process(status) = self {
+            use std::os::unix::process::ExitStatusExt;
+            return status.signal().and_then(posix_signal_name);
+        }
+        None
+    }
+}
+
+#[cfg(unix)]
+fn posix_signal_name(signal: i32) -> Option<&'static str> {
+    Some(match signal {
+        libc::SIGABRT => "SIGABRT",
+        libc::SIGALRM => "SIGALRM",
+        libc::SIGBUS => "SIGBUS",
+        libc::SIGCHLD => "SIGCHLD",
+        libc::SIGCONT => "SIGCONT",
+        libc::SIGFPE => "SIGFPE",
+        libc::SIGHUP => "SIGHUP",
+        libc::SIGILL => "SIGILL",
+        libc::SIGINT => "SIGINT",
+        libc::SIGKILL => "SIGKILL",
+        libc::SIGPIPE => "SIGPIPE",
+        libc::SIGPROF => "SIGPROF",
+        libc::SIGQUIT => "SIGQUIT",
+        libc::SIGSEGV => "SIGSEGV",
+        libc::SIGSTOP => "SIGSTOP",
+        libc::SIGSYS => "SIGSYS",
+        libc::SIGTERM => "SIGTERM",
+        libc::SIGTRAP => "SIGTRAP",
+        libc::SIGTSTP => "SIGTSTP",
+        libc::SIGTTIN => "SIGTTIN",
+        libc::SIGTTOU => "SIGTTOU",
+        libc::SIGURG => "SIGURG",
+        libc::SIGUSR1 => "SIGUSR1",
+        libc::SIGUSR2 => "SIGUSR2",
+        libc::SIGVTALRM => "SIGVTALRM",
+        libc::SIGWINCH => "SIGWINCH",
+        libc::SIGXCPU => "SIGXCPU",
+        libc::SIGXFSZ => "SIGXFSZ",
+        _ => return None,
+    })
 }
 
 impl fmt::Display for ScriptExit {

@@ -82,6 +82,8 @@ export interface LifecycleError extends Error {
   pkgid?: string
   pkgname?: string
   script?: string
+  /** The signal that killed the script, if one did. */
+  signal?: NodeJS.Signals
   stage?: string
 }
 
@@ -474,6 +476,7 @@ function runSpawned (run: ScriptRun, spawned: SpawnedScript, cb: Callback): void
       err = spawnObserverError
     } else if (signal) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Command failed with signal "${signal}"`)
+      err.signal = signal
       deathSignal = signal
     } else if (code) {
       err = new PnpmError('CHILD_PROCESS_FAILED', `Exit status ${code}`)

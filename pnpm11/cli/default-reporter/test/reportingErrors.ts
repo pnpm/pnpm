@@ -16,6 +16,7 @@ import StackTracey from 'stacktracey'
 
 interface Exception extends NodeJS.ErrnoException {
   prefix?: string
+  signal?: string
   stage?: string
 }
 
@@ -228,6 +229,24 @@ test('prints command error without exit code', async () => {
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed.')}`)
+})
+
+test('prints the signal that killed the command', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['test'] },
+    streamParser: createStreamParser(),
+  })
+
+  expect.assertions(1)
+
+  const err: Exception = new Error('Command failed')
+  err['signal'] = 'SIGKILL'
+  err['stage'] = 'test'
+  err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatError('ELIFECYCLE', 'Command failed with signal SIGKILL.')}`)
 })
 
 test('prints unsupported pnpm version error', async () => {
