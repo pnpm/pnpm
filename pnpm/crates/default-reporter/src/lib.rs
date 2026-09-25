@@ -172,6 +172,16 @@ pub fn set_max_log_level(level: MaxLogLevel) {
     let _ = MAX_LOG_LEVEL.set(level);
 }
 
+/// The configured verbosity ceiling, or [`MaxLogLevel::Info`] when
+/// [`set_max_log_level`] was not called. Output written outside the reporter
+/// reads it to stay behind the same `--loglevel` gate.
+pub fn max_log_level() -> MaxLogLevel {
+    MAX_LOG_LEVEL
+        .get()
+        .copied()
+        .unwrap_or(MaxLogLevel::Info)
+}
+
 /// Configure ANSI color rendering. Call before the first reporter event.
 pub fn set_color_mode(mode: ColorMode) {
     let _ = COLOR_MODE.set(mode);
@@ -481,10 +491,7 @@ impl Sink {
 fn reporter_options(append_only: bool) -> state::ReporterOptions {
     state::ReporterOptions {
         append_only,
-        max_log_level: MAX_LOG_LEVEL
-            .get()
-            .copied()
-            .unwrap_or(MaxLogLevel::Info),
+        max_log_level: max_log_level(),
         lifecycle: crate::state::LifecycleOptions {
             stream_output: STREAM_LIFECYCLE_OUTPUT.get().is_some_and(|value| *value),
             aggregate_output: AGGREGATE_OUTPUT.get().is_some_and(|value| *value),

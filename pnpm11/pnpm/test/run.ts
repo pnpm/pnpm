@@ -174,6 +174,49 @@ test('silent run does not print verifyDepsBeforeRun install output', async () =>
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
+test.each(['silent', 'warn', 'error'])('run with --loglevel=%s prints neither the command nor the verifyDepsBeforeRun install output', (loglevel) => {
+  prepare({
+    scripts: {
+      hi: 'echo hi',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    verifyDepsBeforeRun: 'install',
+  })
+
+  const result = execPnpmSync([`--loglevel=${loglevel}`, 'run', 'hi'], {
+    env: { XDG_CONFIG_HOME: path.resolve('.config') },
+    expectSuccess: true,
+    omitEnvDefaults: ['pnpm_config_silent'],
+  })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+  expect(result.stderr.toString()).toBe('')
+})
+
+test('recursive run with loglevel: error in pnpm-workspace.yaml does not print the command', () => {
+  preparePackages([{
+    name: 'project',
+    scripts: {
+      hi: 'echo hi',
+    },
+  }])
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'root', private: true }), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    loglevel: 'error',
+  })
+
+  const result = execPnpmSync(['-r', '--workspace-concurrency=1', '--config.verify-deps-before-run=false', 'run', 'hi'], {
+    env: { XDG_CONFIG_HOME: path.resolve('.config') },
+    expectSuccess: true,
+    omitEnvDefaults: ['pnpm_config_silent'],
+  })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+  expect(result.stderr.toString()).toBe('')
+})
+
 testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {

@@ -194,6 +194,24 @@ pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
     }
 }
 
+/// Whether info-level output written outside the reporter, such as the
+/// `$ <script>` echo before a foreground script, is suppressed: under the
+/// silent reporter, or when `--loglevel` / `loglevel` is `warn` or `error`.
+pub(crate) fn suppresses_info_output(reporter: ReporterType) -> bool {
+    matches!(reporter, ReporterType::Silent)
+        || pnpm_default_reporter::max_log_level() < MaxLogLevel::Info
+}
+
+/// The `--loglevel` flag a spawned pnpm needs to keep the parent's
+/// `warn` / `error` ceiling; `None` at the default `info` and above.
+pub(crate) fn quiet_loglevel_arg() -> Option<&'static str> {
+    match pnpm_default_reporter::max_log_level() {
+        MaxLogLevel::Error => Some("--loglevel=error"),
+        MaxLogLevel::Warn => Some("--loglevel=warn"),
+        MaxLogLevel::Info | MaxLogLevel::Debug => None,
+    }
+}
+
 pub(crate) fn configure_color(mode: ColorMode) {
     pnpm_default_reporter::set_color_mode(mode);
     match mode {

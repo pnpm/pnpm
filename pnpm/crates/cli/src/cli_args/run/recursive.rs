@@ -26,7 +26,7 @@ use crate::cli_args::{
         filtered_projects_dependencies, find_resume_root, no_projects_matched_message,
         notice_workspace_dir, select_recursive_projects, write_recursive_summary,
     },
-    reporter::{ReporterType, reporter_emit},
+    reporter::{ReporterType, reporter_emit, suppresses_info_output},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
     verify_deps::verify_deps_before_recursive_run,
 };
@@ -141,7 +141,7 @@ pub fn run_recursive(
         return Ok(RecursiveRunOutcome::Done);
     };
     let emit = reporter_emit(reporter);
-    let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
+    let silent = matches!(reporter, ReporterType::Ndjson) || suppresses_info_output(reporter);
     emit_selection_scope(emit, config, graph.len(), projects.len());
     // An empty `--filter` selection is a no-op (exit 0); an empty
     // workspace instead falls through to the no-script error below.
