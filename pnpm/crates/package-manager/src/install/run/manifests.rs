@@ -230,17 +230,7 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
         && !dev_preinstall_already_ran()
         && root_defines(DEV_PREINSTALL_STAGE)
     {
-        run_root_hook(
-            scope.config,
-            scope.workspace_root,
-            pnpm_executor::run_dev_preinstall_hook::<Reporter>,
-        )?;
-        // The script may have written a new registry token into the user
-        // npmrc. Fetchers share `config.auth_headers`, so swap that map
-        // before resolution and downloads.
-        scope.config
-            .reload_auth_headers::<pnpm_config::Host>(scope.workspace_root)
-            .map_err(InstallError::ReloadAuth)?;
+        run_dev_preinstall_and_reload_auth::<Reporter>(scope)?;
     }
     if root_preinstall_already_ran() {
         return Ok(true);
@@ -257,6 +247,23 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
     }
     Ok(true)
 }
+
+fn run_dev_preinstall_and_reload_auth<Reporter: self::Reporter>(
+    scope: &RootHooksScope<'_>,
+) -> Result<(), InstallError> {
+    run_root_hook(
+        scope.config,
+        scope.workspace_root,
+        pnpm_executor::run_dev_preinstall_hook::<Reporter>,
+    )?;
+    // The script may have written a new registry token into the user
+    // npmrc. Fetchers share `config.auth_headers`, so swap that map
+    // before resolution and downloads.
+    scope.config
+        .reload_auth_headers::<pnpm_config::Host>(scope.workspace_root)
+        .map_err(InstallError::ReloadAuth)
+}
+
 /// Whether the root project's `preinstall` is this run's to fire: a
 /// removal runs the uninstall stages only, and `virtual_store_only` links
 /// no project.

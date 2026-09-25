@@ -72,7 +72,7 @@ export function createGetAuthHeaderByURI (
  */
 export function reloadAuthHeaders (configByUri: Record<string, RegistryConfig>): void {
   const reloaders = authHeaderReloaders.get(configByUri)
-  if (reloaders == null) return
+  if (reloaders == null || reloaders.size === 0) return
   for (const refresh of reloaders) refresh(configByUri)
 }
 
