@@ -5714,6 +5714,9 @@ importers:
       string-width:
         specifier: 'catalog:'
         version: 8.2.2
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0

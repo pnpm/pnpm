@@ -106,6 +106,7 @@
     "ramda": "catalog:",
     "render-help": "catalog:",
     "string-width": "catalog:",
+    "tinyglobby": "catalog:",
     "version-selector-type": "catalog:"
   },
   "peerDependencies": {
