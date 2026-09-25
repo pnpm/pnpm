@@ -112,6 +112,10 @@ struct DeployedDependencies<'a> {
 /// dependencies are left out of both the deployed manifest and the deployed
 /// importer, because the graph prune drops the packages they would point at;
 /// a peer the project only declares stays in whichever group carries it.
+/// A runtime reference stays too: the engines field that generates it
+/// survives in the deployed manifest and regenerates the edge on every read,
+/// so the importer must keep it. The deploy install skips it with the rest
+/// of its excluded group.
 fn fill_target_dependencies(
     target_snapshot: &mut ProjectSnapshot,
     deployed: &DeployedDependencies<'_>,
@@ -142,8 +146,10 @@ fn fill_target_dependencies(
             source
                 .iter()
                 .flatten()
-                .filter(|(name, _)| {
-                    included || deployed.peer_only_dependencies.contains(&name.to_string())
+                .filter(|(name, spec)| {
+                    included
+                        || deployed.peer_only_dependencies.contains(&name.to_string())
+                        || spec.specifier.starts_with("runtime:")
                 }),
             deployed.ctx,
             &selected_bases,
