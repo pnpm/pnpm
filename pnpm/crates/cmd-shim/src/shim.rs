@@ -215,7 +215,7 @@ pub fn generate_cmd_shim(
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
 ) -> String {
-    let cmd_target_rel = relative_target_windows(target_path, shim_path);
+    let cmd_target_rel = cmd_escape(&relative_target_windows(target_path, shim_path));
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
         format!(r#""{cmd_target_rel}""#)
     } else {
@@ -224,7 +224,7 @@ pub fn generate_cmd_shim(
 
     let mut cmd = String::from("@SETLOCAL\r\n");
 
-    let cmd_node_path = normalize_node_path_env_var(node_path, cfg!(windows)).win32;
+    let cmd_node_path = cmd_escape(&normalize_node_path_env_var(node_path, cfg!(windows)).win32);
     if !cmd_node_path.is_empty() {
         write!(
             cmd,

@@ -393,12 +393,12 @@ async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, 
  */
 function generateCmdShim (src: string, to: string, opts: InternalOptions): string {
   const shTarget = path.relative(path.dirname(to), src)
-  let target = shTarget.split('/').join('\\')
+  let target = cmdEscape(shTarget.split('/').join('\\'))
   const quotedPathToTarget = path.isAbsolute(target) ? `"${target}"` : `"%~dp0\\${target}"`
   let longProg
   let prog = opts.prog
   let args = opts.args || ''
-  const nodePath = normalizePathEnvVar(opts.nodePath).win32
+  const nodePath = cmdEscape(normalizePathEnvVar(opts.nodePath).win32)
   const prependToPath = normalizePathEnvVar(opts.prependToPath).win32
   if (!prog) {
     prog = quotedPathToTarget
@@ -806,6 +806,14 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
     result[i] = {win32, posix}
   }
   return result
+}
+
+/**
+ * Escape `text` for a `.cmd` file, where `%` would otherwise expand as a
+ * variable reference, even inside double quotes.
+ */
+function cmdEscape (text: string): string {
+  return text.replaceAll('%', '%%')
 }
 
 function shSingleQuote (text: string): string {

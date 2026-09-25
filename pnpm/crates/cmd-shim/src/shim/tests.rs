@@ -672,6 +672,23 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
 }
 
 #[test]
+fn generate_cmd_shim_escapes_percent_in_paths() {
+    let target = Path::new("/50% off/pkg/cli");
+    let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
+    let node_path = ["/50% off/proj/node_modules".to_string()];
+    let body = generate_cmd_shim(target, shim, None, &node_path);
+
+    assert!(
+        body.contains(r"50%% off\proj\node_modules;%NODE_PATH%"),
+        "NODE_PATH entries must escape `%`, body:\n{body}",
+    );
+    assert!(
+        body.contains(r#"@"%~dp0\..\..\..\50%% off\pkg\cli""#),
+        "the target path must escape `%`, body:\n{body}",
+    );
+}
+
+#[test]
 fn generate_pwsh_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc.ps1");
