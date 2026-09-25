@@ -408,6 +408,7 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
     prog = `"${cmdEscape(opts.nodeExecPath)}"`
     target = quotedPathToTarget
   } else {
+    prog = cmdEscape(prog)
     longProg = `"%~dp0\\${prog}.exe"`
     target = quotedPathToTarget
   }

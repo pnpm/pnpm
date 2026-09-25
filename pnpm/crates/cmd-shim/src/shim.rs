@@ -235,6 +235,7 @@ pub fn generate_cmd_shim(
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
+            let prog = cmd_escape(prog);
             let long_prog = format!(r#""%~dp0\{prog}.exe""#);
             writeln!(
                 cmd,

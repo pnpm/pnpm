@@ -689,6 +689,20 @@ fn generate_cmd_shim_escapes_percent_in_paths() {
 }
 
 #[test]
+fn generate_cmd_shim_escapes_percent_in_prog() {
+    let target = Path::new("/proj/pkg/cli");
+    let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
+    let runtime = ScriptRuntime { prog: Some("/50%OS%bin/sh".into()), args: String::new() };
+    let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
+
+    assert!(
+        body.contains(r#"@IF EXIST "%~dp0\/50%%OS%%bin/sh.exe""#),
+        "the long prog must escape `%`, body:\n{body}",
+    );
+    assert!(body.contains("  /50%%OS%%bin/sh  "), "the prog must escape `%`, body:\n{body}",);
+}
+
+#[test]
 fn generate_pwsh_shim_matches_pnpm_template() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc.ps1");
