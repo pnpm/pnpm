@@ -4863,6 +4863,40 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('return the caller-provided warnings array', async () => {
+  const warnings: string[] = []
+
+  const result = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })
+
+  expect(result.warnings).toBe(warnings)
+})
+
+test('throw a descriptive auth config error when unresolved _auth placeholder reaches auth parsing', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=\\${ENV_VAR_123}', 'utf8')
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_AUTH_INVALID_BASE64',
+    message: 'Failed to decode _auth as base64',
+    hint: expect.stringContaining('unresolved env placeholder'),
+  })
+})
+
 test.each([
   [undefined, '${EMPTY_TOKEN}', '', true],
   ['', '${EMPTY_TOKEN}', '', true],

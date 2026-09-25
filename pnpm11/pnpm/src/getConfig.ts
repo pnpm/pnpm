@@ -26,26 +26,30 @@ export async function getConfig (
     printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
-  const { config, context, warnings } = await _getConfig({
-    cliOptions,
-    globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
-    packageManager,
-    workspaceDir: opts.workspaceDir,
-    onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
-    forSelfUpdate: opts.forSelfUpdate,
-  })
-  context.cliOptions = cliOptions
-  applyDerivedConfig(config)
+  const warnings: string[] = []
+  try {
+    const { config, context } = await _getConfig({
+      cliOptions,
+      globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
+      packageManager,
+      workspaceDir: opts.workspaceDir,
+      onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
+      forSelfUpdate: opts.forSelfUpdate,
+      warnings,
+    })
+    context.cliOptions = cliOptions
+    applyDerivedConfig(config)
 
-  if (opts.excludeReporter) {
-    delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
+    if (opts.excludeReporter) {
+      delete config.reporter // This is a silly workaround because @pnpm/installing.deps-installer expects a function as opts.reporter
+    }
+
+    return { config, context }
+  } finally {
+    if (opts.printWarnings !== false && warnings.length > 0) {
+      console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
+    }
   }
-
-  if (opts.printWarnings !== false && warnings.length > 0) {
-    console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
-  }
-
-  return { config, context }
 }
 
 /**
