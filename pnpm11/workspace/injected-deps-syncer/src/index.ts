@@ -51,7 +51,7 @@ export interface InjectedEditWatch {
  * `undefined` when the package has no name, no workspace, or no injected copies.
  */
 export async function injectedEditDirs (
-  opts: SyncInjectedDepsOptions,
+  opts: SyncInjectedDepsOptions
 ): Promise<{ sourceDir: string, targetDirs: string[] } | undefined> {
   if (!opts.pkgName || opts.workspaceDir == null) return undefined
   const located = await readInjectedTargets(opts.workspaceDir, opts.pkgRootDir)

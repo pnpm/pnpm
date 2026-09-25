@@ -20,8 +20,8 @@ import {
 } from '@pnpm/exec.lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
 import {
-  type InjectedEditWatch,
   injectedEditDirs,
+  type InjectedEditWatch,
   syncInjectedDeps,
   watchInjectedEdits,
 } from '@pnpm/workspace.injected-deps-syncer'

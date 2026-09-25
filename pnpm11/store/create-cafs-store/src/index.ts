@@ -87,7 +87,7 @@ type ConfiguredImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or
 function selectPackageImportMethod (
   configured: ConfiguredImportMethod | undefined,
   willBeBuilt: boolean,
-  filesResponse: { packageImportMethod?: ConfiguredImportMethod, resolvedFrom?: string },
+  filesResponse: { packageImportMethod?: ConfiguredImportMethod, resolvedFrom?: string }
 ): ConfiguredImportMethod | undefined {
   if (filesResponse.resolvedFrom === 'local-dir') {
     if (willBeBuilt) return 'copy'

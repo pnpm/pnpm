@@ -242,7 +242,7 @@ const WATCH_MTIME_TOLERANCE_MS = 1
 export async function publishEditsForWatchers (
   sourceDir: string,
   targetDir: string,
-  editedSinceMs: number,
+  editedSinceMs: number
 ): Promise<void> {
   const fetchOptions: FetchFromDirOptions = {
     resolveSymlinks: false,
@@ -294,7 +294,7 @@ function shouldPublish (
   targetStat: fs.Stats | null,
   sourceId: string,
   targetValue: Value | undefined,
-  editedSinceMs: number,
+  editedSinceMs: number
 ): boolean {
   if (targetStat == null || typeof targetValue !== 'string') return true
   if (targetValue === sourceId) return sourceStat.mtimeMs >= editedSinceMs
