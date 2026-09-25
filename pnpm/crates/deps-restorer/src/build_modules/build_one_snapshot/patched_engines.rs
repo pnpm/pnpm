@@ -28,8 +28,40 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
         prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
         reason: SkippedOptionalReason::UnsupportedEngine,
     }));
+    remove_linked_copies(context, snapshot_key, &candidate.name);
     discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
     Ok(true)
+}
+
+fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey, name: &str) {
+    let dirs = context.pkg_roots().all(snapshot_key);
+    let modules = context.directories.lockfile_dir.join("node_modules");
+    unlink_named(&modules, name, &dirs);
+    unlink_named(&modules.join(".pnpm").join("node_modules"), name, &dirs);
+    if let Ok(store) = std::fs::read_dir(modules.join(".pnpm")) {
+        for entry in store.flatten() {
+            unlink_named(&entry.path().join("node_modules"), name, &dirs);
+        }
+    }
+    for dir in &dirs {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+fn unlink_named(modules: &std::path::Path, name: &str, dirs: &[std::path::PathBuf]) {
+    let link = modules.join(name);
+    let Ok(pointed) = std::fs::read_link(&link) else { return };
+    let pointed = link
+        .parent()
+        .unwrap_or(modules)
+        .join(pointed);
+    let pointed = std::fs::canonicalize(&pointed).unwrap_or(pointed);
+    let hits = dirs
+        .iter()
+        .any(|dir| std::fs::canonicalize(dir).unwrap_or_else(|_| dir.clone()) == pointed);
+    if hits {
+        let _ = std::fs::remove_file(&link).or_else(|_| std::fs::remove_dir(&link));
+    }
 }
 
 /// `engineStrict` against the patched manifest. The earlier installability

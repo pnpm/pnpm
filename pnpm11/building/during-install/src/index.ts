@@ -516,7 +516,7 @@ async function removeIncompatibleOptional<T extends string> (
   opts: { enableGlobalVirtualStore?: boolean, hoistedLocations?: Record<string, string[]>, lockfileDir: string, skipped?: Set<DepPath> }
 ): Promise<void> {
   depNode.installable = false
-  opts.skipped?.add(depPath as unknown as DepPath)
+  opts.skipped?.add(depNode.depPath)
   const removed = opts.enableGlobalVirtualStore ? path.dirname(depNode.modules) : depNode.dir
   await fs.rm(removed, { recursive: true, force: true })
   const nodes = Object.values(depGraph) as Array<DependenciesGraphNode<T>>
@@ -525,7 +525,7 @@ async function removeIncompatibleOptional<T extends string> (
       .filter(([, child]) => child === depPath)
       .map(([alias]) => path.join(node.dir, 'node_modules', alias))
   )
-  for (const location of opts.hoistedLocations?.[depPath] ?? []) {
+  for (const location of opts.hoistedLocations?.[depNode.depPath] ?? []) {
     links.push(path.join(opts.lockfileDir, location))
   }
   await Promise.all(links.map(async (link) => fs.rm(link, { recursive: true, force: true })))
