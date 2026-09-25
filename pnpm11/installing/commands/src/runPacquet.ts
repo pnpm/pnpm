@@ -361,7 +361,7 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * override semantics, so a user `--no-frozen-lockfile` sitting next to
  * our injected `--frozen-lockfile` would flip the pinning back off.
  *
- * Reporting flags are stripped too; see {@link reportingFlagWidth}.
+ * Reporting flags are stripped too; see {@link matchReportingFlag}.
  */
 function collectForwardedFlags (argv: { original: string[], remain: string[] }): string[] {
   const result: string[] = []
@@ -377,9 +377,10 @@ function collectForwardedFlags (argv: { original: string[], remain: string[] }):
       continue
     }
     if (isAlwaysInjected(arg)) continue
-    const reportingWidth = reportingFlagWidth(arg)
-    if (reportingWidth > 0) {
-      i += reportingWidth - 1
+    const reportingFlag = matchReportingFlag(argv.original, i)
+    if (reportingFlag != null) {
+      if (reportingFlag.remainder != null) result.push(reportingFlag.remainder)
+      i += reportingFlag.width - 1
       continue
     }
     result.push(arg)
@@ -408,7 +409,7 @@ function isAlwaysInjected (arg: string): boolean {
  * Flags pnpm itself honors before delegation are filtered out —
  * warning about them would be misleading: `--frozen-lockfile` and
  * `--ignore-manifest-check` in every shape (positive / negated /
- * `=value`); the reporting flags of {@link reportingFlagWidth}; and
+ * `=value`); the reporting flags of {@link matchReportingFlag}; and
  * `--config.*` (configures pnpm's runtime, not the install engine).
  */
 function collectDroppedFlags (argv: { original: string[] }): string[] {
@@ -418,9 +419,10 @@ function collectDroppedFlags (argv: { original: string[] }): string[] {
     if (!arg.startsWith('-')) continue
     if (isAlwaysInjected(arg)) continue
     if (arg.startsWith('--config.')) continue
-    const reportingWidth = reportingFlagWidth(arg)
-    if (reportingWidth > 0) {
-      i += reportingWidth - 1
+    const reportingFlag = matchReportingFlag(argv.original, i)
+    if (reportingFlag != null) {
+      if (reportingFlag.remainder != null) result.push(reportingFlag.remainder)
+      i += reportingFlag.width - 1
       continue
     }
     result.push(arg)
@@ -428,13 +430,20 @@ function collectDroppedFlags (argv: { original: string[] }): string[] {
   return result
 }
 
-const REPORTING_FLAGS = new Set(['--silent', '-s', '--verbose', '--quiet', '-q', '-d', '-dd', '-ddd'])
-const REPORTING_OPTIONS = ['reporter', 'loglevel'] as const
+const REPORTING_LONG_FLAGS = new Set(['--silent', '--verbose', '--quiet'])
+const REPORTING_SHORTHANDS = new Set(['s', 'd', 'q'])
+
+interface ReportingFlagMatch {
+  width: number
+  remainder?: string
+}
 
 /**
- * The number of argv tokens `arg` spans when it selects pnpm's reporter
- * or log level, including a separate value (`--reporter foo`), or `0`
- * for any other token.
+ * Match the token at `index` against the flags that select pnpm's
+ * reporter or log level. Returns `undefined` for any other token.
+ * Otherwise returns how many tokens the flag spans, counting a separate
+ * value (`--reporter foo`), and for a cluster of single-letter
+ * shorthands (`-sP`) the cluster without its reporting letters.
  *
  * pnpm's own reporter renders the NDJSON events pacquet emits, so these
  * flags are pnpm's alone. The published pacquet releases reject
@@ -442,11 +451,22 @@ const REPORTING_OPTIONS = ['reporter', 'loglevel'] as const
  * override the injected `--reporter=ndjson`, since pacquet's clap parser
  * takes the last value.
  */
-function reportingFlagWidth (arg: string): number {
-  if (REPORTING_FLAGS.has(arg)) return 1
-  for (const name of REPORTING_OPTIONS) {
-    if (arg === `--${name}`) return 2
-    if (arg.startsWith(`--${name}=`)) return 1
-  }
-  return 0
+function matchReportingFlag (argv: string[], index: number): ReportingFlagMatch | undefined {
+  const arg = argv[index]
+  if (REPORTING_LONG_FLAGS.has(arg)) return { width: 1 }
+  if (arg.startsWith('--reporter=') || arg.startsWith('--loglevel=')) return { width: 1 }
+  const value = argv[index + 1]
+  // nopt takes the next token as the value of a string option only when it
+  // is not an option itself, but always takes it for an enum like `loglevel`.
+  if (arg === '--reporter') return { width: value == null || value.startsWith('-') ? 1 : 2 }
+  if (arg === '--loglevel') return { width: value == null ? 1 : 2 }
+  if (arg.length < 2 || arg[0] !== '-' || arg[1] === '-') return undefined
+  const letters = [...arg.slice(1)]
+  if (!letters.every(isAsciiLetter) || !letters.some((letter) => REPORTING_SHORTHANDS.has(letter))) return undefined
+  const kept = letters.filter((letter) => !REPORTING_SHORTHANDS.has(letter)).join('')
+  return { width: 1, remainder: kept === '' ? undefined : `-${kept}` }
+}
+
+function isAsciiLetter (char: string): boolean {
+  return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
 }

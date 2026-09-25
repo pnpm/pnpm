@@ -65,6 +65,7 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
 test.each([
   [['--silent']],
   [['-s']],
+  [['-sd']],
   [['--loglevel', 'warn']],
 ])('pnpm install --frozen-lockfile %j keeps the reporting flags from pacquet', async (reportingFlags) => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
@@ -78,6 +79,45 @@ test.each([
   expect(stdout.toString()).toBe('')
   expect(status).toBe(0)
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+}, TIMEOUT)
+
+// https://github.com/pnpm/pnpm/issues/11936
+test('pnpm install --frozen-lockfile -sP passes -P to pacquet', async () => {
+  await prepareWithPacquet({
+    manifest: {
+      dependencies: { 'is-positive': '3.1.0' },
+      devDependencies: { 'is-negative': '2.1.0' },
+    },
+  })
+  await fs.promises.rm('node_modules', { recursive: true, force: true })
+
+  const { stdout, stderr, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', '-sP'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe' }
+  )
+  expect(stderr.toString()).toBe('')
+  expect(stdout.toString()).toBe('')
+  expect(status).toBe(0)
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+}, TIMEOUT)
+
+// https://github.com/pnpm/pnpm/issues/11936
+test('pnpm install --frozen-lockfile --reporter --prod passes --prod to pacquet', async () => {
+  await prepareWithPacquet({
+    manifest: {
+      dependencies: { 'is-positive': '3.1.0' },
+      devDependencies: { 'is-negative': '2.1.0' },
+    },
+  })
+  await fs.promises.rm('node_modules', { recursive: true, force: true })
+
+  execPnpmSync(
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', '--reporter', '--prod'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
+  )
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
 }, TIMEOUT)
 
 test('bare `pnpm install` (no --frozen-lockfile) delegates to pacquet when the lockfile is up to date', async () => {
