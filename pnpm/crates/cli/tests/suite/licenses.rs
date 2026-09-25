@@ -655,7 +655,8 @@ snapshots:
 ",
     )
     .expect("write lockfile");
-    fs::write(workspace.path().join(".npmrc"), "shamefully-hoist=true\n").expect("write .npmrc");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "shamefullyHoist: true\n")
+        .expect("write pnpm-workspace.yaml");
 
     let vs_v1 =
         workspace.path().join("node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive");
@@ -762,7 +763,8 @@ snapshots:
 ",
     )
     .expect("write lockfile");
-    fs::write(workspace.path().join(".npmrc"), "node-linker=hoisted\n").expect("write .npmrc");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
 
     let pkg_dir = workspace.path().join("node_modules/is-positive");
     fs::create_dir_all(&pkg_dir).expect("create is-positive directory");

@@ -34,7 +34,7 @@ impl PackageDirs {
     ) -> miette::Result<Self> {
         let modules_dir_name = PathBuf::from(config.modules_dir_name());
         let modules = load_modules(&modules_dir_name, lockfile_dir, project_dir)?;
-        let is_hoisted = is_hoisted_linker(config, modules.as_ref());
+        let is_hoisted = config.node_linker == NodeLinker::Hoisted;
         let is_shamefully_hoist = is_shamefully_hoisted(config, modules.as_ref());
         let hoisted_dirs = if is_hoisted {
             collect_hoisted_dirs(
@@ -124,13 +124,6 @@ fn load_modules(
     } else {
         read_modules_manifest::<Host>(&project_modules_dir).into_diagnostic()
     }
-}
-
-fn is_hoisted_linker(config: &Config, modules: Option<&Modules>) -> bool {
-    config.node_linker == NodeLinker::Hoisted
-        || modules.is_some_and(|manifest| {
-            manifest.node_linker == Some(pnpm_modules_yaml::NodeLinker::Hoisted)
-        })
 }
 
 fn is_shamefully_hoisted(config: &Config, modules: Option<&Modules>) -> bool {
