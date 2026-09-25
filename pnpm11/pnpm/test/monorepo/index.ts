@@ -2393,6 +2393,42 @@ test('an injected dependency with a postinstall script is hard linked when share
   }
 })
 
+test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      scripts: {
+        prepare: 'node -e "const fs = require(\'fs\'); fs.mkdirSync(\'dist\', { recursive: true }); fs.copyFileSync(\'package.json\', \'dist/package.json\'); fs.writeFileSync(\'dist/index.js\', \'built\')"',
+      },
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
+})
+
 test('pnpm install --frozen-lockfile fails when workspace package version is bumped and no longer satisfies dependency range', async () => {
   preparePackages([
     {

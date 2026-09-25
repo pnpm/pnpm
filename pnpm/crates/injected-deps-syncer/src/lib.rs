@@ -23,7 +23,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
-use pnpm_package_manifest::PackageManifestError;
+use pnpm_package_manifest::{PackageManifestError, safe_read_project_manifest_from_dir};
 use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
@@ -226,6 +226,28 @@ pub fn sync_injected_deps_of_modules_dir(
         patch_targets(&source_dir, &resolved_targets)?;
     }
     Ok(())
+}
+
+/// The sources [`sync_injected_deps_of_modules_dir`] syncs from once
+/// `project_dirs` have run their lifecycle scripts: each project's root, plus
+/// its `publishConfig.directory`, which is injected in place of the root.
+pub fn injected_source_dirs(
+    project_dirs: &[PathBuf],
+) -> Result<HashSet<PathBuf>, SyncInjectedDepsError> {
+    let mut source_dirs = HashSet::with_capacity(project_dirs.len());
+    for project_dir in project_dirs {
+        let manifest = safe_read_project_manifest_from_dir(project_dir)
+            .map_err(|error| SyncInjectedDepsError::ReadManifest {
+                dir: project_dir.clone(),
+                error,
+            })?;
+        source_dirs.insert(pnpm_fs::lexical_normalize(project_dir));
+        source_dirs.insert(pnpm_fs::lexical_normalize(&publish_source_dir(
+            project_dir,
+            manifest.as_ref(),
+        )));
+    }
+    Ok(source_dirs)
 }
 
 /// The resolved directories that hold injected copies of `content_source_dir`,

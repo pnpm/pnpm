@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -107,6 +108,9 @@ export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModu
   await Promise.all(Object.entries(modules.injectedDeps).map(async ([sourceId, targetDirs]) => {
     const sourceDir = path.resolve(opts.lockfileDir, sourceId)
     if (!opts.sourceDirs.has(sourceDir) || targetDirs.length === 0) return
+    // A publish directory the build did not produce leaves the copies alone
+    // rather than emptying them.
+    if (!fs.existsSync(sourceDir)) return
     const resolvedTargetDirs = targetDirs.map((targetDir) => path.resolve(opts.lockfileDir, targetDir))
     const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
     await Promise.all(patchers.map(patcher => patcher.apply()))

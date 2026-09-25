@@ -39,7 +39,7 @@ use install::init_shared_state;
 use miette::Context;
 
 use pnpm_config::{Config, Host};
-use pnpm_injected_deps_syncer::sync_injected_deps_of_modules_dir;
+use pnpm_injected_deps_syncer::{injected_source_dirs, sync_injected_deps_of_modules_dir};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manager::{PathNode, graph_sequencer};
 use pnpm_reporter::Reporter;
@@ -304,10 +304,7 @@ fn sync_dedicated_injected_deps(
     if config.ignore_scripts || config.virtual_store_only {
         return Ok(());
     }
-    let source_dirs: HashSet<PathBuf> = project_dirs
-        .iter()
-        .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
-        .collect();
+    let source_dirs = injected_source_dirs(project_dirs)?;
     for project_dir in project_dirs {
         let modules_dir =
             config.project_modules_dir(project_dir, names.get(project_dir).map(String::as_str));
