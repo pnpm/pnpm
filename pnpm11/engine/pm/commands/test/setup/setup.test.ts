@@ -366,6 +366,7 @@ test('legacy global migration resolves relative local paths against the legacy m
   const manifestDir = path.join('/home/user', '.local', 'share', 'pnpm', 'global', '5')
   expect(legacyGlobalAddSpecs({
     'my-cli': 'file:../packages/cli',
+    dotted: 'file:/./pkg',
     bare: '../packages/other',
     abs: 'file:/tmp/pkg',
     typescript: '^5.4.0',
@@ -373,6 +374,7 @@ test('legacy global migration resolves relative local paths against the legacy m
   }, new Set(), manifestDir)).toEqual([
     'abs@file:/tmp/pkg',
     `bare@${path.resolve(manifestDir, '../packages/other')}`,
+    `dotted@file:${path.resolve(manifestDir, './pkg')}`,
     'hosted@user/repo',
     `my-cli@file:${path.resolve(manifestDir, '../packages/cli')}`,
     'typescript@^5.4.0',

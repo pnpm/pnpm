@@ -60,13 +60,10 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
-    if let Err(error) = migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir)
-    {
-        warn::<Reporter>(
-            &dir.to_string_lossy(),
-            &format!("Failed to migrate global packages: {error}"),
-        );
-    }
+    finish_legacy_migration::<Reporter>(
+        dir,
+        migrate_legacy_global_packages::<Reporter>(&exec_path, &pnpm_home_dir, dir),
+    );
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -477,6 +474,17 @@ fn report_config_change(config_report: &ConfigReport) -> String {
         ConfigFileChangeType::Appended => format!("Appended new lines to {path}"),
         ConfigFileChangeType::Modified => format!("Replaced configuration in {path}"),
         ConfigFileChangeType::Skipped => format!("Configuration already up to date in {path}"),
+    }
+}
+
+/// A failed reinstall is reported and setup continues. The packages can be
+/// migrated again once the recorded specs can be installed.
+fn finish_legacy_migration<Reporter: self::Reporter>(dir: &Path, migrated: miette::Result<()>) {
+    if let Err(error) = migrated {
+        warn::<Reporter>(
+            &dir.to_string_lossy(),
+            &format!("Failed to migrate global packages: {error}"),
+        );
     }
 }
 

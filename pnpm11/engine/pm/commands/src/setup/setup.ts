@@ -254,20 +254,39 @@ function isUnambiguousLocalPath (spec: string): boolean {
   return first === '~' && (spec[1] === '/' || spec[1] === '\\')
 }
 
+/**
+ * The path a local spec names, read the way `normalize_specifier` reads it.
+ * Slashes after `file:` or `link:` do not make `./` or `../` absolute:
+ * `file:/./pkg` is the manifest's `./pkg`, not the filesystem root.
+ */
+function localPathAfterProtocol (spec: string): { protocol: 'file:' | 'link:' | null, localPath: string } {
+  const forward = spec.split('\\').join('/')
+  const protocol = forward.startsWith('file:')
+    ? 'file:' as const
+    : forward.startsWith('link:')
+      ? 'link:' as const
+      : null
+  if (protocol == null) return { protocol, localPath: forward }
+  const after = forward.slice(protocol.length)
+  let slashCount = 0
+  while (after[slashCount] === '/') slashCount++
+  const afterSlashes = after.slice(slashCount)
+  if (isDriveLetterPrefix(afterSlashes)) return { protocol, localPath: afterSlashes }
+  if (slashCount > 0 && (afterSlashes.startsWith('.') || afterSlashes.startsWith('~'))) {
+    return { protocol, localPath: afterSlashes }
+  }
+  if (slashCount > 0) return { protocol, localPath: `/${afterSlashes}` }
+  return { protocol, localPath: after }
+}
+
 function normalizeLegacyGlobalSpec (spec: string, manifestDir?: string): string {
   if (manifestDir == null) return spec
-  const protocol = spec.startsWith('file:')
-    ? 'file:'
-    : spec.startsWith('link:')
-      ? 'link:'
-      : null
-  const localPath = protocol == null ? spec : spec.slice(protocol.length)
+  const { protocol, localPath } = localPathAfterProtocol(spec)
   if (
     localPath === '' ||
     !isUnambiguousLocalPath(localPath) ||
     path.isAbsolute(localPath) ||
-    localPath.startsWith('~/') ||
-    localPath.startsWith('~\\')
+    localPath.startsWith('~/')
   ) {
     return spec
   }

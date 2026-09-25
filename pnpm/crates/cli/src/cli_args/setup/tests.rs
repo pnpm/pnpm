@@ -313,6 +313,7 @@ fn legacy_global_add_specs_skips_pnpm_and_packages_already_installed() {
 fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manifest_dir() {
     let dependencies = serde_json::json!({
         "my-cli": "file:../packages/cli",
+        "dotted": "file:/./pkg",
         "bare": "../packages/other",
         "abs": "file:/tmp/pkg",
         "typescript": "^5.4.0",
@@ -331,12 +332,49 @@ fn legacy_global_add_specs_resolves_relative_file_dependencies_against_the_manif
     let mut expected = vec![
         "abs@file:/tmp/pkg".to_string(),
         format!("bare@{}", anchored("../packages/other")),
+        format!("dotted@{}", anchored("file:/./pkg")),
         "hosted@user/repo".to_string(),
         format!("my-cli@{}", anchored("file:../packages/cli")),
         "typescript@^5.4.0".to_string(),
     ];
     expected.sort();
     assert_eq!(specs, expected);
+}
+
+#[test]
+fn a_failed_legacy_migration_is_reported_and_does_not_stop_setup() {
+    use std::sync::Mutex;
+
+    use pnpm_reporter::{LogEvent, LogLevel, Reporter};
+
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
+        }
+    }
+
+    EVENTS.lock().expect("lock").clear();
+    let dir = PathBuf::from("/proj");
+    super::finish_legacy_migration::<RecordingReporter>(&dir, Ok(()));
+    assert!(EVENTS.lock().expect("lock").is_empty());
+
+    super::finish_legacy_migration::<RecordingReporter>(
+        &dir,
+        Err(miette::miette!("Failed to migrate global packages (exit code 1)")),
+    );
+    let events = EVENTS.lock().expect("lock").clone();
+    let LogEvent::Pnpm(log) = &events[0] else {
+        panic!("expected a pnpm log, got {events:?}");
+    };
+    assert_eq!(log.level, LogLevel::Warn);
+    assert_eq!(log.prefix, "/proj");
+    assert!(log.message.contains("exit code 1"), "{}", log.message);
 }
 
 fn write_legacy_manifest(home: &Path, body: &str) {
