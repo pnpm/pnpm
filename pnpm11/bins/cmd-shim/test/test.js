@@ -176,6 +176,41 @@ describe('env shebang with NODE_PATH', () => {
   })
 })
 
+describe('paths containing %', () => {
+  const src = path.resolve(fixtures, '50% off', 'src.env')
+  const to = path.resolve(fixtures, 'percent.shim')
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, '#!/usr/bin/env node\nconsole.log(/hi/)\n')
+    return cmdShim(src, to, {
+      nodePath: ['/50% off/node_modules'],
+      prependToPath: '/50% off/bin',
+      nodeExecPath: '/50% off/node',
+      createCmdFile: true,
+      fs,
+    })
+  })
+
+  test('are escaped in the cmd shim', async () => {
+    const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@SET "NODE_PATH=\\50%% off\\node_modules;%NODE_PATH%"'), content)
+    assert.ok(content.includes('"%~dp0\\50%% off\\src.env"'), content)
+    assert.ok(content.includes('@SET "PATH=\\50%% off\\bin:%PATH%"'), content)
+    assert.ok(content.includes('"/50%% off/node"'), content)
+  })
+
+  test('are escaped in the shebang program of the cmd shim', async () => {
+    const shebangSrc = path.resolve(fixtures, 'percent-prog.sh')
+    const shebangTo = path.resolve(fixtures, 'percent-prog.shim')
+    await fs.promises.writeFile(shebangSrc, '#!/50%OS%bin/sh -x %OS%\necho hi\n')
+    await cmdShim(shebangSrc, shebangTo, { createCmdFile: true, fs })
+    const content = await fs.promises.readFile(`${shebangTo}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@IF EXIST "%~dp0\\/50%%OS%%bin/sh.exe"'), content)
+    assert.ok(content.includes('  /50%%OS%%bin/sh  -x %%OS%% '), content)
+  })
+})
+
 describe('env shebang with no NODE_PATH', () => {
   const src = path.resolve(fixtures, 'src.env')
   const to = path.resolve(fixtures, 'env.shim')
