@@ -5,7 +5,10 @@
 // stay shebang-less because pnpm 11 records its interpreter before installing
 // the native binary at the same path. npm's global Windows shims still target
 // the extensionless path after the `bin` rewrite, so postinstall asks npm to
-// regenerate them against `pnpm.exe`. When lifecycle scripts are blocked
+// regenerate them against `pnpm.exe`. A global install uses `npm rebuild
+// --global`. A project install passes the project prefix, because the
+// script's working directory is the installed package. Any other install,
+// such as `npm exec`, keeps its shims. When lifecycle scripts are blocked
 // (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and runs pnpm
 // through Node.js wherever a shell reaches it (see the `pnpm` file).
 //
@@ -125,7 +128,6 @@ function relinkNpmWindowsShims () {
   const npmExecPath = process.env.npm_execpath
   if (
     process.platform !== 'win32' ||
-    process.env.npm_config_global !== 'true' ||
     npmExecPath == null ||
     path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
   ) {
@@ -136,19 +138,57 @@ function relinkNpmWindowsShims () {
   if (typeof packageName !== 'string') {
     fail('Could not determine the pnpm wrapper package name when regenerating npm shims.')
   }
-  const result = spawnSync(process.execPath, [
+  const args = [
     npmExecPath,
     'rebuild',
-    '--global',
     '--ignore-scripts',
-    packageName,
-  ], { stdio: 'inherit' })
+  ]
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
+    args.push('--global', packageName)
+  } else {
+    const prefix = findNpmProjectPrefix()
+    if (prefix == null) {
+      return
+    }
+    args.push('--prefix', prefix, packageName)
+  }
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
   if (result.error != null) {
     fail(`Could not regenerate the npm shims for pnpm: ${result.error.message}`)
   }
   if (result.status !== 0) {
     fail('npm could not regenerate the shims for pnpm.')
   }
+}
+
+/**
+ * The resolved path of the npm project whose `node_modules` holds this
+ * wrapper. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the wrapper. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
+ *
+ * @returns {string | null}
+ */
+function findNpmProjectPrefix () {
+  const prefix = process.env.npm_config_local_prefix
+  if (typeof prefix !== 'string' || prefix === '') {
+    return null
+  }
+  let realPrefix
+  let realModulesDir
+  try {
+    realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
+  } catch {
+    return null
+  }
+  // `wrapperDir` comes from the module URL, which Node resolves through symlinks.
+  const relative = path.relative(realModulesDir, wrapperDir)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) {
+    return null
+  }
+  return realPrefix
 }
 
 function removeFileIfPossible (filePath) {
