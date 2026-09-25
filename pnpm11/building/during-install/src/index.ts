@@ -80,6 +80,8 @@ export async function buildModules<T extends string> (
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
     engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -249,6 +251,8 @@ async function buildDependency<T extends string> (
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
     engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -281,22 +285,24 @@ async function buildDependency<T extends string> (
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
       if (isPatched && opts.engineStrict) {
         const patched = await safeReadPackageJsonFromDir(depNode.dir)
-        if (patched != null) {
-          packageIsInstallable(depPath, {
-            name: patched.name ?? '',
-            version: patched.version ?? '0.0.0',
-            engines: patched.engines,
-            cpu: patched.cpu,
-            os: patched.os,
-            libc: patched.libc,
-          }, {
-            engineStrict: !opts.optional,
-            lockfileDir: opts.lockfileDir,
-            nodeVersion: opts.nodeVersion,
-            optional: opts.optional,
-            supportedArchitectures: opts.supportedArchitectures,
-          })
+        if (patched == null) {
+          throw new PnpmError(
+            'PATCHED_MANIFEST_UNREADABLE',
+            `Cannot read the patched package.json of ${depPath}`
+          )
         }
+        const installable = packageIsInstallable(depPath, {
+          name: patched.name ?? '',
+          version: patched.version ?? '0.0.0',
+          engines: patched.engines,
+        }, {
+          engineStrict: !depNode.optional,
+          lockfileDir: opts.lockfileDir,
+          nodeVersion: opts.engineNodeVersion ?? opts.nodeVersion,
+          optional: depNode.optional,
+          supportedArchitectures: opts.supportedArchitectures,
+        })
+        if (installable === false) return
       }
     }
     // A patch can add install scripts - or a binding.gyp, which the lifecycle

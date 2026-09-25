@@ -810,6 +810,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       engineStrict: opts.engineStrict,
+      engineNodeVersion: currentEngine.nodeVersion,
       allowBuild,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,

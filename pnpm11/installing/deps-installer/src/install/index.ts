@@ -2898,6 +2898,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
           engineStrict: opts.engineStrict,
+          engineNodeVersion: opts.nodeVersion,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,

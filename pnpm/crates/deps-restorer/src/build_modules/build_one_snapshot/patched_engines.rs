@@ -14,9 +14,10 @@ pub(super) fn enforce_patched_engines(
     let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
         return Ok(());
     };
-    let Ok(manifest) = read_package_json(&pkg_dir) else {
-        return Ok(());
-    };
+    let manifest = read_package_json(&pkg_dir)
+        .map_err(|_| BuildModulesError::PatchedManifestUnreadable {
+            dep_path: snapshot_key.to_string(),
+        })?;
     check_patched_manifest(context, snapshot_key, candidate, &manifest)
 }
 

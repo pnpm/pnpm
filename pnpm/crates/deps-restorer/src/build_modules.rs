@@ -62,6 +62,11 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     PatchedEngines(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
 
+    /// `engineStrict` needed the patched manifest and it could not be read.
+    #[display("Cannot read the patched package.json of {dep_path}")]
+    #[diagnostic(code(ERR_PNPM_PATCHED_MANIFEST_UNREADABLE))]
+    PatchedManifestUnreadable { dep_path: String },
+
     /// `ERR_PNPM_PATCH_FILE_PATH_MISSING` — fired when a snapshot's
     /// resolved patch carries a hash but
     /// no `patch_file_path`. The hash-without-path shape can come

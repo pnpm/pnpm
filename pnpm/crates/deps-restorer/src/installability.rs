@@ -464,7 +464,15 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required(&metadata_key, metadata, warn, skip_check_optional)
+        let defer_engines =
+            self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
+        self.report_incompatible_required(
+            &metadata_key,
+            metadata,
+            warn,
+            skip_check_optional,
+            defer_engines,
+        )
     }
 
     fn record_skip<Reporter: self::Reporter>(
@@ -484,6 +492,30 @@ impl SkipScan<'_, '_> {
         }
     }
 
+    fn recheck_required(
+        &mut self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+        defer_engines: bool,
+    ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+        if !defer_engines {
+            return cached_check(
+                &mut self.check_cache,
+                metadata_key,
+                metadata,
+                false,
+                &self.base_options,
+            );
+        }
+        let mut manifest = manifest_from_metadata(metadata_key, metadata);
+        manifest.engines = None;
+        let options = pnpm_package_is_installable::InstallabilityOptions {
+            optional: false,
+            ..self.base_options
+        };
+        check_installability(&metadata_key.to_string(), &manifest, &options)
+    }
+
     /// A package that an installed non-optional edge reaches cannot be
     /// skipped: under `engine-strict` it fails the install, otherwise
     /// it warns.
@@ -493,12 +525,14 @@ impl SkipScan<'_, '_> {
         metadata: &PackageMetadata,
         warn: InstallabilityError,
         skip_check_optional: bool,
+        defer_engines: bool,
     ) -> Result<(), Box<InstallabilityError>> {
         // The required dispatch drops the optional-only
         // platform-from-name inference, so its verdict needs the
-        // non-optional check.
+        // non-optional check. A patched package still omits published
+        // engines; the build phase checks the patched manifest.
         let warn = if skip_check_optional {
-            cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
+            self.recheck_required(metadata_key, metadata, defer_engines)?
         } else {
             Some(warn)
         };
