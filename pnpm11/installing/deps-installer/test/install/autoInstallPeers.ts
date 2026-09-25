@@ -946,3 +946,26 @@ test.each([false, true])('auto installs transitive peers shared at different dep
   await mutateModules(mutations, { ...opts, frozenLockfile: true })
   expect(project.readLockfile()).toStrictEqual(lockfile)
 })
+
+// https://github.com/pnpm/pnpm/issues/10486
+const updatePeerC = { depth: Infinity, update: true, updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/peer-c' }
+test.each([
+  { name: 'an update that names the peer', deps: [], opts: updatePeerC, peerC: '1.0.1' },
+  { name: 'a depth-limited update that names the peer', deps: [], opts: { ...updatePeerC, depth: 100 }, peerC: '1.0.1' },
+  { name: 'an update that names the peer, while a regular dependency pins it,', deps: ['@pnpm.e2e/abc-regular-deps@1.0.0'], opts: updatePeerC, peerC: '1.0.0' },
+  { name: 'an update that names another package', deps: [], opts: { ...updatePeerC, updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/foo' }, peerC: '1.0.0' },
+  { name: 'an install', deps: [], opts: {}, peerC: '1.0.0' },
+])('$name moves an automatically installed transitive peer dependency to $peerC', async ({ deps, opts, peerC }) => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-ab@1.0.0', ...deps], testDefaults({ autoInstallPeers: true }))
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+
+  await install(manifest, testDefaults({ autoInstallPeers: true, ...opts }))
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    `@pnpm.e2e/peer-c@${peerC}`,
+  ])
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version).toBe(`1.0.0(@pnpm.e2e/peer-c@${peerC})`)
+})

@@ -1,5 +1,5 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import semver from 'semver'
 
@@ -14,6 +14,11 @@ export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
+    /**
+     * Whether the running update targets the peer. The lockfile's pins of a
+     * targeted peer are not reused, so the peer re-resolves.
+     */
+    isUpdateTarget?: (peerName: string) => boolean
     workspaceRootDeps: HoistableRootDep[]
     /**
      * Applies `overrides` to a peer nobody declares as a dependency. Such a
@@ -46,10 +51,13 @@ export function hoistPeers (
       dependencies[peerName] = rootBareSpecifier
       continue
     }
-    if (opts.allPreferredVersions![peerName]) {
+    const preferredSelectors = opts.isUpdateTarget?.(peerName)
+      ? omitLockfilePins(opts.allPreferredVersions![peerName])
+      : opts.allPreferredVersions![peerName]
+    if (preferredSelectors) {
       const versions: string[] = []
       const nonVersions: string[] = []
-      for (const [spec, selector] of Object.entries(opts.allPreferredVersions![peerName])) {
+      for (const [spec, selector] of Object.entries(preferredSelectors)) {
         const specType = typeof selector === 'string' ? selector : selector.selectorType
         if (specType === 'version') {
           versions.push(spec)
@@ -93,6 +101,19 @@ export function hoistPeers (
     }
   }
   return dependencies
+}
+
+/**
+ * Keeps the versions resolved during this install. The lockfile's pins are the
+ * weighted selectors `getPreferredVersionsFromLockfileAndManifests` seeds;
+ * resolving a version records it as a plain selector.
+ */
+function omitLockfilePins (selectors: VersionSelectors | undefined): VersionSelectors | undefined {
+  if (selectors == null) return undefined
+  const resolvedSelectors = Object.fromEntries(
+    Object.entries(selectors).filter(([, selector]) => typeof selector === 'string')
+  ) as VersionSelectors
+  return Object.keys(resolvedSelectors).length > 0 ? resolvedSelectors : undefined
 }
 
 export function getHoistableOptionalPeers (

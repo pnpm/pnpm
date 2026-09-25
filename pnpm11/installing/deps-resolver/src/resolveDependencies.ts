@@ -421,16 +421,19 @@ export async function resolveRootDependencies (
   } else {
     workspaceRootDeps = []
   }
+  const hoistedPeersUpdateDepths = importers.map(getHoistedPeersUpdateDepth)
   /* eslint-disable no-await-in-loop */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
+      const hoistedPeersUpdateDepth = hoistedPeersUpdateDepths[index]
       // The importer is the manifest the hoisted peer is added to, so a local
       // override's `link:`/`file:` target is made relative to its directory,
       // exactly as it would be for a dependency the importer declares.
       const _hoistPeers = hoistPeers.bind(null, {
         autoInstallPeers: ctx.autoInstallPeers,
         allPreferredVersions: ctx.allPreferredVersions,
+        isUpdateTarget: hoistedPeersUpdateDepth < 0 ? undefined : options.updateMatching,
         workspaceRootDeps,
         overrideBareSpecifier: ctx.overrideBareSpecifier == null
           ? undefined
@@ -481,6 +484,7 @@ export async function resolveRootDependencies (
         const dependencies = _hoistPeers(missingRequiredPeers)
         if (!Object.keys(dependencies).length) break
         const wantedDependencies = getNonDevWantedDependencies({ dependencies })
+          .map((wantedDependency) => ({ ...wantedDependency, updateDepth: hoistedPeersUpdateDepth }))
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
@@ -543,6 +547,19 @@ export async function resolveRootDependencies (
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
     time,
   }
+}
+
+/**
+ * An update that matches packages by name reaches the importer's peers hoisted
+ * from its subtree. Any other update names only dependencies the importer
+ * declares, and a hoisted peer is not one of them.
+ */
+function getHoistedPeersUpdateDepth ({ options, wantedDependencies }: ImporterToResolve): number {
+  if (options.updateMatching == null || wantedDependencies.length === 0) return options.updateDepth
+  return wantedDependencies.reduce(
+    (updateDepth, wantedDependency) => Math.min(updateDepth, wantedDependency.updateDepth ?? options.updateDepth),
+    Infinity
+  )
 }
 
 /**
