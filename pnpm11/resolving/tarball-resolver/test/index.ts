@@ -122,6 +122,25 @@ test('a fresh Cache-Control record resolves an https tarball without a request',
   fs.rmSync(cacheDir, { recursive: true, force: true })
 })
 
+test('a stale Cache-Control record skips HEAD so the fetcher can revalidate', async () => {
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-tarball-cache-'))
+  const url = 'https://example.com/pkg-from-tarball-1.0.0.tgz'
+  storeTarballResolution(cacheDir, {
+    url,
+    tarball: url,
+    integrity: 'sha512-abc',
+    etag: '"pkg-from-tarball"',
+    cacheControl: 'public, max-age=0',
+    fetchedAt: Date.now() - 60_000,
+  })
+  const fetch = async () => {
+    throw new Error('a stale tarball is revalidated by the fetcher, not by a resolve HEAD')
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: url }, { cacheDir })
+  expect(resolutionResult?.resolution).toStrictEqual({ tarball: url })
+  fs.rmSync(cacheDir, { recursive: true, force: true })
+})
+
 test('tarballs from GitHub (is-negative)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz' })
 

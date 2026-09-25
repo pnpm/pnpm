@@ -4992,9 +4992,6 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/resolving.tarball-resolver':
-        specifier: workspace:*
-        version: link:../../resolving/tarball-resolver
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index

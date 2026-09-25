@@ -24,8 +24,13 @@ export async function resolveFromTarball (
   // The URL is normalized to remove the port if it is the default port of the protocol.
   const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
   const cached = opts?.cacheDir ? loadTarballResolution(opts.cacheDir, normalizedBareSpecifier) : undefined
-  if (cached && tarballFreshness(cached) === 'fresh') {
+  const freshness = cached ? tarballFreshness(cached) : undefined
+  if (cached && freshness === 'fresh') {
     return tarballResult(normalizedBareSpecifier, cached.tarball, cached.integrity)
+  }
+  // The fetcher revalidates a stale etag with If-None-Match, so skip the resolve HEAD.
+  if (cached?.etag && freshness === 'revalidate') {
+    return tarballResult(normalizedBareSpecifier, cached.tarball)
   }
   let resolvedUrl: string
 

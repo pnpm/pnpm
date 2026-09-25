@@ -8,11 +8,6 @@ import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
-import {
-  loadTarballResolution,
-  storeTarballResolution,
-  tarballFreshness,
-} from '@pnpm/resolving.tarball-resolver'
 import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
 import { type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -20,6 +15,11 @@ import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 
 import { BadTarballError } from './errorTypes/index.js'
+import {
+  loadTarballResolution,
+  storeTarballResolution,
+  tarballFreshness,
+} from './httpCache.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 

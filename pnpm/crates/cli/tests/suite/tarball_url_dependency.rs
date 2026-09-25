@@ -589,3 +589,83 @@ fn fresh_remote_tarball_skips_the_network_without_a_lockfile() {
 
     drop((root, mock_instance, tarball_server));
 }
+
+/// Once `max-age` has passed, a lockfile-less reinstall revalidates with
+/// `If-None-Match` and keeps the stored archive when the origin answers 304.
+#[test]
+fn stale_remote_tarball_revalidates_with_if_none_match() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}lockfile: false\n")).expect("disable the lockfile");
+
+    let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
+        .expect(1)
+        .create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(1)
+        .create();
+    let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    head_mock.assert();
+    get_mock.assert();
+    expire_tarball_resolution_cache(&cache_dir);
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let head_again = tarball_server
+        .mock("HEAD", tarball_path)
+        .expect(0)
+        .create();
+    let get_again = tarball_server
+        .mock("GET", tarball_path)
+        .match_header("if-none-match", "\"pkg-from-tarball\"")
+        .with_status(304)
+        .with_header("etag", "\"pkg-from-tarball\"")
+        .with_header("cache-control", "public, max-age=31536000, immutable")
+        .expect(1)
+        .create();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    head_again.assert();
+    get_again.assert();
+
+    drop((root, mock_instance, cache_dir, tarball_server));
+}
+
+fn expire_tarball_resolution_cache(cache_dir: &Path) {
+    let dir = cache_dir.join("v11/tarball-resolutions");
+    let entry = fs::read_dir(&dir)
+        .unwrap_or_else(|err| panic!("read {dir:?}: {err}"))
+        .next()
+        .unwrap_or_else(|| panic!("no tarball resolution record in {dir:?}"))
+        .unwrap_or_else(|err| panic!("read cache entry: {err}"));
+    let text = fs::read_to_string(entry.path()).expect("read tarball resolution record");
+    let mut record: serde_json::Value = serde_json::from_str(&text).expect("parse record");
+    record["fetchedAt"] = serde_json::json!(0);
+    fs::write(entry.path(), record.to_string()).expect("expire tarball resolution record");
+}

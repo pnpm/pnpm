@@ -41,7 +41,6 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
-    "@pnpm/resolving.tarball-resolver": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
