@@ -106,7 +106,7 @@ export function unlinkWithRetry (target: string): void {
  * {@link renameFileWithRetry}.
  */
 export function withFileLockRetry<T> (operation: () => T): T {
-  const retry = new FileLockRetry()
+  const retry = createFileLockRetry()
   for (;;) {
     try {
       return operation()
@@ -119,7 +119,7 @@ export function withFileLockRetry<T> (operation: () => T): T {
 }
 
 async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
-  const retry = new FileLockRetry()
+  const retry = createFileLockRetry()
   for (;;) {
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -135,23 +135,28 @@ async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<
   }
 }
 
-class FileLockRetry {
-  private readonly startedAt = Date.now()
-  private backoffMs = 0
-  private budgetMs = FILE_LOCK_RETRY_BUDGET_MS
-
+interface FileLockRetry {
   /** Rethrows `err` unless another attempt fits the budget; returns the delay before it. */
-  delayBeforeNextAttempt (err: unknown): number {
-    if (!isTransientFileLockError(err)) throw err
-    if (err.code === 'EPERM' || err.code === 'EACCES') this.budgetMs = Math.min(this.budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
-    const remainingMs = this.budgetMs - (Date.now() - this.startedAt)
-    if (remainingMs <= 0) throw err
-    return Math.min(this.backoffMs, remainingMs)
-  }
+  delayBeforeNextAttempt: (err: unknown) => number
+  checkBudgetAfterDelay: (err: unknown) => void
+}
 
-  checkBudgetAfterDelay (err: unknown): void {
-    if (Date.now() - this.startedAt >= this.budgetMs) throw err
-    this.backoffMs = Math.min(this.backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
+function createFileLockRetry (): FileLockRetry {
+  const startedAt = Date.now()
+  let backoffMs = 0
+  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+  return {
+    delayBeforeNextAttempt (err) {
+      if (!isTransientFileLockError(err)) throw err
+      if (err.code === 'EPERM' || err.code === 'EACCES') budgetMs = Math.min(budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
+      const remainingMs = budgetMs - (Date.now() - startedAt)
+      if (remainingMs <= 0) throw err
+      return Math.min(backoffMs, remainingMs)
+    },
+    checkBudgetAfterDelay (err) {
+      if (Date.now() - startedAt >= budgetMs) throw err
+      backoffMs = Math.min(backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
+    },
   }
 }
 
