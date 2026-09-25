@@ -44,7 +44,7 @@ import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
-import { type ProjectsList, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { type ProjectsList, updateWorkspaceStateOrWarn, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getSaveType } from './getSaveType.js'
@@ -511,7 +511,7 @@ export async function installDeps (
       resolutionPolicyViolations,
     })
     if (shouldSaveWorkspaceState(opts)) {
-      await updateWorkspaceState({
+      await updateWorkspaceStateOrWarn({
         allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedProject.manifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
@@ -598,7 +598,7 @@ export async function installDeps (
     )
   } else {
     if (shouldSaveWorkspaceState(opts)) {
-      await updateWorkspaceState({
+      await updateWorkspaceStateOrWarn({
         allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedManifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
@@ -643,7 +643,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (shouldSaveWorkspaceState(opts)) {
-    await updateWorkspaceState({
+    await updateWorkspaceStateOrWarn({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
       workspaceDir: opts.workspaceDir,

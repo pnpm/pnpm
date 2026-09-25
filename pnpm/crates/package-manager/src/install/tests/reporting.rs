@@ -784,7 +784,10 @@ fn a_lost_workspace_state_write_warns_through_the_reporter() {
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             if let LogEvent::Global(log) = event {
-                MESSAGES.lock().unwrap().push((log.level, log.message.clone()));
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push((log.level, log.message.clone()));
             }
         }
     }

@@ -236,7 +236,13 @@ fn empty_state() -> WorkspaceState {
 fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(workspace_dir.join("node_modules"))
         .expect("read node_modules")
-        .map(|entry| entry.expect("read entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("read entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     names.sort();
     names
