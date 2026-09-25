@@ -114,6 +114,8 @@ export type CheckDepsStatusOptions = Pick<Config,
   useGitBranchLockfile?: boolean
 } & WorkspaceStateSettings
 
+export const CANNOT_CHECK_DEPS_ISSUE = 'Cannot check whether dependencies are outdated'
+
 export interface CheckDepsStatusResult {
   upToDate: boolean | undefined
   issue?: string
@@ -145,7 +147,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
     }
     return {
       upToDate: false,
-      issue: 'Cannot check whether dependencies are outdated',
+      issue: CANNOT_CHECK_DEPS_ISSUE,
       workspaceState,
     }
   }

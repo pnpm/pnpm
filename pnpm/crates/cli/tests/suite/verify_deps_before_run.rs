@@ -1199,3 +1199,135 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
 
     drop((root, mock_instance));
 }
+
+/// A dirty workspace state file must not make `pnpm run` open the store or
+/// the registry when `node_modules` already matches the lockfile
+/// (pnpm/pnpm#15173).
+#[test]
+fn run_with_unreadable_state_does_not_need_a_store_or_network() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let marker = workspace.join("marker.txt");
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &marker,
+        json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::write(workspace.join("node_modules/.pnpm-workspace-state-v1.json"), "{not-json")
+        .expect("write an unreadable workspace state file");
+    isolate_store_and_registry(&workspace);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the script must run without a store or a registry:\n{stderr}",
+    );
+    assert!(marker.exists(), "the script must have run");
+    assert!(
+        !stderr.contains("Verifying lockfile") && !stderr.contains("ERR_SQLITE"),
+        "the run must not start an install:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The same unreadable state still installs when the manifest no longer
+/// matches the lockfile. Offline, that install fails and the script does
+/// not run.
+#[test]
+fn run_with_unreadable_state_still_installs_when_the_manifest_drifted() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let marker = workspace.join("marker.txt");
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &marker,
+        json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::write(workspace.join("node_modules/.pnpm-workspace-state-v1.json"), "{not-json")
+        .expect("write an unreadable workspace state file");
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &marker,
+        json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.1.0",
+            },
+        }),
+    );
+    if marker.exists() {
+        fs::remove_file(&marker).expect("clear a marker the manifest rewrite did not create");
+    }
+    isolate_store_and_registry(&workspace);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "a drifted manifest must not run offline:\n{stderr}");
+    assert!(!marker.exists(), "the script must not run");
+
+    drop((root, mock_instance));
+}
+
+/// Point later commands at a store path that cannot be opened and a registry
+/// that refuses connections, so an accidental install fails instead of
+/// succeeding against the seeded store.
+fn isolate_store_and_registry(workspace: &Path) {
+    fs::write(workspace.join("not-a-store"), b"x")
+        .expect("create a file where a store directory cannot be");
+    let yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    let yaml = yaml.replace("storeDir: ../pacquet-store", "storeDir: not-a-store");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("registry: http://127.0.0.1:1/\nfetchRetries: 0\n{yaml}"),
+    )
+    .expect("rewrite workspace yaml");
+    let npmrc = fs::read_to_string(workspace.join(".npmrc")).expect("read npmrc");
+    let npmrc = npmrc
+        .lines()
+        .filter(|line| !line.starts_with("registry=") && !line.starts_with("store-dir="))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry=http://127.0.0.1:1/\nstore-dir=not-a-store\nfetch-retries=0\n{npmrc}\n"),
+    )
+    .expect("rewrite npmrc");
+}

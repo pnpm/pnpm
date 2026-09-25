@@ -6,7 +6,7 @@ import util from 'node:util'
 import { confirm } from '@inquirer/prompts'
 import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { createHexHash } from '@pnpm/crypto.hash'
-import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
+import { CANNOT_CHECK_DEPS_ISSUE, checkDepsStatus, type CheckDepsStatusOptions, installedModulesMatchLockfile, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
@@ -35,6 +35,10 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
 
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (!needsInstall(upToDate, opts)) return
+  // A missing or unreadable workspace state file is not, by itself, proof
+  // that modules need installing. When the lockfile and manifests already
+  // agree, spawning install would open the store and reach the registry.
+  if (issue === CANNOT_CHECK_DEPS_ISSUE && await installedModulesMatchLockfile(opts)) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings)]
   const install = lockedInstall.bind(null, opts, command)
