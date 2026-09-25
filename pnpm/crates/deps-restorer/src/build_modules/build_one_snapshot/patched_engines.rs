@@ -1,11 +1,13 @@
-use super::super::{BuildModulesError, discard_failed_global_virtual_store_slot};
-use super::{BuildCandidate, BuildOneSnapshot, PackageKey};
+use super::{
+    super::{BuildModulesError, discard_failed_global_virtual_store_slot},
+    BuildCandidate, BuildOneSnapshot, PackageKey,
+};
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 
-pub(super) fn skip_incompatible_optional<R: Reporter>(
+pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
@@ -14,7 +16,7 @@ pub(super) fn skip_incompatible_optional<R: Reporter>(
     let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
         return Ok(false);
     };
-    R::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+    EventReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
         level: LogLevel::Debug,
         details: Some(details),
         package: SkippedOptionalPackage::Installed {
