@@ -485,6 +485,12 @@ fn install_level_missing_patch_file_fails() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
     assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, splitting the temp path.
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
+    assert!(unwrapped.contains("is-positive.patch"), "stderr: {stderr}");
 
     drop((root, mock_instance));
 }
