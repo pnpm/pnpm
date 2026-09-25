@@ -236,6 +236,7 @@ pub fn generate_cmd_shim(
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
             let prog = cmd_escape(prog);
+            let args = cmd_escape(args);
             let long_prog = format!(r#""%~dp0\{prog}.exe""#);
             writeln!(
                 cmd,
@@ -244,7 +245,7 @@ pub fn generate_cmd_shim(
             .unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
+            let args = runtime_opt.map_or(String::new(), |runtime| cmd_escape(&runtime.args));
             writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }

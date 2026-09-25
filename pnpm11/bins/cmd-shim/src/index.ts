@@ -397,7 +397,7 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
   const quotedPathToTarget = path.isAbsolute(target) ? `"${target}"` : `"%~dp0\\${target}"`
   let longProg
   let prog = opts.prog
-  let args = opts.args || ''
+  let args = cmdEscape(opts.args || '')
   const nodePath = cmdEscape(normalizePathEnvVar(opts.nodePath).win32)
   const prependToPath = cmdEscape(normalizePathEnvVar(opts.prependToPath).win32)
   if (!prog) {

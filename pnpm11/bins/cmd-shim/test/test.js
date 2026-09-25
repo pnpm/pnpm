@@ -202,11 +202,11 @@ describe('paths containing %', () => {
   test('are escaped in the shebang program of the cmd shim', async () => {
     const shebangSrc = path.resolve(fixtures, 'percent-prog.sh')
     const shebangTo = path.resolve(fixtures, 'percent-prog.shim')
-    await fs.promises.writeFile(shebangSrc, '#!/50%OS%bin/sh\necho hi\n')
+    await fs.promises.writeFile(shebangSrc, '#!/50%OS%bin/sh -x %OS%\necho hi\n')
     await cmdShim(shebangSrc, shebangTo, { createCmdFile: true, fs })
     const content = await fs.promises.readFile(`${shebangTo}${cmdExtension}`, 'utf8')
     assert.ok(content.includes('@IF EXIST "%~dp0\\/50%%OS%%bin/sh.exe"'), content)
-    assert.ok(content.includes('  /50%%OS%%bin/sh  '), content)
+    assert.ok(content.includes('  /50%%OS%%bin/sh  -x %%OS%% '), content)
   })
 })
 

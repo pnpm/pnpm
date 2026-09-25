@@ -689,17 +689,20 @@ fn generate_cmd_shim_escapes_percent_in_paths() {
 }
 
 #[test]
-fn generate_cmd_shim_escapes_percent_in_prog() {
+fn generate_cmd_shim_escapes_percent_in_prog_and_args() {
     let target = Path::new("/proj/pkg/cli");
     let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
-    let runtime = ScriptRuntime { prog: Some("/50%OS%bin/sh".into()), args: String::new() };
+    let runtime = ScriptRuntime { prog: Some("/50%OS%bin/sh".into()), args: "-x %OS%".into() };
     let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
 
     assert!(
         body.contains(r#"@IF EXIST "%~dp0\/50%%OS%%bin/sh.exe""#),
         "the long prog must escape `%`, body:\n{body}",
     );
-    assert!(body.contains("  /50%%OS%%bin/sh  "), "the prog must escape `%`, body:\n{body}");
+    assert!(
+        body.contains("  /50%%OS%%bin/sh -x %%OS%% "),
+        "the prog and its args must escape `%`, body:\n{body}"
+    );
 }
 
 #[test]
