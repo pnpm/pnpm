@@ -7,8 +7,19 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
+use std::{fs, path::Path, process::Command};
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
 
 fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
     fs::create_dir_all(dir).expect("create the package directory");
@@ -142,6 +153,84 @@ fn nested_file_dep_of_a_workspace_project_matches_the_pnpm_lockfile() {
         lockfile.contains("nested-child: file:packages/license/child"),
         "the snapshot should reference the nested dep without a self-alias prefix:\n{lockfile}",
     );
+
+    drop((root, mock_instance));
+}
+
+/// Regression test for [pnpm/pnpm#4623](https://github.com/pnpm/pnpm/issues/4623).
+#[test]
+fn install_refreshes_transitive_dependencies_of_a_file_directory() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "tools-probe": "file:tools" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("tools"),
+        &serde_json::json!({
+            "name": "tools-probe",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0" },
+        }),
+    );
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut config = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    if !config.ends_with('\n') {
+        config.push('\n');
+    }
+    config.push_str("shamefullyHoist: true\n");
+    fs::write(&workspace_yaml, config).expect("enable shamefullyHoist");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    write_manifest(
+        &workspace.join("tools"),
+        &serde_json::json!({
+            "name": "tools-probe",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0" },
+        }),
+    );
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load the updated lockfile")
+        .expect("the install writes a lockfile");
+    let local_key: PackageKey = "tools-probe@file:tools".parse().expect("parse local package key");
+    let transitive_name =
+        PkgName::parse("@pnpm.e2e/dep-of-pkg-with-1-dep").expect("parse transitive package name");
+    let installed_version = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&local_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|dependencies| dependencies.get(&transitive_name))
+        .expect("the local package snapshot records its transitive dependency")
+        .to_string();
+    assert_eq!(installed_version, "100.1.0");
+
+    let hoisted_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join(
+            "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json",
+        ))
+        .expect("read the shamefully-hoisted transitive package"),
+    )
+    .expect("parse the hoisted package manifest");
+    assert_eq!(hoisted_manifest["version"], "100.1.0");
 
     drop((root, mock_instance));
 }

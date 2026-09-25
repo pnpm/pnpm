@@ -75,13 +75,7 @@ fn dependency_is_injected(
         .unwrap_or(false)
 }
 
-fn is_declared_local_directory(importer: &pnpm_lockfile::ProjectSnapshot, dep_name: &str) -> bool {
-    let Some(specifiers) = importer.specifiers.as_ref() else {
-        return false;
-    };
-    let Some(spec) = specifiers.get(dep_name) else {
-        return false;
-    };
+fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
@@ -99,7 +93,7 @@ fn check_single_dep_spec_directory_freshness(
     }
     let dep_str = dep_name.to_string();
     if !dependency_is_injected(check, importer, &dep_str)
-        && !is_declared_local_directory(importer, &dep_str)
+        && !is_declared_local_directory(&dep_spec.specifier)
     {
         return Ok(());
     }
