@@ -14,6 +14,7 @@ interface URLLike {
 // Errors that fail the same way on every attempt: a TLS certificate that fails
 // verification, or a CA option that holds no certificate.
 const NO_RETRY_ERROR_CODES = new Set([
+  'CERT_CHAIN_TOO_LONG',
   'CERT_HAS_EXPIRED',
   'CERT_NOT_YET_VALID',
   'CERT_REJECTED',
@@ -25,6 +26,8 @@ const NO_RETRY_ERROR_CODES = new Set([
   'ERR_TLS_CERT_ALTNAME_INVALID',
   'HOSTNAME_MISMATCH',
   'INVALID_CA',
+  'INVALID_PURPOSE',
+  'PATH_LENGTH_EXCEEDED',
   'SELF_SIGNED_CERT_IN_CHAIN',
   'UNABLE_TO_GET_ISSUER_CERT',
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
@@ -33,8 +36,11 @@ const NO_RETRY_ERROR_CODES = new Set([
 
 export function isNonRetryableError (error: unknown): boolean {
   const err = error as { code?: unknown, cause?: { code?: unknown } } | undefined
-  const errorCode = err?.code ?? err?.cause?.code
-  return typeof errorCode === 'string' && NO_RETRY_ERROR_CODES.has(errorCode)
+  return isNonRetryableCode(err?.code) || isNonRetryableCode(err?.cause?.code)
+}
+
+function isNonRetryableCode (code: unknown): boolean {
+  return typeof code === 'string' && NO_RETRY_ERROR_CODES.has(code)
 }
 
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308])

@@ -6,7 +6,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, jest, test } from '@jest/globals'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { clearDispatcherCache, fetch } from '@pnpm/network.fetch'
+import { clearDispatcherCache, fetch, isNonRetryableError } from '@pnpm/network.fetch'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 import { startServer } from './utils/trickleServer.js'
@@ -85,6 +85,40 @@ test('fetch rejects, and does not hang, on a non-retryable error code', async ()
     await mockAgent.close()
     setGlobalDispatcher(originalDispatcher)
   }
+})
+
+// https://github.com/pnpm/pnpm/issues/9134
+test.each([
+  'CERT_CHAIN_TOO_LONG',
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+])('fetch does not retry a request that fails with %s', async (code) => {
+  const originalDispatcher = getGlobalDispatcher()
+  const mockAgent = new MockAgent()
+  mockAgent.disableNetConnect()
+  setGlobalDispatcher(mockAgent)
+  try {
+    mockAgent.get('https://registry.example')
+      .intercept({ path: '/is-positive', method: 'GET' })
+      .replyWithError(Object.assign(new Error(code), { code }))
+      .times(2)
+
+    const err = await fetch('https://registry.example/is-positive', {
+      retry: { retries: 1, minTimeout: 1, maxTimeout: 1 },
+    }).then(() => undefined, (rejection: unknown) => rejection)
+
+    expect(err).toHaveProperty('code', code)
+    expect(mockAgent.pendingInterceptors()).toHaveLength(1)
+  } finally {
+    await mockAgent.close()
+    setGlobalDispatcher(originalDispatcher)
+  }
+})
+
+test('a wrapper error code does not hide a certificate error in its cause', () => {
+  const cause = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' })
+  expect(isNonRetryableError(Object.assign(new Error('fetch failed', { cause }), { code: 'FETCH_FAILED' }))).toBe(true)
+  expect(isNonRetryableError(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }))).toBe(false)
 })
 
 // https://github.com/pnpm/pnpm/issues/9134
