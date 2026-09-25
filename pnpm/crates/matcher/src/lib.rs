@@ -242,27 +242,23 @@ fn segment_matches_exact(segment: &str, target: &str) -> bool {
     }
 }
 
+fn char_window_len(slice: &str, count: usize) -> Option<usize> {
+    let mut char_count = 0;
+    for (idx, _) in slice.char_indices() {
+        if char_count == count {
+            return Some(idx);
+        }
+        char_count += 1;
+    }
+    (char_count == count).then_some(slice.len())
+}
+
 fn strip_segment_prefix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
     if !segment.contains('?') {
         return input.strip_prefix(segment);
     }
     let seg_chars = segment.chars().count();
-    let mut char_count = 0;
-    let mut split_idx = input.len();
-    for (idx, _) in input.char_indices() {
-        if char_count == seg_chars {
-            split_idx = idx;
-            break;
-        }
-        char_count += 1;
-    }
-    if char_count < seg_chars {
-        if char_count + 1 == seg_chars {
-            split_idx = input.len();
-        } else {
-            return None;
-        }
-    }
+    let split_idx = char_window_len(input, seg_chars)?;
     let prefix = &input[..split_idx];
     segment_matches_exact(segment, prefix).then(|| &input[split_idx..])
 }
@@ -283,17 +279,6 @@ fn strip_segment_suffix<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
         .map_or(input.len(), |(idx, _)| idx);
     let suffix = &input[split_idx..];
     segment_matches_exact(segment, suffix).then(|| &input[..split_idx])
-}
-
-fn char_window_len(slice: &str, count: usize) -> Option<usize> {
-    let mut char_count = 0;
-    for (idx, _) in slice.char_indices() {
-        if char_count == count {
-            return Some(idx);
-        }
-        char_count += 1;
-    }
-    (char_count == count).then_some(slice.len())
 }
 
 fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
