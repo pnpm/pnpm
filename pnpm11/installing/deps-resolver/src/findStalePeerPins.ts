@@ -1,8 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
-import { stripLockfileVersionPins } from '@pnpm/resolving.npm-resolver'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
@@ -38,10 +37,10 @@ export function collectDirectDependencySpecs (
 }
 
 /**
- * Returns the auto-installed peers of an importer (peer dependencies it does
- * not also declare as a dependency) whose locked version no workspace
- * project's specifier for that package accepts any more, although one of them
- * still overlaps the peer range. Such a peer has to be re-resolved, or it
+ * Returns, by alias, the locked versions of the importer's auto-installed
+ * peers (peer dependencies it does not also declare as a dependency) that no
+ * workspace project's specifier for that package accepts any more, although
+ * one of them still overlaps the peer range. Such a peer has to be re-resolved, or it
  * stays on its first resolution while the projects that provide it move on
  * (pnpm/pnpm#11800).
  */
@@ -52,9 +51,9 @@ export function findStalePeerPins (
     lockfile: LockfileObject
     manifest: ProjectManifest
   }
-): Set<string> {
+): Map<string, string> {
   const { manifest } = opts
-  const stale = new Set<string>()
+  const stale = new Map<string, string>()
   for (const [alias, peerRange] of Object.entries(manifest.peerDependencies ?? {})) {
     if (
       !Object.hasOwn(resolvedDependencies, alias) ||
@@ -69,19 +68,19 @@ export function findStalePeerPins (
     if (!overlappingSpecs?.length) continue
     const pinned = getPinnedNameVer(opts.lockfile, resolvedDependencies[alias], alias)
     if (pinned != null && !overlappingSpecs.some((spec) => semver.satisfies(pinned.version, spec, true))) {
-      stale.add(alias)
+      stale.set(alias, pinned.version)
     }
   }
   return stale
 }
 
 /**
- * Drops the lockfile pins of the given peers from the importer's locked
- * dependencies and the lockfile's weight from its preferred versions of
- * them, so the peers resolve the way a fresh install resolves them.
+ * Drops the given peers from the importer's locked dependencies and the
+ * lockfile's weight from their locked versions in its preferred versions, so
+ * the peers resolve the way a fresh install resolves them.
  */
 export function releaseStalePeerPins (
-  stalePeerPins: Set<string>,
+  stalePeerPins: Map<string, string>,
   opts: {
     preferredVersions: PreferredVersions
     resolvedDependencies: ResolvedDependencies
@@ -90,14 +89,18 @@ export function releaseStalePeerPins (
   const resolvedDependencies = { ...opts.resolvedDependencies }
   // Null-prototype: keyed by package names from manifests and the lockfile.
   const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
-  for (const alias of stalePeerPins) {
+  for (const [alias, pinnedVersion] of stalePeerPins) {
     delete resolvedDependencies[alias]
-    const selectors = stripLockfileVersionPins(opts.preferredVersions[alias])
-    if (selectors == null) {
-      delete preferredVersions[alias]
+    const selector = opts.preferredVersions[alias]?.[pinnedVersion]
+    if (typeof selector !== 'object' || selector.selectorType !== 'version' || selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT) continue
+    const selectors = Object.assign(Object.create(null), opts.preferredVersions[alias])
+    const manifestWeight = selector.weight - EXISTING_VERSION_SELECTOR_WEIGHT
+    if (manifestWeight > 0) {
+      selectors[pinnedVersion] = { selectorType: 'version', weight: manifestWeight }
     } else {
-      preferredVersions[alias] = selectors
+      delete selectors[pinnedVersion]
     }
+    preferredVersions[alias] = selectors
   }
   return { preferredVersions, resolvedDependencies }
 }

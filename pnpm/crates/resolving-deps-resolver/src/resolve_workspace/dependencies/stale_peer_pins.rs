@@ -27,13 +27,18 @@ pub(super) fn release_stale_peer_pins(
             unpin_stale_peers(opts, stale);
         }
     }
+    let stale_aliases = stale_peer_pins
+        .into_iter()
+        .map(|(importer_id, stale)| (importer_id, stale.into_keys().collect()))
+        .collect();
     Arc::get_mut(workspace)
         .expect("the workspace ctx is not shared before the importers initialize")
-        .set_stale_peer_pins(stale_peer_pins);
+        .set_stale_peer_pins(stale_aliases);
 }
 
-/// Per importer, the auto-installed peers (peer dependencies it does not
-/// also declare as a dependency) whose locked version no workspace
+/// Per importer and by alias, the locked versions of the auto-installed
+/// peers (peer dependencies it does not also declare as a dependency)
+/// that no workspace
 /// project's specifier for that package accepts any more, although one
 /// of them still overlaps the peer range. Such a peer has to be
 /// re-resolved, or it stays on its first resolution while the projects
@@ -42,12 +47,12 @@ fn find_stale_peer_pins(
     importers: &[&WorkspaceImporter<'_>],
     opts: &[ResolveImporterOptions],
     lockfile: &Lockfile,
-) -> HashMap<String, HashSet<String>> {
+) -> HashMap<String, HashMap<String, Version>> {
     if !importers.iter().any(|importer| declares_peers(importer)) {
         return HashMap::default();
     }
     let direct_ranges = collect_direct_ranges(importers, opts);
-    let mut stale = HashMap::<String, HashSet<String>>::default();
+    let mut stale = HashMap::<String, HashMap<String, Version>>::default();
     for importer in importers.iter().filter(|importer| declares_peers(importer)) {
         let peers = importer_stale_peer_pins(importer, lockfile, &direct_ranges);
         if !peers.is_empty() {
@@ -98,7 +103,7 @@ fn importer_stale_peer_pins(
     importer: &WorkspaceImporter<'_>,
     lockfile: &Lockfile,
     direct_ranges: &HashMap<String, Vec<Range>>,
-) -> HashSet<String> {
+) -> HashMap<String, Version> {
     let manifest = importer.manifest;
     let declared = manifest
         .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
@@ -121,7 +126,7 @@ fn importer_stale_peer_pins(
             (!overlapping
                 .iter()
                 .any(|range| range.satisfies(&pinned)))
-            .then(|| alias.to_string())
+            .then(|| (alias.to_string(), pinned))
         })
         .collect()
 }
@@ -138,26 +143,27 @@ fn locked_importer_version(lockfile: &Lockfile, importer_id: &str, alias: &str) 
         .cloned()
 }
 
-/// Remove the lockfile's weight from the importer's preferred versions
-/// of its stale peers, so they are picked the way a fresh install picks
-/// them rather than back onto the stale version.
-fn unpin_stale_peers(opts: &mut ResolveImporterOptions, stale: &HashSet<String>) {
+/// Remove the lockfile's weight from the stale locked versions in the
+/// importer's preferred versions, so the peers are picked the way a fresh
+/// install picks them rather than back onto the stale versions.
+fn unpin_stale_peers(opts: &mut ResolveImporterOptions, stale: &HashMap<String, Version>) {
     let preferred_versions = Arc::make_mut(&mut opts.base_opts.version.preferred_versions);
-    for name in stale {
+    for (name, pinned) in stale {
         let Some(selectors) = preferred_versions.get_mut(name) else { continue };
-        selectors.retain(|_, entry| {
-            let VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                selector_type: VersionSelectorType::Version,
-                weight,
-            }) = entry
-            else {
-                return true;
-            };
-            if *weight < EXISTING_VERSION_SELECTOR_WEIGHT {
-                return true;
-            }
-            *weight -= EXISTING_VERSION_SELECTOR_WEIGHT;
-            *weight > 0
-        });
+        let pinned = pinned.to_string();
+        let Some(VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight,
+        })) = selectors.get_mut(&pinned)
+        else {
+            continue;
+        };
+        if *weight < EXISTING_VERSION_SELECTOR_WEIGHT {
+            continue;
+        }
+        *weight -= EXISTING_VERSION_SELECTOR_WEIGHT;
+        if *weight == 0 {
+            selectors.remove(&pinned);
+        }
     }
 }

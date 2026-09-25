@@ -358,7 +358,7 @@ function preferredVersionSelectorsFor (
  * chain-propagated versions, `range`/`tag` selectors) pass through unchanged.
  * Returns `undefined` when nothing remains.
  */
-export function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelectors | undefined {
+function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelectors | undefined {
   if (selectors == null) return undefined
   let kept: VersionSelectors | undefined
   for (const [selector, value] of Object.entries(selectors)) {
