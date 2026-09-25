@@ -516,7 +516,7 @@ function getAppliedPatchKeys (
   return appliedPatchKeys
 }
 
-function addDirectDependenciesToLockfile (
+export function addDirectDependenciesToLockfile (
   newManifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{ alias: string }>,

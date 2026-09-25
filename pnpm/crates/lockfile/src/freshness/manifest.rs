@@ -157,7 +157,13 @@ fn check_dependency_fields(
             folded_peers,
             is_ignored_optional,
         );
-        let allowed = manifest_field_allowed(required.clone(), manifest, &manifest_optional, field);
+        let allowed = manifest_field_allowed(
+            required.clone(),
+            manifest,
+            &manifest_optional,
+            &manifest_prod,
+            field,
+        );
         let importer_field = importer.get_map_by_group(field);
         check_field_specs(&required, importer_field, field)?;
         check_field_extras(&allowed, importer_field, field)?;
@@ -214,13 +220,21 @@ fn manifest_field_allowed<'a>(
     mut allowed: BTreeMap<&'a str, &'a str>,
     manifest: &'a PackageManifest,
     manifest_optional: &BTreeMap<&'a str, &'a str>,
+    manifest_prod: &BTreeMap<&str, &'a str>,
     field: DependencyGroup,
 ) -> BTreeMap<&'a str, &'a str> {
     if matches!(field, DependencyGroup::Dev) {
         allowed.extend(
             manifest
                 .dependencies([DependencyGroup::Dev])
-                .filter(|(name, _)| !manifest_optional.contains_key(*name)),
+                .filter(|(name, _)| !manifest_optional.contains_key(*name))
+                .map(|(name, spec)| {
+                    let effective_spec = manifest_prod
+                        .get(name)
+                        .copied()
+                        .unwrap_or(spec);
+                    (name, effective_spec)
+                }),
         );
     }
     allowed

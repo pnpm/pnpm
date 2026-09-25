@@ -313,3 +313,31 @@ fn ignored_optional_filtered_out_of_manifest_diff() {
     let is_ignored: &dyn Fn(&str) -> bool = &|name: &str| name == "foo";
     assert!(satisfies_package_manifest(importer, &manifest, true, is_ignored).is_ok());
 }
+
+#[test]
+fn differing_specifiers_between_prod_and_dev_satisfy_manifest_when_prod_matches() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      bar:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+        "    devDependencies:"
+        "      bar:"
+        "        specifier: ^1.0.0"
+        "        version: 1.0.0"
+    })
+    .expect("parse lockfile");
+    let importer = lockfile.root_project().expect("root importer");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{
+        "name": "x",
+        "version": "1.0.0",
+        "dependencies": { "bar": "^1.0.0" },
+        "devDependencies": { "bar": "^1.2.0" }
+    }"#,
+    );
+    assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
+}

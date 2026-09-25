@@ -1,10 +1,10 @@
 /// <reference path="../../../__typings__/local.d.ts"/>
 import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.pruner'
-import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
+import type { LockfileObject, PackageSnapshot, Resolution } from '@pnpm/lockfile.types'
+import type { DepPath, PkgResolutionId, ProjectId, RegistriesByScope } from '@pnpm/types'
 
-import type { DependenciesGraph } from '../lib/index.js'
+import { addDirectDependenciesToLockfile, type DependenciesGraph } from '../lib/index.js'
 import { updateLockfile } from '../lib/updateLockfile.js'
 
 const TARBALL_URL = 'https://cdn.sheetjs.com/xlsx-0.18.5/xlsx-0.18.5.tgz'
@@ -181,4 +181,38 @@ test.each([
     registriesByScope: REGISTRIES,
   })
   expect(lockfile.packages![DEP_PATH].engines).toStrictEqual(expected)
+})
+
+test('addDirectDependenciesToLockfile records a dependency in both dependencies and devDependencies', () => {
+  const result = addDirectDependenciesToLockfile(
+    {
+      name: 'foo',
+      version: '1.0.0',
+      dependencies: {
+        'is-even': '^1.0.0',
+      },
+      devDependencies: {
+        'is-even': '^1.0.0',
+      },
+    },
+    {
+      specifiers: {},
+    },
+    [],
+    [
+      {
+        alias: 'is-even',
+        name: 'is-even',
+        version: '1.0.0',
+        pkgId: 'is-even@1.0.0' as PkgResolutionId,
+        dev: false,
+        optional: false,
+        resolution: { tarball: 'https://registry.npmjs.org/is-even/-/is-even-1.0.0.tgz' } as Resolution,
+      },
+    ]
+  )
+  expect(result.dependencies?.['is-even']).toBe('1.0.0')
+  expect(result.devDependencies?.['is-even']).toBe('1.0.0')
+  expect(result.optionalDependencies?.['is-even']).toBeUndefined()
+  expect(result.specifiers['is-even']).toBe('^1.0.0')
 })

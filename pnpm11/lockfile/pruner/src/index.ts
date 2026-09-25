@@ -87,9 +87,7 @@ export function pruneLockfile (
     for (const [alias, dep] of Object.entries(importer.dependencies)) {
       if (
         !lockfileDependencies[alias] && dep.startsWith('link:') &&
-        // If the linked dependency was removed from package.json
-        // then it is removed from pnpm-lock.yaml as well
-        !(lockfileSpecs[alias] && !allDeps.has(alias))
+        (!allDeps.has(alias) ? !lockfileSpecs[alias] : pkg.dependencies?.[alias] != null)
       ) {
         lockfileDependencies[alias] = dep
       }

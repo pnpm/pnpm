@@ -234,6 +234,52 @@ test('preserve dependency declared in both dependencies and devDependencies', ()
   })
 })
 
+test('specifier with no recorded dependency reference does not produce undefined entry', () => {
+  const result = pruneLockfile({
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '^1.0.0',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)
+  expect(result.importers['.' as ProjectId].dependencies).toBeUndefined()
+})
+
+test('moving a linked package from dependencies to devDependencies does not retain it in dependencies', () => {
+  const result = pruneLockfile({
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          linked: 'link:../linked',
+        },
+        specifiers: {
+          linked: 'link:../linked',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    devDependencies: {
+      linked: 'link:../linked',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)
+  expect(result.importers['.' as ProjectId].dependencies).toBeUndefined()
+  expect(result.importers['.' as ProjectId].devDependencies).toStrictEqual({
+    linked: 'link:../linked',
+  })
+})
+
 test('optional dependency should have optional = true', () => {
   expect(pruneLockfile({
     importers: {
