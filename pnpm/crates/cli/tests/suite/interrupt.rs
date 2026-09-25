@@ -73,13 +73,15 @@ const STUBBORN_SCRIPT: &str = r"const fs = require('node:fs')
 process.on('SIGINT', () => {})
 process.on('SIGTERM', () => {})
 setTimeout(() => process.exit(0), 30_000)
-fs.writeFileSync('started.txt', String(process.pid))
+fs.writeFileSync('started.tmp', String(process.pid))
+fs.renameSync('started.tmp', 'started.txt')
 ";
 
 /// A script that records its process id, so a test can tell whether it
 /// is still running once pnpm is gone.
 const LINGERING_SCRIPT: &str = r"const fs = require('node:fs')
-fs.writeFileSync('started.txt', String(process.pid))
+fs.writeFileSync('started.tmp', String(process.pid))
+fs.renameSync('started.tmp', 'started.txt')
 setInterval(() => {}, 1000)
 ";
 
@@ -464,7 +466,9 @@ fn signal_group(process: &Child, signal: libc::c_int) {
     assert_eq!(signalled, 0, "the signal should reach pnpm's process group");
 }
 
-/// The process id a fixture script wrote to `path`.
+/// The process id a fixture script wrote to `path`. The fixtures write it
+/// to a temporary file and rename that into place, so a file that exists
+/// already holds the whole id.
 fn read_pid(path: &Path) -> libc::pid_t {
     fs::read_to_string(path)
         .expect("read the recorded pid")
