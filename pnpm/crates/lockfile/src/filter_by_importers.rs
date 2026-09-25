@@ -115,6 +115,23 @@ impl Lockfile {
         }
         Ok(filtered)
     }
+
+    /// Verifies that every dependency reference reachable from an importer
+    /// resolves to an entry in `snapshots`. Returns the first missing key.
+    pub fn verify_importer_snapshot_links(&self) -> Result<(), LockfileMissingDependencyError> {
+        let options = FilterByImportersOptions {
+            include: IncludedDependencies::default(),
+            skipped: HashSet::new(),
+            fail_on_missing_dependencies: true,
+            peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root: false },
+        };
+        let seeds = self.importers
+            .values()
+            .flat_map(importer_keys)
+            .collect();
+        collect_reachable(self, seeds, &options, &PeerSatisfactionEdges::default())?;
+        Ok(())
+    }
 }
 
 /// The snapshot keys a filtered importer's own dependencies resolve to.
