@@ -1,6 +1,6 @@
 use super::{
-    LifecycleScriptError, RunPostinstallHooks, StreamedScript, output::STREAMED_OUTPUT_CHUNK_BYTES,
-    read_lifecycle_manifest, run_postinstall_hooks,
+    LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
+    output::STREAMED_OUTPUT_CHUNK_BYTES, read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -795,4 +795,36 @@ fn native_path_len(path: &std::path::Path) -> usize {
     {
         path.as_os_str().len()
     }
+}
+
+/// `better-sqlite3` v13 ships a prebuilt binary for every platform it supports
+/// and sets `gypfile: false` so no package manager rebuilds it from source.
+#[test]
+fn gypfile_false_suppresses_the_synthesized_node_gyp_rebuild() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(pkg_root.join("binding.gyp"), "{'targets':[]}").expect("write binding.gyp");
+
+    let manifest = serde_json::json!({ "name": "prebuilt", "version": "1.0.0" });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+    assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node-gyp rebuild"));
+
+    let opted_out = serde_json::json!({ "name": "prebuilt", "version": "1.0.0", "gypfile": false });
+    fs::write(pkg_root.join("package.json"), opted_out.to_string()).expect("write manifest");
+    assert_eq!(install_stage_script(&opted_out, pkg_root), None);
+}
+
+#[test]
+fn gypfile_false_leaves_an_explicit_install_script_alone() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(pkg_root.join("binding.gyp"), "{'targets':[]}").expect("write binding.gyp");
+
+    let manifest = serde_json::json!({
+        "name": "custom-build",
+        "version": "1.0.0",
+        "gypfile": false,
+        "scripts": { "install": "node install.js" },
+    });
+    assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node install.js"));
 }

@@ -13,9 +13,7 @@ use super::{
     ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
 };
 use pnpm_fs::file_mode;
-use pnpm_package_manifest::{
-    files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
-};
+use pnpm_package_manifest::{BuildTriggers, parse_manifest_bytes};
 use pnpm_store_dir::{
     CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
 };
@@ -311,8 +309,7 @@ pub(crate) fn extract_tarball_entries(
     // manifest is captured here too, off the raw payload slice.
     let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
     let mut manifest = None;
-    let mut manifest_build_scripts = false;
-    let mut file_build_hooks = false;
+    let mut triggers = BuildTriggers::default();
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -321,9 +318,9 @@ pub(crate) fn extract_tarball_entries(
         };
         let entry_data = tar_entry_payload(tar_data, &entry)?;
 
-        file_build_hooks |= files_include_install_scripts([meta.cleaned_path.as_str()]);
+        triggers.add_file(&meta.cleaned_path);
         if meta.cleaned_path == "package.json" {
-            (manifest_build_scripts, manifest) = capture_bundled_manifest(entry_data);
+            manifest = capture_bundled_manifest(entry_data, &mut triggers);
         }
 
         pending.push(PendingFile {
@@ -336,7 +333,7 @@ pub(crate) fn extract_tarball_entries(
     }
 
     let written = write_pending_files(store_dir, &pending)?;
-    Ok(assemble_extract_output(written, manifest, manifest_build_scripts || file_build_hooks))
+    Ok(assemble_extract_output(written, manifest, triggers.requires_build()))
 }
 
 /// Hash and write a slice of pending files into the content-addressed
@@ -478,7 +475,7 @@ impl<'a> StreamingExtract<'a> {
             batch: Vec::new(),
             batch_bytes: 0,
             manifest: None,
-            build_hooks: false,
+            triggers: BuildTriggers::default(),
         }
     }
 
@@ -514,9 +511,7 @@ impl<'a> StreamingExtract<'a> {
             return Err(truncated_entry_error());
         }
         if meta.cleaned_path == "package.json" {
-            let (build_scripts, manifest) = capture_bundled_manifest(&data);
-            self.build_hooks |= build_scripts;
-            self.manifest = manifest;
+            self.manifest = capture_bundled_manifest(&data, &mut self.triggers);
         }
         self.batch_bytes += data.len();
         self.batch.push(PendingFile {
@@ -565,7 +560,7 @@ impl<'a> StreamingExtract<'a> {
 
     fn finish(mut self) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
         self.flush()?;
-        Ok(assemble_extract_output(self.written, self.manifest, self.build_hooks))
+        Ok(assemble_extract_output(self.written, self.manifest, self.triggers.requires_build()))
     }
 }
 

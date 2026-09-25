@@ -1,6 +1,6 @@
 use super::{
-    CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError, UNIX_EPOCH,
-    manifest_requires_build, parse_manifest_bytes,
+    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError,
+    UNIX_EPOCH, parse_manifest_bytes,
 };
 
 /// Pick the `package.json` fields downstream code actually reads — bin
@@ -33,6 +33,7 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
         "devDependencies",
         "directories",
         "engines",
+        "gypfile",
         "libc",
         "name",
         "optionalDependencies",
@@ -176,9 +177,8 @@ pub(crate) fn write_synthesized_package_json(
     Ok(true)
 }
 
-/// Parse a tarball's bundled `package.json`, returning its
-/// requires-build flag and the narrowed manifest for the store-index
-/// row.
+/// Parse a tarball's bundled `package.json`, recording its build triggers in
+/// `triggers` and returning the narrowed manifest for the store-index row.
 ///
 /// The narrowed manifest is stashed in `pkgFilesIndex.manifest` so
 /// install-side consumers (notably bin linking) can avoid re-reading
@@ -194,18 +194,24 @@ pub(crate) fn write_synthesized_package_json(
 /// entries, but the consistency with the `files` map is what matters:
 /// `manifest` and `files` must describe the same file.
 ///
-/// Failed JSON parses degrade to `(false, None)` — the manifest is
-/// best-effort; a corrupt `package.json` is the publisher's fault and
-/// downstream code can fall back to disk reads.
-pub(super) fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Value>) {
+/// A failed JSON parse leaves `triggers` untouched and returns no manifest —
+/// the manifest is best-effort; a corrupt `package.json` is the publisher's
+/// fault and downstream code can fall back to disk reads.
+pub(super) fn capture_bundled_manifest(
+    entry_data: &[u8],
+    triggers: &mut BuildTriggers,
+) -> Option<serde_json::Value> {
     match parse_manifest_bytes(entry_data) {
-        Ok(parsed) => (manifest_requires_build(&parsed), normalize_bundled_manifest(&parsed)),
+        Ok(parsed) => {
+            triggers.read_manifest(&parsed);
+            normalize_bundled_manifest(&parsed)
+        }
         Err(error) => {
             tracing::debug!(
                 ?error,
                 "package.json in tarball failed to parse as JSON; bundled manifest cleared",
             );
-            (false, None)
+            None
         }
     }
 }

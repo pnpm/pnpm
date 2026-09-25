@@ -12,7 +12,9 @@ use super::{
     Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
     ParallelIterator, PathBuf, TarballError,
 };
-use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pnpm_package_manifest::{
+    files_build_triggers, requires_build_from_cas_paths, stored_build_may_predate_gypfile,
+};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
     PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
@@ -331,6 +333,37 @@ fn decode_matching_prefetch_entry(cache_key: &str, bytes: &[u8]) -> Option<Packa
     Some(entry)
 }
 
+/// Derive `requiresBuild` for a store-index row that does not carry it, from
+/// the row's bundled manifest and its file list.
+fn row_requires_build<Filenames, Filename>(
+    manifest: Option<&serde_json::Value>,
+    filenames: Filenames,
+) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    let mut triggers = files_build_triggers(filenames);
+    if let Some(manifest) = manifest {
+        triggers.read_manifest(manifest);
+    }
+    triggers.requires_build()
+}
+
+fn resolve_row_requires_build(
+    stored: Option<bool>,
+    manifest: Option<&serde_json::Value>,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> bool {
+    match stored {
+        Some(true) if stored_build_may_predate_gypfile(manifest, cas_paths.keys()) => {
+            requires_build_from_cas_paths(cas_paths)
+        }
+        Some(stored) => stored,
+        None => row_requires_build(manifest, cas_paths.keys()),
+    }
+}
+
 /// Fold the verified rows into the per-key maps the install path reads.
 fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
     let mut result = PrefetchResult {
@@ -353,10 +386,11 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         if let Some(pending_check) = pending_check {
             result.pending_checks.insert(cache_key.clone(), pending_check);
         }
-        let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
-            manifest.as_deref().is_some_and(manifest_requires_build)
-                || files_include_install_scripts(verify_result.files_map.keys())
-        });
+        let calculated_requires_build = resolve_row_requires_build(
+            stored_requires_build,
+            manifest.as_deref(),
+            &verify_result.files_map,
+        );
         if let Some(manifest) = manifest {
             result.manifests.insert(cache_key.clone(), manifest);
         }

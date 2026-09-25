@@ -13,14 +13,39 @@ export function pkgRequiresBuild (manifest: Partial<DependencyManifest> | undefi
       Boolean(manifest.scripts.install) ||
       Boolean(manifest.scripts.postinstall)
     ) ||
-    filesIncludeInstallScripts(filesIndex)
+    filesIncludeInstallScripts(filesIndex, manifest?.gypfile === false)
   )
 }
 
-function filesIncludeInstallScripts (filesIndex: FilesIndexArg): boolean {
+/**
+ * Whether a store index row's stored `requiresBuild: true` can be stale because
+ * of `gypfile`, so only the package's own `package.json` can confirm it.
+ *
+ * Rows written before pnpm read `gypfile` recorded a `binding.gyp` as build
+ * work regardless, and their bundled manifest dropped the field. A row whose
+ * bundled manifest carries no `gypfile` and whose only trigger is a
+ * `binding.gyp` may be one of them. Every other stored `true` still holds.
+ */
+export function storedBuildMayPredateGypfile (manifest: Partial<DependencyManifest> | undefined, filesIndex: FilesIndexArg): boolean {
+  if (manifest != null && 'gypfile' in manifest) return false
+  const hasBindingGyp = filesIndex instanceof Map ? filesIndex.has('binding.gyp') : Object.hasOwn(filesIndex, 'binding.gyp')
+  return hasBindingGyp && !pkgRequiresBuild(manifest, withoutBindingGyp(filesIndex))
+}
+
+function withoutBindingGyp (filesIndex: FilesIndexArg): Map<string, unknown> {
+  const entries = filesIndex instanceof Map ? filesIndex.entries() : Object.entries(filesIndex)
+  return new Map(Array.from(entries).filter(([filename]) => filename !== 'binding.gyp'))
+}
+
+/**
+ * `gypBuildOptedOut` silences the `binding.gyp` trigger only. `gypfile` speaks
+ * for the synthesized `node-gyp rebuild` alone, so a `.hooks/` entry is build
+ * work either way.
+ */
+function filesIncludeInstallScripts (filesIndex: FilesIndexArg, gypBuildOptedOut: boolean): boolean {
   const keys = filesIndex instanceof Map ? filesIndex.keys() : Object.keys(filesIndex)
   for (const filename of keys) {
-    if (filename === 'binding.gyp') {
+    if (filename === 'binding.gyp' && !gypBuildOptedOut) {
       return true
     }
     if (filename.match(/^\.hooks[\\/]/) != null) {
@@ -33,11 +58,11 @@ function filesIncludeInstallScripts (filesIndex: FilesIndexArg): boolean {
 /**
  * [`pkgRequiresBuild`] for a package that is already on disk.
  *
- * Reads the same two triggers off the directory: the manifest's install
- * scripts, and the presence of `binding.gyp` or `.hooks/`. Callers that hold
- * the package's files index should use [`pkgRequiresBuild`] instead - this is
- * for the ones that only have the extracted directory, such as a package whose
- * patch has just been applied.
+ * Reads the same triggers off the directory: the manifest's install scripts,
+ * and the presence of `.hooks/` or a `binding.gyp` the manifest does not opt
+ * out of with `gypfile: false`. Callers that hold the package's files index
+ * should use [`pkgRequiresBuild`] instead - this is for the ones that only have
+ * the extracted directory, such as a package whose patch has just been applied.
  *
  * A directory that cannot be inspected - a missing or malformed manifest, an
  * unreadable entry - reports no build, matching the Rust `pkgRequiresBuild`.

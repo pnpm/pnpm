@@ -1026,3 +1026,40 @@ fn install_allows_and_runs_scripts_on_subsequent_install() {
 }
 
 mod strict;
+
+/// A dependency that ships a `binding.gyp` and sets `gypfile: false` never
+/// reaches the build gate, so the default `strictDepBuilds` install succeeds
+/// without an `allowBuilds` entry and nothing is reported as ignored.
+#[test]
+fn gypfile_false_keeps_a_dependency_off_the_build_gate() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/gypfile-false": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--reporter=ndjson", "install"])
+        .output()
+        .expect("run pacquet install");
+    assert_success(&output);
+
+    assert_eq!(ignored_scripts_package_names(&output), Vec::<String>::new());
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+gypfile-false@1.0.0\
+             /node_modules/@pnpm.e2e/gypfile-false",
+    );
+    assert!(pkg_dir.join("binding.gyp").exists(), "the package still ships its binding.gyp");
+    assert!(
+        !pkg_dir.join("generated.js").exists(),
+        "node-gyp must not have run: {}",
+        pkg_dir.display(),
+    );
+
+    drop((root, mock_instance));
+}

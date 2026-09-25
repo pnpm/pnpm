@@ -19,6 +19,7 @@ use super::{
     write_modules_manifest,
 };
 use pnpm_cmd_shim::bin_dir_is_relocatable;
+use pnpm_package_manifest::{BINDING_GYP, manifest_opts_out_of_gyp_build};
 use rayon::prelude::*;
 
 /// Translate pacquet's [`Config::node_linker`] into the
@@ -490,7 +491,8 @@ where
 }
 
 /// Whether the project defines any of `stages`, counting the executor's
-/// implicit `node-gyp rebuild` fallback for `install`.
+/// implicit `node-gyp rebuild` fallback for `install` (which is skipped
+/// when the project opts out with `gypfile: false`).
 pub(super) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
@@ -503,7 +505,8 @@ pub(super) fn project_requires_lifecycle_scripts(
         || (stages.contains(&"install")
             && matches!(manifest.script("preinstall", true), Ok(None))
             && matches!(manifest.script("install", true), Ok(None))
-            && project_dir.join("binding.gyp").exists())
+            && !manifest_opts_out_of_gyp_build(manifest.value())
+            && project_dir.join(BINDING_GYP).exists())
 }
 
 /// Read a string field off a project manifest, returning `None` when

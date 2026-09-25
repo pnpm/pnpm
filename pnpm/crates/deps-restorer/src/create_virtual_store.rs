@@ -1,5 +1,5 @@
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
-pub use warm::requires_build_from_cas_paths;
+pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
 mod pipeline;
 
