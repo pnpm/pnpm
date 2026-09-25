@@ -26,6 +26,7 @@ use reqwest::{Response, StatusCode, header};
 
 use crate::{
     FetchMetadataError,
+    errors::legacy_mirror_hint,
     fetch_full_metadata::{
         ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, MetadataRequestOptions,
         is_abbreviated_content_type, normalize_abbreviated_meta, send_metadata_request,
@@ -33,8 +34,8 @@ use crate::{
     },
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, load_meta_headers_async,
-        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
+        load_meta_headers_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -81,9 +82,16 @@ pub async fn fetch_full_metadata_cached(
         if let Some(meta) = load_meta_async(mirror_path.as_deref()).await {
             return Ok(meta);
         }
+        let hint = match legacy_mirror_path_for(pkg_name, opts) {
+            Some(path) if tokio::fs::try_exists(&path).await.unwrap_or(false) => {
+                Some(legacy_mirror_hint(&path))
+            }
+            _ => None,
+        };
         return Err(FetchMetadataError::NoOfflineMeta {
             pkg_name: pkg_name.to_string(),
             pkg_mirror: mirror_path.unwrap_or_default(),
+            hint,
         });
     }
 
@@ -254,6 +262,24 @@ fn mirror_path_for(
             None
         }
     }
+}
+
+/// The pre-#14081 mirror path for the same package, used only to detect a
+/// cache that predates the rename and explain an offline
+/// `ERR_PNPM_NO_OFFLINE_META`. Unlike [`mirror_path_for`], this ignores
+/// [`scoped_meta_dir`]: a legacy mirror was written before per-descriptor
+/// private-metadata scoping existed, so it can only ever sit under the
+/// unscoped directory.
+fn legacy_mirror_path_for(
+    pkg_name: &str,
+    opts: &FetchFullMetadataCachedOptions<'_>,
+) -> Option<PathBuf> {
+    let base_meta_dir = if opts.full_metadata {
+        if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+    } else {
+        ABBREVIATED_META_DIR
+    };
+    get_legacy_pkg_mirror_path(opts.cache_dir?, base_meta_dir, opts.registry, pkg_name)
 }
 
 /// The off-reactor half of one fetch: parse the body, normalize it, and

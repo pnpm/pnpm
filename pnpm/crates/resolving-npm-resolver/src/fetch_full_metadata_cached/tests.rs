@@ -12,8 +12,8 @@ use super::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
 use crate::{
     FetchMetadataError,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path,
-        load_meta, load_meta_headers, save_meta_indexed,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_path,
+        get_pkg_mirror_path, load_meta, load_meta_headers, save_meta_indexed,
     },
 };
 

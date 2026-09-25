@@ -77,6 +77,7 @@ mod metadata_cache;
 
 use std::{
     collections::HashSet,
+    fmt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -96,11 +97,13 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
+    FetchMetadataError,
+    errors::legacy_mirror_hint,
+    fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
-        scoped_meta_dir,
+        get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
+        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -126,13 +129,12 @@ pub struct PickPackageResult {
 /// the install layer can route them through different reporters
 /// (a missing time gets a warning; a network failure gets a retry
 /// prompt).
-#[derive(Debug, Display, Error, Diagnostic)]
+#[derive(Debug, Display, Error)]
 #[non_exhaustive]
 pub enum PickPackageError {
     /// `ERR_PNPM_INVALID_PACKAGE_NAME`: a package name contains a `/`
     /// but doesn't begin with a `@scope/` prefix.
     #[display("Package name {pkg_name} is invalid, it should have a @scope")]
-    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidPackageName {
         #[error(not(source))]
         pkg_name: String,
@@ -140,23 +142,101 @@ pub enum PickPackageError {
     /// `ERR_PNPM_NO_OFFLINE_META`: offline mode is active and the
     /// on-disk mirror doesn't have the package.
     #[display("Failed to resolve {spec_name}@{spec_fetch_spec} in package mirror {pkg_mirror:?}")]
-    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
     NoOfflineMeta {
         #[error(not(source))]
         spec_name: String,
         spec_fetch_spec: String,
         pkg_mirror: PathBuf,
+        /// Set when the pre-#14081 mirror for the same registry still
+        /// exists on disk, so the message can point at it. See
+        /// `legacy_mirror_hint`.
+        #[error(not(source))]
+        hint: Option<String>,
     },
     /// Underlying picker error (no versions, unpublished, missing
     /// time, etc.). The picker errors are described on
     /// [`PickPackageFromMetaError`].
-    #[diagnostic(transparent)]
     Pick(PickPackageFromMetaError),
     /// Underlying metadata-fetch error (network, decode, 304 with
     /// no cache, etc.). Bubbles up from
     /// [`fetch_full_metadata_cached()`].
-    #[diagnostic(transparent)]
     Fetch(FetchMetadataError),
+}
+
+/// Hand-rolled because [`PickPackageError::NoOfflineMeta`]'s help is
+/// conditional on its `hint` field, which the derive macro cannot express.
+/// `Pick` and `Fetch` forward every method to their inner error, replicating
+/// what `#[diagnostic(transparent)]` generated before this hand roll.
+impl Diagnostic for PickPackageError {
+    fn code(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        match self {
+            PickPackageError::InvalidPackageName { .. } => {
+                Some(Box::new("ERR_PNPM_INVALID_PACKAGE_NAME"))
+            }
+            PickPackageError::NoOfflineMeta { .. } => Some(Box::new("ERR_PNPM_NO_OFFLINE_META")),
+            PickPackageError::Pick(inner) => inner.code(),
+            PickPackageError::Fetch(inner) => inner.code(),
+        }
+    }
+
+    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        match self {
+            PickPackageError::NoOfflineMeta { hint, .. } => hint
+                .as_ref()
+                .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>),
+            PickPackageError::Pick(inner) => inner.help(),
+            PickPackageError::Fetch(inner) => inner.help(),
+            _ => None,
+        }
+    }
+
+    fn severity(&self) -> Option<miette::Severity> {
+        match self {
+            PickPackageError::Pick(inner) => inner.severity(),
+            PickPackageError::Fetch(inner) => inner.severity(),
+            _ => None,
+        }
+    }
+
+    fn url(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        match self {
+            PickPackageError::Pick(inner) => inner.url(),
+            PickPackageError::Fetch(inner) => inner.url(),
+            _ => None,
+        }
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        match self {
+            PickPackageError::Pick(inner) => inner.source_code(),
+            PickPackageError::Fetch(inner) => inner.source_code(),
+            _ => None,
+        }
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        match self {
+            PickPackageError::Pick(inner) => inner.labels(),
+            PickPackageError::Fetch(inner) => inner.labels(),
+            _ => None,
+        }
+    }
+
+    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
+        match self {
+            PickPackageError::Pick(inner) => inner.related(),
+            PickPackageError::Fetch(inner) => inner.related(),
+            _ => None,
+        }
+    }
+
+    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+        match self {
+            PickPackageError::Pick(inner) => inner.diagnostic_source(),
+            PickPackageError::Fetch(inner) => inner.diagnostic_source(),
+            _ => None,
+        }
+    }
 }
 
 impl From<PickPackageFromMetaError> for PickPackageError {
@@ -253,6 +333,10 @@ struct PickState<'a> {
     full_metadata: bool,
     use_filtered_full_metadata: bool,
     pkg_mirror: Option<PathBuf>,
+    /// The pre-#14081 mirror path for the same registry, checked only when
+    /// [`PickPackageError::NoOfflineMeta`] is about to be raised. See
+    /// `legacy_mirror_hint`.
+    legacy_pkg_mirror: Option<PathBuf>,
     cache_key: String,
     /// `updateChecksums` must reach the conditional registry request, so it
     /// can't be served from the in-memory cache — which may hold a
@@ -310,6 +394,11 @@ impl<'a> PickState<'a> {
             let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
             get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
         });
+        // Unscoped: a legacy mirror predates per-descriptor private-metadata
+        // scoping, so it can only ever sit under the unscoped directory.
+        let legacy_pkg_mirror = ctx.metadata.cache_dir.and_then(|dir| {
+            get_legacy_pkg_mirror_path(dir, base_meta_dir, opts.registry, &spec.name)
+        });
 
         PickState {
             picker_opts: PickerOpts {
@@ -331,6 +420,7 @@ impl<'a> PickState<'a> {
             full_metadata,
             use_filtered_full_metadata,
             pkg_mirror,
+            legacy_pkg_mirror,
             use_mem_cache: !opts.request.update_checksums,
         }
     }

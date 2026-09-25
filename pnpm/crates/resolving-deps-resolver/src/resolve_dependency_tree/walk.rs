@@ -43,6 +43,7 @@ use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, SnapshotEntry, TarballRevision};
+use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
     RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,

@@ -31,7 +31,8 @@ use super::{
 };
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_path,
+        get_pkg_mirror_path, load_meta,
     },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
     registry_url::to_registry_url,

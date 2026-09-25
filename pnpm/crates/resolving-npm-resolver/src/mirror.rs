@@ -47,8 +47,8 @@
 //!   mirror root predates the current key shape, so nothing can read it.
 
 pub use registry_key::{
-    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
-    is_unreadable_registry_key,
+    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
+    get_registry_name, is_unreadable_registry_key,
 };
 
 mod read_records;
@@ -188,6 +188,27 @@ pub fn get_pkg_mirror_path(
         .join(meta_dir)
         .join(registry_name)
         .join(format!("{encoded_name}.jsonl")))
+}
+
+/// The pre-#14081 counterpart of [`get_pkg_mirror_path`], for detecting a
+/// mirror written by a pnpm older than 11.27 / 12.4. `None` when the
+/// registry doesn't parse or has no host, matching [`get_pkg_mirror_path`]'s
+/// own failure case.
+#[must_use]
+pub fn get_legacy_pkg_mirror_path(
+    cache_dir: &Path,
+    meta_dir: &str,
+    registry: &str,
+    pkg_name: &str,
+) -> Option<PathBuf> {
+    let registry_name = get_legacy_registry_name(registry)?;
+    let encoded_name = encode_pkg_name(pkg_name);
+    Some(
+        cache_dir
+            .join(meta_dir)
+            .join(registry_name)
+            .join(format!("{encoded_name}.jsonl")),
+    )
 }
 
 /// Magic + format version. The trailing space separates it from the
