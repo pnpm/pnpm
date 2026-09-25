@@ -36,7 +36,9 @@ export function reloadAuthAfterDevPreinstall (opts: DevPreinstallAuthOptions): v
   for (const [uri, registryConfig] of Object.entries(fresh)) {
     configByUri[uri] = { ...configByUri[uri], ...registryConfig }
   }
-  reloadAuthHeaders(configByUri)
+  // `configByUri` is the object the store client already captured. Replacing
+  // it with a copy would leave that client on the pre-script token.
+  reloadAuthHeaders(configByUri, { required: true })
 }
 
 function rejectProjectTokenHelper (

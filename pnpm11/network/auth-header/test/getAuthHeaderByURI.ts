@@ -103,6 +103,14 @@ test('getAuthHeaderByURI() keeps registry path when matching package scope auth'
   expect(getAuthHeaderByURI('https://reg.com/npm/', { pkgName: '@orgB/pkg' })).toBe('Bearer registry-token')
 })
 
+test('reloadAuthHeaders() throws when the post-script reload has no lookup', () => {
+  expect(() => {
+    reloadAuthHeaders({
+      '//reg.com/': { '@': { authToken: 'stale-token' } },
+    }, { required: true })
+  }).toThrow('no auth lookup was created from this config')
+})
+
 test('reloadAuthHeaders() picks up a token written after the lookup was created', () => {
   const configByUri = {
     '//reg.com/': { '@': { authToken: 'stale-token' } },

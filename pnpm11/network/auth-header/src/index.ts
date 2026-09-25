@@ -1,4 +1,5 @@
 import { nerfDart } from '@pnpm/config.registry-auth-key'
+import { PnpmError } from '@pnpm/error'
 import type { RegistryConfig } from '@pnpm/types'
 
 import { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
@@ -70,9 +71,19 @@ export function createGetAuthHeaderByURI (
  * the same process send the new credential. `tokenHelper` is executed when
  * the lookup is rebuilt, the same as on the initial read.
  */
-export function reloadAuthHeaders (configByUri: Record<string, RegistryConfig>): void {
+export function reloadAuthHeaders (
+  configByUri: Record<string, RegistryConfig>,
+  opts?: { required?: boolean }
+): void {
   const reloaders = authHeaderReloaders.get(configByUri)
-  if (reloaders == null) return
+  if (reloaders == null || reloaders.size === 0) {
+    if (opts?.required === true) {
+      throw new PnpmError('AUTH_HEADERS_NOT_LOADED',
+        'Cannot refresh registry auth after pnpm:devPreinstall because no auth lookup was created from this config',
+        { hint: 'The install client and the post-script reload must share one configByUri object.' })
+    }
+    return
+  }
   for (const refresh of reloaders) refresh(configByUri)
 }
 
