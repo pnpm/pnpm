@@ -37,6 +37,9 @@ pub struct WorkspaceResolveOptions {
     pub hooks: WorkspaceResolveHooks,
     pub reuse: WorkspaceLockfileReuse,
     pub version: WorkspaceVersionResolution,
+    /// Parsed `overrides`, used to attribute `ERR_PNPM_NO_MATCHING_VERSION`
+    /// to the override entry that forced the missing version.
+    pub parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
 }
 
 #[derive(Default)]
@@ -180,7 +183,8 @@ impl WorkspaceResolveOptions {
             .with_lockfile_reuse(self.reuse)
             .with_allowed_deprecated_versions(self.allowed_deprecated_versions)
             .with_auto_install_peers(settings.peers.auto_install_peers)
-            .with_registry_context(self.registry_context);
+            .with_registry_context(self.registry_context)
+            .with_parsed_overrides(self.parsed_overrides);
         (Arc::new(workspace), settings)
     }
 }

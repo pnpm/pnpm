@@ -7,6 +7,7 @@ use super::{
     manifest_hooks::{apply_manifest_hooks, original_manifest_opts},
     render_specifier, wanted_key_admission,
 };
+use crate::resolve_dependency_tree::override_reframe::attribute_to_override;
 
 /// Convert a workspace directory resolution into the representation shared by
 /// every importer. A `link:` target is stored relative to the lockfile root;
@@ -229,7 +230,16 @@ where
         ));
     }
     let opts = original_manifest_opts(ctx, opts).await?;
-    let result = resolver.resolve(wanted, &opts).await.map_err(map_resolve_error)?;
+    let result = resolver
+        .resolve(wanted, &opts)
+        .await
+        .map_err(|err| {
+            attribute_to_override(
+                map_resolve_error(err),
+                wanted,
+                ctx.workspace.policy.parsed_overrides.as_deref(),
+            )
+        })?;
     let Some(result) = result else {
         return Err(ResolveDependencyTreeError::SpecNotSupported {
             specifier: render_specifier(wanted),

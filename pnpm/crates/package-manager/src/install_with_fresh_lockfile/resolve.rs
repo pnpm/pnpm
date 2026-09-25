@@ -154,6 +154,7 @@ pub(super) struct WorkspaceWalk {
     pub declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes,
     /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
     pub locked_registries: Option<HashMap<String, String>>,
+    pub parsed_overrides: Option<Arc<[pnpm_config_parse_overrides::VersionOverride]>>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
@@ -281,6 +282,7 @@ impl WorkspaceWalk {
                 pick_lowest_direct: shared.versions.pick_lowest,
                 time_based: self.time_based,
             },
+            parsed_overrides: self.parsed_overrides,
         }
     }
 }

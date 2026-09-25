@@ -105,6 +105,7 @@ fn workspace_opts(settings: Settings, reuse: Reuse<'_>) -> WorkspaceResolveOptio
             ..pnpm_resolving_deps_resolver::WorkspaceLockfileReuse::default()
         },
         version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution::default(),
+        parsed_overrides: None,
     }
 }
 

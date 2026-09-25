@@ -5,7 +5,10 @@ use pnpm_resolving_resolver_base::{
     ResolveResult, Resolver, WantedDependency,
 };
 
-use super::{ResolveDependencyTreeOptions, resolve_dependency_tree};
+use super::{
+    ResolveDependencyTreeError, ResolveDependencyTreeOptions, override_reframe,
+    resolve_dependency_tree,
+};
 
 struct NestedWorkspaceLinkResolver {
     target_dir: std::path::PathBuf,
@@ -108,4 +111,107 @@ async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
     assert_eq!(direct.node_id, crate::NodeId::leaf("link:packages/shared"));
     assert!(tree.packages.contains_key("link:packages/shared"));
     assert!(!tree.packages.contains_key("link:../../../packages/shared"));
+}
+
+fn acme_no_match_error(bare_specifier: &str, versions: &[&str]) -> ResolveDependencyTreeError {
+    ResolveDependencyTreeError::NoMatchingVersion(
+        pnpm_resolving_resolver_base::NoMatchingVersionError {
+            dep: format!("acme@{bare_specifier}"),
+            registry: "https://example.com/".to_string(),
+            published_versions: String::new(),
+            versions: versions
+                .iter()
+                .map(|v| (*v).to_string())
+                .collect(),
+        },
+    )
+}
+
+fn override_entry(
+    selector: &str,
+    target_range: Option<&str>,
+    new_spec: &str,
+) -> pnpm_config_parse_overrides::VersionOverride {
+    pnpm_config_parse_overrides::VersionOverride {
+        selector: selector.to_string(),
+        parent_pkg: None,
+        target_pkg: pnpm_config_parse_overrides::PackageSelector {
+            name: "acme".to_string(),
+            bare_specifier: target_range.map(str::to_string),
+            dep_type: None,
+        },
+        new_bare_specifier: new_spec.to_string(),
+        converge: false,
+    }
+}
+
+fn wanted_acme(bare_specifier: &str) -> WantedDependency {
+    WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    }
+}
+
+#[test]
+fn override_reframe_names_the_override_and_latest_matching_version() {
+    let overrides = [override_entry("acme@^1", Some("^1"), "^1.5.0")];
+
+    let reframed = override_reframe::attribute_to_override(
+        acme_no_match_error("^1.5.0", &["1.0.0", "1.1.0"]),
+        &wanted_acme("^1.5.0"),
+        Some(&overrides),
+    );
+
+    assert!(matches!(reframed, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)));
+    assert_eq!(
+        reframed.to_string(),
+        r#"Override "acme@^1": "^1.5.0" targets a version of acme that does not exist on the registry."#,
+    );
+    assert_eq!(
+        miette::Diagnostic::code(&reframed).map(|c| c.to_string()),
+        Some("ERR_PNPM_NO_MATCHING_VERSION".to_string()),
+    );
+    assert_eq!(
+        miette::Diagnostic::help(&reframed).map(|h| h.to_string()),
+        Some(r#"The latest release of acme matching "^1" is "1.1.0"."#.to_string()),
+    );
+}
+
+#[test]
+fn override_reframe_omits_help_when_selector_has_no_range() {
+    let overrides = [override_entry("acme", None, "2.0.0")];
+
+    let reframed = override_reframe::attribute_to_override(
+        acme_no_match_error("2.0.0", &["1.0.0", "1.1.0"]),
+        &wanted_acme("2.0.0"),
+        Some(&overrides),
+    );
+
+    assert_eq!(
+        reframed.to_string(),
+        r#"Override "acme": "2.0.0" targets a version of acme that does not exist on the registry."#,
+    );
+    assert!(miette::Diagnostic::help(&reframed).is_none());
+}
+
+#[test]
+fn override_reframe_keeps_the_error_when_no_override_matches() {
+    let overrides = [override_entry("acme@^1", Some("^1"), "^3.0.0")];
+
+    let err = override_reframe::attribute_to_override(
+        acme_no_match_error("^1.5.0", &["1.0.0", "1.1.0"]),
+        &wanted_acme("^1.5.0"),
+        Some(&overrides),
+    );
+
+    assert!(matches!(err, ResolveDependencyTreeError::NoMatchingVersion(_)));
+}
+
+#[test]
+fn max_satisfying_picks_the_highest_version_in_range() {
+    let versions = ["1.0.0".to_string(), "1.1.0".to_string(), "2.0.0".to_string()];
+    assert_eq!(override_reframe::max_satisfying(&versions, "^1"), Some("1.1.0".to_string()));
+    assert_eq!(override_reframe::max_satisfying(&versions, "^2"), Some("2.0.0".to_string()));
+    assert_eq!(override_reframe::max_satisfying(&versions, "^3"), None);
 }

@@ -1,5 +1,5 @@
 import type { VersionOverride } from '@pnpm/config.parse-overrides'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import semver from 'semver'
 
 interface ResolutionError {
@@ -25,14 +25,20 @@ export function toOverrideNoMatchingVersionError (
   const override = parsedOverrides.find(({ targetPkg, newBareSpecifier }) =>
     targetPkg.name === wantedDependency.alias && newBareSpecifier === wantedDependency.bareSpecifier)
   if (override == null) return null
-  const selectorRange = override.targetPkg.bareSpecifier
-  const versions = Object.keys(err.packageMeta?.versions ?? {})
-  const best = selectorRange && versions.length > 0 ? semver.maxSatisfying(versions, selectorRange) : null
+  const name = redactAndSanitize(override.targetPkg.name)
   return new PnpmError(
     'NO_MATCHING_VERSION',
-    `Override "${override.selector}": "${override.newBareSpecifier}" targets a version of ${override.targetPkg.name} that does not exist on the registry.`,
-    best != null
-      ? { hint: `The latest release of ${override.targetPkg.name} matching "${selectorRange}" is "${best}".` }
-      : undefined
+    `Override "${redactAndSanitize(override.selector)}": "${redactAndSanitize(override.newBareSpecifier)}" targets a version of ${name} that does not exist on the registry.`,
+    { hint: describeLatestMatchingVersion(name, override.targetPkg.bareSpecifier, err.packageMeta?.versions) }
   )
+}
+
+function describeLatestMatchingVersion (
+  name: string,
+  selectorRange: string | undefined,
+  versions: Record<string, unknown> | undefined
+): string | undefined {
+  if (!selectorRange || versions == null) return undefined
+  const latest = semver.maxSatisfying(Object.keys(versions), selectorRange)
+  return latest == null ? undefined : `The latest release of ${name} matching "${redactAndSanitize(selectorRange)}" is "${latest}".`
 }

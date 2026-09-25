@@ -305,6 +305,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             registries: self.registries.by_scope.clone(),
             declared_prefixes: self.registries.declared.clone(),
             locked_registries: self.registries.locked.clone(),
+            parsed_overrides: self.prep.transforms.parsed_overrides.clone().map(Arc::<[_]>::from),
         }
     }
 

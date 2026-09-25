@@ -1,0 +1,104 @@
+use miette::Diagnostic;
+use pnpm_config_parse_overrides::VersionOverride;
+use pnpm_network::redact_and_sanitize;
+use pnpm_resolving_resolver_base::{NoMatchingVersionError, WantedDependency};
+
+use super::ResolveDependencyTreeError;
+
+/// `ERR_PNPM_NO_MATCHING_VERSION` for a specifier that an override forced
+/// onto a dependency. It names the override entry to fix instead of the
+/// package that happened to depend on the target.
+#[derive(Debug)]
+pub struct OverrideNoMatchingVersionError {
+    pub name: String,
+    pub selector: String,
+    pub new_bare_specifier: String,
+    pub selector_range: Option<String>,
+    /// The highest published version satisfying `selector_range`.
+    pub latest_matching: Option<String>,
+}
+
+impl std::fmt::Display for OverrideNoMatchingVersionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            r#"Override "{}": "{}" targets a version of {} that does not exist on the registry."#,
+            redact_and_sanitize(&self.selector),
+            redact_and_sanitize(&self.new_bare_specifier),
+            redact_and_sanitize(&self.name),
+        )
+    }
+}
+
+impl std::error::Error for OverrideNoMatchingVersionError {}
+
+impl Diagnostic for OverrideNoMatchingVersionError {
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        Some(Box::new("ERR_PNPM_NO_MATCHING_VERSION"))
+    }
+
+    fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        let range = self.selector_range.as_deref()?;
+        let latest = self.latest_matching.as_deref()?;
+        Some(Box::new(format!(
+            r#"The latest release of {} matching "{}" is "{latest}"."#,
+            redact_and_sanitize(&self.name),
+            redact_and_sanitize(range),
+        )))
+    }
+}
+
+/// Attribute a [`ResolveDependencyTreeError::NoMatchingVersion`] to the
+/// override whose `new_bare_specifier` the failing request carries. Every
+/// other error, and a failure no override explains, is returned unchanged.
+pub(super) fn attribute_to_override(
+    err: ResolveDependencyTreeError,
+    wanted: &WantedDependency,
+    overrides: Option<&[VersionOverride]>,
+) -> ResolveDependencyTreeError {
+    let reframed = match (&err, overrides) {
+        (ResolveDependencyTreeError::NoMatchingVersion(no_matching_version), Some(overrides)) => {
+            overriding_error(wanted, no_matching_version, overrides)
+        }
+        _ => None,
+    };
+    match reframed {
+        Some(reframed) => ResolveDependencyTreeError::OverrideNoMatchingVersion(Box::new(reframed)),
+        None => err,
+    }
+}
+
+fn overriding_error(
+    wanted: &WantedDependency,
+    no_matching_version: &NoMatchingVersionError,
+    overrides: &[VersionOverride],
+) -> Option<OverrideNoMatchingVersionError> {
+    let alias = wanted.alias.as_deref()?;
+    let bare_specifier = wanted.bare_specifier.as_deref()?;
+    let matched = overrides
+        .iter()
+        .find(|entry| {
+            entry.target_pkg.name == alias && entry.new_bare_specifier == bare_specifier
+        })?;
+    let selector_range = matched.target_pkg.bare_specifier.clone();
+    let latest_matching = selector_range
+        .as_deref()
+        .and_then(|range| max_satisfying(&no_matching_version.versions, range));
+    Some(OverrideNoMatchingVersionError {
+        name: alias.to_string(),
+        selector: matched.selector.clone(),
+        new_bare_specifier: matched.new_bare_specifier.clone(),
+        selector_range,
+        latest_matching,
+    })
+}
+
+pub(super) fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
+    let range = node_semver::Range::parse(range).ok()?;
+    versions
+        .iter()
+        .filter_map(|raw| Some((node_semver::Version::parse(raw).ok()?, raw)))
+        .filter(|(version, _)| version.satisfies(&range))
+        .max_by(|(left, _), (right, _)| left.cmp(right))
+        .map(|(_, raw)| raw.clone())
+}
