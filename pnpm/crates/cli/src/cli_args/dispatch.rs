@@ -162,12 +162,13 @@ impl CliArgs {
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        let Some((dir, config)) = self.prepare_fast_path_config(config_overrides, install_args)
+        let Some((dir, mut config)) = self.prepare_fast_path_config(config_overrides, install_args)
         else {
             return false;
         };
         let emit =
             reporter_emit(self.effective_reporter_with_config(config.loglevel, config.reporter));
+        crate::state::resolutions::apply_fast_path_resolutions(&dir, &mut config, emit);
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
             warn_fast_path_config(config_overrides, &config);

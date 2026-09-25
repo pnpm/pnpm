@@ -132,6 +132,7 @@ mod removed_overrides;
 mod repeat_install;
 mod repo;
 mod reporter_setting;
+mod resolutions;
 mod restart;
 mod root;
 mod run;
