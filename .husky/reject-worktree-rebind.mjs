@@ -22,10 +22,8 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-// Child stderr is piped (not inherited) so an expected failure — a
-// detached HEAD, an unresolvable `@{-1}` — doesn't splash `fatal:`
-// noise into every checkout; the messages this script prints carry
-// the signal instead.
+// Child stderr is piped so expected git failures (such as a detached HEAD)
+// do not print git stderr; messages are handled explicitly below.
 const git = (...args) =>
   execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 
@@ -120,20 +118,11 @@ console.error(
 )
 process.exit(1)
 
-// The branch a first-observed checkout binds the worktree to: the most
-// recent branch named as a checkout source in the worktree's HEAD
-// reflog, so the switch itself still gets checked. Reflog subjects are
-// read directly — `@{-N}` cannot name a since-deleted branch — and
-// detached sources (a rebase or bisect in progress at the time) are
-// skipped in favor of the branch they detached from. A same-branch
-// re-checkout binds to itself through its own reflog entry; comparing
-// the hook's old/new SHAs cannot stand in for that, because `switch
-// -c` from the bound branch also moves nothing. The worktree's own
-// creation (old ref is the null SHA) and a `--bind-only` call bind to
-// the branch just checked out. `null` means a checkout happened whose
-// history cannot name any source branch (reflog disabled, expired, or
-// detached throughout), so agent sessions must not trust the
-// destination.
+// Resolves the branch a first-observed checkout binds the worktree to:
+// the most recent branch named as a checkout source in the worktree's HEAD
+// reflog, skipping detached sources (such as an in-progress rebase or bisect).
+// Worktree creation (null old ref) and `--bind-only` bind to currentBranch.
+// Returns null when no branch source is recorded in the reflog.
 function initialBinding (currentBranch) {
   const oldRef = bindOnly ? null : process.argv[2]
   if (!oldRef || /^0+$/.test(oldRef)) {
