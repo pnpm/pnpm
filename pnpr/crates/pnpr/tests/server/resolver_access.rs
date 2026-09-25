@@ -604,3 +604,36 @@ async fn resolve_connects_to_an_allowed_private_network() {
     let (egress, _) = allowlisted_registry_egress("127.0.0.1", &["127.0.0.0/8"]).await;
     assert!(egress >= 1);
 }
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn git_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback() {
+    let (origin, request_count) = spawn_counting_server(
+        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    let port = url::Url::parse(&origin)
+        .unwrap()
+        .port()
+        .unwrap();
+    let repo_url = format!("http://localhost:{port}/repo.git");
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(format!("http://localhost:{port}/")),
+        package: None,
+    });
+    config.routing.route_policy.allowed_private_networks = Vec::new();
+    let response = router_with_auth(config, auth)
+        .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
+        .await
+        .unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+    let body = String::from_utf8_lossy(&body);
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(request_count.load(Ordering::SeqCst), 0, "{body}");
+    assert!(body.contains("which this client is not allowed to connect to"), "{body}");
+}

@@ -19,6 +19,7 @@ use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
     parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
+    pinned_remote::pinned_git_config,
     resolve_ref::{GitCommandRunner, GitResolveRefError, resolve_ref},
 };
 
@@ -176,6 +177,11 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 }
             }
             LockfileResolution::Git(git) => {
+                let git_config = match ctx.auth_headers.connect_guard() {
+                    Some(guard) => pinned_git_config(&git.repo, guard).await
+                        .map_err(|err| Box::new(err) as ResolveError)?,
+                    None => Vec::new(),
+                };
                 // No archive endpoint to read, so the working tree is
                 // the only source of the name, and there is nothing to
                 // hash — the commit anchors the content.
@@ -186,6 +192,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                     path: git.path.as_deref(),
                     git_shallow_hosts: &ctx.git_shallow_hosts,
                     git_bin: None,
+                    git_config: &git_config,
                 })
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;

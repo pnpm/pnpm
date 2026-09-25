@@ -24,6 +24,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
             path: Some(escape),
             git_shallow_hosts: &[],
             git_bin: None,
+            git_config: &[],
         })
         .await
         .expect_err("a path climbing out of the checkout must be rejected");
@@ -36,7 +37,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
 
 #[test]
 fn prepare_git_cmd_removes_repository_location_overrides() {
-    let cmd = prepare_git_cmd(Path::new("git"), &["status"], None).unwrap();
+    let cmd = prepare_git_cmd(Path::new("git"), &[], &["status"], None).unwrap();
     let env_removals: HashSet<_> = cmd
         .get_envs()
         .filter_map(|(k, v)| if v.is_none() { k.to_str() } else { None })
@@ -52,4 +53,22 @@ fn prepare_git_cmd_removes_repository_location_overrides() {
     ] {
         assert!(env_removals.contains(var), "expected prepare_git_cmd to remove {var}");
     }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[test]
+fn prepare_git_cmd_applies_settings_before_the_subcommand() {
+    let setting = "http.curloptResolve=git.example:443:8.8.8.8".to_string();
+    let cmd =
+        prepare_git_cmd(Path::new("git"), &[setting.clone()], &["fetch", "origin"], None).unwrap();
+    let args: Vec<_> = cmd
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let settings_at = args
+        .iter()
+        .position(|arg| arg == &setting)
+        .unwrap();
+    assert_eq!(args[settings_at - 1], "-c");
+    assert_eq!(&args[settings_at + 1..], ["fetch", "origin"]);
 }

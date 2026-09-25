@@ -306,6 +306,8 @@ pub struct CheckoutOptions<'a> {
     pub git_bin: Option<&'a Path>,
     /// Existing, empty directory to check the repo out into.
     pub dest: &'a Path,
+    /// `git -c` settings for the commands that reach the remote.
+    pub git_config: &'a [String],
 }
 
 /// Materialize `repo` at `commit` into `dest`, verifying that the
@@ -321,6 +323,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
         git_shallow_hosts,
         git_bin,
         dest,
+        git_config,
     } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
@@ -338,9 +341,19 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     if should_use_shallow(repo, git_shallow_hosts) {
         exec_git_with(git_bin, &["init"], Some(dest))?;
         exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
-        exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
+        exec_git_with_config(
+            git_bin,
+            git_config,
+            &["fetch", "--depth", "1", "origin", commit],
+            Some(dest),
+        )?;
     } else {
-        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
+        exec_git_with_config(
+            git_bin,
+            git_config,
+            &["clone", "--", repo, &dest.to_string_lossy()],
+            None,
+        )?;
     }
 
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
@@ -383,6 +396,8 @@ pub struct GitManifestQuery<'a> {
     pub git_shallow_hosts: &'a [String],
     /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
+    /// See [`CheckoutOptions::git_config`].
+    pub git_config: &'a [String],
 }
 
 /// Read the `package.json` of the package a `Git` resolution points at.
@@ -402,14 +417,17 @@ pub async fn read_git_manifest(
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
         let source = query.source_cache
-            .get(&GitSource {
-                cache: query.source_cache,
-                path: query.path,
-                repo: query.repo,
-                commit: query.commit,
-                shallow_hosts: query.git_shallow_hosts,
-                git_bin: query.git_bin,
-            })
+            .get_with_config(
+                &GitSource {
+                    cache: query.source_cache,
+                    path: query.path,
+                    repo: query.repo,
+                    commit: query.commit,
+                    shallow_hosts: query.git_shallow_hosts,
+                    git_bin: query.git_bin,
+                },
+                query.git_config,
+            )
             .map_err(GitFetcherError::SharedSource)?;
         // Same guarded join the install pass uses: the sub-path is
         // repo-rooted, and a `path` that climbs out of the checkout
@@ -485,6 +503,7 @@ fn prefix_git_args() -> &'static [&'static str] {
 
 pub(crate) fn prepare_git_cmd(
     bin: &Path,
+    config: &[String],
     args: &[&str],
     cwd: Option<&Path>,
 ) -> Result<Command, GitFetcherError> {
@@ -501,6 +520,9 @@ pub(crate) fn prepare_git_cmd(
     }
     for arg in prefix_git_args() {
         cmd.arg(arg);
+    }
+    for setting in config {
+        cmd.arg("-c").arg(setting);
     }
     cmd.args(args);
     if reaches_remote(args) {
@@ -534,7 +556,17 @@ pub(crate) fn exec_git_with(
     args: &[&str],
     cwd: Option<&Path>,
 ) -> Result<String, GitFetcherError> {
-    let mut cmd = prepare_git_cmd(bin, args, cwd)?;
+    exec_git_with_config(bin, &[], args, cwd)
+}
+
+/// [`exec_git_with`] with `git -c` settings ahead of the subcommand.
+pub(crate) fn exec_git_with_config(
+    bin: &Path,
+    config: &[String],
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<String, GitFetcherError> {
+    let mut cmd = prepare_git_cmd(bin, config, args, cwd)?;
     let output = cmd
         .output()
         .map_err(|err| {
