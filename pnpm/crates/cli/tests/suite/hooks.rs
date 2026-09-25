@@ -1215,7 +1215,7 @@ fn read_package_rejects_non_object_manifest() {
     assert!(stderr.contains("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT"), "STDERR:\n{stderr}");
     assert!(
         reported.contains("readPackage hook did not return a package manifest object."),
-        "STDERR:\n{stderr}"
+        "STDERR:\n{stderr}",
     );
     assert!(stderr.contains(".pnpmfile.cjs"), "STDERR:\n{stderr}");
 
