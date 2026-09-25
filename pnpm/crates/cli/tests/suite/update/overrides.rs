@@ -20,7 +20,7 @@ fn update_latest_moves_the_override_that_pins_a_targeted_dependency() {
         fs::read_to_string(workspace.join("package.json")).expect("read package.json");
     assert_eq!(
         importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), ".", DEP),
-        "100.0.0"
+        "100.0.0",
     );
 
     pacquet(&workspace, ["update", "--latest", DEP]).assert().success();
@@ -50,7 +50,7 @@ fn update_latest_moves_an_override_keeping_its_range_style() {
     pacquet(&workspace, ["install"]).assert().success();
     assert_eq!(
         importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), ".", DEP),
-        "100.1.0"
+        "100.1.0",
     );
 
     pacquet(&workspace, ["update", "--latest", DEP]).assert().success();
