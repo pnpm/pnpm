@@ -113,7 +113,7 @@ fn explicit_hardlink_surfaces_errors() {
 /// downside is that a dangling symlink survives until something
 /// rewrites the slot, the upside is a single import syscall per file
 /// instead of stat-then-link-then-maybe-unlink. The pre-flight
-/// `fs::metadata` short-circuit in `link_file` does not fire for a
+/// `fs::metadata` short-circuit in [`link_file`](fn@link_file) does not fire for a
 /// dangling symlink (the syscall follows the link and returns
 /// `NotFound`), so the import syscall runs and surfaces `EEXIST`,
 /// which we treat as a no-op.

@@ -16,7 +16,7 @@ import type {
 } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
-import { hoist, type HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
+import { hoist, type HoistedWorkspaceProject, hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import {
@@ -68,6 +68,7 @@ export interface LinkPackagesOptions {
   pruneStore: boolean
   pruneVirtualStore: boolean
   registriesByScope: RegistriesByScope
+  resolvePeersFromWorkspaceRoot?: boolean
   rootModulesDir: string
   sideEffectsCacheRead: boolean
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
@@ -127,6 +128,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
     storeController: opts.storeController,
@@ -144,6 +146,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   const filterOpts = {
     include: opts.include,
     registriesByScope: opts.registriesByScope,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
   }
@@ -229,41 +232,70 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   let newHoistedDependencies!: HoistedDependencies
   if (opts.virtualStoreOnly || (opts.hoistPattern == null && opts.publicHoistPattern == null)) {
     newHoistedDependencies = {}
-  } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    newHoistedDependencies = {
-      ...opts.hoistedDependencies,
-      ...await hoist({
-        extraNodePath: opts.extraNodePaths,
-        graph: depGraph,
-        directDepsByImporterId: {
-          ...opts.dependenciesByProjectId,
-          '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
-            return newCurrentLockfile.importers['.' as ProjectId].specifiers[alias]
-          })),
-        },
-        importerIds: projectIds,
-        privateHoistedModulesDir: opts.hoistedModulesDir,
-        privateHoistPattern: opts.hoistPattern ?? [],
-        publicHoistedModulesDir: opts.rootModulesDir,
-        publicHoistPattern: opts.publicHoistPattern ?? [],
-        virtualStoreDir: opts.virtualStoreDir,
-        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-        hoistedWorkspacePackages: opts.hoistWorkspacePackages
-          ? projects.reduce((hoistedWorkspacePackages, project) => {
-            if (project.manifest.name && project.id !== '.') {
-              hoistedWorkspacePackages[project.id] = {
-                dir: project.rootDir,
-                name: project.manifest.name,
-              }
-            }
-            return hoistedWorkspacePackages
-          }, {} as Record<string, HoistedWorkspaceProject>)
-          : undefined,
-        skipped: opts.skipped,
-      }),
-    }
   } else {
-    newHoistedDependencies = opts.hoistedDependencies
+    const priorWorkspaceProjectIds = new Set(
+      Object.keys(opts.hoistedDependencies)
+        .filter((key) => (
+          opts.currentLockfile.packages?.[key as DepPath] == null &&
+          (allImportersIncluded || projectIds.includes(key as ProjectId))
+        )) as ProjectId[]
+    )
+    const hoistOpts = {
+      graph: depGraph,
+      directDepsByImporterId: {
+        ...opts.dependenciesByProjectId,
+        '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
+          return newCurrentLockfile.importers['.' as ProjectId].specifiers[alias]
+        })),
+      },
+      privateHoistedModulesDir: opts.hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistedModulesDir: opts.rootModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
+      virtualStoreDir: opts.virtualStoreDir,
+      hoistedWorkspacePackages: opts.hoistWorkspacePackages
+        ? projects.reduce((hoistedWorkspacePackages, project) => {
+          if (project.manifest.name && project.id !== '.') {
+            hoistedWorkspacePackages[project.id] = {
+              dir: project.rootDir,
+              name: project.manifest.name,
+            }
+          }
+          return hoistedWorkspacePackages
+        }, {} as Record<string, HoistedWorkspaceProject>)
+        : undefined,
+      beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
+        opts.hoistedDependencies,
+        nextWorkspaceHoists,
+        priorWorkspaceProjectIds,
+        opts.hoistedModulesDir,
+        opts.rootModulesDir
+      ),
+    }
+    const retainedHoistedDependencies = Object.fromEntries(
+      Object.entries(opts.hoistedDependencies)
+        .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
+    ) as HoistedDependencies
+    let nextHoistedDependencies: HoistedDependencies
+    if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
+      nextHoistedDependencies = await hoist({
+        ...hoistOpts,
+        extraNodePath: opts.extraNodePaths,
+        importerIds: projectIds,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        skipped: opts.skipped,
+      }) ?? {}
+    } else {
+      // No dependency was added or removed, so the hoisted graph cannot have
+      // changed. The set of workspace projects still can: this install may have
+      // added one, and a workspace that depends on nothing external has no graph
+      // to hoist from in the first place.
+      nextHoistedDependencies = await hoistWorkspacePackages(hoistOpts)
+    }
+    newHoistedDependencies = {
+      ...retainedHoistedDependencies,
+      ...nextHoistedDependencies,
+    }
   }
 
   let linkedToRoot = 0
@@ -272,9 +304,15 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
         const deps = opts.dependenciesByProjectId[id]
         const importerFromLockfile = newCurrentLockfile.importers[id]
+        const publishDir = (manifest.publishConfig?.directory != null && manifest.publishConfig.linkDirectory !== false)
+          ? manifest.publishConfig.directory
+          : (importerFromLockfile?.publishDirectory != null && importerFromLockfile?.linkDirectory !== false)
+            ? importerFromLockfile.publishDirectory
+            : undefined
         return [id, {
           dir: rootDir,
           modulesDir,
+          publishDir,
           dependencies: await Promise.all([
             ...Array.from(deps.entries())
               .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])

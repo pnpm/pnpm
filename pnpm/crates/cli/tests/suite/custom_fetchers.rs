@@ -100,6 +100,112 @@ fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_instal
 }
 
 #[test]
+fn custom_fetcher_runs_once_when_resolution_fetches_archive_without_manifest() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, "^100.0.0");
+    let pnpmfile = format!(
+        r"const fs = require('node:fs');
+const path = require('node:path');
+const counterFile = path.join(__dirname, 'fetch-count.txt');
+
+module.exports = {{
+  resolvers: [{{
+    canResolve (wanted) {{ return wanted.alias === '@pnpm.e2e/dep-of-pkg-with-1-dep'; }},
+    async resolve () {{
+      const response = await fetch('{url}@pnpm.e2e%2Fdep-of-pkg-with-1-dep');
+      const picked = (await response.json()).versions['100.1.0'];
+      return {{
+        id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0',
+        resolution: {{ tarball: picked.dist.tarball }},
+      }};
+    }},
+  }}],
+  fetchers: [{{
+    canFetch (pkgId) {{ return pkgId.includes('dep-of-pkg-with-1-dep'); }},
+    async fetch (cafs, resolution, opts, fetchers) {{
+      let count = 0;
+      try {{ count = parseInt(fs.readFileSync(counterFile, 'utf8'), 10) || 0; }} catch (_) {{}}
+      fs.writeFileSync(counterFile, String(count + 1));
+      return {{ delegate: {{ tarball: resolution.tarball, integrity: resolution.integrity }} }};
+    }},
+  }}],
+}};
+",
+        url = mock_instance.url(),
+    );
+    fs::write(workspace.join(".pnpmfile.cjs"), pnpmfile).expect("write pnpmfile");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(installed_version(&workspace), "100.1.0");
+    let counter = fs::read_to_string(workspace.join("fetch-count.txt")).expect("read counter");
+    assert_eq!(
+        counter.trim(),
+        "1",
+        "custom fetcher should execute only once across resolution and install",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn custom_fetcher_runs_once_when_resolver_returns_url_id() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, "^100.0.0");
+    let pnpmfile = format!(
+        r"const fs = require('node:fs');
+const path = require('node:path');
+const counterFile = path.join(__dirname, 'fetch-count.txt');
+
+module.exports = {{
+  resolvers: [{{
+    canResolve (wanted) {{ return wanted.alias === '@pnpm.e2e/dep-of-pkg-with-1-dep'; }},
+    async resolve () {{
+      const response = await fetch('{url}@pnpm.e2e%2Fdep-of-pkg-with-1-dep');
+      const picked = (await response.json()).versions['100.1.0'];
+      return {{
+        id: picked.dist.tarball,
+        resolution: {{ tarball: picked.dist.tarball }},
+      }};
+    }},
+  }}],
+  fetchers: [{{
+    canFetch () {{ return true; }},
+    async fetch (cafs, resolution, opts, fetchers) {{
+      let count = 0;
+      try {{ count = parseInt(fs.readFileSync(counterFile, 'utf8'), 10) || 0; }} catch (_) {{}}
+      fs.writeFileSync(counterFile, String(count + 1));
+      return {{ delegate: {{ tarball: resolution.tarball, integrity: resolution.integrity }} }};
+    }},
+  }}],
+}};
+",
+        url = mock_instance.url(),
+    );
+    fs::write(workspace.join(".pnpmfile.cjs"), pnpmfile).expect("write pnpmfile");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(installed_version(&workspace), "100.1.0");
+    let counter = fs::read_to_string(workspace.join("fetch-count.txt")).expect("read counter");
+    assert_eq!(counter.trim(), "1", "custom fetcher should execute only once when id is a URL");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

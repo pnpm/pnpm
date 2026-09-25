@@ -16,6 +16,8 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path, process::Command};
 
+mod peers;
+
 fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value) {
     fs::write(workspace.join(file_name), tarball_with_manifest(manifest)).expect("write tarball");
 }
@@ -86,6 +88,289 @@ fn local_tarball_dependency_is_recorded_and_installed() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn frozen_install_rejects_a_changed_local_tarball_from_a_warm_store() {
+    check_frozen_transitive_tarball("direct");
+}
+
+#[test]
+fn frozen_install_rejects_a_changed_transitive_tarball_from_a_warm_store() {
+    check_frozen_transitive_tarball("changed");
+}
+
+#[test]
+fn frozen_install_rejects_a_deleted_transitive_tarball_from_a_warm_store() {
+    check_frozen_transitive_tarball("deleted");
+}
+
+#[test]
+fn frozen_install_rejects_a_transitive_tarball_replaced_by_a_directory() {
+    check_frozen_transitive_tarball("directory");
+}
+
+#[test]
+fn frozen_install_skips_deleted_tarballs_in_excluded_dev_dependencies() {
+    check_frozen_transitive_tarball("excluded");
+}
+
+#[test]
+fn frozen_install_skips_deleted_tarballs_in_unsupported_optional_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    fs::write(
+        &tarball,
+        tarball_entries(&[
+            (
+                "package/package.json",
+                br#"{"name":"pkg-from-tarball","version":"1.0.0","os":["nonexistent-os"]}"#,
+            ),
+            ("package/index.js", b"module.exports = 'first'\n"),
+        ]),
+    )
+    .expect("write initial tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "optionalDependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_file(&tarball).expect("remove tarball");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    fs::write(
+        &tarball,
+        tarball_entries(&[
+            (
+                "package/package.json",
+                br#"{"name":"pkg-from-tarball","version":"1.0.0","os":["nonexistent-os"]}"#,
+            ),
+            ("package/index.js", b"module.exports = 'first'\n"),
+        ]),
+    )
+    .expect("write initial tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "optionalDependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_file(&tarball).expect("remove tarball");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--force"])
+        .output()
+        .expect("run forced frozen install");
+    assert!(!output.status.success(), "force must verify previously skipped optional tarballs");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_skips_deleted_tarballs_in_lockfile_only_mode() {
+    check_frozen_transitive_tarball("lockfile-only");
+}
+
+#[test]
+fn fetch_rejects_changed_tarballs_from_lockfile_only_workspace_importers() {
+    check_frozen_transitive_tarball("fetch");
+}
+
+#[test]
+#[cfg(unix)]
+fn frozen_install_rejects_fifo_tarballs_without_hanging() {
+    check_frozen_transitive_tarball("fifo");
+}
+
+fn setup_transitive_workspace(workspace: &Path, tarball: &Path, mutation: &str) {
+    fs::write(
+        tarball,
+        tarball_entries(&[
+            ("package/package.json", br#"{"name":"pkg-from-tarball","version":"1.0.0"}"#),
+            ("package/index.js", b"module.exports = 'first'\n"),
+        ]),
+    )
+    .expect("write initial tarball");
+    write_tarball(
+        workspace,
+        "parent.tgz",
+        &serde_json::json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": format!("file:{}", tarball.display()) },
+        }),
+    );
+    let dep_field = if mutation == "excluded" { "devDependencies" } else { "dependencies" };
+    let dep_value = if mutation == "direct" {
+        serde_json::json!({ "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" })
+    } else {
+        serde_json::json!({ "parent": "file:./parent.tgz" })
+    };
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            dep_field: dep_value,
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+}
+
+fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
+    fs::write(
+        tarball,
+        tarball_entries(&[
+            ("package/package.json", br#"{"name":"pkg-from-tarball","version":"1.0.0"}"#),
+            ("package/index.js", b"module.exports = 'second'\n"),
+        ]),
+    )
+    .expect("replace tarball");
+    match mutation {
+        "deleted" | "lockfile-only" => {
+            fs::remove_file(tarball).expect("remove tarball");
+        }
+        "directory" => {
+            fs::remove_file(tarball).expect("remove tarball");
+            fs::create_dir(tarball).expect("replace tarball with directory");
+        }
+        "fetch" => {
+            fs::write(workspace.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
+                .expect("remove manifest dependencies");
+            let lockfile_path = workspace.join("pnpm-lock.yaml");
+            let lockfile = fs::read_to_string(&lockfile_path).expect("read lockfile");
+            fs::write(&lockfile_path, lockfile.replace("\n  .:", "\n  packages/app:"))
+                .expect("retain only a lockfile workspace importer");
+        }
+        #[cfg(unix)]
+        "fifo" => {
+            fs::remove_file(tarball).expect("remove tarball");
+            let status = std::process::Command::new("mkfifo")
+                .arg(tarball)
+                .status()
+                .expect("run mkfifo");
+            assert!(status.success(), "mkfifo failed");
+        }
+        _ => {}
+    }
+}
+
+fn assert_mutation_output(output: &std::process::Output, mutation: &str) {
+    if matches!(mutation, "excluded" | "lockfile-only") {
+        assert!(
+            output.status.success(),
+            "excluded or lockfile-only tarballs must not be read: {output:?}",
+        );
+        return;
+    }
+    assert!(!output.status.success(), "a changed local tarball must fail a frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let expected_error = match mutation {
+        "changed" | "direct" | "fetch" => "ERR_PNPM_TARBALL_INTEGRITY",
+        _ => "ERR_PNPM_TARBALL_READ_LOCAL_TARBALL",
+    };
+    assert!(stderr.contains(expected_error), "expected {expected_error}, got:\n{stderr}");
+    if matches!(mutation, "deleted" | "directory" | "fifo") {
+        assert!(
+            stderr
+                .split_whitespace()
+                .collect::<String>()
+                .contains("pkg-from-tarball-1.0.0.tgz"),
+            "expected the tarball filename in the error, got:\n{stderr}",
+        );
+    }
+}
+
+fn check_frozen_transitive_tarball(mutation: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    setup_transitive_workspace(&workspace, &tarball, mutation);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    apply_mutation(&workspace, &tarball, mutation);
+
+    let mut command =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
+    command = if mutation == "fetch" {
+        command.with_arg("fetch")
+    } else if mutation == "excluded" {
+        command.with_args(["install", "--frozen-lockfile", "--prod"])
+    } else if mutation == "lockfile-only" {
+        command.with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+    } else {
+        command.with_args(["install", "--frozen-lockfile"])
+    };
+    let output = command.output().expect("run frozen install");
+    assert_mutation_output(&output, mutation);
+
+    drop((root, mock_instance));
+}
+
 /// An archive with no `package.json` at all is the one tarball shape
 /// with no name of its own to prefix its dep path with, so pnpm falls
 /// back to the alias the consumer gave it.
@@ -140,6 +425,72 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     assert!(
         placeholder.contains("_pnpmPlaceholder"),
         "an extraction with no manifest of its own gets pnpm's placeholder: {placeholder}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A package without manifest / synthesized version must not match
+/// ranged packageExtensions selectors (such as `@<2` or `@*`), but
+/// bare selectors without a range can still apply.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/15007>.
+#[test]
+fn no_manifest_tarball_does_not_match_ranged_package_extensions() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("no-manifest-1.0.0.tgz"), tarball_without_manifest())
+        .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "no-manifest": "file:./no-manifest-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packageExtensions:\n  'no-manifest@<2':\n    dependencies:\n      is-positive: '1.0.0'\n  'no-manifest@*':\n    dependencies:\n      is-negative: '1.0.0'\n  'no-manifest':\n    peerDependencies:\n      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'\n    peerDependenciesMeta:\n      '@pnpm.e2e/dep-of-pkg-with-1-dep':\n        optional: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("no-manifest@file:no-manifest-1.0.0.tgz:"),
+        "the alias must key the tarball in packages: and snapshots::\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("version: 0.0.0"),
+        "a package with no manifest is recorded at version 0.0.0:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("is-positive"),
+        "ranged selector @<2 must not match synthesized version:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("is-negative"),
+        "ranged selector @* must not match synthesized version:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "bare selector must match package without manifest:\n{lockfile}",
     );
 
     drop((root, mock_instance));
@@ -387,6 +738,187 @@ fn absolute_tarball_path_crossing_a_symlink_reads_what_it_installs() {
         installed.contains(r#""version":"2.0.0""#),
         "the installed package must be the one the recorded path names:\n{installed}\n{lockfile}",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn adding_package_succeeds_after_deleting_local_tarball_source() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball_path = workspace.join("pkg-from-tarball-1.0.0.tgz");
+    write_tarball(
+        &workspace,
+        "pkg-from-tarball-1.0.0.tgz",
+        &serde_json::json!({
+            "name": "pkg-from-tarball",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::remove_file(&tarball_path).expect("delete local tarball");
+    assert!(!tarball_path.exists());
+
+    let add_cmd = crate::_utils::pacquet_in(&workspace);
+    add_cmd
+        .with_args(["add", "ms"])
+        .assert()
+        .success();
+
+    let installed_tarball_pkg =
+        fs::read_to_string(workspace.join("node_modules/pkg-from-tarball/package.json"))
+            .expect("read the installed manifest");
+    assert!(installed_tarball_pkg.contains(r#""version":"1.0.0""#));
+    assert!(
+        workspace
+            .join("node_modules/.pnpm/pkg-from-tarball@file+pkg-from-tarball-1.0.0.tgz/node_modules/is-positive/package.json")
+            .exists(),
+        "transitive dependency is-positive must remain installed",
+    );
+    assert!(workspace.join("node_modules/ms/package.json").exists());
+
+    drop((root, mock_instance));
+}
+
+/// A tarball replaced at the same path keeps its `file:` specifier, so only
+/// its bytes tell an install that the lockfile no longer describes it.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/2437>.
+#[test]
+fn install_re_resolves_a_local_tarball_replaced_at_the_same_path() {
+    for args in [&["install"][..], &["install", "pkg-from-tarball"]] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let tarball = workspace.join("pkg-from-tarball.tgz");
+        let write_version = |version: &str, content: &str| {
+            let manifest = format!(r#"{{"name":"pkg-from-tarball","version":"{version}"}}"#);
+            fs::write(
+                &tarball,
+                tarball_entries(&[
+                    ("package/package.json", manifest.as_bytes()),
+                    ("package/index.js", content.as_bytes()),
+                ]),
+            )
+            .expect("write tarball");
+        };
+        write_version("1.0.0", "module.exports = 'first'\n");
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball.tgz" },
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        write_version("1.0.1", "module.exports = 'second'\n");
+
+        let installed = workspace.join("node_modules/pkg-from-tarball");
+        let assert_second = |context: &str| {
+            let manifest = fs::read_to_string(installed.join("package.json"))
+                .expect("read the installed manifest");
+            assert!(manifest.contains(r#""version":"1.0.1""#), "{context}: {manifest}");
+            let index =
+                fs::read_to_string(installed.join("index.js")).expect("read the installed index");
+            assert_eq!(index, "module.exports = 'second'\n", "{context}");
+        };
+
+        crate::_utils::pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_second(&format!("pnpm {}", args.join(" ")));
+        let lockfile =
+            fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+        assert!(lockfile.contains("version: 1.0.1"), "the lockfile must record 1.0.1:\n{lockfile}");
+
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+        crate::_utils::pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+        assert_second("a frozen install from the warm store");
+
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
+fn install_keeps_a_deleted_local_tarball_installed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_tarball(
+        &workspace,
+        "pkg-from-tarball.tgz",
+        &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-from-tarball": "file:./pkg-from-tarball.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("pkg-from-tarball.tgz")).expect("delete local tarball");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    crate::_utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/pkg-from-tarball/package.json").exists());
 
     drop((root, mock_instance));
 }

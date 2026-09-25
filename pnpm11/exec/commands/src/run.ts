@@ -7,17 +7,18 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
-import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -183,11 +184,13 @@ export type RunOpts =
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
+  | 'extendNodePath'
   | 'extraBinPaths'
   | 'extraEnv'
   | 'nodeOptions'
   | 'nodeExperimentalPackageMap'
   | 'pnpmHomeDir'
+  | 'preferSymlinkedExecutables'
   | 'reporter'
   | 'scriptShell'
   | 'scriptsPrependNodePath'
@@ -245,6 +248,10 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (fallsBackToExec(opts, scriptName)) {
+        // exec must not repeat the dependency verification above.
+        return exec({ implicitlyFellbackFromRun: true, ...opts, verifyDepsBeforeRun: false }, params)
+      }
       return runRecursive(params, opts)
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -303,12 +310,15 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
 
+  const modulesDirFor = createProjectModulesDirResolver(opts)
+  const wdBinDir = binDirOf(dir, modulesDirFor(manifest.name))
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
+    wdBinDir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
+    extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: dir }, opts) },
     pkgRoot: dir,
-    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     silent: opts.reporter === 'silent',
@@ -459,12 +469,11 @@ export async function runScript (opts: {
   if (stages.length === 0) {
     await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
   } else {
-    await stages.reduce(async (previous, stage) => {
-      await previous
-      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
+    for (const stage of stages) {
+      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
         ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
         : opts.lifecycleOpts)
-    }, Promise.resolve())
+    }
   }
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await syncInjectedDeps({
@@ -500,6 +509,27 @@ function getRunScriptStages (
   if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
   if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
   return stages
+}
+
+/**
+ * Whether a recursive `pnpm <command>` shorthand hands the command to `exec`,
+ * as the single-project shorthand does when no selected project has a script
+ * by that name. `test` and `start` have defaults of their own when the script
+ * is missing, so they are never handed to `exec` as binaries.
+ */
+function fallsBackToExec (opts: RunOpts & { recursive: true }, scriptName: string): boolean {
+  return Boolean(opts.fallbackCommandUsed) &&
+    scriptName !== 'test' &&
+    scriptName !== 'start' &&
+    !opts.ifPresent &&
+    !opts.dryRun &&
+    !someSelectedProjectHasScript(opts.selectedProjectsGraph, scriptName)
+}
+
+function someSelectedProjectHasScript (selectedProjectsGraph: ProjectsGraph, scriptName: string): boolean {
+  return Object.values(selectedProjectsGraph).some(({ package: { manifest } }) =>
+    getSpecifiedScriptWithoutStartCommand(manifest.scripts ?? {}, scriptName).length > 0
+  )
 }
 
 function renderCommands (commands: string[][]): string {

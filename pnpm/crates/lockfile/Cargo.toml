@@ -37,5 +37,8 @@ pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 text-block-macros = { workspace = true }
 
+[target.'cfg(windows)'.dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
+
 [lints]
 workspace = true

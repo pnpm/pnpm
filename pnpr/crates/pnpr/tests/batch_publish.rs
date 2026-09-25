@@ -2,8 +2,7 @@
 //! publish endpoint `pnpm publish --batch` talks to. Static-mode (no
 //! upstream) to keep the tests hermetic.
 
-#[path = "common/npm.rs"]
-mod npm;
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},

@@ -8,6 +8,7 @@ import {
   type PackageSnapshots,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
+import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -85,6 +86,7 @@ export async function buildDependentsTree (
     importerInfoMap: Map<string, ImporterInfo>
     lockfile: LockfileObject
     nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
@@ -115,6 +117,10 @@ export async function buildDependentsTree (
     importers: opts.lockfile.importers,
     include,
     lockfileDir: opts.lockfileDir,
+    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(opts.lockfile, {
+      include,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    }),
   })
 
   const reverseMap = invertGraph(graph)

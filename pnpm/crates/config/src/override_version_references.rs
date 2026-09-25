@@ -38,13 +38,14 @@ pub(crate) fn resolve_version_references(
     {
         return Ok(());
     }
-    let root_manifest = match PackageManifest::from_path(root_dir.join("package.json")) {
-        Ok(manifest) => Some(manifest),
-        Err(PackageManifestError::NoImporterManifestFound(_)) => None,
-        Err(source) => {
-            return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
-        }
-    };
+    let root_manifest =
+        match PackageManifest::from_path(pnpm_package_manifest::project_manifest_path(root_dir)) {
+            Ok(manifest) => Some(manifest),
+            Err(PackageManifestError::NoImporterManifestFound(_)) => None,
+            Err(source) => {
+                return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
+            }
+        };
     let direct_dependencies: HashMap<&str, &str> = root_manifest
         .as_ref()
         .map(|manifest| manifest.dependencies(REFERENCEABLE_GROUPS).collect())

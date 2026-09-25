@@ -16,8 +16,10 @@ test = []
 [dependencies]
 derive_more = { workspace = true }
 dunce = { workspace = true }
+getrandom = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
 reflink-copy = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
@@ -30,7 +32,8 @@ libc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
-windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_UI_Shell"] }
+same-file = { workspace = true }
+windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_System_Console", "Win32_UI_Shell"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 windows-sys = { workspace = true, features = ["Win32_Security"] }

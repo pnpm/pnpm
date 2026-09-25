@@ -4,6 +4,7 @@ use super::{
     fixture_lockfile, lockfile_to_audit_request, parse_lockfile, path_info, prod_without_optional,
     snapshot, vulnerable_names,
 };
+use pnpm_lockfile::PeerEdgeOptions;
 use std::fmt::Write as _;
 
 #[test]
@@ -289,28 +290,28 @@ snapshots:
 
 #[test]
 fn build_audit_path_index_limits_paths_per_finding() {
-    let mut importers = String::new();
-    for i in 0..150 {
-        write!(
-            importers,
-            "
-  .{i}:
-    dependencies:
-      vuln:
-        specifier: '1.0.0'
-        version: '1.0.0'
-",
-        )
-        .unwrap();
-    }
+    let (dependencies, snapshots) = fan_out(150, "vuln", "1.0.0");
     let lockfile = parse_lockfile(&format!(
-        "
-lockfileVersion: '9.0'
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:{dependencies}\nsnapshots:{snapshots}\n  vuln@1.0.0: {{}}\n",
+    ));
 
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
+
+    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+}
+
+#[test]
+fn build_audit_path_index_records_a_path_from_every_importer_after_saturation() {
+    let (dependencies, snapshots) = fan_out(150, "vuln", "1.0.0");
+    let lockfile = parse_lockfile(&format!(
+        "lockfileVersion: '9.0'
 importers:
-{importers}
-snapshots:
-
+  packages/a:
+    dependencies:{dependencies}
+  packages/b:
+    dependencies:{dependencies}
+snapshots:{snapshots}
   vuln@1.0.0: {{}}
 ",
     ));
@@ -318,7 +319,16 @@ snapshots:
     let index =
         build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
 
-    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+    let paths = &path_info(&index, "vuln", "1.0.0").paths;
+    assert_eq!(paths.len(), MAX_PATHS_PER_FINDING + 1);
+    for importer in ["packages__a>", "packages__b>"] {
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.starts_with(importer)),
+            "no path from {importer}; recorded paths: {paths:?}",
+        );
+    }
 }
 
 #[test]
@@ -365,7 +375,12 @@ snapshots:
         &lockfile,
         None,
         &vulnerable_names(&["shared-pkg"]),
-        Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
+        Include {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+            peer_edges: PeerEdgeOptions::default(),
+        },
     );
     assert!(path_info(&prod_only, "shared-pkg", "1.0.0").optional);
 }
@@ -659,19 +674,13 @@ fn build_audit_path_index_prunes_layered_diamonds_after_finding_is_saturated() {
 
 #[test]
 fn build_audit_path_index_keeps_other_versions_and_classifications_after_saturation() {
-    let mut importers = String::new();
-    for i in 0..150 {
-        write!(
-            importers,
-            "\n  dev-{i:03}:\n    devDependencies:\n      vuln:\n        specifier: '1.0.0'\n        version: '1.0.0(peer@1.0.0)'\n",
-        )
-        .unwrap();
-    }
+    let (dev_dependencies, dev_snapshots) = fan_out(150, "vuln", "1.0.0(peer@1.0.0)");
     let lockfile = parse_lockfile(&format!(
         "
 lockfileVersion: '9.0'
 importers:
-{importers}
+  dev:
+    devDependencies:{dev_dependencies}
   z-prod:
     dependencies:
       vuln:
@@ -680,7 +689,7 @@ importers:
       parent:
         specifier: '1.0.0'
         version: '1.0.0'
-snapshots:
+snapshots:{dev_snapshots}
   vuln@1.0.0(peer@1.0.0): {{}}
   vuln@1.0.0(peer@2.0.0):
     dependencies:
@@ -699,9 +708,12 @@ snapshots:
         all_dependencies(),
     );
     let info = path_info(&index, "vuln", "1.0.0");
-    assert_eq!(info.paths.len(), MAX_PATHS_PER_FINDING);
-    dbg!(info.dev);
-    assert!(!info.dev);
+    assert!(
+        info.paths.contains(&"z-prod>vuln".to_string()),
+        "paths do not contain z-prod>vuln; recorded paths: {:?}",
+        info.paths,
+    );
+    assert!(!info.dev, "expected non-dev finding");
     assert_eq!(path_info(&index, "vuln", "2.0.0").paths, vec!["z-prod>parent>vuln"]);
     assert_eq!(path_info(&index, "nested", "1.0.0").paths, vec!["z-prod>vuln>nested"]);
 }
@@ -799,13 +811,10 @@ fn build_audit_path_index_handles_sequential_saturation_of_many_versions() {
 
 #[test]
 fn build_audit_path_index_prunes_saturated_findings_reached_through_cycles() {
-    let mut importers = String::new();
-    for i in 0..150 {
-        write!(importers, "\n  project-{i}:\n    dependencies:\n      a: {{specifier: '1.0.0', version: '1.0.0'}}\n").unwrap();
-    }
+    let (dependencies, snapshots) = fan_out(150, "a", "1.0.0");
     let lockfile = parse_lockfile(&format!(
-        "lockfileVersion: '9.0'\nimporters:\n{importers}
-snapshots:
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:{dependencies}
+snapshots:{snapshots}
   a@1.0.0:
     dependencies:
       b: '1.0.0'
@@ -824,4 +833,21 @@ snapshots:
     );
     assert_eq!(path_info(&index, "a", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
     assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
+}
+
+/// Importer dependencies on `count` parents that each depend on `child`, and
+/// the parents' snapshots, as lockfile YAML fragments.
+fn fan_out(count: usize, child: &str, child_version: &str) -> (String, String) {
+    let mut dependencies = String::new();
+    let mut snapshots = String::new();
+    for i in 0..count {
+        write!(dependencies, "\n      parent-{i}: {{specifier: '1.0.0', version: '1.0.0'}}")
+            .unwrap();
+        write!(
+            snapshots,
+            "\n  parent-{i}@1.0.0:\n    dependencies:\n      {child}: '{child_version}'",
+        )
+        .unwrap();
+    }
+    (dependencies, snapshots)
 }

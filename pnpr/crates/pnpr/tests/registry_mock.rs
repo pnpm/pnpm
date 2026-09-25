@@ -5,10 +5,7 @@
 //! assert that pnpr rewrites tarball URLs and abbreviates that
 //! format correctly without any upstream proxy.
 
-// `#[path]` rather than the `tests/common/mod.rs` layout, which the
-// Perfectionist dylint forbids.
-#[path = "common/storage.rs"]
-mod common;
+use crate::storage as common;
 
 use axum::{
     body::{Body, to_bytes},

@@ -1,3 +1,5 @@
+mod auto_dedupe;
+
 mod integrity;
 
 mod builds;
@@ -11,6 +13,8 @@ mod catalogs;
 mod resolution;
 
 mod lockfile;
+
+mod modules_dir;
 
 mod workspace;
 

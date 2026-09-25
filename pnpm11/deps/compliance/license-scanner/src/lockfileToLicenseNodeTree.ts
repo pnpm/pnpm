@@ -1,4 +1,5 @@
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { removeSuffix } from '@pnpm/deps.path'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -40,6 +41,7 @@ export interface LicenseExtractOptions {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
+  hoistedLocations?: Record<string, string[]>
   dir: string
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
@@ -91,6 +93,7 @@ export async function lockfileToLicenseNode (
           virtualStoreDirMaxLength: options.virtualStoreDirMaxLength,
           dir: options.dir,
           modulesDir: options.modulesDir ?? 'node_modules',
+          hoistedLocations: options.hoistedLocations,
           supportedArchitectures: options.supportedArchitectures,
         }
       )
@@ -137,14 +140,16 @@ export async function lockfileToLicenseNodeTree (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]
-  } & Omit<LicenseExtractOptions, 'storeIndex'>
+    resolvePeersFromWorkspaceRoot?: boolean
+  } & Omit<LicenseExtractOptions, 'storeIndex' | 'depTypes'>
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
     opts.includedImporterIds ?? Object.keys(lockfile.importers) as ProjectId[],
-    { include: opts?.include }
+    { include: opts.include, resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot }
   )
-  const depTypes = detectDepTypes(lockfile)
+  const depTypes = detectDepTypes(lockfile, opts)
+  const hoistedLocations = opts.hoistedLocations && withCollapsedVariants(opts.hoistedLocations)
   const storeIndex = new StoreIndex(opts.storeDir)
   const dependencies = Object.fromEntries(
     await Promise.all(
@@ -155,6 +160,7 @@ export async function lockfileToLicenseNodeTree (
           virtualStoreDir: opts.virtualStoreDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
           modulesDir: opts.modulesDir,
+          hoistedLocations,
           dir: opts.dir,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
@@ -182,6 +188,20 @@ export async function lockfileToLicenseNodeTree (
   }
 
   return licenseNodeTree
+}
+
+/**
+ * The hoisted linker collapses the peer and patch variants of one package
+ * version onto the first dependency path it meets, so `hoistedLocations`
+ * records only that one. Key its locations by the path without the peer
+ * and patch suffixes too, for the variants it left out.
+ */
+function withCollapsedVariants (hoistedLocations: Record<string, string[]>): Record<string, string[]> {
+  const result = { ...hoistedLocations }
+  for (const [depPath, locations] of Object.entries(hoistedLocations)) {
+    result[removeSuffix(depPath)] ??= locations
+  }
+  return result
 }
 
 function toRequires (licenseNodes: Record<string, LicenseNode>): Record<string, string> {

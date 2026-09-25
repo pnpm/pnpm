@@ -1,14 +1,26 @@
 use super::{
-    DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError, Path,
-    PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    BlankLines, DEFAULT_INDENT, InitOptions, NamedTempFile, PackageManifest, PackageManifestError,
+    Path, PathBuf, Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
 };
+
+const DEPENDENCY_FIELDS: [&str; 4] =
+    ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+
+/// The dependency fields `manifest` declares as empty objects. A save keeps
+/// these in place and only drops a field pnpm itself emptied.
+pub(super) fn empty_dependency_fields(manifest: &Value) -> Vec<&'static str> {
+    DEPENDENCY_FIELDS
+        .into_iter()
+        .filter(|field| matches!(manifest.get(field), Some(Value::Object(deps)) if deps.is_empty()))
+        .collect()
+}
 
 /// pnpm's on-write manifest normalization: within each dependency field,
 /// sort the entries by name, and drop the field entirely when it holds no
-/// entries.
-pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
+/// entries, unless `keep_empty` lists it.
+pub(super) fn normalize_dependency_fields(manifest: &mut Value, keep_empty: &[&str]) {
     let Some(manifest) = manifest.as_object_mut() else { return };
-    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+    for field in DEPENDENCY_FIELDS {
         let is_empty_object = match manifest.get_mut(field) {
             Some(Value::Object(deps)) => {
                 deps.sort_keys();
@@ -16,7 +28,7 @@ pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
             }
             _ => continue,
         };
-        if is_empty_object {
+        if is_empty_object && !keep_empty.contains(&field) {
             manifest.remove(field);
         }
     }
@@ -98,6 +110,43 @@ fn strip_utf8_bom(contents: &str) -> &str {
     contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
+pub(super) fn parse_project_manifest(
+    path: &Path,
+    contents: &str,
+) -> Result<Value, PackageManifestError> {
+    let contents = strip_utf8_bom(contents);
+    let value = if is_yaml_path(path) {
+        pnpm_yaml_document_sync::parse(contents)
+            .map_err(|source| PackageManifestError::ParseYaml {
+                path: path.to_path_buf(),
+                source,
+            })?
+    } else if is_json5_path(path) {
+        crate::json5::parse(contents)
+            .map_err(|source| PackageManifestError::ParseJson5 {
+                path: path.to_path_buf(),
+                source,
+            })?
+    } else {
+        parse_manifest(contents)
+            .map_err(|source| PackageManifestError::Parse { path: path.to_path_buf(), source })?
+    };
+    if is_yaml_path(path) && value.is_null() {
+        return Ok(serde_json::json!({}));
+    }
+    if !value.is_object() {
+        return Err(if is_yaml_path(path) {
+            PackageManifestError::InvalidAttribute(format!(
+                "{}: the manifest root must be an object",
+                path.display(),
+            ))
+        } else {
+            PackageManifestError::InvalidRoot { path: path.to_path_buf() }
+        });
+    }
+    Ok(value)
+}
+
 impl PackageManifest {
     pub(super) fn write_to_file(
         path: &Path,
@@ -158,32 +207,27 @@ impl PackageManifest {
     pub(super) fn read_from_file(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
-        let mut value: Value = if is_yaml_path(&path) {
-            pnpm_yaml_document_sync::parse(contents)
-                .map_err(|source| PackageManifestError::ParseYaml { path: path.clone(), source })?
-        } else {
-            parse_manifest(contents)
-                .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?
-        };
-        if is_yaml_path(&path) && value.is_null() {
-            value = serde_json::json!({});
-        }
-        if is_yaml_path(&path) && !value.is_object() {
-            return Err(PackageManifestError::InvalidAttribute(format!(
-                "{}: the manifest root must be an object",
-                path.display(),
-            )));
-        }
+        let mut value = parse_project_manifest(&path, contents)?;
+        let empty_dependency_fields = empty_dependency_fields(&value);
         let mut on_disk = value.clone();
-        normalize_dependency_fields(&mut on_disk);
+        normalize_dependency_fields(&mut on_disk, &empty_dependency_fields);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
+        let crlf = file_contents.contains("\r\n");
+        let blank_lines = if is_yaml_path(&path) || is_json5_path(&path) {
+            BlankLines::default()
+        } else {
+            BlankLines::detect(contents)
+        };
         Ok(PackageManifest {
             path,
             value,
             insert_final_newline: contents.ends_with('\n'),
+            crlf,
             indent: detect_indent(contents).to_string(),
+            blank_lines,
             on_disk: Some(on_disk),
+            empty_dependency_fields,
         })
     }
 
@@ -220,7 +264,36 @@ fn is_yaml_path(path: &Path) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("package.yaml"))
 }
 
+fn is_json5_path(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.eq_ignore_ascii_case("package.json5"))
+}
+
 impl PackageManifest {
+    pub(super) fn is_json5(&self) -> bool {
+        is_json5_path(&self.path)
+    }
+
+    pub(super) fn serialize_json5(&self, value: &Value) -> Result<String, PackageManifestError> {
+        let serialized = serialize_with_indent(value, &self.indent)?;
+        let text = match fs::read_to_string(&self.path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),
+            Err(source) => {
+                return Err(PackageManifestError::Read { path: self.path.clone(), source });
+            }
+        };
+        parse_project_manifest(&self.path, &text)?;
+        let restored = crate::json5::restore_comments(strip_utf8_bom(&text), &serialized);
+        if parse_project_manifest(&self.path, &restored)? != *value {
+            return Err(PackageManifestError::InvalidAttribute(format!(
+                "{}: preserving JSON5 comments changed the manifest value",
+                self.path.display(),
+            )));
+        }
+        Ok(restored)
+    }
+
     pub(super) fn is_yaml(&self) -> bool {
         is_yaml_path(&self.path)
     }

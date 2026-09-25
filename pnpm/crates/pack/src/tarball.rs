@@ -13,7 +13,11 @@
 //! [`FsReadFile`] (bounded by the largest single file), one `readFileSync`
 //! per entry.
 
-use crate::{capabilities::FsReadFile, collation::en_collator, manifest_entry::is_manifest_entry};
+use crate::{
+    capabilities::{FsIsExecutable, FsReadFile},
+    collation::en_collator,
+    manifest_entry::is_manifest_entry,
+};
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use std::{
@@ -39,8 +43,8 @@ const PACKED_MANIFEST_NAME: &str = "package/package.json";
 /// the order [`compression_ordered_entries`] returns. Manifest entries
 /// carry `manifest_json` instead of their on-disk bytes and are written
 /// under [`PACKED_MANIFEST_NAME`]; entries whose source path is in `bins`
-/// are marked executable.
-pub fn build_tarball<Sys: FsReadFile>(
+/// or whose source file on disk is executable are marked executable.
+pub fn build_tarball<Sys: FsReadFile + FsIsExecutable>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
     manifest_json: &[u8],
@@ -59,20 +63,49 @@ pub fn build_tarball<Sys: FsReadFile>(
 
     let mut builder = tar::Builder::new(GzEncoder::new(writer, compression));
     for entry in compression_ordered_entries(files_map, injected) {
-        let file_data;
-        let (data, mode) = match entry.source {
-            EntrySource::Manifest(path) => (manifest_json, bin_mode(&bin_set, path)),
-            EntrySource::Injected(data) => (data, REGULAR_MODE),
-            EntrySource::File(path) => {
-                file_data = Sys::read_file(path)?;
-                (file_data.as_slice(), bin_mode(&bin_set, path))
-            }
-        };
-        append_entry(&mut builder, entry.name, data, mode)?;
+        append_tar_entry::<Sys, _>(&mut builder, &entry, manifest_json, &bin_set)?;
     }
 
     builder.into_inner()?.finish()?;
     Ok(())
+}
+
+fn append_tar_entry<Sys: FsReadFile + FsIsExecutable, Writer: Write>(
+    builder: &mut tar::Builder<Writer>,
+    entry: &QueuedEntry<'_>,
+    manifest_json: &[u8],
+    bin_set: &HashSet<&Path>,
+) -> io::Result<()> {
+    match entry.source {
+        EntrySource::Manifest(path) => {
+            append_entry(builder, entry.name, manifest_json, bin_mode::<Sys>(bin_set, path)?)
+        }
+        EntrySource::Injected(data) => append_entry(builder, entry.name, data, REGULAR_MODE),
+        EntrySource::File(path) => {
+            if is_symlink(path) {
+                let target = read_symlink_target(path)?;
+                return append_symlink(builder, entry.name, &target);
+            }
+            let file_data = Sys::read_file(path)?;
+            let mode = bin_mode::<Sys>(bin_set, path)?;
+            append_entry(builder, entry.name, &file_data, mode)
+        }
+    }
+}
+
+fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+}
+
+fn read_symlink_target(path: &Path) -> io::Result<PathBuf> {
+    let target = std::fs::read_link(path)?;
+    if target.is_absolute()
+        && let Some(parent) = path.parent()
+        && let Some(rel) = pathdiff::diff_paths(&target, parent)
+    {
+        return Ok(rel);
+    }
+    Ok(target)
 }
 
 /// Every entry the archive will carry, in npm-packlist's compression
@@ -155,8 +188,12 @@ pub(super) fn extname(base: &str) -> &str {
     }
 }
 
-fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> u32 {
-    if bin_set.contains(source) { EXECUTABLE_MODE } else { REGULAR_MODE }
+fn bin_mode<Sys: FsIsExecutable>(bin_set: &HashSet<&Path>, source: &Path) -> io::Result<u32> {
+    if bin_set.contains(source) || Sys::is_executable(source)? {
+        Ok(EXECUTABLE_MODE)
+    } else {
+        Ok(REGULAR_MODE)
+    }
 }
 
 fn append_entry<Writer: Write>(
@@ -175,4 +212,17 @@ fn append_entry<Writer: Write>(
     header.set_mtime(REPRODUCIBLE_MTIME);
     // `append_data` sets the entry path and the header checksum.
     builder.append_data(&mut header, entry_name, data)
+}
+
+fn append_symlink<Writer: Write>(
+    builder: &mut tar::Builder<Writer>,
+    entry_name: &str,
+    target: &Path,
+) -> io::Result<()> {
+    let mut header = tar::Header::new_ustar();
+    header.set_entry_type(tar::EntryType::Symlink);
+    header.set_mode(0o777);
+    header.set_mtime(REPRODUCIBLE_MTIME);
+    header.set_size(0);
+    builder.append_link(&mut header, entry_name, target)
 }

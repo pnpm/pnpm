@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -7,6 +9,56 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { execPnpm } from '../utils/index.js'
+
+test('installing a bzip2 compressed tarball from URL', async () => {
+  const project = prepareEmpty()
+  const bz2Fixture = path.resolve(import.meta.dirname, '../../../store/cafs/test/fixtures/package.tar.bz2')
+  const bz2Data = fs.readFileSync(bz2Fixture)
+
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/x-bzip2' })
+    res.end(bz2Data)
+  })
+  await new Promise<void>((resolve) => server.listen(0, resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') {
+    server.close()
+    throw new Error('Server address is invalid')
+  }
+  const url = `http://127.0.0.1:${address.port}/package.tar.bz2`
+
+  try {
+    await execPnpm(['add', url])
+    expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
+
+    const lockfile = project.readLockfile()
+    expect(lockfile.importers['.'].dependencies?.['test-bzip2-pkg']).toEqual({
+      specifier: url,
+      version: url,
+    })
+
+    rimrafSync('node_modules')
+    await execPnpm(['install', '--frozen-lockfile'])
+    expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('installing a bzip2 compressed tarball from local file', async () => {
+  const project = prepareEmpty()
+  const bz2Fixture = path.resolve(import.meta.dirname, '../../../store/cafs/test/fixtures/package.tar.bz2')
+
+  await execPnpm(['add', bz2Fixture])
+  expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['test-bzip2-pkg']).toBeDefined()
+
+  rimrafSync('node_modules')
+  await execPnpm(['install', '--frozen-lockfile'])
+  expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
+})
 
 test.each(['3.1.0', '1.0.0'])('adding a new unnamed tarball URL replaces the existing dependency with version %s', async (newVersion) => {
   const project = prepareEmpty()

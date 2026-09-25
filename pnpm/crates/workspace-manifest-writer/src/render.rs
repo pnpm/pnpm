@@ -9,6 +9,15 @@
 
 use std::cmp::Ordering;
 
+use serde_saphyr::granit_parser::{ScalarStyle, Scanner, StrInput, Token, TokenType};
+
+/// The quoting style for string scalars that require quotes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum QuoteStyle {
+    Single,
+    Double,
+}
+
 /// How a map's existing keys were laid out, used to place new keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Layout {
@@ -78,6 +87,26 @@ pub(crate) fn target_order(existing: &[String], new_keys: &[String]) -> Vec<Stri
     merged
 }
 
+/// Detect the dominant quote style of string scalars in a YAML document.
+///
+/// If double quotes are dominant, returns [`QuoteStyle::Double`]. If single
+/// quotes are dominant, or if neither is used, or if counts are equal,
+/// falls back to [`QuoteStyle::Single`].
+pub(crate) fn detect_quote_style(text: &str) -> QuoteStyle {
+    let mut single_count = 0usize;
+    let mut double_count = 0usize;
+
+    for Token(_span, token) in Scanner::new(StrInput::new(text)) {
+        match token {
+            TokenType::Scalar(ScalarStyle::SingleQuoted, _) => single_count += 1,
+            TokenType::Scalar(ScalarStyle::DoubleQuoted, _) => double_count += 1,
+            _ => {}
+        }
+    }
+
+    if double_count > single_count { QuoteStyle::Double } else { QuoteStyle::Single }
+}
+
 /// Render a scalar string value — plain when safe, single-quoted otherwise —
 /// by delegating to [`yaml_serde`].
 pub(crate) fn render_value(value: &str) -> String {
@@ -85,4 +114,24 @@ pub(crate) fn render_value(value: &str) -> String {
         .expect("serializing a string scalar to YAML never fails")
         .trim_end()
         .to_string()
+}
+
+/// Render a scalar string value using the specified [`QuoteStyle`].
+///
+/// Plain-safe values stay unquoted. Values that require quoting use double
+/// quotes when `quote_style` is [`QuoteStyle::Double`], and single quotes
+/// when [`QuoteStyle::Single`].
+pub(crate) fn render_value_with_quotes(value: &str, quote_style: QuoteStyle) -> String {
+    let rendered = render_value(value);
+    match quote_style {
+        QuoteStyle::Single => rendered,
+        QuoteStyle::Double => {
+            if rendered.starts_with('\'') && rendered.ends_with('\'') && rendered.len() >= 2 {
+                serde_json::to_string(value)
+                    .expect("serializing a string scalar to JSON never fails")
+            } else {
+                rendered
+            }
+        }
+    }
 }

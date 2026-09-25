@@ -357,3 +357,292 @@ fn custom_resolver_without_a_manifest_installs_the_package_with_its_dependencies
 
     drop((root, mock_instance)); // cleanup
 }
+
+#[test]
+fn custom_resolver_local_tarball_without_manifest_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-local", "version": "1.0.0",
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    });
+    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    fs::create_dir_all(workspace.join("vendor")).unwrap();
+    fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-local":"1.0.0"}}"#)
+        .unwrap();
+    let resolution = serde_json::json!({
+        "tarball": "file:./vendor/package.tgz",
+        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{ resolvers: [{{
+  canResolve: wanted => wanted.alias === 'custom-local',
+  resolve: () => ({{ id: 'custom-local@1.0.0', resolution: {resolution} }}),
+}}] }};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_at(&workspace).with_args(["exec", "node", "-e",
+        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-local/package.json')] })).version)"])
+        .assert().success().stdout("100.1.0\n");
+    drop((root, mock_instance));
+}
+
+/// A custom resolution records no location, so only the fetcher that claims it
+/// can reach the archive the package's own dependencies are declared in.
+/// Regression test for pnpm/pnpm#15552.
+#[test]
+fn custom_typed_resolver_without_manifest_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-typed", "version": "1.0.0",
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    });
+    let body = pnpm_testing_utils::fixtures::tarball_with_manifest(&manifest);
+    fs::create_dir_all(workspace.join("vendor")).unwrap();
+    fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-typed":"1.0.0"}}"#)
+        .unwrap();
+    let integrity = pnpm_testing_utils::fixtures::sha512_integrity(&body);
+    let resolution = serde_json::json!({
+        "type": "custom:vendored", "name": "custom-typed", "version": "1.0.0",
+        "integrity": integrity,
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === 'custom-typed',
+    resolve: () => ({{ id: 'custom-typed@1.0.0', resolution: {resolution} }}),
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => {{
+      // hook-local scratch, not a lockfile field
+      resolution._localCache = process.cwd() + '/.cache/' + id;
+      return resolution.type === 'custom:vendored';
+    }},
+    fetch: (cafs, resolution, opts, fetchers) => fetchers.localTarball(
+      cafs,
+      {{ tarball: 'file:./vendor/package.tgz', integrity: '{integrity}' }},
+      opts,
+    ),
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let dependency_version = |workspace: &Path| {
+        pacquet_at(workspace).with_args(["exec", "node", "-e",
+            "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-typed/package.json')] })).version)"])
+            .assert().success().stdout("100.1.0\n");
+    };
+    dependency_version(&workspace);
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    // The resolution stays the resolver's, so the lockfile keeps naming no
+    // location and the same fetcher claims it on the next install. A field the
+    // fetcher's `canFetch` left behind is the fetcher's, not the resolver's,
+    // and committing it would make the lockfile machine-dependent.
+    assert!(
+        lockfile.contains("type: custom:vendored") && !lockfile.contains("tarball:"),
+        "the custom resolution is recorded verbatim: {lockfile}",
+    );
+    assert!(
+        !lockfile.contains("_localCache"),
+        "no scratch field from canFetch reaches the lockfile: {lockfile}",
+    );
+
+    // A frozen install has only the lockfile to work from, so an empty snapshot
+    // recorded above would silently install the package without its dependency.
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
+    drop((root, mock_instance));
+}
+
+/// A fetcher that hands a custom resolution back to the registry names only
+/// the integrity. The archive to read the package's dependencies from is then
+/// the registry tarball of the package the resolver's id names.
+#[test]
+fn custom_resolution_delegated_to_the_registry_installs_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry_url = mock_instance.url();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === '@pnpm.e2e/pkg-with-1-dep',
+    async resolve () {{
+      const response = await fetch('{registry_url}@pnpm.e2e%2Fpkg-with-1-dep');
+      const dist = (await response.json()).versions['100.0.0'].dist;
+      return {{
+        id: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+        resolution: {{ type: 'custom:registry', integrity: dist.integrity }},
+      }};
+    }},
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => resolution.type === 'custom:registry',
+    fetch: (cafs, resolution) => ({{ delegate: {{ integrity: resolution.integrity }} }}),
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let dependency_version = |workspace: &Path| {
+        pacquet_at(workspace).with_args(["exec", "node", "-e",
+            "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('@pnpm.e2e/pkg-with-1-dep/package.json')] })).version)"])
+            .assert().success().stdout("100.1.0\n");
+    };
+    dependency_version(&workspace);
+
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
+    // `--offline` refuses every tarball download, so a fresh resolve can only
+    // read the delegated archive from the store. The resolver's own metadata
+    // request is the hook's, which the setting does not govern.
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
+    dependency_version(&workspace);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn custom_resolver_git_subdirectory_installs_its_manifest_and_dependencies() {
+    assert_git_subdirectory_install(
+        "return { delegate: { ...resolution, tarball: 'file:./repo.tgz' } };",
+    );
+}
+
+#[test]
+fn custom_resolver_git_subdirectory_installs_custom_fetched_files() {
+    assert_git_subdirectory_install(
+        "return fetchers.localTarball(cafs, { ...resolution, tarball: 'file:./repo.tgz' }, opts);",
+    );
+}
+
+fn assert_git_subdirectory_install(fetch_body: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "custom-git", "version": "1.0.0", "files": ["index.js"],
+        "dependencies": {"@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0"},
+    })
+    .to_string();
+    let body = pnpm_testing_utils::fixtures::tarball_entries(&[
+        ("repo/package.json", br#"{"name":"archive-root","version":"1.0.0"}"#),
+        ("repo/packages/foo/package.json", manifest.as_bytes()),
+        ("repo/packages/foo/index.js", b"module.exports = 42;"),
+        ("repo/packages/foo/excluded.txt", b"must not be installed"),
+    ]);
+    fs::write(workspace.join("repo.tgz"), &body).unwrap();
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-git":"1.0.0"}}"#)
+        .unwrap();
+    let resolution = serde_json::json!({
+        "tarball": "https://codeload.github.com/example/repo/tar.gz/0123456789abcdef0123456789abcdef01234567",
+        "integrity": pnpm_testing_utils::fixtures::sha512_integrity(&body),
+        "path": "/packages/foo",
+        "gitHosted": true,
+    });
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            r"
+module.exports = {{
+  resolvers: [{{
+    canResolve: wanted => wanted.alias === 'custom-git',
+    resolve: () => ({{ id: 'custom-git@1.0.0', resolution: {resolution} }}),
+  }}],
+  fetchers: [{{
+    canFetch: (id, resolution) => resolution.gitHosted === true,
+    async fetch(cafs, resolution, opts, fetchers) {{ {fetch_body} }},
+  }}],
+}};
+",
+        ),
+    )
+    .unwrap();
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let installed: serde_json::Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/custom-git/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(installed["name"], "custom-git");
+    assert!(workspace.join("node_modules/custom-git/index.js").is_file());
+    assert!(!workspace.join("node_modules/custom-git/excluded.txt").exists());
+    pacquet_at(&workspace).with_args(["exec", "node", "-e",
+        "console.log(require(require.resolve('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json', { paths: [require.resolve('custom-git/package.json')] })).version)"])
+        .assert().success().stdout("100.1.0\n");
+    drop((root, mock_instance));
+}

@@ -1,6 +1,6 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, output::STREAMED_OUTPUT_CHUNK_BYTES,
-    run_postinstall_hooks,
+    read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -107,6 +107,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/x@1.0.0",
         pkg_root,
@@ -228,6 +229,7 @@ fn lifecycle_events_carry_optional_flag() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/opt@1.0.0",
         pkg_root,
@@ -308,6 +310,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/y@1.0.0",
         pkg_root,
@@ -362,6 +365,7 @@ fn lifecycle_runs_under_silent_reporter() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/z@1.0.0",
         pkg_root,
@@ -398,6 +402,7 @@ fn missing_manifest_returns_false() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/missing@1.0.0",
         pkg_root,
@@ -490,6 +495,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/stamp-target@9.9.9",
         pkg_root,
@@ -546,6 +552,7 @@ fn malformed_manifest_propagates_error() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: "/malformed@1.0.0",
         pkg_root,
@@ -566,6 +573,44 @@ fn malformed_manifest_propagates_error() {
         panic!("expected ReadManifest(Parse), got {err:?}")
     };
     assert_eq!(path, &pkg_root.join("package.json"));
+}
+
+#[test]
+fn lifecycle_manifest_prefers_package_json_over_package_yaml() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(
+        pkg_root.join("package.json"),
+        serde_json::json!({ "scripts": { "pnpm:devPreinstall": "from-json" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(pkg_root.join("package.yaml"), "scripts:\n  pnpm:devPreinstall: from-yaml\n")
+        .expect("write package.yaml");
+
+    let manifest = read_lifecycle_manifest(pkg_root)
+        .expect("read lifecycle manifest")
+        .expect("manifest exists");
+    assert_eq!(manifest["scripts"]["pnpm:devPreinstall"], "from-json");
+}
+
+#[test]
+fn malformed_package_yaml_reports_the_selected_manifest() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let package_yaml = pkg_root.join("package.yaml");
+    fs::write(&package_yaml, "scripts:\n  [not valid yaml\n")
+        .expect("write malformed package.yaml");
+
+    let err = read_lifecycle_manifest(pkg_root).expect_err("malformed YAML must fail");
+    let LifecycleScriptError::ReadManifest {
+        path: error_path,
+        source: PackageManifestError::ParseYaml { path, .. },
+    } = &err
+    else {
+        panic!("expected ReadManifest(ParseYaml), got {err:?}")
+    };
+    assert_eq!(error_path, &package_yaml.display().to_string());
+    assert_eq!(path, &package_yaml);
 }
 
 /// The emulator path pumps output through its own line sink rather than
@@ -613,6 +658,7 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
             prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: true,
+            wd_bin_dir: None,
         },
         dep_path: "/emulated@1.0.0",
         pkg_root,
@@ -677,4 +723,76 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
             .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "only Windows bounds a working directory")]
+fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
+    let root = tempdir().expect("create temp dir");
+    let mut pkg_root = root
+        .path()
+        .join("workspace")
+        .join("..")
+        .join("v11")
+        .join("links")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example")
+        .join("1.0.0")
+        .join("18ee99614ef3696a0b10d1d9893d9ec41c393462eec96e154981c3d9cca0c268")
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example");
+    while native_path_len(&pkg_root) <= 260 {
+        pkg_root = pkg_root.join("p");
+    }
+    fs::create_dir_all(&pkg_root).expect("create long package root");
+    let manifest = serde_json::json!({
+        "name": "emulated-long-path",
+        "version": "1.0.0",
+        "scripts": {
+            "postinstall": r#"node -e "require('fs').writeFileSync('built.txt', 'ok')""#,
+        },
+    });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths = Vec::new();
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: &pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: true,
+            wd_bin_dir: None,
+        },
+        dep_path: "/emulated-long-path@1.0.0",
+        pkg_root: &pkg_root,
+        root_modules_dir: &pkg_root,
+        unsafe_perm: true,
+        optional: false,
+    };
+
+    assert!(run_postinstall_hooks::<SilentReporter>(&opts).expect("run postinstall"));
+    assert_eq!(fs::read_to_string(pkg_root.join("built.txt")).expect("read artifact"), "ok");
+}
+
+fn native_path_len(path: &std::path::Path) -> usize {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        path.as_os_str().encode_wide().count()
+    }
+    #[cfg(not(windows))]
+    {
+        path.as_os_str().len()
+    }
 }

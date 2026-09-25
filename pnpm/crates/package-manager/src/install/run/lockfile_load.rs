@@ -93,7 +93,7 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
         install.context.config,
-        workspace.dirs.workspace_dir.as_deref(),
+        workspace,
         selection,
         (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
@@ -122,7 +122,7 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
         needs_early_host_detection(install.context.config, mode.resolve_only, wanted.lockfile)
             .then(|| {
                 pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
-                    install.context.config.engine_strict,
+                    install.context.config.effective_engine_strict(),
                     mode.effective_node_version.clone(),
                     owned.projects.supported_architectures.clone(),
                 )
@@ -235,7 +235,7 @@ pub(super) fn needs_early_host_detection(
     resolve_only: bool,
     lockfile: Option<&Lockfile>,
 ) -> bool {
-    !config.force
+    !config.installs_incompatible_packages()
         && !resolve_only
         && lockfile.is_some_and(|lockfile| match (&lockfile.snapshots, &lockfile.packages) {
             (Some(snapshots), Some(packages)) if !snapshots.is_empty() => {

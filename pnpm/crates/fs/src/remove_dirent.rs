@@ -1,3 +1,4 @@
+use crate::retry::retry_transient_removal_locks;
 use std::{fs, io, path::Path};
 
 /// Remove whatever occupies `path` without following links: a regular
@@ -14,10 +15,15 @@ use std::{fs, io, path::Path};
 /// on directory-shaped entries with `ERROR_ACCESS_DENIED` (os error 5);
 /// they need the `RemoveDirectoryW` that [`crate::remove_symlink_dir`]
 /// issues.
+///
+/// On Windows, a directory tree or file removal waits out a file that an
+/// editor or indexer holds open below `path` for up to a minute, and a
+/// program running from below `path` for a few seconds, instead of failing
+/// at once. `retry_transient_removal_locks` holds the budgets.
 pub fn remove_dirent(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.is_dir() {
-        return fs::remove_dir_all(path);
+        return remove_with_retry(path, fs::remove_dir_all);
     }
     #[cfg(windows)]
     {
@@ -27,7 +33,19 @@ pub fn remove_dirent(path: &Path) -> io::Result<()> {
             return crate::remove_symlink_dir(path);
         }
     }
-    fs::remove_file(path)
+    remove_with_retry(path, fs::remove_file)
+}
+
+fn remove_with_retry<'path>(
+    path: &'path Path,
+    remove: impl Fn(&'path Path) -> io::Result<()>,
+) -> io::Result<()> {
+    retry_transient_removal_locks(|| {
+        let result = remove(path);
+        #[cfg(all(windows, feature = "test"))]
+        crate::test_support::notify_attempt(path, &result);
+        result
+    })
 }
 
 #[cfg(test)]

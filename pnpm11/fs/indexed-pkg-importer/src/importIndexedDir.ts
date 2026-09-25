@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry } from '@pnpm/fs.graceful-fs'
+import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry, withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -73,7 +73,7 @@ export function importIndexedDir (
   // handling (EEXIST dedup, ENOENT sanitized-filename retry, etc.) and
   // atomically swaps in a complete directory.
   // keepModulesDir needs the staging path to preserve the existing node_modules.
-  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames)) {
+  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, symlinkDirs(opts, filenames, { writtenDir: newDir, finalDir: newDir }))) {
     return
   }
   // Staging path: create in temp dir, then atomically rename.
@@ -82,7 +82,12 @@ export function importIndexedDir (
   const stage = pathTemp(newDir)
   try {
     makeEmptyDirSync(stage, { recursive: true })
-    tryImportIndexedDir({ importFile: importer.importFile, importFileAtomic: importer.importFile }, stage, filenames)
+    tryImportIndexedDir(
+      { importFile: importer.importFile, importFileAtomic: importer.importFile },
+      stage,
+      filenames,
+      symlinkDirs(opts, filenames, { writtenDir: stage, finalDir: newDir })
+    )
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
       moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
@@ -95,7 +100,11 @@ export function importIndexedDir (
     throw err
   }
   try {
-    renameOverwriteSync(stage, newDir)
+    // rename-overwrite retries Windows lock errors (EPERM, EBUSY) but not the
+    // EACCES that the same locks produce on a Windows drive mounted into WSL.
+    withFileLockRetry(() => {
+      renameOverwriteSync(stage, newDir)
+    })
   } catch (renameErr: unknown) {
     try {
       rimrafSync(stage)
@@ -295,7 +304,8 @@ function retryWithFixedFileMap (err: unknown, dirImport: IndexedDirImport): bool
 function tryExclusiveImport (
   importer: Importer,
   newDir: string,
-  filenames: Map<string, string>
+  filenames: Map<string, string>,
+  links?: SymlinkDirs
 ): boolean {
   fs.mkdirSync(path.dirname(newDir), { recursive: true })
   try {
@@ -310,7 +320,7 @@ function tryExclusiveImport (
   // back to staging, so the next attempt — including this process's own method
   // fallbacks (clone → hardlink → copy) — can fast-path again.
   try {
-    tryImportIndexedDir(importer, newDir, filenames)
+    tryImportIndexedDir(importer, newDir, filenames, links)
     return true
   } catch {
     try {
@@ -415,7 +425,8 @@ function sanitizeFilenames (filenames: Map<string, string>): SanitizeFilenamesRe
 function tryImportIndexedDir (
   { importFile, importFileAtomic }: Importer,
   newDir: string,
-  filenames: Map<string, string>
+  filenames: Map<string, string>,
+  links?: SymlinkDirs
 ): void {
   makeFileMapDirs(newDir, filenames)
   // Write package.json last so it acts as a completion marker.
@@ -428,11 +439,101 @@ function tryImportIndexedDir (
       packageJsonSrc = src
       continue
     }
-    importFile(src, path.join(newDir, f))
+    importEntry(importFile, src, path.join(newDir, f), links)
   }
   if (packageJsonSrc !== undefined) {
-    importFileAtomic(packageJsonSrc, path.join(newDir, 'package.json'))
+    importEntry(importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), links)
   }
+}
+
+// Where an import of a local directory writes its entries, which it needs
+// to recreate the directory's symlinks.
+interface SymlinkDirs {
+  // The directory the entries are written into.
+  writtenDir: string
+  // The directory writtenDir ends up at. A Windows junction holds an
+  // absolute target, so it has to point into this one.
+  finalDir: string
+  // The imported files and their directories, relative to the package.
+  imported: Set<string>
+}
+
+// Only a local directory has symlinks to preserve. The store holds regular
+// files, so other imports skip the lstat per file.
+function symlinkDirs (
+  opts: ImportIndexedDirOptions,
+  filenames: Map<string, string>,
+  dirs: Pick<SymlinkDirs, 'writtenDir' | 'finalDir'>
+): SymlinkDirs | undefined {
+  if (opts.resolvedFrom !== 'local-dir') return undefined
+  const imported = new Set<string>([''])
+  for (const f of filenames.keys()) {
+    for (let entry = f; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
+      imported.add(entry)
+    }
+  }
+  return { ...dirs, imported }
+}
+
+function importEntry (importFile: ImportFile, src: string, dest: string, links?: SymlinkDirs): void {
+  if (links != null && fs.lstatSync(src).isSymbolicLink() && copyInternalSymlink(src, dest, links)) return
+  importFile(src, dest)
+}
+
+// Recreate the symlink at src as dest when its target stays inside the
+// package, and report whether the entry is handled. A link that points outside
+// the package, or at a file the import leaves out, is imported as the file it
+// points to. A link to a directory the import leaves out is left out too.
+function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
+  let target = fs.readlinkSync(src)
+  if (path.isAbsolute(target)) {
+    // The link text can reach the package through another path than src,
+    // such as a symlinked workspace, so compare real paths.
+    target = path.relative(realpathOrSelf(path.dirname(src)), realpathOrSelf(target))
+  }
+  const resolved = path.resolve(path.dirname(dest), target)
+  if (escapesDir(links.writtenDir, resolved)) return false
+  if (!links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))) {
+    return isDirectory(src)
+  }
+  if (process.platform !== 'win32') {
+    fs.symlinkSync(target, dest)
+    return true
+  }
+  const isDir = isDirectory(src)
+  try {
+    fs.symlinkSync(target, dest, isDir ? 'dir' : 'file')
+  } catch (err: unknown) {
+    // Creating a symlink on Windows needs a privilege that a junction does
+    // not, and a file has no junction to fall back to.
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EPERM') throw err
+    if (!isDir) return false
+    fs.symlinkSync(path.join(links.finalDir, path.relative(links.writtenDir, resolved)), dest, 'junction')
+  }
+  return true
+}
+
+function realpathOrSelf (file: string): string {
+  try {
+    return fs.realpathSync(file)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return file
+    throw err
+  }
+}
+
+function isDirectory (file: string): boolean {
+  try {
+    return fs.statSync(file).isDirectory()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
+function escapesDir (rootDir: string, targetPath: string): boolean {
+  const rel = path.relative(rootDir, targetPath)
+  return rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)
 }
 
 // Sorting shortest-first means the recursive mkdir for a deeper directory

@@ -35,3 +35,43 @@ testOnWindows('a drive-qualified path is split at its node_modules directories',
     'node_gyp',
   ])
 })
+
+test('wdBinDir replaces the working directory\'s own .bin, leaving the packages above it on node_modules', () => {
+  const root = path.resolve('project')
+  const wd = path.join(root, 'node_modules', 'dep')
+  const p = extendPath(wd, 'original', {
+    nodeGypBinDir: 'node_gyp',
+    wdBinDir: path.join(wd, 'vendor', '.bin'),
+    extraBinPaths: ['extra'],
+  })
+  expect(p.split(separator)).toStrictEqual([
+    path.join(wd, 'vendor', '.bin'),
+    path.join(root, 'node_modules', '.bin'),
+    'node_gyp',
+    'extra',
+    'original',
+  ])
+})
+
+test('a nested script does not add the entries of its parent script to PATH again', () => {
+  const wd = path.resolve('project')
+  const opts = { nodeGypBinDir: 'node_gyp', extraBinPaths: ['extra'] }
+  const original = ['user', 'user', 'system'].join(separator)
+  const outer = extendPath(wd, original, opts)
+  expect(extendPath(wd, outer, opts)).toBe(outer)
+  expect(outer.split(separator)).toStrictEqual([
+    path.join(wd, 'node_modules', '.bin'),
+    'node_gyp',
+    'extra',
+    'user',
+    'user',
+    'system',
+  ])
+})
+
+test('an inherited PATH entry that pnpm adds keeps the position pnpm gives it', () => {
+  const wd = path.resolve('project')
+  const bin = path.join(wd, 'node_modules', '.bin')
+  const p = extendPath(wd, ['system', bin].join(separator), { nodeGypBinDir: 'node_gyp' })
+  expect(p.split(separator)).toStrictEqual([bin, 'node_gyp', 'system'])
+})

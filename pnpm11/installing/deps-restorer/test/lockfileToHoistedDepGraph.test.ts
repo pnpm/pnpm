@@ -31,9 +31,10 @@ function craftedLockfile (alias: string): LockfileObject {
   } as unknown as LockfileObject
 }
 
-// `force: true` skips the installability check so the walk reaches the
-// alias sink directly; the store controller throws if touched, proving
-// the alias is rejected before any fetch or filesystem work.
+// `includeIncompatiblePackages: true` skips the installability check so
+// the walk reaches the alias sink directly; the store controller throws
+// if touched, proving the alias is rejected before any fetch or
+// filesystem work.
 function hoistedOpts (lockfileDir: string): Parameters<typeof lockfileToHoistedDepGraph>[2] {
   const unreachable = (name: string) => () => {
     throw new Error(`${name} must not be reached for a rejected alias`)
@@ -42,6 +43,7 @@ function hoistedOpts (lockfileDir: string): Parameters<typeof lockfileToHoistedD
     autoInstallPeers: false,
     engineStrict: false,
     force: true,
+    includeIncompatiblePackages: true,
     importerIds: ['.'],
     include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     ignoreScripts: false,
@@ -140,13 +142,15 @@ function peerVariantLockfile (): LockfileObject {
 // per variant, where every collapsed package funnels into one.
 test('lockfileToHoistedDepGraph keeps file-dep peer variants apart', async () => {
   const dir = tempDir(false)
+  const lockfile = fileVariantLockfile()
   const opts = hoistedOpts(dir)
+  opts.importerIds = Object.keys(lockfile.importers)
   opts.storeController = {
     fetchPackage: () => ({ filesIndexFile: '' }),
     getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
   } as unknown as typeof opts.storeController
 
-  const { graph } = await lockfileToHoistedDepGraph(fileVariantLockfile(), null, opts)
+  const { graph } = await lockfileToHoistedDepGraph(lockfile, null, opts)
 
   const compDirs = Object.keys(graph).filter((dir) => path.basename(dir) === 'comp')
   expect(compDirs).toHaveLength(2)

@@ -5,9 +5,9 @@ use super::{
     ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
     SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, is_ancestor_path, lexical_normalize, omit_peers_of_excluded_dependencies,
-    project_snapshot_to_snapshot_entry, prune_deploy_lockfile_graph, relative_path, same_path,
-    validate_lockfile_local_path,
+    create_file_url_key, deploy_peer_edges, deploy_workspace_manifest, is_ancestor_path,
+    lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
+    prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
 };
 
 pub(super) struct DeployFiles {
@@ -76,6 +76,7 @@ pub(super) fn create_deploy_files(
         packages,
         converted,
         dependency_groups,
+        &deploy_peer_edges(lockfile, config, dependency_groups, &ctx)?,
     )?;
 
     let manifest =
@@ -165,6 +166,7 @@ fn converted_deploy_lockfile(
     packages: HashMap<PackageKey, PackageMetadata>,
     converted: DeploySnapshots,
     dependency_groups: &[DependencyGroup],
+    peer_edges: &super::PeerSatisfactionEdges,
 ) -> miette::Result<Lockfile> {
     let mut deploy_lockfile = lockfile.clone();
     deploy_lockfile.catalogs = None;
@@ -179,7 +181,7 @@ fn converted_deploy_lockfile(
         HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
     deploy_lockfile.snapshots = (!converted.snapshots.is_empty()).then_some(converted.snapshots);
-    prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups);
+    prune_deploy_lockfile_graph(&mut deploy_lockfile, dependency_groups, peer_edges);
     bind_singleton_peers(&mut deploy_lockfile, &converted.linked_workspace_projects)?;
     Ok(deploy_lockfile)
 }
@@ -272,9 +274,8 @@ fn convert_deploy_snapshots(
 }
 
 /// The `pnpm-workspace.yaml` the deploy writes, and the same settings in
-/// the shape the deploy install consumes. Only the settings that survive
-/// a deploy are carried: patch files, rewritten to paths relative to the
-/// deploy dir, and the build allow-list.
+/// the shape the deploy install consumes. The manifest records the
+/// self-contained deploy layout plus settings that survive from the source.
 fn deploy_workspace_settings(
     lockfile: &Lockfile,
     config: &Config,
@@ -282,7 +283,7 @@ fn deploy_workspace_settings(
     deploy_dir: &Path,
     deploy_lockfile: &mut Lockfile,
 ) -> miette::Result<(Map<String, Value>, DeployWorkspaceConfig)> {
-    let mut workspace_manifest = Map::new();
+    let mut workspace_manifest = deploy_workspace_manifest(config);
     let mut workspace_config =
         DeployWorkspaceConfig { patched_dependencies: None, allow_builds: HashMap::new() };
     if lockfile.patched_dependencies.is_some()
@@ -441,9 +442,7 @@ fn finish_deploy_files(
     Ok(DeployFiles {
         manifest,
         lockfile: deploy_lockfile,
-        workspace_manifest: (!workspace_manifest.is_empty()).then_some(Value::Object(
-            workspace_manifest,
-        )),
+        workspace_manifest: Some(Value::Object(workspace_manifest)),
         workspace_config,
     })
 }

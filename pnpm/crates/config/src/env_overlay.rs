@@ -12,10 +12,10 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, NodeLinker, NodePackageMapType,
-    PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
-    api::EnvVar,
+    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinker,
+    NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -34,7 +34,7 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 /// pnpm's own env pass only skips a variable that is absent, never one
 /// that is empty, so an empty value clobbers lower-priority layers. For
 /// nearly every setting an empty value is indistinguishable from an unset
-/// one, which is why [`read_env`] drops it. Two settings are exceptions,
+/// one, which is why [`read_env`] drops it. Three settings are exceptions,
 /// where `""` is observably different from unset:
 ///
 /// - `savePrefix`: `""` is the value that selects an exact version pin.
@@ -42,6 +42,8 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 ///   that `PNPM_CONFIG_SCOPE=` yields an unscoped `pnpm login`. Dropping it
 ///   would let the lower layer's scope leak through, diverging from the
 ///   TypeScript CLI.
+/// - `tagVersionPrefix`: `""` removes the default `"v"` prefix from version
+///   tags.
 fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
@@ -93,6 +95,16 @@ macro_rules! json_field {
 macro_rules! string_field {
     ($settings:ident, $sys:ty, $field:ident, $suffix:literal) => {
         if let Some(s) = read_env::<$sys>($suffix) {
+            $settings.$field = Some(s);
+        }
+    };
+}
+// Like `string_field!`, but keeps an empty value as `Some("")` instead
+// of treating it as unset. For settings where `""` is observably
+// different from unset. See [`read_env_allow_empty`].
+macro_rules! string_field_allow_empty {
+    ($settings:ident, $sys:ty, $field:ident, $suffix:literal) => {
+        if let Some(s) = read_env_allow_empty::<$sys>($suffix) {
             $settings.$field = Some(s);
         }
     };
@@ -161,6 +173,8 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, progress, "PROGRESS");
         json_field!(settings, Sys, update_notifier, "UPDATE_NOTIFIER");
         enum_field!(settings, Sys, color, "COLOR", ColorMode);
+        enum_field!(settings, Sys, loglevel, "LOGLEVEL", LogLevel);
+        enum_field!(settings, Sys, reporter, "REPORTER", ReporterType);
         json_field!(settings, Sys, embed_readme, "EMBED_README");
         json_field!(settings, Sys, ignore_pnpmfile, "IGNORE_PNPMFILE");
         json_field!(settings, Sys, ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");
@@ -180,7 +194,21 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, use_beta_cli, "USE_BETA_CLI");
     }
 
+    fn read_macos_backup_env<Sys: EnvVar>(&mut self) {
+        if let Some(value) =
+            read_env::<Sys>("MACOS_BACKUP_EXCLUDE_MODULES_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().exclude_modules_dir = Some(value);
+        }
+        if let Some(value) =
+            read_env::<Sys>("MACOS_BACKUP_EXCLUDE_STORE_DIR").and_then(|value| parse_json(&value))
+        {
+            self.macos_backup.get_or_insert_default().exclude_store_dir = Some(value);
+        }
+    }
+
     fn read_layout_env<Sys: EnvVar>(&mut self) {
+        self.read_macos_backup_env::<Sys>();
         let settings = self;
         json_field!(settings, Sys, hoist, "HOIST");
         tri_array_field!(settings, Sys, hoist_pattern, "HOIST_PATTERN");
@@ -278,6 +306,7 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(settings, Sys, dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
         json_field!(settings, Sys, dedupe_peers, "DEDUPE_PEERS");
+        json_field!(settings, Sys, auto_dedupe, "AUTO_DEDUPE");
         json_field!(settings, Sys, dedupe_direct_deps, "DEDUPE_DIRECT_DEPS");
         json_field!(settings, Sys, prefer_workspace_packages, "PREFER_WORKSPACE_PACKAGES");
         json_field!(settings, Sys, dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");
@@ -331,7 +360,11 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, strict_dep_builds, "STRICT_DEP_BUILDS");
         json_field!(settings, Sys, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, Sys, git_checks, "GIT_CHECKS");
+        json_field!(settings, Sys, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
+        // Empty removes the `v` prefix, so an empty env value must survive.
+        string_field_allow_empty!(settings, Sys, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, Sys, engine_strict, "ENGINE_STRICT");
+        json_field!(settings, Sys, force_ignores_platform, "FORCE_IGNORES_PLATFORM");
         string_field!(settings, Sys, node_version, "NODE_VERSION");
         enum_field!(settings, Sys, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
         json_field!(settings, Sys, node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
@@ -433,6 +466,7 @@ impl WorkspaceSettings {
         }
         json_field!(settings, Sys, save_exact, "SAVE_EXACT");
         json_field!(settings, Sys, save_peer, "SAVE_PEER");
+        json_field!(settings, Sys, save_types, "SAVE_TYPES");
         enum_field!(
             settings,
             Sys,

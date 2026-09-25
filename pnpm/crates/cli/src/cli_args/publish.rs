@@ -9,21 +9,25 @@
 //! lives in [`recursive`].
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+mod options;
 mod recursive;
+mod wait;
 
 mod arguments;
 
-use crate::cli_args::{install::resolve_bool_override, registry_client::build_registry_client};
+use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
+use pnpm_pack::{
+    Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
+};
 use pnpm_publish::{
-    Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    PublishSummary, extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
+    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
     resolve_otp_from_env, run_git_checks,
 };
 use pnpm_reporter::Reporter;
@@ -153,13 +157,7 @@ impl PublishArgs {
         stage: bool,
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<PublishedPackages> {
-        if self.flags.batch && !recursive {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
-                help = r#"Run "pnpm publish -r --batch" to publish all workspace packages in a single request."#,
-                "--batch can only be used together with --recursive",
-            ));
-        }
+        self.validate_publish_flags(config, recursive, stage)?;
 
         // Upstream gates on `opts.gitChecks !== false`, which folds together
         // the `git-checks` config setting and the `--no-git-checks` flag.
@@ -196,8 +194,10 @@ impl PublishArgs {
                     &opts,
                     &network,
                     &before_packing_hooks,
+                    None,
                 )
-                .await?
+                .await
+                .map_err(|failure| failure.error)?
             };
         Ok(PublishedPackages::Single(Box::new(summary)))
     }
@@ -226,7 +226,7 @@ impl PublishArgs {
             network,
         )
         .await
-        .map_err(miette::Report::new)
+        .map_err(|failure| miette::Report::new(failure.error))
     }
 
     /// Publish a project directory: run `prepublishOnly` / `prepublish`, pack
@@ -239,13 +239,27 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-    ) -> miette::Result<PublishSummary> {
-        let packed =
-            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks).await?;
-        let summary =
-            publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+    ) -> Result<PublishSummary, PublishFailure<miette::Report>> {
+        let packed = self.pack_directory::<Reporter>(
+            project_dir,
+            config,
+            before_packing_hooks,
+            workspace_packages,
+        )
+        .await?;
+        let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
+            .await
+            .map_err(|failure| PublishFailure {
+                published: failure.published,
+                error: miette::Report::new(failure.error),
+            })?;
 
-        self.run_post_publish_scripts::<Reporter>(&packed, config)?;
+        self.run_post_publish_scripts::<Reporter>(&packed, config)
+            .map_err(|error| PublishFailure {
+                published: if opts.dry_run { Vec::new() } else { vec![summary.clone()] },
+                error,
+            })?;
         Ok(summary)
     }
 
@@ -254,10 +268,11 @@ impl PublishArgs {
         project_dir: &Path,
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PackedDirectory> {
-        let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(project_dir)
+        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
-            .wrap_err("read package.json")?
+            .wrap_err("read project manifest")?
             .ok_or_else(|| {
                 let dir = project_dir.display();
                 miette::miette!(
@@ -281,6 +296,7 @@ impl PublishArgs {
             config,
             pack_destination.path(),
             before_packing_hooks,
+            workspace_packages,
         )
         .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
@@ -331,7 +347,22 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PackResult> {
+        let workspace_packages = workspace_packages
+            .cloned()
+            .or_else(|| {
+                crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                    config.workspace_dir.as_deref(),
+                    config,
+                )
+            });
+        let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
+            &self.flags.manifest,
+            config,
+            before_packing_hooks,
+            workspace_packages,
+        )?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             workspace_dir: config.workspace_dir.clone(),
@@ -342,22 +373,7 @@ impl PublishArgs {
                 extra_bin_paths: config.extra_bin_paths.clone(),
                 extra_env: config.extra_env.clone(),
             },
-            manifest: pnpm_pack::PackManifestOptions {
-                catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
-                catalogs_dir: config.workspace_dir.clone(),
-                embed_readme: resolve_bool_override(
-                    self.flags.manifest.embed_readme,
-                    self.flags.manifest.no_embed_readme,
-                    config.embed_readme,
-                ),
-                node_linker: config.node_linker,
-                skip_obfuscation: resolve_bool_override(
-                    self.flags.manifest.skip_manifest_obfuscation,
-                    self.flags.manifest.no_skip_manifest_obfuscation,
-                    config.skip_manifest_obfuscation,
-                ),
-                before_packing_hooks: before_packing_hooks.to_vec(),
-            },
+            manifest,
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: None,
                 dry_run: false,
@@ -371,35 +387,6 @@ impl PublishArgs {
         pack_api::<Reporter, PackHost>(&options).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
-    }
-
-    /// Map the CLI flags and resolved [`Config`] onto the publish options.
-    fn publish_options(
-        &self,
-        config: &Config,
-        otp: Option<String>,
-        stage: bool,
-    ) -> PublishPackedPkgOptions {
-        PublishPackedPkgOptions {
-            dry_run: self.flags.dry_run,
-            stage,
-            registry: pnpm_publish::PublishRegistryOptions {
-                default: config.registry.clone(),
-                scoped: config.registries_by_scope.clone(),
-                access: self.flags.registry.access.as_deref().and_then(Access::parse),
-                tag: self.flags.registry.tag.clone().unwrap_or_else(|| "latest".to_owned()),
-                otp,
-                // An absent `--provenance` leaves the decision to the OIDC flow.
-                provenance: self.flags.registry.provenance.then_some(true),
-                http: OidcHttpOptions {
-                    fetch_retries: Some(config.fetch_retries),
-                    fetch_retry_factor: Some(f64::from(config.fetch_retry_factor)),
-                    fetch_retry_maxtimeout: Some(config.fetch_retry_maxtimeout),
-                    fetch_retry_mintimeout: Some(config.fetch_retry_mintimeout),
-                    fetch_timeout: Some(config.fetch_timeout),
-                },
-            },
-        }
     }
 }
 
@@ -435,6 +422,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
             prepend_node_path: ScriptsPrependNodePath::default(),
             shell: None,
             shell_emulator: false,
+            wd_bin_dir: None,
         },
         dep_path: &dep_path,
         pkg_root: dir,

@@ -18,10 +18,10 @@ use super::{
     lockfile_dir::LockfileDirArg,
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
-        package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
+        package_manager_to_sync, read_root_manifest, should_persist_package_manager_lockfile,
         version_satisfies, wanted_package_manager,
     },
-    reporter::reporter_emit,
+    reporter::ReporterFlags,
     sanitize::sanitize_inline,
     self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
     with::{PackageManagerCheck, spawn_pnpm},
@@ -35,7 +35,7 @@ use crate::{
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
         channel::PackageManager,
-        install::{install_engine_from_env, install_engine_to_store},
+        install::{InstalledEngine, install_engine_from_env, install_engine_to_store},
     },
     flag_relocation::ArgTable,
 };
@@ -47,8 +47,8 @@ use input::{
     should_skip_pm_handling,
 };
 use lockfile::{
-    ReadEnvLockfile, env_lockfile_sync, env_lockfile_sync_plan, locked_package_manager_version,
-    locked_switch_source, read_env_lockfile, switch_env_root,
+    ReadEnvLockfile, env_lockfile_sync, env_lockfile_sync_plan, locked_package_manager_to_fetch,
+    locked_package_manager_version, locked_switch_source, read_env_lockfile, switch_env_root,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pin::{PinOutcome, PinResolution, resolve_input_pin, switch_target};
@@ -85,7 +85,7 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
-            emit: reporter_emit(args.output.presentation.reporter),
+            reporter: args.reporter_flags(),
             key_issues: key_issue_reporting(&args.command),
         },
         config_overrides,
@@ -107,7 +107,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
-            emit: DefaultReporter::emit,
+            reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.
             key_issues: KeyIssueReporting::WarnOnly,
@@ -125,47 +125,87 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.switch.paths.dir)
-        .into_diagnostic()
-        .wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", input.switch.paths.dir.display())
-        })?;
-    let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
+    let dir = canonicalize_dir(&input.switch.paths.dir)?;
+    let config = load_pre_command_config(&input.switch, config_overrides, &dir, false)?;
 
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
         env: config.root_project_manifest_dir(&dir).to_path_buf(),
     };
-    let manifest = read_manifest_json(&roots.manifest.join("package.json"))?;
+    let manifest = read_root_manifest(&roots.manifest);
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = pin_matches_running(wanted_pm.as_ref());
-    let package_manager_to_sync = match resolve_input_pin(
-        input,
-        &config,
-        &roots,
-        process_state,
-        manifest.as_ref(),
-        wanted_pm,
-    )? {
-        PinOutcome::Switch(target) => {
-            return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
-        }
-        PinOutcome::Sync(sync) => sync,
-    };
+    let outcome =
+        resolve_input_pin(input, &config, &roots, process_state, manifest.as_ref(), wanted_pm)?;
+    let (config, package_manager_to_sync) =
+        match plan_pin_action(outcome, input, config_overrides, &dir, config)? {
+            PreCommandAction::Switch(plan) => return Ok(Some(PreCommandPlan::Switch(plan))),
+            PreCommandAction::Continue { config, package_manager_to_sync } => {
+                (config, package_manager_to_sync)
+            }
+        };
 
     report_config_warnings(input, &config, running_matches_pin)?;
+    check_manifest_runtimes(input, &config, manifest)?;
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, roots.env, package_manager)
+    }))
+}
 
+fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
+    dunce::canonicalize(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", path.display()))
+}
+
+enum PreCommandAction {
+    Switch(SwitchPlan),
+    Continue { config: Config, package_manager_to_sync: Option<PackageManagerToSync> },
+}
+
+fn plan_pin_action(
+    outcome: PinOutcome,
+    input: &PreCommandInput,
+    config_overrides: &ConfigOverrides,
+    dir: &Path,
+    config: Config,
+) -> miette::Result<PreCommandAction> {
+    match outcome {
+        PinOutcome::Switch(target) => {
+            let mut config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
+            // A global command does not act on the project. Without a
+            // workspace, the approvals go to the project, as a regular
+            // install's do.
+            if !input.global {
+                config.target_workspace_dir =
+                    Some(config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()));
+            }
+            Ok(PreCommandAction::Switch(SwitchPlan { config, target }))
+        }
+        PinOutcome::Sync(Some(sync)) => {
+            let config = load_pre_command_config(&input.switch, config_overrides, dir, true)?;
+            Ok(PreCommandAction::Continue { config, package_manager_to_sync: Some(sync) })
+        }
+        PinOutcome::Sync(None) => {
+            Ok(PreCommandAction::Continue { config, package_manager_to_sync: None })
+        }
+    }
+}
+
+fn check_manifest_runtimes(
+    input: &PreCommandInput,
+    config: &Config,
+    manifest: Option<Value>,
+) -> miette::Result<()> {
     if input.check_runtimes
         && !input.skip_pm_handling
         && !input.global
         && let Some(manifest) = manifest
     {
-        check_runtimes(manifest, &config, input.emit)?;
+        check_runtimes(manifest, config, input.emit(config))?;
     }
-    Ok(package_manager_to_sync.map(|package_manager| {
-        env_lockfile_sync_plan(input, config, roots.env, package_manager)
-    }))
+    Ok(())
 }
 
 /// Whether the manifest's pin names the pnpm that is running.
@@ -201,8 +241,11 @@ fn load_pre_command_config(
     switch: &SwitchInput,
     config_overrides: &ConfigOverrides,
     dir: &Path,
+    resolve_store: bool,
 ) -> miette::Result<Config> {
-    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace)
+    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace);
+    config.skip_store_dir_resolution = !resolve_store;
+    let mut config = config
         .current::<Host>(dir)
         .map_err(miette::Report::new)
         .wrap_err("load configuration")?;
@@ -249,6 +292,32 @@ fn switch_or_sync(
         SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
     };
     Ok(PinOutcome::Sync(env_lockfile_sync(config, root_manifest, roots, on_fail, read_lockfile)?))
+}
+
+/// Install the pnpm that the env lockfile in `env_root` pins into the store,
+/// when a command in the project would switch to it. `pnpm fetch` reads only
+/// the lockfile, and a later `pnpm install --offline` that switches to the
+/// pinned pnpm finds it there instead of in the registry (pnpm/pnpm#11808).
+pub(crate) async fn fetch_locked_package_manager<Reporter: pnpm_reporter::Reporter + 'static>(
+    config: &'static Config,
+    env_root: &Path,
+) -> miette::Result<()> {
+    let Some((env, version)) =
+        locked_package_manager_to_fetch(config, env_root, SwitchProcessState::current())?
+    else {
+        return Ok(());
+    };
+    assert_release_is_installable(&version)?;
+    let engine =
+        Box::pin(install_engine_from_env::<Reporter>(config, PackageManager::Pnpm, &env, &version))
+            .await
+            .wrap_err_with(|| format!("fetch pnpm v{version}, which the lockfile pins"))?;
+    if engine.private_install.is_some() {
+        miette::bail!(
+            "could not install pnpm v{version} into the shared store because another process held the install lock",
+        );
+    }
+    Ok(())
 }
 
 /// Every warning here quotes the project's manifest, which is untrusted

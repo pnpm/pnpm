@@ -113,6 +113,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--save-prod',
             shortAlias: '-P',
           },
+          {
+            description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
+            name: '--trust-lockfile',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -120,7 +124,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
       FILTERING,
     ],
     url: docsUrl('remove'),
-    usages: ['pnpm remove <pkg>[@<version>]...'],
+    usages: ['pnpm remove <pkg>...'],
   })
 }
 
@@ -186,6 +190,30 @@ export async function handler (
   }
   const store = await createStoreController(opts)
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
+    if (Object.keys(opts.selectedProjectsGraph).length === 0) return
+    const targetDependenciesField = getSaveType(opts)
+    const availableDependenciesSet = new Set<string>()
+    for (const project of opts.allProjects) {
+      if (opts.selectedProjectsGraph[project.rootDir as ProjectRootDir]) {
+        const deps = Object.keys(
+          targetDependenciesField === undefined
+            ? getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: true })
+            : project.manifest[targetDependenciesField] ?? {}
+        )
+        for (const dep of deps) {
+          availableDependenciesSet.add(dep)
+        }
+      }
+    }
+    const availableDependencies = Array.from(availableDependenciesSet).sort()
+    const nonMatchedDependencies = without(availableDependencies, params)
+    if (nonMatchedDependencies.length !== 0) {
+      throw new RemoveMissingDepsError({
+        availableDependencies,
+        nonMatchedDependencies,
+        targetDependenciesField,
+      })
+    }
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,

@@ -154,6 +154,7 @@ impl VersionSelectorEntry {
 pub struct PreferredVersionsOverlay {
     entries: BTreeMap<String, Vec<String>>,
     parent: Option<Arc<PreferredVersionsOverlay>>,
+    is_direct_deps: bool,
 }
 
 impl PreferredVersionsOverlay {
@@ -164,10 +165,28 @@ impl PreferredVersionsOverlay {
         parent: Option<Arc<PreferredVersionsOverlay>>,
         entries: BTreeMap<String, Vec<String>>,
     ) -> Option<Arc<PreferredVersionsOverlay>> {
+        Self::layer_with_direct(parent, entries, false)
+    }
+
+    /// Layer `entries` over `parent` as direct dependencies of an importer.
+    #[must_use]
+    pub fn layer_direct(
+        parent: Option<Arc<PreferredVersionsOverlay>>,
+        entries: BTreeMap<String, Vec<String>>,
+    ) -> Option<Arc<PreferredVersionsOverlay>> {
+        Self::layer_with_direct(parent, entries, true)
+    }
+
+    #[must_use]
+    pub fn layer_with_direct(
+        parent: Option<Arc<PreferredVersionsOverlay>>,
+        entries: BTreeMap<String, Vec<String>>,
+        is_direct_deps: bool,
+    ) -> Option<Arc<PreferredVersionsOverlay>> {
         if entries.is_empty() {
             return parent;
         }
-        Some(Arc::new(PreferredVersionsOverlay { entries, parent }))
+        Some(Arc::new(PreferredVersionsOverlay { entries, parent, is_direct_deps }))
     }
 
     /// Every version the chain prefers for `name`, nearest level
@@ -186,6 +205,36 @@ impl PreferredVersionsOverlay {
             }
         }
         versions
+    }
+
+    /// Every version the chain prefers for `name`, nearest level first,
+    /// tagged with [`DIRECT_DEP_SELECTOR_WEIGHT`] for the importer direct-dependency level
+    /// or `1` for descendant levels. Duplicate versions across levels retain the maximum weight.
+    #[must_use]
+    pub fn weighted_versions_for(&self, name: &str) -> Vec<(&str, u32)> {
+        let mut versions: Vec<(&str, u32)> = Vec::new();
+        let mut layer = Some(self);
+        while let Some(current) = layer {
+            let is_direct = current.is_direct_deps;
+            layer = current.parent.as_deref();
+            let Some(found) = current.entries.get(name) else { continue };
+            let weight = if is_direct { DIRECT_DEP_SELECTOR_WEIGHT } else { 1 };
+            for version in found {
+                record_weighted_version(&mut versions, version.as_str(), weight);
+            }
+        }
+        versions
+    }
+}
+
+fn record_weighted_version<'a>(versions: &mut Vec<(&'a str, u32)>, version: &'a str, weight: u32) {
+    if let Some(index) = versions
+        .iter()
+        .position(|(v, _)| *v == version)
+    {
+        versions[index].1 = versions[index].1.max(weight);
+    } else {
+        versions.push((version, weight));
     }
 }
 
@@ -298,6 +347,8 @@ pub struct CurrentPkg {
     pub resolution: LockfileResolution,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub published_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<std::sync::Arc<serde_json::Value>>,
 }
 
 /// Options the dispatcher hands a resolver per-resolve.

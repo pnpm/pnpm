@@ -84,7 +84,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
 
@@ -121,7 +121,7 @@ fn files_field_overrides_workspace_root_gitignore() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
     out.sort();
@@ -159,7 +159,7 @@ fn files_field_overrides_workspace_root_npmignore() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
     out.sort();
@@ -189,7 +189,7 @@ fn empty_files_field_keeps_workspace_ignores_active() {
     let mut out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
     out.sort();
@@ -216,7 +216,7 @@ fn workspace_root_npmignore_takes_precedence_over_gitignore() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
 
@@ -248,7 +248,7 @@ fn package_npmignore_negation_includes_workspace_gitignored_file() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
 
@@ -275,7 +275,7 @@ fn package_npmignore_disables_workspace_root_gitignore() {
     let out = packlist_with_options(
         &root,
         &manifest,
-        PacklistOptions { workspace_dir: Some(dir.path()) },
+        PacklistOptions { workspace_dir: Some(dir.path()), ..Default::default() },
     )
     .unwrap();
 
@@ -300,7 +300,7 @@ fn unrelated_workspace_dir_does_not_apply_workspace_gitignore() {
     let out = packlist_with_options(
         package.path(),
         &manifest,
-        PacklistOptions { workspace_dir: Some(workspace.path()) },
+        PacklistOptions { workspace_dir: Some(workspace.path()), ..Default::default() },
     )
     .unwrap();
 

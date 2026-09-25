@@ -38,6 +38,7 @@
     "@pnpm/error": "workspace:^",
     "@pnpm/nopt": "catalog:",
     "@pnpm/tabtab": "catalog:",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:^",
     "@pnpm/workspace.root-finder": "workspace:^",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:^",

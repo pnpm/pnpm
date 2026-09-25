@@ -34,6 +34,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../installing/modules-yaml"
     },
     {

@@ -155,8 +155,8 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
         .map(ToString::to_string)
 }
 
-/// The aliases a pnpm engine can be installed under globally. The standalone
-/// install script installs `@pnpm/exe` even for the versions
+/// The aliases a pnpm engine can be installed under globally. `pnpm setup` of
+/// earlier releases installed `@pnpm/exe` even for the versions
 /// [`pnpm_package_to_install`] resolves to `pnpm`, so a switch to either name
 /// has to recognize an install under the other (see pnpm/pnpm#14823).
 const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];
@@ -294,52 +294,12 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     supported_architectures: Option<SupportedArchitectures>,
     shared_engine_packages: Option<&[&str]>,
 ) -> miette::Result<()> {
-    let mut cfg = base_config.clone();
-    // Resolve and fetch the engine bytes through the trusted
-    // package-manager bootstrap registry/network/auth, never the
-    // repository-controlled project settings — otherwise a malicious
-    // project `.npmrc` could redirect the downloaded pnpm bytes to an
-    // attacker registry. This mirrors how `config_deps` resolves the
-    // package manager and how the engine signature is verified.
-    apply_package_manager_bootstrap(&mut cfg, &base_config.package_manager_bootstrap);
-    cfg.modules_dir = install_dir.join("node_modules");
-    cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
-    cfg.enable_global_virtual_store = shared_engine_packages.is_some();
-    cfg.lockfile = true;
-    // Anchored (never `None`, which walks up and can adopt the global
-    // packages dir's own settings `pnpm-workspace.yaml` as the workspace
-    // root, pnpm/pnpm#13697) — the same guard as `run_group_install` in
-    // `cli_args::global`, where the full rationale lives.
-    cfg.workspace_dir = Some(install_dir.to_path_buf());
-    cfg.supported_architectures = supported_architectures;
-    // The engine is installed with scripts disabled — the wrapper's
-    // preinstall (which links the platform binary) is replicated by
-    // `link_exe_platform_binary`, so running it here is both unnecessary
-    // and a code-execution surface during a privileged install.
-    cfg.ignore_scripts = true;
-    cfg.dangerously_allow_all_builds = false;
-    cfg.strict_dep_builds = false;
-    cfg.allow_builds.clear();
-    if let Some(packages) = shared_engine_packages {
-        cfg.global_virtual_store_dir = base_config.store_dir.links();
-        for name in packages {
-            cfg.allow_builds.insert((*name).to_string(), true);
-        }
-    }
-    // Drop repo-controlled resolution-rewrite settings so a project's
-    // `pnpm-workspace.yaml` can't change the engine's installed dependency
-    // graph. The top-level engine components are signature-verified, but
-    // the installed closure must stay the published one.
-    cfg.overrides = None;
-    cfg.package_extensions = None;
-    cfg.catalogs = None;
-    cfg.patched_dependencies = None;
-    // The engine closure is pnpm's own, so the project's linker choice must
-    // not shape its layout: under `hoisted` the engine materializes inside
-    // `install_dir` instead of the global virtual store the caller resolves
-    // its slot from (pnpm/pnpm#14595).
-    cfg.node_linker = NodeLinker::Isolated;
-
+    let cfg = build_engine_install_config(
+        base_config,
+        install_dir,
+        supported_architectures,
+        shared_engine_packages,
+    );
     let config: &'static Config = Config::leak(cfg);
     let manifest_path = install_dir.join("package.json");
     let state = State::init(manifest_path, config, false)
@@ -358,6 +318,38 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
 
 #[cfg(test)]
 mod tests;
+
+fn build_engine_install_config(
+    base_config: &Config,
+    install_dir: &Path,
+    supported_architectures: Option<SupportedArchitectures>,
+    shared_engine_packages: Option<&[&str]>,
+) -> Config {
+    let mut cfg = base_config.clone();
+    apply_package_manager_bootstrap(&mut cfg, &base_config.package_manager_bootstrap);
+    cfg.modules_dir = install_dir.join("node_modules");
+    cfg.virtual_store_dir = install_dir.join("node_modules").join(".pnpm");
+    cfg.enable_global_virtual_store = shared_engine_packages.is_some();
+    cfg.lockfile = true;
+    cfg.workspace_dir = Some(install_dir.to_path_buf());
+    cfg.supported_architectures = supported_architectures;
+    cfg.ignore_scripts = true;
+    cfg.dangerously_allow_all_builds = false;
+    cfg.strict_dep_builds = false;
+    cfg.allow_builds.clear();
+    if let Some(packages) = shared_engine_packages {
+        cfg.global_virtual_store_dir = base_config.store_dir.links();
+        for name in packages {
+            cfg.allow_builds.insert((*name).to_string(), true);
+        }
+    }
+    cfg.overrides = None;
+    cfg.package_extensions = None;
+    cfg.catalogs = None;
+    cfg.patched_dependencies = None;
+    cfg.node_linker = NodeLinker::Isolated;
+    cfg
+}
 
 /// Apply the trusted package-manager bootstrap registry/network/auth onto
 /// `cfg`, so the engine install can't be redirected by repo-controlled

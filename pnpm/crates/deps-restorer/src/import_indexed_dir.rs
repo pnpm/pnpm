@@ -46,6 +46,9 @@ pub struct ImportIndexedDirOpts {
     ///
     /// Callers must ensure that the target path uniquely identifies its contents.
     pub safe_to_skip: bool,
+    /// When `true`, preserve safe symlinks in the imported package instead of
+    /// assuming all entries are regular files.
+    pub preserve_symlinks: bool,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -106,6 +109,8 @@ pub enum ImportIndexedDirError {
         #[error(source)]
         error: io::Error,
     },
+    #[display("symlink target {target:?} escapes package root {root:?}")]
+    SymlinkTargetEscapes { target: PathBuf, root: PathBuf },
 }
 
 /// How [`populate_dir`] puts each indexed entry at its final path.
@@ -121,7 +126,8 @@ enum Placement {
     Repair,
 }
 
-enum PreservedModules {
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum PreservedModules {
     None,
     Directory,
     Merged { backup: PathBuf, moved_entries: Vec<OsString> },
@@ -137,9 +143,10 @@ impl PreservedModules {
     }
 }
 
-struct PreserveModulesFailure {
-    error: io::Error,
-    preserved: PreservedModules,
+#[derive(Debug)]
+pub(super) struct PreserveModulesFailure {
+    pub(super) error: io::Error,
+    pub(super) preserved: PreservedModules,
 }
 
 impl Placement {
@@ -187,6 +194,7 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.safe_to_skip,
+            opts.preserve_symlinks,
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -206,36 +214,57 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             opts.safe_to_skip,
+            opts.preserve_symlinks,
         ),
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
-        // Existing non-directory dirent with force=true. The hoisted
-        // linker call shape won't produce this in practice, but
-        // refusing to clobber a stale symlink would wedge the install.
-        (Some(file_type), true) if !file_type.is_dir() => replace_non_dir::<Reporter>(
+        (Some(file_type), true) => force_import_existing_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
             file_type,
+            opts,
         )
         .inspect(|()| unquarantine()),
-        // A forced refresh of a shared slot still works in place. Building a
-        // complete stage first would duplicate every write before the rename
-        // inevitably discovers that the shared directory already exists.
-        (Some(file_type), true) if file_type.is_dir() && opts.safe_to_skip => {
-            import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
-                .inspect(|()| unquarantine())
-        }
-        (Some(_), true) => stage_and_swap::<Reporter>(
+    }
+}
+
+fn force_import_existing_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    file_type: fs::FileType,
+    opts: ImportIndexedDirOpts,
+) -> Result<(), ImportIndexedDirError> {
+    if !file_type.is_dir() {
+        return replace_non_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            opts.keep_modules_dir,
-        )
-        .inspect(|()| unquarantine()),
+            file_type,
+            opts.preserve_symlinks,
+        );
     }
+    if opts.safe_to_skip {
+        return import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts.preserve_symlinks,
+        );
+    }
+    stage_and_swap::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        opts.keep_modules_dir,
+        opts.preserve_symlinks,
+    )
 }
 
 /// The kind of dirent already at `path`, or `None` when nothing is
@@ -265,6 +294,7 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     if claim_dir(dir_path)? {
         return populate_dir::<Reporter>(
@@ -273,12 +303,20 @@ fn import_into_shared_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::Fresh,
+            preserve_symlinks.then_some(dir_path),
         );
     }
     if all_files_match(dir_path, cas_paths) {
         return Ok(());
     }
-    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Repair)
+    populate_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        Placement::Repair,
+        preserve_symlinks.then_some(dir_path),
+    )
 }
 
 /// Create `dir_path`, reporting whether this call is the one that created
@@ -307,9 +345,16 @@ fn import_absent_dir<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     safe_to_skip: bool,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     if safe_to_skip {
-        import_into_shared_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths)
+        import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            preserve_symlinks,
+        )
     } else {
         populate_dir::<Reporter>(
             logged_methods,
@@ -317,6 +362,7 @@ fn import_absent_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::Fresh,
+            preserve_symlinks.then_some(dir_path),
         )
     }
 }
@@ -328,6 +374,7 @@ fn repair_incomplete_dir<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     safe_to_skip: bool,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     if marker_present(dir_path, cas_paths) {
         Ok(())
@@ -338,6 +385,7 @@ fn repair_incomplete_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::for_target(safe_to_skip),
+            preserve_symlinks.then_some(dir_path),
         )
         .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
     }
@@ -349,13 +397,21 @@ fn replace_non_dir<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     file_type: fs::FileType,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     remove_non_dir_dirent(dir_path, file_type)
         .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
             path: dir_path.to_path_buf(),
             error,
         })?;
-    populate_dir::<Reporter>(logged_methods, import_method, dir_path, cas_paths, Placement::Fresh)
+    populate_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        Placement::Fresh,
+        preserve_symlinks.then_some(dir_path),
+    )
 }
 
 /// Remove a non-directory dirent at `path`.

@@ -60,7 +60,11 @@ export async function readProjectsContext<T> (
     pendingBuilds: modules?.pendingBuilds ?? [],
     projects: await Promise.all(
       projects.map(async (project) => {
-        const modulesDir = await realpathMissing(pathAbsolute(project.modulesDir ?? modulesDirOpt, project.rootDir))
+        const rootDirRealPath = project.rootDirRealPath ?? await realpath(project.rootDir)
+        // The OS resolves the relative symlinks inside a modules directory from its
+        // real location, so resolve it through the project's real path even before
+        // it exists.
+        const modulesDir = await realpathMissing(pathAbsolute(project.modulesDir ?? modulesDirOpt, rootDirRealPath))
         const importerId = getLockfileImporterId(opts.lockfileDir, project.rootDir)
 
         return {
@@ -68,7 +72,7 @@ export async function readProjectsContext<T> (
           binsDir: project.binsDir ?? path.join(modulesDir, '.bin'),
           id: importerId,
           modulesDir,
-          rootDirRealPath: project.rootDirRealPath ?? await realpath(project.rootDir),
+          rootDirRealPath,
         }
       })),
     rootModulesDir,

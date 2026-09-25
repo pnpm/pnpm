@@ -113,7 +113,7 @@ fn attachment_object(tarball_data: &[u8]) -> Value {
 
 /// Clean a version string to `major.minor.patch` plus any prerelease,
 /// dropping build metadata.
-pub(super) fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
+pub(crate) fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
     let trimmed = version
         .trim()
         .trim_start_matches(['=', 'v']);

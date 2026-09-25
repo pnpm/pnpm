@@ -124,6 +124,34 @@ test('pnpm licenses: output as json', async () => {
   expect(packagesWithMIT[0].paths[0].includes(_path)).toBeTruthy()
 })
 
+test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
+  const workspaceDir = tempDir()
+  f.copy('simple-licenses', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    nodeLinker: 'hoisted',
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    nodeLinker: 'hoisted',
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput.MIT[0].paths).toStrictEqual([path.join(workspaceDir, 'node_modules', 'is-positive')])
+})
+
 test('pnpm licenses: path should be correct for workspaces', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-licenses', workspaceDir)
@@ -144,8 +172,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
     selectedProjectsGraph,
   })
 
-  const barPackageDir = path.join(workspaceDir, 'bar')
-  for (const packageDir of [workspaceDir, barPackageDir]) {
+  for (const packageDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
     // eslint-disable-next-line no-await-in-loop
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
@@ -213,17 +240,187 @@ test('pnpm licenses: filter outputs', async () => {
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
 })
 
+test('pnpm licenses: lists only the dependencies of the project in the current directory', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-licenses', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: path.join(workspaceDir, 'bar'),
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const packageNames = Object.values(JSON.parse(output) as Record<string, Array<{ name: string }>>)
+    .flat()
+    .map(({ name }) => name)
+  expect(packageNames).toStrictEqual(['is-positive'])
+})
+
+test('pnpm licenses: reads the lockfile of each project in a workspace with dedicated lockfiles', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-licenses', workspaceDir)
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  for (const projectDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const packages = Object.values(JSON.parse(output) as Record<string, Array<{ name: string, paths: string[] }>>).flat()
+  expect(packages.map(({ name }) => name).sort()).toStrictEqual(['is-positive', 'js-tokens', 'loose-envify', 'react', 'react-dom', 'scheduler', 'typescript'])
+  for (const { paths } of packages) {
+    for (const pkgRoot of paths) {
+      expect(fs.existsSync(path.join(pkgRoot, 'package.json'))).toBeTruthy()
+    }
+  }
+})
+
+test('pnpm licenses: keeps packages with the same name and version but different licenses from different lockfiles', async () => {
+  const workspaceDir = tempDir()
+  const projects = [
+    { name: 'foo', dependency: 'local-mit', license: 'MIT' },
+    { name: 'bar', dependency: 'local-isc', license: 'ISC' },
+  ]
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ private: true }))
+  const storeDir = path.join(workspaceDir, 'store')
+  for (const { name, dependency, license } of projects) {
+    fs.mkdirSync(path.join(workspaceDir, dependency))
+    fs.writeFileSync(path.join(workspaceDir, dependency, 'package.json'), JSON.stringify({ name: 'local', version: '1.0.0', license }))
+    const projectDir = path.join(workspaceDir, name)
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { local: `file:../${dependency}` } }))
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph: Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([projectDir]) => projectDir !== workspaceDir)
+    ),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string }>>
+  expect(Object.keys(report).sort()).toStrictEqual(['ISC', 'MIT'])
+  expect(report.ISC.map(({ name }) => name)).toStrictEqual(['local'])
+  expect(report.MIT.map(({ name }) => name)).toStrictEqual(['local'])
+})
+
+test('pnpm licenses: lists a registry package and a same-named local package from different lockfiles under one JSON entry', async () => {
+  const workspaceDir = tempDir()
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - foo\n  - bar\n')
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ private: true }))
+  fs.mkdirSync(path.join(workspaceDir, 'local'))
+  fs.writeFileSync(path.join(workspaceDir, 'local', 'package.json'), JSON.stringify({ name: 'is-positive', version: '1.0.0', license: 'MIT' }))
+  const projects = [
+    { name: 'foo', spec: '3.1.0' },
+    { name: 'bar', spec: 'file:../local' },
+  ]
+  const storeDir = path.join(workspaceDir, 'store')
+  for (const { name, spec } of projects) {
+    const projectDir = path.join(workspaceDir, name)
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { 'is-positive': spec } }))
+    // eslint-disable-next-line no-await-in-loop
+    await install.handler({
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      lockfileDir: projectDir,
+      pnpmHomeDir: '',
+      storeDir,
+    })
+  }
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    selectedProjectsGraph: Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([projectDir]) => projectDir !== workspaceDir)
+    ),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  const report = JSON.parse(output) as Record<string, Array<{ name: string, versions: Array<string | null> }>>
+  expect(report.MIT.map(({ name }) => name)).toStrictEqual(['is-positive'])
+  expect(report.MIT[0].versions).toHaveLength(2)
+  expect(report.MIT[0].versions).toContain('3.1.0')
+})
+
 test('pnpm licenses: fails when lockfile is missing', async () => {
+  const dir = path.resolve('./test/fixtures/invalid')
   await expect(
     licenses.handler({
       ...DEFAULT_OPTS,
-      dir: path.resolve('./test/fixtures/invalid'),
+      dir,
       pnpmHomeDir: '',
       long: true,
     }, ['list'])
-  ).rejects.toThrowErrorMatchingInlineSnapshot(
-    '"No pnpm-lock.yaml found: Cannot check a project without a lockfile"'
-  )
+  ).rejects.toThrow(`No pnpm-lock.yaml found in "${dir}": Cannot check a project without a lockfile`)
 })
 
 test('pnpm licenses: should correctly read LICENSE file with executable file mode', async () => {
@@ -315,6 +512,7 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
     dir: workspaceDir,
     allowBuilds: {
       'ajv-keywords@https://codeload.github.com/ajv-validator/ajv-keywords/tar.gz/a11389b4d1934d360fb2a24dd920ec597295c8fc': true,
+      'ajv-keywords@git+https://github.com/ajv-validator/ajv-keywords.git#a11389b4d1934d360fb2a24dd920ec597295c8fc': true,
     },
     pnpmHomeDir: '',
     storeDir,

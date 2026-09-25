@@ -408,3 +408,44 @@ fn a_reinstall_replaces_a_shim_that_converts_paths_with_a_helper_from_the_caller
          body was:\n{body}",
     );
 }
+
+/// A shim can resolve every helper through `command -p` and still leave the
+/// caller's `node_modules` entries on the `PATH` that `command -p` searches on
+/// Nix. The target marker matches, so a warm reinstall has to notice the missing
+/// filter and replace the shim.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_that_resolves_helpers_with_node_modules_on_path() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = generate_sh_shim(&target, &shim, None, &[], None)
+        .replace("    */node_modules/*|*/node_modules) ;;\n", "");
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &shim, &target),
+        "precondition: the outdated shim carries a matching target marker",
+    );
+    assert!(!is_sh_shim_hardened(&outdated), "precondition: the unfiltered PATH is not current");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &shim, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim that keeps node_modules on the helpers' PATH, \
+         body was:\n{body}",
+    );
+}

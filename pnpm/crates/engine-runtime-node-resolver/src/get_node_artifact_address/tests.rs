@@ -61,6 +61,28 @@ fn matches_upstream_address_table() {
                 extname: ".tar.gz".to_string(),
             },
         ),
+        (
+            "18.20.0",
+            "https://nodejs.org/download/release/",
+            "win32",
+            "arm64",
+            NodeArtifactAddress {
+                basename: "node-v18.20.0-win-x64".to_string(),
+                dirname: "https://nodejs.org/download/release/v18.20.0".to_string(),
+                extname: ".zip".to_string(),
+            },
+        ),
+        (
+            "20.7.0",
+            "https://nodejs.org/download/release/",
+            "win32",
+            "arm64",
+            NodeArtifactAddress {
+                basename: "node-v20.7.0-win-arm64".to_string(),
+                dirname: "https://nodejs.org/download/release/v20.7.0".to_string(),
+                extname: ".zip".to_string(),
+            },
+        ),
     ];
     for (version, base_url, platform, arch, expected) in cases {
         let actual = get_node_artifact_address(GetNodeArtifactAddressOptions {

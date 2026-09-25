@@ -73,6 +73,12 @@ fn restrictive_acls_fail_promptly() {
         assert_fails_promptly(|| remove_file_with_retry(&protected));
         assert_fails_promptly(|| rename_with_retry(&protected, &destination));
         assert_fails_promptly(|| remove_dir_all_with_retry(&tree));
+        let started = Instant::now();
+        let error = crate::remove_dirent(&tree).expect_err("the protected tree must stay");
+        let elapsed = started.elapsed();
+        eprintln!("remove_dirent access denied after {elapsed:?}");
+        assert_eq!(error.raw_os_error(), Some(5));
+        assert!(elapsed < Duration::from_secs(10));
     });
 
     icacls(&tree, &["/reset"]);
@@ -141,7 +147,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         unsafe { ImpersonateSelf(SecurityImpersonation) },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     let _revert = RevertImpersonation;
     let mut token = null_mut();
@@ -150,7 +156,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES, 1, &raw mut token) },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     // SAFETY: OpenThreadToken succeeded and ownership of its handle transfers exactly once.
     let token = unsafe { OwnedHandle::from_raw_handle(token) };
@@ -162,7 +168,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
         },
         0,
         "{}",
-        io::Error::last_os_error()
+        io::Error::last_os_error(),
     );
     operation();
 }

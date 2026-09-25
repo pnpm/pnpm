@@ -1,12 +1,13 @@
 import path from 'node:path'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { getProjectNodePath, linkBins } from '@pnpm/bins.linker'
 import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { logger } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 
+import { makeProjectNodePathOption } from './makeProjectNodePathOption.js'
 import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
@@ -16,9 +17,22 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 > & {
   resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
+  extendNodePath?: boolean
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
 }
+
+/** The project stages `pnpm remove` runs before it unlinks anything. */
+export const PRE_UNINSTALL_STAGES = ['preuninstall', 'uninstall']
+
+/** The project stage `pnpm remove` runs after unlinking. */
+export const POST_UNINSTALL_STAGES = ['postuninstall']
+
+/** The project install stages run during deploy or when devDependencies are excluded (e.g. `--prod`). */
+export const PROJECT_INSTALL_STAGES = ['preinstall', 'install', 'postinstall']
+
+/** The project lifecycle stages run during full install. */
+export const PROJECT_LIFECYCLE_STAGES = ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare']
 
 export interface Importer {
   buildIndex: number
@@ -36,9 +50,19 @@ export async function runLifecycleHooksConcurrently (
     opts: RunLifecycleHooksConcurrentlyOptions
     projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
     stages: string[]
+    /**
+     * Whether to skip linking bins into node_modules/.bin ahead of running scripts.
+     * Used by pre-uninstall hooks so node_modules is not modified before unlinking.
+     */
+    skipBinLinking?: boolean
+    /**
+     * The project whose `preinstall` already ran before the install began,
+     * so its run here starts at the stage after it.
+     */
+    projectWithPreinstallRan?: string
   }
 ): Promise<void> {
-  const { childConcurrency, importers, opts, projectDependencies, stages } = params
+  const { childConcurrency, importers, opts, projectDependencies, projectWithPreinstallRan, skipBinLinking, stages } = params
   const importersByRootDir = new Map(importers.map((importer) => [importer.rootDir, importer]))
   const dependencies = projectDependencies == null
     ? dependenciesFromBuildIndexes(importers)
@@ -53,24 +77,34 @@ export async function runLifecycleHooksConcurrently (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       const { manifest, modulesDir, stages: importerStages, targetDirs } = importersByRootDir.get(rootDir)!
       try {
-        // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
-        await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
-          extraNodePaths: opts.extraNodePaths,
-          allowExoticManifests: true,
-          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-          projectManifest: manifest,
-          warn: (message: string) => {
-            logger.warn({ message, prefix: rootDir })
-          },
-        })
+        const binsDir = path.join(modulesDir, '.bin')
+        if (!skipBinLinking) {
+          // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
+          await linkBins(modulesDir, binsDir, {
+            extraNodePaths: opts.extraNodePaths,
+            projectModulesDir: await getProjectNodePath({ modulesDir, rootDir }, opts),
+            allowExoticManifests: true,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projectManifest: manifest,
+            warn: (message: string) => {
+              logger.warn({ message, prefix: rootDir })
+            },
+          })
+        }
         const runLifecycleHookOpts: RunLifecycleHookOptions = {
           ...opts,
           depPath: rootDir,
+          extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir, rootDir }, opts) },
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
+          wdBinDir: binsDir,
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
+          if (stage === 'preinstall' && rootDir === projectWithPreinstallRan) {
+            if (manifest.scripts?.preinstall != null) isBuilt = true
+            continue
+          }
           if (await runLifecycleHook(stage, manifest, runLifecycleHookOpts)) { // eslint-disable-line no-await-in-loop
             isBuilt = true
           }

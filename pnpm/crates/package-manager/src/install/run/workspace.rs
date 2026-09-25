@@ -157,6 +157,7 @@ impl<'a> InstallWorkspace<'a> {
             owned.projects.workspace_projects_override.take(),
             dirs.workspace_dir.as_deref().unwrap_or(&dirs.workspace_root),
             workspace_manifest.as_ref(),
+            &install.context.config.managed_directories(),
         )?;
         report_discovered_scope::<Reporter>(
             install,
@@ -360,6 +361,7 @@ pub(super) fn discovered_workspace_projects(
     workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
     workspace_dir: &Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    ignored_directories: &[PathBuf],
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, InstallError> {
     if has_selection {
         return Ok(None);
@@ -367,7 +369,7 @@ pub(super) fn discovered_workspace_projects(
     if let Some(projects) = workspace_projects_override {
         return Ok(Some(projects));
     }
-    load_workspace_projects(workspace_dir, workspace_manifest)
+    load_workspace_projects(workspace_dir, workspace_manifest, ignored_directories)
         .map_err(InstallError::FindWorkspaceProjects)
 }
 /// A full install (pnpm's `mutation: "install"`) is the workspace-wide one and
@@ -466,14 +468,14 @@ pub(super) fn may_prune_stale_importers(prune: &StaleImporterPrune<'_>) -> bool 
 /// for.
 pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
     config: &Config,
-    workspace_dir: Option<&Path>,
+    workspace: &InstallWorkspace<'_>,
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
     scope: (crate::ProjectMutation, Option<&[pnpm_workspace::Project]>),
 ) -> Result<(), InstallError> {
     if config.ignore_workspace_cycles {
         return Ok(());
     }
-    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let Some(workspace_dir) = workspace.dirs.workspace_dir.as_deref() else { return Ok(()) };
     let (mutation, workspace_projects) = scope;
     let scope = match selection {
         // A plan that already sequenced this very graph hands its cycle report
@@ -497,7 +499,11 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
             .map(|projects| (projects, None)),
     };
     let Some((projects, selected_dirs)) = scope else { return Ok(()) };
-    let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
+    let catalogs = pnpm_workspace_projects_graph::WorkspaceCatalogs {
+        catalogs: &workspace.catalogs,
+        workspace_dir,
+    };
+    let cycles = crate::install_scope_cycles(config, projects, selected_dirs, Some(catalogs));
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
 }

@@ -35,7 +35,7 @@ fn skipped_snapshot_pruned_from_snapshots_and_importer_optional() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("drop", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     let snaps = filtered.snapshots.as_ref().unwrap();
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
@@ -86,7 +86,8 @@ fn include_optional_false_clears_importer_section() {
         optional_dependencies: false,
     };
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include, &skipped);
+    let filtered =
+        super::super::filter_lockfile_for_current(&lockfile, &super::groups(include), &skipped);
 
     assert!(
         filtered.importers
@@ -138,7 +139,7 @@ fn user_excluded_packages_filtered_to_surviving_metadata_keys() {
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("drop", "1.0.0"));
 
-    let filtered = super::super::filter_lockfile_for_current(&lockfile, include_all(), &skipped);
+    let filtered = super::super::filter_lockfile_for_current(&lockfile, &include_all(), &skipped);
 
     let pkgs = filtered.packages.as_ref().unwrap();
     assert!(pkgs.contains_key(&key("keep", "1.0.0")));
@@ -168,7 +169,7 @@ fn link_optional_entries_survive_post_filter() {
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 
@@ -266,7 +267,7 @@ fn materialization_closure_keeps_importer_links_shallow_and_traverses_snapshot_l
         &lockfile,
         Path::new("/workspace"),
         &selected,
-        included,
+        &super::groups(included),
         &SkippedSnapshots::new(),
     );
 
@@ -324,7 +325,7 @@ fn materialization_closure_does_not_follow_reverse_workspace_links() {
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([selected_id.clone()]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 

@@ -3,10 +3,55 @@ use super::{
     collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
     render_package_name, select_newer_version,
 };
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
 use pnpm_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;
+
+#[test]
+fn project_runtime_from_json5_selects_the_license_store_slot() {
+    let dir = TempDir::new().unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters: {}\nsnapshots:\n  native@1.0.0: {}\n",
+    )
+    .unwrap();
+    let key = "native@1.0.0".parse().unwrap();
+    let mut config = Config {
+        enable_global_virtual_store: true,
+        global_virtual_store_dir: dir.path().join("store/links"),
+        node_version: Some("18.0.0".to_owned()),
+        ..Config::default()
+    };
+    config.allow_builds.insert("native".to_owned(), true);
+    let expected = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
+    config.node_version = Some("20.0.0".to_owned());
+    let other = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
+    dbg!(&expected, &other);
+    assert_ne!(expected, other);
+    config.node_version = None;
+    std::fs::write(
+        dir.path().join("package.json5"),
+        "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
+    )
+    .unwrap();
+    let actual = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
+    assert_eq!(actual, expected);
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
+    )
+    .unwrap();
+    let preferred = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+        .unwrap()
+        .slot_dir(&key);
+    assert_eq!(preferred, other);
+}
 
 #[test]
 fn test_include_logic() {
@@ -159,6 +204,7 @@ snapshots:
             current_libc: "glibc",
             ..Default::default()
         },
+        PeerEdgeOptions::default(),
     );
 
     assert_eq!(dependencies.len(), 6);
@@ -272,5 +318,91 @@ fn normalizes_homepage_for_license_reports() {
             "repository": "git+https://github.com/babel/babel.git"
         })),
         Some("https://github.com/babel/babel#readme".to_string()),
+    );
+}
+
+const OPTIONAL_PEER_LOCKFILE: &str = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-a}
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-c}
+snapshots:
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+    optionalDependencies:
+      peer-c: 1.0.0
+  peer-a@1.0.0: {}
+  peer-c@1.0.0: {}
+";
+
+fn optional_peer_dependencies(include: Include) -> Vec<(String, BelongsTo)> {
+    let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_PEER_LOCKFILE).unwrap();
+    let mut dependencies = collect_dependencies(
+        &lockfile,
+        lockfile.importers.keys(),
+        include,
+        &InstallabilityOptions::default(),
+        PeerEdgeOptions::default(),
+    )
+    .into_iter()
+    .map(|(key, belongs_to)| (key.to_string(), belongs_to))
+    .collect::<Vec<_>>();
+    dependencies.sort_by(|left, right| left.0.cmp(&right.0));
+    dependencies
+}
+
+#[test]
+fn a_prod_listing_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
+    let dependencies = optional_peer_dependencies(Include {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    });
+    assert_eq!(
+        dependencies,
+        [
+            ("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)".to_string(), BelongsTo::Prod),
+            ("peer-a@1.0.0".to_string(), BelongsTo::Prod),
+        ],
+    );
+}
+
+#[test]
+fn a_dev_dependency_that_satisfies_an_optional_peer_stays_dev() {
+    let dependencies = optional_peer_dependencies(Include {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    });
+    assert_eq!(
+        dependencies,
+        [
+            ("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)".to_string(), BelongsTo::Prod),
+            ("peer-a@1.0.0".to_string(), BelongsTo::Prod),
+            ("peer-c@1.0.0".to_string(), BelongsTo::Dev),
+        ],
     );
 }

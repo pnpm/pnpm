@@ -253,6 +253,114 @@ fn lifecycle_scripts_run_before_linking_bins() {
     drop((root, mock_instance, frozen_root));
 }
 
+/// A package's lifecycle scripts run with its own `node_modules/.bin` and the
+/// project's on `PATH`, so a shim of a bin the `preinstall` has not created
+/// yet would shadow the command the script runs (pnpm/pnpm#15501). The
+/// fixture's `preinstall` fails if any shim of its bin is on `PATH`.
+#[test]
+fn own_bin_is_not_on_path_before_preinstall_creates_it() {
+    install_own_bin_created_by_preinstall(None, "1.0.0", &[ROOT_BIN]);
+}
+
+#[test]
+fn own_bin_is_not_on_path_before_preinstall_creates_it_with_hoisted_linker() {
+    install_own_bin_created_by_preinstall(Some("hoisted"), "1.0.0", &[ROOT_BIN]);
+}
+
+/// The hoisted linker nests version 1.0.0 under the package that depends on
+/// it, because the project root holds 2.0.0. Its `preinstall` then also has
+/// the parent's `node_modules/.bin` on `PATH`.
+#[test]
+fn own_bin_is_not_on_path_before_preinstall_creates_it_when_nested_by_hoisted_linker() {
+    install_own_bin_created_by_preinstall(
+        Some("hoisted"),
+        "2.0.0",
+        &[
+            ROOT_BIN,
+            "node_modules/@pnpm.e2e/nests-own-bin-created-by-preinstall/node_modules/.bin/own-bin-created-by-preinstall",
+        ],
+    );
+}
+
+const ROOT_BIN: &str = "node_modules/.bin/own-bin-created-by-preinstall";
+
+/// Install `@pnpm.e2e/own-bin-created-by-preinstall` at `version`, plus the
+/// package that nests its 1.0.0 when `version` is another one, and check
+/// that every bin in `expected_bins` is linked afterwards.
+fn install_own_bin_created_by_preinstall(
+    node_linker: Option<&str>,
+    version: &str,
+    expected_bins: &[&str],
+) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut dependencies =
+        serde_json::json!({ "@pnpm.e2e/own-bin-created-by-preinstall": version });
+    if version != "1.0.0" {
+        dependencies["@pnpm.e2e/nests-own-bin-created-by-preinstall"] = "1.0.0".into();
+    }
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": dependencies }).to_string(),
+    )
+    .expect("write package.json");
+    if let Some(node_linker) = node_linker {
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    }
+    allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", true)]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    for bin in expected_bins {
+        assert!(workspace.join(bin).exists(), "{bin} is linked once preinstall created it");
+    }
+
+    drop((root, mock_instance));
+}
+
+/// A denied build never creates its bin and no relink follows the build
+/// phase, so the project gets the shim of the missing bin right away, like a
+/// dependent of any other bin built after install.
+#[test]
+fn missing_bin_of_a_denied_build_is_linked() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/own-bin-created-by-preinstall": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    allow_builds(&workspace, &[("@pnpm.e2e/own-bin-created-by-preinstall", false)]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let bin = workspace.join("node_modules/.bin/own-bin-created-by-preinstall");
+    assert!(bin.exists(), "a denied build's missing bin is still linked for the project");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn hoisting_tolerates_bins_created_by_a_later_lifecycle_stage() {
     let CommandTempCwd {
@@ -754,6 +862,165 @@ fn headless_run_pre_postinstall_scripts() {
     assert!(pkg_dir.join("generated-by-preinstall.js").exists());
     eprintln!("Checking generated-by-postinstall.js exists...");
     assert!(pkg_dir.join("generated-by-postinstall.js").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_runs_scripts_with_allow_build_flag() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_args(["install", "--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the --allow-build package should have run its postinstall",
+    );
+    assert!(
+        pkg_dir.join("generated-by-preinstall.js").exists(),
+        "the --allow-build package should have run its preinstall",
+    );
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+        "allowBuilds entry should be persisted, got:\n{yaml}",
+    );
+
+    // Subsequent frozen install should succeed because package is in allowBuilds
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_denies_scripts_with_negated_allow_build_flag() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_args(["install", "--allow-build=!@pnpm.e2e/pre-and-postinstall-scripts-example"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        !pkg_dir.join("generated-by-postinstall.js").exists(),
+        "a denied package must not run its postinstall",
+    );
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': false"),
+        "denied allowBuilds entry should be persisted with false, got:\n{yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_allows_and_runs_scripts_on_subsequent_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+        },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    // First install with --ignore-scripts: installs package but does not run lifecycle scripts
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        !pkg_dir.join("generated-by-postinstall.js").exists(),
+        "postinstall must not have run under --ignore-scripts",
+    );
+
+    // Second install with --allow-build: should recognize allow-build changed and run scripts
+    pacquet_in(&workspace)
+        .with_args(["install", "--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the --allow-build package should now have run its postinstall",
+    );
+
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
+        "allowBuilds entry should be persisted, got:\n{yaml}",
+    );
 
     drop((root, mock_instance));
 }

@@ -318,9 +318,10 @@ async fn put_publish_omits_auth_and_otp_headers_when_absent() {
 
 #[tokio::test]
 async fn put_publish_classifies_a_connection_failure_as_a_transport_error() {
-    // Port 1 has no listener, so the request never gets a response.
+    // The connect to `0.0.0.0:1` fails at once on every OS, so the request never
+    // gets a response.
     let client = ThrottledClient::default();
-    let err = put_publish(&client, "http://127.0.0.1:1/pkg", None, "publish", body(), None, false)
+    let err = put_publish(&client, "http://0.0.0.0:1/pkg", None, "publish", body(), None, false)
         .await
         .expect_err("a refused connection is a transport failure");
     assert!(matches!(err, PublishHttpError::Transport { .. }));
@@ -698,6 +699,7 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
     let opts = PublishPackedPkgOptions {
         dry_run: true,
         stage: false,
+        wait_timeout: Duration::ZERO,
         registry: crate::PublishRegistryOptions {
             default: "https://registry.example/".to_owned(),
             scoped: std::collections::BTreeMap::new(),
@@ -797,6 +799,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
     let opts = PublishPackedPkgOptions {
         dry_run: false,
         stage: false,
+        wait_timeout: Duration::ZERO,
         registry: crate::PublishRegistryOptions {
             default: format!("{}/", server.url()),
             scoped: std::collections::BTreeMap::new(),

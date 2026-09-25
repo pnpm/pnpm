@@ -648,7 +648,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
 /// `Install::prefer_frozen_lockfile = Some(false)` (the CLI's
 /// `--no-prefer-frozen-lockfile` opt-out). The dispatch must route to
 /// the fresh-resolve path even though the frozen fast path would have
-/// applied. We prove it by pointing at an unreachable registry: the
+/// applied. We prove it by pointing at a failing registry: the
 /// fresh-resolve path will hit the resolver and fail, whereas the
 /// frozen fast path would short-circuit the network entirely via the
 /// skip cache.
@@ -661,11 +661,21 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
+    let mut registry = mockito::Server::new_async().await;
+    let failed_request = registry
+        .mock("GET", "/placeholder")
+        .with_status(503)
+        .expect(3)
+        .create_async()
+        .await;
     let mut config = Config::new();
-    // Force the resolver onto an unreachable registry so the
-    // fresh-resolve path errors out clearly; the frozen path would
-    // never consult the registry at all.
-    config.registry = "http://invalid.local/".to_string();
+    config.registry = format!("{}/", registry.url());
+    config.fetch_retry_mintimeout = 1;
+    config.fetch_retry_maxtimeout = 1;
+    // The default cache dir is shared by every test. Another test's mock can
+    // get the same port and leave this package's metadata there, and an
+    // exact version found in cached metadata never reaches the registry.
+    config.cache_dir = dirs.path().join("cache");
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
@@ -736,8 +746,9 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     .run::<SilentReporter>()
     .await;
 
+    failed_request.assert_async().await;
     let err = result.expect_err(
-        "fresh-resolve dispatch must consult the unreachable registry and fail; \
+        "fresh-resolve dispatch must consult the failing registry and fail; \
          a success would mean the dispatch silently took the frozen fast path",
     );
     assert!(

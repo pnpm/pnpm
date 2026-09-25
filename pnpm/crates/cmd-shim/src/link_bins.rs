@@ -21,6 +21,7 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
+    ffi::OsString,
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -59,6 +60,11 @@ pub struct PackageBinSource {
     ///
     /// [`location`]: Self::location
     pub resolved_location: Option<PathBuf>,
+    /// Whether the package's lifecycle scripts have yet to run in this
+    /// install. Such a package's bin is not linked while its target is
+    /// missing, because the scripts may create it and run with this
+    /// `.bin` on `PATH`. The linking pass after the build links it.
+    pub build_pending: bool,
 }
 
 impl PackageBinSource {
@@ -69,7 +75,13 @@ impl PackageBinSource {
     /// most tests).
     #[must_use]
     pub fn new(location: PathBuf, manifest: Arc<Value>) -> Self {
-        Self { location, manifest, origin: BinOrigin::Direct, resolved_location: None }
+        Self {
+            location,
+            manifest,
+            origin: BinOrigin::Direct,
+            resolved_location: None,
+            build_pending: false,
+        }
     }
 
     /// Tag this source with the given [`BinOrigin`]. Builder-style
@@ -87,6 +99,14 @@ impl PackageBinSource {
     #[must_use]
     pub fn with_resolved_location(mut self, resolved_location: PathBuf) -> Self {
         self.resolved_location = Some(resolved_location);
+        self
+    }
+
+    /// Mark the package's lifecycle scripts as not yet run. See
+    /// [`Self::build_pending`].
+    #[must_use]
+    pub fn with_build_pending(mut self, build_pending: bool) -> Self {
+        self.build_pending = build_pending;
         self
     }
 }
@@ -156,6 +176,9 @@ pub enum LinkBinsError {
         #[error(source)]
         error: serde_json::Error,
     },
+
+    #[diagnostic(transparent)]
+    ReadProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
     #[display("Failed to read shim source {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_CMD_SHIM_PROBE_SHIM_SOURCE))]
@@ -258,6 +281,7 @@ impl ShimTargetCache {
     fn ensure_target_executable_once<Sys: FsEnsureExecutableBits>(
         &self,
         probe_path: &Path,
+        installed_modules_dir: Option<&Path>,
     ) -> Result<(), LinkBinsError> {
         if self.0.executable_ensured
             .lock()
@@ -266,7 +290,7 @@ impl ShimTargetCache {
         {
             return Ok(());
         }
-        ensure_target_executable::<Sys>(probe_path)?;
+        ensure_target_executable::<Sys>(probe_path, installed_modules_dir)?;
         self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
@@ -291,6 +315,18 @@ pub struct LinkBinsOptions {
     /// and the node runtime symlink. `None` writes absolute paths. Inert on
     /// Windows.
     pub relocatable_root: Option<PathBuf>,
+    /// The name of the project modules directory when it is not
+    /// `node_modules` and `extendNodePath` is on. Bins linked into the `.bin`
+    /// of a directory with this name get that directory first on `NODE_PATH`:
+    /// Node only looks for packages in `node_modules` directories, so a tool
+    /// installed there could not otherwise load the project's other packages,
+    /// such as its plugins, ahead of its own.
+    pub project_modules_dir_name: Option<OsString>,
+    /// A modules directory pnpm installs packages into although it is not
+    /// named `node_modules`: the root's custom `modulesDir` under the
+    /// hoisted linker. Bin targets inside it get their executable bits the
+    /// way targets under `node_modules` do.
+    pub installed_modules_dir: Option<PathBuf>,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
@@ -344,12 +380,16 @@ where
 /// [`link_bins_of_packages`] with a caller-scoped [`ShimTargetCache`],
 /// for callers that link many `node_modules/.bin` dirs against the
 /// same underlying packages in one pass.
+///
+/// Returns whether it held back a bin whose target is missing (see
+/// [`PackageBinSource::build_pending`]), so the caller can link `bins_dir`
+/// again once the builds ran.
 pub fn link_bins_of_packages_cached<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
     options: &LinkBinsOptions,
     cache: &ShimTargetCache,
-) -> Result<(), LinkBinsError>
+) -> Result<bool, LinkBinsError>
 where
     Sys: FsReadToString
         + FsReadHead
@@ -381,6 +421,7 @@ where
         + FsEnsureExecutableBits,
 {
     link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, &ShimTargetCache::default())
+        .map(|_| ())
 }
 
 fn link_bins_impl<Sys>(
@@ -389,7 +430,7 @@ fn link_bins_impl<Sys>(
     exclude_bins: &HashSet<String>,
     options: &LinkBinsOptions,
     cache: &ShimTargetCache,
-) -> Result<(), LinkBinsError>
+) -> Result<bool, LinkBinsError>
 where
     Sys: FsReadToString
         + FsReadHead
@@ -401,19 +442,22 @@ where
 {
     let chosen = choose_bins::<Sys>(packages, exclude_bins);
     if chosen.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
+    let chosen_count = chosen.len();
 
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
     let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
 
+    let to_link = remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
+
     // Each shim's read-shebang + write-file + chmod sequence is independent
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen
+    to_link
         .par_iter()
         .try_for_each(|(command, pkg)| {
             // On Unix the symlink branch never writes a shim, so no bin
@@ -422,30 +466,16 @@ where
             let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
                 Vec::new()
             } else {
-                shim_node_path(pkg, &paths.extra_node_paths)
+                shim_node_path(pkg, paths.project_node_path.as_deref(), &paths.extra_node_paths)
             };
             let pkg_name = package_name(pkg);
-            // The target's symlink-resolved path doubles as the memo key
-            // for the per-target probes: importers that reach one
-            // virtual-store file through different symlinks share it.
-            // Without a resolved location, the literal path still dedupes
-            // within whatever scope the caller gave the cache.
-            let probe_path = pkg.resolved_location
-                .as_ref()
-                .and_then(|resolved| {
-                    command.path
-                        .strip_prefix(&pkg.location)
-                        .ok()
-                        .map(|bin_rel_path| resolved.join(bin_rel_path))
-                })
-                .unwrap_or_else(|| command.path.clone());
             write_shim::<Sys>(
                 ShimSpec {
                     target_path: &paths.target(&command.path, options.relocatable_root.as_deref())?,
-                    probe_path: &probe_path,
+                    probe_path: &target_probe_path(pkg, &command.path),
                     shim_path: &paths.bins_dir.join(&command.name),
                     node_path: &node_path,
-                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    options,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
                     relocatable_root: paths.relocatable_root.as_deref(),
                     bin_dir,
@@ -454,7 +484,7 @@ where
             )
         })?;
 
-    Ok(())
+    Ok(to_link.len() < chosen_count)
 }
 
 /// The bins `packages` provide, minus `exclude_bins`, each paired with the
@@ -476,50 +506,19 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
             }
         }
     }
-    for excluded in exclude_bins {
-        chosen.remove(excluded);
-    }
+    let excluded = ExcludedBins::new(exclude_bins);
+    chosen.retain(|name, _| !excluded.contains(name));
     chosen.into_values().collect()
-}
-
-/// The `NODE_PATH` entries for one package's shims: the target's own
-/// `node_modules` dirs first (pnpm's `getBinNodePaths`), then the
-/// caller's extras that aren't already present. An empty extras list
-/// means "no `NODE_PATH` in shims at all" (`extendNodePath: false`, a
-/// non-isolated linker, or no hoist pattern), matching pnpm's bins
-/// linker.
-///
-/// The result depends only on the package's symlink-resolved
-/// directory — every bin lives under the package root — so a
-/// caller-supplied [`PackageBinSource::resolved_location`] makes this
-/// syscall-free; without one the package's `location` is
-/// canonicalized once, covering all of its bins.
-fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<String> {
-    if extra_node_paths.is_empty() {
-        return Vec::new();
-    }
-    let mut merged = if let Some(resolved) = &pkg.resolved_location {
-        bin_node_paths(resolved)
-    } else {
-        let dir =
-            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
-        bin_node_paths(&dir)
-    };
-    for extra in extra_node_paths {
-        if !merged.contains(extra) {
-            merged.push(extra.clone());
-        }
-    }
-    merged
 }
 
 /// Whether the bins of `pkg_name` get a PowerShell shim next to the `.cmd`
 /// one. The pnpm CLI opts out, because PowerShell resolves `pnpm.ps1` ahead of
 /// `pnpm.cmd`: a shim written for one installation of the CLI would keep
 /// shadowing every later one, including an upgrade that ships a different
-/// executable.
+/// executable. `@pnpm/exe` is that same CLI under the name earlier
+/// installs used, so it opts out too.
 fn wants_powershell_shim(pkg_name: &str) -> bool {
-    pkg_name != "pnpm"
+    !matches!(pkg_name, "pnpm" | "@pnpm/exe")
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
@@ -570,11 +569,15 @@ use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
 mod executable;
 use executable::{
     bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at,
+    link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
 };
 
 mod discovery;
 
+mod exclusions;
+use exclusions::ExcludedBins;
+
 mod linking_paths;
+use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
 
 mod relocatable;

@@ -64,6 +64,34 @@ fn variable_wins_over_default_when_set() {
 }
 
 #[test]
+fn optional_placeholder_expands_without_being_recorded() {
+    static ENV: &[(&str, &str)] = &[("SET", "--max-old-space-size=8192"), ("EMPTY", "")];
+    struct StaticEnv;
+    impl EnvVar for StaticEnv {
+        fn var(name: &str) -> Option<String> {
+            ENV.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    }
+    assert_eq!(
+        replace_clean::<StaticEnv>("${SET?} --use-system-ca"),
+        "--max-old-space-size=8192 --use-system-ca",
+    );
+    assert_eq!(replace_clean::<StaticEnv>("${UNSET?} --use-system-ca"), " --use-system-ca");
+    assert_eq!(replace_clean::<StaticEnv>("${EMPTY?}"), "");
+    assert_eq!(replace_clean::<StaticEnv>(r"\${UNSET?}"), "${UNSET?}");
+    assert_eq!(replace_clean::<StaticEnv>(r"\\${UNSET?}"), r"\");
+}
+
+#[test]
+fn malformed_optional_placeholder_is_recorded() {
+    let (value, unresolved) = env_replace_lossy::<NoEnv>("${?}${A??}");
+    assert_eq!(value, "");
+    assert_eq!(unresolved, vec!["${?}".to_owned(), "${A??}".to_owned()]);
+}
+
+#[test]
 fn passthrough_when_no_placeholder() {
     assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
 }
@@ -209,4 +237,31 @@ fn collects_every_unresolved_placeholder_occurrence() {
     let (value, unresolved) = env_replace_lossy::<NoEnv>("${A}-${B}-${A}");
     assert_eq!(value, "--");
     assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()]);
+}
+
+#[test]
+fn dash_default_distinguishes_missing_and_empty_variables() {
+    struct TestEnv;
+    impl EnvVar for TestEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "SET" => Some("value".to_owned()),
+                "EMPTY" => Some(String::new()),
+                _ => None,
+            }
+        }
+    }
+    for (template, expected) in [
+        ("${SET-fallback}", "value"),
+        ("${MISSING-fallback}", "fallback"),
+        ("${MISSING-?}", "?"),
+        ("${EMPTY-fallback}", ""),
+        ("${SET:-fallback}", "value"),
+        ("${MISSING:-fallback}", "fallback"),
+        ("${EMPTY:-fallback}", "fallback"),
+        ("${MISSING-a-b}", "a-b"),
+        (r"\${MISSING-fallback}", "${MISSING-fallback}"),
+    ] {
+        assert_eq!(replace_clean::<TestEnv>(template), expected);
+    }
 }

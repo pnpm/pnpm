@@ -9,10 +9,11 @@ use pnpm_config::{
     version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
 };
 use pnpm_network::ThrottledClient;
+use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NpmResolver, PackumentFetchLocker,
-    PickPackageContext, merge_named_registries, shared_packument_fetch_locker,
-    shared_picked_manifest_cache,
+    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
+    PackumentFetchLocker, PickPackageContext, merge_named_registries,
+    shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use std::sync::Arc;
 
@@ -124,7 +125,7 @@ impl PickPolicy {
     }
 }
 
-/// Constructs the npm resolver used by config-driven, command-level version
+/// Constructs the registry resolver chain used by config-driven, command-level version
 /// lookups with the same registry, authentication, cache, network, and metadata
 /// settings as an install. The supplied [`PickPolicy`] keeps version selection
 /// aligned with the install operation that derived it.
@@ -133,7 +134,38 @@ impl PickPolicy {
 ///
 /// Returns an error when the configured named-registry prefixes cannot be
 /// merged into an unambiguous resolver map.
-pub fn create_configured_npm_resolver(
+pub fn create_configured_registry_resolver(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    policy: &PickPolicy,
+) -> Result<DefaultResolver, MergeNamedRegistriesError> {
+    let npm = create_configured_npm_resolver(config, http_client, policy)?;
+    let named = NamedRegistryResolver {
+        registry_names: npm.registries_by_prefix
+            .keys()
+            .cloned()
+            .collect(),
+        registries_by_prefix: npm.registries_by_prefix.clone(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client: Arc::clone(&npm.metadata.http_client),
+            auth_headers: Arc::clone(&npm.metadata.auth_headers),
+            meta_cache: Arc::clone(&npm.metadata.meta_cache),
+            fetch_locker: Arc::clone(&npm.metadata.fetch_locker),
+            picked_manifest_cache: Arc::clone(&npm.metadata.picked_manifest_cache),
+            cache_dir: npm.metadata.cache_dir.clone(),
+            retry_opts: npm.metadata.retry_opts,
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: policy.full_metadata,
+            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
+            filter_metadata: policy.filter_metadata,
+        },
+        cache_policy: npm.cache_policy,
+    };
+    Ok(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]))
+}
+
+fn create_configured_npm_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,
     policy: &PickPolicy,
@@ -169,6 +201,7 @@ pub fn create_configured_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_index: None,
     })
 }
 

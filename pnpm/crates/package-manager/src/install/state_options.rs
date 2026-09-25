@@ -36,6 +36,9 @@ pub(crate) struct PendingProjectScripts<'a, 'selection> {
     pub(crate) manifest_dir: &'a Path,
     pub(crate) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(crate) rebuild: Option<RebuildOptions>,
+    /// The root project's `preinstall` already ran ahead of resolution,
+    /// so its run after linking starts at `install`.
+    pub(crate) root_preinstall_ran: bool,
 }
 
 pub(crate) struct ApplyCompletionContext {
@@ -45,6 +48,12 @@ pub(crate) struct ApplyCompletionContext {
     pub(crate) catalog_context_present: bool,
     pub(crate) verified_file_integrity_baseline: VerifiedFileIntegrity,
     pub(crate) config: &'static Config,
+    /// Whether the run may write the workspace state. See
+    /// `InstallSaveOptions::workspace_state`.
+    pub(crate) save_workspace_state: bool,
+    /// Whether a person is at the terminal to answer for the run. See
+    /// `RunMode::can_prompt`.
+    pub(crate) can_prompt: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -109,6 +118,7 @@ pub(crate) struct ProjectScriptSelection<'a, 'selection> {
     pub(crate) manifest_dir: &'a Path,
     pub(crate) workspace: Option<&'a WorkspaceInstallSelection<'selection>>,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
+    pub(crate) include_dev: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -131,6 +141,7 @@ pub(crate) struct SelectedImporters<'a> {
     pub(crate) requested_ids: Option<&'a HashSet<String>>,
     pub(crate) real_ids: &'a HashSet<String>,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) ignore_manifest_check: bool,
 }
 
 pub(crate) struct LockfileVerificationInputs<'a, 'install> {

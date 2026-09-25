@@ -11,9 +11,11 @@ export function reportSkippedOptionalDependencies (
   return skippedOptionalDependency$.pipe(
     filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0)),
     map((log) => Rx.of({
-      msg: `info: ${
-        log.package.id || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package.bareSpecifier
-      } is an optional dependency and failed compatibility check. Excluding it from installation.`,
+      msg: log.reason === 'resolution_failure'
+        ? `info: ${
+          log.package.name ? `${log.package.name}@${log.package.bareSpecifier}` : log.package.bareSpecifier
+        } is an optional dependency that could not be resolved. Excluding it from installation.`
+        : `info: ${log.package.id} is an optional dependency and failed compatibility check. Excluding it from installation.`,
     }))
   )
 }

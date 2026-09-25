@@ -22,6 +22,7 @@ indexmap = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
 rayon = { workspace = true }
+same-file = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 wax = { workspace = true }

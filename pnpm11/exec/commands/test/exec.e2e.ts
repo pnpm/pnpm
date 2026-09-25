@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -14,6 +15,28 @@ import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
+
+test.each([undefined, '/parent/package-manager'])('pnpm exec sets package-manager environment variables (inherited: %s)', async (inherited) => {
+  prepare({})
+  const { stdout } = await execa(process.execPath, [pnpmBin, '--reporter=silent', 'exec', 'node', '-e',
+    'console.log(JSON.stringify({ npm_execpath: process.env.npm_execpath, INIT_CWD: process.env.INIT_CWD, npm_node_execpath: process.env.npm_node_execpath, NODE: process.env.NODE }))',
+  ], {
+    env: {
+      npm_execpath: inherited,
+      INIT_CWD: inherited,
+      npm_node_execpath: inherited,
+      NODE: undefined,
+    },
+  })
+
+  assert(typeof stdout === 'string')
+  expect(JSON.parse(stdout)).toStrictEqual({
+    npm_execpath: pnpmBin,
+    INIT_CWD: process.cwd(),
+    npm_node_execpath: process.execPath,
+    NODE: process.execPath,
+  })
+})
 
 test('pnpm recursive exec', async () => {
   await using server1 = await createTestIpcServer()
@@ -189,6 +212,68 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
 
   expect(fs.readFileSync('foo/pkgname', 'utf8')).toBe('foo')
+})
+
+testOnPosixOnly('pnpm recursive exec sets PWD to the logical path of a project reached through a symlink', async () => {
+  preparePackages([
+    { location: 'real', package: { name: 'foo', version: '1.0.0' } },
+  ])
+  fs.symlinkSync('real', path.join(process.cwd(), 'linked'), 'dir')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - linked\n')
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+
+  expect(fs.readFileSync('linked/pwd.txt', 'utf8')).toBe(path.join(process.cwd(), 'linked'))
+})
+
+testOnPosixOnly('pnpm recursive exec sets PWD to each project directory', async () => {
+  preparePackages([
+    { name: 'foo', version: '1.0.0' },
+  ])
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+
+  expect(fs.readFileSync('foo/pwd.txt', 'utf8')).toBe(path.join(process.cwd(), 'foo'))
+})
+
+testOnPosixOnly('pnpm exec keeps the inherited PWD when running in the invocation directory', async () => {
+  prepare({ name: 'foo', version: '1.0.0' })
+  const linked = path.join(process.cwd(), '../linked-cwd')
+  fs.symlinkSync(process.cwd(), linked, 'dir')
+
+  // A shell that entered this directory through a symlink exported the
+  // logical path as PWD. A non-recursive exec runs right here, so the
+  // inherited value already names the command's cwd and must survive.
+  const originalPwd = process.env.PWD
+  process.env.PWD = linked
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+  } finally {
+    if (originalPwd === undefined) {
+      delete process.env.PWD
+    } else {
+      process.env.PWD = originalPwd
+    }
+  }
+
+  expect(fs.readFileSync('pwd.txt', 'utf8')).toBe(linked)
 })
 
 test('testing the bail config with "pnpm recursive exec"', async () => {

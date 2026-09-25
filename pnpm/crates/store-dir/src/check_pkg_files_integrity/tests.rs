@@ -812,3 +812,128 @@ fn a_recorded_path_that_is_not_a_plain_relative_path_never_matches() {
         );
     }
 }
+
+#[test]
+fn built_package_with_postinstall_modifications_is_not_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"modified by postinstall\n").unwrap();
+    fs::write(package.join("generated.js"), b"created by postinstall\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn built_package_with_manifest_script_is_not_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"modified by postinstall\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.manifest = Some(serde_json::json!({
+        "scripts": {
+            "postinstall": "node build.js"
+        }
+    }));
+    assert!(package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn missing_directory_fails_even_for_built_package() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("nonexistent");
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn side_effects_diff_overlay_matches() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"module.exports = 1\n").unwrap();
+    fs::write(package.join("addon.node"), b"binary\n").unwrap();
+
+    let mut index = index_with_one_file("index.js", b"module.exports = 1\n");
+    let addon_digest = sha512_hex(b"binary\n");
+    let mut added = HashMap::new();
+    added.insert("addon.node".to_string(), info(&addon_digest, 7, 0o755, None));
+    let mut side_effects = HashMap::new();
+    side_effects.insert(
+        "linux-x64".to_string(),
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+    );
+    index.side_effects = Some(side_effects);
+
+    assert!(package_dir_matches_index(&package, &index));
+
+    // If an index file is modified, and the package does not declare build scripts:
+    fs::write(package.join("index.js"), b"corrupted\n").unwrap();
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn hardlinked_built_package_with_modifications_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let cas_file = dir.path().join("cas_file");
+    fs::write(&cas_file, b"corrupted\n").unwrap();
+    fs::hard_link(&cas_file, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[test]
+fn unrelated_package_with_added_binding_gyp_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+    fs::write(package.join("index.js"), b"corrupted\n").unwrap();
+    fs::write(package.join("binding.gyp"), b"{}\n").unwrap();
+
+    let index = index_with_one_file("index.js", b"original content\n");
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_file_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_blob = dir.path().join("external_blob");
+    fs::write(&external_blob, b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_blob, package.join("index.js")).unwrap();
+
+    let mut index = index_with_one_file("index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_parent_dir_in_built_package_is_reported_as_modified() {
+    let dir = tempdir().unwrap();
+    let package = dir.path().join("pkg");
+    fs::create_dir_all(&package).unwrap();
+
+    let external_dir = dir.path().join("external_dir");
+    fs::create_dir_all(&external_dir).unwrap();
+    fs::write(external_dir.join("index.js"), b"corrupted\n").unwrap();
+    std::os::unix::fs::symlink(&external_dir, package.join("nested")).unwrap();
+
+    let mut index = index_with_one_file("nested/index.js", b"original content\n");
+    index.requires_build = Some(true);
+    assert!(!package_dir_matches_index(&package, &index));
+}

@@ -1,4 +1,4 @@
-use super::{Map, PackageManifestError, Range, Value, json};
+use super::{Map, PackageManifestError, Range, Value, Version, json};
 
 /// Runtime aliases recognised by `devEngines.runtime` /
 /// `engines.runtime` reification.
@@ -173,8 +173,11 @@ fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[
     }
 }
 
-/// Return the minimum Node.js version declared by `devEngines.runtime` or
+/// Return the Node.js version declared by `devEngines.runtime` or
 /// `engines.runtime`, in that precedence order.
+///
+/// A range that pnpm does not provision stands for the Node.js already on the
+/// system, so it names a version only when the entry asks pnpm to download it.
 #[must_use]
 pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     for engines_field in ["devEngines", "engines"] {
@@ -189,19 +192,25 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
             runtime @ Value::Object(_) => std::slice::from_ref(runtime),
             _ => continue,
         };
-        let Some(version) = runtimes
+        let Some((runtime, version)) = runtimes
             .iter()
             .find_map(|runtime| {
-                (runtime.get("name").and_then(Value::as_str) == Some("node"))
-                    .then(|| runtime.get("version").and_then(Value::as_str))
-                    .flatten()
+                let version = runtime.get("version").and_then(Value::as_str)?;
+                (runtime.get("name").and_then(Value::as_str) == Some("node")).then_some((
+                    runtime, version,
+                ))
             })
         else {
             continue;
         };
-        if let Ok(range) = Range::parse(version.trim())
-            && let Some(version) = range.min_version()
-        {
+        let version = version.trim();
+        let Ok(range) = Range::parse(version) else {
+            continue;
+        };
+        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
+            return Version::parse(version).ok().map(|version| version.to_string());
+        }
+        if let Some(version) = range.min_version() {
             return Some(version.to_string());
         }
     }
@@ -245,7 +254,12 @@ pub fn convert_dependencies_to_engines_runtime(
             if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
                 deps.remove(runtime_name);
             }
-        } else {
+        } else if manifest
+            .get(deps_field)
+            .and_then(Value::as_object)
+            .and_then(|deps| deps.get(runtime_name))
+            .is_none()
+        {
             remove_managed_runtime_entry(manifest, engines_field, runtime_name);
         }
     }

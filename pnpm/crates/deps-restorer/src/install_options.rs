@@ -5,7 +5,6 @@ use crate::{
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot};
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
 use pnpm_store_dir::StoreIndexWriter;
 use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
@@ -152,5 +151,5 @@ pub struct SkipSetClosure<'a> {
     pub lockfile: &'a Lockfile,
     pub root: &'a Path,
     pub importer_ids: &'a HashSet<String>,
-    pub included: IncludedDependencies,
+    pub groups: &'a crate::GroupSelection,
 }

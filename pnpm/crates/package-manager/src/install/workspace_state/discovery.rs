@@ -6,6 +6,7 @@ use super::{
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
 };
+use std::borrow::Cow;
 
 /// Discovery twin of [`install_already_up_to_date`](crate::install::workspace_state::install_already_up_to_date) for the
 /// verify-deps-before-run gate: assemble the same
@@ -57,10 +58,11 @@ pub fn check_deps_status_before_run_at(
         return cannot_check_deps();
     };
     let workspace_manifest = workspace_manifest.flatten();
+    let config = gate_config(config, manifest_dir, &manifest);
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
-    let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
+    let lockfile_root = lockfile_root_for(&config, workspace_dir_opt.as_deref(), manifest_dir);
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
@@ -70,13 +72,40 @@ pub fn check_deps_status_before_run_at(
         return cannot_check_deps();
     };
     check_discovered_deps(
-        config,
+        &config,
         &manifest,
         workspace_manifest.as_ref(),
         &workspace_root,
         &lockfile_root,
         &workspace_state,
     )
+}
+/// The directory the verify-deps-before-run gate serializes its installs
+/// over: the workspace root, or `dir` outside a workspace. Every gate in one
+/// workspace shares it, whichever project it runs in.
+#[must_use]
+pub fn deps_install_root(dir: &Path, config: &Config) -> std::path::PathBuf {
+    configured_or_discovered_workspace_dir(config, dir)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| dir.to_path_buf())
+}
+fn gate_config<'a>(
+    config: &'a Config,
+    manifest_dir: &Path,
+    manifest: &PackageManifest,
+) -> Cow<'a, Config> {
+    if config.shares_one_lockfile() {
+        Cow::Borrowed(config)
+    } else {
+        let mut project_config = config.clone();
+        let project_name = manifest
+            .value()
+            .get("name")
+            .and_then(serde_json::Value::as_str);
+        project_config.anchor_dedicated_project(manifest_dir, project_name);
+        Cow::Owned(project_config)
+    }
 }
 pub(super) fn cannot_check_deps() -> Option<crate::RunDepsStatus> {
     Some(crate::RunDepsStatus::Outdated {
@@ -98,9 +127,10 @@ pub(super) fn check_discovered_deps(
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
+    let ignored_directories = config.managed_directories();
     let Ok(workspace_projects) = config
         .shares_one_lockfile()
-        .then(|| load_workspace_projects(workspace_root, workspace_manifest))
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
         .transpose()
     else {
         return cannot_check_deps();

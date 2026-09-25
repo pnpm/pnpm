@@ -375,6 +375,7 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
                 packages: &[],
                 depth: usize::MAX,
                 workspace_packages: None,
+                interactive: false,
             },
             version: pnpm_package_manager::UpdateVersionOptions {
                 latest: false,
@@ -406,6 +407,7 @@ fn update_resources(
             DependencyGroup::Dev,
             DependencyGroup::Optional,
         ],
+        explicit_groups: pnpm_package_manager::UpdateExplicitGroups::default(),
         supported_architectures: state.config.supported_architectures.clone(),
         resolution_observer: Some(fix_observer(
             &classification.vulnerabilities,

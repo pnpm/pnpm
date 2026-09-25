@@ -35,6 +35,7 @@ export const pnpmTypes = {
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],
+  'force-ignores-platform': Boolean,
   'force-legacy-deploy': Boolean,
   'frozen-lockfile': Boolean,
   'git-checks': Boolean,

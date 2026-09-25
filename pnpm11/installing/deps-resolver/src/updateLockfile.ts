@@ -151,7 +151,9 @@ function toLockfileDependency (
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
   }
-  if (pkg.additionalInfo.engines != null) {
+  // The legacy array form, such as `["node >= 0.8"]`, is not checked for
+  // installability, so it is not recorded either.
+  if (pkg.additionalInfo.engines != null && !Array.isArray(pkg.additionalInfo.engines)) {
     for (const [engine, version] of Object.entries(pkg.additionalInfo.engines)) {
       if (version === '*') continue
       result.engines = result.engines ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -178,17 +180,17 @@ function toLockfileDependency (
   ) {
     result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
   }
-  if (pkg.additionalInfo.deprecated) {
-    result['deprecated'] = pkg.additionalInfo.deprecated
-  } else if (
+  if (
     // `deprecated` is the only registry-mutable field of a published
-    // version; an unchanged resolution must not lose a recorded
-    // deprecation to a registry serving it inconsistently
-    // (pnpm/pnpm#13846).
+    // version. An unchanged resolution keeps its recorded deprecation, so
+    // neither a registry serving it inconsistently (pnpm/pnpm#13846) nor a
+    // stale metadata cache (pnpm/pnpm#5772) can rewrite it.
     opts.prevSnapshot?.deprecated != null &&
     equals(opts.prevSnapshot.resolution, lockfileResolution)
   ) {
     result['deprecated'] = opts.prevSnapshot.deprecated
+  } else if (pkg.additionalInfo.deprecated) {
+    result['deprecated'] = pkg.additionalInfo.deprecated
   }
   if (pkg.hasBin) {
     result['hasBin'] = true

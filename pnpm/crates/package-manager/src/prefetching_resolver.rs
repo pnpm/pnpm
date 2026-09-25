@@ -28,8 +28,10 @@
 //! the hash the bytes yield, and the dependency walk reads the
 //! package's children out of the manifest inside. Such a read publishes
 //! its extraction too, so the install pass never downloads the archive a
-//! second time. A custom fetcher must decline an unpinned tarball before
-//! that read can download it.
+//! second time. When a prefetch for the same archive is already in
+//! flight, the read parks on that extraction and takes the bundled
+//! manifest from the settled cache slot. A custom fetcher must decline
+//! an unpinned tarball before that read can download it.
 
 use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,
@@ -99,6 +101,7 @@ pub struct PrefetchPolicy<'a> {
 /// independent set without leaking lifetimes back into the resolver's
 /// type.
 struct OwnedFetchCtx {
+    config: &'static Config,
     mem_cache: Arc<MemCache>,
     requester: Arc<str>,
     progress_reported: SharedReportedProgressKeys,
@@ -191,6 +194,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// pass to abort before the rest of the tree walk completes,
     /// which is the opposite of what we want for a prefetch.
     fn maybe_kickoff_download(&self, result: &ResolveResult) {
+        if !is_remote_tarball(&result.resolution) {
+            return;
+        }
         // Only spawn for tarball-shaped resolutions with both URL and
         // integrity. Mirrors the gate in
         // `install_package_from_registry::extract_tarball`; other
@@ -349,6 +355,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
             },
     } = prefetch_ctx;
     OwnedFetchCtx {
+        config,
         mem_cache: Arc::clone(mem_cache),
         requester: Arc::<str>::from(*requester),
         progress_reported: SharedReportedProgressKeys::clone(progress_reported),

@@ -537,6 +537,30 @@ fn update_latest_preserves_exact() {
     drop((root, anchor));
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
+#[test]
+fn update_keeps_a_range_whose_shape_no_save_prefix_describes() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "<= 1.2.5" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.2.0"));
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("<= 1.2.5"));
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_specifier(&lockfile, ".", FOO), "<= 1.2.5");
+    assert_eq!(importer_version(&lockfile, ".", FOO), "1.2.0");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.1.0"));
+
+    drop((root, anchor));
+}
+
 /// `--latest` treats a `=` pin (`=100.0.0`) as an exact pin instead of
 /// widening it to the default caret range, and keeps the explicit `=`
 /// operator when writing the new version back. Regression test for
@@ -799,6 +823,131 @@ fn update_no_save_is_refused_when_a_pick_is_immature() {
     assert!(stderr.contains("ERR_PNPM_STRICT_MIN_RELEASE_AGE_REQUIRES_SAVE"), "{stderr}");
     let after = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     assert_eq!(after, before);
+
+    drop((root, anchor));
+}
+
+const UNSERVED_DEP_VERSION: &str = "100.9.9";
+
+/// Rewrite the lockfile to pin [`DEP`] at a version the registry does not
+/// serve, the state an unpublished version leaves behind.
+fn lock_unserved_version_of_dep(workspace: &Path) {
+    let locked_key = lockfile_package_keys(workspace)
+        .into_iter()
+        .find(|key| key.starts_with(&format!("{DEP}@")))
+        .expect("the lockfile pins the dependency");
+    let unserved_key = format!("{DEP}@{UNSERVED_DEP_VERSION}");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: serde_json::Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    for section in ["packages", "snapshots"] {
+        let entries = lockfile[section].as_object_mut().expect("the lockfile has the section");
+        let entry = entries.remove(&locked_key).expect("the section has the locked entry");
+        entries.insert(unserved_key.clone(), entry);
+    }
+    for snapshot in lockfile["snapshots"]
+        .as_object_mut()
+        .expect("the lockfile has snapshots")
+        .values_mut()
+    {
+        if let Some(pin) = snapshot
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            *pin = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    for importer in lockfile["importers"]
+        .as_object_mut()
+        .expect("the lockfile has importers")
+        .values_mut()
+    {
+        if let Some(dep) = importer
+            .get_mut("dependencies")
+            .and_then(|deps| deps.get_mut(DEP))
+        {
+            dep["version"] = UNSERVED_DEP_VERSION.into();
+        }
+    }
+    fs::write(
+        &lockfile_path,
+        serde_saphyr::to_string(&lockfile).expect("serialize pnpm-lock.yaml"),
+    )
+    .expect("write pnpm-lock.yaml");
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/9953>. The lockfile
+/// verification gate skips the version the update replaces.
+#[test]
+fn update_moves_a_dependency_off_a_locked_version_the_registry_no_longer_serves() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    pacquet(&workspace, ["update", DEP]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
+    assert!(
+        packages
+            .iter()
+            .any(|key| key.starts_with(&format!("{DEP}@"))),
+        "{packages:?}",
+    );
+
+    drop((root, anchor));
+}
+
+/// `update --depth 0` does not replace every locked version of its target,
+/// so the lockfile verification gate still checks them.
+#[test]
+fn update_with_depth_limit_verifies_the_locked_versions_of_its_targets() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["update", "--depth", "0", DEP]));
+
+    drop((root, anchor));
+}
+
+fn assert_unserved_dep_is_rejected(mut command: Command) {
+    let output = command.assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+
+    assert!(stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"), "{stderr}");
+    assert!(stderr.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{stderr}");
+}
+
+/// A filtered update leaves the other importers' pins in place, so the
+/// lockfile verification gate still checks them.
+#[test]
+fn update_verifies_the_locked_versions_of_importers_it_does_not_update() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
+    add_workspace_package(&workspace, "project-b", "1.0.0");
+    fs::write(
+        workspace.join("project-b/package.json"),
+        format!(r#"{{ "name": "project-b", "version": "1.0.0", "dependencies": {{ "{PARENT}": "100.0.0" }} }}"#),
+    )
+    .expect("write project-b/package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+    lock_unserved_version_of_dep(&workspace);
+    set_minimum_release_age(&workspace, 1);
+
+    assert_unserved_dep_is_rejected(pacquet(&workspace, ["--filter", "project-b", "update", DEP]));
+
+    pacquet(&workspace, ["update", "--recursive", DEP]).assert().success();
+    let packages = lockfile_package_keys(&workspace);
+    assert!(!packages.contains(&format!("{DEP}@{UNSERVED_DEP_VERSION}")), "{packages:?}");
 
     drop((root, anchor));
 }
@@ -1133,6 +1282,44 @@ fn update_latest_leaves_auto_installed_peers_alone() {
 }
 
 #[test]
+fn update_peer_resolves_and_saves_with_auto_install_peers_disabled() {
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(PEER_A, "1.0.1", "latest");
+    append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-update", "version": "1.0.0", "peerDependencies": {{ "{PEER_A}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["update", "--peer", "--lockfile-only"]).assert().success();
+
+    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+    assert_eq!(
+        manifest
+            .dependencies([DependencyGroup::Peer])
+            .find(|(name, _)| *name == PEER_A)
+            .map(|(_, specifier)| specifier),
+        Some("^1.0.1"),
+    );
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert!(
+        lockfile
+            .root_project()
+            .and_then(|importer| importer.dependencies.as_ref())
+            .is_none_or(|dependencies| !dependencies
+                .keys()
+                .any(|name| name.to_string() == PEER_A)),
+        "an explicitly resolved peer must stay unmaterialized when autoInstallPeers is false",
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+#[test]
 fn update_withholds_the_old_pin_of_an_auto_installed_peer() {
     let (root, workspace, anchor) = setup();
     let consumer = "@pnpm.e2e/wants-peer-c-1";
@@ -1195,3 +1382,5 @@ fn update_keeps_every_dist_tag_specifier_without_latest() {
 mod workspace;
 
 mod selectors;
+
+mod overrides;

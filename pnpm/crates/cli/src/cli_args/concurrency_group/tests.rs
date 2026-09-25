@@ -1,11 +1,14 @@
 use super::{
-    HELD_CONCURRENCY_GROUPS_ENV, SlotOutcome, SlotPool, acquire_slot, add_held_group,
-    with_held_group,
+    GroupStatus, HELD_CONCURRENCY_GROUPS_ENV, HolderLine, SlotOutcome, WaiterLine, acquire_slot,
+    add_held_group, format_wait_notice, inspect_group,
+    pool::{SlotPool, WaitSnapshot},
+    render_group, with_held_group,
 };
 use pnpm_config::{Config, TaskSettings};
 use pnpm_reporter::LogEvent;
 use std::{
     collections::HashMap,
+    fs,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -98,7 +101,7 @@ fn acquire_waits_for_a_slot_to_free_up() {
     let mut notices = 0;
     let started = Instant::now();
     let slot = pool
-        .acquire(|| notices += 1, &never)
+        .acquire("", 0, |_| notices += 1, &never)
         .expect("acquire after the release")
         .expect("the wait ended with a slot");
     let acquired_at = Instant::now();
@@ -125,7 +128,7 @@ fn a_cancelled_wait_ends_without_a_slot() {
     let cancel_after = Duration::from_millis(200);
     let cancelled = || started.elapsed() >= cancel_after;
     let outcome = pool
-        .acquire(|| {}, &cancelled)
+        .acquire("", 0, |_| {}, &cancelled)
         .expect("the wait itself succeeds");
 
     dbg!(started.elapsed());
@@ -193,4 +196,383 @@ fn a_nested_task_of_a_held_group_reuses_the_parent_slot() {
         Some("node,cargo"),
         "a held group is listed once",
     );
+}
+
+fn recv_wait(rx: &mpsc::Receiver<WaitSnapshot>) -> WaitSnapshot {
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the waiter announced itself")
+}
+
+fn recv_got(rx: &mpsc::Receiver<Instant>) -> Instant {
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the waiter took a slot")
+}
+
+fn spawn_waiter(
+    pool: SlotPool,
+    priority: i32,
+) -> (mpsc::Receiver<WaitSnapshot>, mpsc::Receiver<Instant>, thread::JoinHandle<()>) {
+    let (waiting_tx, waiting) = mpsc::channel();
+    let (got_tx, got) = mpsc::channel();
+    let thread = thread::spawn(move || {
+        let slot = pool
+            .acquire(
+                "wait",
+                priority,
+                |snapshot| {
+                    let _ = waiting_tx.send(snapshot.clone());
+                },
+                &never,
+            )
+            .expect("acquire")
+            .expect("a slot");
+        got_tx
+            .send(Instant::now())
+            .expect("report the grant");
+        drop(slot);
+    });
+    (waiting, got, thread)
+}
+
+#[test]
+fn waiters_start_in_the_order_they_began_waiting() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (a_waiting, a_got, a) = spawn_waiter(pool.clone(), 0);
+    let a_line = recv_wait(&a_waiting);
+    let (b_waiting, b_got, b) = spawn_waiter(pool, 0);
+    let b_line = recv_wait(&b_waiting);
+
+    dbg!(&a_line, &b_line);
+    assert_eq!(a_line.position, 1);
+    assert_eq!(b_line.position, 2);
+    assert_eq!(b_line.total, 2);
+
+    drop(held);
+    let t_a = recv_got(&a_got);
+    let t_b = recv_got(&b_got);
+    a.join().expect("first waiter");
+    b.join().expect("second waiter");
+    assert!(t_a <= t_b, "the first waiter started after the second");
+}
+
+#[test]
+fn a_higher_priority_waiter_starts_before_earlier_arrivals() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (low_waiting, low_got, low) = spawn_waiter(pool.clone(), 0);
+    let low_line = recv_wait(&low_waiting);
+    let (high_waiting, high_got, high) = spawn_waiter(pool, 10);
+    let high_line = recv_wait(&high_waiting);
+
+    dbg!(&low_line, &high_line);
+    assert_eq!(high_line.position, 1, "the later high-priority waiter is not first in line");
+    assert_eq!(low_line.position, 1, "the first waiter was not first before the jump");
+    assert_eq!(high_line.total, 2);
+
+    drop(held);
+    let t_high = recv_got(&high_got);
+    let t_low = recv_got(&low_got);
+    high.join().expect("high-priority waiter");
+    low.join().expect("low-priority waiter");
+    assert!(t_high <= t_low, "the high-priority waiter started after the earlier arrival");
+}
+
+#[test]
+fn a_cancelled_waiter_does_not_block_the_next() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let started = Instant::now();
+    let cancel_after = Duration::from_millis(200);
+    let cancelled = || started.elapsed() >= cancel_after;
+    let first = pool
+        .acquire("", 0, |_| {}, &cancelled)
+        .expect("the cancelled wait itself succeeds");
+    assert!(first.is_none(), "the cancelled waiter took a slot");
+
+    let (waiting, got, next) = spawn_waiter(pool, 0);
+    let line = recv_wait(&waiting);
+    dbg!(&line);
+    assert_eq!(line.position, 1, "the cancelled waiter stayed in line");
+
+    drop(held);
+    recv_got(&got);
+    next.join().expect("next waiter");
+}
+
+#[test]
+fn a_stale_waiter_file_is_skipped() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let waiters = dir.path().join("waiters");
+    fs::create_dir_all(&waiters).expect("create waiters dir");
+    fs::write(waiters.join("0"), "").expect("stale lock");
+    fs::write(waiters.join("0.stamp"), "priority 0\npid 1 in /stale").expect("stale stamp");
+    fs::write(dir.path().join("seq"), "1").expect("advance ticket sequence");
+
+    let slot = pool
+        .acquire("", 0, |_| {}, &never)
+        .expect("acquire")
+        .expect("a slot");
+    assert!(!waiters.join("0").exists(), "the stale lock stayed");
+    assert!(!waiters.join("0.stamp").exists(), "the stale stamp stayed");
+    drop(slot);
+}
+
+#[test]
+fn a_later_waiter_takes_a_slot_the_head_cannot_reach() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().to_path_buf();
+    let narrow = SlotPool { dir: path.clone(), limit: 1 };
+    let wide = SlotPool { dir: path, limit: 2 };
+    let held = wide
+        .try_acquire()
+        .expect("try first")
+        .expect("slot 0 is free");
+
+    let (narrow_waiting, narrow_got, narrow_thread) = spawn_waiter(narrow, 0);
+    let narrow_line = recv_wait(&narrow_waiting);
+    dbg!(&narrow_line);
+    assert_eq!(narrow_line.position, 1);
+
+    let (_wide_waiting, wide_got, wide_thread) = spawn_waiter(wide, 0);
+    let t_wide = recv_got(&wide_got);
+    wide_thread.join().expect("wider waiter");
+    assert!(
+        matches!(narrow_got.try_recv(), Err(mpsc::TryRecvError::Empty)),
+        "the narrower waiter took a slot it cannot reach",
+    );
+
+    drop(held);
+    let t_narrow = recv_got(&narrow_got);
+    narrow_thread.join().expect("narrower waiter");
+    dbg!(t_wide, t_narrow);
+    assert!(t_wide <= t_narrow, "the wider waiter started after the narrower head");
+}
+
+#[test]
+fn an_empty_seq_does_not_reuse_a_live_ticket() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (first_waiting, first_got, first) = spawn_waiter(pool.clone(), 0);
+    let first_line = recv_wait(&first_waiting);
+    fs::write(dir.path().join("seq"), "").expect("empty the ticket counter");
+
+    let (second_waiting, second_got, second) = spawn_waiter(pool, 0);
+    let second_line = recv_wait(&second_waiting);
+    dbg!(&first_line, &second_line);
+    assert_eq!(second_line.position, 2, "the new waiter reused the live ticket");
+
+    drop(held);
+    recv_got(&first_got);
+    recv_got(&second_got);
+    first.join().expect("first waiter");
+    second.join().expect("second waiter");
+}
+
+#[test]
+fn status_lists_holders_and_waiters_in_line_order() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+
+    let (waiting, got, thread) = spawn_waiter(pool.clone(), 3);
+    recv_wait(&waiting);
+    let status = pool.status().expect("status");
+    dbg!(&status);
+    assert_eq!(status.holders.len(), 1);
+    dbg!(&status.holders[0].info);
+    assert!(status.holders[0].info.contains("pid "));
+    assert!(status.holders[0].elapsed.is_some());
+    assert_eq!(status.waiters.len(), 1);
+    assert_eq!(status.waiters[0].priority, 3);
+    assert_eq!(status.waiters[0].command.as_deref(), Some("wait"));
+    assert!(status.waiters[0].elapsed.is_some());
+
+    drop(held);
+    recv_got(&got);
+    thread.join().expect("waiter");
+}
+
+#[test]
+fn status_lists_a_locked_slot_without_a_holder_stamp() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("try first")
+        .expect("the slot is free");
+    fs::remove_file(dir.path().join("0.holder")).expect("remove stamp");
+
+    let status = pool.status().expect("status");
+    dbg!(&status);
+    assert_eq!(status.holders.len(), 1);
+    assert_eq!(status.holders[0].info, "slot 0");
+    assert!(status.holders[0].elapsed.is_none());
+    drop(held);
+}
+
+#[test]
+fn format_elapsed_prints_compact_units() {
+    use super::stamp::format_elapsed;
+    assert_eq!(format_elapsed(Duration::from_secs(0)), "0s");
+    assert_eq!(format_elapsed(Duration::from_secs(59)), "59s");
+    assert_eq!(format_elapsed(Duration::from_mins(1)), "1m");
+    assert_eq!(format_elapsed(Duration::from_mins(1) + Duration::from_secs(15)), "1m 15s");
+    assert_eq!(format_elapsed(Duration::from_hours(1)), "1h");
+    assert_eq!(format_elapsed(Duration::from_mins(61)), "1h 1m");
+}
+
+#[test]
+fn parse_process_stamp_reads_since_and_old_stamps() {
+    use super::stamp::parse_process_stamp;
+    let stamped = parse_process_stamp("since 10\ncmd hold\npid 1 in /tmp");
+    assert_eq!(stamped.since, Some(10));
+    assert_eq!(stamped.command.as_deref(), Some("hold"));
+    assert_eq!(stamped.info, "pid 1 in /tmp");
+    let old = parse_process_stamp("pid 1 in /tmp");
+    assert_eq!(old.since, None);
+    assert_eq!(old.command, None);
+    assert_eq!(old.info, "pid 1 in /tmp");
+}
+
+#[test]
+fn stamp_metadata_cannot_be_overwritten_or_injected_after_the_path() {
+    use super::stamp::parse_process_stamp;
+    for text in [
+        "since 10\ncmd hold\nsince 20\ncmd forged\npid 1 in /tmp",
+        "since 10\ncmd hold\npid 1 in /tmp\ncmd forged\nsince 20",
+    ] {
+        let stamp = parse_process_stamp(text);
+        assert_eq!(stamp.since, Some(10));
+        assert_eq!(stamp.command.as_deref(), Some("hold"));
+        assert_eq!(stamp.info, "pid 1 in /tmp");
+    }
+    let legacy = parse_process_stamp("pid 1 in /tmp\ncmd forged\nsince 20");
+    assert_eq!(legacy.since, None);
+    assert_eq!(legacy.command, None);
+    assert_eq!(legacy.info, "pid 1 in /tmp");
+}
+
+#[test]
+fn status_sanitizes_commands_process_info_and_group_names() {
+    let status = GroupStatus {
+        holders: vec![HolderLine {
+            command: Some("ho\u{1b}\u{202e}ld".into()),
+            info: "pid 1 in /tm\u{7}\u{2066}p".into(),
+            elapsed: Some(Duration::from_secs(2)),
+        }],
+        waiters: vec![
+            WaiterLine {
+                command: Some("wa\u{9b}\u{202c}it".into()),
+                info: "pid 2 in /tm\r\n\u{2069}p".into(),
+                elapsed: Some(Duration::from_secs(1)),
+                priority: 3,
+            },
+            WaiterLine {
+                command: None,
+                info: "pid 3 in /tm\u{1b}\u{202e}p".into(),
+                elapsed: None,
+                priority: 0,
+            },
+        ],
+    };
+    let rendered = render_group("car\u{1b}\u{202e}go", &status);
+    eprintln!("{rendered}");
+    assert_eq!(
+        rendered,
+        "cargo\n  running\n    hold  2s\n      pid 1 in /tmp\n  waiting\n    1. wait  1s  priority 3\n      pid 2 in /tmp\n    2. pid 3 in /tmp",
+    );
+    assert_eq!(
+        render_group("car\u{1b}\u{202e}go", &GroupStatus { holders: vec![], waiters: vec![] }),
+        "cargo: idle",
+    );
+}
+
+#[test]
+fn wait_notice_handles_a_free_slot_reserved_for_an_earlier_waiter() {
+    let snapshot = WaitSnapshot {
+        position: 2,
+        total: 2,
+        holders: vec![],
+        ahead: vec!["pid 1 in /tm\u{1b}\u{202e}p".into()],
+    };
+    let message = format_wait_notice(
+        "wa\u{1b}\u{202e}it",
+        "cargo",
+        1,
+        std::path::Path::new("/slots"),
+        &snapshot,
+    );
+    eprintln!("{message}");
+    assert_eq!(
+        message,
+        r#"Waiting to run "wait": no slot in the 1-slot concurrency group "cargo" is available to this run (/slots). You are #2 of 2 in line. Holders: unknown. Ahead: pid 1 in /tmp"#,
+    );
+}
+
+#[test]
+fn inspecting_a_group_propagates_filesystem_errors() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let group = dir.path().join("cargo");
+    fs::write(&group, "not a directory").expect("write invalid group");
+    let error = inspect_group(&group).expect_err("a file is not an idle group");
+    dbg!(&error);
+    let missing = inspect_group(&dir.path().join("missing")).expect("missing group");
+    dbg!(&missing);
+    assert!(missing.is_idle());
+}
+
+#[test]
+fn wait_reporting_does_not_hold_the_queue_lock() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let pool = SlotPool { dir: dir.path().to_path_buf(), limit: 1 };
+    let held = pool
+        .try_acquire()
+        .expect("acquire")
+        .expect("free slot");
+    let reported = std::cell::Cell::new(false);
+    let result = pool
+        .acquire(
+            "wait",
+            0,
+            |_| {
+                let seq = fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(dir.path().join("seq"))
+                    .expect("open queue lock");
+                seq.try_lock().expect("reporting must not retain the queue lock");
+                reported.set(true);
+            },
+            &|| reported.get(),
+        )
+        .expect("wait until reported");
+    dbg!(&result, reported.get());
+    assert!(reported.get());
+    assert!(result.is_none());
+    drop(held);
 }

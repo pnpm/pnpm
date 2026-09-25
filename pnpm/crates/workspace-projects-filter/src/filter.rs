@@ -1,17 +1,19 @@
+pub mod from_projects;
+pub use from_projects::{filter_projects, filter_projects_by_selector_objects};
+
 use crate::{
     get_changed_projects::{GetChangedProjectsOptions, get_changed_projects},
     glob,
-    parse_project_selector::{DependencyTraversal, ProjectSelector, parse_project_selector},
+    parse_project_selector::{DependencyTraversal, ProjectSelector},
 };
 use derive_more::{Display, Error};
 use indexmap::IndexSet;
 use miette::Diagnostic;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
-use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
-};
+use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
 };
 
@@ -57,7 +59,7 @@ pub struct FilterProjectsOptions {
     /// Directory that path selectors resolve against.
     pub prefix: PathBuf,
     /// Tri-state `linkWorkspacePackages`, forwarded to
-    /// [`create_projects_graph()`].
+    /// [`create_projects_graph()`](pnpm_workspace_projects_graph::create_projects_graph).
     pub link_workspace_packages: Option<bool>,
     pub use_glob_dir_filtering: bool,
     /// See [`FilterWorkspaceProjectsOptions::workspace_dir`].
@@ -66,6 +68,9 @@ pub struct FilterProjectsOptions {
     pub test_pattern: Vec<String>,
     /// See [`FilterWorkspaceProjectsOptions::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Vec<String>,
+    /// The workspace catalogs a `catalog:` dependency resolves through,
+    /// with relative paths measured from `workspace_dir`.
+    pub catalogs: Option<Catalogs>,
 }
 
 /// Error type of the filter functions.
@@ -100,10 +105,41 @@ pub enum FilterError {
     },
 }
 
+struct SelectorChunk<'a> {
+    exclude: bool,
+    selectors: Vec<&'a ProjectSelector>,
+}
+
+fn chunk_selectors<'a>(project_selectors: &'a [ProjectSelector]) -> Vec<SelectorChunk<'a>> {
+    let mut chunks: Vec<SelectorChunk<'a>> = Vec::new();
+    for selector in project_selectors {
+        if let Some(last) = chunks
+            .last_mut()
+            .filter(|last| last.exclude == selector.exclude)
+        {
+            last.selectors.push(selector);
+            continue;
+        }
+        chunks.push(SelectorChunk { exclude: selector.exclude, selectors: vec![selector] });
+    }
+    chunks
+}
+
+fn apply_chunk(selected: &mut IndexSet<PathBuf>, chunk_selected: Vec<PathBuf>, exclude: bool) {
+    if exclude {
+        let excluded: HashSet<PathBuf> = chunk_selected.into_iter().collect();
+        selected.retain(|dir| !excluded.contains(dir));
+    } else {
+        selected.extend(chunk_selected);
+    }
+}
+
 /// Filter a pre-built [`ProjectGraph`] by `project_selectors`.
 ///
-/// Include selectors are unioned; exclude selectors (`!`-prefixed) are
-/// then subtracted. An empty include set means "every project".
+/// Selectors are evaluated in ordered chunks of matching polarity. When the
+/// first selector is an exclusion, selection begins with every project in the
+/// workspace; otherwise it starts empty. Subsequent inclusion selectors re-include
+/// projects that were previously excluded.
 pub fn filter_workspace_projects<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
     project_selectors: &[ProjectSelector],
@@ -112,29 +148,34 @@ pub fn filter_workspace_projects<Pkg>(
 where
     Pkg: BaseProject,
 {
-    let (exclude_selectors, include_selectors): (Vec<&ProjectSelector>, Vec<&ProjectSelector>) =
-        project_selectors.iter().partition(|selector| selector.exclude);
-
-    let include = if include_selectors.is_empty() {
-        FilterGraphResult {
-            selected: projects_graph.keys().cloned().collect(),
+    if project_selectors.is_empty() {
+        return Ok(FilteredProjects {
+            selected_projects: projects_graph.keys().cloned().collect(),
             unmatched_filters: Vec::new(),
-        }
-    } else {
-        filter_graph(projects_graph, opts, &include_selectors)?
-    };
-    let exclude = filter_graph(projects_graph, opts, &exclude_selectors)?;
+        });
+    }
 
-    let excluded: IndexSet<&PathBuf> = exclude.selected.iter().collect();
+    let chunks = chunk_selectors(project_selectors);
+    let mut selected: IndexSet<PathBuf> = if chunks.first().is_some_and(|c| c.exclude) {
+        projects_graph.keys().cloned().collect()
+    } else {
+        IndexSet::new()
+    };
+    let mut unmatched_filters = Vec::new();
+
+    for chunk in chunks {
+        let result = filter_graph(projects_graph, opts, &chunk.selectors)?;
+        unmatched_filters.extend(result.unmatched_filters);
+        apply_chunk(&mut selected, result.selected, chunk.exclude);
+    }
+
     // Keep graph members only: a `[<since>]` selector can surface a
     // changed directory that no workspace project contains (upstream
     // drops those the same way, via its final `pick`).
-    let selected_projects: Vec<PathBuf> = include.selected
+    let selected_projects: Vec<PathBuf> = selected
         .into_iter()
-        .filter(|dir| !excluded.contains(dir) && projects_graph.contains_key(dir))
+        .filter(|dir| projects_graph.contains_key(dir))
         .collect();
-    let mut unmatched_filters = include.unmatched_filters;
-    unmatched_filters.extend(exclude.unmatched_filters);
 
     Ok(FilteredProjects { selected_projects, unmatched_filters })
 }
@@ -167,28 +208,14 @@ where
     };
 
     for selector in selectors {
-        let mut entry_projects: Option<Vec<PathBuf>>;
-        if let Some(diff) = &selector.diff {
-            let changed = changed_selector_projects(projects_graph, opts, selector, diff)?;
-            entry_projects = Some(changed.changed_projects);
-            walk.select_entries(
-                DependencyTraversal { include_dependents: false, ..selector.traversal },
-                &changed.ignore_dependent_for_projects,
-                &forward,
-                &reverse,
-            );
-        } else {
-            entry_projects = match_selector_path(projects_graph, selector, opts);
-        }
-
-        if let Some(name_pattern) = &selector.name_pattern {
-            entry_projects =
-                Some(match_named_entries(projects_graph, entry_projects.as_deref(), name_pattern));
-        }
-
-        let entry_projects = entry_projects.ok_or_else(|| FilterError::UnsupportedSelector {
-            selector: format!("{selector:?}"),
-        })?;
+        let entry_projects = resolve_selector_entries(
+            selector,
+            projects_graph,
+            opts,
+            &mut walk,
+            &forward,
+            &reverse,
+        )?;
 
         if entry_projects.is_empty() {
             record_unmatched_filter(selector, &mut unmatched_filters);
@@ -198,6 +225,43 @@ where
     }
 
     Ok(FilterGraphResult { selected: walk.into_selected(), unmatched_filters })
+}
+
+fn resolve_selector_entries<Pkg, FForward, FReverse>(
+    selector: &ProjectSelector,
+    projects_graph: &ProjectGraph<Pkg>,
+    opts: &FilterWorkspaceProjectsOptions,
+    walk: &mut WalkState,
+    forward: &FForward,
+    reverse: &FReverse,
+) -> Result<Vec<PathBuf>, FilterError>
+where
+    Pkg: BaseProject,
+    FForward: Fn(&Path) -> Option<Vec<PathBuf>>,
+    FReverse: Fn(&Path) -> Option<Vec<PathBuf>>,
+{
+    let mut entry_projects: Option<Vec<PathBuf>>;
+    if let Some(diff) = &selector.diff {
+        let changed = changed_selector_projects(projects_graph, opts, selector, diff)?;
+        entry_projects = Some(changed.changed_projects);
+        walk.select_entries(
+            DependencyTraversal { include_dependents: false, ..selector.traversal },
+            &changed.ignore_dependent_for_projects,
+            forward,
+            reverse,
+        );
+    } else {
+        entry_projects = match_selector_path(projects_graph, selector, opts);
+    }
+
+    if let Some(name_pattern) = &selector.name_pattern {
+        entry_projects =
+            Some(match_named_entries(projects_graph, entry_projects.as_deref(), name_pattern));
+    }
+
+    entry_projects.ok_or_else(|| FilterError::UnsupportedSelector {
+        selector: format!("{selector:?}"),
+    })
 }
 
 fn match_selector_path<Pkg: BaseProject>(
@@ -222,13 +286,22 @@ fn changed_selector_projects<Pkg: BaseProject>(
     selector: &ProjectSelector,
     diff: &str,
 ) -> Result<crate::get_changed_projects::ChangedProjects, FilterError> {
+    let project_dependencies: HashMap<PathBuf, Vec<(String, String)>> = projects_graph
+        .iter()
+        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+        .collect();
     get_changed_projects(
         projects_graph.keys().cloned().collect(),
         diff,
         &GetChangedProjectsOptions {
-            workspace_dir: selector.parent_dir.as_deref().unwrap_or(&opts.workspace_dir),
+            workspace_dir: &opts.workspace_dir,
+            working_dir: selector.parent_dir.as_deref(),
             test_pattern: &opts.test_pattern,
             changed_files_ignore_pattern: &opts.changed_files_ignore_pattern,
+            project_dependencies: Some(&project_dependencies),
+            use_glob_dir_filtering: selector.use_glob_dir_filtering.unwrap_or(
+                opts.use_glob_dir_filtering,
+            ),
         },
     )
 }
@@ -326,108 +399,6 @@ fn is_subdir(parent: &Path, child: &Path) -> bool {
     match relative.components().next() {
         None | Some(Component::ParentDir | Component::CurDir) => false,
         Some(_) => true,
-    }
-}
-
-/// Parse a list of [`WorkspaceFilter`]s into selectors and apply them
-/// against `projects` via [`filter_projects_by_selector_objects`].
-pub fn filter_projects<Pkg>(
-    projects: Vec<Pkg>,
-    filter: &[WorkspaceFilter],
-    opts: &FilterProjectsOptions,
-) -> Result<FilteredProjects, FilterError>
-where
-    Pkg: GraphProject + Clone,
-{
-    let selectors: Vec<ProjectSelector> = filter
-        .iter()
-        .map(|entry| {
-            let mut selector = parse_project_selector(&entry.filter, &opts.prefix);
-            selector.follow_prod_deps_only = entry.follow_prod_deps_only;
-            selector
-        })
-        .collect();
-    filter_projects_by_selector_objects(projects, &selectors, opts)
-}
-
-/// Build the project graph and apply parsed `selectors`, running the
-/// `--filter-prod` selectors against a production-only graph and the rest
-/// against the full graph.
-pub fn filter_projects_by_selector_objects<Pkg>(
-    projects: Vec<Pkg>,
-    selectors: &[ProjectSelector],
-    opts: &FilterProjectsOptions,
-) -> Result<FilteredProjects, FilterError>
-where
-    Pkg: GraphProject + Clone,
-{
-    let (prod_selectors, all_selectors): (Vec<ProjectSelector>, Vec<ProjectSelector>) = selectors
-        .iter()
-        .cloned()
-        .partition(|selector| selector.follow_prod_deps_only);
-    let walk_opts = workspace_filter_options(opts);
-
-    if all_selectors.is_empty() && prod_selectors.is_empty() {
-        return Ok(select_all_projects(projects, opts));
-    }
-
-    let mut selected: IndexSet<PathBuf> = IndexSet::new();
-    let mut unmatched_filters: Vec<String> = Vec::new();
-
-    if !prod_selectors.is_empty() {
-        let prod_graph = create_projects_graph(
-            projects.clone(),
-            &CreateProjectsGraphOptions {
-                ignore_dev_deps: true,
-                link_workspace_packages: opts.link_workspace_packages,
-            },
-        )
-        .graph;
-        let result = filter_workspace_projects(&prod_graph, &prod_selectors, &walk_opts)?;
-        selected.extend(result.selected_projects);
-        unmatched_filters.extend(result.unmatched_filters);
-    }
-
-    if !all_selectors.is_empty() {
-        let graph = create_projects_graph(
-            projects,
-            &CreateProjectsGraphOptions {
-                ignore_dev_deps: false,
-                link_workspace_packages: opts.link_workspace_packages,
-            },
-        )
-        .graph;
-        let result = filter_workspace_projects(&graph, &all_selectors, &walk_opts)?;
-        selected.extend(result.selected_projects);
-        unmatched_filters.extend(result.unmatched_filters);
-    }
-
-    Ok(FilteredProjects { selected_projects: selected.into_iter().collect(), unmatched_filters })
-}
-
-fn workspace_filter_options(opts: &FilterProjectsOptions) -> FilterWorkspaceProjectsOptions {
-    FilterWorkspaceProjectsOptions {
-        use_glob_dir_filtering: opts.use_glob_dir_filtering,
-        workspace_dir: opts.workspace_dir.clone(),
-        test_pattern: opts.test_pattern.clone(),
-        changed_files_ignore_pattern: opts.changed_files_ignore_pattern.clone(),
-    }
-}
-
-fn select_all_projects<Pkg: GraphProject + Clone>(
-    projects: Vec<Pkg>,
-    opts: &FilterProjectsOptions,
-) -> FilteredProjects {
-    let result = create_projects_graph(
-        projects,
-        &CreateProjectsGraphOptions {
-            ignore_dev_deps: false,
-            link_workspace_packages: opts.link_workspace_packages,
-        },
-    );
-    FilteredProjects {
-        selected_projects: result.graph.keys().cloned().collect(),
-        unmatched_filters: Vec::new(),
     }
 }
 

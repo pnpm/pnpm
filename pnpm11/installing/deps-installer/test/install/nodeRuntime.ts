@@ -472,3 +472,15 @@ test('update --latest keeps a Node.js runtime dependency on the runtime resolver
 
   expect(updatedManifest.dependencies).toStrictEqual({ node: 'runtime:22.0.0' })
 })
+
+// https://github.com/pnpm/pnpm/issues/14817
+test('installing Node.js runtime from a range union', async () => {
+  const project = prepareEmpty()
+  await install({ dependencies: { node: 'runtime:21.0.0 || 22.0.0' } }, testDefaults({ fastUnpack: false }))
+
+  expect(project.readLockfile().importers['.'].dependencies?.node).toStrictEqual({
+    specifier: 'runtime:21.0.0 || 22.0.0',
+    version: 'runtime:22.0.0',
+  })
+  project.isExecutable('.bin/node')
+})

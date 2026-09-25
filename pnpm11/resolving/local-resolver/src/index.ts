@@ -6,11 +6,11 @@ import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
-import { readProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 
-import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
+import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, localFilePath, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
-export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, type WantedLocalDependency }
+export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, localFilePath, type WantedLocalDependency }
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
@@ -83,7 +83,27 @@ async function resolveSpec (
   if (spec == null) return null
 
   if (spec.type === 'file') {
-    const integrity = await getTarballIntegrity(spec.fetchSpec)
+    let integrity: string
+    try {
+      integrity = await getTarballIntegrity(spec.fetchSpec)
+    } catch (err: unknown) {
+      if (
+        opts.currentPkg?.resolution &&
+        'tarball' in opts.currentPkg.resolution &&
+        Boolean(opts.currentPkg.resolution.integrity) &&
+        (opts.currentPkg.id === spec.id || opts.currentPkg.resolution.tarball === spec.id) &&
+        !opts.update &&
+        (err as { code?: string })?.code === 'ENOENT'
+      ) {
+        return {
+          id: spec.id,
+          normalizedBareSpecifier: spec.normalizedBareSpecifier,
+          resolution: opts.currentPkg.resolution as TarballResolution,
+          resolvedVia: 'local-filesystem',
+        }
+      }
+      throw err
+    }
     return {
       id: spec.id,
       normalizedBareSpecifier: spec.normalizedBareSpecifier,
@@ -119,8 +139,7 @@ async function resolveSpec (
       })
       localDependencyManifest = {
         name: path.basename(spec.fetchSpec),
-        version: '0.0.0',
-      }
+      } as DependencyManifest
     } else {
       switch (internalErr.code) {
         case 'ENOTDIR': {
@@ -129,10 +148,14 @@ async function resolveSpec (
         }
         case 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND':
         case 'ENOENT': {
+          const parentManifest = await safeReadParentPublishManifest(spec.fetchSpec) as DependencyManifest | null
+          if (parentManifest) {
+            localDependencyManifest = parentManifest
+            break
+          }
           localDependencyManifest = {
             name: path.basename(spec.fetchSpec),
-            version: '0.0.0',
-          }
+          } as DependencyManifest
           break
         }
         default: {

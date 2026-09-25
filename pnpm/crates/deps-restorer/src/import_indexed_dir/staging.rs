@@ -4,7 +4,7 @@ use super::{
 };
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{Host, rename_even_across_devices};
+use pnpm_fs::{FsRemoveDirent, FsRename, Host, rename_even_across_devices};
 use pnpm_reporter::Reporter;
 use std::{
     collections::{HashMap, HashSet},
@@ -54,6 +54,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     keep_modules_dir: bool,
+    preserve_symlinks: bool,
 ) -> Result<(), ImportIndexedDirError> {
     let paths = StagePaths::new(dir_path);
 
@@ -66,6 +67,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         &paths.stage,
         cas_paths,
         Placement::Fresh,
+        preserve_symlinks.then_some(dir_path),
     ) {
         let _ = fs::remove_dir_all(&paths.stage);
         return Err(error);
@@ -79,13 +81,13 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     //    staged tree and any merge backup hold the preserved data. Try
     //    to move it back into place before bailing, and retain those
     //    temporary paths if restoration can't run.
-    if let Err(error) = pnpm_fs::remove_dir_all_with_retry(dir_path) {
+    if let Err(error) = pnpm_fs::remove_dirent(dir_path) {
         paths.cleanup_after_failure(&preserved_modules);
         return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
     }
 
     // 4. Move the staged tree into place. There's a brief window
-    //    between `remove_dir_all` and `rename` where `dir_path` does
+    //    between the removal and `rename` where `dir_path` does
     //    not exist on disk — acceptable for a slot only this install
     //    can reach; a shared slot never enters this function.
     if let Err(error) = pnpm_fs::rename_with_retry(&paths.stage, dir_path) {
@@ -134,8 +136,11 @@ impl StagePaths {
         if !file_type.is_dir() {
             return Ok(PreservedModules::None);
         }
-        match preserve_modules_dir(&self.target_modules, &self.stage_modules, &self.modules_backup)
-        {
+        match preserve_modules_dir::<Host>(
+            &self.target_modules,
+            &self.stage_modules,
+            &self.modules_backup,
+        ) {
             Ok(preserved) => Ok(preserved),
             Err(PreserveModulesFailure { error, preserved }) => {
                 self.cleanup_after_failure(&preserved);
@@ -184,12 +189,15 @@ impl StagePaths {
         }
     }
 }
-pub(super) fn preserve_modules_dir(
+pub(super) fn preserve_modules_dir<Sys>(
     source: &Path,
     destination: &Path,
     backup: &Path,
-) -> Result<PreservedModules, PreserveModulesFailure> {
-    match rename_even_across_devices::<Host>(source, destination) {
+) -> Result<PreservedModules, PreserveModulesFailure>
+where
+    Sys: FsRename + FsRemoveDirent,
+{
+    match rename_even_across_devices::<Sys>(source, destination) {
         Ok(()) => return Ok(PreservedModules::Directory),
         Err(error) if is_modules_dir_collision(&error) => {}
         Err(error) => {
@@ -197,15 +205,18 @@ pub(super) fn preserve_modules_dir(
         }
     }
 
-    rename_even_across_devices::<Host>(source, backup)
+    rename_even_across_devices::<Sys>(source, backup)
         .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
 
-    merge_preserved_modules(destination, backup)
+    merge_preserved_modules::<Sys>(destination, backup)
 }
-pub(super) fn merge_preserved_modules(
+pub(super) fn merge_preserved_modules<Sys>(
     destination: &Path,
     backup: &Path,
-) -> Result<PreservedModules, PreserveModulesFailure> {
+) -> Result<PreservedModules, PreserveModulesFailure>
+where
+    Sys: FsRename + FsRemoveDirent,
+{
     let destination_entries = preserved_destination_entries(destination, backup)?;
     let source_entries = fs::read_dir(backup)
         .map_err(|error| PreserveModulesFailure {
@@ -229,7 +240,7 @@ pub(super) fn merge_preserved_modules(
         if destination_entries.contains(&name) {
             continue;
         }
-        rename_even_across_devices::<Host>(&entry.path(), &destination.join(&name))
+        rename_even_across_devices::<Sys>(&entry.path(), &destination.join(&name))
             .map_err(|error| PreserveModulesFailure {
                 error,
                 preserved: PreservedModules::Merged {
@@ -280,7 +291,8 @@ pub(super) fn finalize_stage_cleanup_after_failure(
     stage_modules: &Path,
     target_modules: &Path,
 ) {
-    let restored = restore_preserved_node_modules(preserved_modules, stage_modules, target_modules);
+    let restored =
+        restore_preserved_node_modules::<Host>(preserved_modules, stage_modules, target_modules);
     if restored {
         let _ = fs::remove_dir_all(stage);
     } else {
@@ -292,28 +304,29 @@ pub(super) fn finalize_stage_cleanup_after_failure(
 /// restore or the restoration succeeded; returns `false` when the
 /// caller must not clean up the staging directory (it contains the
 /// user's only copy of the data).
-pub(super) fn restore_preserved_node_modules(
+pub(super) fn restore_preserved_node_modules<Sys>(
     preserved_modules: &PreservedModules,
     stage_modules: &Path,
     target_modules: &Path,
-) -> bool {
+) -> bool
+where
+    Sys: FsRename + FsRemoveDirent,
+{
     let result = match preserved_modules {
         PreservedModules::None => return true,
         PreservedModules::Directory => {
-            rename_even_across_devices::<Host>(stage_modules, target_modules)
+            rename_even_across_devices::<Sys>(stage_modules, target_modules)
         }
         PreservedModules::Merged { backup, moved_entries } => {
             let restored_backup = moved_entries
                 .iter()
                 .try_for_each(|entry| {
-                    rename_even_across_devices::<Host>(
+                    rename_even_across_devices::<Sys>(
                         &stage_modules.join(entry),
                         &backup.join(entry),
                     )
                 });
-            restored_backup.and_then(|()| {
-                rename_even_across_devices::<Host>(backup, target_modules)
-            })
+            restored_backup.and_then(|()| rename_even_across_devices::<Sys>(backup, target_modules))
         }
     };
     if let Err(error) = result {

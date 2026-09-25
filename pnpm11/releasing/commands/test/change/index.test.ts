@@ -9,6 +9,7 @@ import { change, lane, version } from '../../src/index.js'
 interface FixturePkg {
   name: string
   version: string
+  private?: boolean
   dependencies?: Record<string, string>
   publishConfig?: { name: string }
 }
@@ -267,6 +268,20 @@ describe('change command and intent-consuming version -r', () => {
     expect(JSON.parse(fs.readFileSync(path.join(lib.rootDir, 'package.json'), 'utf8')).version).toBe('1100.0.0')
     // The intent is still consumed and ledgered against the debut version.
     expect(fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')).toContain('lib@1100.0.0:')
+  })
+
+  it('a private package bumps without a registry release probe', async () => {
+    const app = addPkg({ name: 'app', version: '0.5.0', private: true })
+    const opts = { ...baseOpts([app]), checkVersionPublished: async () => {
+      throw new Error('private packages must not be probed')
+    } }
+
+    await change.handler({ ...opts, bump: 'minor', summary: 'A deployable feature.' } as any, ['app']) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(status).toContain('app: 0.5.0 → 0.6.0')
+    const preview = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(preview).toContain('app: 0.5.0 → 0.6.0')
   })
 
   it('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {

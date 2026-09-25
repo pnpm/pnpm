@@ -163,6 +163,20 @@ test('registry storage (the default) parks the section instead of committing CHA
   expect(await readChangeIntents(workspaceDir)).toHaveLength(1)
 })
 
+test('registry storage commits a private project section to CHANGELOG.md and collects its intent', async () => {
+  const { workspaceDir, projects } = await makeWorkspace([{ name: 'app', version: '1.0.0' }])
+  projects[0].manifest.private = true
+  await writeChangeIntent(workspaceDir, { releases: { app: 'minor' }, summary: 'Added a feature.' })
+  const intents = await readChangeIntents(workspaceDir)
+  const plan = assembleReleasePlan({ workspaceDir, projects, intents, ledger: await readLedger(workspaceDir) })
+
+  await applyReleasePlan(plan, { workspaceDir, projects, allIntents: intents })
+
+  expect(await fs.readFile(path.join(projects[0].rootDir, 'CHANGELOG.md'), 'utf8')).toContain('- Added a feature.')
+  expect(await readPendingChangelog(workspaceDir, 'app', '1.1.0')).toBeNull()
+  expect(await readChangeIntents(workspaceDir)).toHaveLength(0)
+})
+
 test('registry storage collects an intent and its parked section once the registry confirms publication', async () => {
   const { workspaceDir, projects } = await makeWorkspace([{ name: 'lib', version: '1.0.0' }])
   await writeChangeIntent(workspaceDir, { releases: { lib: 'minor' }, summary: 'Added a feature.' })

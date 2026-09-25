@@ -17,6 +17,18 @@ pub(super) fn allow_builds_changed_since(
             || super::super::recorded_allow_builds_differ(modules, config)
     })
 }
+/// The snapshots the previous install's `.modules.yaml` recorded as
+/// skipped, an optional dependency this host cannot use among them. Empty
+/// on a first install. A lockfile entry says what an install resolved, not
+/// what it put on disk, so this is what separates the two for the previous
+/// install the way [`pnpm_deps_restorer::SkippedSnapshots`] does for this one.
+pub(super) fn previously_skipped(
+    modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
+) -> pnpm_deps_restorer::SkippedSnapshots {
+    modules_manifest.map_or_else(pnpm_deps_restorer::SkippedSnapshots::default, |modules| {
+        pnpm_deps_restorer::SkippedSnapshots::from_strings(&modules.skipped)
+    })
+}
 /// The `name@version` keys the previous install's `.modules.yaml` recorded
 /// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first
 /// install.
@@ -130,31 +142,23 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
 pub(super) fn frozen_project_anchor_ids(
     requested_importer_ids: Option<&HashSet<String>>,
     real_importer_ids: &HashSet<String>,
-    node_linker: NodeLinker,
+    _node_linker: NodeLinker,
     materialization: &crate::MaterializationClosure,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) if matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
         Some(_) => materialization.importer_ids.clone(),
         None => real_importer_ids.clone(),
     }
 }
-/// The importers a frozen install materializes first. A hoisted linker shares
-/// one tree, so a selected install still has to materialize every importer.
-///
-/// A full install roots the walk at every importer, which is what makes the
-/// graph it materializes the same graph
-/// [`pnpm_deps_restorer::filter_lockfile_for_current`] records as the current
-/// lockfile. A lockfile snapshot no importer reaches is then absent from both,
-/// instead of being imported on every run and pruned again when the current
-/// lockfile is written.
-pub(super) fn initial_materialization_ids(
+/// The importers a frozen install materializes first. Manifest-independent
+/// installs use the entire lockfile.
+pub(in crate::install) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
-    node_linker: NodeLinker,
+    _node_linker: NodeLinker,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) if !matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
+        Some(selected) => selected.clone(),
         _ => lockfile.importers
             .keys()
             .cloned()

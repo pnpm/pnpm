@@ -8,7 +8,10 @@ use crate::_utils;
 use indexmap::IndexMap;
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
@@ -365,4 +368,126 @@ fn dedicated_lockfiles_report_no_ignored_settings() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     println!("{stderr}");
     assert!(!stderr.contains("packageConfigs"), "{stderr}");
+}
+
+fn bin_dir(fixture: &WorkspaceFixture, project: &Path) -> PathBuf {
+    let output = fixture.command_at(project, ["bin"]);
+    assert_success(&output);
+    PathBuf::from(String::from_utf8_lossy(&output.stdout).trim_end())
+}
+
+fn canonical_bin_dir(project: &Path, modules_dir: &str) -> PathBuf {
+    dunce::canonicalize(project)
+        .expect("canonicalize the project dir")
+        .join(modules_dir)
+        .join(".bin")
+}
+
+const MOVED_MODULES: &str =
+    "modulesDir: vendor\npackageConfigs:\n  moved:\n    modulesDir: node_modules\n";
+
+#[cfg(unix)]
+fn greeter(fixture: &WorkspaceFixture, dir: &str, name: &str) -> PathBuf {
+    let project = fixture.workspace.join("packages").join(dir);
+    fs::create_dir_all(&project).expect("create the project dir");
+    fs::write(
+        project.join("package.json"),
+        format!(r#"{{ "name": "{name}", "version": "1.0.0", "scripts": {{ "greet": "greet" }} }}"#),
+    )
+    .expect("write package.json");
+    project
+}
+
+#[cfg(unix)]
+fn write_greeter_shim(modules_dir: &Path, marker: &str) {
+    let bin_dir = modules_dir.join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create the bin dir");
+    write_executable(&bin_dir.join("greet"), &format!("#!/bin/sh\necho {marker}\n"));
+}
+
+/// Regression test for the per-project half of
+/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604). The install
+/// gives each project the modules directory its entry names, including one
+/// that names the default back, so `bin` has to report the same one.
+#[test]
+fn bin_reports_the_named_project_modules_dir() {
+    let fixture = dedicated_lockfile_workspace(
+        "modulesDir: vendor\npackageConfigs:\n  back:\n    modulesDir: node_modules\n  aside:\n    modulesDir: private_modules\n",
+    );
+    let back = fixture.project("back", "back", ManifestDeps::default());
+    let aside = fixture.project("aside", "aside", ManifestDeps::default());
+    let plain = fixture.project("plain", "plain", ManifestDeps::default());
+
+    assert_eq!(bin_dir(&fixture, &back), canonical_bin_dir(&back, "node_modules"));
+    assert_eq!(bin_dir(&fixture, &aside), canonical_bin_dir(&aside, "private_modules"));
+    assert_eq!(bin_dir(&fixture, &plain), canonical_bin_dir(&plain, "vendor"));
+}
+
+/// The entries are inert under a shared lockfile, so a command must not
+/// read one back either.
+#[test]
+fn a_shared_lockfile_keeps_the_workspace_modules_dir() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(MOVED_MODULES);
+    let moved = fixture.project("moved", "moved", ManifestDeps::default());
+
+    assert_eq!(bin_dir(&fixture, &moved), canonical_bin_dir(&moved, "vendor"));
+}
+
+#[cfg(unix)]
+#[test]
+fn run_and_exec_find_the_named_project_command() {
+    let fixture = dedicated_lockfile_workspace(MOVED_MODULES);
+    let moved = greeter(&fixture, "moved", "moved");
+    write_greeter_shim(&moved.join("node_modules"), "configured");
+    write_greeter_shim(&moved.join("vendor"), "stale");
+
+    for args in [["run", "greet"], ["exec", "greet"]] {
+        let output = fixture.command_at(&moved, args);
+        assert_success(&output);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        println!("{stdout}");
+        assert!(stdout.contains("configured"), "{args:?} must use the entry's dir: {stdout}");
+        assert!(!stdout.contains("stale"), "{args:?} must not use the workspace dir: {stdout}");
+    }
+}
+
+/// The workspace root is a project like any other: its entry moves the
+/// executables every member reaches through `extraBinPaths`.
+#[cfg(unix)]
+#[test]
+fn the_workspace_root_entry_moves_the_shared_executables() {
+    let fixture = dedicated_lockfile_workspace(
+        "modulesDir: vendor\npackageConfigs:\n  wsroot:\n    modulesDir: node_modules\n",
+    );
+    fixture.write_root_manifest("wsroot", ManifestDeps::default());
+    let member = greeter(&fixture, "member", "member");
+    write_greeter_shim(&fixture.workspace.join("node_modules"), "configured");
+    write_greeter_shim(&fixture.workspace.join("vendor"), "stale");
+
+    let output = fixture.command_at(&member, ["run", "greet"]);
+    assert_success(&output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("{stdout}");
+    assert!(stdout.contains("configured"), "the root entry must move extraBinPaths: {stdout}");
+    assert!(!stdout.contains("stale"), "the workspace-wide dir must not win: {stdout}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_recursive_exec_uses_each_project_modules_dir() {
+    let fixture = dedicated_lockfile_workspace(
+        "modulesDir: vendor\npackageConfigs:\n  one:\n    modulesDir: node_modules\n  two:\n    modulesDir: private_modules\n",
+    );
+    let one = fixture.project("one", "one", ManifestDeps::default());
+    let two = fixture.project("two", "two", ManifestDeps::default());
+    write_greeter_shim(&one.join("node_modules"), "from_one");
+    write_greeter_shim(&two.join("private_modules"), "from_two");
+
+    let output = fixture.command_at(&fixture.workspace, ["--recursive", "exec", "greet"]);
+    assert_success(&output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    println!("{stdout}");
+    assert!(stdout.contains("from_one"), "{stdout}");
+    assert!(stdout.contains("from_two"), "{stdout}");
 }

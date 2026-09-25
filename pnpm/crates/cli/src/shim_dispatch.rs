@@ -6,10 +6,10 @@
 //! running the CLI: the `globalShims` record decides which providing
 //! packages are eligible, and the managed runtimes are enabled by default.
 //! For a runtime pin, the dispatcher reads the project's
-//! `devEngines.runtime` / `engines.runtime`, materializes the release in
-//! pnpm's global virtual store, and executes it directly — never through
-//! the project's `node_modules/.bin`. A publisher-signature-verified
-//! stable Node release runs without prompting.
+//! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
+//! materializes the release in pnpm's global virtual store, and executes
+//! it directly — never through the project's `node_modules/.bin`. A
+//! publisher-signature-verified stable Node release runs without prompting.
 //!
 //! Everything else eligible — ordinary package bins, unsigned runtime
 //! channels — is a trust decision, gated twice. First, the
@@ -29,14 +29,14 @@ pub(crate) use native_shim::{
     native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
     refresh_native_shims, remove_native_shim,
 };
-pub(crate) use runtime_env::materialize_runtime;
+pub(crate) use runtime_env::{MaterializedRuntime, materialize_runtime};
 pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
 
 use crate::{
     cli_args::package_manager::wanted_package_manager,
     engine_pm::{
         channel::{Channel, PackageManager},
-        provision::provision,
+        provision::{ProvisionedEngine, provision},
     },
 };
 use derive_more::Display;
@@ -53,19 +53,18 @@ use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
 use pnpm_reporter::SilentReporter;
+use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
 
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use serde_json::Value;
 
 use settings::{
-    is_automatic_runtime, manifest_package_manager_pin, manifest_runtime_pin,
-    package_manager_runs_promptless, trusted_package_manager_config, trusted_shim_settings,
-    validate_candidate,
+    is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
+    runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
 };
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     path::{Path, PathBuf},
-    process::Command,
 };
 use trust::is_trusted;
 
@@ -276,15 +275,11 @@ enum Candidate {
     /// The project has `node_modules/.bin/<name>` — an installed
     /// dependency (including a materialized runtime) providing the bin.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
-    /// The project pins the runtime `<name>` in `devEngines.runtime` /
-    /// `engines.runtime` but has not materialized it; the pinned version
-    /// is fetched into the store on demand.
-    RuntimePin {
-        project_dir: PathBuf,
-        version_spec: String,
-        manifest_hash: String,
-        identity: String,
-    },
+    /// The project pins the runtime `<name>` in `devEngines.runtime`,
+    /// `engines.runtime`, `.node-version`, or `.nvmrc`, but has not
+    /// materialized it; the pinned version is fetched into the store on
+    /// demand.
+    RuntimePin { project_dir: PathBuf, version_spec: String, source_hash: String, identity: String },
     /// The project pins its package manager in `packageManager` /
     /// `devEngines.packageManager`. Like a runtime pin, the version is
     /// provisioned on demand rather than expected on the host.
@@ -318,7 +313,7 @@ impl Candidate {
 /// Walk up from `cwd` to the nearest directory providing `name`, the bin
 /// that was invoked, on behalf of `package`.
 ///
-/// Runtime shims only consider manifest pins and never inspect `.bin`;
+/// Runtime shims only consider project runtime pins and never inspect `.bin`;
 /// a package manager's pin outranks an installed copy of itself, because
 /// the pin is the project's own statement of what installs it; ordinary
 /// package bins resolve through `node_modules/.bin`. Directories inside
@@ -344,11 +339,11 @@ fn candidate_in(
     runtime: bool,
     package_manager: Option<PackageManager>,
 ) -> Option<Candidate> {
-    if runtime && let Some((version_spec, manifest_hash)) = manifest_runtime_pin(dir, name) {
+    if runtime && let Some((version_spec, source_hash)) = runtime_pin(dir, name) {
         return Some(Candidate::RuntimePin {
             project_dir: dir.to_path_buf(),
             version_spec,
-            manifest_hash,
+            source_hash,
             identity: String::new(),
         });
     }
@@ -403,7 +398,11 @@ fn run_runtime_from_store(
         materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
     );
     match result {
-        Ok(bin) => exec_program(&bin, args),
+        Ok(MaterializedRuntime {
+            bin,
+            private_install: Some(private_install),
+        }) => run_held_program(&bin, &[], args, vec![private_install]),
+        Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
             eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
             1
@@ -432,7 +431,16 @@ fn run_package_manager_from_pin(
     match result {
         Ok(engine) => {
             let program = engine.command(name);
-            exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
+            let ProvisionedEngine {
+                bin_dirs,
+                _private_installs: private_installs,
+                ..
+            } = engine;
+            if private_installs.is_empty() {
+                exec_program_with_bin_dirs(&program, &bin_dirs, args)
+            } else {
+                run_held_program(&program, &bin_dirs, args, private_installs)
+            }
         }
         Err(error) => {
             eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
@@ -441,67 +449,8 @@ fn run_package_manager_from_pin(
     }
 }
 
-/// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
-/// package manager needs the Node.js it was provisioned with to be
-/// reachable, and its own directory has to come first so a nested
-/// invocation finds the same version.
-fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
-    match crate::path_env::prepend_dirs_to_path(bin_dirs) {
-        // The `PATH` travels on the command rather than through this
-        // process's own environment: an `exec` hands the child the
-        // command's environment just the same, and nothing here has to
-        // reason about which threads are running.
-        Ok(path) => exec_program_with_path(program, args, Some(path.as_os_str())),
-        Err(error) => {
-            // Rendered as a report so the failure carries the same
-            // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
-            eprintln!("pnpm: {:?}", miette::Report::new(error));
-            1
-        }
-    }
-}
-
-/// Run `program` with `args`, replacing this process where the platform
-/// allows. Exit codes follow the shell convention: 127 when the program
-/// does not exist, 126 when it cannot be executed.
-fn exec_program(program: &Path, args: &[OsString]) -> i32 {
-    exec_program_with_path(program, args, None)
-}
-
-#[cfg(unix)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
-    use std::os::unix::process::CommandExt as _;
-    let mut command = Command::new(program);
-    command.args(args);
-    if let Some(path) = path {
-        crate::path_env::set_command_path(&mut command, path);
-    }
-    let error = command.exec();
-    eprintln!("pnpm: failed to exec {}: {error}", program.display());
-    if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
-}
-
-#[cfg(windows)]
-fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
-    // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
-    // library spawns them through `cmd.exe` itself with the
-    // CVE-2024-24576 argument escaping, and rejects arguments it cannot
-    // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
-    let mut command = Command::new(program);
-    command.args(args);
-    if let Some(path) = path {
-        crate::path_env::set_command_path(&mut command, path);
-    }
-    match command.status() {
-        Ok(status) => status.code().unwrap_or(1),
-        Err(error) => {
-            eprintln!("pnpm: failed to run {}: {error}", program.display());
-            if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
+mod run_program;
 mod settings;

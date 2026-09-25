@@ -1052,6 +1052,46 @@ test('update preserves an existing prerelease range operator', async function ()
   await execPnpm(['install', '--frozen-lockfile'])
 })
 
+test('update keeps a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  project.storeHas('@pnpm.e2e/foo', '1.2.0')
+
+  await execPnpm(['update'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('<= 1.2.5')
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '<= 1.2.5',
+    version: '1.2.0',
+  })
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  await execPnpm(['update', '--latest'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('update <pkg>@<tag> replaces a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  await addDistTag('@pnpm.e2e/foo', '1.1.0', 'stable')
+
+  await execPnpm(['update', '@pnpm.e2e/foo@stable'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^1.1.0')
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/foo@1.1.0'])
+})
+
 test('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 
@@ -1301,4 +1341,174 @@ test('update --latest respects minimumReleaseAge, picking the newest mature vers
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})
+
+test('update --prod does not install devDependencies when installed with --prod', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', 'is-positive', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod does not install devDependencies in fresh project without prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod --dev installs devDependencies in prod install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update --dev expands layout and persists devDependencies: true in .modules.yaml', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.included.devDependencies).toBe(true)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update preserves optionalDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--no-optional'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})
+
+test('update --prod --peer preserves devDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+    peerDependencies: {
+      'is-odd': '^0.1.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+
+  await execPnpm(['update', '--prod', '--peer', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+})
+
+test('plain update honors optional=false from configuration', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { optional: false })
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
 })

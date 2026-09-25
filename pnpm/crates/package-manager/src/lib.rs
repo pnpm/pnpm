@@ -1,9 +1,11 @@
 pub use add::*;
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
+pub use catalog_cleanup::{WriteWorkspaceCatalogsError, prune_against_project_lockfiles};
 pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;
+pub use fast_update_lockfile::prune_unreachable_packages;
 pub use install::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
@@ -21,7 +23,7 @@ pub use pnpm_patching::{
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;
-pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
+pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
 pub use resolve_latest::ResolveLatestError;
 pub use tarball_prefetch::*;
 pub use update::*;
@@ -88,6 +90,16 @@ pub(crate) const DIRECT_GROUPS: [pnpm_package_manifest::DependencyGroup; 3] = [
     pnpm_package_manifest::DependencyGroup::Prod,
     pnpm_package_manifest::DependencyGroup::Dev,
     pnpm_package_manifest::DependencyGroup::Optional,
+];
+
+/// Every ordinary direct group plus explicitly selected peer declarations.
+/// Update uses this resolve scope for `--peer`; peers still only materialize
+/// when `autoInstallPeers` allows it.
+pub(crate) const DIRECT_AND_PEER_GROUPS: [pnpm_package_manifest::DependencyGroup; 4] = [
+    pnpm_package_manifest::DependencyGroup::Prod,
+    pnpm_package_manifest::DependencyGroup::Dev,
+    pnpm_package_manifest::DependencyGroup::Optional,
+    pnpm_package_manifest::DependencyGroup::Peer,
 ];
 
 pub fn included_direct_groups(

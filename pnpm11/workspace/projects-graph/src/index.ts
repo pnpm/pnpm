@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
@@ -17,6 +19,7 @@ export interface ProjectGraphNode<Pkg extends BaseProject> {
 }
 
 export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: {
+  catalogs?: Catalogs
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
@@ -45,6 +48,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
     return Object.entries(dependencies)
       .map(([depName, rawSpec]) => {
         let spec!: { fetchSpec: string, type: string }
+        const catalogResolution = resolveFromCatalog(opts?.catalogs ?? {}, { alias: depName, bareSpecifier: rawSpec })
+        if (catalogResolution.type === 'found') {
+          rawSpec = catalogResolution.resolution.specifier
+        }
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
@@ -54,19 +61,10 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
               // resolve them as directory dependencies below.
               rawSpec = npmSpec
             } else {
-              let parsed: ReturnType<typeof parseBareSpecifier> = null
-              try {
-                parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
-              } catch {
-                // Defensive backstop for other malformed specs.
-              }
-              if (parsed) {
-                rawSpec = parsed.fetchSpec
-                depName = parsed.name
-              } else {
-                rawSpec = npmSpec
-              }
+              ({ depName, rawSpec } = parseRegistrySpec(depName, npmSpec))
             }
+          } else if (rawSpec.startsWith('npm:')) {
+            ({ depName, rawSpec } = parseRegistrySpec(depName, rawSpec))
           }
           spec = npa.resolve(depName, rawSpec, project.rootDir)
         } catch {
@@ -122,6 +120,18 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
       })
       .filter(Boolean)
   }
+}
+
+/**
+ * The package an `npm:` alias points at and the selector it asks for, read
+ * the way the npm resolver reads them. A spec the resolver does not claim
+ * comes back with `depName` and the spec unchanged. Throws what
+ * `parseBareSpecifier` throws, such as for a registry revision the resolver
+ * rejects.
+ */
+function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
+  const parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
+  return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
 }
 
 function isRelativePathSpec (spec: string): boolean {

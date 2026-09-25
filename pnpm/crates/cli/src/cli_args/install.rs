@@ -14,7 +14,6 @@ use crate::{
         package_manager::read_root_manifest_json, pipelines::InstallFamilySelection,
         recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
-        yarn_workspaces_field::warn_unsupported_workspaces_field,
     },
 };
 use clap::{Args, ValueEnum};
@@ -215,6 +214,11 @@ impl InstallArgs {
         }
     }
 
+    /// Package names allowed to run lifecycle (build) scripts during this install.
+    pub fn allow_build(&self) -> &[String] {
+        &self.materialization.allow_build
+    }
+
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         Box::pin(self.run_inner::<Reporter>(state, None)).await
     }
@@ -383,6 +387,7 @@ pub(crate) fn workspace_install_selection(
         project_dependencies: &selection.project_dependencies,
         ordered_dirs: &selection.ordered_dirs,
         selected_dirs: selection.selected_dirs.as_ref(),
+        edited_dirs: None,
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
         workspace_cycles: selection.workspace_cycles

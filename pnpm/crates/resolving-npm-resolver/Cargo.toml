@@ -19,6 +19,7 @@ pnpm-network = { workspace = true }
 pnpm-registry = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
+pnpm-store-dir = { workspace = true }
 pnpm-workspace-range-resolver = { workspace = true }
 pnpm-workspace-spec = { workspace = true }
 

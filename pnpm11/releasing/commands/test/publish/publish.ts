@@ -1084,3 +1084,29 @@ test('publish --json: writes per-package summary to stdout', async () => {
 
   await checkPkgExists(pkgName, '0.0.0')
 })
+
+test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', async () => {
+  const pkgName = `@pnpmtest/test-workspace-npmrc-publish-${Date.now()}`
+  preparePackages([
+    {
+      name: pkgName,
+      version: '1.0.0',
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  process.chdir(pkgName)
+
+  fs.writeFileSync('.npmrc', 'engine-strict=true\nsave-exact=true\n')
+
+  const result = crossSpawn.sync(pnpmBin, ['publish', '--no-git-checks'], { env: SPAWN_ENV })
+  if (result.status !== 0) {
+    throw new Error(`pnpm publish failed with status ${result.status}: ${result.stderr?.toString()}`)
+  }
+  expect(result.status).toBe(0)
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+

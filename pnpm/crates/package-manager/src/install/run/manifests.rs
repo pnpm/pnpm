@@ -1,7 +1,9 @@
 use super::super::{
-    Arc, HashSet, InstallError, PackageManifest, Path, PathBuf, Reporter,
-    dev_preinstall_already_ran, run_dev_preinstall, selected_manifest_freshness_inputs,
+    Arc, HashSet, InstallError, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
+    dev_preinstall_already_ran, projects_running_own_scripts, root_preinstall_already_ran,
+    run_root_hook, selected_manifest_freshness_inputs,
 };
+use crate::{ProjectMutation, install::state_options::ProjectScriptSelection};
 use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 
@@ -173,41 +175,121 @@ pub(super) fn manifest_freshness_inputs<'a>(
     };
     selected_manifest_freshness_inputs(workspace_root, project_manifests, selection.install_dirs)
 }
-/// What decides whether the `devPreinstall` hook runs.
-pub(super) struct DevPreinstallScope<'a> {
+/// What decides whether the root project's pre-resolution hooks —
+/// `pnpm:devPreinstall` and `preinstall` — run.
+pub(super) struct RootHooksScope<'a> {
     pub(super) config: &'a Config,
     pub(super) workspace_root: &'a Path,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) resolve_only: bool,
     pub(super) ignore_manifest_check: bool,
-    pub(super) rebuild: Option<&'a crate::RebuildOptions>,
+    /// What decides whether the root fires its own scripts after linking.
+    pub(super) scripts: ProjectScriptSelection<'a, 'a>,
 }
-/// pnpm reads the hook off the root project's in-memory manifest and only
-/// shells out when it is defined. Falling back to the executor's own read
-/// covers a root that isn't among the importers, as a filtered install's is
-/// not — pnpm's `safeReadProjectManifestOnly` fallback.
-pub(super) fn run_dev_preinstall_hook<Reporter: self::Reporter>(
-    scope: &DevPreinstallScope<'_>,
-) -> Result<(), InstallError> {
+/// Run the root project's pre-resolution hooks. Returns whether its
+/// `preinstall` is taken care of, so the run after linking starts the
+/// root at `install`: it ran here, or the delegating CLI ran it.
+///
+/// pnpm reads `pnpm:devPreinstall` off the root project's in-memory
+/// manifest and only shells out when it is defined. Falling back to the
+/// executor's own read covers a root that isn't among the importers, as a
+/// filtered install's is not — pnpm's `safeReadProjectManifestOnly`
+/// fallback.
+///
+/// The root's `preinstall` runs here too, ahead of resolution, when the
+/// run would fire the root's own lifecycle scripts after linking (the
+/// mutated-importer rule of [`projects_running_own_scripts`]). Unlike
+/// `pnpm:devPreinstall` it is not gated on `ignore_manifest_check`: a
+/// frozen delegation carries no separate flag for it, and the delegating
+/// CLI may not have been eligible to run it (a `pnpm add` at a workspace
+/// root runs no root script there), so pacquet runs it unless
+/// [`ROOT_PREINSTALL_ALREADY_RAN_ENV`] says otherwise. A
+/// `virtualStoreOnly` install links no project, so it runs no project
+/// script at all.
+///
+/// [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]: pnpm_executor::ROOT_PREINSTALL_ALREADY_RAN_ENV
+pub(super) fn run_root_hooks<Reporter: self::Reporter>(
+    scope: &RootHooksScope<'_>,
+) -> Result<bool, InstallError> {
     if scope.config.ignore_scripts
         || scope.resolve_only
-        || scope.ignore_manifest_check
-        || scope.rebuild.is_some()
-        || dev_preinstall_already_ran()
+        || scope.scripts.rebuild.is_some()
     {
-        return Ok(());
+        return Ok(false);
     }
     let normalized_root = pnpm_fs::lexical_normalize(scope.workspace_root);
-    let root_defines_hook = scope.project_manifests
+    let root_manifest = scope.project_manifests
         .iter()
         .find(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
-        .is_none_or(|(_, manifest)| {
-            matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
-        });
-    if !root_defines_hook {
-        return Ok(());
+        .map(|(_, manifest)| *manifest);
+    let root_defines = |stage: &str| {
+        root_manifest.is_none_or(|manifest| matches!(manifest.script(stage, true), Ok(Some(_))))
+    };
+    if scope.scripts.include_dev
+        && !scope.ignore_manifest_check
+        && !dev_preinstall_already_ran()
+        && root_defines(DEV_PREINSTALL_STAGE)
+    {
+        run_root_hook(
+            scope.config,
+            scope.workspace_root,
+            pnpm_executor::run_dev_preinstall_hook::<Reporter>,
+        )?;
     }
-    run_dev_preinstall::<Reporter>(scope.config, scope.workspace_root)
+    if root_preinstall_already_ran() {
+        return Ok(true);
+    }
+    if !root_runs_preinstall(scope, &normalized_root) {
+        return Ok(false);
+    }
+    if root_defines("preinstall") {
+        run_root_hook(
+            scope.config,
+            scope.workspace_root,
+            pnpm_executor::run_root_preinstall_hook::<Reporter>,
+        )?;
+    }
+    Ok(true)
+}
+/// Whether the root project's `preinstall` is this run's to fire: a
+/// removal runs the uninstall stages only, and `virtual_store_only` links
+/// no project.
+fn root_runs_preinstall(scope: &RootHooksScope<'_>, normalized_root: &Path) -> bool {
+    !scope.config.virtual_store_only
+        && scope.scripts.mutation != ProjectMutation::UninstallSome
+        && root_runs_own_scripts(scope, normalized_root)
+}
+/// Whether the root project is among the projects whose own lifecycle
+/// scripts this run fires: the projects the selection installs, or every
+/// project when there is none, stand in for the set the run materializes.
+fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> bool {
+    let materialized_project_manifests = match scope.scripts.workspace {
+        Some(selection) => {
+            let install_dirs = selection.install_dirs
+                .iter()
+                .map(|dir| pnpm_fs::lexical_normalize(dir))
+                .collect::<HashSet<_>>();
+            scope.project_manifests
+                .iter()
+                .filter(|(project_dir, _)| {
+                    install_dirs.contains(&pnpm_fs::lexical_normalize(project_dir))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        }
+        None => scope.project_manifests.to_vec(),
+    };
+    projects_running_own_scripts(&ProjectScriptsInputs {
+        mutation: scope.scripts.mutation,
+        workspace_root: scope.workspace_root,
+        active_project_dir: scope.scripts.manifest_dir,
+        selected_dirs: scope.scripts.workspace.map(|selection| selection.selected_dirs),
+        edited_dirs: scope.scripts.workspace.and_then(|selection| selection.edited_dirs),
+        project_manifests: scope.project_manifests,
+        materialized_project_manifests: &materialized_project_manifests,
+    })
+    .iter()
+    .any(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
 }
 /// `project_manifests` with `packageExtensions` applied — pnpm's built-in
 /// compatibility set and the user's, in that order, matching what the

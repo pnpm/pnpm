@@ -14,18 +14,21 @@ use lockfile::{
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use peers::{
-    bind_singleton_peers, omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
+    bind_singleton_peers, deploy_peer_edges, omit_peers_of_excluded_dependencies,
+    prune_deploy_lockfile_graph,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pnpm_fs::{lexical_normalize, remove_dirent};
 use pnpm_lockfile::{
     DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
-    PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart,
-    WantedLockfileSelection,
+    PackageKey, PackageMetadata, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    TarballResolution, VersionPart, WantedLockfileSelection,
 };
-use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
+use pnpm_lockfile_preferred_versions::{
+    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
+};
 use pnpm_package_manager::{
     ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir, manifest_has_bin,
 };
@@ -51,6 +54,7 @@ use target::{
     prepare_deploy_dir, relative_path, resolve_target_dir, same_path, validate_deploy_target,
     write_deploy_files,
 };
+use workspace_manifest::deploy_workspace_manifest;
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -250,11 +254,7 @@ impl DeployArgs {
             deploy_dir,
             self.install_args.materialization.force,
         )?;
-        copy_project::<ReporterT>(
-            &selected.project.root_dir,
-            deploy_dir,
-            !config.deploy_all_files,
-        )?;
+        copy_project(&selected.project.root_dir, deploy_dir, !config.deploy_all_files)?;
 
         Ok(())
     }
@@ -396,3 +396,5 @@ mod peers;
 mod lockfile;
 
 mod install;
+
+mod workspace_manifest;

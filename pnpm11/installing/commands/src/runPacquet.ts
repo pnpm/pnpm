@@ -26,6 +26,12 @@ export interface MakeRunPacquetOpts {
    */
   virtualStoreDirMaxLength: number
   /**
+   * Effective pnpm config value, forwarded through `PNPM_CONFIG_*` so a
+   * delegated `--force` install applies pnpm's default for the setting
+   * rather than pacquet's.
+   */
+  forceIgnoresPlatform: boolean
+  /**
    * Which `configDependencies` entry installed pacquet: either the
    * original unscoped `pacquet` or the official scoped
    * `@pnpm/pacquet` mirror. Drives the directory we look in under
@@ -80,6 +86,15 @@ export interface RunPacquetCallOpts {
    * >= 0.11.7).
    */
   resolve?: boolean
+  /**
+   * `true` when pnpm already ran the root project's `preinstall`, or was
+   * eligible to and the project defines no `preinstall`, so pacquet skips
+   * that one stage for the root, early and after linking, and still runs
+   * the root's later stages after linking. `false` when the command runs
+   * no root script on pnpm's side (a `pnpm add` at a workspace root), so
+   * pacquet still owes the `preinstall`.
+   */
+  rootProjectPreinstallRan?: boolean
 }
 
 /**
@@ -218,22 +233,41 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
  */
 export const DEV_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN'
 
+/**
+ * Tells pacquet that pnpm already ran the root project's `preinstall`.
+ * Set on every delegation shape, since whether pnpm ran the hook
+ * depends on the command rather than the shape; see
+ * {@link RunPacquetCallOpts.rootProjectPreinstallRan}. Private like its
+ * sibling above.
+ */
+export const ROOT_PREINSTALL_ALREADY_RAN_ENV = 'PNPM_INTERNAL_ROOT_PREINSTALL_ALREADY_RAN'
+
 export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): NodeJS.ProcessEnv {
   const env = { ...process.env }
   for (const key of Object.keys(env)) {
-    if (key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length') {
+    if (
+      key.toLowerCase() === 'pnpm_config_virtual_store_dir_max_length' ||
+      key.toLowerCase() === 'pnpm_config_force_ignores_platform'
+    ) {
       delete env[key]
     }
     // Case-insensitively, like the key above: Windows treats env names
     // that way, so a differently-cased inherited copy would otherwise
     // survive into the child and read as a delegation marker there.
-    if (key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()) {
+    if (
+      key.toLowerCase() === DEV_PREINSTALL_ALREADY_RAN_ENV.toLowerCase() ||
+      key.toLowerCase() === ROOT_PREINSTALL_ALREADY_RAN_ENV.toLowerCase()
+    ) {
       delete env[key]
     }
   }
   env.PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = String(opts.virtualStoreDirMaxLength)
+  env.PNPM_CONFIG_FORCE_IGNORES_PLATFORM = String(opts.forceIgnoresPlatform)
   if (callOpts?.resolve === true) {
     env[DEV_PREINSTALL_ALREADY_RAN_ENV] = 'true'
+  }
+  if (callOpts?.rootProjectPreinstallRan === true) {
+    env[ROOT_PREINSTALL_ALREADY_RAN_ENV] = 'true'
   }
   return env
 }

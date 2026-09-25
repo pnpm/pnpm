@@ -1,8 +1,8 @@
 use super::super::{
-    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest, current_contains_dep_path,
-    merge_filtered_modules_metadata, merge_pending_builds, project_requires_lifecycle_scripts,
-    write_modules_manifest,
+    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
+    PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
+    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
+    project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -119,7 +119,6 @@ pub(super) fn merge_committed_modules_metadata(
         retain_current_ignored_builds(next_modules, previous, current, policy);
     }
     if inputs.prior.filtered_install
-        && !matches!(inputs.tree.node_linker, NodeLinker::Hoisted)
         && !inputs.prior.is_inconsistent
         && let (Some(previous), Some(current), Some(selected)) =
             (inputs.prior.metadata, inputs.lockfiles.materialized, inputs.lockfiles.selected)
@@ -152,7 +151,7 @@ pub(super) fn deferred_projects(
         materialized_project_manifests
             .iter()
             .filter(|(project_dir, manifest)| {
-                project_requires_lifecycle_scripts(project_dir, manifest)
+                project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES)
             })
             .map(|(project_dir, _)| {
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir)
@@ -193,11 +192,10 @@ pub(super) fn save_current_lockfile(
 /// Sweep the virtual store of everything the install no longer needs, and
 /// report whether the sweep actually ran (enumerated the store) rather than
 /// just being allowed by the throttle. It does not run when there is no
-/// wanted lockfile to derive the needed set from (`config.lockfile == false`
-/// leaves both `fresh_lockfile` and a loaded `lockfile` absent), when the
-/// target is refused as unsafe, or when enumeration failed. `prunedAt` must
-/// not advance on a run where nothing was swept, or the next real sweep is
-/// throttled off for `modulesCacheMaxAge`.
+/// lockfile to derive the needed set from (`materialized_current_lockfile` is
+/// `None`), when the target is refused as unsafe, or when enumeration failed.
+/// `prunedAt` must not advance on a run where nothing was swept, or the next
+/// real sweep is throttled off for `modulesCacheMaxAge`.
 pub(super) fn sweep_virtual_store(
     config: &Config,
     prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,

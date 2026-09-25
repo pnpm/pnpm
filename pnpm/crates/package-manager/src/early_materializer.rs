@@ -16,7 +16,8 @@ use pnpm_config::{Config, PackageImportMethod};
 use pnpm_deps_restorer::{
     ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
     import_indexed_dir, install_package_from_registry::extract_tarball,
-    safe_join_modules_dir::safe_join_modules_dir, select_package_files,
+    requires_build_from_cas_paths, safe_join_modules_dir::safe_join_modules_dir,
+    select_package_files,
 };
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
@@ -44,7 +45,7 @@ pub(crate) struct EarlyMaterializer<Reporter> {
     tasks: Mutex<JoinSet<()>>,
     /// Every slot a task was spawned for, so slots the final lockfile
     /// does not carry can be removed again.
-    slots: Mutex<Vec<(PackageKey, PathBuf)>>,
+    slots: Mutex<HashMap<PackageKey, PathBuf>>,
     _reporter: PhantomData<fn() -> Reporter>,
 }
 
@@ -77,7 +78,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
                 materialized: AtomicUsize::new(0),
             }),
             tasks: Mutex::new(JoinSet::new()),
-            slots: Mutex::new(Vec::new()),
+            slots: Mutex::new(HashMap::new()),
             _reporter: PhantomData,
         }
     }
@@ -126,7 +127,9 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             package_dir,
             dependencies: required_dependencies(&package.children),
         };
-        lock(&self.slots).push((key, slot_dir));
+        if lock(&self.slots).insert(key, slot_dir).is_some() {
+            return;
+        }
         let shared = Arc::clone(&self.shared);
         lock(&self.tasks).spawn(async move { job.run::<Reporter>(&shared).await });
     }
@@ -253,6 +256,12 @@ impl SlotJob {
         shared: &Shared,
         cas_paths: &HashMap<String, PathBuf>,
     ) -> Result<(), String> {
+        // A package with a build ahead of it must not share inodes with the
+        // store. The link phase imports it with `clone-or-copy` and marks it
+        // for the build, and a completed slot here would make it skip that.
+        if requires_build_from_cas_paths(cas_paths) {
+            return Ok(());
+        }
         std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
         shared.importer.import::<Reporter>(&self.package_dir, cas_paths)?;
         if shared.symlink {
@@ -291,7 +300,7 @@ async fn wait_for_cas_paths(
             continue;
         };
         let notify = match &*slot.read().await {
-            CacheValue::Available(cas_paths) => return Some(Arc::clone(cas_paths)),
+            CacheValue::Available(cached) => return Some(Arc::clone(&cached.files)),
             CacheValue::Failed => return None,
             CacheValue::InProgress(notify) => Arc::clone(notify),
         };
@@ -308,3 +317,6 @@ async fn wait_for_cas_paths(
 fn lock<Inner>(mutex: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
+
+#[cfg(test)]
+mod tests;

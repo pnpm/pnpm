@@ -12,7 +12,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::peer_issues_for_lockfile;
 use pnpm_lockfile::Lockfile;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PeerDependencyIssuesLog};
+use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
 use std::{collections::HashSet, path::Path};
 
 use crate::InstallError;
@@ -59,20 +59,16 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         &importer_ids,
         &config.peer_dependency_rules,
         catalogs,
+        config.resolve_peers_from_workspace_root,
     )
     .map_err(InstallError::CatalogResolution)?
     else {
         return Ok(());
     };
     if config.strict_peer_dependencies {
-        // The listing and its hints go out through the reporter, in
-        // pnpm's own error format; `is_reported_error` then keeps the
-        // CLI from rendering the returned error a second time.
-        Reporter::emit(&LogEvent::Global(GlobalLog {
-            level: LogLevel::Error,
-            message: report.render_error(),
-        }));
-        return Err(InstallError::PeerDependencyIssues);
+        return Err(InstallError::PeerDependencyIssues {
+            rendered: Reporter::report_fatal_error(report.render_error()),
+        });
     }
     Reporter::emit(&LogEvent::PeerDependencyIssues(PeerDependencyIssuesLog {
         level: LogLevel::Debug,

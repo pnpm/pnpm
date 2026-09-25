@@ -188,12 +188,22 @@ fn returns_skipped_when_a_project_file_tarball_changes_without_an_mtime_change()
 /// full install path.
 #[test]
 fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
-    for spec in ["../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"] {
+    for spec in [
+        "../sibling-dir",
+        "~/pkgs/foo",
+        r"~\pkgs\foo",
+        "/abs/path/foo",
+        r"\root\@scope\pkg",
+        r"\\server\share\@scope\pkg",
+        "c:/pkgs/foo",
+        "c:pkgs",
+    ] {
+        let escaped = spec.replace('\\', r"\\");
         let (dir, config, manifest) = setup_fresh_install(
             pnpm_config::NodeLinker::Isolated,
             "root",
             "1.0.0",
-            &format!(r#""dependencies":{{"foo":"{spec}"}}"#),
+            &format!(r#""dependencies":{{"foo":"{escaped}"}}"#),
         );
 
         let decision = check(
@@ -207,6 +217,28 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
             "spec {spec:?} must bail",
         );
     }
+}
+
+#[test]
+fn inject_workspace_packages_treats_unc_and_tilde_backslash_paths_as_workspace() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"pkg":"workspace:\\\\server\\share\\@scope\\pkg"}"#,
+        |config| config.inject_workspace_packages = true,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "expected Skipped(local file dependency), got {decision:?}",
+    );
 }
 /// `link:` dependencies are symlinked — changes inside them flow
 /// through without a reinstall, so they don't invalidate the fast path.
@@ -472,8 +504,11 @@ fn a_moved_production_install_passes_the_run_gate() {
     )
     .unwrap();
     let wanted = Lockfile::load_wanted_from_dir(dir.path()).unwrap().unwrap();
-    let current =
-        crate::filter_lockfile_for_current(&wanted, included, &crate::SkippedSnapshots::new());
+    let current = crate::filter_lockfile_for_current(
+        &wanted,
+        &crate::GroupSelection::following_every_edge(included),
+        &crate::SkippedSnapshots::new(),
+    );
     current
         .save_to_path(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
         .unwrap();

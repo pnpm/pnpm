@@ -56,3 +56,18 @@ fn a_manifest_without_both_sections_shadows_nothing() {
     assert!(peer_shadowed_dependencies(Some(&peers_only), &scope, true).is_empty());
     assert!(peer_shadowed_dependencies(Some(&deps_only), &scope, true).is_empty());
 }
+
+#[test]
+fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
+    let manifest = serde_json::json!({
+        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0" },
+        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
+        "peerDependenciesMeta": {
+            "in-scope": { "optional": true },
+            "out-of-scope": { "optional": true },
+        },
+    });
+    let scope = ParentPkgAliases::root(names(["in-scope"]));
+
+    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, true), names(["in-scope"]));
+}

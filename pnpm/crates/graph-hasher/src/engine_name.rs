@@ -63,7 +63,34 @@ pub fn detect_node_version() -> Option<String> {
     )
 }
 
+/// The probe's answer for the life of the process. `node` resolves
+/// through the process's own `PATH`, which the CLI never rewrites, so
+/// every caller sees the same binary. Probing once matters for a
+/// workspace whose projects keep their own lockfiles: each project's
+/// install asks twice (the installability host and the engine name),
+/// and on macOS concurrent launches of one binary serialize, so under
+/// the per-project concurrency every probe waited on the others.
 fn detect_node_version_raw() -> Option<String> {
+    static CACHED: ProbeOnce = ProbeOnce::new();
+    CACHED.get_or_probe(spawn_node_version_probe)
+}
+
+/// A probe result that is computed at most once. Callers that arrive
+/// while the first probe is still running wait for its answer instead
+/// of probing themselves.
+struct ProbeOnce(std::sync::OnceLock<Option<String>>);
+
+impl ProbeOnce {
+    const fn new() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+
+    fn get_or_probe(&self, probe: impl FnOnce() -> Option<String>) -> Option<String> {
+        self.0.get_or_init(probe).clone()
+    }
+}
+
+fn spawn_node_version_probe() -> Option<String> {
     let output = std::process::Command::new("node")
         .arg("--version")
         .output()

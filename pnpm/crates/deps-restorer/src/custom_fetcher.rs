@@ -1,3 +1,5 @@
+mod metadata;
+
 use crate::{
     InstallPackageBySnapshotError, install_package_by_snapshot::local_file_tarball_install_url,
 };
@@ -43,53 +45,6 @@ impl CustomFetcherSession {
     #[must_use]
     pub fn new(fetchers: Vec<Arc<dyn CustomFetcher>>) -> Self {
         Self { picker: CustomFetcherPicker::new(fetchers), completed: Mutex::new(HashMap::new()) }
-    }
-
-    pub async fn resolve_tarball_metadata<Reporter: self::Reporter>(
-        &self,
-        download: IngestTarballToStore<'_>,
-        original: &LockfileResolution,
-        opts: Value,
-    ) -> Result<ResolvedTarballMetadata, InstallPackageBySnapshotError> {
-        let lockfile_dir = PathBuf::from(
-            opts.get("lockfileDir")
-                .and_then(Value::as_str)
-                .unwrap_or(download.requester),
-        );
-        let (resolution, tarball) = match self.fetch::<Reporter>(download.clone(), original, opts)
-            .await?
-        {
-            CustomFetchOutcome::Fetched { resolution, tarball } => (resolution, tarball),
-            CustomFetchOutcome::Declined(resolution) => {
-                let Some(tarball) =
-                    fetch_custom_tarball::<Reporter>(download.clone(), &resolution, &lockfile_dir)
-                        .await?
-                else {
-                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
-                };
-                (resolution, tarball)
-            }
-            CustomFetchOutcome::Delegate { resolution, delegate } => {
-                let Some(tarball) =
-                    fetch_custom_tarball::<Reporter>(download.clone(), &delegate, &lockfile_dir)
-                        .await?
-                else {
-                    return Ok(ResolvedTarballMetadata { resolution, manifest: None });
-                };
-                (resolution, tarball)
-            }
-        };
-        let resolution = decode_resolution(
-            serde_json::json!(resolution),
-            Some(&tarball.integrity),
-            download.package.id,
-        )?;
-        let manifest = tarball.manifest.clone().map(Arc::new);
-        self.completed
-            .lock()
-            .unwrap()
-            .insert((download.package.id.to_owned(), tarball.integrity.to_string()), tarball);
-        Ok(ResolvedTarballMetadata { resolution, manifest })
     }
 
     pub(crate) async fn fetch<Reporter: self::Reporter>(
@@ -290,7 +245,8 @@ fn decode_resolution(
 }
 
 /// `None` when the hook pointed the package at a source that carries no archive
-/// digest — a directory or a git checkout. Only a fresh install's missing-digest
+/// digest — a directory or a git checkout — or at a registry resolution while
+/// the caller has no URL for it. Only a fresh install's missing-metadata
 /// discovery calls this, so there is nothing to hash and nothing to verify; the
 /// install pass materializes such a resolution through its own dispatch.
 async fn fetch_custom_tarball<Reporter: self::Reporter>(
@@ -303,15 +259,39 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
             tarball: resolution.tarball.clone(),
             integrity: resolution.integrity.clone(),
         },
-        LockfileResolution::Registry(resolution) => TarballLocation {
-            tarball: download.package.url.to_owned(),
-            integrity: Some(resolution.integrity.clone()),
-        },
+        LockfileResolution::Registry(resolution) if !download.package.url.is_empty() => {
+            return load_or_fetch_registry_tarball::<Reporter>(download, &resolution.integrity)
+                .await
+                .map_err(InstallPackageBySnapshotError::DownloadTarball)
+                .map(Some);
+        }
         _ => return Ok(None),
     };
     fetch_location::<Reporter>(&download, location, lockfile_dir).await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)
         .map(Some)
+}
+
+/// A registry resolution always pins its integrity, so its archive is the one
+/// the store already holds under that hash whenever an earlier install fetched
+/// it. Reusing that copy keeps a warm install off the network and lets an
+/// offline one read the manifest.
+async fn load_or_fetch_registry_tarball<Reporter: self::Reporter>(
+    download: IngestTarballToStore<'_>,
+    integrity: &Integrity,
+) -> Result<Arc<FetchedTarball>, TarballError> {
+    let files_map = IngestTarballToStore {
+        package: pnpm_tarball::TarballPackage { integrity: Some(integrity), ..download.package },
+        ..download
+    }
+    .run_without_mem_cache::<Reporter>()
+    .await?;
+    Ok(Arc::new(FetchedTarball {
+        integrity: integrity.clone(),
+        manifest: pnpm_tarball::read_cas_package_json(&files_map, "package.json").await?,
+        requires_build: crate::requires_build_from_cas_paths(&files_map),
+        files_map,
+    }))
 }
 
 async fn fetch_location<Reporter: self::Reporter>(

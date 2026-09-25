@@ -12,6 +12,10 @@ pub struct PublishRegistryArgs {
     /// One-time password for two-factor-authenticated registries.
     #[clap(long)]
     pub otp: Option<String>,
+    /// Wait up to this many milliseconds per package for registry availability.
+    /// A batch upload uses one timeout per registry group. Zero disables waiting (default).
+    #[clap(long, value_name = "MILLISECONDS")]
+    pub publish_wait_timeout: Option<u64>,
 }
 
 #[derive(Debug, Clone, clap::Args)]

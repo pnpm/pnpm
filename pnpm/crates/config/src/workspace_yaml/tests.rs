@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, PmOnFail, ResolutionMode, RuntimeOnFail,
-    ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PmOnFail, ReporterType,
+    ResolutionMode, RuntimeOnFail, ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
     api::{EnvVar, GetHomeDir},
 };
 use indexmap::IndexMap;
@@ -70,6 +70,8 @@ mod workspace_settings;
 
 mod reporting;
 
+mod tag_version_prefix;
+
 mod integrity;
 
 mod dependencies;
@@ -83,3 +85,7 @@ mod lockfile;
 mod authorization;
 
 mod registry_ecosystems;
+
+mod publish_wait_timeout;
+
+mod env_placeholders;

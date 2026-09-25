@@ -19,6 +19,7 @@ pnpm-catalogs-types = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-hooks = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-patching = { workspace = true }

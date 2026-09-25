@@ -1,6 +1,9 @@
 pub mod package_manager_spec;
 pub use error::PackageManifestError;
 pub use initialization::{InitAuthor, InitOptions};
+pub use project::{
+    PROJECT_MANIFEST_BASENAMES, project_manifest_path, safe_read_project_manifest_from_dir,
+};
 pub use runtime::{
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
     convert_engines_runtime_to_dependencies, engines_runtime_dependencies, is_runtime_alias,
@@ -15,12 +18,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use node_semver::Range;
+use blank_lines::BlankLines;
+use node_semver::{Range, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
+mod blank_lines;
 mod error;
+mod json5;
+mod project;
 mod truthiness;
 
 #[derive(Debug, Clone, Copy, PartialEq, IntoStaticStr)]
@@ -46,10 +53,11 @@ pub enum BundleDependencies {
 /// (freshly scaffolded or in-memory).
 const DEFAULT_INDENT: &str = "  ";
 
-/// Content of a `package.json` or `package.yaml` manifest and its path.
+/// Content of a `package.json`, `package.json5`, or `package.yaml` manifest and its path.
+/// JSON5 numbers must be finite and values may be nested at most 128 levels.
 ///
 /// Carries the source file's formatting (indentation unit, final-newline
-/// state) and its parsed value across the read/save round-trip, so
+/// state, blank lines between JSON object members) and its parsed value across the read/save round-trip, so
 /// [`Self::save`] preserves the file's style and skips the write entirely
 /// when nothing changed — the same contract as pnpm's project-manifest
 /// reader/writer pair.
@@ -60,14 +68,20 @@ pub struct PackageManifest {
     /// Whether a save ends the file with a newline. New and in-memory
     /// manifests get one.
     insert_final_newline: bool,
+    crlf: bool,
     /// One indentation level. Empty for a single-line source document,
     /// which then round-trips back to its compact form.
     indent: String,
+    /// The blank lines of a JSON source file, restored on save.
+    blank_lines: BlankLines,
     /// The manifest as the file currently encodes it (`devEngines` folded,
     /// dependency fields normalized), used to skip a save that wouldn't
     /// change the file. `None` when there is no file baseline (in-memory
     /// manifests), so the first save always writes.
     on_disk: Option<Value>,
+    /// The dependency fields the file declares as empty objects, kept on
+    /// save so a write only drops a field pnpm itself emptied.
+    empty_dependency_fields: Vec<&'static str>,
 }
 
 impl InitAuthor<'_> {
@@ -118,8 +132,11 @@ impl PackageManifest {
             path,
             value,
             insert_final_newline: true,
+            crlf: false,
             indent: DEFAULT_INDENT.to_string(),
+            blank_lines: BlankLines::default(),
             on_disk: None,
+            empty_dependency_fields: Vec::new(),
         }
     }
 
@@ -150,33 +167,52 @@ impl PackageManifest {
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
-        normalize_dependency_fields(&mut value);
+        normalize_dependency_fields(&mut value, &self.empty_dependency_fields);
         Ok(value)
     }
 
     /// Persist the manifest in its on-disk shape (`devEngines` folded back,
     /// dependency fields normalized) and return that shape.
     ///
-    /// Preserves JSON indentation and final-newline state, or YAML comments
-    /// and existing key order. A save that changes nothing leaves the file
+    /// Preserves JSON indentation, final-newline state, and blank lines
+    /// between object members, JSON5 comments,
+    /// or YAML comments and existing key order. A save that changes nothing leaves the file
     /// and its modification time untouched.
     pub fn save_and_get_written_value(&mut self) -> Result<Value, PackageManifestError> {
         let value = self.written_value()?;
         if self.on_disk.as_ref() == Some(&value) {
             return Ok(value);
         }
-        let contents = if self.is_yaml() {
-            self.serialize_yaml(&value)?
+        let contents = self.serialize(&value)?;
+        Self::write_atomic(&self.path, &contents)?;
+        if !self.is_yaml() && !self.is_json5() {
+            self.blank_lines = BlankLines::detect(&contents);
+        }
+        self.empty_dependency_fields = empty_dependency_fields(&value);
+        self.on_disk = Some(value.clone());
+        Ok(value)
+    }
+
+    /// The file contents a save writes for `value`, in the source file's
+    /// format and style.
+    fn serialize(&self, value: &Value) -> Result<String, PackageManifestError> {
+        let mut contents = if self.is_yaml() {
+            self.serialize_yaml(value)?
         } else {
-            let mut contents = serialize_with_indent(&value, &self.indent)?;
+            let mut contents = if self.is_json5() {
+                self.serialize_json5(value)?
+            } else {
+                self.blank_lines.restore(&serialize_with_indent(value, &self.indent)?)
+            };
             if self.insert_final_newline {
                 contents.push('\n');
             }
             contents
         };
-        Self::write_atomic(&self.path, &contents)?;
-        self.on_disk = Some(value.clone());
-        Ok(value)
+        if self.crlf {
+            contents = contents.replace("\r\n", "\n").replace('\n', "\r\n");
+        }
+        Ok(contents)
     }
 
     pub fn save(&mut self) -> Result<(), PackageManifestError> {
@@ -516,4 +552,4 @@ mod runtime;
 mod initialization;
 
 mod serialization;
-use serialization::{normalize_dependency_fields, serialize_with_indent};
+use serialization::{empty_dependency_fields, normalize_dependency_fields, serialize_with_indent};

@@ -184,6 +184,7 @@ where
             Some(Arc::new(fallback_manifest(wanted, opts.refresh.current_pkg.as_ref())));
     }
     apply_manifest_hooks(ctx, &mut result).await?;
+    stamp_fallback_identity(&mut result);
 
     Ok(cache_resolved_wanted(ctx, cache_key, workspace_final_key, result))
 }
@@ -331,19 +332,38 @@ pub(super) fn per_wanted_opts(
 /// keys no `packages:` row. A package with no `package.json` of its own
 /// still has to install, so it borrows an identity; `0.0.0` is the
 /// version pnpm writes into `packages:` for such a package.
+///
+/// The fallback identity version `0.0.0` is stamped by
+/// [`stamp_fallback_identity`] *after* manifest hooks have run, so ranged
+/// `packageExtensions` selectors (e.g. `@<X`, `@*`, `@^X`) do not match
+/// an archive that ships no manifest.
+fn manifest_from_current_pkg(
+    current: &CurrentPkg,
+) -> Option<pnpm_resolving_resolver_base::DependencyManifest> {
+    if let Some(manifest) = &current.manifest {
+        let mut manifest = (**manifest).clone();
+        if manifest.get("version").and_then(serde_json::Value::as_str) == Some("0.0.0")
+            && let Some(obj) = manifest.as_object_mut()
+        {
+            obj.remove("version");
+        }
+        return Some(manifest);
+    }
+    let name = current.name
+        .as_deref()
+        .filter(|name| !name.is_empty())?;
+    let version = current.version
+        .as_deref()
+        .filter(|version| !version.is_empty() && *version != "0.0.0")?;
+    Some(serde_json::json!({ "name": name, "version": version }))
+}
+
 pub(super) fn fallback_manifest(
     wanted: &WantedDependency,
     current_pkg: Option<&CurrentPkg>,
 ) -> pnpm_resolving_resolver_base::DependencyManifest {
-    if let Some(current) = current_pkg
-        && let Some(name) = current.name
-            .as_deref()
-            .filter(|name| !name.is_empty())
-        && let Some(version) = current.version
-            .as_deref()
-            .filter(|version| !version.is_empty())
-    {
-        return serde_json::json!({ "name": name, "version": version });
+    if let Some(manifest) = current_pkg.and_then(manifest_from_current_pkg) {
+        return manifest;
     }
     let name = match wanted.alias
         .as_deref()
@@ -360,7 +380,22 @@ pub(super) fn fallback_manifest(
             .next()
             .unwrap_or_default(),
     };
-    serde_json::json!({ "name": name, "version": "0.0.0" })
+    serde_json::json!({ "name": name })
+}
+
+/// Default identity version `0.0.0` for packages without a manifest or
+/// version, stamped after manifest hooks have run so ranged
+/// `packageExtensions` selectors don't misfire against an unknown version.
+fn stamp_fallback_identity(result: &mut pnpm_resolving_resolver_base::ResolveResult) {
+    if let Some(manifest) = result.package.manifest.as_mut()
+        && manifest.get("version").is_none()
+    {
+        let mut updated = (**manifest).clone();
+        if let Some(obj) = updated.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::Value::String("0.0.0".to_string()));
+        }
+        *manifest = Arc::new(updated);
+    }
 }
 
 /// Wrap a resolver-chain failure, keeping the pnpm error code of the ones

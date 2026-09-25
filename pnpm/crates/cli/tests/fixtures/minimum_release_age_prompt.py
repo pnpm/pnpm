@@ -12,6 +12,7 @@ process = subprocess.Popen(sys.argv[1:], stdin=slave, stdout=slave, stderr=slave
 os.close(slave)
 output = bytearray()
 approved = False
+answer = os.environ.get("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", "y").encode()
 deadline = time.monotonic() + 60
 
 try:
@@ -30,7 +31,7 @@ try:
             break
         output.extend(chunk)
         if not approved and b"proceed with the install?" in output:
-            os.write(master, b"y")
+            os.write(master, answer)
             approved = True
     else:
         raise TimeoutError("interactive install did not finish within 60 seconds")

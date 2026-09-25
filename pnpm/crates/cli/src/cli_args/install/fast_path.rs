@@ -1,18 +1,20 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
     read_root_manifest_json, warn_deprecated_override_version_references,
-    warn_ignored_pnpm_manifest_fields, warn_unsupported_workspaces_field,
+    warn_ignored_pnpm_manifest_fields,
+};
+use crate::cli_args::yarn_workspaces_field::{
+    converts_yarn_workspaces, warn_about_workspaces_field,
 };
 
 fn report_up_to_date_install(
-    config_root: &std::path::Path,
+    root_manifest: Option<&serde_json::Value>,
     config: &pnpm_config::Config,
     up_to_date: &pnpm_package_manager::UpToDateWorkspace,
     emit: fn(&pnpm_reporter::LogEvent),
 ) {
-    let root_manifest = read_root_manifest_json(config_root);
-    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_unsupported_workspaces_field(root_manifest.as_ref(), config.workspace_dir.as_deref());
+    warn_ignored_pnpm_manifest_fields(root_manifest);
+    warn_about_workspaces_field(config, root_manifest);
     warn_deprecated_override_version_references(config, emit);
     // The scope covers the same projects the full install path would
     // report; an up-to-date run says so too rather than going quiet
@@ -78,6 +80,10 @@ impl InstallArgs {
         {
             return false;
         }
+        let root_manifest = read_root_manifest_json(&config_root);
+        if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
+            return false;
+        }
         let manifest_path = dir.join("package.json");
         if !manifest_path.is_file() {
             return false;
@@ -98,7 +104,7 @@ impl InstallArgs {
         }) else {
             return false;
         };
-        report_up_to_date_install(&config_root, config, &up_to_date, emit);
+        report_up_to_date_install(root_manifest.as_ref(), config, &up_to_date, emit);
         true
     }
 
@@ -106,16 +112,17 @@ impl InstallArgs {
     /// at the project on disk. Every flag here either asks for work the
     /// fast path cannot do, or describes an install whose verdict a
     /// single-directory probe cannot reach.
-    fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
+    pub(super) fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
             || self.materialization.force
             || self.materialization.verify_deps_before_run_install
+            || !self.materialization.allow_build.is_empty()
         {
             return false;
         }
-        if config.cargo.enabled || config.python.enabled {
+        if config.cargo.enabled || config.python.enabled || config.catalog_prune {
             return false;
         }
         // The merge flags reach `config` only in the dispatch, after this

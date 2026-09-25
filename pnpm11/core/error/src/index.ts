@@ -63,6 +63,41 @@ export class FetchError extends PnpmError {
 }
 
 /**
+ * undici codes for a request that made no progress for `fetchTimeout`: no
+ * response head, or a body that stopped arriving.
+ */
+const FETCH_TIMEOUT_ERROR_CODES = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT'])
+
+/**
+ * undici fails a timed-out request with a bare `fetch failed` or `terminated`
+ * and keeps the timeout only in the error's `cause` chain.
+ */
+export function isFetchTimeoutError (error: unknown): boolean {
+  let current = error
+  for (let depth = 0; depth < 8 && current != null && typeof current === 'object'; depth++) {
+    const { code, cause } = current as { code?: unknown, cause?: unknown }
+    if (typeof code === 'string' && FETCH_TIMEOUT_ERROR_CODES.has(code)) return true
+    current = cause
+  }
+  return false
+}
+
+export class FetchTimeoutError extends PnpmError {
+  constructor (
+    code: string,
+    url: string,
+    timeout: number | undefined,
+    opts: { attempts?: number, cause: unknown }
+  ) {
+    const reason = timeout == null ? 'waiting for data' : `no data received for ${timeout}ms`
+    super(code, `GET ${redactUrlForDisplay(url)}: timed out, ${reason}`, {
+      ...opts,
+      hint: 'The registry stopped responding. If it is just slow, increase the fetchTimeout setting.',
+    })
+  }
+}
+
+/**
  * Strip `user:pass@` (or `user@`) userinfo that follows a URL scheme in any
  * text, e.g. `GET https://user:pass@host/pkg: …` → `GET https://host/pkg: …`.
  * A registry configured as `https://user:pass@host/` would otherwise leak its

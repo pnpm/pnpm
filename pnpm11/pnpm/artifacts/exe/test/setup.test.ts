@@ -81,8 +81,8 @@ test('prepare writes correct content for all bin files', () => {
   // pn.exe/pnpx.exe/pnx.exe and points `bin` at those, so these only run when
   // setup.js did not — where there is no sibling binary and PATH is all they have.
   for (const { name, shell } of ALIASES) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\n`)
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\nexit /b %errorlevel%\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\nexit $LASTEXITCODE\n`)
   }
 });
 
@@ -399,6 +399,108 @@ describe('alias bins', () => {
   }
 })
 
+const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
+
+const winCmdTest = isWindows ? test : test.skip
+
+const powershellCommand = (() => {
+  if (isWindows) {
+    const probe = spawnSync('powershell', ['-NoProfile', '-Command', 'exit 0'], {
+      encoding: 'utf8',
+      timeout: 5_000,
+      env: { ...process.env, PATH: `${POWERSHELL_DIR};${SYSTEM32};${process.env.PATH ?? ''}` },
+    })
+    if (probe.status === 0) return 'powershell'
+    const probePwsh = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0'], { encoding: 'utf8', timeout: 5_000 })
+    if (probePwsh.status === 0) return 'pwsh'
+    return null
+  }
+  const probe = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { encoding: 'utf8', timeout: 5_000 })
+  return probe.status === 0 ? 'pwsh' : null
+})()
+const powershellTest = powershellCommand != null ? test : test.skip
+
+describe('Windows fallback wrappers', () => {
+  for (const { name, argv } of ALIASES) {
+    const expected = `stub: ${[...argv, 'add', 'foo'].join(' ')}`
+
+    winCmdTest(`${name}.cmd propagates non-zero exit status from pnpm on PATH`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync('cmd.exe', ['/d', '/c', path.join(sandbox, `${name}.cmd`), 'fail'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    winCmdTest(`${name}.cmd propagates successful exit status and arguments`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync('cmd.exe', ['/d', '/c', path.join(sandbox, `${name}.cmd`), 'add', 'foo'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
+          status: 0,
+          stdout: expected,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    powershellTest(`${name}.ps1 propagates non-zero exit status from pnpm on PATH`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync(powershellCommand!, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(sandbox, `${name}.ps1`), 'fail'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    powershellTest(`${name}.ps1 propagates successful exit status and arguments`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync(powershellCommand!, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(sandbox, `${name}.ps1`), 'add', 'foo'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
+          status: 0,
+          stdout: expected,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+  }
+})
+
 /**
  * An @pnpm/exe directory as prepare.js leaves it, with `pnpm` replaced by a
  * stand-in that reports the arguments it was handed — which is all the aliases
@@ -453,3 +555,56 @@ function runNativeAlias (cwd: string, arg0: string) {
     env: { ...process.env, PATH: BARE_PATH },
   })
 }
+
+function buildFallbackSandbox (): { sandbox: string, stubDir: string } {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-fallback-'))
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({ name: '@pnpm/exe', type: 'module' }))
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+
+  const stubDir = path.join(sandbox, 'stub')
+  fs.mkdirSync(stubDir, { recursive: true })
+
+  // Use an executable binary stand-in (node) for pnpm, so on Windows cmd.exe executes
+  // an .exe via CreateProcess and regains control in the wrapper rather than transferring
+  // execution to a chained .cmd batch file.
+  const stubJs = path.join(stubDir, 'stub.cjs')
+  fs.writeFileSync(
+    stubJs,
+    `const path = require('path')
+const args = process.argv.slice(1).map((arg) => {
+  const base = path.basename(arg)
+  return ['dlx', 'fail', 'add', 'foo'].includes(base) ? base : arg
+})
+if (args.includes('fail')) {
+  process.exit(42)
+}
+console.log('stub: ' + args.join(' '))
+process.exit(0)
+`
+  )
+
+  const pnpmBin = path.join(stubDir, isWindows ? 'pnpm.exe' : 'pnpm')
+  try {
+    fs.linkSync(process.execPath, pnpmBin)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(process.execPath, pnpmBin)
+  }
+
+  return { sandbox, stubDir }
+}
+
+function getWindowsFallbackEnv (stubDir: string): NodeJS.ProcessEnv {
+  const pathParts = isWindows
+    ? [stubDir, POWERSHELL_DIR, SYSTEM32, process.env.PATH]
+    : [stubDir, process.env.PATH]
+  const stubJs = path.join(stubDir, 'stub.cjs').replace(/\\/g, '/')
+  const prevNodeOptions = process.env.NODE_OPTIONS ?? ''
+  return {
+    ...process.env,
+    PATH: pathParts.filter(Boolean).join(path.delimiter),
+    NODE_OPTIONS: `${prevNodeOptions} --require "${stubJs}"`.trim(),
+  }
+}
+

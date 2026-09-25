@@ -3,9 +3,9 @@ pub use build_phase::{
 };
 pub use hoisted::{
     HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    HoistedMaterialization, collect_public_hoist_targets, compute_hoist_plan,
-    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
-    run_hoisted_linker, workspace_packages_for_hoist,
+    HoistedMaterialization, HoistedWorkspacePackages, collect_public_hoist_targets,
+    compute_hoist_plan, find_own_runtime_node_major, find_runtime_node_major,
+    parse_major_from_version, run_hoisted_linker, workspace_packages_for_hoist,
 };
 
 mod verification;
@@ -245,6 +245,15 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallFrozenLockfileError::WritePackageMap(error)
             }
+            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+                InstallFrozenLockfileError::PruneStaleModules(error)
+            }
+            HoistedLinkerError::HoistSymlink(error) => {
+                InstallFrozenLockfileError::HoistSymlink(error)
+            }
+            HoistedLinkerError::HoistLinkBins(error) => {
+                InstallFrozenLockfileError::HoistLinkBins(error)
+            }
         }
     }
 }
@@ -446,7 +455,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     /// module-resolution sidecars describe it, and the virtual-store
     /// sweep leaves exactly its snapshots on disk.
     fn current_lockfile(&self, skipped: &SkippedSnapshots) -> Lockfile {
-        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().included(), skipped)
+        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().groups(), skipped)
     }
 
     /// The filtered lockfile that the sidecars and the `injectedDeps`

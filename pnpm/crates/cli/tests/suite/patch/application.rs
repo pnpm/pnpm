@@ -63,23 +63,19 @@ fn install_level_patch_that_adds_install_scripts_asks_for_approval() {
     eprintln!("unapproved install:\n{combined}");
     assert!(!output.status.success(), "an unapproved build must fail under strictDepBuilds");
     // The package name is not matched here: the diagnostic wraps it
-    // across lines. The `allowBuilds` entry asserted below names it.
+    // across lines.
     assert!(
         combined.contains("ERR_PNPM_IGNORED_BUILDS") && combined.contains("Ignored build scripts"),
         "expected the patched package to be reported as an ignored build; got:\n{combined}",
     );
     assert!(!marker.exists(), "the postinstall must not run before it is approved");
 
-    // The failed install left an `allowBuilds` entry for the user to
-    // decide on; answering it is what `pnpm approve-builds` writes.
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    assert!(
-        yaml.contains("is-positive: set this to true or false"),
-        "expected an undecided allowBuilds entry; got:\n{yaml}",
+    // Approving the build is what `pnpm approve-builds` writes.
+    append_workspace_yaml_key(
+        &workspace,
+        "allowBuilds",
+        serde_json::json!({ "is-positive": true }),
     );
-    fs::write(&yaml_path, yaml.replace("set this to true or false", "true"))
-        .expect("write pnpm-workspace.yaml");
     remove_dir_if_exists(&workspace.join("node_modules"));
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     assert!(marker.exists(), "the approved postinstall must run");

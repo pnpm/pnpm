@@ -122,3 +122,32 @@ fn it_alias() {
 
     drop((root, npmrc_info));
 }
+
+#[test]
+fn recursive_install_test_no_bail_continues_after_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    std::fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project-*\n").unwrap();
+    for (name, script) in [
+        ("project-1", r"require('fs').appendFileSync('../order.txt', 'first\n'); process.exit(1)"),
+        ("project-2", r"require('fs').appendFileSync('../order.txt', 'second\n')"),
+    ] {
+        let dir = workspace.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": name, "scripts": { "test": "node test.cjs" } }).to_string(),
+        )
+        .unwrap();
+        std::fs::write(dir.join("test.cjs"), script).unwrap();
+    }
+
+    pacquet
+        .with_args(["-r", "--workspace-concurrency=1", "--no-bail", "install-test"])
+        .assert()
+        .code(1);
+
+    let order = std::fs::read_to_string(workspace.join("order.txt")).unwrap();
+    eprintln!("test execution order:\n{order}");
+    assert_eq!(order, "first\nsecond\n");
+    drop(root);
+}

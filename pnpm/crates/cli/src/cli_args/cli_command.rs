@@ -74,6 +74,7 @@ use super::{
     star::StarArgs,
     stars::StarsArgs,
     store::StoreCommand,
+    tasks::TasksArgs,
     team::TeamArgs,
     undeprecate::UndeprecateArgs,
     unlink::UnlinkArgs,
@@ -136,6 +137,8 @@ pub struct CliWorkspaceArgs {
     /// the project in `--dir`.
     #[clap(short = 'r', long, global = true)]
     pub recursive: bool,
+    #[clap(skip)]
+    pub recursive_from_command_line: bool,
     #[clap(flatten)]
     pub selection: WorkspaceSelectionArgs,
     #[clap(flatten)]
@@ -227,14 +230,8 @@ pub struct PresentationArgs {
     // like nopt does — `--silent` expands to `--reporter=silent` (see
     // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
     // duplicate-argument error.
-    #[clap(
-        long,
-        value_enum,
-        default_value_t = ReporterType::Default,
-        global = true,
-        overrides_with = "reporter"
-    )]
-    pub reporter: ReporterType,
+    #[clap(long, value_enum, global = true, overrides_with = "reporter")]
+    pub reporter: Option<ReporterType>,
     /// What level of logs to print. Mirrors pnpm's universal `--loglevel`
     /// option: `silent` selects the silent reporter over any `--reporter`
     /// choice; the other levels cap the default reporter's output.

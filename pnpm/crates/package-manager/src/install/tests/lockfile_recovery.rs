@@ -21,7 +21,7 @@ use tempfile::tempdir;
 /// from it; no `--frozen-lockfile` flag. The freshness gate inside the
 /// auto-frozen branch must fail, and the dispatch must fall through
 /// to the fresh-resolve path instead of surfacing `OutdatedLockfile`
-/// the way state 1 would. We assert via the same "unreachable
+/// the way state 1 would. We assert via the same "failing
 /// registry" sentinel as the previous test.
 #[tokio::test]
 async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
@@ -36,8 +36,21 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         .unwrap();
     manifest.save().unwrap();
 
+    let mut registry = mockito::Server::new_async().await;
+    let failed_request = registry
+        .mock("GET", "/@pnpm.e2e%2Fhello-world-js-bin")
+        .with_status(503)
+        .expect(3)
+        .create_async()
+        .await;
     let mut config = Config::new();
-    config.registry = "http://invalid.local/".to_string();
+    config.registry = format!("{}/", registry.url());
+    config.fetch_retry_mintimeout = 1;
+    config.fetch_retry_maxtimeout = 1;
+    // The default cache dir is shared by every test. Another test's mock can
+    // get the same port and leave this package's metadata there, and an
+    // exact version found in cached metadata never reaches the registry.
+    config.cache_dir = dirs.path().join("cache");
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
@@ -98,8 +111,9 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     .run::<SilentReporter>()
     .await;
 
+    failed_request.assert_async().await;
     let err = result.expect_err(
-        "fresh-resolve dispatch must consult the unreachable registry and fail; \
+        "fresh-resolve dispatch must consult the failing registry and fail; \
          a success would mean the dispatch silently took the auto-frozen path",
     );
     assert!(

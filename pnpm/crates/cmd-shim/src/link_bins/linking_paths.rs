@@ -1,13 +1,21 @@
-use super::{LinkBinsError, LinkBinsOptions};
+use super::{
+    FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
+    shim_writer::with_extension_appended,
+};
+use crate::bin_resolver::Command;
 use pnpm_fs::{is_subdir, realpath_missing};
+use rayon::prelude::*;
 use std::{
     borrow::Cow,
+    ffi::OsStr,
+    io,
     path::{Path, PathBuf},
 };
 
 pub(super) struct LinkingPaths<'a> {
     pub(super) bins_dir: Cow<'a, Path>,
     pub(super) relocatable_root: Option<PathBuf>,
+    pub(super) project_node_path: Option<String>,
     pub(super) extra_node_paths: Cow<'a, [String]>,
 }
 
@@ -19,6 +27,8 @@ impl<'a> LinkingPaths<'a> {
         let mut paths = Self {
             bins_dir: Cow::Borrowed(bins_dir),
             relocatable_root: None,
+            project_node_path: project_modules_dir(bins_dir, options)
+                .map(|dir| dir.to_string_lossy().into_owned()),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
         };
         let Some(root) = options.relocatable_root
@@ -33,6 +43,8 @@ impl<'a> LinkingPaths<'a> {
             return Ok(paths);
         }
         paths.bins_dir = Cow::Owned(physical_bins);
+        paths.project_node_path =
+            paths.project_node_path.map(|entry| resolve_extra(&entry, root, &physical_root));
         paths.extra_node_paths = options.extra_node_paths
             .iter()
             .map(|entry| resolve_extra(entry, root, &physical_root))
@@ -69,6 +81,59 @@ impl<'a> LinkingPaths<'a> {
     }
 }
 
+/// The `NODE_PATH` entries for one package's shims: the project modules
+/// dir when there is one, then the target's own `node_modules` dirs
+/// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
+/// appears again keeps its first position. With no project dir and no
+/// extras the shims get no `NODE_PATH` at all (`extendNodePath: false`, a
+/// non-isolated linker, or no hoist pattern), matching pnpm's bins
+/// linker.
+///
+/// The result depends only on the package's symlink-resolved
+/// directory — every bin lives under the package root — so a
+/// caller-supplied [`PackageBinSource::resolved_location`] makes this
+/// syscall-free; without one the package's `location` is
+/// canonicalized once, covering all of its bins.
+pub(super) fn shim_node_path(
+    pkg: &PackageBinSource,
+    project_node_path: Option<&str>,
+    extra_node_paths: &[String],
+) -> Vec<String> {
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let project_node_path = project_node_path.filter(|entry| !entry.contains(delimiter));
+    if project_node_path.is_none() && extra_node_paths.is_empty() {
+        return Vec::new();
+    }
+    let own = if let Some(resolved) = &pkg.resolved_location {
+        bin_node_paths(resolved)
+    } else {
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        bin_node_paths(&dir)
+    };
+    let mut merged: Vec<String> = project_node_path
+        .map(str::to_string)
+        .into_iter()
+        .collect();
+    for entry in own
+        .into_iter()
+        .chain(extra_node_paths.iter().cloned())
+    {
+        if !merged.contains(&entry) {
+            merged.push(entry);
+        }
+    }
+    merged
+}
+
+fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Option<&'a Path> {
+    let name = options.project_modules_dir_name.as_deref()?;
+    let modules_dir = bins_dir.parent()?;
+    (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.ends_with(name)).then_some(
+        modules_dir,
+    )
+}
+
 fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {
     realpath_missing(path)
         .map_err(|error| LinkBinsError::ResolvePath { path: path.to_path_buf(), error })
@@ -90,4 +155,77 @@ fn resolve_extra(entry: &str, root: &Path, physical_root: &Path) -> String {
     } else {
         entry.to_string()
     }
+}
+
+/// The target's symlink-resolved path, which doubles as the memo key for
+/// the per-target probes: importers that reach one virtual-store file
+/// through different symlinks share it. Without a resolved location, the
+/// literal path still dedupes within whatever scope the caller gave the
+/// cache.
+pub(super) fn target_probe_path(pkg: &PackageBinSource, target: &Path) -> PathBuf {
+    pkg.resolved_location
+        .as_ref()
+        .and_then(|resolved| {
+            target
+                .strip_prefix(&pkg.location)
+                .ok()
+                .map(|bin_rel_path| resolved.join(bin_rel_path))
+        })
+        .unwrap_or_else(|| target.to_path_buf())
+}
+
+/// Remove the shims of the `chosen` bins that [`awaits_target`] holds back,
+/// and return the rest for linking.
+///
+/// Every removal finishes before the caller writes a shim: on Windows the
+/// siblings of a removed bin `tool` include `tool.cmd`, which may be the shim
+/// of another bin.
+pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
+    chosen: Vec<(Command, &'packages PackageBinSource)>,
+    bins_dir: &Path,
+    shims_dir: &Path,
+) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError> {
+    let (awaiting, to_link): (Vec<_>, Vec<_>) = chosen
+        .into_par_iter()
+        .partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, &command.path));
+    awaiting
+        .par_iter()
+        .try_for_each(|(command, _)| {
+            let shim_path = shims_dir.join(&command.name);
+            remove_bin(&shim_path)
+                .map_err(|error| LinkBinsError::RemoveStaleBin { path: shim_path, error })
+        })?;
+    Ok(to_link)
+}
+
+/// Whether the bin's `target` is missing while a lifecycle script that may
+/// create it can still run with `bins_dir` on `PATH`.
+///
+/// A package's scripts run with its own `node_modules/.bin` and the project's
+/// `.bin` on `PATH`. The `node` package's preinstall runs `node` to download
+/// `bin/node`, which must not resolve to a shim of `bin/node` itself
+/// (pnpm/pnpm#15501). So a package's own bin is linked there only once its
+/// target exists, and so is any bin of a package whose build is still pending
+/// ([`PackageBinSource::build_pending`]). A shim an earlier install left is
+/// removed. Other dependents get the shim right away, because the target may
+/// be built after install.
+fn awaits_target<Sys: FsReadHead>(pkg: &PackageBinSource, bins_dir: &Path, target: &Path) -> bool {
+    (pkg.build_pending || pkg.location.join("node_modules").join(".bin") == bins_dir)
+        && target_is_missing::<Sys>(&target_probe_path(pkg, target))
+}
+
+/// Whether neither `path` nor, for an extensionless `path` on Windows, its
+/// `.exe` sibling exists. The shim runs an extensionless target directly, and
+/// Windows then finds the `.exe`.
+fn target_is_missing<Sys: FsReadHead>(path: &Path) -> bool {
+    let missing = |path: &Path| {
+        matches!(
+            Sys::read_head(path, 0, &mut [0u8; 1]),
+            Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory),
+        )
+    };
+    missing(path)
+        && (!cfg!(windows)
+            || path.extension().is_some()
+            || missing(&with_extension_appended(path, "exe")))
 }

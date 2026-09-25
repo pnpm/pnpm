@@ -16,10 +16,11 @@ export interface FixResult {
 
 export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<FixResult> {
   const fixableAdvisories = getFixableAdvisories(Object.values(auditReport.advisories), opts.auditConfig?.ignoreGhsas)
-  const vulnOverrides = createOverrides(fixableAdvisories, getRangeSpecStyle(opts))
+  const nonSubsumed = filterSubsumedAdvisories(fixableAdvisories)
+  const vulnOverrides = createOverridesFromPruned(nonSubsumed, getRangeSpecStyle(opts))
   if (Object.values(vulnOverrides).length === 0) return { vulnOverrides, addedAgeExcludes: [] }
   const addedAgeExcludes = opts.minimumReleaseAge
-    ? await createMinimumReleaseAgeExcludes(fixableAdvisories, {
+    ? await createMinimumReleaseAgeExcludes(nonSubsumed, {
       getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
       minimumReleaseAge: opts.minimumReleaseAge,
     })
@@ -46,7 +47,12 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
 }
 
-function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
+export function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
+  const fixable = advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
+  return createOverridesFromPruned(filterSubsumedAdvisories(fixable), rangeSpecStyle)
+}
+
+function createOverridesFromPruned (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): Record<string, string> {
   const entries: Array<[string, string]> = []
   for (const advisory of advisories) {
     if (!advisory.patched_versions) continue
@@ -54,6 +60,59 @@ function createOverrides (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpec
   }
   return sortDirectKeys(Object.fromEntries(entries))
 }
+
+export function filterSubsumedAdvisories (advisories: AuditAdvisory[]): AuditAdvisory[] {
+  const byModule = new Map<string, AuditAdvisory[]>()
+  for (const advisory of advisories) {
+    const list = byModule.get(advisory.module_name)
+    if (list) {
+      list.push(advisory)
+    } else {
+      byModule.set(advisory.module_name, [advisory])
+    }
+  }
+
+  const result: AuditAdvisory[] = []
+  for (const moduleAdvisories of byModule.values()) {
+    if (moduleAdvisories.length <= 1) {
+      result.push(...moduleAdvisories)
+      continue
+    }
+    for (let i = 0; i < moduleAdvisories.length; i++) {
+      const a = moduleAdvisories[i]
+      const subsumed = moduleAdvisories.some((b, j) => isAdvisorySubsumed(a, i, b, j))
+      if (!subsumed) {
+        result.push(a)
+      }
+    }
+  }
+  return result
+}
+
+function isAdvisorySubsumed (a: AuditAdvisory, idxA: number, b: AuditAdvisory, idxB: number): boolean {
+  if (idxA === idxB) return false
+  if (!a.patched_versions || !b.patched_versions) return false
+
+  const aRange = a.vulnerable_versions.trim()
+  const bRange = b.vulnerable_versions.trim()
+
+  if (!semver.validRange(aRange) || !semver.validRange(bRange)) return false
+  if (!semver.subset(aRange, bRange)) return false
+
+  const minA = semver.minVersion(a.patched_versions)
+  const minB = semver.minVersion(b.patched_versions)
+  if (!minA || !minB || semver.lt(minB, minA)) return false
+
+  if (semver.subset(bRange, aRange)) {
+    const comp = semver.compare(minB, minA)
+    if (comp > 0) return true
+    if (comp < 0) return false
+    return idxA > idxB
+  }
+
+  return true
+}
+
 
 /** {@link patchedRangeForStyle} at pnpm's default caret style. */
 export function caretRangeForPatched (patchedRange: string): string {

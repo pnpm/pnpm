@@ -41,6 +41,13 @@ struct FrozenStoreIncompatibleWithPnpr;
 )]
 pub(super) struct DryRunIncompatibleWithPnpr;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "Automatic deduplication requires local dependency resolution. Remove pnprServer or disable autoDedupe."
+)]
+#[diagnostic(code(ERR_PNPM_AUTO_DEDUPE_WITH_PNPR_SERVER))]
+struct AutoDedupeWithPnpr;
+
 pub(super) fn resolve_project(
     dir: String,
     manifest: &pnpm_package_manifest::PackageManifest,
@@ -67,6 +74,10 @@ pub(super) fn resolve_project(
             .collect(),
         optional_dependencies: manifest
             .dependencies([DependencyGroup::Optional])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
+        peer_dependencies: manifest
+            .dependencies([DependencyGroup::Peer])
             .map(|(name, spec)| (name.to_string(), spec.to_string()))
             .collect(),
     }
@@ -113,15 +124,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     selection: Option<&InstallFamilySelection>,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    // The pnpr server resolves dependencies and streams missing files
-    // straight into the store, so this path inherently writes the store.
-    // `frozenStore` promises the store is complete and read-only, so the
-    // two are mutually exclusive — refuse up front instead of failing on
-    // the read-only write with the `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
-    // guard.
-    if state.config.frozen_store {
-        return Err(FrozenStoreIncompatibleWithPnpr.into());
-    }
+    validate_pnpr_config(state.config, link.lockfile.frozen)?;
 
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
     let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
@@ -160,6 +163,23 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         inputs,
     )
     .await
+}
+
+fn validate_pnpr_config(config: &pnpm_config::Config, frozen: bool) -> miette::Result<()> {
+    if config.auto_dedupe && !frozen {
+        return Err(AutoDedupeWithPnpr.into());
+    }
+    // The pnpr server resolves dependencies and streams missing files
+    // straight into the store, so this path inherently writes the store.
+    // `frozenStore` promises the store is complete and read-only, so the
+    // two are mutually exclusive — refuse up front instead of failing on
+    // the read-only write with the `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
+    // guard.
+    if config.frozen_store {
+        return Err(FrozenStoreIncompatibleWithPnpr.into());
+    }
+
+    Ok(())
 }
 
 /// What the pnpr path knows about the workspace before deciding whether the

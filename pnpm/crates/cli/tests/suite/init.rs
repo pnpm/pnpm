@@ -117,9 +117,9 @@ fn a_latest_older_than_the_running_pnpm_is_not_pinned() {
 #[test]
 fn an_unreachable_registry_pins_the_running_pnpm() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
-    // Port 1 is reserved and unbound, so the connection is refused at once
-    // rather than waiting out the lookup's timeout.
-    pacquet.env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:1/");
+    // The connect to `0.0.0.0:1` fails at once on every OS rather than
+    // waiting out the lookup's timeout.
+    pacquet.env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
     pacquet
         .with_arg("init")
         .assert()
@@ -391,4 +391,129 @@ fn the_scaffold_placeholders_stand_without_the_init_settings() {
     assert_eq!(manifest["author"], json!(""));
 
     drop((root, npmrc_info));
+}
+
+#[test]
+fn init_fails_when_package_yaml_already_exists() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.yaml"), "name: test-pkg\nversion: 1.0.0\n")
+        .expect("write to package.yaml");
+    let output = pacquet
+        .with_arg("init")
+        .output()
+        .expect("run pacquet init");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("package.yaml"), "stderr should mention package.yaml: {stderr}");
+    assert!(!workspace.join("package.json").exists());
+    drop(root);
+}
+
+#[test]
+fn init_bare_creates_minimal_package_json() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_args(["init", "--bare"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(
+        manifest,
+        json!({
+            "devEngines": {
+                "packageManager": {
+                    "name": "pnpm",
+                    "version": LATEST_PNPM,
+                    "onFail": "download",
+                },
+            },
+            "packageManager": format!("pnpm@{LATEST_PNPM}"),
+            "type": "module",
+        }),
+    );
+    assert_eq!(manifest.get("name"), None);
+    assert_eq!(manifest.get("version"), None);
+    assert_eq!(manifest.get("description"), None);
+    assert_eq!(manifest.get("main"), None);
+    assert_eq!(manifest.get("scripts"), None);
+    assert_eq!(manifest.get("keywords"), None);
+    assert_eq!(manifest.get("author"), None);
+    assert_eq!(manifest.get("license"), None);
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn init_bare_without_package_manager_and_commonjs() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    pacquet
+        .with_args(["init", "--bare", "--no-init-package-manager", "--init-type", "commonjs"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(manifest, json!({}));
+
+    drop(root);
+}
+
+#[test]
+fn init_bare_honors_explicit_init_settings() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "initLicense: MIT\ninitVersion: 2.0.0\n")
+        .expect("write to pnpm-workspace.yaml");
+    pacquet
+        .with_args(["init", "--bare"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(manifest["version"], json!("2.0.0"));
+    assert_eq!(manifest["license"], json!("MIT"));
+    assert_eq!(manifest.get("name"), None);
+    assert_eq!(manifest.get("description"), None);
+    assert_eq!(manifest.get("main"), None);
+    assert_eq!(manifest.get("scripts"), None);
+    assert_eq!(manifest.get("keywords"), None);
+    assert_eq!(manifest.get("author"), None);
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn init_help_mentions_bare() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_args(["init", "--help"])
+        .output()
+        .expect("run pnpm init --help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--bare"), "help should mention --bare: {stdout}");
+    drop(root);
 }

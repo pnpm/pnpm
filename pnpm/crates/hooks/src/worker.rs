@@ -215,6 +215,21 @@ impl NodeWorker {
         .unwrap_or(false)
     }
 
+    /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
+    pub async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.request(
+            "hasReadPackage",
+            serde_json::json!({ "query": "hasReadPackage" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .and_then(|value| {
+            value
+                .as_bool()
+                .ok_or_else(|| self.exec_err("invalid hasReadPackage response"))
+        })
+    }
+
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
     /// `resolvers` array, forwarding any `context.log(...)` to `log`.
     pub async fn call_resolver(

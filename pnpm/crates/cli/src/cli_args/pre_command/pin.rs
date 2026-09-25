@@ -2,7 +2,7 @@ use super::{
     Config, LogEvent, PNPM_VERSION, PackageManager, PackageManagerToSync, PinRoots, PmOnFail,
     PreCommandError, PreCommandInput, ReadEnvLockfile, SwitchInput, SwitchProcessState,
     SwitchSource, SwitchTarget, Value, WantedPackageManager, env_lockfile_sync, global_warn,
-    locked_package_manager_version, locked_switch_source, read_env_lockfile, read_manifest_json,
+    locked_package_manager_version, locked_switch_source, read_env_lockfile, read_root_manifest,
     sanitize_inline, should_persist_package_manager_lockfile, switch_env_root, switch_or_sync,
     version_satisfies, wanted_package_manager,
 };
@@ -57,14 +57,16 @@ fn resolve_package_manager_pin(
             ReadEnvLockfile::NotYet,
         )?));
     }
+    // Global state belongs to the pnpm the user invoked, not to the project,
+    // so a global command never switches to the pinned pnpm (pnpm/pnpm#14531).
+    if input.global {
+        warn_that_global_skips_the_check(pm, input.emit(config));
+        return Ok(PinOutcome::Sync(None));
+    }
     if switch_wanted && !process_state.executed_by_corepack {
         return switch_or_sync(resolution, root_manifest, on_fail);
     }
-    if input.global {
-        global_warn(input.emit, "Using --global skips the package manager check for this project");
-        return Ok(PinOutcome::Sync(None));
-    }
-    check_package_manager(pm, on_fail, process_state, input.emit)?;
+    check_package_manager(pm, on_fail, process_state, input.emit(config))?;
     Ok(PinOutcome::Sync(env_lockfile_sync(
         config,
         root_manifest,
@@ -72,6 +74,15 @@ fn resolve_package_manager_pin(
         on_fail,
         ReadEnvLockfile::NotYet,
     )?))
+}
+
+/// A pin the running pnpm already satisfies has no check to skip.
+fn warn_that_global_skips_the_check(pm: &WantedPackageManager, emit: fn(&LogEvent)) {
+    let running_pnpm_is_pinned = pm.name == "pnpm"
+        && pm.version.as_deref().is_none_or(|wanted| version_satisfies(PNPM_VERSION, wanted));
+    if !running_pnpm_is_pinned {
+        global_warn(emit, "Using --global skips the package manager check for this project");
+    }
 }
 
 /// pnpm's `checkPackageManager`. `on_fail` is already resolved against the
@@ -147,7 +158,7 @@ pub(super) fn switch_target(
     roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let Some(manifest) = read_manifest_json(&roots.manifest.join("package.json"))? else {
+    let Some(manifest) = read_root_manifest(&roots.manifest) else {
         return Ok(None);
     };
     let Some(mut pm) = wanted_package_manager(&manifest) else {

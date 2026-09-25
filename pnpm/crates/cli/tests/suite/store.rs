@@ -237,6 +237,198 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
     assert!(!output.status.success(), "store status must fail once a package is modified");
     assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
     assert!(stderr.contains("is-odd@3.0.1"), "stderr={stderr}");
+    assert!(!stderr.contains("help:"), "stderr={stderr}");
+    assert!(!stderr.contains("--force"), "stderr={stderr}");
+}
+
+/// A package resolved against peer dependencies materializes into a
+/// peer-suffixed slot (`<name>@<version>_<peer>@<version>`), which is
+/// also the dep path that `snapshots:` and `.modules.yaml.skipped`
+/// record. Checking the bare `name@version` directory finds nothing on
+/// disk and reports every peer-resolved package as modified.
+#[test]
+fn store_status_checks_packages_in_peer_suffixed_slots() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    // `@pnpm.e2e/abc` peer-depends on peer-a, peer-b, and peer-c. With
+    // auto-install-peers (the default) all three resolve, suffixing
+    // abc's snapshot key.
+    pacquet
+        .arg("add")
+        .arg("@pnpm.e2e/abc@1.0.0")
+        .assert()
+        .success();
+
+    let pnpm_dir = workspace.join("node_modules/.pnpm");
+    let abc_slot = fs::read_dir(&pnpm_dir)
+        .expect("read the virtual store")
+        .filter_map(Result::ok)
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .find(|name| name.starts_with("@pnpm.e2e+abc@1.0.0_"))
+        .expect("abc must materialize into a peer-suffixed slot");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "an untouched peer-resolved package must not be reported as modified: {stderr}",
+    );
+
+    let installed_package_json = pnpm_dir
+        .join(&abc_slot)
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("abc")
+        .join("package.json");
+    fs::write(&installed_package_json, "{}\n").expect("edit the installed package");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        !output.status.success(),
+        "an edit inside the peer-suffixed slot must be reported: {stderr}",
+    );
+    assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
+    // The report names the snapshot dep path, peer suffix included.
+    assert!(stderr.contains("@pnpm.e2e/abc@1.0.0("), "stderr={stderr}");
+}
+
+/// A platform-skipped optional is recorded in `.modules.yaml.skipped`
+/// under its snapshot (peer-suffixed) key and never materializes.
+/// Filtering on the peer-stripped `packages:` key misses that record
+/// and reports the absent directory as a modification, so long as the
+/// package has a store row (without one the check bails out earlier).
+#[test]
+fn store_status_ignores_skipped_optional_packages() {
+    let CommandTempCwd {
+        mut pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"fixture","dependencies":{"is-odd":"3.0.1"},"optionalDependencies":{"@pnpm.e2e/not-compatible-with-any-os":"*"}}"#,
+    )
+    .expect("write package.json");
+    // The peer added through packageExtensions suffixes the snapshot key,
+    // which is the key `.modules.yaml.skipped` records. Appended, so the
+    // fixture's `storeDir`/`cacheDir` entries stay in place.
+    _utils::append_workspace_yaml_key(
+        &workspace,
+        "packageExtensions",
+        "\n  '@pnpm.e2e/not-compatible-with-any-os':\n    peerDependencies:\n      '@pnpm.e2e/peer-a': ^1.0.0",
+    );
+
+    pacquet
+        .arg("install")
+        .assert()
+        .success();
+
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("parse pnpm-lock.yaml")
+        .expect("install writes pnpm-lock.yaml");
+    let snapshot_key = lockfile.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key)
+        .find(|key| key.to_string().starts_with("@pnpm.e2e/not-compatible-with-any-os@1.0.0("))
+        .expect("the skipped optional must have a peer-suffixed snapshot key");
+    let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+        &workspace.join("node_modules"),
+    )
+    .expect("parse .modules.yaml")
+    .expect("install writes .modules.yaml");
+    assert!(
+        modules.skipped.contains(&snapshot_key.to_string()),
+        "the skipped optional must be recorded under its snapshot key {snapshot_key}, got {:?}",
+        modules.skipped,
+    );
+    let metadata = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&snapshot_key.without_peer()))
+        .expect("the skipped optional must have a packages entry");
+    let store_index_key = pnpm_deps_restorer::store_index_key_for_resolution(
+        &metadata.resolution,
+        &snapshot_key.pkg_id(),
+        true,
+    )
+    .expect("a registry tarball has a store index key");
+
+    // Prime the store row the check looks up: the skipped package was
+    // never fetched by the install, and without a row store status would
+    // not inspect its directory at all.
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["store", "add", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
+        .expect("open the store index store add just wrote");
+    let keys = store_index.keys().expect("read the store index keys");
+    assert!(
+        keys.contains(&store_index_key),
+        "store add must write the row store status looks up ({store_index_key}), got {keys:?}",
+    );
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "a skipped optional must not be reported as modified: {stderr}",
+    );
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
+}
+
+#[test]
+fn store_status_does_not_falsely_report_package_with_postinstall_script_as_modified() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .arg("add")
+        .arg("@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0")
+        .arg("--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example")
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .args(["store", "status"])
+        .output()
+        .expect("run pacquet store status");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(output.status.success(), "store status must succeed for built packages: {stderr}");
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
 }
 
 #[test]
@@ -383,6 +575,29 @@ fn store_prune_removes_packages_left_unreferenced_by_remove() {
     );
 }
 
+/// Private engine installs live in pnpm's own engine store, which
+/// `pnpm store prune` otherwise never visits.
+#[test]
+fn store_prune_removes_the_private_engine_installs_no_process_holds() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let engine_store = pnpm_store_dir::StoreDir::new(pnpm_home.join("package-manager-store"));
+    let held = engine_store
+        .create_private_install("pnpm-9.3.0")
+        .expect("create a private install this process holds");
+    let orphan = engine_store.tmp().join("private/pnpm-9.3.0-orphan");
+    fs::create_dir_all(&orphan).expect("leave a private install behind");
+
+    pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    assert!(!orphan.exists(), "prune must remove the private install nobody holds");
+    assert!(held.dir().exists(), "prune must keep the private install in use");
+}
+
 /// The resolver chain claims every protocol pnpm supports, but only an
 /// archive can be put in the store. A local dependency is refused by name
 /// rather than failing further down as a resolution-shape mismatch.
@@ -403,4 +618,38 @@ fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
     eprintln!("stderr={stderr}");
     assert!(!output.status.success());
     assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
+}
+
+#[test]
+fn store_prune_honors_dlx_cache_max_age() {
+    for max_age in [0, 1440] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let settings = format!(
+            "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\ndlxCacheMaxAge: {max_age}\n",
+        );
+        fs::write(workspace.join("pnpm-workspace.yaml"), settings)
+            .expect("write the workspace settings");
+        fs::create_dir_all(root.path().join("pacquet-store")).expect("create the store directory");
+
+        let dlx_cache_dir = root.path().join("pacquet-cache/dlx");
+        for (key, prepare) in [("first-key", "1-1"), ("second-key", "2-2")] {
+            let prepare_dir = dlx_cache_dir.join(key).join(prepare);
+            fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
+            pnpm_fs::force_symlink_dir(&prepare_dir, &dlx_cache_dir.join(key).join("pkg"))
+                .expect("point pkg at the prepare dir");
+        }
+
+        pacquet
+            .with_args(["store", "prune"])
+            .assert()
+            .success();
+
+        for key in ["first-key", "second-key"] {
+            assert_eq!(
+                dlx_cache_dir.join(key).exists(),
+                max_age > 0,
+                "store prune must honor dlxCacheMaxAge={max_age}",
+            );
+        }
+    }
 }

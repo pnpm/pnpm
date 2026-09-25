@@ -140,13 +140,18 @@ where
     let (lower_bound, _) = iter.size_hint();
     let mut out = Vec::with_capacity(lower_bound);
     for (selector, new_bare_specifier) in iter {
-        let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
+        let trimmed_selector = selector.trim();
+        let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(trimmed_selector)?;
         let resolved_specifier =
             resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
-        let converge =
-            check_converge(selector, parent_pkg.as_ref(), &target_pkg, &resolved_specifier)?;
+        let converge = check_converge(
+            trimmed_selector,
+            parent_pkg.as_ref(),
+            &target_pkg,
+            &resolved_specifier,
+        )?;
         out.push(VersionOverride {
-            selector: selector.clone(),
+            selector: trimmed_selector.to_string(),
             parent_pkg,
             target_pkg,
             new_bare_specifier: resolved_specifier,
@@ -176,12 +181,13 @@ pub fn create_overrides_map_from_parsed(
 pub fn parse_pkg_and_parent_selector(
     selector: &str,
 ) -> Result<(Option<PackageSelector>, PackageSelector), ParseOverridesError> {
-    if let Some(delimiter_idx) = find_parent_delimiter(selector) {
-        let parent_selector = &selector[..delimiter_idx];
-        let child_selector = &selector[delimiter_idx + 1..];
+    let trimmed_selector = selector.trim();
+    if let Some(delimiter_idx) = find_parent_delimiter(trimmed_selector) {
+        let parent_selector = &trimmed_selector[..delimiter_idx];
+        let child_selector = &trimmed_selector[delimiter_idx + 1..];
         Ok((Some(parse_pkg_selector(parent_selector)?), parse_pkg_selector(child_selector)?))
     } else {
-        Ok((None, parse_pkg_selector(selector)?))
+        Ok((None, parse_pkg_selector(trimmed_selector)?))
     }
 }
 
@@ -239,7 +245,8 @@ fn check_converge(
 }
 
 fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
-    let wanted = parse_wanted_dependency(selector);
+    let trimmed_selector = selector.trim();
+    let wanted = parse_wanted_dependency(trimmed_selector);
     let Some(name) = wanted.alias else {
         return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
     };

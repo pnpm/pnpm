@@ -1906,6 +1906,10 @@
   intents:
     - repeat-install-deduped-siblings
     - repeat-install-large-lockfile-scan
+"@pnpm/napi@12.6.0":
+  dir: pnpm/npm/napi
+  intents:
+    - global-pnpmfile-readpackage-lockfile-reuse
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -4340,6 +4344,109 @@ pacquet@12.5.1:
     - read-ancestor-cargo-config-symlinks
     - repeat-install-deduped-siblings
     - repeat-install-large-lockfile-scan
+pacquet@12.6.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-save-types
+    - automatic-compatible-deduplication
+    - cache-prune-command
+    - calm-carrots-run
+    - catalog-covers-the-resolved-range
+    - catalog-local-protocols
+    - change-check-validates-intents
+    - ci-always-runs-the-builtin-clean
+    - clean-expired-dlx-cache
+    - clean-stores-after-remove
+    - cli-config-loglevel
+    - concurrency-group-wait-order
+    - config-warn-shared-workspace-lockfile-outside-workspace
+    - configured-js-pnpmfiles
+    - custom-resolver-archive-manifests
+    - decode-registries-in-cache-list
+    - dedupe-checks-overrides-concurrently
+    - deploy-project-virtual-store
+    - deprecation-notices-stay-out-of-the-output
+    - devengines-runtime-range-uses-system-node
+    - dlx-windows-junction-cache
+    - expand-env-placeholders-enum-config-fields
+    - expand-store-dir-home
+    - fair-lions-obey
+    - fix-detached-head-publish
+    - fix-env-lockfile-package-manager-exe-rewrite
+    - fix-filter-completion
+    - fix-forced-child-links
+    - fix-global-tarball-parent-segments
+    - fix-gvs-relative-store-path-windows
+    - fix-gvs-scoped-paths-windows
+    - fix-hoisted-no-runtime
+    - fix-named-registry-outdated
+    - fix-named-registry-peers
+    - fix-no-save-selector-overrides
+    - fix-run-script-completion
+    - fix-setup-output-grammar
+    - fix-version-tag-version-prefix
+    - fix-windows-path-alias-bins
+    - fix-workspace-links
+    - force-reimports-changed-slot
+    - forward-script-shortcut-filter
+    - frozen-install-skips-unresolved-optional
+    - frozen-workspace-importers
+    - git-dependency-denied-preparation
+    - git-ssh-batch-mode
+    - global-pnpmfile-readpackage-lockfile-reuse
+    - global-recover-deleted-node-modules
+    - global-update-single-approval
+    - gvs-relink-allow-builds
+    - hoist-workspace-packages-every-install
+    - hoisted-linker-summary-versions
+    - install-test-no-bail
+    - local-tarball-parent-segments-resolve-lexically
+    - macos-time-machine-exclusions
+    - manifest-preserve-crlf
+    - modules-dir-command-lookup-v12
+    - modules-dir-node-path
+    - overrides-bare-local-paths
+    - package-yaml-env-lockfile
+    - peers-check-loads-the-pnpmfile
+    - pipeline-windows-paths
+    - pnpm-14976-script-override
+    - preserve-catalog-yaml-anchors
+    - prod-install-skips-dev-downloads
+    - progress-output
+    - quiet-global-update
+    - quiet-mature-versions
+    - quiet-terminal-interrupt
+    - quiet-tokens-warn
+    - quiet-version-store-probe
+    - read-package-hook-removal-unlocks-its-dependency
+    - recursive-list-json
+    - recursive-regexp-parallel
+    - recursive-remove-missing-dep
+    - relay-to-script-group
+    - release-age-etag-upgrade
+    - relocatable-bin-shims
+    - relocatable-node-modules
+    - remove-runs-uninstall-scripts
+    - repeat-install-absolute-tarball-parent-segments
+    - retry-delete-pending-inspection
+    - retry-occupied-symlink-read
+    - reuse-in-flight-tarball-read
+    - root-preinstall-before-install
+    - safe-completion-candidates
+    - sbom-license-classification
+    - sbom-license-expressions
+    - scoped-registry-auth-guidance
+    - standalone-projects-outside-the-workspace
+    - strong-clouds-fix
+    - system-cygpath-wslpath-shims
+    - update-peer-dependencies
+    - update-runtime-range
+    - update-skips-deprecated-versions
+    - verify-deps-dedicated-lockfiles
+    - version-honors-tag-version-prefix
+    - windows-slot-inspection-retry
+    - workspace-semver-build-metadata
+    - write-package-yaml
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:

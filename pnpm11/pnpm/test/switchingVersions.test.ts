@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -358,6 +359,31 @@ test('devEngines.packageManager with onFail=download writes no lockfile when loc
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })
 
+test('a global command does not switch to the pnpm version pinned by the project (#14531)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const globalBinDir = path.join(pnpmHome, 'bin')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH_NAME]: `${globalBinDir}${path.delimiter}${process.env[PATH_NAME]}`,
+  }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['bin', '--global'], { env })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(globalBinDir)
+  expect(stderr.toString()).toContain('Using --global skips the package manager check for this project')
+})
+
 test('devEngines.packageManager without onFail=download does not switch version', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
@@ -376,6 +402,32 @@ test('devEngines.packageManager without onFail=download does not switch version'
 
   expect(status).not.toBe(0)
   expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
+test('pnpm fetch installs the pnpm the lockfile pins, so an offline command can switch to it (pnpm/pnpm#11808)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const manifest = {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '9.3.0',
+        onFail: 'download',
+      },
+    },
+  }
+  writeJsonFileSync('package.json', manifest)
+  execPnpmSync(['help'], { env: { PNPM_HOME: pnpmHome }, expectSuccess: true })
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toContain('packageManagerDependencies')
+
+  // The lockfile-only stage of a Docker build, with a store of its own.
+  fs.rmSync('package.json')
+  const env = { PNPM_HOME: pnpmHome, pnpm_config_store_dir: path.resolve('fetched-store') }
+  execPnpmSync(['fetch'], { env, expectSuccess: true })
+
+  writeJsonFileSync('package.json', manifest)
+  const { stdout } = execPnpmSync(['help'], { env: { ...env, pnpm_config_offline: 'true' }, expectSuccess: true })
+  expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
 test('throws error if pnpm binary in store is corrupt', () => {

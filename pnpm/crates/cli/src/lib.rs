@@ -27,6 +27,7 @@ mod pm_prefix;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
+mod slot_lock;
 mod state;
 mod virtual_terminal;
 mod with_current;
@@ -51,11 +52,25 @@ pub fn main() -> ExitCode {
     match run_on_big_stack(run_cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            if !is_reported_error(&error) {
-                eprintln!("Error: {error:?}");
-            }
+            report_fatal_error(&error);
             ExitCode::FAILURE
         }
+    }
+}
+
+fn report_fatal_error(error: &miette::Report) {
+    for cause in error.chain() {
+        if let Some(pnpm_package_manager::InstallError::PeerDependencyIssues { rendered }) =
+            cause.downcast_ref::<pnpm_package_manager::InstallError>()
+        {
+            if let Some(rendered) = rendered {
+                eprint!("{rendered}");
+            }
+            return;
+        }
+    }
+    if !is_reported_error(error) {
+        eprintln!("Error: {error:?}");
     }
 }
 
@@ -65,9 +80,7 @@ fn is_reported_error(error: &miette::Report) -> bool {
         .is_some_and(|code| {
             matches!(
                 code.to_string().as_str(),
-                "ERR_PNPM_DEDUPE_CHECK_ISSUES"
-                    | "ERR_PNPM_PEER_DEP_ISSUES"
-                    | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+                "ERR_PNPM_DEDUPE_CHECK_ISSUES" | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
             )
         })
 }
@@ -129,18 +142,24 @@ fn run_cli() -> miette::Result<()> {
     run_cli_command(args, &config_overrides, builtin_command_forced)
 }
 
-/// Parse argv, recording whether `--dir` came from the command line.
+/// Parse argv, recording whether `--dir` or `-r` came from the command line.
 fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
     command
         .try_get_matches_from(argv)
         .and_then(|matches| {
             let dir_from_command_line =
                 matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+            let recursive_from_command_line =
+                matches.value_source("recursive") == Some(clap::parser::ValueSource::CommandLine);
             CliArgs::from_arg_matches(&matches)
                 .map(|args| CliArgs {
                     paths: crate::cli_args::cli_command::CliPathArgs {
                         dir_from_command_line,
                         ..args.paths
+                    },
+                    workspace: crate::cli_args::cli_command::CliWorkspaceArgs {
+                        recursive_from_command_line,
+                        ..args.workspace
                     },
                     ..args
                 })
@@ -264,7 +283,7 @@ fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe_name = exe
         .as_deref()
         .and_then(Path::file_stem)
-        .map(|stem| stem.to_string_lossy().to_lowercase());
+        .map(|stem| stem.to_string_lossy());
     inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
@@ -272,7 +291,7 @@ fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
 /// `pnpx`/`pnx` alias. Split out from [`argv_with_alias_subcommand`] so the
 /// argv rewrite is unit-testable without depending on `current_exe`.
 fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> Vec<OsString> {
-    if matches!(exe_name, Some("pnpx" | "pnx")) {
+    if exe_name.is_some_and(pnpm_executor::is_pnpx_alias) {
         argv.insert(argv.len().min(1), OsString::from("dlx"));
     }
     argv

@@ -154,3 +154,126 @@ test('pnpm --recursive --filter "!<pkg>" --include-workspace-root run should inc
   expect(stdout).toContain('. which$')
   expect(stdout).not.toContain('a which$')
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/15587
+test('pnpm --filter "<pkg>..." run follows dependencies declared through a workspace catalog entry', async () => {
+  preparePackages([
+    {
+      location: 'math',
+      package: {
+        name: '@acme/math',
+        scripts: {
+          which: "node -e \"console.log('from-math')\"",
+        },
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: '@acme/app',
+        dependencies: {
+          '@acme/math': 'catalog:',
+        },
+        scripts: {
+          which: "node -e \"console.log('from-app')\"",
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "*"\ncatalog:\n  "@acme/math": "workspace:*"\n')
+
+  const result = execPnpmSync(['--filter', '@acme/app...', 'run', 'which'])
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('from-math')
+  expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
+})
+
+test('pnpm --recursive --filter "!./packages/**" --filter "a" run should re-include package (pnpm/pnpm#9354)', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        scripts: {
+          which: 'node -e "console.log(\'root\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/a',
+      package: {
+        name: 'a',
+        version: '1.0.0',
+        scripts: {
+          which: 'node -e "console.log(\'a\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/b',
+      package: {
+        name: 'b',
+        version: '1.0.0',
+        scripts: {
+          which: 'node -e "console.log(\'b\')"',
+        },
+      },
+    },
+  ])
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "packages/*"\n')
+
+  const result = execPnpmSync([
+    '--stream',
+    '--config.verify-deps-before-run=false',
+    '--recursive',
+    '--filter',
+    '!./packages/**',
+    '--filter',
+    'a',
+    'run',
+    'which',
+  ])
+  expect(result.status).toBe(0)
+
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('packages/a which$')
+  expect(stdout).not.toContain('packages/b which$')
+})
+
+test('pnpm --filter "<pkg>..." run follows an npm alias of a workspace project when workspace packages are linked', async () => {
+  preparePackages([
+    {
+      location: 'math',
+      package: {
+        name: 'math',
+        version: '1.0.0',
+        scripts: {
+          which: "node -e \"console.log('from-math')\"",
+        },
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: 'app',
+        dependencies: {
+          'math-alias': 'npm:math@^1.0.0',
+        },
+        scripts: {
+          which: "node -e \"console.log('from-app')\"",
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "*"\nlinkWorkspacePackages: true\n')
+
+  const result = execPnpmSync(['--filter', 'app...', 'run', 'which'])
+  expect(result.status).toBe(0)
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('from-math')
+  expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
+})

@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { registrySupportsTimeField } from '@pnpm/config.normalize-registries'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, parseCAFileContents } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
@@ -21,9 +21,11 @@ type CreateResolverOptions = Pick<Config,
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
+| 'cafile'
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'forceIgnoresPlatform'
 | 'frozenStore'
 | 'nodeDownloadMirrors'
 | 'nodeVersion'
@@ -76,11 +78,12 @@ export async function createNewStoreController (
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
   const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
+  const ca = await getCA(opts)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
     unsafePerm: opts.unsafePerm,
-    ca: opts.ca,
+    ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
     cert: opts.cert,
@@ -135,6 +138,7 @@ export async function createNewStoreController (
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
+      forceIgnoresPlatform: opts.forceIgnoresPlatform,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: packageManager.version,
       ignoreFile: opts.ignoreFile,
@@ -237,5 +241,15 @@ export function needsFullMetadataForRegistry (
       answers.set(registry, answer)
     }
     return answer
+  }
+}
+
+async function getCA (opts: Pick<CreateNewStoreControllerOptions, 'ca' | 'cafile'>): Promise<string | string[] | undefined> {
+  if (opts.ca != null || !opts.cafile) return opts.ca
+  try {
+    const cafileCA = parseCAFileContents(await fs.readFile(opts.cafile, 'utf8'))
+    return cafileCA.length > 0 ? cafileCA : undefined
+  } catch {
+    return undefined
   }
 }

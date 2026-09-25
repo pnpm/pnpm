@@ -166,7 +166,8 @@ mod build_workspace_state_tests;
 /// on the install path, so any test that lets the install reach the
 /// fetch site would fail — meaning a successful install with this
 /// fixture is *proof* that the per-snapshot skip path (issue [#433]
-/// section B) short-circuited the fetch entirely.
+/// section B) short-circuited the fetch entirely. The tarball URL fails
+/// the connect at once on every OS, with no name to resolve.
 ///
 /// [#433]: https://github.com/pnpm/pacquet/issues/433
 const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
@@ -179,7 +180,7 @@ const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
     "        version: 1.0.0"
     "packages:"
     "  placeholder@1.0.0:"
-    "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+    "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/placeholder.tgz'}"
     "snapshots:"
     "  placeholder@1.0.0: {}"
 };
@@ -203,18 +204,36 @@ fn seed_placeholder_virtual_store_slot(virtual_store_dir: &std::path::Path) {
 /// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
 /// keeps every call on the full path so the purge branch is actually evaluated.
 async fn run_purge_regression_install(
-    store_dir: &std::path::Path,
-    modules_dir: &std::path::Path,
-    virtual_store_dir: &std::path::Path,
+    dirs: &InstallDirs,
     registry: &str,
     manifest: &PackageManifest,
     dependency_groups: Vec<DependencyGroup>,
     virtual_store_dir_max_length: u64,
 ) {
+    run_purge_regression_install_with_lockfile(
+        dirs,
+        registry,
+        manifest,
+        dependency_groups,
+        virtual_store_dir_max_length,
+        true,
+    )
+    .await;
+}
+
+async fn run_purge_regression_install_with_lockfile(
+    dirs: &InstallDirs,
+    registry: &str,
+    manifest: &PackageManifest,
+    dependency_groups: Vec<DependencyGroup>,
+    virtual_store_dir_max_length: u64,
+    lockfile: bool,
+) {
     let mut config = Config::new();
-    config.store_dir = store_dir.to_path_buf().into();
-    config.modules_dir = modules_dir.to_path_buf();
-    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.lockfile = lockfile;
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
     config.registry = registry.to_string();
     config.virtual_store_dir_max_length = virtual_store_dir_max_length;
     let config = config.leak();

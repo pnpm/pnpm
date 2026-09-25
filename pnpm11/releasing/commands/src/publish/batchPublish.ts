@@ -13,7 +13,6 @@ import { rimraf } from '@zkochan/rimraf'
 import npmFetch from 'npm-registry-fetch'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import { temporaryDirectory } from 'tempy'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
 import * as pack from './pack.js'
@@ -22,6 +21,7 @@ import {
   createPublishContext,
   createPublishOptions,
   findRegistryInfo,
+  getPublishConfigRegistry,
   isPublishAccess,
 } from './publishPackedPkg.js'
 import type { PublishRecursiveOpts } from './recursivePublish.js'
@@ -66,10 +66,8 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
   for (const project of pkgs) {
     // eslint-disable-next-line no-await-in-loop
     const packedPkg = await packPkgForBatch(project, opts)
-    const publishConfigRegistry = typeof packedPkg.publishedManifest.publishConfig?.registry === 'string'
-      ? packedPkg.publishedManifest.publishConfig.registry
-      : undefined
-    const { registry } = findRegistryInfo(packedPkg.publishedManifest, opts, publishConfigRegistry)
+    const { publishedManifest } = packedPkg
+    const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
     let group = packedByRegistry.get(registry!)
     if (!group) {
       group = []
@@ -143,6 +141,8 @@ async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Pr
   }
   // The tarball is packed into a temporary directory and read into memory right away — the
   // request body carries it base64-encoded, so nothing needs to stay on disk.
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const packDestination = temporaryDirectory()
   try {
     const packResult = await pack.api({

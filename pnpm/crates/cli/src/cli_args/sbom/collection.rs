@@ -1,14 +1,16 @@
 use super::{
     DepType, HashMap, HashSet, ImporterComponents, IncludeFilter, Lockfile, PackageKey, Path,
-    PathBuf, SbomComponentType, SbomResult, SnapshotEntry, State, WalkStores, build_purl,
-    component_walk_context, confined_importer_dir, extract_author, extract_bugs_url,
-    extract_repository, required_sbom_lockfile, safe_read_package_json_from_dir,
-    walk_importer_components,
+    PathBuf, PeerSatisfactionEdges, SbomComponentType, SbomResult, SnapshotEntry, State,
+    TransitiveEdges, WalkStores, build_purl, component_walk_context, confined_importer_dir,
+    extract_author, extract_bugs_url, extract_repository, required_sbom_lockfile,
+    safe_read_project_manifest_from_dir, walk_importer_components,
 };
 
+/// Every package's dependency type. A peer-satisfaction edge does not pass
+/// the dependent's type on, whatever groups the run includes.
 fn detect_dep_types(
     lockfile: &pnpm_lockfile::Lockfile,
-    include_optional_transitive: bool,
+    transitive: TransitiveEdges<'_>,
 ) -> HashMap<PackageKey, DepType> {
     let snapshots = lockfile.snapshots.as_ref();
     let mut dep_types: HashMap<PackageKey, DepType> = HashMap::new();
@@ -22,22 +24,8 @@ fn detect_dep_types(
         importer_roots(lockfile, |importer| std::slice::from_ref(&importer.optional_dependencies));
     let prod_keys = [prod_keys, optional_keys].concat();
 
-    detect_dep_types_walk(
-        snapshots,
-        &mut dep_types,
-        &mut walked,
-        &dev_keys,
-        true,
-        include_optional_transitive,
-    );
-    detect_dep_types_walk(
-        snapshots,
-        &mut dep_types,
-        &mut walked,
-        &prod_keys,
-        false,
-        include_optional_transitive,
-    );
+    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &dev_keys, true, transitive);
+    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &prod_keys, false, transitive);
     dep_types
 }
 
@@ -62,7 +50,7 @@ fn detect_dep_types_walk(
     walked: &mut HashSet<(PackageKey, bool)>,
     initial_keys: &[PackageKey],
     is_dev: bool,
-    include_optional_transitive: bool,
+    transitive: TransitiveEdges<'_>,
 ) {
     let mut queue: Vec<PackageKey> = initial_keys.to_vec();
 
@@ -76,19 +64,7 @@ fn detect_dep_types_walk(
             continue;
         };
 
-        let optional_iter = include_optional_transitive
-            .then(|| snapshot.optional_dependencies.iter().flatten())
-            .into_iter()
-            .flatten();
-        for (alias, dep_ref) in snapshot.dependencies
-            .iter()
-            .flatten()
-            .chain(optional_iter)
-        {
-            if let Some(child_key) = dep_ref.resolve(alias) {
-                queue.push(child_key);
-            }
-        }
+        queue.extend(transitive.children(&key, snapshot));
     }
 }
 
@@ -108,7 +84,7 @@ fn record_dep_type(dep_types: &mut HashMap<PackageKey, DepType>, key: &PackageKe
 
 pub(super) fn collect_components(
     state: &State,
-    include: &IncludeFilter,
+    include: IncludeFilter,
     sbom_type: SbomComponentType,
     exclude_peers: bool,
     lockfile_only: bool,
@@ -119,7 +95,8 @@ pub(super) fn collect_components(
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
     let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
-    let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
+    let peer_edges = PeerSatisfactionEdges::of_lockfile(lockfile, state.config.peer_edge_options());
+    let dep_types = detect_dep_types(lockfile, TransitiveEdges::classifying(include, &peer_edges));
 
     let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
     let virtual_store_dirs = if lockfile_only {
@@ -133,7 +110,7 @@ pub(super) fn collect_components(
         lockfile,
         &dep_types,
         virtual_store_dirs,
-        include.optional_dependencies,
+        TransitiveEdges::walking(include, &peer_edges),
     );
 
     let mut stores = WalkStores {
@@ -212,7 +189,7 @@ fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]
 /// An importer id is a raw lockfile key, so it is confined to the
 /// workspace before it turns into an on-disk path: neither a crafted
 /// `../foo` / absolute key nor a symlinked importer dir may read a
-/// `package.json` outside the workspace.
+/// project manifest outside the workspace.
 fn read_root_manifest(
     state: &State,
     lockfile_dir: &Path,
@@ -226,13 +203,13 @@ fn read_root_manifest(
         }
     };
     let Some(&[single_id]) = filter_importer_ids else {
-        return safe_read_package_json_from_dir(lockfile_dir)
+        return safe_read_project_manifest_from_dir(lockfile_dir)
             .ok()
             .flatten()
             .unwrap_or_else(|| fallback("."));
     };
     confined_importer_dir(lockfile_dir, single_id)
-        .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
+        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
         .unwrap_or_else(|| fallback(single_id))
 }
 

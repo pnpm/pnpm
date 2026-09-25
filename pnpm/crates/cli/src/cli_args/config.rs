@@ -19,8 +19,9 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
-    config_types, naming_cases, property_path, property_path::Segment, protected_settings,
+    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, MacosBackupSettings,
+    WORKSPACE_MANIFEST_FILENAME, config_types, naming_cases, property_path, property_path::Segment,
+    protected_settings,
 };
 use pnpm_workspace_manifest_writer::update_manifest_field;
 use serde_json::{Map, Value};
@@ -160,6 +161,13 @@ pub enum ConfigError {
     )]
     SetUnsupportedYamlConfigKey { key: String },
 
+    #[display("Invalid value for structured config key {key:?}: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE),
+        help("Use --json with an object value")
+    )]
+    SetStructuredValue { key: String, reason: String },
+
     #[display("Invalid property path: {_0}")]
     #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
     InvalidPropertyPath(#[error(not(source))] property_path::ParsePropertyPathError),
@@ -289,6 +297,7 @@ fn config_set(
             }
             key = validate_workspace_key(&key)?;
             let cast = cast_field(value, &naming_cases::to_kebab_case(&key));
+            validate_macos_backup_value(&key, &cast)?;
             update_manifest_field(&config_path, &key, &cast).map_err(miette::Report::new)?;
         }
         _ => {
@@ -299,6 +308,31 @@ fn config_set(
         }
     }
     Ok(())
+}
+
+fn validate_macos_backup_value(key: &str, value: &Value) -> Result<(), ConfigError> {
+    if key != "macosBackup" || value.is_null() {
+        return Ok(());
+    }
+    if let Some(unknown) = value
+        .as_object()
+        .and_then(|object| {
+            object
+                .keys()
+                .find(|field| !matches!(field.as_str(), "excludeModulesDir" | "excludeStoreDir"))
+        })
+    {
+        return Err(ConfigError::SetStructuredValue {
+            key: key.to_string(),
+            reason: format!("unknown field {unknown:?}"),
+        });
+    }
+    serde_json::from_value::<MacosBackupSettings>(value.clone())
+        .map(|_| ())
+        .map_err(|error| ConfigError::SetStructuredValue {
+            key: key.to_string(),
+            reason: error.to_string(),
+        })
 }
 
 /// Write an auth setting to the global `auth.ini` or the directory's
@@ -321,27 +355,46 @@ fn set_auth_setting(
 /// Read the INI file, set or delete `key`, and write it back. A delete of an
 /// absent key is a no-op (no write). Mirrors the INI arms of `configSet`.
 fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Result<()> {
-    let mut settings = ini::read(config_path)
+    let mut doc = ini::read(config_path)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("reading {}", config_path.display())))?;
     if value.is_null() {
-        if settings.shift_remove(key).is_none() {
+        if !doc.delete(key) {
             return Ok(());
         }
+    } else if let Value::Array(_) = value {
+        let values = collect_ini_values(key, value)?;
+        doc.set_array(key, &values);
     } else {
-        let value_string = ini_value_string(value);
-        // A control character (notably a newline) in the value would split into
-        // extra `key=value` lines when the INI file is re-parsed, injecting
-        // settings the user never set. Refuse rather than corrupt the file.
-        if has_control_char(key) || has_control_char(&value_string) {
-            return Err(ConfigError::SetIniControlCharacter.into());
-        }
-        settings.insert(key.to_string(), value_string);
+        let values = collect_ini_values(key, value)?;
+        doc.set(key, &values);
     }
-    ini::write(config_path, &settings)
+    ini::write(config_path, &doc)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("writing {}", config_path.display())))?;
     Ok(())
+}
+
+fn validate_ini_string(key: &str, value: &str) -> Result<(), ConfigError> {
+    if has_control_char(key) || has_control_char(value) {
+        return Err(ConfigError::SetIniControlCharacter);
+    }
+    Ok(())
+}
+
+fn collect_ini_values(key: &str, value: &Value) -> Result<Vec<String>, ConfigError> {
+    if let Value::Array(items) = value {
+        let mut values = Vec::with_capacity(items.len());
+        for item in items {
+            let formatted = ini_value_string(item);
+            validate_ini_string(key, &formatted)?;
+            values.push(formatted);
+        }
+        return Ok(values);
+    }
+    let formatted = ini_value_string(value);
+    validate_ini_string(key, &formatted)?;
+    Ok(vec![formatted])
 }
 
 /// Whether `text` holds a control character. The INI writer splices `text`

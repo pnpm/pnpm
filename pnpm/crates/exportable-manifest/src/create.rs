@@ -29,7 +29,7 @@
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, replace_workspace_protocol,
+        ReplaceWorkspaceProtocolError, WorkspacePackageManifest, replace_workspace_protocol,
         replace_workspace_protocol_peer_dependency,
     },
     transform::{TransformError, transform},
@@ -43,7 +43,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
-use std::{fs, io, path::Path};
+use std::{collections::HashMap, fs, io, path::Path};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
@@ -99,6 +99,8 @@ pub struct CreateExportableManifestOptions<'a> {
     /// field when one is present and the manifest doesn't already
     /// declare `readme`.
     pub embed_readme: bool,
+    /// Workspace packages lookup used when a dependency is not in `node_modules`.
+    pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
 }
 
 /// Failures from [`create_exportable_manifest`].
@@ -232,14 +234,19 @@ fn convert_dependency_for_publish(
 ) -> Result<String, CreateExportableManifestError> {
     let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
     let after_workspace = match kind {
-        DependencyKind::Regular => {
-            replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir)
-        }
+        DependencyKind::Regular => replace_workspace_protocol(
+            dep_name,
+            &after_catalog,
+            dir,
+            opts.modules_dir,
+            opts.workspace_packages,
+        ),
         DependencyKind::Peer => replace_workspace_protocol_peer_dependency(
             dep_name,
             &after_catalog,
             dir,
             opts.modules_dir,
+            opts.workspace_packages,
         ),
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;

@@ -864,6 +864,142 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn updating_prerelease_to_stable_re_resolves_and_frozen_install_succeeds() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/prerelease-to-stable": "1.0.0-rc.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json with prerelease");
+
+    // 1. Install prerelease 1.0.0-rc.0
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let dep_name = "@pnpm.e2e/prerelease-to-stable".parse().expect("package name");
+    assert_eq!(
+        lockfile.importers["."].dependencies.as_ref().expect("dependencies")[&dep_name]
+            .version
+            .to_string(),
+        "1.0.0-rc.0",
+    );
+
+    // 2. Update package.json to stable 1.0.0
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/prerelease-to-stable": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("update package.json to stable");
+
+    // 3. Run pnpm install
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // 4. Verify lockfile has version 1.0.0 (NOT 1.0.0-rc.0)
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    assert_eq!(
+        lockfile.importers["."].dependencies.as_ref().expect("dependencies")[&dep_name]
+            .version
+            .to_string(),
+        "1.0.0",
+    );
+    assert_eq!(
+        lockfile.importers["."].dependencies.as_ref().expect("dependencies")[&dep_name].specifier,
+        "1.0.0",
+    );
+
+    // 5. Run pnpm install --frozen-lockfile and verify it succeeds
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn updating_prerelease_to_stable_range_with_lockfile_only_re_resolves() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/prerelease-to-stable": "1.0.0-rc.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json with prerelease");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // Update package.json to stable range ^1.0.0
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/prerelease-to-stable": "^1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("update package.json to stable range");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let dep_name = "@pnpm.e2e/prerelease-to-stable".parse().expect("package name");
+    assert_eq!(
+        lockfile.importers["."].dependencies.as_ref().expect("dependencies")[&dep_name]
+            .version
+            .to_string(),
+        "1.0.0",
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 /// A workspace whose two members each depend on a package of their own.
 fn write_two_member_workspace(workspace: &Path) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");

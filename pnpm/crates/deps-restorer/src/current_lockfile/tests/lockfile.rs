@@ -44,7 +44,7 @@ fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
         &lockfile,
         Path::new("/workspace"),
         &HashSet::from([nested_id.clone()]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
     );
 
@@ -349,7 +349,7 @@ fn merge_filtered_current_lockfile_preserves_prior_importers_across_sequential_r
         Some(&previous),
         &wanted,
         &HashSet::from([second_id.clone()]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
         Path::new("/workspace"),
     );
@@ -397,7 +397,7 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
         Some(&previous),
         &wanted,
         &HashSet::from([selected_id]),
-        include_all(),
+        &include_all(),
         &skipped,
         Path::new("/workspace"),
     );
@@ -440,7 +440,7 @@ fn merge_filtered_current_lockfile_keeps_an_installability_skipped_snapshot() {
         None,
         &wanted,
         &HashSet::from([selected_id]),
-        include_all(),
+        &include_all(),
         &skipped,
         Path::new("/workspace"),
     );
@@ -491,7 +491,7 @@ fn merge_filtered_current_lockfile_uses_one_fresh_shared_snapshot() {
         Some(&previous),
         &wanted,
         &HashSet::from([selected_id.clone()]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
         Path::new("/workspace"),
     );
@@ -546,7 +546,7 @@ fn merge_filtered_current_lockfile_preserves_shallow_link_target_importers() {
         Some(&previous),
         &wanted,
         &HashSet::from([selected_id]),
-        include_all(),
+        &include_all(),
         &SkippedSnapshots::new(),
         Path::new("/workspace"),
     );

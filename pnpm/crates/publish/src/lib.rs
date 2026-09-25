@@ -28,10 +28,12 @@ pub use pnpm_git_utils::{
     get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
 };
 pub use provenance_gen::{ProvenanceAttachment, ProvenanceGenError, generate_provenance};
+pub use publish_failure::PublishFailure;
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,
     OidcTokenProvenance, PublishUnsupportedRegistryProtocolError, ResolvedPublishOptions,
-    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info, resolve_access,
+    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info,
+    publish_config_registry, resolve_access,
 };
 pub use publish_packed_pkg::{
     PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions,
@@ -41,6 +43,7 @@ pub use publish_summary::{
     PackedPkgInfo, PublishSummary, PublishSummaryFile, create_publish_summary,
     extract_bundled_dependencies,
 };
+pub use publish_wait::{PublishWaitError, wait_for_published_packages};
 pub use registry_config_keys::{
     NormalizedRegistryUrl, RegistryConfigKey, SupportedRegistryUrlInfo, all_registry_config_keys,
     parse_supported_registry_url,
@@ -57,7 +60,9 @@ mod global_log;
 mod oidc;
 mod otp_env;
 mod provenance_gen;
+mod publish_failure;
 mod publish_options;
 mod publish_packed_pkg;
 mod publish_summary;
+mod publish_wait;
 mod registry_config_keys;

@@ -247,17 +247,17 @@ fn runtime_on_fail_ignore_preserves_explicit_runtime_dependencies() {
 }
 
 #[test]
-fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
+fn node_version_uses_devengines_then_engines() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
             "devEngines": {
-                "runtime": { "name": "node", "version": "^22.0.0" },
+                "runtime": { "name": "node", "version": "22.21.0" },
             },
             "engines": {
                 "runtime": { "name": "node", "version": "20.0.0" },
             },
         })),
-        Some("22.0.0".to_string()),
+        Some("22.21.0".to_string()),
     );
     assert_eq!(
         node_version_from_engines_runtime(&json!({
@@ -273,6 +273,10 @@ fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
         })),
         Some("22.20.0".to_string()),
     );
+}
+
+#[test]
+fn node_version_keeps_an_exact_pin() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
             "engines": {
@@ -280,6 +284,65 @@ fn node_version_uses_devengines_then_engines_and_returns_the_range_minimum() {
             },
         })),
         Some("24.6.0".to_string()),
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "22.20.0" },
+            },
+        })),
+        Some("22.20.0".to_string()),
+    );
+}
+
+#[test]
+fn node_version_keeps_the_lower_bound_of_a_range_pnpm_downloads() {
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "download" },
+            },
+        })),
+        Some("22.12.0".to_string()),
+    );
+}
+
+#[test]
+fn node_version_does_not_treat_a_range_as_the_running_runtime() {
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "error" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "^26.0.0", "onFail": "error" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "engines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "warn" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "error" },
+            },
+            "engines": {
+                "runtime": { "name": "node", "version": "20.0.0" },
+            },
+        })),
+        None,
     );
 }
 
@@ -604,14 +667,14 @@ fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
 }
 
 /// A write sorts each dependency field by name and drops a dependency
-/// field that ended up empty, like pnpm's on-write manifest normalization.
+/// field the edit emptied, like pnpm's on-write manifest normalization.
 #[test]
 fn save_sorts_dependency_fields_and_drops_empty_ones() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");
     std::fs::write(
         &path,
-        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\"\n  },\n  \"devDependencies\": {}\n}\n",
+        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"zebra\": \"1.0.0\"\n  },\n  \"devDependencies\": {\n    \"aardvark\": \"1.0.0\"\n  }\n}\n",
     )
     .unwrap();
     let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
@@ -619,9 +682,84 @@ fn save_sorts_dependency_fields_and_drops_empty_ones() {
     manifest.save().unwrap();
 
     let saved = read_to_string(&path).unwrap();
-    eprintln!("SAVED:\n{saved}");
     let aardvark = saved.find("aardvark").unwrap();
     let zebra = saved.find("zebra").unwrap();
     assert!(aardvark < zebra);
     assert!(!saved.contains("devDependencies"));
+}
+
+/// A dependency field the file already declared as empty is the user's,
+/// not pnpm's, so a save leaves it in place (pnpm/pnpm#5096).
+#[test]
+fn save_keeps_a_dependency_field_that_was_already_empty_on_read() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "foo",
+  "peerDependencies": {}
+}
+"#,
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("bar", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "peerDependencies": {},
+  "dependencies": {
+    "bar": "1.0.0"
+  }
+}
+"#,
+    );
+}
+
+#[test]
+fn save_drops_a_dependency_field_the_removal_emptied() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "name": "foo",
+  "dependencies": {
+    "bar": "1.0.0"
+  },
+  "peerDependencies": {}
+}
+"#,
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["bar".to_string()], None);
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "peerDependencies": {}
+}
+"#,
+    );
+
+    manifest.add_dependency("baz", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        r#"{
+  "name": "foo",
+  "devDependencies": {
+    "baz": "1.0.0"
+  },
+  "peerDependencies": {}
+}
+"#,
+    );
 }

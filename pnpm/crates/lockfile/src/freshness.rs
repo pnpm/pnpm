@@ -85,7 +85,9 @@ pub enum StalenessReason {
     /// The lockfile records an importer for a workspace project that
     /// no longer exists. Only reported for an unfiltered install of the
     /// whole workspace, where the project list is the complete one.
-    #[display(r#"the lockfile records `importers["{importer_id}"]`, but no such project exists"#)]
+    #[display(
+        r#"the lockfile records `importers["{importer_id}"]`, but that project's directory or package.json is missing"#
+    )]
     RemovedImporter { importer_id: String },
 
     /// The flat union of `dependencies ∪ devDependencies ∪
@@ -241,6 +243,11 @@ pub enum StalenessReason {
         "`pnpmfileChecksum` in the lockfile ({lockfile:?}) doesn't match the current pnpmfile ({config:?})"
     )]
     PnpmfileChecksumChanged { lockfile: Option<String>, config: Option<String> },
+
+    /// A local directory or injected workspace dependency has changed
+    /// on disk (its dependencies were added, removed, or updated).
+    #[display("local dependency {name:?} at {path:?} is outdated")]
+    LocalDependencyOutdated { name: String, path: String },
 }
 
 impl StalenessReason {
@@ -285,7 +292,8 @@ impl StalenessReason {
             | StalenessReason::LinkDirectoryMismatch { .. }
             | StalenessReason::DependenciesMetaMismatch { .. }
             | StalenessReason::DepSpecifierMismatch { .. }
-            | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
+            | StalenessReason::ResolutionDoesNotSatisfy { .. }
+            | StalenessReason::LocalDependencyOutdated { .. } => None,
         }
     }
 }

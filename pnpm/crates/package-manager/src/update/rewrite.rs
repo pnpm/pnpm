@@ -18,7 +18,7 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
+use pnpm_resolving_npm_resolver::calc_version_range;
 use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
 
 /// What one matched direct dependency is rewritten against.
@@ -75,17 +75,17 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .iter()
         .find(|selector| matcher_one(&selector.pattern).matches(name))
         .and_then(|selector| selector.version.clone());
+    if !scope.version.save {
+        return Ok(no_save_direct_rewrite::<Reporter>(
+            scope,
+            plan,
+            rewrite_ctx,
+            declared,
+            requested.as_deref(),
+        ));
+    }
     if let Some(version) = requested.as_deref() {
         seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
-    }
-    if !scope.version.save {
-        // An update that doesn't save keeps the manifest's specifier, and
-        // whatever resolution settles on has to satisfy it — a frozen install
-        // rejects the lockfile otherwise.
-        let Some(requested) = requested.as_deref() else {
-            return Ok(MatchedRewrite::Target(None));
-        };
-        return Ok(kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, previous));
     }
     let tag = requested
         .as_deref()
@@ -104,6 +104,73 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     }
     Ok(requested_direct_rewrite(scope, plan, declared, requested))
 }
+
+fn no_save_direct_rewrite<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    declared: (&String, DependencyGroup, &String),
+    requested: Option<&str>,
+) -> MatchedRewrite {
+    let (name, group, previous) = declared;
+    if let Some(overridden) = scope.overridden_direct
+        .iter()
+        .find(|item| item.name == *name && item.group == group)
+    {
+        return override_owned_rewrite::<Reporter>(
+            rewrite_ctx,
+            name,
+            requested,
+            overridden.effective_specifier.as_deref(),
+        );
+    }
+    let Some(requested) = requested else {
+        return MatchedRewrite::Target(None);
+    };
+    let rewrite = kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, previous);
+    if !matches!(rewrite, MatchedRewrite::Skipped) {
+        seed_requested_version(&mut plan.preferred_versions_override, name, previous, requested);
+    }
+    rewrite
+}
+
+fn override_owned_rewrite<Reporter: self::Reporter>(
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    name: &str,
+    requested: Option<&str>,
+    effective_specifier: Option<&str>,
+) -> MatchedRewrite {
+    let Some(effective_specifier) = effective_specifier else {
+        if let Some(requested) = requested {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    r#"Skipping "{name}@{requested}": an override removes it from the manifest."#,
+                ),
+                prefix: package_manifest_prefix(rewrite_ctx.manifest),
+            }));
+        }
+        return MatchedRewrite::Skipped;
+    };
+    if let Some(requested) = requested
+        && matches!(
+            judge_against_kept_range(requested, effective_specifier),
+            KeptRangeVerdict::Excluded,
+        )
+    {
+        return kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, effective_specifier);
+    }
+    if let Some(requested) = requested.filter(|requested| *requested != effective_specifier) {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                r#"Ignoring "{name}@{requested}": "{name}" is controlled by an override, so its specifier "{effective_specifier}" was used instead."#,
+            ),
+            prefix: package_manifest_prefix(rewrite_ctx.manifest),
+        }));
+    }
+    MatchedRewrite::Target(None)
+}
 pub(super) fn requested_direct_rewrite(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
@@ -112,9 +179,7 @@ pub(super) fn requested_direct_rewrite(
 ) -> MatchedRewrite {
     let (name, group, previous) = declared;
     let Some(requested) = requested else {
-        plan.bump_targets
-            .entry(name.clone())
-            .or_insert_with(|| (group, previous.clone()));
+        plan.bump_targets.push((name.clone(), group, previous.clone()));
         return MatchedRewrite::Target(None);
     };
     MatchedRewrite::Target(Some(requested_version_rewrite(
@@ -167,12 +232,7 @@ pub(super) fn requested_version_rewrite(
     let Some((prefix, declared_range)) = split_registry_alias(previous) else {
         return requested.to_string();
     };
-    let range = calc_version_range(
-        &version,
-        infer_range_spec_style(declared_range),
-        infer_range_spec_style(requested),
-        default_style,
-    );
+    let range = calc_version_range(&version, Some(declared_range), Some(requested), default_style);
     format!("{prefix}{range}")
 }
 /// The declaration a `<name>@<requested>` selector writes over the `runtime:`
@@ -261,12 +321,7 @@ pub(super) async fn tag_rewrite(
                         name,
                         &version.to_string(),
                     );
-                    Some(calc_version_range(
-                        &version,
-                        infer_range_spec_style(previous),
-                        None,
-                        range_spec_style,
-                    ))
+                    Some(calc_version_range(&version, Some(previous), Some(tag), range_spec_style))
                 }
                 None => requested,
             }

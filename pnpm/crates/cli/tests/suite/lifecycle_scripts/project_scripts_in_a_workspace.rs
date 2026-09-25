@@ -211,3 +211,97 @@ fn remove_in_a_member_runs_no_project_scripts() {
 
     drop((root, anchor));
 }
+
+#[test]
+fn add_in_a_member_does_not_run_prepare_scripts() {
+    let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    manifest["scripts"]["prepare"] =
+        serde_json::json!(r#"node -e "require('fs').writeFileSync('ran-prepare.txt','a')""#);
+    fs::write(pkg_a_dir.join("package.json"), manifest.to_string()).unwrap();
+
+    pacquet(&pkg_a_dir, ["add", "@pnpm.e2e/foo"]).assert().success();
+
+    assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+    assert!(
+        !pkg_a_dir.join("ran-prepare.txt").exists(),
+        "prepare script must not run during add in workspace member",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_in_a_member_saves_manifest_when_root_postinstall_fails() {
+    let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+    let root_pkg_json = workspace.join("package.json");
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&root_pkg_json).unwrap()).unwrap();
+    root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
+    fs::write(&root_pkg_json, root_manifest.to_string()).unwrap();
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    pacquet(&workspace, ["--filter", "a", "add", "@pnpm.e2e/foo"]).assert().failure();
+
+    let a_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    assert!(
+        a_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
+        "package.json must be saved even if postinstall fails",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_in_a_member_saves_manifest_when_root_postinstall_fails_without_filter() {
+    let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+    let root_pkg_json = workspace.join("package.json");
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&root_pkg_json).unwrap()).unwrap();
+    root_manifest["scripts"]["postinstall"] = serde_json::json!("exit 1");
+    fs::write(&root_pkg_json, root_manifest.to_string()).unwrap();
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    pacquet(&pkg_a_dir, ["add", "@pnpm.e2e/foo"]).assert().failure();
+
+    let a_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    assert!(
+        a_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
+        "package.json must be saved even if postinstall fails",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn add_in_a_member_does_not_save_manifest_when_preinstall_fails() {
+    let (root, workspace, anchor) = installed_workspace(&["a"]);
+
+    let root_pkg_json = workspace.join("package.json");
+    let mut root_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&root_pkg_json).unwrap()).unwrap();
+    root_manifest["scripts"]["preinstall"] = serde_json::json!("exit 1");
+    fs::write(&root_pkg_json, root_manifest.to_string()).unwrap();
+
+    let pkg_a_dir = workspace.join("packages").join("a");
+    pacquet(&pkg_a_dir, ["add", "@pnpm.e2e/foo"]).assert().failure();
+
+    let a_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(pkg_a_dir.join("package.json")).unwrap()).unwrap();
+    assert!(
+        a_manifest
+            .get("dependencies")
+            .and_then(|deps| deps.get("@pnpm.e2e/foo"))
+            .is_none(),
+        "package.json must not be saved when preinstall fails",
+    );
+
+    drop((root, anchor));
+}

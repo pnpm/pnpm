@@ -4,32 +4,39 @@ use super::{
 };
 use crate::config_deps;
 
+/// The message refusing an implicit-`latest` update that would downgrade a
+/// project pinned to a newer pnpm than the registry's `latest`. The env
+/// lockfile lives at the workspace root, not necessarily the command's
+/// `--dir`.
+pub(super) fn project_pin_refusal(
+    config: &Config,
+    dir: &Path,
+    pm: &super::super::package_manager::WantedPackageManager,
+    target_version: &str,
+    is_implicit_latest: bool,
+) -> Option<String> {
+    if !is_implicit_latest || pm.version.as_deref() == Some(target_version) {
+        return None;
+    }
+    let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+    let current = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())?;
+    version_lt(target_version, &current).then(|| {
+        format!(
+            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        )
+    })
+}
+
 /// Update the project's `packageManager` / `devEngines.packageManager`
-/// pin to `target_version`.
+/// pin to `target_version`. Callers check [`project_pin_refusal`] first.
 pub(super) async fn update_project_pin(
     config: &'static Config,
     dir: &Path,
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
-    is_implicit_latest: bool,
-) -> miette::Result<Option<String>> {
+) -> miette::Result<String> {
     if pm.version.as_deref() == Some(target_version) {
-        return Ok(Some(format!(
-            "The current project is already set to use pnpm v{target_version}",
-        )));
-    }
-
-    // Implicit `latest` must not downgrade a project pinned to a newer
-    // version than the registry's `latest`. The env lockfile lives at the
-    // workspace root, not necessarily the command's `--dir`.
-    let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-    if is_implicit_latest
-        && let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
-        && version_lt(target_version, &current)
-    {
-        return Ok(Some(format!(
-            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
-        )));
+        return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
 
     let manifest_path = dir.join("package.json");
@@ -56,7 +63,7 @@ pub(super) async fn update_project_pin(
             .wrap_err("write the project manifest")?;
     }
 
-    Ok(Some(format!("The current project has been updated to use pnpm v{target_version}")))
+    Ok(format!("The current project has been updated to use pnpm v{target_version}"))
 }
 
 /// The `pnpm` entry of `devEngines.packageManager` (which can be a single

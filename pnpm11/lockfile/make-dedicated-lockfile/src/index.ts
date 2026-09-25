@@ -1,9 +1,11 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
+import { PnpmError } from '@pnpm/error'
 import { pnpmExec } from '@pnpm/exec'
 import {
   getLockfileImporterId,
-  type ProjectSnapshot,
   readWantedLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
@@ -11,10 +13,15 @@ import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { createExportableManifest } from '@pnpm/releasing.exportable-manifest'
 import { DEPENDENCIES_FIELDS, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { pickBy } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string): Promise<void> {
+  const tempModulesDir = path.join(projectDir, '.tmp_node_modules')
+  if (fs.existsSync(tempModulesDir)) {
+    throw new PnpmError('STAGED_MODULES_DIR_EXISTS', `${tempModulesDir} already exists`, {
+      hint: 'It holds the node_modules of an earlier run that could not be moved back. Restore or remove it, then run the command again.',
+    })
+  }
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -25,11 +32,11 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
       const newImporterId = importerId.slice(baseImporterId.length + 1) as ProjectId
-      lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers[newImporterId] = importer
       continue
     }
     if (importerId === baseImporterId) {
-      lockfile.importers['.' as ProjectId] = projectSnapshotWithoutLinkedDeps(importer)
+      lockfile.importers['.' as ProjectId] = importer
     }
   }
   const dedicatedLockfile = pruneSharedLockfile(lockfile)
@@ -43,20 +50,18 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
     // intentionally.
     catalogs: {},
   })
-  await writeProjectManifest(publishManifest as ProjectManifest)
+  await writeProjectManifest(withWorkspaceDependencies(manifest, publishManifest as ProjectManifest))
 
   const modulesDir = path.join(projectDir, 'node_modules')
-  const tmp = path.join(projectDir, 'tmp_node_modules')
-  const tempModulesDir = path.join(projectDir, 'node_modules/.tmp')
   let modulesRenamed = false
   try {
-    await renameOverwrite(modulesDir, tmp)
-    await renameOverwrite(tmp, tempModulesDir)
+    await renameOverwrite(modulesDir, tempModulesDir)
     modulesRenamed = true
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
   }
 
+  const errors: unknown[] = []
   try {
     await pnpmExec([
       'install',
@@ -64,27 +69,63 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
       '--lockfile-dir=.',
       '--fix-lockfile',
       '--filter=.',
-      '--no-link-workspace-packages',
       '--config.dedupe-peer-dependents=false', // TODO: remove this. It should work without it
     ], {
       cwd: projectDir,
     })
-  } finally {
-    if (modulesRenamed) {
-      await renameOverwrite(tempModulesDir, tmp)
-      await renameOverwrite(tmp, modulesDir)
+  } catch (err) {
+    errors.push(err)
+  }
+  let modulesRestored = !modulesRenamed
+  if (modulesRenamed) {
+    try {
+      await renameOverwrite(tempModulesDir, modulesDir)
+      modulesRestored = true
+    } catch (err) {
+      errors.push(err)
     }
+  }
+  try {
     await writeProjectManifest(manifest)
+  } catch (err) {
+    errors.push(err)
+  }
+  if (errors.length === 1) {
+    throw errors[0]
+  }
+  if (errors.length > 1) {
+    const failures = errors.map((err) => util.types.isNativeError(err) ? err.message : String(err))
+    throw new PnpmError('MAKE_DEDICATED_LOCKFILE_FAILED', `Creating the dedicated lockfile in ${projectDir} failed:\n${failures.join('\n')}`, {
+      cause: new AggregateError(errors, undefined, { cause: errors[0] }),
+      hint: modulesRestored ? undefined : `The original node_modules is still in ${tempModulesDir}.`,
+    })
   }
 }
 
-function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot): ProjectSnapshot {
-  const newProjectSnapshot: ProjectSnapshot = {
-    specifiers: projectSnapshot.specifiers,
+/**
+ * The exportable manifest replaces `workspace:` specifiers with the version
+ * range a published copy would use, which the install would then look up in
+ * the registry. The dedicated lockfile keeps the workspace project linked, so
+ * its specifier stays as declared.
+ */
+function withWorkspaceDependencies (manifest: ProjectManifest, publishManifest: ProjectManifest): ProjectManifest {
+  const result = { ...publishManifest }
+  for (const depField of [...DEPENDENCIES_FIELDS, 'peerDependencies'] as const) {
+    const deps = manifest[depField]
+    if (deps == null || result[depField] == null) continue
+    let updatedDeps: Record<string, string> | undefined
+    for (const [depName, spec] of Object.entries(deps)) {
+      const isWorkspace = depField === 'peerDependencies' ? spec.includes('workspace:') : spec.startsWith('workspace:')
+      if (isWorkspace) {
+        if (updatedDeps == null) {
+          updatedDeps = { ...result[depField] }
+        }
+        updatedDeps[depName] = spec
+      }
+    }
+    if (updatedDeps != null) {
+      result[depField] = updatedDeps
+    }
   }
-  for (const depField of DEPENDENCIES_FIELDS) {
-    if (projectSnapshot[depField] == null) continue
-    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot[depField])
-  }
-  return newProjectSnapshot
+  return result
 }

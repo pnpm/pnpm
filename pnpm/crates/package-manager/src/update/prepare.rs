@@ -1,11 +1,13 @@
 use super::{
     UpdateError, UpdateOptions, UpdateResources, UpdateSeed,
     catalogs::{
-        CatalogCtx, merge_catalogs, read_catalog_ctx_with_catalogs, reconcile_catalog_rewrites,
+        CatalogCtx, ensure_catalog_ctx, merge_catalogs, read_catalog_ctx_with_catalogs,
+        reconcile_catalog_rewrites,
     },
     latest::{LatestResolverChain, LatestRewriteCtx},
     seed_policy::{
-        UpdatePlan, UpdateScope, importer_seed_policy, select_seed_policy, selected_seed_policy,
+        OverriddenDirect, UpdatePlan, UpdateScope, importer_seed_policy, select_seed_policy,
+        selected_seed_policy,
     },
     selectors::{
         ParsedSelector, parse_selectors, reject_versioned_latest_selectors,
@@ -14,7 +16,7 @@ use super::{
     workspace::workspace_targets,
 };
 use crate::{
-    DIRECT_GROUPS, ImporterUpdateSeedPolicy, InstallError, UpdateSeedPolicy,
+    DIRECT_GROUPS, ImporterUpdateSeedPolicy, InstallError, UpdateSeedPolicy, VersionsOverrider,
     emit_initial_package_manifest,
 };
 use pnpm_catalogs_types::Catalogs;
@@ -23,7 +25,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -35,7 +37,7 @@ pub(super) struct UpdatePreparation {
     /// Direct dependencies whose declared range the install may move onto
     /// the version it resolves, each mapped to the group and specifier the
     /// manifest declares for it. See [`crate::ManifestSpecBumps`].
-    pub(super) bump_targets: HashMap<String, (DependencyGroup, String)>,
+    pub(super) bump_targets: Vec<(String, DependencyGroup, String)>,
     pub(super) updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
@@ -59,7 +61,7 @@ pub(super) struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     pub(super) persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    pub(super) bump_targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
+    pub(super) bump_targets: BTreeMap<String, Vec<(String, DependencyGroup, String)>>,
     pub(super) updated_catalogs: Catalogs,
     pub(super) catalogs_override: Option<Catalogs>,
     pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
@@ -188,7 +190,9 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, update.config, catalogs.clone()))
         .transpose()?;
-    let scope = update_scope(update, owned, &selectors, &direct);
+    let overridden_direct =
+        overridden_direct(manifest, update, &selectors, &direct, &mut catalog_ctx)?;
+    let scope = update_scope(update, owned, &selectors, &direct, &overridden_direct);
     let mut plan = UpdatePlan::default();
     let Some(seed_policy) = select_seed_policy::<Reporter>(
         &scope,
@@ -216,16 +220,70 @@ pub(super) fn update_scope<'a>(
     owned: &UpdateResources,
     selectors: &'a [ParsedSelector],
     direct: &'a [(String, DependencyGroup, String)],
+    overridden_direct: &'a [OverriddenDirect],
 ) -> UpdateScope<'a> {
     UpdateScope {
         selectors,
         direct,
+        overridden_direct,
         lockfile: update.lockfile.document,
         config: update.config,
         version: update.version,
         depth: update.selection.depth,
         updates_all_groups: updates_all_groups(&owned.include_direct),
     }
+}
+
+fn overridden_direct(
+    manifest: &PackageManifest,
+    update: UpdateOptions<'_>,
+    selectors: &[ParsedSelector],
+    direct: &[(String, DependencyGroup, String)],
+    catalog_ctx: &mut Option<CatalogCtx>,
+) -> Result<Vec<OverriddenDirect>, UpdateError> {
+    if update.version.save
+        || !selectors.iter().any(|selector| selector.version.is_some())
+        || update.config.overrides.as_ref().is_none_or(indexmap::IndexMap::is_empty)
+    {
+        return Ok(Vec::new());
+    }
+    let catalogs = &ensure_catalog_ctx(catalog_ctx, manifest, update.config)?.catalogs;
+    let parsed = crate::install::parse_config_overrides(update.config, catalogs)
+        .map_err(|error| UpdateError::Install(error.into()))?
+        .unwrap_or_default();
+    let project_dir = super::manifest_dir(manifest);
+    let lockfile_root = crate::install::lockfile_root_dir(update.config, project_dir)
+        .map_err(UpdateError::FindWorkspaceDir)?;
+    let overrider = VersionsOverrider::new(&parsed, &lockfile_root);
+    Ok(collect_overridden_direct(manifest, direct, &overrider))
+}
+
+fn collect_overridden_direct(
+    manifest: &PackageManifest,
+    direct: &[(String, DependencyGroup, String)],
+    overrider: &VersionsOverrider,
+) -> Vec<OverriddenDirect> {
+    let matcher = overrider.dependency_matcher(manifest.value());
+    let matched = direct
+        .iter()
+        .filter(|(name, _, previous)| matcher.matches(name, previous))
+        .map(|(name, group, _)| (name.clone(), *group))
+        .collect::<Vec<_>>();
+    if matched.is_empty() {
+        return Vec::new();
+    }
+    let mut effective = manifest.clone();
+    overrider.apply(&mut effective, Some(super::manifest_dir(manifest)));
+    matched
+        .into_iter()
+        .map(|(name, group)| OverriddenDirect {
+            effective_specifier: effective
+                .dependencies([group])
+                .find_map(|(alias, specifier)| (alias == name).then(|| specifier.to_string())),
+            name,
+            group,
+        })
+        .collect()
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.

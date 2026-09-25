@@ -1,6 +1,6 @@
-//! Shared workspace-manifest persistence for the manifest-mutating
-//! commands (`add`, `update`, `remove`): merge freshly resolved catalog
-//! entries and, under `catalogPrune`, drop the entries no
+//! Shared workspace-manifest persistence for installs and the
+//! manifest-mutating commands (`add`, `update`, `remove`): merge freshly
+//! resolved catalog entries and, under `catalogPrune`, drop the entries no
 //! workspace project references anymore. One write covers both, the
 //! same single read-modify-write upstream's `updateWorkspaceManifest`
 //! performs.
@@ -64,8 +64,12 @@ pub(crate) fn write_workspace_catalogs(
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(config, current_manifest)?,
     };
-    let projects =
-        if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
+    let projects = if config.catalog_prune {
+        let ignored_directories = config.managed_directories();
+        load_cleanup_projects(&workspace_dir, &ignored_directories)?
+    } else {
+        Vec::new()
+    };
     let all_projects = manifest_refs_with_current(&projects, current_manifest);
     update_workspace_manifest(
         &workspace_dir,
@@ -131,7 +135,9 @@ fn derive_workspace_dir(
 /// only a shared one does. Under dedicated per-project lockfiles
 /// (`sharedWorkspaceLockfile: false` with no `lockfileDir` pinning them
 /// back together) every entry a sibling project needs would look
-/// unresolved, so the pass no-ops. It also no-ops when the settings are
+/// unresolved, so the pass no-ops; the commands that install every
+/// selected project one by one run [`prune_against_project_lockfiles`]
+/// once they are done. It also no-ops when the settings are
 /// off, when lockfile persistence is disabled (`lockfile: false` — the
 /// on-disk lockfile would be stale), and when no lockfile exists,
 /// mirroring the `all_projects` guard of the catalog cleanup.
@@ -155,21 +161,77 @@ pub(crate) fn post_install_prune(
     else {
         return Ok(());
     };
-    let resolved = resolved_package_versions(&lockfile);
+    let mut resolved = ResolvedPackageVersions::new();
+    record_resolved_package_versions(&lockfile, &mut resolved);
+    prune_unresolved_entries(config, &workspace_dir, &resolved)
+}
+
+/// The post-install exclude prune for a workspace with a lockfile per project
+/// (`sharedWorkspaceLockfile: false`). The caller runs it once, after a
+/// command has installed every workspace project, never while any of them
+/// is still installing and never after a filtered run, whose unselected
+/// projects' lockfiles may lag behind their manifests.
+///
+/// Every workspace project's lockfile is read back and their resolved
+/// versions are merged, so an entry is pruned only when no lockfile in the
+/// workspace records it. A project with no lockfile has recorded nothing
+/// to prove with, so the pass no-ops rather than drop an entry that
+/// project may need.
+pub fn prune_against_project_lockfiles(
+    config: &Config,
+    workspace_dir: &Path,
+) -> Result<(), WriteWorkspaceCatalogsError> {
+    if !config.lockfile || config.shares_one_lockfile() {
+        return Ok(());
+    }
+    let mut project_dirs: Vec<PathBuf> =
+        load_cleanup_projects(workspace_dir, &config.managed_directories())?
+            .into_iter()
+            .map(|project| project.root_dir)
+            .collect();
+    if project_dirs.is_empty() {
+        return Ok(());
+    }
+    let normalized_root = pnpm_fs::lexical_normalize(workspace_dir);
+    if pnpm_package_manifest::project_manifest_path(workspace_dir).is_file()
+        && !project_dirs
+            .iter()
+            .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root)
+    {
+        project_dirs.push(workspace_dir.to_path_buf());
+    }
+    let mut resolved = ResolvedPackageVersions::new();
+    for project_dir in &project_dirs {
+        let Some(lockfile) = Lockfile::load_wanted_from_dir(config.lockfile_dir_for(project_dir))
+            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
+        else {
+            return Ok(());
+        };
+        record_resolved_package_versions(&lockfile, &mut resolved);
+    }
+    prune_unresolved_entries(config, workspace_dir, &resolved)
+}
+
+fn prune_unresolved_entries(
+    config: &Config,
+    workspace_dir: &Path,
+    resolved: &ResolvedPackageVersions,
+) -> Result<(), WriteWorkspaceCatalogsError> {
     update_workspace_manifest(
-        &workspace_dir,
+        workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
             prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
-            resolved_package_versions: Some(&resolved),
+            resolved_package_versions: Some(resolved),
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
 }
 
-/// Maps every package in the lockfile to its resolved versions.
+/// Adds every package in the lockfile to `resolved` with its resolved
+/// versions.
 /// A registry-qualified slot (`<name>@<registryName>:<version>`)
 /// registers the version after the prefix — `PkgVerPeer::version_semver`
 /// treats it as opaque for reuse/preference paths, but here the version
@@ -178,8 +240,7 @@ pub(crate) fn post_install_prune(
 /// `file:`) register only their name: their presence can still be
 /// confirmed (a bare-name exclude entry survives), but no exact version
 /// can (a versioned entry is pruned).
-fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
-    let mut resolved = ResolvedPackageVersions::new();
+fn record_resolved_package_versions(lockfile: &Lockfile, resolved: &mut ResolvedPackageVersions) {
     for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
         let versions = resolved.entry(key.name.to_string()).or_default();
         let version = key.suffix
@@ -189,7 +250,6 @@ fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
             versions.insert(version.to_string());
         }
     }
-    resolved
 }
 
 /// Every project manifest under `workspace_dir`, read from disk. An
@@ -197,6 +257,7 @@ fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
 /// cleanup pass — there is no workspace manifest to clean either.
 fn load_cleanup_projects(
     workspace_dir: &Path,
+    ignored_directories: &[PathBuf],
 ) -> Result<Vec<Project>, WriteWorkspaceCatalogsError> {
     let Some(workspace_manifest) = read_workspace_manifest(workspace_dir)
         .map_err(WriteWorkspaceCatalogsError::ReadWorkspaceManifest)?
@@ -205,6 +266,7 @@ fn load_cleanup_projects(
     };
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(workspace_package_patterns(&workspace_manifest)),
+        ignored_directories: ignored_directories.to_vec(),
     };
     find_workspace_projects(workspace_dir, &opts)
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceProjects)

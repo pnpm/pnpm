@@ -68,9 +68,10 @@ async fn manual_metadata_redirects_preserve_the_configured_guard() {
 #[tokio::test]
 async fn authenticated_metadata_errors_remove_urls_after_retry_exhaustion() {
     let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = socket.local_addr().unwrap();
+    let port = socket.local_addr().unwrap().port();
     drop(socket);
-    let url = format!("http://user:password@{address}/metadata?token=secret#fragment");
+    // `0.0.0.0` fails the connect at once on Windows too, unlike a refused loopback port.
+    let url = format!("http://user:password@0.0.0.0:{port}/metadata?token=secret#fragment");
     let error = get_secure_bytes(
         &ThrottledClient::default(),
         &url,

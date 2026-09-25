@@ -599,3 +599,476 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn a_workspace_project_added_by_a_later_install_is_hoisted() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*eslint*'\n",
+    );
+
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let plugin_link = workspace.join("node_modules/eslint-plugin-local");
+    assert!(
+        fs::symlink_metadata(&plugin_link).is_err(),
+        "nothing should be hoisted at {plugin_link:?} before the project exists",
+    );
+
+    let plugin_dir = workspace.join("packages/eslint-plugin-local");
+    fs::create_dir_all(&plugin_dir).expect("mkdir packages/eslint-plugin-local");
+    fs::write(
+        plugin_dir.join("package.json"),
+        serde_json::json!({ "name": "eslint-plugin-local", "version": "1.0.0", "private": true })
+            .to_string(),
+    )
+    .expect("write packages/eslint-plugin-local/package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&plugin_link).unwrap(),
+        "the added workspace project must be publicly hoisted to {plugin_link:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn workspace_projects_are_hoisted_without_any_registry_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*eslint*'\n",
+    );
+
+    for (dir, name) in [("packages/app", "app"), ("packages/plugin", "eslint-plugin-local")] {
+        let project_dir = workspace.join(dir);
+        fs::create_dir_all(&project_dir).expect("mkdir project");
+        fs::write(
+            project_dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "private": true }).to_string(),
+        )
+        .expect("write project package.json");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let plugin_link = workspace.join("node_modules/eslint-plugin-local");
+    assert!(
+        is_symlink_or_junction(&plugin_link).unwrap(),
+        "the workspace project must be publicly hoisted to {plugin_link:?}",
+    );
+    let app_link = workspace.join("node_modules/.pnpm/node_modules/app");
+    assert!(
+        is_symlink_or_junction(&app_link).unwrap(),
+        "the workspace project must be privately hoisted to {app_link:?}",
+    );
+
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({ "name": "renamed-app", "version": "1.0.0", "private": true })
+            .to_string(),
+    )
+    .expect("rename app package");
+    fs::remove_dir_all(workspace.join("packages/plugin")).expect("remove plugin package");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::symlink_metadata(&plugin_link).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound,
+        "a removed workspace project's public hoist must be pruned",
+    );
+    assert_eq!(
+        fs::symlink_metadata(&app_link).unwrap_err().kind(),
+        std::io::ErrorKind::NotFound,
+        "a renamed workspace project's old private hoist must be pruned",
+    );
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules/.pnpm/node_modules/renamed-app"),)
+            .unwrap(),
+        "the renamed workspace project must be hoisted under its current name",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn workspace_hoist_rejects_a_name_that_escapes_node_modules() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
+    let project_dir = workspace.join("packages/project");
+    fs::create_dir_all(&project_dir).expect("mkdir project");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "../outside/project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project package.json");
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run install");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"));
+    assert!(!workspace.join("node_modules/.pnpm/outside").exists());
+
+    drop((root, mock_instance));
+}
+
+/// `hoistWorkspacePackages` under `nodeLinker: hoisted`: every package
+/// already lives in the root `node_modules`, so each named workspace
+/// project is linked there too, with its bins shimmed into the root
+/// `.bin`. A project whose name a package of the hoisted tree holds
+/// keeps the package. The frozen replay after deleting the root
+/// `node_modules` reproduces the same layout.
+#[test]
+fn hoisted_node_linker_links_workspace_projects_into_root() {
+    for enabled in [true, false] {
+        let CommandTempCwd {
+            pacquet,
+            pnpm,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true }).to_string(),
+        )
+        .expect("write root package.json");
+        let toggle = if enabled { "" } else { "hoistWorkspacePackages: false\n" };
+        write_workspace_yaml(
+            &workspace,
+            &format!("packages:\n  - 'packages/*'\nnodeLinker: hoisted\n{toggle}"),
+        );
+
+        let foo_dir = workspace.join("packages/foo");
+        fs::create_dir_all(&foo_dir).expect("mkdir packages/foo");
+        fs::write(
+            foo_dir.join("package.json"),
+            serde_json::json!({
+                "name": "@local/foo",
+                "version": "1.0.0",
+                "private": true,
+                "bin": { "local-foo": "./cli.js", "hello-world-js-bin": "./cli.js" },
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write packages/foo/package.json");
+        fs::write(foo_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('local-foo')\n")
+            .expect("write packages/foo/cli.js");
+        let shadowed_dir = workspace.join("packages/shadowed");
+        fs::create_dir_all(&shadowed_dir).expect("mkdir packages/shadowed");
+        fs::write(
+            shadowed_dir.join("package.json"),
+            serde_json::json!({
+                "name": "@pnpm.e2e/hello-world-js-bin",
+                "version": "9.9.9",
+                "private": true,
+            })
+            .to_string(),
+        )
+        .expect("write packages/shadowed/package.json");
+
+        generate_lockfile(pnpm);
+        pacquet
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+
+        let assert_layout = || {
+            let foo_link = workspace.join("node_modules/@local/foo");
+            let shim = workspace.join("node_modules/.bin/local-foo");
+            if enabled {
+                assert!(
+                    is_symlink_or_junction(&foo_link).unwrap(),
+                    "the workspace project must be linked at {foo_link:?}",
+                );
+                assert_eq!(
+                    fs::canonicalize(&foo_link).unwrap(),
+                    fs::canonicalize(&foo_dir).unwrap(),
+                );
+                assert!(shim.exists(), "the project's bin must be shimmed at {shim:?}");
+            } else {
+                assert!(
+                    !foo_link.exists(),
+                    "hoistWorkspacePackages: false must not create {foo_link:?}",
+                );
+                assert!(!shim.exists(), "hoistWorkspacePackages: false must not create {shim:?}");
+            }
+            let dependency_shim = workspace.join("node_modules/.bin/hello-world-js-bin");
+            let shim_runs_foo = shim_runs_from(&dependency_shim, &foo_dir);
+            assert!(!shim_runs_foo, "the hoisted package's bin must keep {dependency_shim:?}");
+            let dependency = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+            assert!(
+                !is_symlink_or_junction(&dependency).unwrap(),
+                "the hoisted package must keep {dependency:?}",
+            );
+            let manifest: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(dependency.join("package.json")).unwrap())
+                    .unwrap();
+            assert_eq!(manifest["version"], "1.0.0");
+        };
+        assert_layout();
+
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
+        pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
+        assert_layout();
+
+        drop((root, mock_instance));
+    }
+}
+
+/// Under `nodeLinker: hoisted`, a project's link must be gone before a
+/// package that takes over its name is written in its place. Writing
+/// through the link would replace the project's own `node_modules`.
+#[test]
+fn hoisted_node_linker_workspace_link_yields_to_a_new_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    let write_app_manifest = |dependencies: serde_json::Value| {
+        fs::write(
+            app_dir.join("package.json"),
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "private": true,
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write packages/app/package.json");
+    };
+    write_app_manifest(serde_json::json!({}));
+    let project_dir = workspace.join("packages/project");
+    fs::create_dir_all(&project_dir).expect("mkdir packages/project");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "@pnpm.e2e/hello-world-js-bin", "version": "9.9.9" })
+            .to_string(),
+    )
+    .expect("write packages/project/package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+    let root_entry = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
+    assert_eq!(fs::canonicalize(&root_entry).unwrap(), fs::canonicalize(&project_dir).unwrap());
+
+    let marker = project_dir.join("node_modules/marker/package.json");
+    fs::create_dir_all(marker.parent().unwrap()).expect("mkdir marker");
+    fs::write(&marker, "{}").expect("write marker");
+    write_app_manifest(serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
+    pacquet_in(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    assert!(!is_symlink_or_junction(&root_entry).unwrap(), "the package must replace the link");
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(root_entry.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["version"], "1.0.0");
+    assert!(marker.exists(), "the project's own node_modules must survive at {marker:?}");
+
+    drop((root, mock_instance));
+}
+
+/// Under `nodeLinker: hoisted`, installing only a non-root project still
+/// links it and the bins no hoisted package provides into the root.
+#[test]
+fn hoisted_node_linker_links_a_filtered_project_into_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "bin": { "app-cli": "./cli.js", "hello-world-js-bin": "./cli.js" },
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+    fs::write(app_dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write packages/app/cli.js");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
+
+    let app_link = workspace.join("node_modules/app");
+    assert_eq!(fs::canonicalize(&app_link).unwrap(), fs::canonicalize(&app_dir).unwrap());
+    assert!(workspace.join("node_modules/.bin/app-cli").exists());
+    let dependency_shim = workspace.join("node_modules/.bin/hello-world-js-bin");
+    assert!(
+        !shim_runs_from(&dependency_shim, &app_dir),
+        "the package must keep {dependency_shim:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Under `nodeLinker: hoisted`, a root `link:` dependency takes its name
+/// after the workspace pass, so a project of that name is not linked or
+/// recorded there, and its bins stay out of the root `.bin`.
+#[test]
+fn hoisted_node_linker_leaves_a_name_to_a_root_link_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "private": true,
+            "dependencies": { "foo": "link:packages/bar" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    let foo_dir = workspace.join("packages/foo");
+    let bar_dir = workspace.join("packages/bar");
+    for dir in [&foo_dir, &bar_dir] {
+        fs::create_dir_all(dir).expect("mkdir project");
+    }
+    fs::write(
+        foo_dir.join("package.json"),
+        serde_json::json!({ "name": "foo", "version": "1.0.0", "bin": { "foo-cli": "./cli.js" } })
+            .to_string(),
+    )
+    .expect("write packages/foo/package.json");
+    fs::write(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").expect("write packages/foo/cli.js");
+    fs::write(
+        bar_dir.join("package.json"),
+        serde_json::json!({ "name": "bar", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/bar/package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    let foo_link = workspace.join("node_modules/foo");
+    assert_eq!(fs::canonicalize(&foo_link).unwrap(), fs::canonicalize(&bar_dir).unwrap());
+    assert!(!workspace.join("node_modules/.bin/foo-cli").exists());
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml")).unwrap();
+    assert!(!modules_yaml.contains("packages/foo"), "{modules_yaml}");
+
+    drop((root, mock_instance));
+}
+
+/// Whether the command shim at `shim` runs a file of the package at
+/// `package_dir`, whether the shim is a symlink or a generated script.
+fn shim_runs_from(shim: &std::path::Path, package_dir: &std::path::Path) -> bool {
+    if fs::read_link(shim).is_ok() {
+        return fs::canonicalize(shim)
+            .unwrap()
+            .starts_with(fs::canonicalize(package_dir).unwrap());
+    }
+    let dir_name = package_dir
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
+    fs::read_to_string(shim)
+        .unwrap()
+        .contains(&format!("packages/{dir_name}"))
+}

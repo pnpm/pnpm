@@ -10,8 +10,11 @@ import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
+import { parseLocalPath } from '../src/parseBareSpecifier.js'
+
 const require = createRequire(import.meta.dirname)
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
+const testOnWindows = process.platform === 'win32' ? test : test.skip
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 test('resolve directory', async () => {
@@ -111,6 +114,71 @@ test('resolve file', async () => {
   })
 })
 
+testOnWindows('preserve a cross-root UNC tarball path without preserveAbsolutePaths', () => {
+  const uncPath = '//server/share/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = 'C:/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `file:${uncPath}`,
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('relativize a UNC tarball path on the same share', () => {
+  const uncPath = '//server/share/project/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: 'pnpm-local-resolver-0.1.1.tgz',
+    fetchSpec: path.normalize(uncPath),
+    id: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('relativize a UNC tarball path from the share root', () => {
+  const uncPath = '//server/share/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: 'pnpm-local-resolver-0.1.1.tgz',
+    fetchSpec: path.normalize(uncPath),
+    id: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('preserve a UNC tarball path on a different share of the same server', () => {
+  const uncPath = '//server/share2/pnpm-local-resolver-0.1.1.tgz'
+  const projectDir = '//server/share1/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `file:${uncPath}`,
+    normalizedBareSpecifier: `file:${uncPath}`,
+  }))
+})
+
+testOnWindows('preserve a UNC directory path on a different share of the same server', () => {
+  const uncPath = '//server/share2/package'
+  const projectDir = '//server/share1/project'
+  const spec = parseLocalPath({ bareSpecifier: uncPath }, projectDir, projectDir, { preserveAbsolutePaths: false })
+
+  expect(spec).toEqual(expect.objectContaining({
+    dependencyPath: uncPath,
+    fetchSpec: path.normalize(uncPath),
+    id: `link:${uncPath}`,
+    normalizedBareSpecifier: `link:${uncPath}`,
+  }))
+})
+
 test("resolve file when lockfile directory differs from the package's dir", async () => {
   const wantedDependency = { bareSpecifier: './pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocalPath({}, wantedDependency, {
@@ -208,6 +276,69 @@ test('resolve file with different integrity (forceFetch)', async () => {
   })
 })
 
+test('resolve file falling back to currentPkg when file does not exist on disk and not updating', async () => {
+  const wantedDependency = { bareSpecifier: 'file:./non-existent.tgz' }
+  const resolveResult = await resolveFromLocalScheme({}, wantedDependency, {
+    projectDir: TEST_DIR,
+    currentPkg: {
+      id: 'file:non-existent.tgz' as any, // eslint-disable-line
+      resolution: {
+        tarball: 'file:non-existent.tgz',
+        integrity: 'sha512-SAVED_INTEGRITY',
+      },
+    },
+  })
+
+  expect(resolveResult).toEqual({
+    id: 'file:non-existent.tgz',
+    normalizedBareSpecifier: 'file:non-existent.tgz',
+    resolution: {
+      integrity: 'sha512-SAVED_INTEGRITY',
+      tarball: 'file:non-existent.tgz',
+    },
+    resolvedVia: 'local-filesystem',
+  })
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:non-existent.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:non-existent.tgz',
+          integrity: 'sha512-SAVED_INTEGRITY',
+        },
+      },
+      update: 'latest',
+    })
+  ).rejects.toThrow('ENOENT')
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:non-existent.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:non-existent.tgz',
+        },
+      },
+    })
+  ).rejects.toThrow('ENOENT')
+
+  await expect(
+    resolveFromLocalScheme({}, wantedDependency, {
+      projectDir: TEST_DIR,
+      currentPkg: {
+        id: 'file:other-pkg.tgz' as any, // eslint-disable-line
+        resolution: {
+          tarball: 'file:other-pkg.tgz',
+          integrity: 'sha512-SAVED_INTEGRITY',
+        },
+      },
+    })
+  ).rejects.toThrow('ENOENT')
+})
+
 test('fail when resolving tarball specified with the link: protocol', async () => {
   const wantedDependency = { bareSpecifier: 'link:./pnpm-local-resolver-0.1.1.tgz' }
   await expect(
@@ -229,7 +360,6 @@ test('do not fail when resolving from not existing directory', async () => {
   const resolveResult = await resolveFromLocalScheme({}, wantedDependency, { projectDir: import.meta.dirname })
   expect(resolveResult?.manifest).toStrictEqual({
     name: 'dir-does-not-exist',
-    version: '0.0.0',
   })
   expect(logger.warn).toHaveBeenCalledWith({
     message: `Installing a dependency from a non-existent directory: ${path.join(import.meta.dirname, './dir-does-not-exist')}`,
@@ -285,7 +415,7 @@ test('resolveFromLocalPath claims a tarball whatever case its suffix is in', asy
 // with `ends_with(".tar.gz")`. A directory whose name merely looks like one is
 // a directory.
 test('isLocalFilesystemSpecifier reads a tarball suffix literally', () => {
-  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ']) {
+  for (const specifier of ['pkg.tgz', 'pkg.tar.gz', 'pkg.tar', 'PKG.TAR.GZ', 'pkg.tar.bz2', 'pkg.tbz2', 'pkg.tbz', 'PKG.TAR.BZ2']) {
     expect([specifier, isLocalFilesystemSpecifier(specifier)]).toEqual([specifier, true])
   }
   for (const specifier of ['pkg.tarXgz', 'pkg.tar-gz']) {
@@ -306,3 +436,13 @@ test('barePathIsUnambiguous recognizes only path-prefixed specifiers', () => {
     expect([specifier, barePathIsUnambiguous(specifier)]).toEqual([specifier, false])
   }
 })
+
+test('resolveFromLocalPath claims a forward-slash separated path', async () => {
+  const dir = tempDir(false)
+  const pkgDir = path.join(dir, 'nested/pkg')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'nested-pkg', version: '1.0.0' }))
+  const result = await resolveFromLocalPath({}, { bareSpecifier: 'nested/pkg' }, { projectDir: dir })
+  expect(result?.manifest?.name).toBe('nested-pkg')
+})
+

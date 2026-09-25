@@ -67,6 +67,7 @@ async-trait = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }
 insta = { workspace = true }
+junction = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }
 pretty_assertions = { workspace = true }

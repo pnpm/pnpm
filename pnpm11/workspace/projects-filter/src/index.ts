@@ -1,11 +1,13 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
 import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { isSubdir } from 'is-subdir'
 import * as micromatch from 'micromatch'
-import { difference, partition, pick } from 'ramda'
+import { partition, pick } from 'ramda'
 
+import { formatDirGlob, formatDirGlobCandidate } from './dirGlob.js'
 import { filterProjectsBySelectorObjectsFromDir } from './filterProjectsFromDir.js'
 import { getChangedProjects } from './getChangedProjects.js'
 import { parseProjectSelector, type ProjectSelector } from './parseProjectSelector.js'
@@ -47,6 +49,7 @@ export interface ReadProjectsResult {
 }
 
 export interface FilterProjectsOptions {
+  catalogs?: Catalogs
   linkWorkspacePackages?: boolean
   prefix: string
   workspaceDir: string
@@ -67,12 +70,16 @@ export async function filterProjectsFromDir (
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
+    modulesDir?: string
+    modulesDirsByProjectName?: Record<string, string>
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<FilterProjectsFromDirResult> {
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     engineStrict: opts?.engineStrict,
     patterns: opts.patterns,
+    modulesDir: opts.modulesDir,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
     supportedArchitectures: opts.supportedArchitectures,
@@ -111,6 +118,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   projects: Pkg[],
   projectSelectors: ProjectSelector[],
   opts: {
+    catalogs?: Catalogs
     linkWorkspacePackages?: boolean
     workspaceDir: string
     testPattern?: string[]
@@ -128,7 +136,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
 
   if ((allProjectSelectors.length > 0) || (prodProjectSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<Pkg> | undefined
-    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allProjectSelectors.length > 0) {
       filteredGraph = await filterWorkspaceProjects(graph, allProjectSelectors, {
@@ -143,7 +151,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
     let prodGraph: ProjectGraph<Pkg> | undefined
 
     if (prodProjectSelectors.length > 0) {
-      prodGraph = createProjectsGraph<Pkg>(projects, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
+      prodGraph = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
       prodFilteredGraph = await filterWorkspaceProjects(prodGraph, prodProjectSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -172,7 +180,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
       ],
     }
   } else {
-    const { graph } = createProjectsGraph<Pkg>(projects, { linkWorkspacePackages: opts.linkWorkspacePackages })
+    const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
@@ -190,21 +198,57 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   selectedProjectsGraph: ProjectGraph<Pkg>
   unmatchedFilters: string[]
 }> {
-  const [excludeSelectors, includeSelectors] = partition<ProjectSelector>(
-    (selector: ProjectSelector) => selector.exclude === true,
-    projectSelectors
-  )
+  if (projectSelectors.length === 0) {
+    return {
+      selectedProjectsGraph: projectsGraph,
+      unmatchedFilters: [],
+    }
+  }
+
+  interface SelectorChunk {
+    exclude: boolean
+    selectors: ProjectSelector[]
+  }
+
+  const chunks: SelectorChunk[] = []
+  for (const selector of projectSelectors) {
+    const last = chunks[chunks.length - 1]
+    if (last && last.exclude === Boolean(selector.exclude)) {
+      last.selectors.push(selector)
+    } else {
+      chunks.push({
+        exclude: Boolean(selector.exclude),
+        selectors: [selector],
+      })
+    }
+  }
+
   const fg = _filterGraph.bind(null, projectsGraph, opts)
-  const include = includeSelectors.length === 0
-    ? { selected: Object.keys(projectsGraph), unmatchedFilters: [] }
-    : await fg(includeSelectors)
-  const exclude = await fg(excludeSelectors)
+  const selectedDirs = new Set<ProjectRootDir>(
+    chunks[0].exclude ? (Object.keys(projectsGraph) as ProjectRootDir[]) : []
+  )
+  const unmatchedFilters: string[] = []
+
+  for (const chunk of chunks) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await fg(chunk.selectors)
+    unmatchedFilters.push(...result.unmatchedFilters)
+    if (chunk.exclude) {
+      for (const dir of result.selected) {
+        selectedDirs.delete(dir)
+      }
+    } else {
+      for (const dir of result.selected) {
+        selectedDirs.add(dir)
+      }
+    }
+  }
+
+  const validDirs = Array.from(selectedDirs).filter((dir) => projectsGraph[dir] != null)
+
   return {
-    selectedProjectsGraph: pick(
-      difference(include.selected, exclude.selected) as ProjectRootDir[],
-      projectsGraph
-    ),
-    unmatchedFilters: [...include.unmatchedFilters, ...exclude.unmatchedFilters],
+    selectedProjectsGraph: pick(validDirs, projectsGraph),
+    unmatchedFilters,
   }
 }
 
@@ -240,9 +284,12 @@ async function _filterGraph<Pkg extends BaseProject> (
         Object.keys(projectsGraph) as ProjectRootDir[],
         selector.diff,
         {
+          allProjects: Object.values(projectsGraph).map((node) => node.package),
           changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
           testPattern: opts.testPattern,
-          workspaceDir: selector.parentDir ?? opts.workspaceDir,
+          useGlobDirFiltering: selector.useGlobDirFiltering ?? opts.useGlobDirFiltering,
+          workingDir: selector.parentDir,
+          workspaceDir: opts.workspaceDir,
         }
       )
       selectEntries({
@@ -350,8 +397,8 @@ function matchProjectsByGlob<Pkg extends BaseProject> (
   pathStartsWith: string
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
-  const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(parentDir, formattedFilter, { format }))
+  const formattedFilter = formatDirGlob(pathStartsWith)
+  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(formatDirGlobCandidate(parentDir), formattedFilter, { format }))
 }
 
 function pickSubgraph (

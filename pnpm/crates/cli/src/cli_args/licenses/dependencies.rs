@@ -1,7 +1,7 @@
 use super::{
     BelongsTo, DepType, HashMap, Include, InstallabilityOptions, LicenseInfo, Lockfile, Ordering,
-    PackageKey, ResolvedDependencyMap, WantedPlatformRef, detect_dep_types,
-    platform_is_supported_with_inference,
+    PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, ResolvedDependencyMap, WantedPlatformRef,
+    detect_dep_types, platform_is_supported_with_inference,
 };
 
 pub(super) fn collect_dependencies(
@@ -9,7 +9,16 @@ pub(super) fn collect_dependencies(
     importer_ids: impl IntoIterator<Item = impl AsRef<str>>,
     include: Include,
     installability: &InstallabilityOptions<'_>,
+    peer_edge_options: PeerEdgeOptions,
 ) -> HashMap<PackageKey, BelongsTo> {
+    let peer_edges = PeerSatisfactionEdges::of_lockfile(lockfile, peer_edge_options);
+    let no_peer_edges = PeerSatisfactionEdges::default();
+    let walk = ClosureWalk {
+        lockfile,
+        include,
+        installability,
+        skipped_peer_edges: if include.excludes_a_group() { &peer_edges } else { &no_peer_edges },
+    };
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
     for id in importer_ids {
@@ -21,11 +30,11 @@ pub(super) fn collect_dependencies(
         queue_importer_deps(importer, include, &mut stack);
     }
 
-    walk_installed_closure(lockfile, include, installability, stack, &mut belongs_to);
+    walk.run(stack, &mut belongs_to);
 
     // A package reachable only through `devDependencies` is dev whatever
     // edge kind first reached it here.
-    let dep_types = detect_dep_types(lockfile);
+    let dep_types = detect_dep_types(lockfile, &peer_edges);
     for (key, belongs_to) in &mut belongs_to {
         *belongs_to = if dep_types.get(key) == Some(&DepType::DevOnly) {
             BelongsTo::Dev
@@ -37,30 +46,44 @@ pub(super) fn collect_dependencies(
     belongs_to
 }
 
-/// Walk the seeded stack, recording every package the install would
-/// materialize with the broadest edge kind that reaches it.
-fn walk_installed_closure(
-    lockfile: &Lockfile,
+/// The walk over the packages an install would materialize.
+struct ClosureWalk<'a> {
+    lockfile: &'a Lockfile,
     include: Include,
-    installability: &InstallabilityOptions<'_>,
-    mut stack: Vec<(PackageKey, BelongsTo)>,
-    belongs_to: &mut HashMap<PackageKey, BelongsTo>,
-) {
-    let empty_snapshots = HashMap::new();
-    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
-    while let Some((key, kind)) = stack.pop() {
-        if let Some(existing) = belongs_to.get(&key)
-            && *existing <= kind
-        {
-            continue;
-        }
-        let snapshot = snapshots.get(&key);
-        if snapshot_is_unsupported_optional(lockfile, &key, snapshot, installability) {
-            continue;
-        }
-        belongs_to.insert(key.clone(), kind);
-        if let Some(snapshot) = snapshot {
-            queue_snapshot_children(snapshot, kind, include, &mut stack);
+    installability: &'a InstallabilityOptions<'a>,
+    skipped_peer_edges: &'a PeerSatisfactionEdges,
+}
+
+impl ClosureWalk<'_> {
+    /// Walk the seeded stack, recording every package the install would
+    /// materialize with the broadest edge kind that reaches it.
+    fn run(
+        &self,
+        mut stack: Vec<(PackageKey, BelongsTo)>,
+        belongs_to: &mut HashMap<PackageKey, BelongsTo>,
+    ) {
+        let empty_snapshots = HashMap::new();
+        let snapshots = self.lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
+        while let Some((key, kind)) = stack.pop() {
+            if let Some(existing) = belongs_to.get(&key)
+                && *existing <= kind
+            {
+                continue;
+            }
+            let snapshot = snapshots.get(&key);
+            if snapshot_is_unsupported_optional(self.lockfile, &key, snapshot, self.installability)
+            {
+                continue;
+            }
+            if let Some(snapshot) = snapshot {
+                stack.extend(
+                    self.skipped_peer_edges
+                        .followed_entries(&key, snapshot, self.include.optional_dependencies)
+                        .filter_map(|(name, dep_ref)| dep_ref.resolve(name))
+                        .map(|child_key| (child_key, kind)),
+                );
+            }
+            belongs_to.insert(key, kind);
         }
     }
 }
@@ -87,27 +110,6 @@ fn queue_importer_deps(
     }
     if include.optional_dependencies {
         queue_deps(importer.optional_dependencies.as_ref(), BelongsTo::Optional);
-    }
-}
-
-/// One snapshot's children, inheriting the edge kind that reached it.
-fn queue_snapshot_children(
-    snapshot: &pnpm_lockfile::SnapshotEntry,
-    kind: BelongsTo,
-    include: Include,
-    stack: &mut Vec<(PackageKey, BelongsTo)>,
-) {
-    let optional = include.optional_dependencies.then_some(snapshot.optional_dependencies.as_ref());
-    for deps in [Some(snapshot.dependencies.as_ref()), optional]
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
-        for (name, dep_ref) in deps {
-            if let Some(child_key) = dep_ref.resolve(name) {
-                stack.push((child_key, kind));
-            }
-        }
     }
 }
 

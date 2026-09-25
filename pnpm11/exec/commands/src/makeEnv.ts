@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
+import { makePackageManagerEnv } from '@pnpm/exec.npm-lifecycle'
 import { prependDirsToPath } from '@pnpm/shell.path'
 
 export interface Env extends NodeJS.ProcessEnv {
@@ -24,9 +25,13 @@ export function makeEnv (
     }
   }
   const pathEnv = prependDirsToPath(opts.prependPaths)
-  return {
+  const env = {
     ...process.env,
     ...opts.extraEnv,
+  }
+  return {
+    ...env,
+    ...makePackageManagerEnv(env),
     npm_config_user_agent: opts.userAgent ?? 'pnpm',
     [pathEnv.name]: pathEnv.value,
   }

@@ -130,3 +130,12 @@ declare module 'picomatch' {
   const anything: any
   export = anything
 }
+
+declare module 'bz2' {
+  interface Bz2Exports {
+    decompress: (data: Uint8Array | Buffer) => Uint8Array
+  }
+  const bz2: Bz2Exports
+  export default bz2
+}
+

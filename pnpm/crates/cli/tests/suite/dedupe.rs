@@ -409,13 +409,13 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
         !output.status.success(),
         "dedupe must fail when strictPeerDependencies is true: {output:?}",
     );
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
-    assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
-    assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
-    assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
-    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stderr:\n{stderr}");
+    assert!(stderr.contains("Unmet peer dependencies"), "stderr:\n{stderr}");
+    assert!(stderr.contains("@pnpm.e2e/foo"), "stderr:\n{stderr}");
+    assert!(stderr.contains("Wanted:"), "stderr:\n{stderr}");
+    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("autoInstallPeers: true"), "stderr:\n{stderr}");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
@@ -460,10 +460,10 @@ fn dedupe_strict_failure_hints_at_auto_install_peers_for_a_missing_peer() {
         !output.status.success(),
         "dedupe must fail when strictPeerDependencies is true: {output:?}",
     );
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("missing peer"), "stdout:\n{stdout}");
-    assert!(stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("missing peer"), "stderr:\n{stderr}");
+    assert!(stderr.contains("autoInstallPeers: true"), "stderr:\n{stderr}");
+    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
 
     drop((root, mock_instance));
 }
@@ -880,5 +880,206 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
     for (path, snapshot) in lockfiles.iter().zip(snapshots) {
         assert_eq!(fs::read(path).unwrap(), snapshot);
     }
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn dedupe_warm_full_run_counts_each_reused_package_once() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    // Warm the store, mirroring the issue's `pnpm install --frozen-lockfile`
+    // setup step.
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--reporter=ndjson"])
+        .output()
+        .expect("run pnpm dedupe with the ndjson reporter");
+    assert!(output.status.success(), "dedupe must succeed: {output:?}");
+    assert!(output.stdout.is_empty(), "ndjson stdout: {output:?}");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    let records = stderr
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .collect::<Vec<_>>();
+    let package_ids = |status: &str| {
+        records
+            .iter()
+            .filter(|record| record["name"] == "pnpm:progress" && record["status"] == status)
+            .map(|record| {
+                record["packageId"]
+                    .as_str()
+                    .expect("packageId is a string")
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+    };
+    let resolved = package_ids("resolved");
+    let found_in_store = package_ids("found_in_store");
+    assert!(!resolved.is_empty(), "the warm dedupe run must resolve packages");
+    assert!(!found_in_store.is_empty(), "the warm dedupe run must report reused packages");
+    let mut unique_reused = found_in_store.clone();
+    unique_reused.sort();
+    unique_reused.dedup();
+    assert_eq!(
+        found_in_store.len(),
+        unique_reused.len(),
+        "each reused package must be reported exactly once: {found_in_store:?}",
+    );
+    assert!(
+        found_in_store.len() <= resolved.len(),
+        "reused ({}) must not exceed resolved ({})",
+        found_in_store.len(),
+        resolved.len(),
+    );
+    drop((root, npmrc_info));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/8867>: dedupe in a
+/// workspace with circular peer dependencies must terminate promptly and produce
+/// a clean, deduped lockfile without hanging or looping.
+#[test]
+fn dedupe_in_workspace_with_circular_peer_dependencies_terminates_promptly_and_dedupes() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nautoInstallPeers: false\n",
+    )
+    .expect("write workspace");
+
+    for (directory, dependencies) in [
+        (
+            "pkg-a",
+            serde_json::json!({
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/peer-c": "2.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+            }),
+        ),
+        (
+            "pkg-b",
+            serde_json::json!({
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0",
+            }),
+        ),
+    ] {
+        let project = workspace.join("packages").join(directory);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(
+            project.join("package.json"),
+            serde_json::json!({
+                "name": directory,
+                "version": "1.0.0",
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+    }
+
+    let pkg_b_manifest = workspace.join("packages/pkg-b/package.json");
+    fs::write(
+        &pkg_b_manifest,
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.1.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write initial pkg-b manifest");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    fs::write(
+        &pkg_b_manifest,
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/circular-peer-host": "1.0.0",
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write updated pkg-b manifest");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_text = fs::read_to_string(&lockfile_path).expect("read initial lockfile text");
+    fs::write(&lockfile_path, lockfile_text.replace("specifier: 100.1.0", "specifier: ^100.0.0"))
+        .expect("update lockfile specifier");
+    let initial_lockfile = read_lockfile(&lockfile_path);
+    assert_eq!(
+        importer_version(&initial_lockfile, "packages/pkg-a", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+    assert_eq!(
+        importer_version(&initial_lockfile, "packages/pkg-b", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.1.0",
+    );
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--check", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .code(1);
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .success();
+
+    assert_cmd::Command::from_std(pacquet_at(&workspace))
+        .args(["dedupe", "--check", "--lockfile-only"])
+        .timeout(std::time::Duration::from_mins(1))
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&lockfile_path);
+    let host = "@pnpm.e2e/circular-peer-host";
+    let deduped = "1.0.0(@pnpm.e2e/peer-c@2.0.0)";
+    assert_eq!(importer_version(&lockfile, "packages/pkg-a", host), deduped);
+    assert_eq!(importer_version(&lockfile, "packages/pkg-b", host), deduped);
+    assert_eq!(
+        importer_version(&lockfile, "packages/pkg-a", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+    assert_eq!(
+        importer_version(&lockfile, "packages/pkg-b", "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        "100.0.0",
+    );
+
     drop((root, npmrc_info));
 }

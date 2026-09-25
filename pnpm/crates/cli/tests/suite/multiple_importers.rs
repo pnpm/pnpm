@@ -362,6 +362,30 @@ fn resolve_a_subdependency_from_the_workspace() {
     fixture.run(["install", "--frozen-lockfile"]);
 }
 
+#[test]
+fn resolve_transitive_falls_back_to_registry_when_workspace_prerelease_mismatches() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("linkWorkspacePackages: deep\n");
+    fixture.project(
+        "project",
+        "project",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
+    set_version(&dep_project, "100.1.0-next.0");
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(subdependency, "100.1.0");
+}
+
 /// TS: `resolve a subdependency from the workspace, when it uses the
 /// workspace protocol` (`multipleImporters.ts:1563`). The `workspace:*`
 /// pin arrives through an override while `linkWorkspacePackages` is
@@ -598,6 +622,200 @@ fn symlink_local_package_from_publish_config_directory() {
     assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
 }
 
+/// pnpm/pnpm#8338: transitive dependencies and bins are accessible when using
+/// `publishConfig.directory` and `publishConfig.linkDirectory`.
+#[test]
+fn transitive_dependencies_and_bins_with_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello');")
+        .expect("write bin executable");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_1.join("dist/node_modules/is-positive").exists(),
+        "is-positive should exist under project-1/dist/node_modules",
+    );
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fs::remove_dir_all(project_1.join("dist/node_modules"))
+        .expect("remove project-1 dist node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "frozen install: project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+/// pnpm/pnpm#8338: a project whose manifest is `package.yaml` still exposes its
+/// bins through a manifest-less publish directory.
+#[test]
+fn bins_with_publish_config_directory_of_package_yaml_project() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({ "directory": "dist" });
+    project_1_manifest["bin"] = json!({ "project-1-bin": "./cli.js" });
+    // JSON is valid YAML.
+    fs::write(project_1.join("package.yaml"), project_1_manifest.to_string())
+        .expect("write package.yaml");
+    fs::remove_file(project_1.join("package.json")).expect("remove package.json");
+    fs::create_dir_all(project_1.join("dist")).expect("create publish directory");
+    fs::write(project_1.join("dist/cli.js"), "#!/usr/bin/env node\n").expect("write bin");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+/// pnpm/pnpm#8338: transitive dependencies and bins with nested publish directory and `./` prefix.
+#[test]
+fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "./dist/nested",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-nested-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist/nested");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('nested');")
+        .expect("write bin executable");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+        "project-1-nested-bin should be linked into project-2/node_modules/.bin",
+    );
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fs::remove_dir_all(project_1.join("dist/nested/node_modules"))
+        .expect("remove project-1 nested dist node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+
+    assert!(
+        project_2.join("node_modules/project-1/node_modules/is-positive").exists(),
+        "frozen install: is-positive should exist under project-2/node_modules/project-1/node_modules",
+    );
+    assert!(
+        project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+        "frozen install: project-1-nested-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+#[test]
+fn publish_config_directory_dependency_builds_in_correct_order() {
+    let fixture = WorkspaceFixture::new();
+    let dependency = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let dependent = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { dev: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut dep_manifest = read_manifest(&dependency);
+    dep_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    dep_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-1-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependency, &dep_manifest);
+
+    let mut dependent_manifest = read_manifest(&dependent);
+    dependent_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-2-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependent, &dependent_manifest);
+
+    let order_path = fixture.workspace.join("order.txt");
+    let mut expected = ["project-1-prepare", "project-2-prepare"].join("\n");
+    expected.push('\n');
+
+    fixture.run(["install"]);
+    assert_eq!(fs::read_to_string(&order_path).expect("read fresh lifecycle order"), expected);
+
+    fs::remove_file(&order_path).expect("reset lifecycle order");
+    for modules_dir in [
+        fixture.workspace.join("node_modules"),
+        dependency.join("node_modules"),
+        dependent.join("node_modules"),
+    ] {
+        if modules_dir.exists() {
+            fs::remove_dir_all(modules_dir).expect("remove node_modules");
+        }
+    }
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_eq!(fs::read_to_string(order_path).expect("read frozen lifecycle order"), expected);
+}
+
 /// TS: `recursive install with shared-workspace-lockfile builds
 /// workspace projects in correct order` (`pnpm/test/monorepo/index.ts:734`).
 #[test]
@@ -779,4 +997,152 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     fs::remove_dir_all(project.join("node_modules")).expect("remove the project's node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_recorded_virtual_store("frozen");
+}
+
+#[test]
+fn secondary_dependency_resolves_to_local_project_direct_dep_version_pnpm_7191() {
+    let fixture = WorkspaceFixture::new();
+    let _project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0"), (PARENT, "100.0.0")], ..Default::default() },
+    );
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&dep_pkg_name))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(
+        subdependency, "100.0.0",
+        "transitive dependency of pkg-with-1-dep under project-1 must reuse 100.0.0, NOT 100.1.0 from project-2",
+    );
+}
+
+#[test]
+fn adding_an_unrelated_dependency_does_not_reresolve_existing_dependency_to_sibling_version() {
+    let fixture = WorkspaceFixture::new();
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-1", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+
+    fs::write(
+        project_1.join("package.json"),
+        serde_json::to_string_pretty(&json!({
+            "name": "project-1",
+            "dependencies": { DEP: "^100.0.0" }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-2", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    fixture.run(["--filter", "project-1", "add", "is-positive@1.0.0"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
 }

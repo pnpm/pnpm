@@ -284,6 +284,11 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
+        // Registered before the create so a signal landing between the two
+        // cannot leave the fresh temp file behind. A failed create means
+        // the path was never ours, so the guard releases the slot without
+        // unlinking anything.
+        let pending_temp = pnpm_fs::track_temp_file(&tmp);
 
         let mut file = match OpenOptions::new()
             .write(true)
@@ -293,8 +298,10 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed
-                // at the colliding path. Don't touch whatever is there;
-                // retry with a fresh counter.
+                // at the colliding path. Release the registration before
+                // anything else, so an interrupt cannot unlink a file this
+                // process never created, and retry with a fresh counter.
+                drop(pending_temp);
                 last_already_exists = Some(error);
                 continue;
             }
@@ -325,8 +332,12 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     })))
 }
 
+/// Rename the temp file over `target`. On Windows, another process holding
+/// `target` open without delete sharing (an editor, an indexer, antivirus)
+/// fails the rename until it lets go, so transient lock errors are retried
+/// with the policy of [`pnpm_fs::rename_with_retry`].
 fn commit_temp_file(tmp: PathBuf, target: &Path) -> Result<(), SaveLockfileError> {
-    fs::rename(&tmp, target)
+    pnpm_fs::rename_with_retry(&tmp, target)
         .map_err(|error| {
             // Best-effort cleanup so a failed rename doesn't leak temp
             // files in the virtual store.

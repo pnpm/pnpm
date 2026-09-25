@@ -13,7 +13,10 @@ use serde::{
     Deserialize, Deserializer, Serialize,
     de::{MapAccess, SeqAccess, Visitor, value::SeqAccessDeserializer},
 };
-use std::{fmt, path::Path};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 
 /// The settings one `packageConfigs` entry may set.
 ///
@@ -51,6 +54,27 @@ pub struct ProjectConfig {
 }
 
 impl ProjectConfig {
+    /// The modules directory the entry gives a project at
+    /// `project_dir`, or [`None`] when it sets no `modulesDir`. The
+    /// same resolution the workspace-wide setting gets.
+    pub(crate) fn modules_dir_for(&self, project_dir: &Path) -> Option<PathBuf> {
+        self.modules_dir.as_deref().map(|raw| super::resolve(project_dir, raw))
+    }
+
+    /// What [`Config::modules_dir_name`] is for the project this entry
+    /// moves the modules directory of.
+    pub(crate) fn modules_dir_name_for(
+        &self,
+        project_dir: &Path,
+    ) -> Option<std::borrow::Cow<'_, std::ffi::OsStr>> {
+        let raw = self.modules_dir.as_deref()?;
+        let modules_dir = super::resolve(project_dir, raw);
+        Some(match crate::layout::project_relative_modules_dir(raw, &modules_dir) {
+            Some(relative) => std::borrow::Cow::Borrowed(relative.as_os_str()),
+            None => std::borrow::Cow::Owned(modules_dir.file_name()?.to_os_string()),
+        })
+    }
+
     /// Overlay the settings onto `config`, resolving a relative
     /// `modulesDir` against `project_dir`.
     ///
@@ -64,19 +88,14 @@ impl ProjectConfig {
                 config.hoist_pattern = None;
             }
         }
-        if let Some(modules_dir) = self.modules_dir {
-            // The same resolution the top-level `modulesDir` gets, so a
-            // project entry and the workspace-wide setting read a value
-            // the same way.
-            config.modules_dir = super::resolve(project_dir, &modules_dir);
-            // The same derivation `anchor_lockfile_paths` runs: the
-            // virtual store follows the modules dir unless the
-            // workspace pinned it, and a global virtual store is
-            // store-anchored and follows nothing.
-            if !config.enable_global_virtual_store
-                && !config.explicit_settings.contains_key("virtualStoreDir")
-            {
-                config.virtual_store_dir = config.modules_dir.join(".pnpm");
+        if let Some(modules_dir) = self.modules_dir_for(project_dir) {
+            config.modules_dir = modules_dir;
+            config.follow_modules_dir_with_virtual_store();
+            if let Some(raw) = self.modules_dir {
+                config.explicit_settings.insert(
+                    "modulesDir".to_string(),
+                    serde_json::Value::String(raw),
+                );
             }
         }
         if let Some(overrides) = self.overrides {

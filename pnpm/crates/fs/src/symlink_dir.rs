@@ -41,6 +41,28 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
 }
 
+/// Create a directory link at `link` holding `contents` as given, which
+/// may be relative to the link.
+///
+/// On Windows a process that may not create symlinks gets a junction
+/// instead, which only holds an absolute path, so `original` has to be the
+/// absolute path `contents` resolves to from where the link finally lives.
+pub fn symlink_dir_with_contents(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        let _ = original;
+        std::os::unix::fs::symlink(contents, link)
+    }
+    #[cfg(windows)]
+    {
+        windows::create_with_contents(
+            &to_native_separators(original),
+            &to_native_separators(contents),
+            &to_native_separators(link),
+        )
+    }
+}
+
 /// Rewrite every `/` in `path` to the native `\` on Windows.
 ///
 /// A scoped alias like `@scope/name` is joined into a path as a single
@@ -66,7 +88,7 @@ pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     // path `components` treats `/` as a literal byte and leaves it in
     // place. Package paths are valid Unicode, so `to_str` succeeds.
     match path.to_str() {
-        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', "\\"))),
+        Some(s) => Cow::Owned(PathBuf::from(s.replace('/', r"\"))),
         None => Cow::Borrowed(path),
     }
 }
@@ -99,7 +121,7 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
     {
         // Check the symlink case first so a true symlink never reaches
         // `junction::exists`.
-        if link.is_symlink() {
+        if crate::symlink_metadata_with_retry(link)?.file_type().is_symlink() {
             return Ok(true);
         }
         // `junction::exists` reports a path that is not a reparse point
@@ -107,7 +129,7 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
         // rather than `Ok(false)`; for this question that is a plain
         // "no".
         const ERROR_NOT_A_REPARSE_POINT: i32 = 4390;
-        match junction::exists(link) {
+        match crate::retry::retry_transient_file_locks(|| junction::exists(link)) {
             Ok(is_junction) => Ok(is_junction),
             Err(error) if error.raw_os_error() == Some(ERROR_NOT_A_REPARSE_POINT) => Ok(false),
             Err(error) => Err(error),
@@ -128,11 +150,10 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
 /// `ERROR_ACCESS_DENIED`. Wrapping the platform split here keeps
 /// callers free of `#[cfg]`.
 ///
-/// On Windows the unlink follows the retry policy of
-/// [`crate::rename_with_retry`].
+/// The unlink follows the retry policy of [`crate::rename_with_retry`].
 pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
     #[cfg(unix)]
-    return std::fs::remove_file(link);
+    return retry_transient_file_locks(|| std::fs::remove_file(link));
     #[cfg(windows)]
     return retry_transient_file_locks(|| std::fs::remove_dir(link));
 }
@@ -347,8 +368,8 @@ mod windows {
     };
 
     /// Cached choice of writer. `UNDECIDED` until the first successful
-    /// call resolves the EPERM probe; afterward `USE_SYMLINK` or
-    /// `USE_JUNCTION`. Caching the winning branch after the first call
+    /// call resolves the EPERM probe; afterward [`USE_SYMLINK`] or
+    /// [`USE_JUNCTION`]. Caching the winning branch after the first call
     /// avoids re-probing on every subsequent symlink.
     const UNDECIDED: u8 = 0;
     const USE_SYMLINK: u8 = 1;
@@ -372,7 +393,11 @@ mod windows {
         create_with_contents(original, original, link)
     }
 
-    fn create_with_contents(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
+    pub(super) fn create_with_contents(
+        original: &Path,
+        contents: &Path,
+        link: &Path,
+    ) -> io::Result<()> {
         match MODE.load(Ordering::Relaxed) {
             USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
                 Err(error) if should_fallback_to_junction(&error) => {

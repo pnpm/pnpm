@@ -17,20 +17,18 @@ pub(super) fn merge_missing_peers(
             intersections.insert(peer_name.clone(), issues[0].wanted_range.clone());
             continue;
         }
-        let ranges: Vec<&str> = issues
+        let mut seen: HashSet<&str> = HashSet::new();
+        let unique_ranges: Vec<String> = issues
             .iter()
             .map(|issue| issue.wanted_range.as_str())
+            .filter(|range| seen.insert(range))
+            .map(str::to_string)
             .collect();
-        let unique: HashSet<&&str> = ranges.iter().collect();
-        if unique.len() == 1 {
+        if unique_ranges.len() == 1 {
             intersections.insert(peer_name.clone(), issues[0].wanted_range.clone());
             continue;
         }
-        let range_owned: Vec<String> = issues
-            .iter()
-            .map(|issue| issue.wanted_range.clone())
-            .collect();
-        if let Some(intersection_str) = intersect_multiple_ranges(&range_owned) {
+        if let Some(intersection_str) = intersect_multiple_ranges(&unique_ranges) {
             intersections.insert(peer_name.clone(), intersection_str);
         } else {
             conflicts.push(peer_name.clone());

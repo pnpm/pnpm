@@ -59,6 +59,38 @@ describeOnWindows('sh shim wrapping a .cmd target invoked from Git Bash', () => 
   })
 })
 
+describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {
+  // Regression for pnpm/pnpm#3360: a shim written outside MSYS used to bake
+  // NODE_PATH as /mnt/c/..., which MSYS turns into a path under the Git
+  // install directory before node starts. The shim now passes the Windows form.
+  const bash = process.env.PROGRAMFILES
+    ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+    : 'bash'
+  const runShim = async (inheritedNodePath) => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'print.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(process.env.NODE_PATH)\n', 'utf8')
+    const nodePath = path.join(tempDir, 'node_modules')
+    const shim = path.join(tempDir, 'shim')
+    await cmdShim(target, shim, { nodePath: [nodePath] })
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toUpperCase() !== 'NODE_PATH'))
+    if (inheritedNodePath != null) env.NODE_PATH = inheritedNodePath
+    const r = spawnSync(bash, ['--noprofile', '--norc', shim], { encoding: 'utf8', env })
+    assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+    return { nodePath, stdout: r.stdout }
+  }
+
+  test('passes the Windows form of the shim entries to node', async () => {
+    const { nodePath, stdout } = await runShim()
+    assert.equal(stdout, nodePath)
+  })
+
+  test('prepends the shim entries to an inherited NODE_PATH with a semicolon', async () => {
+    const { nodePath, stdout } = await runShim('C:\\inherited\\node_modules')
+    assert.equal(stdout, `${nodePath};C:\\inherited\\node_modules`)
+  })
+})
+
 describeOnPosix('sh shim binstub uses exec', () => {
   // Regression for the binstub bug: without `exec`, the shell process
   // wraps the wrapped binary, so signals sent to the shim do not reach
@@ -280,6 +312,57 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     const binDir = await makeShimmedTool(tempDir)
 
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
+  })
+
+  // Where no default path is compiled in, as on Nix, command -p searches the
+  // caller's PATH. No test host behaves that way, so the shim's command -p is
+  // rewritten to the plain command such a shell amounts to.
+  test('skips node_modules and relative PATH entries when command -p searches PATH', async () => {
+    const tempDir = temporaryDirectory()
+    const binDir = await makeShimmedTool(tempDir)
+    const shim = path.join(binDir, 'tsc')
+    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'command '))
+    const decoyDir = plantHijackTreeAndDecoys(tempDir)
+    const callersPath = [path.dirname(process.execPath), process.env.PATH].join(path.delimiter)
+    const run = (PATH, cwd) => spawnSync(path.join(binDir, 'tsc-link'), [], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PATH },
+    }).stdout.trim()
+
+    assert.equal(
+      run([decoyDir, callersPath].join(path.delimiter), tempDir),
+      'hijacked',
+      'precondition: the rewritten shim resolves its helpers through PATH'
+    )
+    const nodeModulesBin = path.join(tempDir, 'proj', 'node_modules', '.bin')
+    fs.mkdirSync(path.dirname(nodeModulesBin), { recursive: true })
+    fs.renameSync(decoyDir, nodeModulesBin)
+    assert.equal(
+      run([nodeModulesBin, callersPath].join(path.delimiter), tempDir),
+      'tsc-output',
+      'the shim took a helper from a node_modules entry of PATH'
+    )
+    assert.equal(
+      run(['.bin', callersPath].join(path.delimiter), path.dirname(nodeModulesBin)),
+      'tsc-output',
+      'the shim took a helper from a relative entry of PATH'
+    )
+    assert.equal(
+      run(['', callersPath].join(path.delimiter), nodeModulesBin),
+      'tsc-output',
+      'the shim took a helper from an empty entry of PATH'
+    )
+    // Nothing survives the filter here, and an empty PATH would search the
+    // current directory, which holds the decoys.
+    fs.mkdirSync(path.join(nodeModulesBin, 'node-dir'))
+    fs.symlinkSync(process.execPath, path.join(nodeModulesBin, 'node-dir', 'node'))
+    assert.notEqual(
+      run('node-dir', nodeModulesBin),
+      'hijacked',
+      'the shim took a helper from the current directory'
+    )
   })
 })
 

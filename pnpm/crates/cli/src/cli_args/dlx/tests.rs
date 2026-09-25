@@ -1,10 +1,15 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
-use crate::cli_args::dlx::cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir};
+use crate::cli_args::dlx::{
+    cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir},
+    clean::clean_expired_dlx_cache,
+};
 use clap::Parser;
+use pnpm_fs::force_symlink_dir;
 use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 use std::{
     collections::BTreeMap,
     fs,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 use tempfile::tempdir;
@@ -59,20 +64,21 @@ fn regs(default: &str) -> BTreeMap<String, String> {
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
     let key_forward =
-        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None);
+        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None, None);
     let key_reversed =
-        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None);
+        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None, None);
     assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
-    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None);
+    let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None, None);
     assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
 fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
-    let key_default = create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None);
-    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None);
+    let key_default =
+        create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None, None);
+    let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None, None);
     assert_ne!(key_default, key_custom, "a different registry must produce a different key");
 }
 
@@ -80,8 +86,9 @@ fn create_cache_key_depends_on_registry() {
 fn create_cache_key_changes_with_allow_build() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None);
-    let key_with_allow = create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None);
+    let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None, None);
+    let key_with_allow =
+        create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None, None);
     assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
 }
 
@@ -90,9 +97,9 @@ fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
     let key_forward =
-        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None);
+        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None, None);
     let key_reversed =
-        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None);
+        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None, None);
     assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
@@ -100,7 +107,7 @@ fn create_cache_key_allow_build_is_order_independent() {
 fn create_cache_key_changes_with_supported_architectures() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None);
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
 
     let arm = SupportedArchitectures::Axes(ArchitectureAxes {
         cpu: Some(vec!["arm64".to_string()]),
@@ -110,8 +117,8 @@ fn create_cache_key_changes_with_supported_architectures() {
         cpu: Some(vec!["x64".to_string()]),
         ..Default::default()
     });
-    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm));
-    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64));
+    let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm), None);
+    let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64), None);
 
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
@@ -122,7 +129,7 @@ fn create_cache_key_changes_with_supported_architectures() {
     });
     assert_eq!(
         key_arm,
-        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup)),
+        create_cache_key(&pkgs, &regs(registry), &[], Some(&arm_dup), None),
         "duplicate cpu values must not change the key",
     );
 }
@@ -131,7 +138,7 @@ fn create_cache_key_changes_with_supported_architectures() {
 fn create_cache_key_changes_with_the_platforms_it_names() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let base = create_cache_key(&pkgs, &regs(registry), &[], None);
+    let base = create_cache_key(&pkgs, &regs(registry), &[], None, None);
     let listed = |platforms: &[&str]| {
         SupportedArchitectures::Platforms(
             platforms
@@ -140,7 +147,7 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
                 .collect(),
         )
     };
-    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported));
+    let key = |supported| create_cache_key(&pkgs, &regs(registry), &[], Some(supported), None);
 
     let linux = listed(&["linux-x64"]);
     let darwin = listed(&["darwin-arm64"]);
@@ -234,6 +241,283 @@ fn get_valid_cache_dir_honors_max_age() {
 
     let past = mtime + Duration::from_mins(1441);
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
+}
+
+fn cache_entry(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
+    let prepare_dir = prepare_dir(cache_dir, key, prepare);
+    force_symlink_dir(&prepare_dir, &entry_dir(cache_dir, key).join("pkg"))
+        .expect("point pkg at the prepare dir");
+    prepare_dir
+}
+
+fn prepare_dir(cache_dir: &Path, key: &str, prepare: &str) -> PathBuf {
+    let prepare_dir = entry_dir(cache_dir, key).join(prepare);
+    fs::create_dir_all(&prepare_dir).expect("create the prepare dir");
+    prepare_dir
+}
+
+fn entry_dir(cache_dir: &Path, key: &str) -> PathBuf {
+    cache_dir.join("dlx").join(key)
+}
+
+fn link_mtime(cache_dir: &Path, key: &str) -> SystemTime {
+    fs::symlink_metadata(entry_dir(cache_dir, key).join("pkg"))
+        .expect("lstat the pkg link")
+        .modified()
+        .expect("pkg link mtime")
+}
+
+fn entry_mtime(cache_dir: &Path, key: &str) -> SystemTime {
+    fs::symlink_metadata(entry_dir(cache_dir, key))
+        .expect("lstat the entry")
+        .modified()
+        .expect("entry mtime")
+}
+
+#[test]
+fn clean_expired_dlx_cache_reclaims_an_entry_that_outlived_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(8);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(!dir.path().join("dlx/key").exists(), "the expired entry must be removed");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_an_entry_inside_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key");
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(dir.path().join("dlx/key").exists(), "an entry inside max age must survive");
+    assert!(dir.path().join("dlx/key/1-1").exists(), "the prepare dir it points at must survive");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_an_entry_exactly_at_max_age() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(
+        dir.path().join("dlx/key").exists(),
+        "an entry exactly at dlxCacheMaxAge is still fresh",
+    );
+}
+
+#[test]
+fn clean_expired_dlx_cache_removes_every_entry_at_max_age_zero() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "first", "1-1");
+    cache_entry(dir.path(), "second", "2-2");
+    let stray_file = dir.path().join("dlx/stray-file");
+    fs::write(&stray_file, "noise").expect("write a file among the entries");
+
+    let now = link_mtime(dir.path(), "first").max(link_mtime(dir.path(), "second"));
+    clean_expired_dlx_cache(dir.path(), 0, now).expect("clean the dlx cache");
+
+    assert!(!dir.path().join("dlx/first").exists(), "a zero max age expires every entry");
+    assert!(!dir.path().join("dlx/second").exists(), "a zero max age expires every entry");
+    assert!(stray_file.exists(), "a file directly under dlx is not a cache entry");
+}
+
+#[test]
+fn clean_expired_dlx_cache_is_a_no_op_without_a_dlx_dir() {
+    let dir = tempdir().expect("temp dir");
+
+    clean_expired_dlx_cache(dir.path(), 7, SystemTime::now())
+        .expect("a missing dlx dir is not an error");
+}
+
+#[test]
+fn clean_expired_dlx_cache_errors_when_dlx_is_not_a_directory() {
+    let dir = tempdir().expect("temp dir");
+    fs::write(dir.path().join("dlx"), "not a directory").expect("write a dlx file");
+
+    assert!(
+        clean_expired_dlx_cache(dir.path(), 7, SystemTime::now()).is_err(),
+        "a dlx path that cannot be enumerated must surface the error",
+    );
+}
+
+#[test]
+fn clean_expired_dlx_cache_does_not_follow_a_linked_dlx_root() {
+    let dir = tempdir().expect("temp dir");
+    let outside = tempdir().expect("outside temp dir");
+    let outside_entry = outside.path().join("key").join("1-1");
+    fs::create_dir_all(&outside_entry).expect("create the outside entry");
+    force_symlink_dir(outside.path(), &dir.path().join("dlx")).expect("link dlx outside the cache");
+
+    clean_expired_dlx_cache(dir.path(), 0, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(outside_entry.exists(), "a linked dlx root must not lead the sweep outside the cache");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_a_prepare_dir_that_has_no_link_yet() {
+    let dir = tempdir().expect("temp dir");
+    let prepare = prepare_dir(dir.path(), "key", "1-1");
+
+    clean_expired_dlx_cache(dir.path(), 7, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(prepare.exists(), "a prepare dir a concurrent run is still filling must survive");
+}
+
+#[test]
+fn clean_expired_dlx_cache_reclaims_a_linkless_entry_once_it_outlives_max_age() {
+    let dir = tempdir().expect("temp dir");
+    let prepare = prepare_dir(dir.path(), "key", "1-1");
+
+    let now = entry_mtime(dir.path(), "key") + Duration::from_mins(8);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(!prepare.exists(), "a linkless entry that outlived max age must go");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_a_replacement_prepare_dir_while_the_link_is_stale() {
+    let dir = tempdir().expect("temp dir");
+    let stale = cache_entry(dir.path(), "key", "1-1");
+    // The replacement appears after the link was last repointed, so the link
+    // is expired while the entry itself is not.
+    std::thread::sleep(Duration::from_secs(1));
+    let replacement = prepare_dir(dir.path(), "key", "2-2");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7) + Duration::from_millis(500);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(dir.path().join("dlx/key").exists(), "the entry must survive while a run replaces it");
+    assert!(stale.exists(), "the target pkg still points at must survive");
+    assert!(replacement.exists(), "the replacement prepare dir must survive");
+}
+
+#[test]
+fn clean_expired_dlx_cache_reclaims_a_superseded_prepare_dir_once_it_outlives_max_age() {
+    let dir = tempdir().expect("temp dir");
+    let superseded = prepare_dir(dir.path(), "key", "1-1");
+    std::thread::sleep(Duration::from_secs(1));
+    let current = cache_entry(dir.path(), "key", "2-2");
+
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(current.exists(), "the prepare dir pkg points at must survive");
+    assert!(!superseded.exists(), "a superseded prepare dir that outlived max age must go");
+}
+
+#[test]
+fn clean_expired_dlx_cache_reclaims_an_entry_whose_pkg_is_not_a_symlink() {
+    let dir = tempdir().expect("temp dir");
+    let prepare = prepare_dir(dir.path(), "key", "1-1");
+    fs::write(entry_dir(dir.path(), "key").join("pkg"), "not a link").expect("write a pkg file");
+
+    let now = entry_mtime(dir.path(), "key") + Duration::from_mins(8);
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(!prepare.exists(), "an entry whose pkg is not a symlink must be reclaimed");
+}
+
+#[test]
+fn clean_expired_dlx_cache_keeps_fresh_orphans_under_a_broken_link() {
+    let dir = tempdir().expect("temp dir");
+    let gone = cache_entry(dir.path(), "key", "1-1");
+    fs::remove_dir_all(&gone).expect("remove the link target");
+    let orphan = prepare_dir(dir.path(), "key", "2-2");
+
+    clean_expired_dlx_cache(dir.path(), 7, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(
+        fs::symlink_metadata(entry_dir(dir.path(), "key").join("pkg")).is_ok(),
+        "the broken link must survive",
+    );
+    assert!(orphan.exists(), "a fresh prepare dir must survive a broken link");
+}
+
+#[cfg(unix)]
+fn with_mode<Output>(dir: &Path, mode: u32, body: impl FnOnce() -> Output) -> Output {
+    use std::os::unix::fs::PermissionsExt;
+    let original = fs::metadata(dir).expect("stat the directory").permissions();
+    fs::set_permissions(dir, fs::Permissions::from_mode(mode)).expect("set the directory mode");
+    let result = body();
+    fs::set_permissions(dir, original).expect("restore the directory mode");
+    result
+}
+
+#[cfg(unix)]
+#[test]
+fn clean_expired_dlx_cache_surfaces_a_removal_failure() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(8);
+
+    let result = with_mode(&entry_dir(dir.path(), "key"), 0o555, || {
+        clean_expired_dlx_cache(dir.path(), 7, now)
+    });
+
+    assert!(result.is_err(), "a directory that cannot be removed must surface the error");
+}
+
+#[cfg(unix)]
+#[test]
+fn clean_expired_dlx_cache_surfaces_a_pkg_stat_failure() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let result = with_mode(&entry_dir(dir.path(), "key"), 0o000, || {
+        clean_expired_dlx_cache(dir.path(), 7, SystemTime::now())
+    });
+
+    assert!(result.is_err(), "an unreadable pkg link must surface the error");
+}
+
+#[cfg(unix)]
+#[test]
+fn clean_expired_dlx_cache_surfaces_an_unsearchable_dlx_dir() {
+    let dir = tempdir().expect("temp dir");
+    cache_entry(dir.path(), "key", "1-1");
+
+    let result = with_mode(&dir.path().join("dlx"), 0o444, || {
+        clean_expired_dlx_cache(dir.path(), 7, SystemTime::now())
+    });
+
+    assert!(result.is_err(), "an unsearchable dlx dir must surface the error");
+}
+
+#[cfg(unix)]
+#[test]
+fn clean_expired_dlx_cache_surfaces_an_orphan_removal_failure() {
+    let dir = tempdir().expect("temp dir");
+    let orphan = prepare_dir(dir.path(), "key", "1-1");
+    std::thread::sleep(Duration::from_secs(1));
+    cache_entry(dir.path(), "key", "2-2");
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+
+    let result = with_mode(&entry_dir(dir.path(), "key"), 0o555, || {
+        clean_expired_dlx_cache(dir.path(), 7, now)
+    });
+
+    assert!(result.is_err(), "an orphan that cannot be removed must surface the error");
+    assert!(orphan.exists(), "the orphan must survive when its removal fails");
+}
+
+#[test]
+fn get_valid_cache_dir_treats_a_link_from_the_future_as_fresh() {
+    let dir = tempdir().expect("temp dir");
+    let prepare = prepare_dir(dir.path(), "key", "1-1");
+    let link = entry_dir(dir.path(), "key").join("pkg");
+    force_symlink_dir(&prepare, &link).expect("point pkg at the prepare dir");
+
+    let before = link_mtime(dir.path(), "key") - Duration::from_secs(1);
+    assert!(
+        get_valid_cache_dir(&link, 7, before).is_some(),
+        "a clock that reads before the link's mtime must not expire it",
+    );
 }
 
 #[expect(
@@ -373,4 +657,60 @@ fn only_managed_tools_are_provisioned_by_name() {
     assert!(PackageManager::Npm.bins().contains(&"npx"));
     assert!(PackageManager::Yarn.bins().contains(&"yarnpkg"));
     assert!(!PackageManager::Npm.bins().contains(&"yarn"));
+}
+
+#[cfg(windows)]
+#[test]
+fn clean_expired_dlx_cache_does_not_follow_a_junction_root() {
+    let dir = tempdir().expect("temp dir");
+    let outside = tempdir().expect("outside temp dir");
+    let outside_entry = outside.path().join("key").join("1-1");
+    fs::create_dir_all(&outside_entry).expect("create the outside entry");
+    create_junction(outside.path(), &dir.path().join("dlx"));
+
+    clean_expired_dlx_cache(dir.path(), 0, SystemTime::now()).expect("clean the dlx cache");
+
+    assert!(outside_entry.exists(), "a junction root must not lead cleanup outside the cache");
+}
+
+#[cfg(windows)]
+fn create_junction(target: &Path, link: &Path) {
+    let output = std::process::Command::new("cmd")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(link)
+        .arg(target)
+        .output()
+        .expect("create a junction");
+    assert!(output.status.success(), "mklink failed: {output:?}");
+}
+
+#[cfg(windows)]
+#[test]
+fn clean_expired_dlx_cache_reclaims_orphans_beside_a_pkg_junction() {
+    let dir = tempdir().expect("temp dir");
+    let orphan = prepare_dir(dir.path(), "key", "1-1");
+    std::thread::sleep(Duration::from_secs(1));
+    let current = prepare_dir(dir.path(), "key", "2-2");
+    let link = entry_dir(dir.path(), "key").join("pkg");
+    create_junction(&current, &link);
+    let now = link_mtime(dir.path(), "key") + Duration::from_mins(7);
+
+    clean_expired_dlx_cache(dir.path(), 7, now).expect("clean the dlx cache");
+
+    assert!(current.exists(), "the current junction target must survive");
+    assert!(!orphan.exists(), "the expired orphan beside a junction must be reclaimed");
+}
+
+#[cfg(windows)]
+#[test]
+fn get_valid_cache_dir_accepts_a_junction() {
+    let dir = tempdir().expect("temp dir");
+    let current = prepare_dir(dir.path(), "key", "1-1");
+    let link = entry_dir(dir.path(), "key").join("pkg");
+    create_junction(&current, &link);
+
+    assert_eq!(
+        get_valid_cache_dir(&link, 7, SystemTime::now()),
+        Some(dunce::canonicalize(current).expect("canonical cache path")),
+    );
 }

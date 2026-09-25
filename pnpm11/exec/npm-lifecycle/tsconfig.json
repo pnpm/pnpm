@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../cli/meta"
+    },
+    {
       "path": "../../core/error"
     }
   ]

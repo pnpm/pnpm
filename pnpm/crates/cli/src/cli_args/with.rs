@@ -78,6 +78,7 @@ impl WithArgs {
         let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
         let status = spawn_pnpm(&engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
+        drop(engine);
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.

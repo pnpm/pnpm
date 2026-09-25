@@ -227,6 +227,7 @@ fn cache_key_projects(request: &ResolveRequest) -> Vec<serde_json::Value> {
                 "dependencies": project.dependencies,
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,
+                "peerDependencies": project.peer_dependencies,
             })
         })
         .collect()

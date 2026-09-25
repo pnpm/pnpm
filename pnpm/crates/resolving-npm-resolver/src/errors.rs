@@ -2,7 +2,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_network::redact_and_sanitize;
+use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and
@@ -43,7 +43,7 @@ pub enum FetchMetadataError {
         url: String,
     },
 
-    #[display("Failed to fetch metadata from {url}: {error}")]
+    #[display("Failed to fetch metadata from {url}: {}", walk_reqwest_chain(error))]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
         url: String,
@@ -59,7 +59,7 @@ pub enum FetchMetadataError {
     /// re-fetch loop in the fetchers retries only this and
     /// [`FetchMetadataError::Decode`] — see
     /// [`FetchMetadataError::is_body_retryable`].
-    #[display("Failed to read metadata response body from {url}: {error}")]
+    #[display("Failed to read metadata response body from {url}: {}", walk_reqwest_chain(error))]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
     BodyRead {
         url: String,

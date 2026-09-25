@@ -3,7 +3,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
 use std::path::Path;
@@ -100,8 +100,8 @@ impl BugsArgs {
 }
 
 fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
-    let manifest = safe_read_package_json_from_dir(dir)
-        .wrap_err("read package.json")?
+    let manifest = safe_read_project_manifest_from_dir(dir)
+        .wrap_err("read project manifest")?
         .ok_or_else(|| {
             let display_path = dir.display();
             miette::miette!(

@@ -16,7 +16,9 @@
 
 use crate::{
     hoist::HoistedDependencies,
-    prune_direct_deps::{PruneDirectDepsError, confined_modules_dir, remove_direct_dep_link},
+    prune_direct_deps::{
+        PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_direct_dep_link,
+    },
     symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
 };
 use pnpm_config::Config;
@@ -52,6 +54,7 @@ pub struct PruneStaleModules<'a> {
     /// only record of where hoist links were written, so orphan hoist
     /// cleanup is skipped without it.
     pub prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    pub wanted_hoisted_dependencies: Option<&'a HoistedDependencies>,
     /// Dependency groups this install materializes; a direct dep whose
     /// group is excluded is handled by
     /// [`crate::prune_direct_deps_excluded_by_groups`], not here.
@@ -74,8 +77,7 @@ impl<'a> PruneStaleModules<'a> {
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let modules_dir_name: &OsStr =
-            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name: &OsStr = self.config.modules_dir_name();
         let wanted_root_deps = self.wanted_root_deps();
 
         for (importer_id, current_snapshot) in &self.current_lockfile.importers {
@@ -111,13 +113,28 @@ impl<'a> PruneStaleModules<'a> {
         if !self.prune_orphans {
             return Ok(0);
         }
-        prune_orphan_snapshots(
+        self.prune_orphan_entries()
+    }
+
+    fn prune_orphan_entries(&self) -> Result<u64, PruneDirectDepsError> {
+        let removed = prune_orphan_snapshots(
             self.config,
             self.workspace_root,
             self.wanted_lockfile,
             self.current_lockfile,
             self.prior_hoisted_dependencies,
-        )
+        )?;
+        prune_workspace_hoists(
+            &WorkspaceHoistDirs {
+                workspace_root: self.workspace_root,
+                private: &self.config.virtual_store_dir.join("node_modules"),
+                public: &self.config.modules_dir,
+            },
+            self.current_lockfile,
+            self.prior_hoisted_dependencies,
+            self.wanted_hoisted_dependencies,
+        )?;
+        Ok(removed)
     }
 
     /// `dedupeDirectDeps`'s removal half. The link pass only decides
@@ -136,6 +153,80 @@ impl<'a> PruneStaleModules<'a> {
                 .map(|(alias, spec, _)| (alias, &spec.version))
                 .collect(),
         )
+    }
+}
+
+/// Where [`prune_workspace_hoists`] looks for each kind of workspace
+/// hoist link. Both are confined to `workspace_root`.
+pub(crate) struct WorkspaceHoistDirs<'a> {
+    pub workspace_root: &'a Path,
+    pub private: &'a Path,
+    pub public: &'a Path,
+}
+
+/// Unlink the workspace-project hoists `prior_hoisted_dependencies`
+/// records that `wanted_hoisted_dependencies` does not. Entries keyed by
+/// a package of `current_lockfile` are regular hoists and stay.
+pub(crate) fn prune_workspace_hoists(
+    dirs: &WorkspaceHoistDirs<'_>,
+    current_lockfile: &Lockfile,
+    prior_hoisted_dependencies: Option<&HoistedDependencies>,
+    wanted_hoisted_dependencies: Option<&HoistedDependencies>,
+) -> Result<(), PruneDirectDepsError> {
+    let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
+    let private_dir = confined_modules_dir(dirs.private, dirs.workspace_root);
+    let public_dir = confined_modules_dir(dirs.public, dirs.workspace_root);
+    for (project_id, aliases) in prior {
+        if project_id
+            .parse()
+            .ok()
+            .is_some_and(|key| {
+                current_lockfile.packages
+                    .as_ref()
+                    .is_some_and(|packages| packages.contains_key(&key))
+            })
+        {
+            continue;
+        }
+        prune_workspace_project_hoists(
+            aliases,
+            wanted_hoisted_dependencies.and_then(|wanted| wanted.get(project_id)),
+            private_dir.as_deref(),
+            public_dir.as_deref(),
+        )?;
+    }
+    Ok(())
+}
+
+fn prune_workspace_project_hoists(
+    prior: &indexmap::IndexMap<String, HoistKind>,
+    wanted: Option<&indexmap::IndexMap<String, HoistKind>>,
+    private_dir: Option<&Path>,
+    public_dir: Option<&Path>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, kind) in prior {
+        if wanted.is_some_and(|aliases| aliases.get(alias) == Some(kind)) {
+            continue;
+        }
+        let target_dir = match kind {
+            HoistKind::Private => private_dir,
+            HoistKind::Public => public_dir,
+        };
+        let Some(target_dir) = target_dir else { continue };
+        remove_direct_dep_link(target_dir, alias)?;
+        remove_emptied_scope_dir(target_dir, alias);
+    }
+    Ok(())
+}
+
+/// Remove the `@scope` directory of a scoped `alias` once its last link is
+/// gone. The removal fails, and keeps the directory, while other scoped
+/// packages are in it.
+fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
+    let Some((scope, _)) = alias.split_once('/') else { return };
+    let scope_dir = target_dir.join(scope);
+    if is_real_dir(&scope_dir) {
+        let _ = std::fs::remove_dir(scope_dir);
     }
 }
 

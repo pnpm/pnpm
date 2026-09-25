@@ -22,17 +22,19 @@
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
 //!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
-//!    in `main` / `bin`. These survive `.npmignore` rejection and the
-//!    `files`-field filter.
+//!    in `main` / `bin`. The packed package's `package.yaml` /
+//!    `package.json5` are included too, but a bundled dependency's are
+//!    not. These survive `.npmignore` rejection and the `files`-field
+//!    filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
 //!    `bundledDependencies`), transitively include every reachable
 //!    dependency. A bundled package pulls in its own `dependencies`
 //!    and `optionalDependencies` too, so the whole closure ships.
 //!    Each name is resolved with the node module-resolution walk-up
-//!    (nested `node_modules/` first, then ancestor `node_modules/`),
-//!    which is what lets a hoisted transitive dep at the root
-//!    `node_modules/` be found and spliced in under its real path.
+//!    from the parent's real directory (nested `node_modules/` first,
+//!    then ancestor `node_modules/`), and packed where Node resolves
+//!    it from the parent's packed location.
 //!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
 //!
 //! One intentional divergence from npm-packlist:
@@ -50,7 +52,7 @@ use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
@@ -107,6 +109,9 @@ pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, Packlis
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PacklistOptions<'a> {
     pub workspace_dir: Option<&'a Path>,
+    /// Project directory whose `node_modules` holds the bundled dependencies
+    /// when `pkg_dir` is a subdirectory of it, such as `publishConfig.directory`.
+    pub bundled_dependencies_dir: Option<&'a Path>,
 }
 
 /// Variant of [`packlist`] that lets callers pass workspace context.
@@ -115,14 +120,47 @@ pub struct PacklistOptions<'a> {
 /// files between the workspace root and the package, matching npm-packlist's
 /// `prefix` / `workspaces` behavior. Callers without workspace context keep
 /// the safer package-only walk.
+///
+/// Returns only the files that live at their packed path under `pkg_dir`.
+/// A bundled dependency resolved through an isolated `node_modules` layout is
+/// packed at a different path than it is read from; [`packlist_with_sources`]
+/// returns those too.
 pub fn packlist_with_options(
     pkg_dir: &Path,
     manifest: &Value,
     options: PacklistOptions<'_>,
 ) -> Result<Vec<String>, PacklistError> {
-    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options.workspace_dir)?;
-    collect_bundled_files(pkg_dir, manifest, &mut out)?;
-    Ok(out.into_iter().collect())
+    Ok(packlist_with_sources(pkg_dir, manifest, options)?
+        .into_iter()
+        .filter(|(file, source)| *source == pkg_dir.join(file))
+        .map(|(file, _)| file)
+        .collect())
+}
+
+/// Map each packed path to the file it is read from.
+///
+/// Bundled dependencies resolve from `pkg_dir` upward, and never above the
+/// workspace root when `pkg_dir` is a workspace package, or above
+/// [`PacklistOptions::bundled_dependencies_dir`] (default `pkg_dir`) otherwise.
+pub fn packlist_with_sources(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<BTreeMap<String, PathBuf>, PacklistError> {
+    let workspace_dir =
+        options.workspace_dir.filter(|workspace_dir| pkg_dir.starts_with(workspace_dir));
+    let mut own_files = collect_own_files(pkg_dir, manifest, workspace_dir)?;
+    collect_alternate_manifests_at_root(pkg_dir, &mut own_files)?;
+    let mut out = own_files
+        .into_iter()
+        .map(|file| {
+            let source = pkg_dir.join(&file);
+            (file, source)
+        })
+        .collect();
+    let boundary = workspace_dir.or(options.bundled_dependencies_dir).unwrap_or(pkg_dir);
+    collect_bundled_files(pkg_dir, manifest, boundary, &mut out)?;
+    Ok(out)
 }
 
 /// Collect the forward-slash relative paths for a single package's own
@@ -241,7 +279,8 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
+        if !entry.file_type().is_some_and(|file_type| is_packable(pkg_dir, entry.path(), file_type))
+        {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -277,6 +316,32 @@ fn collect_always_included_at_root(
     pkg_dir: &Path,
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
+    collect_root_files_matching(pkg_dir, is_always_included_at_root, out)
+}
+
+/// A `package.yaml` or `package.json5` manifest ships like `package.json`, but
+/// only for the package being packed: a bundled dependency's manifest is its
+/// `package.json`, so its alternate manifests follow its `files` and ignore
+/// rules. Matched case-insensitively, like npm-packlist's rules.
+fn collect_alternate_manifests_at_root(
+    pkg_dir: &Path,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
+    collect_root_files_matching(
+        pkg_dir,
+        |name| {
+            let lower = name.to_ascii_lowercase();
+            lower == "package.yaml" || lower == "package.json5"
+        },
+        out,
+    )
+}
+
+fn collect_root_files_matching(
+    pkg_dir: &Path,
+    matches: impl Fn(&str) -> bool,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
     let root_entries = fs::read_dir(pkg_dir)
         .map_err(|source| PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source })?;
     for entry in root_entries {
@@ -284,14 +349,14 @@ fn collect_always_included_at_root(
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
+        if !is_admissible_root_file(pkg_dir, &entry) {
             continue;
         }
         let name = entry
             .file_name()
             .to_string_lossy()
             .into_owned();
-        if !should_always_exclude(&name) && is_always_included_at_root(&name) {
+        if !should_always_exclude(&name) && matches(&name) {
             out.insert(name);
         }
     }
@@ -554,4 +619,6 @@ fn into_io(err: ignore::Error) -> std::io::Error {
 }
 
 mod bundled;
+mod symlinks;
 use bundled::collect_bundled_files;
+use symlinks::{is_admissible_root_file, is_packable};

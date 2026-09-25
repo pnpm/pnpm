@@ -377,12 +377,16 @@ pub fn global_config_yaml_auth_configures_registry_auth() {
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(
         config_dir.join("config.yaml"),
-        "_auth:\n  \"https://global-auth.example.com\":\n    \"@\":\n      authToken: yaml-token\n    \"@org\":\n      authToken: org-yaml-token\n",
+        "_auth:\n  \"https://global-auth.example.com\":\n    \"@\":\n      authToken: ${TOKEN}\n    \"@org\":\n      authToken: ${ORG_TOKEN}\n",
     )
     .expect("write global config.yaml");
 
     let project = tempdir().expect("project tempdir");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("TOKEN", "yaml-token"),
+        ("ORG_TOKEN", "org-yaml-token"),
+    ]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(

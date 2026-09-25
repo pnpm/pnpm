@@ -187,15 +187,7 @@ async fn write_importer_manifest(
     rel: &str,
     project: &ProjectDeps,
 ) -> Result<(), ResolveError> {
-    let name = project.name.clone().unwrap_or_else(|| importer_manifest_name(rel));
-    let version = project.version.as_deref().unwrap_or("0.0.0");
-    let manifest_json = serde_json::json!({
-        "name": name,
-        "version": version,
-        "dependencies": project.dependencies,
-        "devDependencies": project.dev_dependencies,
-        "optionalDependencies": project.optional_dependencies,
-    });
+    let manifest_json = importer_manifest_json(project, rel);
     let manifest_bytes =
         serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
     let opened = tokio::fs::OpenOptions::new()
@@ -217,6 +209,18 @@ async fn write_importer_manifest(
     // to be flushed before it is read back.
     file.flush().await?;
     Ok(())
+}
+
+/// The manifest the server resolves the importer at `rel` from.
+fn importer_manifest_json(project: &ProjectDeps, rel: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": project.name.clone().unwrap_or_else(|| importer_manifest_name(rel)),
+        "version": project.version.as_deref().unwrap_or("0.0.0"),
+        "dependencies": project.dependencies,
+        "devDependencies": project.dev_dependencies,
+        "optionalDependencies": project.optional_dependencies,
+        "peerDependencies": project.peer_dependencies,
+    })
 }
 
 /// Return the caller's frozen input lockfile when pacquet's freshness
@@ -257,18 +261,11 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         .tempdir()
         .ok()?;
     let manifest_path = temp.path().join("package.json");
-    let manifest_json = serde_json::json!({
-        "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
-        "version": project.version.as_deref().unwrap_or("0.0.0"),
-        "dependencies": project.dependencies,
-        "devDependencies": project.dev_dependencies,
-        "optionalDependencies": project.optional_dependencies,
-    });
+    let manifest_json = importer_manifest_json(&project, &project.dir);
     std::fs::write(&manifest_path, serde_json::to_vec(&manifest_json).ok()?).ok()?;
     let manifest = PackageManifest::from_path(manifest_path).ok()?;
-    // The synthesized manifest carries no `peerDependencies`, so the
-    // auto-install-peers fold is a no-op; pass pnpm's default anyway.
-    satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).ok()?;
+    satisfies_package_manifest(importer, &manifest, config.auto_install_peers, &|_: &str| false)
+        .ok()?;
 
     Some(lockfile.clone())
 }

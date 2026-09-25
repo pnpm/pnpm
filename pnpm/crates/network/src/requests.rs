@@ -91,12 +91,31 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+        self.response_with_scoped_headers(reqwest::Method::GET, url, configure).await
+    }
+
+    /// Apply the per-redirect header configuration and request-budget guarantees
+    /// documented by [`Self::get_response_with_scoped_headers`].
+    pub async fn head_response_with_scoped_headers(
+        &self,
+        url: &str,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+        self.response_with_scoped_headers(reqwest::Method::HEAD, url, configure).await
+    }
+
+    async fn response_with_scoped_headers(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             let client =
                 self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                     .await;
-            let request = configure(client.get(&current_url), &current_url);
+            let request = configure(client.request(method.clone(), &current_url), &current_url);
             let response = request.send().await?;
             let target = response
                 .headers()
@@ -125,8 +144,8 @@ impl ThrottledClient {
         // concurrency permit: a request queued behind a saturated origin must
         // not hold a global slot while it waits, or a burst to one origin would
         // hoard every global permit and starve requests to other origins.
-        let host_permit = match &self.host_socket_limit {
-            Some(limit) => limit.acquire(url).await,
+        let host_permit = match self.proxy_routing.effective_socket_origin(url) {
+            Some((origin, is_proxied)) => self.host_socket_limit.acquire(&origin, is_proxied).await,
             None => None,
         };
         let permit = self.semaphore.acquire(priority).await;

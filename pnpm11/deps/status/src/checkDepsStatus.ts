@@ -5,7 +5,7 @@ import util from 'node:util'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -56,11 +56,15 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'catalogs'
 | 'dedupeDirectDeps'
 | 'excludeLinksFromLockfile'
+| 'ignorePnpmfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'mergeGitBranchLockfiles'
+| 'modulesDir'
+| 'modulesDirsByProjectName'
 | 'nodeLinker'
+| 'packageConfigs'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
 | 'sharedWorkspaceLockfile'
@@ -309,11 +313,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
     if (nodeLinker === 'hoisted') {
-      const statsPromise = safeStat(path.join(rootProjectManifestDir, 'node_modules'))
+      const statsPromise = safeStat(path.resolve(rootProjectManifestDir, opts.modulesDir ?? 'node_modules'))
       statModulesDir = () => statsPromise
     } else {
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
-      statModulesDir = project => safeStat(path.join(project.rootDir, 'node_modules'))
+      const modulesDirOf = createProjectModulesDirResolver(opts)
+      statModulesDir = project => safeStat(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'))
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
@@ -372,6 +377,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -527,6 +533,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
         patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
+        modulesDir: opts.modulesDir,
+        modulesDirsByProjectName: opts.modulesDirsByProjectName,
       })
       return checkDepsStatus({
         ...opts,
@@ -539,6 +547,13 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
+    if (recordedInAnotherDirectory(workspaceState, rootProjectManifestDir)) {
+      return {
+        upToDate: false,
+        issue: 'The project directory has changed since last install',
+        workspaceState,
+      }
+    }
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
@@ -578,6 +593,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -712,6 +728,7 @@ async function assertWantedLockfileUpToDate (
     packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,
+    ignorePnpmfileChecksum: config.ignorePnpmfile === true && pnpmfileChecksum == null,
   })
 
   if (outdatedLockfileSettingName) {
@@ -737,6 +754,7 @@ async function assertWantedLockfileUpToDate (
   if (!await linkedPackagesAreUpToDate({
     linkWorkspacePackages: !!linkWorkspacePackages,
     lockfileDir: wantedLockfileDir,
+    workspaceDir: config.workspaceDir,
     manifestsByDir: getManifestsByDir(),
     workspacePackages: getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,
@@ -832,7 +850,7 @@ function findLocalFileOverride (overrides: Record<string, string> | undefined, c
 }
 
 const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
-const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
+const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 
 /**
  * Whether the specifier resolves to a local directory or tarball whose
@@ -956,6 +974,7 @@ async function patchesOrHooksAreModified (opts: {
   lastValidatedTimestamp: number
   currentPnpmfiles: string[]
   previousPnpmfiles: string[]
+  ignorePnpmfile?: boolean
 }): Promise<string | undefined> {
   if (opts.patchedDependencies) {
     const allPatchStats = await Promise.all(Object.values(opts.patchedDependencies).map((patchFile) => {
@@ -967,6 +986,9 @@ async function patchesOrHooksAreModified (opts: {
     )) {
       return 'Patches were modified'
     }
+  }
+  if (opts.ignorePnpmfile) {
+    return undefined
   }
   if (!equals(opts.currentPnpmfiles, opts.previousPnpmfiles)) {
     return 'The list of pnpmfiles changed.'
@@ -1053,4 +1075,15 @@ function resolvesToSameTarget (rootDir: string, rootVersion: string, projectDir:
   if (rootLink !== projectLink) return false
   if (!rootLink) return rootVersion === version
   return path.resolve(rootDir, rootVersion.slice('link:'.length)) === path.resolve(projectDir, version.slice('link:'.length))
+}
+
+/**
+ * `projectsToRecordInWorkspaceState` in `@pnpm/installing.commands` explains
+ * why a moved project needs a real install. A state file without a recorded
+ * project is never reported as recorded elsewhere.
+ */
+function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir: string): boolean {
+  const recordedProjectDirs = Object.keys(workspaceState.projects)
+  return recordedProjectDirs.length > 0 &&
+    !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
 }

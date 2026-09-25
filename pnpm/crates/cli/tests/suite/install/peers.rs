@@ -763,3 +763,103 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
 
     drop((root, mock_instance));
 }
+
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` depends on
+/// `@pnpm.e2e/bravo-dep@1.0.0` and also declares it as an optional peer,
+/// the shape vite uses for `lightningcss`.
+/// Covers <https://github.com/pnpm/pnpm/issues/8912>.
+fn assert_optional_peer_also_in_deps_is_installed(auto_install_peers: bool) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(if auto_install_peers {
+        "autoInstallPeers: true\n"
+    } else {
+        "autoInstallPeers: false\n"
+    });
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let slot = "node_modules/.pnpm/@pnpm.e2e+has-optional-peer-also-in-deps@1.0.0";
+    let dependency = workspace.join(slot).join("node_modules/@pnpm.e2e/bravo-dep");
+    assert!(dependency.exists(), "{dependency:?} must be installed");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert_eq!(
+        snapshot_dependencies(&lockfile_path),
+        ["@pnpm.e2e/bravo-dep 1.0.0"],
+        "the snapshot must keep the dependency at its own range",
+    );
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps": "1.0.0",
+            "is-negative": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("rewrite package.json");
+    bump_mtime(&manifest_path);
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(
+        snapshot_dependencies(&lockfile_path),
+        ["@pnpm.e2e/bravo-dep 1.0.0"],
+        "a resolve that reuses the lockfile must keep the dependency",
+    );
+    assert!(dependency.exists(), "{dependency:?} must stay installed");
+
+    drop((root, mock_instance));
+}
+
+fn snapshot_dependencies(lockfile_path: &std::path::Path) -> Vec<String> {
+    let lockfile = read_lockfile(lockfile_path);
+    let (_, snapshot) = lockfile.snapshots
+        .iter()
+        .flatten()
+        .find(|(key, _)| key.to_string() == "@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0")
+        .expect("the lockfile records has-optional-peer-also-in-deps");
+    snapshot.dependencies
+        .iter()
+        .flatten()
+        .map(|(alias, reference)| format!("{alias} {reference}"))
+        .collect()
+}
+
+#[test]
+fn optional_peer_also_in_deps_is_installed_with_auto_install_peers() {
+    assert_optional_peer_also_in_deps_is_installed(true);
+}
+
+#[test]
+fn optional_peer_also_in_deps_is_installed_without_auto_install_peers() {
+    assert_optional_peer_also_in_deps_is_installed(false);
+}

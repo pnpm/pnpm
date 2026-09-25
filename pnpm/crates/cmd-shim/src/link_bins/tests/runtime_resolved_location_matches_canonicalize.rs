@@ -39,10 +39,12 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
     let via_fallback = super::super::shim_node_path(
         &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        None,
         &extras,
     );
     let via_resolved = super::super::shim_node_path(
         &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        None,
         &extras,
     );
     assert_eq!(via_fallback, via_resolved);
@@ -62,19 +64,82 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
     );
 }
 
+#[test]
+fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("foo@1.0.0")
+        .join("node_modules")
+        .join("foo");
+    let slot_dir = pkg_dir
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let project = tmp
+        .path()
+        .join("vendor")
+        .to_string_lossy()
+        .into_owned();
+    let hoisted = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("node_modules")
+        .to_string_lossy()
+        .into_owned();
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+
+    let node_path = super::super::shim_node_path(
+        &PackageBinSource::new(tmp.path().join("vendor").join("foo"), manifest)
+            .with_resolved_location(pkg_dir.clone()),
+        Some(&project),
+        &[slot_dir.clone(), hoisted.clone()],
+    );
+
+    assert_eq!(
+        node_path,
+        [
+            project,
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            slot_dir,
+            hoisted,
+        ],
+    );
+}
+
 /// The pnpm CLI's own package opts out of the PowerShell shim
 /// ([`super::super::wants_powershell_shim`]), and a `.ps1` an earlier install
-/// wrote — a pre-v12 `@pnpm/exe` wrapper carried the same bin names —
-/// has to be deleted, not merely left unwritten: PowerShell would keep
+/// wrote has to be deleted, not merely left unwritten: PowerShell would keep
 /// preferring it over the `.cmd` shim and run the version it points at.
 #[test]
 fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("pnpm");
+}
+
+/// `pnpm setup` of earlier releases installed the CLI as `@pnpm/exe`, and
+/// a setup rerun from such an install links it under that name again.
+#[test]
+fn linking_the_pnpm_cli_under_its_earlier_name_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("@pnpm/exe");
+}
+
+fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
     let tmp = tempdir().unwrap();
-    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(pkg_name);
     create_dir_all(&pkg_dir).unwrap();
     write_file(
         pkg_dir.join("package.json"),
-        json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
+        json!({"name": pkg_name, "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
             .to_string(),
     )
     .unwrap();
@@ -169,8 +234,11 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
         }
     }
     impl FsEnsureExecutableBits for ReadCountingHost {
-        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
         }
     }
 
@@ -252,8 +320,11 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
         }
     }
     impl FsEnsureExecutableBits for CountingHost {
-        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
         }
     }
 
@@ -282,4 +353,17 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
         assert!(modules.join(".bin/foo").exists());
     }
     assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
+}
+
+#[test]
+fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
+    let tmp = tempdir().unwrap();
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let project = tmp
+        .path()
+        .join(format!("vendor{delimiter}other"));
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
+    let node_path = super::super::shim_node_path(&pkg, Some(&project.to_string_lossy()), &[]);
+    assert_eq!(node_path, Vec::<String>::new());
 }

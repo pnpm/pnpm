@@ -10,6 +10,7 @@ use std::{borrow::Cow, collections::HashMap};
 /// Host context for the installability check. Built once per install
 /// so the per-snapshot calls don't each re-spawn `node --version`
 /// or re-read `std::env::consts::OS`.
+#[derive(Clone)]
 pub struct InstallabilityHost {
     pub node_version: String,
     /// `true` when `node_version` was discovered by spawning

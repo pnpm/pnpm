@@ -1,7 +1,7 @@
 use super::{
     FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    infer_local_package_alias, replacement_aliases, should_replace_existing_package,
-    snapshot_global_package, update_selectors,
+    global_group_config, infer_local_package_alias, replacement_aliases,
+    should_replace_existing_package, snapshot_global_package, update_selectors,
 };
 use crate::{
     cli_args::{
@@ -16,6 +16,7 @@ use crate::{
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, remove_bin as remove_cmd_shim};
+use pnpm_config::Config;
 use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
@@ -376,8 +377,9 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
         snapshot_global_package(info.clone()).expect("a group without node_modules owns no bins");
     assert!(empty.bin_names.is_empty());
 
-    // A group with a present-but-incomplete tree still fails closed.
-    std::fs::create_dir_all(root.path().join("node_modules")).expect("create modules directory");
+    // A dependency directory without its manifest still fails closed.
+    std::fs::create_dir_all(root.path().join("node_modules/dependency"))
+        .expect("create dependency directory");
 
     let missing = snapshot_global_package(info.clone())
         .err()
@@ -579,4 +581,21 @@ fn create_local_package(root: &Path, directory_name: &str, manifest: &str) -> Pa
     std::fs::write(package_dir.join("package.json"), manifest)
         .expect("write local package manifest");
     package_dir
+}
+
+#[test]
+fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExclude:\n  - foo@2.0.0\n")
+        .expect("write the group manifest");
+    let mut base = Config::new();
+    base.minimum_release_age_exclude = Some(vec!["bar@1.0.0".to_string()]);
+
+    let config =
+        global_group_config(&base, dir.path(), dir.path(), None).expect("build the group config");
+
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["bar@1.0.0".to_string(), "foo@2.0.0".to_string()]),
+    );
 }

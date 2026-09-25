@@ -9,7 +9,8 @@ pub use sections::{
     SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings,
     decided_allow_builds,
 };
-pub use settings::WorkspaceSettings;
+pub(crate) use settings::parse_settings;
+pub use settings::{MacosBackupSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
@@ -29,7 +30,7 @@ use indexmap::IndexMap;
 use miette::Diagnostic;
 use package_configs::PackageConfigsSetting;
 use pipe_trait::Pipe;
-use pnpm_env_replace::env_replace_lossy;
+use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
@@ -228,7 +229,7 @@ macro_rules! identically_named_settings {
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers,
+            dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity,
@@ -246,13 +247,15 @@ macro_rules! identically_named_settings {
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
             fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
+            tag_version_prefix,
+            publish_wait_timeout,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
-            minimum_release_age_exclude_prune, save_peer, save_exact,
+            minimum_release_age_exclude_prune, save_peer, save_exact, save_types,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
@@ -400,7 +403,8 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    has_env_placeholder, no_proxy_scalar, normalize_registry_url, substitute_json_string,
+    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, normalize_registry_url,
+    resolvable_placeholders, resolve_placeholders, substitute_json_string,
     substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
     substitute_registry_entries,
 };

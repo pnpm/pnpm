@@ -1,7 +1,7 @@
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, HostNoHome, LinkProbe, NodeLinker,
-    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, assert_eq, fs, io, safe_host_var,
-    tempdir, write_file,
+    NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, WorkspaceSettings, assert_eq, fs, io,
+    safe_host_var, tempdir, write_file,
 };
 
 #[test]
@@ -19,6 +19,8 @@ pub fn materialization_env_vars_override_workspace_yaml() {
             match name {
                 "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
                 "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_EXCLUDE_MODULES_DIR" => Some("true".to_owned()),
+                "PNPM_CONFIG_MACOS_BACKUP_EXCLUDE_STORE_DIR" => Some("true".to_owned()),
                 _ => safe_host_var(name),
             }
         }
@@ -39,8 +41,45 @@ pub fn materialization_env_vars_override_workspace_yaml() {
     let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
     assert!(config.virtual_store_only);
     assert!(!config.enable_modules_dir);
+    assert!(config.macos_backup.exclude_modules_dir);
+    assert!(config.macos_backup.exclude_store_dir);
     assert_eq!(config.hoist_pattern, Some(vec![]));
     assert_eq!(config.public_hoist_pattern, Some(vec![]));
+}
+
+#[test]
+pub fn time_machine_settings_cannot_be_set_by_a_project() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "macosBackup:\n  excludeModulesDir: false\n  excludeStoreDir: false\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
+    assert_eq!(config.workspace_key_issues.refused, ["macosBackup"]);
+}
+
+#[test]
+pub fn global_config_may_disable_time_machine_backups() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("config.yaml"),
+        "macosBackup:\n  excludeModulesDir: true\n  excludeStoreDir: true\n",
+    )
+    .expect("write global config.yaml");
+    let settings = WorkspaceSettings::load_global(tmp.path())
+        .expect("loads global config")
+        .expect("global config exists");
+    let mut config = Config::default();
+
+    settings.apply_to(&mut config, tmp.path());
+
+    assert!(config.macos_backup.exclude_modules_dir);
+    assert!(config.macos_backup.exclude_store_dir);
 }
 
 #[test]
@@ -251,6 +290,15 @@ pub fn virtual_store_dir_max_length_from_workspace_yaml() {
         .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.virtual_store_dir_max_length, 90);
+}
+
+#[test]
+pub fn force_ignores_platform_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "forceIgnoresPlatform: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.force_ignores_platform);
 }
 
 #[test]
@@ -525,4 +573,44 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
                 .join(".bin")
         ],
     );
+}
+
+#[test]
+pub fn extra_bin_paths_follow_a_configured_modules_dir() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\nmodulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    let config = load_with_fake_env(project.path());
+    assert_eq!(config.modules_dir_name(), std::ffi::OsStr::new("vendor"));
+    assert_eq!(
+        config.extra_bin_paths,
+        vec![
+            project
+                .path()
+                .join("vendor")
+                .join(".bin")
+        ],
+    );
+}
+
+#[test]
+pub fn anchoring_to_a_created_workspace_matches_loading_inside_it() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[]);
+    let mut anchored = load_with_fake_env(project.path());
+
+    anchored.anchor_to_created_workspace(project.path().to_path_buf(), vec!["packages/*".into()]);
+
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let loaded = load_with_fake_env(project.path());
+    assert_eq!(anchored.workspace_dir, loaded.workspace_dir);
+    assert_eq!(anchored.workspace_package_patterns, loaded.workspace_package_patterns);
+    assert_eq!(anchored.extra_bin_paths, loaded.extra_bin_paths);
+    assert_eq!(anchored.modules_dir, loaded.modules_dir);
+    assert_eq!(anchored.virtual_store_dir, loaded.virtual_store_dir);
 }

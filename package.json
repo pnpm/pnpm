@@ -12,12 +12,13 @@
     "test-all": "pn pretest && pn lint && pn test-pkgs-all",
     "ci:test-all": "pn prepare-fixtures && pn test-pkgs-all-report-summary",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
-    "test-pkgs-all": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r .test",
-    "test-pkgs-all-report-summary": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=1 -r --report-summary .test",
+    "test-pkgs-all": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=2 -r .test",
+    "test-pkgs-all-report-summary": "pn remove-temp-dir && pn --no-sort --workspace-concurrency=2 -r --report-summary .test",
     "test-branch": "pn pretest && pn lint && git remote set-branches --add origin main && git fetch origin main && pn test-pkgs-branch",
     "ci:test-branch": "pn prepare-fixtures && pn test-pkgs-branch",
-    "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=1 --filter=...[origin/main] --no-sort --if-present .test",
-    "compile-only": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.9.0 pnpm11/__utils__/scripts/src/typecheck-only.ts && pn -F=pnpm compile",
+    "test-pkgs-branch": "pn remove-temp-dir && pn --workspace-concurrency=2 --filter=...[origin/main] --no-sort --if-present .test",
+    "compile-only": "pn typecheck-all && pn -F=pnpm compile",
+    "typecheck-all": "tsgo --build pnpm11/workspace/workspace-manifest-reader pnpm11/workspace/projects-reader && pnx node@runtime:26.10.0 pnpm11/__utils__/scripts/src/typecheck-only.ts",
     "compile": "pn compile-only && pn update-manifests",
     "build:pnpm": "cargo build --release --bin pnpm",
     "ready:rust": "just ready",
@@ -32,7 +33,7 @@
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",
     "lint:meta": "pn meta-updater --test",
-    "check:versioning": "tsgo --build pnpm11/__utils__/scripts && node pnpm11/__utils__/scripts/lib/check-versioning-invariants.js",
+    "check:versioning": "pnpm change check",
     "copy-artifacts": "node pnpm11/__utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pn --filter=@pnpm/get-release-text run write-release-text",
     "check:npm-signing-keys": "node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs",
@@ -41,7 +42,7 @@
     "update:node-release-keys": "node pnpm11/crypto/shasums-file/scripts/update-node-release-keys.mjs --update",
     "release": "pn --filter=@pnpm/exe run build-artifacts && pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance && pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance && pn publish --filter=pnpm --tag=next-11 --access=public --provenance",
     "dev-setup": "pn -C=./pnpm11/pnpm/dev link -g",
-    "ci:compile": "pn compile-only",
+    "ci:compile": "pn typecheck-all && pn -F=pnpm build",
     "ci:lint": "pn lint",
     "ci:test-chunk": "node .github/scripts/run-ts-tests-chunk.mjs",
     "ci:rust-test": "just test-pacquet",
@@ -80,16 +81,16 @@
     "shx": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@12.5.1",
+  "packageManager": "pnpm@12.6.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.5.1",
+      "version": "12.6.0",
       "onFail": "download"
     },
     "runtime": {
       "name": "node",
-      "version": "26.9.0",
+      "version": "26.10.0",
       "onFail": "download"
     }
   }

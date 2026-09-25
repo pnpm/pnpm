@@ -61,9 +61,7 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    // A prerelease is written exactly: a `^`/`~` range over it would not
-    // match the prerelease it was resolved from.
-    if is_prerelease(resolved_version) {
+    if is_saved_exactly(resolved_version) {
         return format!("{prefix}{resolved_version}");
     }
     let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
@@ -92,10 +90,48 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-fn is_prerelease(version: &str) -> bool {
-    version
-        .parse::<node_semver::Version>()
-        .is_ok_and(|parsed| !parsed.pre_release.is_empty())
+/// A prerelease or a partial version such as `1` or `1.0` is written
+/// exactly: a `^`/`~` range over it would not match the version it was
+/// resolved from. Any other non-semver version keeps the operator, because
+/// written exactly it could mean something else inside `workspace:`, such
+/// as a wildcard, a tag, or an alias.
+fn is_saved_exactly(version: &str) -> bool {
+    match version.parse::<node_semver::Version>() {
+        Ok(parsed) => !parsed.pre_release.is_empty(),
+        Err(_) => is_partial_version(version),
+    }
+}
+
+/// Whether the specifier written for `version` still names the workspace
+/// package once the `workspace:` protocol is stripped from it: a semver
+/// version or a partial one. Anything else, such as `github:owner/repo`,
+/// keeps the protocol, since the next install would read the bare text as
+/// a different dependency source.
+#[must_use]
+pub fn can_drop_workspace_protocol(version: &str) -> bool {
+    version.parse::<node_semver::Version>().is_ok() || is_partial_version(version)
+}
+
+/// `1`, `1.0` or `1.x`. The shape check comes first because the range
+/// parser skips alternatives it cannot read (`github:owner/repo || 1.2.3`
+/// parses); the range parse then bounds each component.
+fn is_partial_version(version: &str) -> bool {
+    let mut parts = version.split('.');
+    let Some(major) = parts.next() else { return false };
+    let minor_and_patch: Vec<&str> = parts.collect();
+    is_version_number(major)
+        && minor_and_patch.len() <= 2
+        && minor_and_patch
+            .iter()
+            .all(|part| matches!(*part, "x" | "X" | "*") || is_version_number(part))
+        && version.parse::<node_semver::Range>().is_ok()
+}
+
+fn is_version_number(part: &str) -> bool {
+    part == "0"
+        || (!part.is_empty()
+            && !part.starts_with('0')
+            && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 #[cfg(test)]

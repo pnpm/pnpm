@@ -222,20 +222,21 @@ impl ReporterState {
         if log.prefix != self.rendering.cwd || !log.parents.as_ref().is_some_and(Vec::is_empty) {
             return;
         }
-        let pkg = match &log.package {
-            SkippedOptionalPackage::Installed { id, .. } => id.clone(),
-            SkippedOptionalPackage::ResolutionFailure {
-                name: Some(name),
-                version: Some(version),
-                ..
-            } => format!("{name}@{version}"),
-            SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => {
-                bare_specifier.clone()
+        let message = match &log.package {
+            SkippedOptionalPackage::Installed { id, .. } => format!(
+                "info: {id} is an optional dependency and failed compatibility check. Excluding it from installation.",
+            ),
+            SkippedOptionalPackage::ResolutionFailure { name, bare_specifier, .. } => {
+                let pkg = match name {
+                    Some(name) => format!("{name}@{bare_specifier}"),
+                    None => bare_specifier.clone(),
+                };
+                format!(
+                    "info: {pkg} is an optional dependency that could not be resolved. Excluding it from installation.",
+                )
             }
         };
-        self.display.frame.push_block(format!(
-            "info: {pkg} is an optional dependency and failed compatibility check. Excluding it from installation.",
-        ));
+        self.display.frame.push_block(message);
     }
 
     /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency

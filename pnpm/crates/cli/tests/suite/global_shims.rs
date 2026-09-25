@@ -18,7 +18,11 @@ const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
 #[cfg(unix)]
 fn shim_command(root: &TempDir, cwd: &Path, name: &str, target: &str) -> Command {
     let shim = install_shim(&root.path().join("global-bin"), name, target.as_bytes());
-    Command::new(shim)
+    isolated_in(Command::new(shim), root, cwd)
+}
+
+fn isolated_in(command: Command, root: &TempDir, cwd: &Path) -> Command {
+    command
         .without_ambient_pnpm_config()
         .with_current_dir(cwd)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
@@ -202,16 +206,101 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
-/// A project that pins Node.js gets the pinned version fetched into the
-/// global virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
 #[test]
-fn runtime_pin_downloads_node_on_demand() {
+fn nvmrc_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".nvmrc");
+}
+
+#[cfg(unix)]
+#[test]
+fn node_version_file_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".node-version");
+}
+
+#[cfg(unix)]
+fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, file_name);
 
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .assert()
+        .success();
+    let environment = managed_runtime_environment(&root);
+    let package_dir = fs::canonicalize(environment.join("node_modules/node")).unwrap();
+    let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
+    assert!(package_dir.starts_with(global_store));
+    assert!(!root.path().join("cache/dlx").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_held_runtime_lock_installs_the_runtime_privately() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    // The mocked release's `node` prints nothing; the global and local
+    // fallbacks each print their name, so empty output is the pinned
+    // runtime's signature.
+    let dispatch = || {
+        shim_command(&root, &project, "node", global_target.to_str().unwrap())
+            .with_env(AUTO_TRUST_ENV, "1")
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+            .assert()
+            .success()
+            .stdout("");
+    };
+    // A first dispatch names the runtime's environment, and with it its
+    // lock.
+    dispatch();
+    let environment = managed_runtime_environment(&root);
+    fs::remove_dir_all(&environment).unwrap();
+    fs::remove_dir_all(root.path().join("store/v11/links")).unwrap();
+    // A lock directory with no liveness record is one an older pnpm
+    // holds, and counts as held until it ages out.
+    fs::create_dir_all(environment.with_extension("lock")).unwrap();
+
+    dispatch();
+
+    // The shared path would have re-created the environment around the
+    // slot. (`links` itself is no evidence on macOS, where every install
+    // stages packages under it through the directory clone cache.)
+    assert!(
+        !environment.exists(),
+        "the held environment must not be entered: {}",
+        environment.display(),
+    );
+    let left_behind: Vec<_> = fs::read_dir(root.path().join("store/v11/tmp/private"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+    assert!(
+        left_behind.is_empty(),
+        "the private install is removed once the runtime has run: {left_behind:?}",
+    );
+}
+
+/// A project pinning Node.js `version` through `file_name`, whose own
+/// configuration must not reach the runtime install: a repo-controlled
+/// store or mirror could feed the dispatcher a poisoned artifact, so
+/// both entries here would fail a test if honored. Returns the project
+/// and the global `node` the shim falls back to.
+#[cfg(unix)]
+fn runtime_pin_project(
+    root: &TempDir,
+    server: &mockito::Server,
+    version: &str,
+    file_name: &str,
+) -> (std::path::PathBuf, std::path::PathBuf) {
     let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
@@ -226,9 +315,6 @@ fn runtime_pin_downloads_node_on_demand() {
     .unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    // The project's own configuration must not reach the runtime install:
-    // a repo-controlled store or mirror could feed the dispatcher a
-    // poisoned artifact. Both entries here would fail the test if honored.
     fs::write(
         project.join("pnpm-workspace.yaml"),
         format!(
@@ -238,14 +324,7 @@ fn runtime_pin_downloads_node_on_demand() {
     )
     .unwrap();
     write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
-    fs::write(
-        project.join("package.json"),
-        serde_json::json!({
-            "devEngines": { "runtime": { "name": "node", "version": version } },
-        })
-        .to_string(),
-    )
-    .unwrap();
+    fs::write(project.join(file_name), format!("v{version}\n")).unwrap();
     let global_target = root
         .path()
         .join("global")
@@ -264,23 +343,19 @@ fn runtime_pin_downloads_node_on_demand() {
         serde_json::json!({ "name": "node", "version": "1.0.0" }).to_string(),
     )
     .unwrap();
+    (project, global_target)
+}
 
-    shim_command(&root, &project, "node", global_target.to_str().unwrap())
-        .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
-        .assert()
-        .success();
+/// The environment the dispatcher installed a managed runtime through.
+#[cfg(unix)]
+fn managed_runtime_environment(root: &TempDir) -> std::path::PathBuf {
     let environments = root.path().join("state/pnpm/global-shim-runtimes");
-    let package_dir = fs::read_dir(&environments)
+    fs::read_dir(&environments)
         .expect("the runtime environment should exist")
         .flatten()
-        .map(|entry| entry.path().join("node_modules/node"))
-        .find(|path| path.exists())
-        .expect("the runtime environment should link Node.js");
-    let package_dir = fs::canonicalize(package_dir).unwrap();
-    let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
-    assert!(package_dir.starts_with(global_store));
-    assert!(!root.path().join("cache/dlx").exists());
+        .map(|entry| entry.path())
+        .find(|path| path.join("node_modules/node").exists())
+        .expect("the runtime environment should link Node.js")
 }
 
 /// A same-named bin provided by a *different* package must not shadow
@@ -596,17 +671,11 @@ fn install_legacy_shim(global_bin: &Path, name: &str, target: &str) -> std::path
     shim
 }
 
-/// A `pnpm` invocation against an isolated pnpm home, for the commands
-/// that manage shims rather than dispatch through one.
+/// A `pnpm` invocation against the isolated pnpm home a [`shim_command`]
+/// of `root` dispatches from, for the commands that manage shims or the
+/// store rather than dispatch through one.
 fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {
-    Command::cargo_bin("pnpm")
-        .unwrap()
-        .without_ambient_pnpm_config()
-        .with_current_dir(cwd)
-        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+    isolated_in(Command::cargo_bin("pnpm").unwrap(), root, cwd)
 }
 
 fn stdout_of(output: &std::process::Output) -> String {

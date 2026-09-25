@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { rootLogger } from '@pnpm/core-loggers'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
-import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
+import { symlinkDependency, symlinkDir, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { rimraf } from '@zkochan/rimraf'
 import { omit } from 'ramda'
 import { resolveLinkTarget } from 'resolve-link-target'
@@ -23,6 +23,7 @@ export interface ProjectToLink {
   dir: string
   modulesDir: string
   dependencies: LinkedDirectDep[]
+  publishDir?: string
 }
 
 export async function linkDirectDeps (
@@ -58,6 +59,7 @@ async function linkDirectDepsAndDedupe (
       if (deletedAll) {
         await rimraf(project.modulesDir)
       }
+      await linkPublishModulesDir(project)
     })
   )
   return linkedDeps
@@ -141,5 +143,25 @@ async function linkDirectDepsOfProject (project: ProjectToLink): Promise<number>
     })
     linkedDeps++
   }))
+  await linkPublishModulesDir(project)
   return linkedDeps
+}
+
+async function linkPublishModulesDir (project: ProjectToLink): Promise<void> {
+  if (!project.publishDir) return
+  const resolvedPublishDir = path.resolve(project.dir, project.publishDir)
+  const resolvedProjectDir = path.resolve(project.dir)
+  const relative = path.relative(resolvedProjectDir, resolvedPublishDir)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    return
+  }
+  try {
+    await fs.promises.access(project.modulesDir)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw err
+  }
+  const publishModulesDir = path.join(resolvedPublishDir, path.basename(project.modulesDir))
+  await fs.promises.mkdir(path.dirname(publishModulesDir), { recursive: true })
+  await symlinkDir(project.modulesDir, publishModulesDir)
 }

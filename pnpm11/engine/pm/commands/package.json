@@ -65,7 +65,8 @@
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",
-    "symlink-dir": "catalog:"
+    "symlink-dir": "catalog:",
+    "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -80,7 +81,8 @@
     "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/write-file-atomic": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

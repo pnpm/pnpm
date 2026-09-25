@@ -1,6 +1,6 @@
 use super::{
     BTreeSet, DirEntry, Entry, ErrorKind, FindWorkspaceProjectsError, PROJECT_MANIFEST_BASENAMES,
-    Path, PathBuf, fs,
+    Path, PathBuf, fs, managed::is_under_ignored_directory,
 };
 use wax::Program as _;
 
@@ -39,26 +39,58 @@ pub(super) fn collect_manifests_in_children(
     parent: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for_each_directory_entry(parent, workspace_root, |entry| {
         if starts_with_dot(&entry.file_name()) {
             return Ok(());
         }
-        if !ignore_not_found(entry.file_type())
-            .map_err(|source| workspace_walk_error(workspace_root, source))?
-            .is_some_and(|file_type| file_type.is_dir())
-        {
+        if !entry_is_directory(&entry, workspace_root)? {
             return Ok(());
         }
         collect_candidate_manifests_in(
             &entry.path(),
             workspace_root,
             user_negations,
+            ignored_directories,
             manifest_paths,
         );
         Ok(())
     })
+}
+
+fn entry_is_directory(
+    entry: &DirEntry,
+    workspace_root: &Path,
+) -> Result<bool, FindWorkspaceProjectsError> {
+    let Some(file_type) = ignore_not_found_or_loop(entry.file_type())
+        .map_err(|source| workspace_walk_error(workspace_root, source))?
+    else {
+        return Ok(false);
+    };
+    if file_type.is_dir() {
+        return Ok(true);
+    }
+    if file_type.is_symlink() {
+        let Some(metadata) = ignore_not_found_or_loop(fs::metadata(entry.path()))
+            .map_err(|source| workspace_walk_error(workspace_root, source))?
+        else {
+            return Ok(false);
+        };
+        return Ok(metadata.is_dir());
+    }
+    Ok(false)
+}
+
+fn ignore_not_found_or_loop<Value>(
+    result: std::io::Result<Value>,
+) -> std::io::Result<Option<Value>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == ErrorKind::NotFound || is_symlink_loop(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 /// Record the child directory's manifest candidates without checking
@@ -69,11 +101,13 @@ fn collect_candidate_manifests_in(
     directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
-        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations) {
+        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations, ignored_directories)
+        {
             manifest_paths.insert(manifest_path);
         }
     }
@@ -83,12 +117,18 @@ pub(super) fn collect_literal_manifests_in(
     directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
         if manifest_path.is_file()
-            && !is_ignored_manifest(&manifest_path, workspace_root, user_negations)
+            && !is_ignored_manifest(
+                &manifest_path,
+                workspace_root,
+                user_negations,
+                ignored_directories,
+            )
         {
             manifest_paths.insert(manifest_path);
         }
@@ -134,9 +174,12 @@ fn is_ignored_manifest(
     manifest_path: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
 ) -> bool {
     let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
-    has_always_ignored_component(relative) || user_negations.is_match(relative)
+    is_under_ignored_directory(manifest_path, ignored_directories)
+        || has_always_ignored_component(relative)
+        || user_negations.is_match(relative)
 }
 
 /// [`IGNORE_PATTERNS`](super::IGNORE_PATTERNS) by hand: `**/node_modules/**` and
@@ -210,6 +253,7 @@ pub(super) fn collect_walk_manifests<Entries, Matched, Failure>(
     walk_root: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
+    ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError>
 where
@@ -224,7 +268,7 @@ where
                 // Converting rather than restringifying keeps the underlying
                 // `io::ErrorKind`, which the skip below needs.
                 let err: std::io::Error = err.into();
-                if err.kind() == ErrorKind::NotFound {
+                if is_ignorable_walk_error(&err) {
                     continue;
                 }
                 return Err(FindWorkspaceProjectsError::Walk {
@@ -234,6 +278,9 @@ where
             }
         };
         let manifest_path = entry.path();
+        if is_under_ignored_directory(manifest_path, ignored_directories) {
+            continue;
+        }
         if pathdiff::diff_paths(manifest_path, workspace_root)
             .is_some_and(|relative| user_negations.is_match(relative.as_path()))
         {
@@ -256,4 +303,37 @@ pub(super) fn is_literal_pattern(pattern: &str) -> bool {
     !pattern
         .chars()
         .any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
+}
+
+fn is_ignorable_walk_error(error: &std::io::Error) -> bool {
+    error.kind() == ErrorKind::NotFound || is_symlink_loop(error)
+}
+
+fn is_symlink_loop(error: &std::io::Error) -> bool {
+    is_raw_loop_error(error) || is_filesystem_loop_kind(error.kind()) || is_wax_link_cycle(error)
+}
+
+fn is_filesystem_loop_kind(kind: ErrorKind) -> bool {
+    // `ErrorKind::FilesystemLoop` is unstable in the standard library (rust-lang/rust#86442).
+    // Matching its debug representation recognizes the standard library enum variant structurally.
+    format!("{kind:?}") == "FilesystemLoop"
+}
+
+fn is_wax_link_cycle(error: &std::io::Error) -> bool {
+    if let Some(walk_err) =
+        error.get_ref().and_then(|err| err.downcast_ref::<wax::walk::WalkError>())
+    {
+        return walk_err.to_string().contains("symbolic link cycle");
+    }
+    false
+}
+
+#[cfg(unix)]
+fn is_raw_loop_error(error: &std::io::Error) -> bool {
+    error.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(unix))]
+fn is_raw_loop_error(_error: &std::io::Error) -> bool {
+    false
 }

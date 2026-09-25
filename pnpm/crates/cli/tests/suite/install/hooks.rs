@@ -476,6 +476,124 @@ fn ignore_pnpmfile_skips_the_update_config_hook() {
     drop((root, mock_instance));
 }
 
+/// `--ignore-pnpmfile` skips the pnpmfile for one run, so a lockfile that
+/// is otherwise up to date installs as it is, with the `pnpmfileChecksum`
+/// and the hook's dependency it records. Frozen installs and repeat
+/// installs under the flag accept it too
+/// (<https://github.com/pnpm/pnpm/issues/10944>).
+#[test]
+fn ignore_pnpmfile_installs_an_up_to_date_lockfile_as_it_is() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert!(read_package_hook_applied(&workspace), "the hook injects its dependency");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains("pnpmfileChecksum:"), "the pnpmfile's hooks are checksummed");
+
+    for args in [
+        &["install", "--lockfile-only", "--ignore-pnpmfile"][..],
+        &["install", "--frozen-lockfile", "--lockfile-only", "--ignore-pnpmfile"],
+        &["install", "--frozen-lockfile", "--ignore-pnpmfile"],
+        &["install", "--ignore-pnpmfile"],
+    ] {
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"),
+            lockfile,
+            "{args:?} leaves the lockfile as it is",
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// A run under `--ignore-pnpmfile` that does resolve reuses none of the
+/// snapshots the pnpmfile shaped and records no `pnpmfileChecksum`, since
+/// the graph it writes lacks the hooks' effects. A frozen install that
+/// loads the pnpmfile then refuses the lockfile, and the next install that
+/// loads it restores the hook's dependency.
+#[test]
+fn ignore_pnpmfile_records_no_checksum_when_it_resolves() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_read_package_pnpmfile(&workspace);
+    let recorded_checksum = || {
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+            .expect("load wanted lockfile")
+            .expect("wanted lockfile")
+            .pnpmfile_checksum
+    };
+    let install_with_the_pnpmfile = |after: &str| {
+        pacquet_in(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+        assert!(recorded_checksum().is_some(), "the install after {after} records the pnpmfile");
+        assert!(read_package_hook_applied(&workspace), "the install after {after} runs the hook");
+    };
+
+    let write_manifest = |specifier: &str| {
+        fs::write(
+            workspace.join("package.json"),
+            format!(r#"{{"dependencies":{{"@pnpm.e2e/pkg-with-1-dep":"{specifier}"}}}}"#),
+        )
+        .expect("write package.json");
+    };
+
+    // `install` resolves once the manifest changes, while `update` and
+    // `dedupe` always do.
+    for (args, specifier) in [
+        (["update", "--lockfile-only", "--ignore-pnpmfile"], "100.0.0"),
+        (["dedupe", "--lockfile-only", "--ignore-pnpmfile"], "100.0.0"),
+        (["install", "--lockfile-only", "--ignore-pnpmfile"], "^100.0.0"),
+    ] {
+        write_manifest("100.0.0");
+        install_with_the_pnpmfile("the setup");
+        write_manifest(specifier);
+
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(recorded_checksum(), None, "{args:?} records no checksum");
+        assert!(!read_package_hook_applied(&workspace), "{args:?} resolves without the hook");
+
+        let output = pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+            .output()
+            .expect("run the frozen install");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "the pnpmfile no longer matches after {args:?}");
+        assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "STDERR:\n{stderr}");
+
+        install_with_the_pnpmfile(&format!("{args:?}"));
+    }
+
+    drop((root, mock_instance));
+}
+
 /// A workspace pnpmfile whose single `readPackage` hook is observable in
 /// the lockfile: it gives `@pnpm.e2e/pkg-with-1-dep` a dependency the
 /// published package doesn't declare.
@@ -582,8 +700,7 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let global_pnpmfile = root.path().join("global-pnpmfile.cjs");
-    fs::write(&global_pnpmfile, "module.exports = { hooks: { readPackage: (pkg) => pkg } }")
-        .expect("write global pnpmfile");
+    fs::write(&global_pnpmfile, "module.exports = {}").expect("write global pnpmfile");
     write_read_package_pnpmfile(&workspace);
     fs::write(
         workspace.join("package.json"),
@@ -670,6 +787,77 @@ fn removing_a_read_package_hook_drops_the_dependency_it_added() {
         !read_package_hook_applied(&workspace),
         "the removed hook's dependency is gone from the lockfile",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_edited_global_read_package_hook_is_not_ignored_by_lockfile_reuse() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let global_pnpmfile = root.path().join("global-pnpmfile.cjs");
+    fs::write(&global_pnpmfile, READ_PACKAGE_PNPMFILE).expect("write global pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    let install_with_global_pnpmfile = || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_GLOBAL_PNPMFILE", &global_pnpmfile)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+    };
+    install_with_global_pnpmfile();
+    assert!(read_package_hook_applied(&workspace), "the global hook injects its dependency");
+
+    fs::write(&global_pnpmfile, "module.exports = {}").expect("rewrite global pnpmfile");
+    install_with_global_pnpmfile();
+    assert!(!read_package_hook_applied(&workspace), "the edited hook's subtrees were re-resolved");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn an_edited_global_read_package_hook_is_not_ignored_by_fast_update() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let global_pnpmfile = root.path().join("global-pnpmfile.cjs");
+    fs::write(&global_pnpmfile, READ_PACKAGE_PNPMFILE).expect("write global pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0","@pnpm.e2e/bar":"100.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    let install_with_global_pnpmfile = || {
+        pacquet_in(&workspace)
+            .with_env("PNPM_CONFIG_GLOBAL_PNPMFILE", &global_pnpmfile)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+    };
+    install_with_global_pnpmfile();
+    assert!(read_package_hook_applied(&workspace), "the global hook injects its dependency");
+
+    // Edit the hook to stop injecting, and remove an unrelated dependency so
+    // the fast update would otherwise absorb the drift. The edited hook stays
+    // out of `pnpmfileChecksum`.
+    fs::write(&global_pnpmfile, "module.exports = { hooks: { readPackage: (pkg) => pkg } }")
+        .expect("rewrite global pnpmfile");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("remove unrelated dependency");
+    install_with_global_pnpmfile();
+    assert!(!read_package_hook_applied(&workspace), "the edited hook's subtrees were re-resolved");
 
     drop((root, mock_instance));
 }

@@ -113,6 +113,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_dedupe: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dev: Option<bool>,
     /// `None` and `Some(false)` both mean "global virtual store off" —
     /// pnpm omits the key for its `undefined` default and only writes a
@@ -254,7 +256,7 @@ pub fn update_workspace_state(
 ) -> Result<(), UpdateWorkspaceStateError> {
     let file_path = get_file_path(workspace_dir);
     let parent = file_path.parent().expect("workspace-state path always has a parent");
-    fs::create_dir_all(parent)
+    pnpm_fs::create_dir_all_with_retry(parent)
         .map_err(|source| UpdateWorkspaceStateError::CreateDir {
             path: parent.to_path_buf(),
             source,

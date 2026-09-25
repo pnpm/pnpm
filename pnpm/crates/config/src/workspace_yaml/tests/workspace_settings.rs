@@ -116,7 +116,6 @@ fn expands_env_vars_inside_non_registry_workspace_values() {
                 "HOOK" => Some("hook.js".to_owned()),
                 "SHELL" => Some("custom-shell".to_owned()),
                 "STORE_DIR" => Some("store-dir".to_owned()),
-                "USER_AGENT" => Some("pacquet-test/1.0".to_owned()),
                 _ => None,
             }
         }
@@ -127,7 +126,6 @@ storeDir: ${STORE_DIR}
 cacheDir: ${CACHE_DIR}
 scriptShell: ${SHELL}
 nodeOptions: --require=${HOOK}
-userAgent: ${USER_AGENT}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.substitute_env_untrusted::<EnvWithPaths>();
@@ -140,7 +138,32 @@ userAgent: ${USER_AGENT}
     assert_eq!(config.cache_dir, base.join("cache-dir"));
     assert_eq!(config.script_shell.as_deref(), Some("custom-shell"));
     assert_eq!(config.node_options.as_deref(), Some("--require=hook.js"));
-    assert_eq!(config.user_agent, "pacquet-test/1.0");
+}
+
+/// `userAgent` is sent to whichever registry the same file names, so a
+/// placeholder in it would deliver the installer's environment to that host.
+#[test]
+fn drops_a_workspace_user_agent_with_an_env_placeholder() {
+    struct EnvWithToken;
+    impl EnvVar for EnvWithToken {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_TEST_TOKEN").then(|| "super-secret-token".to_owned())
+        }
+    }
+
+    let yaml = "userAgent: agent/${PNPM_TEST_TOKEN}\n";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithToken>();
+    assert_eq!(settings.user_agent, None);
+
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_trusted::<EnvWithToken>();
+    assert_eq!(settings.user_agent.as_deref(), Some("agent/super-secret-token"));
+
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str("userAgent: my-agent/2.0\n").unwrap();
+    settings.substitute_env_untrusted::<EnvWithToken>();
+    assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 }
 
 #[test]

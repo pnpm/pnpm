@@ -90,6 +90,22 @@ pub(crate) fn semver_satisfies_loose(version: &str, range: &str) -> bool {
     parsed_version.satisfies(&parsed_range)
 }
 
+/// The highest version in `versions` by semver order, without a range
+/// check. The `*` pick admits a prerelease `latest` that a plain `*`
+/// range would reject, so its deprecation retry ranks candidates
+/// directly instead of re-running the range.
+pub(super) fn max_version<Raw: AsRef<str>>(versions: &[Raw]) -> Option<String> {
+    let mut best: Option<(Version, String)> = None;
+    for version in versions {
+        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
+        match &best {
+            Some((current, _)) if current >= &parsed => {}
+            _ => best = Some((parsed, version.as_ref().to_string())),
+        }
+    }
+    best.map(|(_, raw)| raw)
+}
+
 pub(super) fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
     let parsed_range = cached_range(range)?;
     let mut best: Option<(Version, String)> = None;

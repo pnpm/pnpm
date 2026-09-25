@@ -32,12 +32,11 @@ impl Config {
             });
 
         // Inside a workspace, scripts and `pnpm exec` also get the
-        // workspace root's `node_modules/.bin` on PATH — pnpm's
-        // `extraBinPaths = [join(workspaceDir, 'node_modules', '.bin')]`.
-        self.extra_bin_paths = self.workspace_dir
-            .as_deref()
-            .map(|dir| vec![dir.join("node_modules").join(".bin")])
-            .unwrap_or_default();
+        // workspace root's modules `.bin` on PATH, pnpm's
+        // `extraBinPaths = [join(workspaceDir, modulesDir, '.bin')]`.
+        // The root is a project like any other, so a `packageConfigs`
+        // entry naming it moves those executables too.
+        self.extra_bin_paths = self.workspace_root_bin_paths();
 
         // With `preferSymlinkedExecutables`, `.bin` entries are plain
         // symlinks with no shim to carry a `NODE_PATH` block, so the
@@ -128,6 +127,8 @@ impl Config {
         // `virtual_store_dir` at the store.
         if let Some(lockfile_dir) = self.lockfile_dir.clone() {
             self.anchor_lockfile_paths(&lockfile_dir);
+        } else if self.explicit_settings.contains_key("modulesDir") {
+            self.follow_modules_dir_with_virtual_store();
         }
 
         // Build the per-URI auth-header lookup. Credentials were already
@@ -148,7 +149,9 @@ impl Config {
         // Without this, typescript-eslint's case-folded path cache
         // diverges from TypeScript's case-sensitive program when the
         // workspace is case-sensitive and the home is not.
-        if !explicit.store_dir {
+        if explicit.store_dir {
+            self.store_dir_placement_skipped = false;
+        } else {
             self.resolve_default_store_dir::<Sys>(start_dir);
         }
 
@@ -168,5 +171,33 @@ impl Config {
         self.apply_shamefully_hoist_derivation();
         self.apply_virtual_store_only_derivation();
         Ok(())
+    }
+
+    /// Make `workspace_dir` the workspace root of a config that was loaded
+    /// outside any workspace, for a `pnpm-workspace.yaml` created after
+    /// loading. The layout that follows the workspace root follows it too.
+    pub fn anchor_to_created_workspace(
+        &mut self,
+        workspace_dir: std::path::PathBuf,
+        package_patterns: Vec<String>,
+    ) {
+        self.workspace_dir = Some(workspace_dir);
+        self.workspace_package_patterns = Some(package_patterns);
+        self.extra_bin_paths = self.workspace_root_bin_paths();
+    }
+
+    fn workspace_root_bin_paths(&self) -> Vec<std::path::PathBuf> {
+        self.workspace_dir
+            .as_deref()
+            .map_or_else(Vec::new, |dir| {
+                let root_name = self
+                    .applies_package_configs()
+                    .then(|| pnpm_workspace::read_project_name(dir))
+                    .flatten();
+                vec![
+                    dir.join(self.modules_dir_name_for(dir, root_name.as_deref()))
+                        .join(".bin"),
+                ]
+            })
     }
 }

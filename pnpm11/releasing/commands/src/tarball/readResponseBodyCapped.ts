@@ -1,7 +1,5 @@
 import { open, readFile } from 'node:fs/promises'
 
-import { temporaryFileTask } from 'tempy'
-
 /**
  * Read a response into memory up to `maxBytes` without retaining a second
  * in-memory copy. A missing body returns an empty buffer. A response over the
@@ -12,6 +10,8 @@ export async function readResponseBodyCapped (response: Response, maxBytes: numb
   const reader = response.body?.getReader()
   if (reader == null) return Buffer.alloc(0)
 
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryFileTask } = await import('tempy')
   return temporaryFileTask(async (temporaryPath) => {
     const file = await open(temporaryPath, 'wx', 0o600)
     let total = 0

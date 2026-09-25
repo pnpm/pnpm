@@ -12,7 +12,7 @@ use super::{
 use crate::{
     Install, PolicyExcludes, UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
-    defer_ignored_builds, included_direct_groups,
+    defer_ignored_builds,
     manifest_spec_bumps::ManifestSpecBumps,
 };
 use pipe_trait::Pipe;
@@ -142,9 +142,8 @@ pub(super) struct UpdateSeed {
     pub(super) preferred_versions_override: PreferredVersions,
     pub(super) catalogs_override: Option<Catalogs>,
 }
-/// `include` is always all-true for updates: the materialized
-/// `node_modules` layout must not change just because the
-/// update scope was narrowed.
+/// An explicitly selected peer group reaches resolution; the install honors
+/// `autoInstallPeers` when deciding whether to materialize those peers.
 /// `update` always re-resolves against the registry, so the
 /// auto-frozen / repeat-install fast paths must not fire.
 pub(super) fn update_install<'i>(
@@ -153,7 +152,8 @@ pub(super) fn update_install<'i>(
     manifest: &'i PackageManifest,
     seed: UpdateSeed,
     read_package_hook: Option<&ReadPackageHook>,
-) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
+) -> Install<'i, Vec<DependencyGroup>> {
+    let dependency_groups = update_dependency_groups(&update, &owned);
     Install {
         lockfile_policy: update.lockfile_policy(),
         execution: crate::InstallExecution {
@@ -186,13 +186,53 @@ pub(super) fn update_install<'i>(
             resolved_packages: update.resolved_packages,
         },
         projects: crate::InstallProjects {
-            dependency_groups: included_direct_groups(update.config.optional),
+            dependency_groups,
             supported_architectures: owned.supported_architectures,
             catalogs_override: seed.catalogs_override,
             pnpmfile_hook_override: read_package_hook.map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         },
     }
+}
+fn update_dependency_groups(
+    update: &UpdateOptions<'_>,
+    owned: &UpdateResources,
+) -> Vec<DependencyGroup> {
+    let prior_included = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
+        &update.config.modules_dir,
+    )
+    .ok()
+    .flatten()
+    .map(|layout| layout.included);
+    let is_explicit_dev = owned.explicit_groups.dev;
+    let is_explicit_prod = owned.explicit_groups.prod;
+    let is_explicit_optional = owned.explicit_groups.optional;
+
+    let (prod, dev, optional) = if let Some(included) = prior_included {
+        (
+            included.dependencies || is_explicit_prod,
+            included.dev_dependencies || is_explicit_dev,
+            !owned.explicit_groups.no_optional
+                && (is_explicit_optional
+                    || (included.optional_dependencies && update.config.optional)),
+        )
+    } else {
+        (
+            true,
+            !is_explicit_prod || is_explicit_dev,
+            !owned.explicit_groups.no_optional
+                && (is_explicit_optional || update.config.optional),
+        )
+    };
+
+    std::iter::empty()
+        .chain(prod.then_some(DependencyGroup::Prod))
+        .chain(dev.then_some(DependencyGroup::Dev))
+        .chain(optional.then_some(DependencyGroup::Optional))
+        .chain(
+            owned.include_direct.contains(&DependencyGroup::Peer).then_some(DependencyGroup::Peer),
+        )
+        .collect()
 }
 /// A selector that matched nothing at depth 0 is an error; anything else
 /// leaves the command a no-op.

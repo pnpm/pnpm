@@ -3174,6 +3174,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "json5"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "733a844dbd6fef128e98cb4487b887cb55454d92cd9994b1bafe004fabbe670c"
+dependencies = [
+ "serde",
+ "ucd-trie",
+]
+
+[[package]]
 name = "junction"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4622,7 +4632,6 @@ dependencies = [
  "home",
  "indexmap 2.14.0",
  "insta",
- "is_ci",
  "libc",
  "miette 7.6.0",
  "mockito",
@@ -4686,6 +4695,7 @@ dependencies = [
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-git-resolver",
+ "pnpm-resolving-local-resolver",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
@@ -4763,7 +4773,6 @@ dependencies = [
  "dunce",
  "home",
  "indexmap 2.14.0",
- "is_ci",
  "libc",
  "miette 7.6.0",
  "node-semver",
@@ -4927,6 +4936,7 @@ dependencies = [
  "futures-util",
  "indexmap 2.14.0",
  "insta",
+ "junction 2.0.0",
  "libc",
  "miette 7.6.0",
  "mockito",
@@ -5152,8 +5162,10 @@ version = "0.0.1"
 dependencies = [
  "deno_task_shell",
  "derive_more",
+ "dunce",
  "libc",
  "miette 7.6.0",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-reporter",
  "pretty_assertions",
@@ -5186,11 +5198,14 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "dunce",
+ "getrandom 0.4.3",
  "junction 2.0.0",
  "libc",
  "miette 7.6.0",
  "pathdiff",
+ "pnpm-crypto-hash",
  "reflink-copy",
+ "same-file",
  "sha2",
  "tempfile",
  "tracing",
@@ -5204,6 +5219,7 @@ dependencies = [
  "derive_more",
  "ignore",
  "pnpm-diagnostics",
+ "pnpm-fs",
  "pnpm-package-manifest",
  "serde_json",
  "tempfile",
@@ -5249,10 +5265,13 @@ dependencies = [
 name = "pnpm-github-actions"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "futures-util",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-config",
  "pnpm-fs",
+ "pnpm-git-utils",
  "pnpm-matcher",
  "pnpm-network",
  "pnpm-reporter",
@@ -5289,6 +5308,7 @@ dependencies = [
  "base64 0.23.1",
  "indexmap 2.14.0",
  "pnpm-detect-libc",
+ "pnpm-fs",
  "pretty_assertions",
  "serde_json",
  "sha2",
@@ -5415,6 +5435,9 @@ name = "pnpm-lockfile-preferred-versions"
 version = "0.0.1"
 dependencies = [
  "node-semver",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-resolving-resolver-base",
@@ -5560,6 +5583,7 @@ name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "core-foundation",
  "derive_more",
  "futures-util",
  "miette 7.6.0",
@@ -5569,6 +5593,8 @@ dependencies = [
  "pretty_assertions",
  "reqwest",
  "rustls",
+ "security-framework",
+ "security-framework-sys",
  "tokio",
  "tracing",
  "webpki-root-certs",
@@ -5665,10 +5691,10 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "home",
  "httpdate",
  "indexmap 2.14.0",
  "insta",
- "is_ci",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -5751,6 +5777,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "insta",
+ "json5",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
@@ -5823,6 +5850,8 @@ dependencies = [
  "derive_more",
  "dialoguer",
  "flate2",
+ "futures-util",
+ "httpdate",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -6011,6 +6040,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-hooks",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6109,6 +6139,7 @@ dependencies = [
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-store-dir",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pretty_assertions",
@@ -6197,6 +6228,7 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-fs",
+ "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-shared-artifact-protocol",
  "pretty_assertions",
@@ -6223,6 +6255,7 @@ dependencies = [
  "derive_more",
  "flate2",
  "futures-util",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "num_cpus",
@@ -6312,6 +6345,7 @@ dependencies = [
  "pnpm-workspace-projects-graph",
  "pretty_assertions",
  "rayon",
+ "same-file",
  "serde",
  "serde-saphyr",
  "tempfile",
@@ -6349,9 +6383,16 @@ dependencies = [
  "indexmap 2.14.0",
  "miette 7.6.0",
  "pathdiff",
+ "pnpm-catalogs-config",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-types",
  "pnpm-matcher",
  "pnpm-testing-utils",
+ "pnpm-workspace",
  "pnpm-workspace-projects-graph",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
  "tempfile",
  "wax",
 ]
@@ -6362,6 +6403,9 @@ version = "0.0.1"
 dependencies = [
  "indexmap 2.14.0",
  "node-semver",
+ "pnpm-catalogs-protocol-parser",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
  "pnpm-fs",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
@@ -6751,6 +6795,7 @@ dependencies = [
  "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
+ "libc",
  "object_store",
  "pnpm-crypto-hash",
  "pnpm-network",
@@ -9356,6 +9401,12 @@ name = "typenum"
 version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
+
+[[package]]
+name = "ucd-trie"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 
 [[package]]
 name = "uncased"

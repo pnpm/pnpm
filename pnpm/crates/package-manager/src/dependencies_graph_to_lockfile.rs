@@ -59,6 +59,7 @@ pub struct ImporterLockfileInput<'a> {
 struct ImporterLockfileFlags {
     exclude_links_from_lockfile: bool,
     auto_install_peers: bool,
+    include_peer_dependencies: bool,
 }
 
 /// Options threaded into [`dependencies_graph_to_lockfile`].
@@ -90,6 +91,11 @@ pub struct GraphToLockfileOptions<'a> {
 }
 
 pub struct LockfileManifestSettings {
+    /// Whether this command explicitly selected peer dependencies even when
+    /// automatic peer installation is disabled. Those entries are available
+    /// while update ranges are settled, then removed before the lockfile is
+    /// saved when they must stay unmaterialized.
+    pub include_peer_dependencies: bool,
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. An [`IndexMap`] so the user's declaration order is
     /// preserved on serialization (this map is left unsorted).
@@ -107,6 +113,7 @@ pub struct LockfileManifestSettings {
     /// `pnpmfileChecksum` recorded the same way. `None` when the project
     /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
+    pub untracked_pnpmfile_read_package_hook: Option<bool>,
 }
 
 pub struct LockfileImporterReuse<'a> {
@@ -193,7 +200,7 @@ pub fn dependencies_graph_to_lockfile(
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
     let importers = build_importers(&opts)?;
-    Ok(Lockfile {
+    let mut lockfile = Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("the generated lockfile version is supported"),
         settings: Some(opts.settings),
@@ -217,7 +224,11 @@ pub fn dependencies_graph_to_lockfile(
         // fresh contents anyway); `Lockfile::extra` is what makes that
         // read-edit-write round trip lossless.
         extra: pnpm_lockfile::LockfileExtra::default(),
-    })
+    };
+    lockfile.set_untracked_pnpmfile_read_package_hook(
+        opts.manifest_settings.untracked_pnpmfile_read_package_hook,
+    );
+    Ok(lockfile)
 }
 
 /// Build the lockfile's `catalogs:` snapshot from the resolved importers.

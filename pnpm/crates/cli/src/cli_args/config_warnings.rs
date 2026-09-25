@@ -162,7 +162,7 @@ pub(crate) struct UnrecognizedWorkspaceSettingsError {
 #[diagnostic(
     code(ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS),
     help(
-        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "priority", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
     )
 )]
 pub(crate) struct UnrecognizedTaskSettingsError {
@@ -262,6 +262,28 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     format!(
         "The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: {keys}.",
     )
+}
+
+pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) {
+    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(
+        shared_workspace_lockfile_cli,
+        workspace_dir,
+    ) {
+        emit_config_warning(&message);
+    }
+}
+
+pub(super) fn shared_workspace_lockfile_outside_workspace_warning(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) -> Option<String> {
+    (shared_workspace_lockfile_cli.is_some() && workspace_dir.is_none()).then(|| {
+        r#"The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#
+            .to_string()
+    })
 }
 
 #[cfg(test)]

@@ -49,6 +49,28 @@ afterEach(() => {
   jest.mocked(console.warn).mockRestore()
 })
 
+test.each([undefined, '', 'dummy-token'])('emit trusted auth environment warnings for %p', async (token) => {
+  prepare()
+  const originalToken = process.env.PNPM_TEST_AUTH_TOKEN
+  const originalAuthFile = process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+  fs.writeFileSync('auth.npmrc', '//registry.example/:_authToken=${PNPM_TEST_AUTH_TOKEN}')
+  process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = path.resolve('auth.npmrc')
+  if (token === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+  else process.env.PNPM_TEST_AUTH_TOKEN = token
+  try {
+    await getConfig({ json: false }, { workspaceDir: '.', excludeReporter: false })
+    const warning = expect.stringContaining('Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken"')
+    if (token) expect(console.warn).not.toHaveBeenCalledWith(warning)
+    else expect(console.warn).toHaveBeenCalledWith(warning)
+    expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('dummy-token'))
+  } finally {
+    if (originalToken === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+    else process.env.PNPM_TEST_AUTH_TOKEN = originalToken
+    if (originalAuthFile === undefined) delete process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+    else process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = originalAuthFile
+  }
+})
+
 test('console a warning when a project-level .npmrc has an unresolved env variable in an expanded setting', async () => {
   prepare()
 

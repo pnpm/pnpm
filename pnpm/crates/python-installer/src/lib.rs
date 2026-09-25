@@ -1,3 +1,7 @@
+// `plan_add`'s install future carries the engine's whole resolve-and-fetch
+// graph; proving it `Send` walks deeper than rustc's default limit.
+#![recursion_limit = "256"]
+
 pub use add::{AddOptions, plan_add, writable_project};
 pub use discovery::{Discovery, PythonProject, discover};
 pub use manifest::DependencySelection;

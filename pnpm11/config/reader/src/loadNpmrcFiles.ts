@@ -10,6 +10,7 @@ import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
+import { parseCAFileContents } from './parseCAFileContents.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -62,6 +63,7 @@ export interface JsonAuthResult {
   auth: Record<string, string>
   registries: Record<string, string>
   fallbackRegistries: Record<string, string>
+  defaultCandidates?: string[]
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -150,6 +152,10 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: envJsonAuth.registries,
     fallbackRegistries: globalConfigJsonAuth.registries,
+    defaultCandidates: envJsonAuth.defaultCandidates,
+  }
+  for (const [key, value] of Object.entries(jsonAuth.auth)) {
+    jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
   }
 
   // Read pnpm builtin rc + inline defaults
@@ -304,6 +310,7 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
 
   const auth: Record<string, string> = {}
   const registries: Record<string, string> = {}
+  const defaultCandidates: string[] = []
   for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
     const registry = parseJsonAuthRegistry(url, index + 1, source)
     if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
@@ -320,10 +327,17 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
       // Infer a registry route from the same entry (see JsonAuthResult.registries).
       // Last write wins on a duplicate scope, matching yaml/CLI.
-      registries[scope === '@' ? 'default' : scope] = registry.normalized
+      if (scope === '@') {
+        defaultCandidates.push(registry.normalized)
+      } else {
+        registries[scope] = registry.normalized
+      }
     }
   }
-  return { auth, registries, fallbackRegistries: {} }
+  if (defaultCandidates.length > 0) {
+    registries.default = defaultCandidates[defaultCandidates.length - 1]
+  }
+  return { auth, registries, fallbackRegistries: {}, defaultCandidates }
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
@@ -465,7 +479,7 @@ function readAndFilterNpmrc (
       warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
       continue
     }
-    const key = substituteEnv(rawKey, env, warnings)
+    const key = substituteEnv(rawKey, env, { warnings, key: rawKey })
     if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
       warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
       continue
@@ -484,7 +498,7 @@ function readAndFilterNpmrc (
         warnIgnoredAuthValueEnv(filePath, key, warnings)
         continue
       }
-      value = substituteEnv(rawValue, env, warnings)
+      value = substituteEnv(rawValue, env, { warnings, key })
     }
 
     // Only keep auth/registry related keys
@@ -604,12 +618,42 @@ function rescopeUnscopedCreds (
 // an auth value would be sent verbatim as a bearer token. Resolvable
 // placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
 // in the same string still expand normally.
-function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
-  const { value: substituted, unresolved } = envReplaceLossy(value, env)
+function substituteEnv (value: string, env: Record<string, string | undefined>, opts: { warnings: string[], key: string, context?: string }): string {
+  const { warnings, key } = opts
+  const authKey = AUTH_VALUE_KEYS.find(name => key === name || key.endsWith(`:${name}`))
+  const context = opts.context ?? (authKey ? ` in .npmrc key "${authKey}"` : '')
+  const { value: substituted, unresolved } = envReplaceLossy(value, withOptionalEnvPlaceholders(value, env))
   for (const placeholder of unresolved) {
-    warnings.push(`Failed to replace env in config: ${placeholder}`)
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
+  }
+  for (const placeholder of findEmptyEnvPlaceholders(value, env)) {
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
   }
   return substituted
+}
+
+// npm's `${VAR?}` expands to VAR, or to '' without a warning when VAR is
+// unset. envReplaceLossy reads the whole `VAR?` body as the variable name, so
+// the lookup table gets a `VAR?` entry for each such placeholder. A name
+// ending in `-` is left to envReplaceLossy's `${VAR-fallback}` form.
+function withOptionalEnvPlaceholders (value: string, env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const names = Array.from(value.matchAll(/\$\{([^${}?]*[^${}?-])\?\}/g), ([, name]) => name)
+  if (names.length === 0) return env
+  const envWithOptional = { ...env }
+  for (const name of names) {
+    envWithOptional[`${name}?`] = env[name] ?? ''
+  }
+  return envWithOptional
+}
+
+function findEmptyEnvPlaceholders (value: string, env: Record<string, string | undefined>): string[] {
+  const placeholders: string[] = []
+  for (const match of value.matchAll(/(?<!\\)(\\*)\$\{([^${}]+)\}/g)) {
+    const [, escapes, name] = match
+    if ((escapes.length % 2) !== 0 || name.includes(':-') || name.includes('-')) continue
+    if (env[name] === '') placeholders.push(`\${${name}}`)
+  }
+  return placeholders
 }
 
 function normalizePath (p: string | undefined): string | undefined {
@@ -697,11 +741,7 @@ function loadCAFile (layers: Array<Record<string, unknown>>): void {
 
   try {
     const contents = fs.readFileSync(cafile, 'utf8')
-    const delim = '-----END CERTIFICATE-----'
-    const cas = contents
-      .split(delim)
-      .filter(ca => ca.trim().length > 0)
-      .map(ca => `${ca.trimStart()}${delim}`)
+    const cas = parseCAFileContents(contents)
     if (cas.length === 0) return
     for (const layer of layers) {
       if (typeof layer.cafile === 'string') {

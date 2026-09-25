@@ -1,8 +1,10 @@
-//! The warning that names Yarn's `workspaces` field in the root manifest:
-//! what the user sees on stderr, and the installs that say it. Both install
-//! entry points warn — the full install path and the up-to-date
-//! short-circuit a repeat install takes — and neither says it inside a pnpm
-//! workspace, where `pnpm-workspace.yaml` already selects the projects.
+//! The install-family handling of Yarn's `workspaces` field in the root
+//! manifest: the field is converted into a `pnpm-workspace.yaml` on the
+//! first install, so a repository migrated from Yarn or npm links its
+//! projects instead of silently installing as a single one. An existing
+//! `pnpm-workspace.yaml` always wins, and `--ignore-workspace` keeps the
+//! project standalone. `import` writes no `pnpm-workspace.yaml`: it warns
+//! about the field instead.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -16,31 +18,126 @@ use std::{
     process::{Command, Output},
 };
 
-/// The whole line as it reaches a terminal, label included: the wording is
-/// pnpm 11's, and a user grepping their CI log for it must find the same
-/// text under pnpm 12.
-const WARNING: &str = r#"[WARN] The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead."#;
+/// The notice the converting install prints, as it reaches a terminal,
+/// label included.
+const CREATED: &str =
+    r#"[WARN] Created "pnpm-workspace.yaml" from the "workspaces" field in package.json."#;
+
+const UNSUPPORTED: &str = r#"[WARN] The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead."#;
+
+const DIFFERS: &str = r#"[WARN] The "workspaces" field in package.json differs from "packages" in pnpm-workspace.yaml. pnpm uses pnpm-workspace.yaml."#;
 
 #[test]
-fn an_install_warns_about_a_workspaces_field_with_no_pnpm_workspace_yaml() {
+fn an_install_creates_a_workspace_yaml_from_the_workspaces_field() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
         &workspace,
-        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*","apps/web"]}"#,
     );
 
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
     assert_success(&output);
-    assert_contains(&stderr(&output), WARNING);
+    assert_contains(&stderr(&output), CREATED);
+    let created =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml created");
+    assert_eq!(created, "packages:\n  - packages/*\n  - apps/web\n");
 }
 
-/// The second install of an unchanged project never reaches the full
-/// install path, so the up-to-date short-circuit has to emit the warning
-/// itself. A converted repository whose install is already current is
-/// exactly the case that has no other hint about the ignored field.
 #[test]
-fn a_repeat_install_taking_the_up_to_date_path_warns_too() {
+fn the_converting_install_links_the_declared_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    fs::create_dir_all(workspace.join("packages/foo")).expect("create project dir");
+    fs::write(workspace.join("packages/foo/package.json"), r#"{"name":"foo","version":"1.0.0"}"#)
+        .expect("write project manifest");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("lockfile written");
+    assert!(lockfile.contains("\n  packages/foo:"), "packages/foo is an importer:\n{lockfile}");
+}
+
+#[test]
+fn an_up_to_date_standalone_install_still_converts() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let standalone = run(pacquet_in(&workspace), root.path(), &["install", "--ignore-workspace"]);
+    assert_success(&standalone);
+    assert!(!workspace.join("pnpm-workspace.yaml").exists());
+
+    let output = run(pacquet_in(&workspace), root.path(), &["install"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), CREATED);
+    assert!(workspace.join("pnpm-workspace.yaml").exists());
+}
+
+#[test]
+fn a_workspaces_field_edited_after_conversion_warns_about_the_difference() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let first = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+    assert_success(&first);
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*","tools/*"]}"#,
+    );
+
+    let output = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), DIFFERS);
+    let kept =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml kept");
+    assert_eq!(kept, "packages:\n  - packages/*\n");
+}
+
+#[test]
+fn a_workspaces_field_without_usable_patterns_inside_a_workspace_warns_about_the_difference() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["",1]}"#,
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), DIFFERS);
+}
+
+#[test]
+fn a_converted_repository_warns_once_then_stays_quiet() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+
+    let first = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+    assert_success(&first);
+    assert_contains(&stderr(&first), CREATED);
+
+    let second = run(pacquet_in(&workspace), root.path(), &["install", "--lockfile-only"]);
+    assert_success(&second);
+    assert_quiet(&second);
+}
+
+#[test]
+fn a_repeat_install_taking_the_up_to_date_path_stays_quiet() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(
         &workspace,
@@ -54,11 +151,42 @@ fn a_repeat_install_taking_the_up_to_date_path_warns_too() {
     assert_success(&second);
     let printed = format!("{}{}", stdout(&second), stderr(&second));
     assert!(printed.contains("Already up to date"), "the short-circuit ran:\n{printed}");
-    assert_contains(&stderr(&second), WARNING);
+    assert_quiet(&second);
 }
 
-/// Inside a pnpm workspace the field is redundant rather than misleading:
-/// `pnpm-workspace.yaml` selects the projects, and the install links them.
+#[test]
+fn an_import_warns_about_the_workspaces_field_and_creates_no_workspace_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    write_package_lock(&workspace);
+
+    let output = run(pacquet, root.path(), &["import"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), UNSUPPORTED);
+    assert!(!workspace.join("pnpm-workspace.yaml").exists());
+}
+
+#[test]
+fn an_import_inside_a_matching_pnpm_workspace_stays_quiet() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    write_package_lock(&workspace);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = run(pacquet, root.path(), &["import"]);
+
+    assert_success(&output);
+    assert_quiet(&output);
+}
+
 #[test]
 fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -66,7 +194,7 @@ fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
         &workspace,
         r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
     );
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write pnpm-workspace.yaml");
 
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
@@ -75,8 +203,106 @@ fn a_workspaces_field_inside_a_pnpm_workspace_stays_quiet() {
     assert_quiet(&output);
 }
 
-/// Yarn's object spelling is the documented limit of the check: pnpm 11
-/// does not warn about it either, and the two are kept aligned.
+#[test]
+fn an_existing_workspace_yaml_is_left_untouched() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let authored = "packages:\n  - .\n";
+    fs::write(workspace.join("pnpm-workspace.yaml"), authored).expect("write pnpm-workspace.yaml");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), DIFFERS);
+    let kept =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml kept");
+    assert_eq!(kept, authored);
+}
+
+#[test]
+fn an_ignored_workspace_creates_no_workspace_yaml() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only", "--ignore-workspace"]);
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-workspace.yaml").exists(),
+        "--ignore-workspace must not create pnpm-workspace.yaml",
+    );
+}
+
+#[test]
+fn an_array_without_usable_patterns_keeps_the_unsupported_field_warning() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["",1]}"#,
+    );
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_contains(&stderr(&output), UNSUPPORTED);
+    assert!(
+        !workspace.join("pnpm-workspace.yaml").exists(),
+        "no usable pattern must not create pnpm-workspace.yaml",
+    );
+}
+
+#[test]
+fn yaml_special_characters_in_patterns_are_quoted_in_the_generated_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r##"{"name":"converted","version":"1.0.0","private":true,"workspaces":["!examples/**","#hidden/*","plain\nnewline"]}"##,
+    );
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let created =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml created");
+    let parsed: serde_json::Value =
+        serde_saphyr::from_str(&created).expect("generated yaml parses");
+    assert_eq!(
+        parsed,
+        serde_json::json!({"packages": ["!examples/**", "#hidden/*", "plain\nnewline"]}),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_workspace_yaml_is_neither_followed_nor_replaced() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(
+        &workspace,
+        r#"{"name":"converted","version":"1.0.0","private":true,"workspaces":["packages/*"]}"#,
+    );
+    let outside = root.path().join("elsewhere.yaml");
+    symlink(&workspace.join("pnpm-workspace.yaml"), &outside).expect("create dangling symlink");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert!(!outside.exists(), "the symlink target outside the workspace must not be written");
+    let meta = fs::symlink_metadata(workspace.join("pnpm-workspace.yaml"))
+        .expect("workspace yaml still a symlink");
+    assert!(meta.file_type().is_symlink(), "the symlink itself must be left in place");
+}
+
+#[cfg(unix)]
+fn symlink(link: &Path, target: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
 #[test]
 fn an_object_form_workspaces_field_stays_quiet() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -95,8 +321,14 @@ fn write_manifest(workspace: &Path, contents: &str) {
     fs::write(workspace.join("package.json"), contents).expect("write package.json");
 }
 
-/// A fresh command per run: [`CommandTempCwd`] hands out one, and the
-/// repeat-install test needs a second.
+fn write_package_lock(workspace: &Path) {
+    fs::write(
+        workspace.join("package-lock.json"),
+        r#"{"name":"converted","version":"1.0.0","lockfileVersion":3,"packages":{"":{"name":"converted","version":"1.0.0","workspaces":["packages/*"]}}}"#,
+    )
+    .expect("write package-lock.json");
+}
+
 fn pacquet_in(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")

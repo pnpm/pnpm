@@ -13,11 +13,21 @@ use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Mutex};
 use tempfile::tempdir;
 
+fn group_ids(groups: Vec<super::task_groups::ImporterTaskGroup<'_>>) -> Vec<Vec<&str>> {
+    groups
+        .into_iter()
+        .map(|group| group.importer_ids)
+        .collect()
+}
+
 #[test]
 fn importer_task_groups_fold_filesystem_name_aliases() {
     let dir = tempdir().expect("tempdir");
     fs::create_dir_all(dir.path().join("packages/app")).expect("create project dir");
-    let groups = super::importer_task_groups(dir.path(), vec![".", "packages/App", "packages/app"]);
+    let groups = group_ids(super::importer_task_groups(
+        dir.path(),
+        vec![".", "packages/App", "packages/app"],
+    ));
     // Self-conditioning on the host filesystem: where names fold (the
     // alias resolves), the aliased keys must share one group; where
     // they don't, the keys are genuinely distinct directories.
@@ -42,8 +52,10 @@ fn importer_task_groups_serialize_all_missing_dirs_together() {
     let dir = tempdir().expect("tempdir");
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
-    let groups =
-        super::importer_task_groups(dir.path(), vec!["packages/Ghost", nfc, nfd, "packages/ghost"]);
+    let groups = group_ids(super::importer_task_groups(
+        dir.path(),
+        vec!["packages/Ghost", nfc, nfd, "packages/ghost"],
+    ));
     assert_eq!(groups, vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]]);
 }
 
@@ -56,7 +68,7 @@ fn importer_task_groups_fold_unicode_normalization_aliases() {
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
     fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
-    let groups = super::importer_task_groups(dir.path(), vec![nfc, nfd]);
+    let groups = group_ids(super::importer_task_groups(dir.path(), vec![nfc, nfd]));
     assert_eq!(groups, vec![vec![nfc, nfd]], "normalization aliases must share a task");
 }
 
@@ -165,6 +177,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -323,6 +336,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -422,6 +436,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -500,6 +515,7 @@ fn empty_importers_is_a_no_op() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>();
 
@@ -585,6 +601,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
 
             package_manifests: None,
             requires_build_by_snapshot: None,
+            scheduled_builds: None,
         }
         .run::<RecordingReporter>()
         .expect("symlink should succeed");
@@ -708,6 +725,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -811,6 +829,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");

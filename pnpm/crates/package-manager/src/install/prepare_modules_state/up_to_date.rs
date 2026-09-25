@@ -2,6 +2,7 @@ use super::super::{
     Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
+    hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
     map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
     recorded_allow_builds_differ, unapproved_recorded_ignored_builds, update_workspace_state,
     verify_lockfile_eagerly,
@@ -60,8 +61,12 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // has to be retaken; the TypeScript CLI has no gate at this level at
     // all and instead forces every directory dep through materialization
     // in `lockfileToDepGraph`.
-    if !materialized_shape_matches(wanted_lockfile, current, context.tree.included)
-        || has_directory_snapshot(current)
+    if !materialized_shape_matches(
+        wanted_lockfile,
+        current,
+        context.tree.included,
+        config.peer_edge_options(),
+    ) || has_directory_snapshot(current)
     {
         return None;
     }
@@ -82,15 +87,42 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // never short-circuits here.
     let tree_intact = context.repeat.rebuild.is_none()
         && !modules_cache_prune_due(config, context.modules_manifest)
-        && frozen_tree_intact(
-            current,
-            modules,
-            config,
-            context.tree.workspace_root,
-            context.tree.node_linker,
-        )
+        && tree_contents_intact(context, current, modules)
         && bins_resolve_where_the_tree_is(context, current);
     tree_intact.then_some((wanted_lockfile, modules))
+}
+
+fn tree_contents_intact(
+    context: &FrozenTreeUpToDate<'_>,
+    current: &Lockfile,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> bool {
+    let config = context.tree.config;
+    let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
+    frozen_tree_intact(
+        current,
+        modules,
+        config,
+        context.tree.workspace_root,
+        context.tree.node_linker,
+    ) && if context.tree.node_linker == pnpm_config::NodeLinker::Hoisted {
+        hoisted_linker_workspace_links_intact(
+            current,
+            context.tree.included,
+            config,
+            context.tree.workspace_root,
+            context.recorded.projects,
+        )
+    } else {
+        hoisted_workspace_packages_present(
+            current,
+            config,
+            context.tree.workspace_root,
+            context.tree.included,
+            context.recorded.projects,
+            &skipped,
+        )
+    }
 }
 
 fn bins_resolve_where_the_tree_is(context: &FrozenTreeUpToDate<'_>, current: &Lockfile) -> bool {
@@ -194,7 +226,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.tree.workspace_root,
         (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
-    refresh_up_to_date_workspace(&context)?;
+    refresh_up_to_date_workspace::<Reporter>(&context);
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: context.projects.prefix.to_string(),
@@ -213,24 +245,30 @@ pub(super) fn enforce_recorded_build_policy(
     }
     Ok(())
 }
-pub(super) fn refresh_up_to_date_workspace(
+pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
     context: &UpToDateInstall<'_, '_>,
-) -> Result<(), InstallError> {
-    update_workspace_state(
+) {
+    let state = build_workspace_state::<Host>(
         context.tree.workspace_root,
-        &build_workspace_state::<Host>(
-            context.tree.workspace_root,
-            context.tree.config,
-            context.tree.node_linker,
-            context.tree.included,
-            context.supported_architectures,
-            context.projects.catalogs,
-            context.projects.manifests,
-            context.filtered_install,
-            filesystem_now_ms(context.tree.workspace_root),
-        ),
-    )
-    .map_err(InstallError::WriteWorkspaceState)
+        context.tree.config,
+        context.tree.node_linker,
+        context.tree.included,
+        context.supported_architectures,
+        context.projects.catalogs,
+        context.projects.manifests,
+        context.filtered_install,
+        filesystem_now_ms(context.tree.workspace_root),
+    );
+    if let Err(error) = update_workspace_state(context.tree.workspace_root, &state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "Failed to write the workspace state: {error}",
+        ));
+    }
 }
 pub(super) async fn verify_up_to_date_lockfile<Reporter: self::Reporter + 'static>(
     wanted_lockfile: &Lockfile,

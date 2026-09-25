@@ -1,4 +1,6 @@
-pub(crate) use integrity::frozen_tree_intact;
+pub(crate) use integrity::{
+    frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+};
 
 pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{
@@ -69,14 +71,14 @@ pub(crate) fn tree_may_move(config: &Config, node_linker: NodeLinker) -> bool {
 /// Whether a tree that moved with its project keeps working where it is now:
 /// [`tree_may_move`], and every importer, hoist, virtual-store slot and
 /// hoisted-package `.bin` holds only bins that name their paths relative to
-/// themselves, inside the directory holding `config.modules_dir`.
+/// themselves, inside [`Config::modules_dir_anchor`].
 pub(crate) fn moved_tree_is_reusable(
     config: &Config,
     node_linker: NodeLinker,
     project_manifests: &[(PathBuf, &PackageManifest)],
     lockfile: &Lockfile,
 ) -> bool {
-    let Some(root) = config.modules_dir.parent() else { return false };
+    let Some(root) = config.modules_dir_anchor() else { return false };
     tree_may_move(config, node_linker)
         && importer_bins_are_relocatable(config, project_manifests, root)
         && match node_linker {
@@ -90,8 +92,7 @@ fn importer_bins_are_relocatable(
     project_manifests: &[(PathBuf, &PackageManifest)],
     root: &Path,
 ) -> bool {
-    let modules_dir_name: &std::ffi::OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    let modules_dir_name: &std::ffi::OsStr = config.modules_dir_name();
     bin_dir_is_relocatable(&config.modules_dir.join(".bin"), root)
         && project_manifests
             .iter()
@@ -498,17 +499,19 @@ where
     write_modules_manifest::<Sys>(modules_dir, modules).map_err(InstallError::WriteModules)
 }
 
-/// Includes the executor's implicit `node-gyp rebuild` fallback when a
-/// project has `binding.gyp` but no explicit preinstall or install script.
+/// Whether the project defines any of `stages`, counting the executor's
+/// implicit `node-gyp rebuild` fallback for `install`.
 pub(super) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
+    stages: &[&str],
 ) -> bool {
-    let has_lifecycle_script = pnpm_executor::PROJECT_LIFECYCLE_STAGES
+    let has_lifecycle_script = stages
         .iter()
         .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
     has_lifecycle_script
-        || (matches!(manifest.script("preinstall", true), Ok(None))
+        || (stages.contains(&"install")
+            && matches!(manifest.script("preinstall", true), Ok(None))
             && matches!(manifest.script("install", true), Ok(None))
             && project_dir.join("binding.gyp").exists())
 }

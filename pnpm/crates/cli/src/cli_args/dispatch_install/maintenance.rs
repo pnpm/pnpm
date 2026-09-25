@@ -3,18 +3,18 @@ use super::{
     ApproveBuildsArgs, CommandFuture, Config, Context, DedupeArgs, DedupePipeline, DefaultReporter,
     DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs,
     InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline, RebuildArgs,
-    ReporterType, RunCtx, RuntimeArgs, SilentReporter, State, UnlinkArgs, apply_install_cli_config,
-    apply_update_config, derive_config_root, global, resolve_bool_override,
+    ReporterType, RunCtx, RuntimeArgs, SilentReporter, UnlinkArgs, apply_install_cli_config,
+    apply_update_config, derive_config_root, global, resolve_bool_override, warn_about_config_root,
 };
+use std::sync::atomic::Ordering;
 
 pub(in super::super) fn deploy<'a>(
     ctx: &RunCtx<'a>,
     args: DeployArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let reporter = ctx.reporter;
-    let config = ctx.loaders.config;
-    let cfg = config()?;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = ctx.reporter();
     // Ahead of the target validation, so a project with a `deploy` script
     // never has to name a target it does not deploy to.
     let script_args = args.target_dirs
@@ -30,7 +30,7 @@ pub(in super::super) fn deploy<'a>(
         // deploy futures would otherwise each reserve their full size in
         // this frame.
         {
-            let config_root = derive_config_root(cfg, dir, reporter)
+            let config_root = derive_config_root(&mut *cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
             let pipeline = DeployPipeline { args, cfg, config_root };
             match reporter {
@@ -55,12 +55,11 @@ pub(in super::super) fn dedupe<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
-    let config = ctx.loaders.config;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        let cfg = config()?;
         args.apply_cli_config(cfg);
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let recursive_sort = cfg.sort;
         let dedupe = DedupePipeline {
@@ -92,11 +91,10 @@ pub(in super::super) fn prune<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
-    let config = ctx.loaders.config;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        let cfg = config()?;
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline =
             PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
@@ -119,27 +117,34 @@ pub(in super::super) fn fetch<'a>(
     ctx: &RunCtx<'a>,
     args: FetchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.loaders.state)(true)?))
+    let ignore_pnpmfile = args.ignore_pnpmfile;
+    let command_state = ctx.prepared_state_with(true, move |config| {
+        config.ignore_pnpmfile |= ignore_pnpmfile;
+    });
+    let effective_reporter = ctx.effective_reporter;
+    Ok(Box::pin(async move {
+        let command_state = command_state.await?;
+        match effective_reporter.load(Ordering::Relaxed).into() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(command_state).await
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await,
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.loaders.state)(true)?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.loaders.state)(true)?)),
-    })
+    }))
 }
 
 pub(in super::super) fn import<'a>(
     ctx: &RunCtx<'a>,
     args: ImportArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path.to_path_buf();
-    let reporter = ctx.reporter;
+    let command_state = ctx.prepared_state(false);
+    let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
-        let command_state =
-            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        let command_state = command_state.await?;
+        let reporter = effective_reporter.load(Ordering::Relaxed).into();
+        warn_about_config_root(command_state.config, dir, reporter)?;
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await
@@ -157,7 +162,7 @@ pub(in super::super) fn link<'a>(
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path.to_path_buf();
-    let reporter = ctx.reporter;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         match reporter {
@@ -176,15 +181,12 @@ pub(in super::super) fn unlink<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
-    let config = ctx.loaders.config;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        let cfg = config()?;
         let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
-        // Strip the matching `link:` overrides; stop early when there is
-        // nothing to unlink.
-        if !args.strip_link_overrides(cfg, manifest_path)? {
+        if !args.remove_links(cfg, dir, manifest_path, recursive_sort)? {
             return Ok(());
         }
         // Reinstall through the install-family pipeline, exactly as pnpm's
@@ -192,7 +194,7 @@ pub(in super::super) fn unlink<'a>(
         // selection and per-project lockfiles apply. The reinstall forces a
         // fresh resolution so the removed `link:` overrides re-resolve from
         // the registry.
-        let config_root = derive_config_root(cfg, dir, reporter)
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
         let pipeline = InstallPipeline {
             args: InstallArgs::for_reresolving_install(),
@@ -226,9 +228,8 @@ pub(in super::super) fn rebuild<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
-    let reporter = ctx.reporter;
-    let config = ctx.loaders.config;
-    let cfg = config()?;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = ctx.reporter();
     if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
     {
         return dispatch_script::run(ctx, run_args);
@@ -259,7 +260,7 @@ pub(in super::super) fn runtime<'a>(
     if args.global {
         let config = (ctx.loaders.global_config)()?;
         let dir = ctx.locations.dir;
-        return Ok(match ctx.reporter {
+        return Ok(match ctx.reporter() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config, dir))
             }
@@ -267,14 +268,18 @@ pub(in super::super) fn runtime<'a>(
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
         });
     }
-    let command_state = (ctx.loaders.state)(false)?;
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(command_state))
+    let command_state = ctx.prepared_state(false);
+    let effective_reporter = ctx.effective_reporter;
+    Ok(Box::pin(async move {
+        let command_state = command_state.await?;
+        match effective_reporter.load(Ordering::Relaxed).into() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(command_state).await
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await,
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
-    })
+    }))
 }
 
 // `pnpm env use` installs a runtime globally, so it takes the same
@@ -288,7 +293,7 @@ pub(in super::super) fn env<'a>(
     let dir = ctx.locations.dir;
     // The reporter is chosen before the subcommand is classified because
     // classifying `env use` already emits its deprecation warning.
-    match ctx.reporter {
+    match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             env_with_reporter::<DefaultReporter>(args, config, dir)
         }
@@ -306,6 +311,9 @@ fn env_with_reporter<'a, Reporter: pnpm_reporter::Reporter + 'static>(
         EnvSubcommand::Use { package_name } => {
             Box::pin(EnvArgs::run_use::<Reporter>(package_name, config, dir))
         }
+        EnvSubcommand::Remove { versions } => {
+            Box::pin(EnvArgs::run_remove::<Reporter>(versions, config, dir))
+        }
         EnvSubcommand::List { version_spec } => Box::pin(async move {
             println!("{}", EnvArgs::run_list(version_spec, config).await?);
             Ok(())
@@ -319,39 +327,36 @@ pub(in super::super) fn approve_builds<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
         let config = (ctx.loaders.global_config)()?;
-        return Ok(approve_global_builds(config, args, ctx.reporter));
+        return Ok(approve_global_builds(config, args, ctx.reporter()));
     }
-    // The settings/prompt work is synchronous; only the rebuild is async, so
-    // the non-`Send` `config` / `state` closures stay out of the awaited
-    // future.
-    let prepared = match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => args.prepare::<DefaultReporter>(
-            ctx.locations.dir,
-            ctx.loaders.config,
-            ctx.loaders.state,
-        ),
-        ReporterType::Ndjson => {
-            args.prepare::<NdjsonReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
+    let config = ctx.prepared_config();
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    macro_rules! run_approve_builds {
+        ($reporter:ty, $config:ident) => {
+            Box::pin(async move {
+                let Some((rebuild_state, build_packages)) =
+                    args.prepare::<$reporter>(dir, $config, $config, manifest_path)?
+                else {
+                    return Ok(());
+                };
+                let selected =
+                    rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+                rebuild::run_rebuild::<$reporter>(&rebuild_state, selected, None).await
+            })
+        };
+    }
+    let effective_reporter = ctx.effective_reporter;
+    Ok(Box::pin(async move {
+        let config = config.await?;
+        match effective_reporter.load(Ordering::Relaxed).into() {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                run_approve_builds!(DefaultReporter, config).await
+            }
+            ReporterType::Ndjson => run_approve_builds!(NdjsonReporter, config).await,
+            ReporterType::Silent => run_approve_builds!(SilentReporter, config).await,
         }
-        ReporterType::Silent => {
-            args.prepare::<SilentReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
-        }
-    };
-    let Some((rebuild_state, build_packages)) = prepared? else {
-        return Ok(Box::pin(std::future::ready(Ok(()))));
-    };
-    let selected = rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Ndjson => Box::pin(async move {
-            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
-        }),
-        ReporterType::Silent => Box::pin(async move {
-            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
-        }),
-    })
+    }))
 }
 
 async fn run_rebuild_args(

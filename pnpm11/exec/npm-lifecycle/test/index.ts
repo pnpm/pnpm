@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
-import { lifecycle, type LifecycleChildProcess, type LifecycleLog, makeEnv } from '@pnpm/exec.npm-lifecycle'
+import { lifecycle, type LifecycleChildProcess, type LifecycleLog, makeEnv, relaySignals } from '@pnpm/exec.npm-lifecycle'
 import { temporaryDirectory } from 'tempy'
 
 const fixtures = path.join(import.meta.dirname, 'fixtures')
@@ -111,6 +111,39 @@ test('runs lifecycle scripts with the shell emulator', async () => {
   expect(spawned).toBe(false)
 })
 
+test('the shell emulator settles before a recursive interrupt is raised', async () => {
+  const listenersBeforeRelay = new Set(process.listeners('SIGINT'))
+  const relay = relaySignals({ kill: () => true }, {
+    ownProcessGroup: false,
+    raiseOnInterrupt: true,
+    terminateOnExit: false,
+  })
+  const interrupt = process.listeners('SIGINT').find((listener) => !listenersBeforeRelay.has(listener))!
+  const raised: Array<[number, string | number | undefined]> = []
+  process.kill = ((pid, signal) => {
+    raised.push([pid, signal])
+    return true
+  }) as typeof process.kill
+  try {
+    const running = lifecycle({ scripts: { test: 'node -e "setTimeout(() => {}, 100)"' } }, 'test', countTo10, {
+      stdio: 'pipe',
+      log: makeLog(),
+      dir: countTo10,
+      raiseOnInterrupt: true,
+      shellEmulator: true,
+    })
+    interrupt('SIGINT')
+    const settling = relay.settle()
+    await new Promise<void>((resolve) => setTimeout(resolve, 20))
+    expect(raised).toStrictEqual([])
+
+    await Promise.all([running, settling])
+    expect(raised).toStrictEqual([[process.pid, 'SIGINT']])
+  } finally {
+    await relay.settle()
+  }
+})
+
 test('a script killed by a signal rejects', async () => {
   process.kill = () => true
 
@@ -137,6 +170,31 @@ skipOnWindows('exit with error on INT signal from child', async () => {
 
   expect(log.info).toHaveBeenCalledWith('lifecycle', 'undefined~signal-int:', 'Failed to exec signal-int script')
   expect(log.silly).toHaveBeenCalledWith('lifecycle', 'undefined~signal-int:', 'Returned: code:', null, ' signal:', 'SIGINT')
+})
+
+test('a scriptShell that does not exist is named in the error', async () => {
+  const scriptShell = path.join(temporaryDirectory(), 'no-such-shell')
+
+  const running = lifecycle(countTo10Manifest, 'postinstall', countTo10, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: countTo10,
+    scriptShell,
+  })
+
+  await expect(running).rejects.toHaveProperty('code', 'ERR_PNPM_SCRIPT_SHELL_NOT_FOUND')
+  await expect(running).rejects.toThrow(`The configured scriptShell was not found: ${scriptShell}`)
+})
+
+skipOnWindows('a command missing inside an existing scriptShell is not blamed on the shell', async () => {
+  const running = lifecycle({ scripts: { postinstall: 'no-such-command-7562' } }, 'postinstall', countTo10, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: countTo10,
+    scriptShell: '/bin/sh',
+  })
+
+  await expect(running).rejects.toHaveProperty('code', 'ELIFECYCLE')
 })
 
 test('makeEnv', () => {

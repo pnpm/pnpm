@@ -1,10 +1,16 @@
 pub(crate) use resolve::fallback_version;
 
+mod publish;
+use publish::link_publish_modules_dir;
+
 mod report;
 use report::emit_root_added;
 
 mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
+
+mod task_groups;
+use task_groups::{importer_modules_parent, importer_task_groups};
 
 use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
@@ -62,6 +68,10 @@ where
     /// gating [`Self::package_manifests`] — see
     /// [`crate::link_direct_dep_bins_prefetched`].
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
+
+    /// The builds that run after this pass. See
+    /// [`crate::PrefetchedBinLookup::with_scheduled_builds`].
+    pub scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -101,6 +111,14 @@ pub enum SymlinkDirectDependenciesError {
         #[error(source)]
         source: SymlinkPackageError,
     },
+
+    #[display("Failed to inspect modules directory {dir:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_MODULES_DIR))]
+    InspectModulesDir {
+        dir: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 }
 
 impl<DependencyGroupList> SymlinkDirectDependencies<'_, DependencyGroupList>
@@ -117,6 +135,7 @@ where
             policy: self.policy,
 
             dependency_groups,
+            workspace_root_real: std::fs::canonicalize(self.context.workspace_root).ok(),
 
             // One bin lookup for the whole pass: the `hasBin` gate and
             // the shim probe memo are importer-invariant.
@@ -124,7 +143,8 @@ where
                 self.graph.packages,
                 self.package_manifests,
                 self.requires_build_by_snapshot,
-            ),
+            )
+            .with_scheduled_builds(self.scheduled_builds),
         }
         .run::<Reporter>()
     }
@@ -137,25 +157,13 @@ struct ImporterPass<'a> {
     pub graph: crate::ImporterDependencyGraph<'a>,
     pub policy: crate::DirectLinkPolicy<'a>,
     dependency_groups: Vec<DependencyGroup>,
+    workspace_root_real: Option<PathBuf>,
     bin_lookup: crate::PrefetchedBinLookup<'a>,
 }
 
 impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(&self) -> Result<(), SymlinkDirectDependenciesError> {
-        // Each importer's modules dir is `<importer_root>/<modules_dir_basename>`.
-        // The `modulesDir` setting is a directory name (a single
-        // component, default `node_modules`) applied uniformly under
-        // every importer. Pacquet stores `config.modules_dir` as a
-        // full path anchored at the workspace root, so peel off the
-        // last component to get the per-importer suffix — that way a
-        // `modulesDir: custom_modules` override in
-        // `pnpm-workspace.yaml` propagates to every importer instead
-        // of leaving the symlink stage stuck on `node_modules` while
-        // other stages (`.modules.yaml` writing, bin linking) use
-        // `config.modules_dir`.
-        let modules_dir_name: &OsStr = self.context.config.modules_dir
-            .file_name()
-            .unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
 
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
@@ -180,11 +188,12 @@ impl ImporterPass<'_> {
         task_groups
             .par_iter()
             .try_for_each(|group| {
-                group
+                group.importer_ids
                     .iter()
                     .try_for_each(|importer_id| {
                         self.link_importer::<Reporter>(
                             importer_id,
+                            group.real_dir.as_deref(),
                             modules_dir_name,
                             root_targets.as_ref(),
                         )
@@ -234,13 +243,20 @@ impl ImporterPass<'_> {
     fn link_importer<Reporter: self::Reporter>(
         &self,
         importer_id: &str,
+        real_dir: Option<&Path>,
         modules_dir_name: &OsStr,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
         let project_snapshot = &self.graph.importers[importer_id];
         let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
-        let modules_dir = project_dir.join(modules_dir_name);
+        let modules_dir = importer_modules_parent(
+            self.workspace_root_real.as_deref(),
+            &project_dir,
+            real_dir,
+            importer_id,
+        )
+        .join(modules_dir_name);
 
         // Only non-root importers get deduped against root: the
         // root project is linked unfiltered, then each sibling's
@@ -296,47 +312,6 @@ fn root_dedupe_targets(
         targets.entry(alias.clone()).or_insert_with(|| target.clone());
     }
     targets
-}
-
-/// Partition validated importer keys into the concurrency-safe task
-/// groups the parallel link pass runs.
-///
-/// Distinct keys may alias one directory through the filesystem's own
-/// name folding — case-insensitivity, Unicode normalization (APFS),
-/// Windows short names and trailing dots — and a real pnpm lockfile
-/// can't produce them (project discovery would have collapsed the
-/// directories), but a hostile lockfile can, and two tasks mutating
-/// one `node_modules` would race. Rather than enumerate the folding
-/// rules, ask the filesystem: importers whose project dirs
-/// canonicalize to one path share a group, in the caller's (sorted)
-/// order, keeping the serial pass's deterministic last-writer outcome,
-/// while distinct projects pay one read-only `canonicalize` each. A
-/// project dir that doesn't exist yet has nothing on disk to
-/// canonicalize against — and no string transform can decide which
-/// not-yet-created names the filesystem will later fold together — so
-/// every canonicalization failure lands in one shared serial group.
-/// That costs nothing real: a genuine project's directory always
-/// exists by this point (its manifest was read during project
-/// discovery), so the shared group only ever collects the phantom
-/// importers of a malformed lockfile.
-fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Vec<&'a str>> {
-    let mut task_groups: BTreeMap<PathBuf, Vec<&'a str>> = BTreeMap::new();
-    let mut unresolved: Vec<&'a str> = Vec::new();
-    for importer_id in keys {
-        let project_dir = importer_root_dir(workspace_root, importer_id);
-        match std::fs::canonicalize(&project_dir) {
-            Ok(canonical) => task_groups
-                .entry(canonical)
-                .or_default()
-                .push(importer_id),
-            Err(_) => unresolved.push(importer_id),
-        }
-    }
-    let mut task_groups: Vec<Vec<&'a str>> = task_groups.into_values().collect();
-    if !unresolved.is_empty() {
-        task_groups.push(unresolved);
-    }
-    task_groups
 }
 
 /// Reject importer keys that would resolve outside the workspace root.
@@ -587,6 +562,10 @@ fn link_one_importer<Reporter: self::Reporter>(
             .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
+    }
+
+    if symlink {
+        link_publish_modules_dir(importer_id, project_snapshot, project_dir, modules_dir)?;
     }
 
     Ok(())

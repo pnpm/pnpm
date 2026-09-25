@@ -14,6 +14,7 @@ export {
   isDirRef,
   materializeWorkspaceRange,
   type PlannedRelease,
+  privateProjectDirs,
   type ProjectRefIndex,
   type ReleaseCause,
   type ReleasePlan,

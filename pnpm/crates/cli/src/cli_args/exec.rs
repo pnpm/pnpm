@@ -1,6 +1,6 @@
 mod recursive;
 
-use super::reporter::{ReporterType, reporter_emit};
+use super::reporter::ReporterType;
 use crate::path_env::{BadPathDir, prepend_dirs_to_path, set_command_path};
 use clap::Args;
 use derive_more::{Display, Error};
@@ -16,6 +16,7 @@ use pnpm_package_manager::{
 };
 use pnpm_workspace::read_project_name;
 use std::{
+    collections::HashMap,
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
@@ -122,8 +123,7 @@ impl ExecArgs {
         dir: &Path,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        recursive::exec_recursive(self, config, dir, reporter_emit(reporter)).await
+        recursive::exec_recursive(self, config, dir, reporter).await
     }
 }
 
@@ -190,11 +190,8 @@ fn command_in_dir(
     shell_mode: bool,
 ) -> Result<Command, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
-    // Prepend `./node_modules/.bin` (resolved against the project
-    // directory) and then the `extraBinPaths`. pnpm prepends the whole
-    // ancestor chain of `node_modules/.bin` directories, of which the
-    // project's is the one that holds the installed executables.
-    let path = command_search_path(dirs, config)?;
+    let project_name = read_project_name(project);
+    let path = command_search_path(dirs, config, project_name.as_deref())?;
 
     let mut cmd = if shell_mode {
         // execa's `shell: true` joins the command and its arguments
@@ -223,15 +220,18 @@ fn command_in_dir(
 
     cmd.current_dir(dir);
     // `updateConfig`-provided env, applied first so pnpm's own keys
-    // below (PATH, user-agent, NODE_OPTIONS) win on conflict — matching
+    // below (PATH, user-agent, NODE_OPTIONS, PWD) win on conflict — matching
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
-    cmd.envs(&config.extra_env);
+    cmd.envs(project_extra_env(config, project, project_name.as_deref()));
     set_command_path(&mut cmd, &path);
+    let init_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+    set_logical_pwd(&mut cmd, &init_cwd, dir);
+    set_package_manager_env(&mut cmd, &init_cwd, &config.extra_env);
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
-    if let Some(name) = read_project_name(project) {
+    if let Some(name) = &project_name {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
     let mut node_options = configured_node_options(config);
@@ -249,6 +249,39 @@ fn command_in_dir(
     }
 
     Ok(cmd)
+}
+
+// The child inherits the PWD of pnpm's own cwd. When the command runs
+// in that same directory the inherited value is already right and may
+// hold the logical path through a symlink, so keep it. Otherwise point
+// PWD at the command's cwd: shells trust PWD over getcwd(), so a
+// project reached through a symlink then reports its logical path.
+#[cfg(unix)]
+fn set_logical_pwd(cmd: &mut Command, init_cwd: &Path, dir: &Path) {
+    if init_cwd != dir {
+        cmd.env("PWD", dir);
+    }
+}
+
+// POSIX-only: neither cmd.exe nor PowerShell reads PWD.
+#[cfg(not(unix))]
+fn set_logical_pwd(_cmd: &mut Command, _init_cwd: &Path, _dir: &Path) {}
+
+pub(super) fn set_package_manager_env(
+    cmd: &mut Command,
+    init_cwd: &Path,
+    extra_env: &HashMap<String, String>,
+) {
+    cmd.env_remove("NODE").env_remove("npm_node_execpath");
+    cmd.envs(pnpm_executor::package_manager_env(
+        init_cwd,
+        extra_env
+            .get("NODE")
+            .filter(|value| !value.is_empty())
+            .map(Path::new),
+        None,
+        std::env::var_os("PATH").as_deref(),
+    ));
 }
 
 /// The `stage` pnpm stamps on the lifecycle events of an exec'd command.
@@ -269,15 +302,31 @@ fn configured_node_options(config: &Config) -> Option<String> {
 #[cfg(test)]
 mod tests;
 
+fn project_extra_env(
+    config: &Config,
+    project: &Path,
+    project_name: Option<&str>,
+) -> HashMap<String, String> {
+    let mut env = config.extra_env.clone();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut env,
+        project,
+        &config.modules_dir_name_for(project, project_name),
+    );
+    env
+}
+
 fn command_search_path(
     dirs: ExecDirs<'_>,
     config: &Config,
+    project_name: Option<&str>,
 ) -> Result<std::ffi::OsString, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
+    let modules_dir_name = config.modules_dir_name_for(project, project_name);
     let mut prepend = Vec::with_capacity(2 + config.extra_bin_paths.len());
-    prepend.push(dir.join("node_modules").join(".bin"));
+    prepend.push(dir.join(&modules_dir_name).join(".bin"));
     if project != dir {
-        prepend.push(project.join("node_modules").join(".bin"));
+        prepend.push(project.join(&modules_dir_name).join(".bin"));
     }
     prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)

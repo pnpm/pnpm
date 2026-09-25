@@ -11,6 +11,7 @@ impl WorkspaceSettings {
     /// [`Config`](crate::settings::Config).
     pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
         self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
         substitute_optional_string::<Sys>(&mut self.https_proxy);
@@ -23,11 +24,12 @@ impl WorkspaceSettings {
     }
 
     /// Expand `${VAR}` in ordinary string settings, but drop
-    /// placeholders inside workspace-controlled request-destination
-    /// fields. Scalar strings still have `${VAR}` expanded, while
-    /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
-    /// are filtered instead of expanding environment variables into
-    /// request URLs.
+    /// placeholders inside workspace-controlled request settings.
+    /// Scalar strings still have `${VAR}` expanded, while `registry`,
+    /// `registries`, `namedRegistries`, `pnprServer`, the proxies, and
+    /// `userAgent` are filtered instead: the destinations would let the
+    /// file choose the host, and `userAgent` would send that host the
+    /// variable's value as a request header.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
@@ -44,12 +46,15 @@ impl WorkspaceSettings {
             named_registries.retain(|_, value| !has_env_placeholder(value));
         }
 
-        if self.pnpr_server.as_deref().is_some_and(has_env_placeholder) {
-            self.pnpr_server = None;
-        }
-        for proxy in [&mut self.https_proxy, &mut self.http_proxy, &mut self.proxy] {
-            if proxy.as_deref().is_some_and(has_env_placeholder) {
-                *proxy = None;
+        for scalar in [
+            &mut self.pnpr_server,
+            &mut self.https_proxy,
+            &mut self.http_proxy,
+            &mut self.proxy,
+            &mut self.user_agent,
+        ] {
+            if scalar.as_deref().is_some_and(has_env_placeholder) {
+                *scalar = None;
             }
         }
         for no_proxy in [&mut self.no_proxy, &mut self.noproxy] {
@@ -63,15 +68,14 @@ impl WorkspaceSettings {
         }
     }
 
-    /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
-    /// directory, as pnpm's `transformGlobalDirKeys` does. A shell expands
-    /// the tilde before `pnpm config set` sees it, but a hand-written
-    /// `config.yaml` carries it verbatim.
+    /// Rewrite a leading `~/` in `storeDir`, `globalDir`, and `globalBinDir`
+    /// into the home directory. A shell expands the tilde before pnpm sees it,
+    /// but a configuration file carries it verbatim.
     ///
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
-    pub(crate) fn expand_global_dir_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
+    pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
+        for dir in [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir] {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| {
@@ -104,7 +108,6 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_dir);
         substitute_optional_string::<Sys>(&mut self.global_bin_dir);
-        substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);

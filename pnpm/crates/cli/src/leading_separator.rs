@@ -1,15 +1,15 @@
-//! Preservation of a `--` that opens a forwarded command line.
+//! Protection of the arguments forwarded by a script shortcut.
 //!
-//! clap treats the first `--` it meets as its own escape token and drops
-//! it, unless a `trailing_var_arg` positional has already started taking
-//! values. So a command whose arguments begin *at* the separator —
-//! `pnpm stop -- --flag`, where no script name precedes it — loses it,
-//! and the program the script runs reads `--flag` as its own option.
+//! Script shortcuts forward everything after the shortcut name to the
+//! script. A `--` at that boundary keeps clap from claiming an option that
+//! belongs to the script as one of pnpm's global options (for example,
+//! `pnpm test --filter=Foo`).
 //!
-//! Writing a second `--` at that position gives clap one to consume and
-//! leaves the user's to reach the script. The position comes from
-//! [`command_boundary`], the same scan the other pre-clap passes read, so
-//! this cannot disagree with them about who owns a token.
+//! When the user supplied `--` there, inserting another one gives clap one
+//! to consume and leaves the user's separator to reach the script. The
+//! position comes from [`command_boundary`], the same scan the other
+//! pre-clap passes read, so this cannot disagree with them about who owns a
+//! token.
 //!
 //! Only the script shortcuts can hit this: every other command that
 //! forwards a command line puts a script or command name ahead of the
@@ -25,10 +25,7 @@ pub(crate) fn preserve_leading_separator(mut argv: Vec<OsString>) -> Vec<OsStrin
     else {
         return argv;
     };
-    if argv
-        .get(boundary.index)
-        .is_none_or(|token| token != "--")
-    {
+    if argv.get(boundary.index).is_none() {
         return argv;
     }
     argv.insert(boundary.index, OsString::from("--"));

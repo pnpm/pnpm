@@ -14,8 +14,9 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
+pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
+
 mod reachability;
-use reachability::collect_reachable;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -24,7 +25,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;
@@ -44,16 +45,20 @@ pub enum MergeFilteredWantedLockfileError {
     },
 }
 
+/// The part of `lockfile` that `initial_importer_ids` materialize under
+/// `groups` and `skipped`. Each retained snapshot loses the peer-satisfaction
+/// entries whose target the closure drops, so nothing links a package that is
+/// not installed.
 #[must_use]
 pub fn materialization_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     initial_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
     let reachable =
-        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains(key)
         });
     // Package metadata survives an installability skip and a failed fetch but
@@ -61,7 +66,7 @@ pub fn materialization_closure(
     // unless those two subsets are empty, in which case the second walk would
     // retrace the first over the whole graph.
     let metadata_walk = (!skipped.optional_exclusions_are_the_only_skips()).then(|| {
-        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {
             skipped.contains_optional_excluded(key)
         })
     });
@@ -76,24 +81,31 @@ pub fn materialization_closure(
         .iter()
         .filter(|(id, _)| reachable.importer_ids.contains(*id))
         .map(|(id, importer)| {
-            (id.clone(), filter_importer(importer, included, &reachable.snapshot_keys))
+            (id.clone(), filter_importer(importer, groups.included, &reachable.snapshot_keys))
         })
         .collect();
-    let snapshots = lockfile.snapshots
-        .as_ref()
-        .map(|snapshots| {
-            snapshots
-                .iter()
-                .filter(|(key, _)| reachable.snapshot_keys.contains(*key))
-                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-                .collect()
-        });
+    let snapshots = retained_snapshots(lockfile, &reachable.snapshot_keys, groups);
     let packages = reachable_package_metadata(lockfile, &reachable_metadata);
 
     MaterializationClosure {
         lockfile: lockfile_with_graph(lockfile, importers, packages, snapshots),
         importer_ids: reachable.importer_ids,
     }
+}
+
+fn retained_snapshots(
+    lockfile: &Lockfile,
+    reachable: &HashSet<PackageKey>,
+    groups: &GroupSelection,
+) -> Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>> {
+    let mut snapshots = lockfile.snapshots
+        .as_ref()?
+        .iter()
+        .filter(|(key, _)| reachable.contains(*key))
+        .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+        .collect();
+    groups.skipped_peer_edges.prune_dangling(&mut snapshots);
+    Some(snapshots)
 }
 
 /// Build the complete wanted lockfile for a filtered install: the
@@ -174,7 +186,7 @@ pub fn merge_filtered_current_lockfile(
     previous_current: Option<&Lockfile>,
     wanted: &Lockfile,
     requested_importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
     workspace_root: &Path,
 ) -> Lockfile {
@@ -182,7 +194,7 @@ pub fn merge_filtered_current_lockfile(
         wanted,
         workspace_root,
         requested_importer_ids,
-        included,
+        groups,
         &skipped.transient_only(),
     );
     let Some(previous_current) = previous_current else {
@@ -225,7 +237,7 @@ fn retained_closure(
         &retained_source,
         workspace_root,
         &retained_importer_ids,
-        all_dependencies(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -256,7 +268,7 @@ fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
         lockfile,
         workspace_root,
         &importer_ids,
-        all_dependencies(),
+        &GroupSelection::all(),
         &SkippedSnapshots::new(),
     )
     .lockfile
@@ -305,7 +317,7 @@ pub fn extend_skipped_with_dependency_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     importer_ids: &HashSet<String>,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
 ) {
     if skipped
         .iter_installability()
@@ -314,8 +326,8 @@ pub fn extend_skipped_with_dependency_closure(
     {
         return;
     }
-    let full = collect_reachable(lockfile, workspace_root, importer_ids, included, |_| false);
-    let kept = collect_reachable(lockfile, workspace_root, importer_ids, included, |key| {
+    let full = collect_reachable(lockfile, workspace_root, importer_ids, groups, |_| false);
+    let kept = collect_reachable(lockfile, workspace_root, importer_ids, groups, |key| {
         skipped.contains_installability(key)
     });
     for key in full.snapshot_keys {
@@ -323,10 +335,6 @@ pub fn extend_skipped_with_dependency_closure(
             skipped.insert_installability(key);
         }
     }
-}
-
-fn all_dependencies() -> IncludedDependencies {
-    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 fn overlay_package_maps<Value: Clone>(
@@ -371,7 +379,7 @@ fn lockfile_with_graph(
 /// applying the install-time `include` set and skip set.
 ///
 /// Importers lose dep maps whose `include` flag is false; importer
-/// `optionalDependencies` lose entries whose resolved snapshot got
+/// optional and runtime dependencies lose entries whose resolved snapshot got
 /// skipped; the snapshot map is pruned to the transitive closure
 /// reachable from the surviving importer roots. Only the transient
 /// skips prune: installability-skipped entries survive in both maps,
@@ -380,7 +388,7 @@ fn lockfile_with_graph(
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
-    included: IncludedDependencies,
+    groups: &GroupSelection,
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
     let all_importer_ids = lockfile.importers
@@ -396,48 +404,50 @@ pub fn filter_lockfile_for_current(
         lockfile,
         Path::new(""),
         &all_importer_ids,
-        included,
+        groups,
         &skipped.transient_only(),
     )
     .lockfile
 }
 
-/// Per-importer filter: drop dep maps whose `include` flag is
-/// false; further trim `optional_dependencies` to entries whose
-/// resolved snapshot survived the reachability walk.
-///
-/// Two steps: first clear the excluded dep sections, then
-/// post-filter `optionalDependencies` against the surviving
-/// packages set.
+/// Drop excluded dependency groups and unreachable optional or runtime entries.
 fn filter_importer(
     importer: &ProjectSnapshot,
     included: IncludedDependencies,
     reachable: &HashSet<PackageKey>,
 ) -> ProjectSnapshot {
     let mut out = importer.clone();
-    if !included.dependencies {
-        out.dependencies = None;
-    }
-    if !included.dev_dependencies {
-        out.dev_dependencies = None;
-    }
-    if !included.optional_dependencies {
-        out.optional_dependencies = None;
-    } else if let Some(opt) = out.optional_dependencies.as_mut() {
-        retain_reachable(opt, reachable);
+    for (dependencies, include, retain_non_runtime) in [
+        (&mut out.dependencies, included.dependencies, true),
+        (&mut out.dev_dependencies, included.dev_dependencies, true),
+        (&mut out.optional_dependencies, included.optional_dependencies, false),
+    ] {
+        if !include {
+            *dependencies = None;
+        } else if let Some(dependencies) = dependencies {
+            retain_reachable(dependencies, reachable, retain_non_runtime);
+        }
     }
     out
 }
 
-/// Drop importer-level optional-dep entries whose resolved
-/// snapshot key isn't in `reachable`. `link:` entries (workspace
-/// siblings) survive — they don't live in the snapshot graph.
-fn retain_reachable(map: &mut ResolvedDependencyMap, reachable: &HashSet<PackageKey>) {
+/// Required non-runtime entries survive even when their snapshots are missing,
+/// so downstream validation can report a broken lockfile. Workspace links have
+/// no snapshot and always survive.
+fn retain_reachable(
+    map: &mut ResolvedDependencyMap,
+    reachable: &HashSet<PackageKey>,
+    retain_non_runtime: bool,
+) {
     map.retain(|name, spec| {
-        let Some(key) = spec.version.resolved_key(name) else {
-            // Workspace `link:<path>` — no snapshot to check.
+        if retain_non_runtime
+            && spec.version
+                .ver_peer()
+                .is_none_or(|version| version.prefix() != Prefix::Runtime)
+        {
             return true;
-        };
+        }
+        let Some(key) = spec.version.resolved_key(name) else { return true };
         reachable.contains(&key)
     });
 }

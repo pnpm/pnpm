@@ -29,6 +29,8 @@ impl WorkspaceSettings {
         // from an explicit `false`, so the macro's "apply when set" shape
         // would collapse the distinction.
         overlay_some(&mut config.reporter_hide_prefix, self.reporter_hide_prefix.take());
+        overlay_some(&mut config.loglevel, self.loglevel.take());
+        overlay_some(&mut config.reporter, self.reporter.take());
 
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can
@@ -48,6 +50,11 @@ impl WorkspaceSettings {
         }
 
         identically_named_settings!(apply);
+
+        if let Some(macos_backup) = self.macos_backup.take() {
+            overlay(&mut config.macos_backup.exclude_modules_dir, macos_backup.exclude_modules_dir);
+            overlay(&mut config.macos_backup.exclude_store_dir, macos_backup.exclude_store_dir);
+        }
 
         overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
         if let Some(concurrency_groups) = self.concurrency_groups.take() {
@@ -115,6 +122,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.init_license, self.init_license.take());
         overlay_some(&mut config.init_version, self.init_version.take());
         overlay_some(&mut config.save_prefix, self.save_prefix.take());
+        overlay(&mut config.tag_version_prefix, self.tag_version_prefix.take());
 
         overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
         overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
@@ -277,6 +285,7 @@ impl WorkspaceSettings {
         overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
         overlay(&mut config.git_checks, self.git_checks.take());
         overlay(&mut config.engine_strict, self.engine_strict.take());
+        overlay(&mut config.force_ignores_platform, self.force_ignores_platform.take());
         overlay_some(&mut config.node_version, self.node_version.take());
         overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
         overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());

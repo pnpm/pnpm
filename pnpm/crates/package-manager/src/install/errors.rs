@@ -8,7 +8,6 @@ use pnpm_executor::LifecycleScriptError;
 use pnpm_lockfile::{LoadLockfileError, SaveLockfileError, StalenessReason};
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_modules_yaml::{ReadModulesError, WriteModulesError};
-use pnpm_workspace_state::UpdateWorkspaceStateError;
 use std::path::PathBuf;
 
 pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
@@ -99,11 +98,14 @@ pub enum InstallError {
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`
     /// does — the tree is installed, and the run reports the verdict on
-    /// it. The listing and its hints have already gone out through the
-    /// reporter by the time this is returned.
+    /// it. `rendered` carries the block deferred to the CLI; `None` means
+    /// the selected reporter has already handled it.
     #[display("Unmet peer dependencies")]
     #[diagnostic(code(ERR_PNPM_PEER_DEP_ISSUES))]
-    PeerDependencyIssues,
+    PeerDependencyIssues {
+        #[error(not(source))]
+        rendered: Option<String>,
+    },
 
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the
@@ -120,9 +122,16 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 
+    #[diagnostic(transparent)]
+    LocalTarballIntegrity(#[error(source)] pnpm_tarball::TarballError),
+
+    /// A pre-resolution lifecycle hook (`pnpm:devPreinstall` or root
+    /// `preinstall`) failed before resolution and materialization began.
+    #[diagnostic(transparent)]
+    PreResolutionLifecycleScript(#[error(source)] LifecycleScriptError),
+
     /// A workspace project's own lifecycle script
-    /// (`pnpm:devPreinstall`, or
-    /// preinstall/install/postinstall/preprepare/prepare/postprepare)
+    /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
     /// exited non-zero. Unlike a dependency build failure — which
     /// `BuildModules` can swallow for optional deps — a project script
     /// failure always fails the install, matching pnpm.
@@ -320,15 +329,6 @@ pub enum InstallError {
     /// `LOCKFILE_RESOLUTION_VERIFICATION`) is what the user sees.
     #[diagnostic(transparent)]
     LockfileVerification(#[error(source)] VerifyError),
-
-    /// Surfaces a failure to persist `.pnpm-workspace-state-v1.json`.
-    /// Missing or unreadable state forces `pnpm run`'s
-    /// `verifyDepsBeforeRun` check to fall back to "outdated", which
-    /// is exactly the regression CI hits when pacquet runs the
-    /// install — fail the install rather than letting a silent write
-    /// error compound into spurious reinstalls.
-    #[diagnostic(transparent)]
-    WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
     /// Surfaces a failure to record the `allowBuilds` placeholders for the
     /// builds this install ignored. Fatal rather than silent: the install

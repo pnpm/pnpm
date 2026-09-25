@@ -10,7 +10,9 @@ use pnpm_lockfile::{
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{borrow::Cow, collections::HashMap, path::Path};
 
-pub(crate) fn local_file_tarball_install_url<'a>(
+/// Resolve relative local archives against the lockfile directory for fetching.
+#[must_use]
+pub fn local_file_tarball_install_url<'a>(
     tarball_url: Cow<'a, str>,
     workspace_root: &Path,
 ) -> Cow<'a, str> {

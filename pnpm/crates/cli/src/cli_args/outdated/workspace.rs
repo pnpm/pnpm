@@ -1,6 +1,7 @@
 use super::{
-    Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage, OutdatedQuery,
-    OutdatedRun, PackageManifest, PathBuf, State, collect_outdated_for_importer_in_run,
+    Arc, Config, DependencyGroup, HashMap, IntoDiagnostic, Lockfile, OutdatedPackage,
+    OutdatedQuery, OutdatedRun, PackageManifest, PathBuf, State,
+    collect_outdated_for_importer_in_run, create_matcher,
 };
 
 pub(super) struct OutdatedInWorkspace {
@@ -44,6 +45,57 @@ pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
     Config::leak(isolated_config)
 }
 
+pub(super) fn global_states(
+    global_pkg_dir: &std::path::Path,
+    config: &'static Config,
+) -> miette::Result<Vec<State>> {
+    pnpm_global::scan_global_packages(global_pkg_dir)
+        .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?
+        .into_iter()
+        .map(|pkg| {
+            State::init(pkg.install_dir.join("package.json"), config, false)
+                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))
+        })
+        .collect()
+}
+
+pub(super) fn validate_package_patterns<'a>(
+    manifests: impl IntoIterator<Item = &'a PackageManifest>,
+    package_patterns: &[String],
+    include: &[DependencyGroup],
+    recursive: bool,
+) -> miette::Result<()> {
+    let positive_patterns: Vec<&String> = package_patterns
+        .iter()
+        .filter(|pattern| !pattern.starts_with('!'))
+        .collect();
+    if positive_patterns.is_empty() {
+        return Ok(());
+    }
+    let deps: Vec<&str> = manifests
+        .into_iter()
+        .flat_map(|manifest| manifest.dependencies(include.iter().copied()))
+        .map(|(name, _)| name)
+        .collect();
+    let unmatched = positive_patterns
+        .iter()
+        .any(|pattern| {
+            let matcher = create_matcher(std::slice::from_ref(*pattern));
+            !deps
+                .iter()
+                .any(|dep| matcher.matches(dep))
+        });
+    if unmatched {
+        let message = if recursive {
+            "None of the specified packages were found in the dependencies of any of the projects."
+        } else {
+            "None of the specified packages were found in the dependencies."
+        };
+        return Err(miette::miette!(code = "ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES", "{message}"));
+    }
+    Ok(())
+}
+
 /// Every selected project's outdated dependencies, grouped by package.
 pub(super) async fn workspace_outdated(
     inputs: &ProjectOutdatedInputs<'_>,
@@ -66,6 +118,28 @@ pub(super) fn no_lockfile_error(dir: &std::path::Path) -> miette::Report {
 }
 
 /// The inputs every project's outdated query shares.
+pub(super) async fn recursive_workspace_outdated(
+    state: &State,
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    query: &OutdatedQuery<'_>,
+) -> miette::Result<Vec<OutdatedInWorkspace>> {
+    let config = state.config;
+    let shared_lockfile = if config.shares_one_lockfile() { loaded_lockfile(state)? } else { None };
+    let project_inputs = recursive_project_inputs(config, selection)?;
+    let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?;
+    workspace_outdated(
+        &ProjectOutdatedInputs {
+            config,
+            lockfile_root: state.lockfile_dir(),
+            shared_lockfile,
+            query,
+            run: &run,
+        },
+        &project_inputs,
+    )
+    .await
+}
+
 pub(super) struct ProjectOutdatedInputs<'a> {
     pub(super) config: &'a Config,
     /// The directory the importer ids name projects relative to, which

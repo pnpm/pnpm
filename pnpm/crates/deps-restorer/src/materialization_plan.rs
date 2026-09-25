@@ -11,9 +11,10 @@
 
 use crate::{
     InstallabilityHost, SkippedSnapshots, add_direct_runtime_skips, compute_skipped_snapshots,
-    extend_skipped_with_dependency_closure,
+    extend_skipped_with_dependency_closure, find_root_runtime_node_version,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
+use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
 use std::{
@@ -249,10 +250,29 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
         inputs.closure.lockfile,
         inputs.closure.root,
         inputs.closure.importer_ids,
-        inputs.closure.included,
+        inputs.closure.groups,
     );
 
     Ok(skipped)
+}
+
+/// `host` with its Node.js version set to the one the root project's
+/// runtime dependency is locked to, unless `nodeVersion` is configured.
+#[must_use]
+pub fn with_locked_runtime_node(
+    host: Option<&InstallabilityHost>,
+    config: &Config,
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<InstallabilityHost> {
+    let host = host?.clone();
+    let locked_node_version = config.node_version
+        .is_none()
+        .then(|| find_root_runtime_node_version(importers))
+        .flatten();
+    Some(match locked_node_version {
+        Some(node_version) => InstallabilityHost { node_version, ..host },
+        None => host,
+    })
 }
 
 /// A `node --version` probe still in flight. See

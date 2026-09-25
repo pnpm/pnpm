@@ -99,6 +99,7 @@ impl Config {
         settings.scope = None;
         settings.global_dir = None;
         settings.global_bin_dir = None;
+        settings.macos_backup = None;
         // A mirror decides where the binary pnpm runs an ecosystem with is
         // downloaded from, and a release's checksums come from the mirror
         // that serves its files, so verifying the download says only that
@@ -156,7 +157,7 @@ impl Config {
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
-            global_settings.expand_global_dir_home_prefixes::<Sys>();
+            global_settings.expand_home_prefixes::<Sys>();
             global_settings.apply_to(self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) = configured_state_dir
@@ -200,8 +201,7 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
-                        .map_err(Box::new)
+                    let mut settings = crate::workspace_yaml::parse_settings::<Sys>(&text)
                         .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
                             path: yaml_path,
                             source,

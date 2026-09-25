@@ -10,38 +10,57 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::AtomicU8,
 };
+use symlinks::{
+    SymlinkRoots, imported_paths, is_symlink, place_symlink_entry, symlink_matches_store_entry,
+};
 
-/// Make the parent dir set, then run the parallel per-entry import over
-/// `cas_paths`. Mirrors pnpm v11's `tryImportIndexedDir`: collect the
-/// unique relative parent dirs, sort shortest-first, mkdir each
-/// sequentially, then dispatch the file imports in parallel. Sorting by
-/// length means the recursive mkdir for a deeper dir always finds its
-/// ancestor already on disk, so each call costs one `mkdirat` instead of
-/// walking up.
+/// Make the parent dir set, then import the entries of `cas_paths`, one
+/// task per target directory. Mirrors pnpm v11's `tryImportIndexedDir`:
+/// collect the unique relative parent dirs, sort shortest-first, mkdir
+/// each sequentially, then dispatch the file imports. Sorting by length
+/// means the recursive mkdir for a deeper dir always finds its ancestor
+/// already on disk, so each call costs one `mkdirat` instead of walking
+/// up.
+///
+/// `symlinks_final_dir` is `None` to import every entry as a file. With
+/// `Some`, an entry whose source is a symlink is recreated as one, and
+/// the value names the directory `dir_path` is finally moved to, which a
+/// staged import writes elsewhere first.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
+    symlinks_final_dir: Option<&Path>,
 ) -> Result<(), ImportIndexedDirError> {
     create_indexed_dirs(dir_path, cas_paths, placement)?;
+    let imported = symlinks_final_dir.map(|_| imported_paths(cas_paths));
+    let symlinks = symlinks_final_dir
+        .zip(imported.as_ref())
+        .map(|(final_dir, imported)| SymlinkRoots { written_dir: dir_path, final_dir, imported });
 
     // Link every other file first, then place the marker last, so an
     // interrupted import leaves a directory the next install recognises
     // as incomplete (pnpm's `tryImportIndexedDir`).
     let marker = marker_file(cas_paths);
-    cas_paths
+    entries_by_target_dir(cas_paths, marker)
         .par_iter()
-        .filter(|(cleaned_entry, _)| Some(cleaned_entry.as_str()) != marker)
-        .try_for_each(|(cleaned_entry, store_path)| {
-            place_entry::<Reporter>(
-                placement,
-                logged_methods,
-                import_method,
-                store_path,
-                &dir_path.join(cleaned_entry),
-            )
+        .try_for_each(|entries| {
+            entries
+                .iter()
+                .try_for_each(|(cleaned_entry, store_path)| {
+                    #[cfg(test)]
+                    let _writer = tests::DirectoryWriters::enter(dir_path, cleaned_entry);
+                    place_entry::<Reporter>(
+                        placement,
+                        logged_methods,
+                        import_method,
+                        store_path,
+                        &dir_path.join(cleaned_entry),
+                        symlinks,
+                    )
+                })
         })?;
 
     if let Some(marker) = marker {
@@ -51,9 +70,38 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             import_method,
             &cas_paths[marker],
             &dir_path.join(marker),
+            symlinks,
         )?;
     }
     Ok(())
+}
+/// The entries of `cas_paths` other than `marker`, grouped by the
+/// directory they land in.
+///
+/// Every group is placed by one worker, entry after entry. Creating a
+/// dirent takes the parent directory's lock on every filesystem pnpm
+/// runs on, so workers linking into the same directory only queue on
+/// each other while the kernel spends CPU arbitrating the queue.
+/// Measured on a 995-package warm install (88k files, hardlinks, 32
+/// CPUs, btrfs): one task per file costs 15 s of system time, one task
+/// per directory 3 s, pnpm v11's serial per-package loop 2 s.
+/// Directories are independent, so a package spread over many of them
+/// still imports in parallel.
+fn entries_by_target_dir<'a>(
+    cas_paths: &'a HashMap<String, PathBuf>,
+    marker: Option<&str>,
+) -> Vec<Vec<(&'a str, &'a Path)>> {
+    let mut groups: HashMap<Option<&Path>, Vec<(&str, &Path)>> = HashMap::new();
+    for (cleaned_entry, store_path) in cas_paths {
+        if Some(cleaned_entry.as_str()) == marker {
+            continue;
+        }
+        groups
+            .entry(Path::new(cleaned_entry).parent())
+            .or_default()
+            .push((cleaned_entry, store_path));
+    }
+    groups.into_values().collect()
 }
 pub(super) fn create_indexed_dirs(
     dir_path: &Path,
@@ -104,13 +152,20 @@ pub(super) fn create_indexed_dirs(
 /// this store entry, and swaps a fresh copy in when it is not. A
 /// hardlinked or reflinked entry shares the store inode, so recognising
 /// an intact file costs two stats and no read.
-pub(super) fn place_entry<Reporter: self::Reporter>(
+fn place_entry<Reporter: self::Reporter>(
     placement: Placement,
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
+    symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
+    if let Some(roots) = symlinks
+        && is_symlink(store_path)
+        && place_symlink_entry(placement, store_path, target, roots)?
+    {
+        return Ok(());
+    }
     match placement {
         Placement::Fresh => {
             import_into_fresh_target::<Reporter>(logged_methods, import_method, store_path, target)
@@ -125,17 +180,25 @@ pub(super) fn place_entry<Reporter: self::Reporter>(
         }
     }
 }
+
 /// The completion marker is always placed atomically, in either
 /// placement, so no reader observes it half-written. A repair adds the
 /// clearing pass, since the marker path may hold a directory in a tree
 /// damaged badly enough to need one.
-pub(super) fn place_marker<Reporter: self::Reporter>(
+fn place_marker<Reporter: self::Reporter>(
     placement: Placement,
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     store_path: &Path,
     target: &Path,
+    symlinks: Option<SymlinkRoots<'_>>,
 ) -> Result<(), ImportIndexedDirError> {
+    if let Some(roots) = symlinks
+        && is_symlink(store_path)
+        && place_symlink_entry(placement, store_path, target, roots)?
+    {
+        return Ok(());
+    }
     if placement == Placement::Repair {
         clear_dir_blocking_file::<Host>(target)?;
     }
@@ -293,13 +356,20 @@ pub(super) fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathB
 /// way pnpm's `allFilesMatch` does.
 pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool {
     let (Ok(target_meta), Ok(store_meta)) =
-        (fs::symlink_metadata(target), fs::metadata(store_path))
+        (fs::symlink_metadata(target), fs::symlink_metadata(store_path))
     else {
         return false;
     };
+    if store_meta.file_type().is_symlink() {
+        return target_meta.file_type().is_symlink()
+            && symlink_matches_store_entry(target, store_path);
+    }
     if !target_meta.is_file() {
         return false;
     }
+    let Ok(store_meta) = fs::metadata(store_path) else {
+        return false;
+    };
     // Unix carries the file's identity in the stat results already.
     // Windows keeps it behind an open handle, which `same-file` opens —
     // worth two handles to spare a hardlinked package a full read on the
@@ -318,6 +388,7 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     target_meta.len() == store_meta.len()
         && files_have_equal_contents(target, store_path).unwrap_or(false)
 }
+
 /// Byte-compare two files without buffering either one.
 ///
 /// [`populate_dir`] runs its entries through rayon, so a repair can be
@@ -359,5 +430,6 @@ pub fn marker_present(dir_path: &Path, cas_paths: &HashMap<String, PathBuf>) -> 
     }
 }
 
+mod symlinks;
 #[cfg(test)]
 mod tests;

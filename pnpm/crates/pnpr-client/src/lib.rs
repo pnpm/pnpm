@@ -192,6 +192,10 @@ pub struct ResolveProject {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
+    /// Omitted when empty, so projects without peers send the same body to
+    /// servers that predate the field.
+    #[serde(skip_serializing_if = "DepMap::is_empty")]
+    pub peer_dependencies: DepMap,
 }
 
 /// Inputs for a multi-project workspace resolution.
@@ -223,6 +227,7 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 dependencies: opts.dependencies,
                 dev_dependencies: opts.dev_dependencies,
                 optional_dependencies: opts.optional_dependencies,
+                peer_dependencies: DepMap::new(),
             }],
             fix_lockfile: false,
             routing: opts.routing,

@@ -22,8 +22,8 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, api, format_pack_output,
-    pack_output_path, to_pack_result_json,
+    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, WorkspacePackageManifest, api,
+    format_pack_output, pack_output_path, to_pack_result_json,
 };
 use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
 use pnpm_workspace_task_scheduler::{
@@ -112,6 +112,14 @@ pub struct PackArgs {
     pub no_skip_manifest_obfuscation: bool,
 }
 
+struct PackSharedContext {
+    catalogs: Catalogs,
+    out: Option<String>,
+    pack_destination: Option<String>,
+    before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+    workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+}
+
 impl PackArgs {
     /// Pack the project at `dir` (or the `--filter`-selected workspace
     /// projects when `recursive`), returning the text/JSON the CLI prints.
@@ -125,14 +133,14 @@ impl PackArgs {
         if recursive {
             self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
-            let mut options = self.pack_options(
-                dir.to_path_buf(),
-                config,
-                configured_catalogs(config)?,
-                self.out.clone(),
-                self.pack_destination.clone(),
+            let shared = PackSharedContext {
+                catalogs: configured_catalogs(config)?,
+                out: self.out.clone(),
+                pack_destination: self.pack_destination.clone(),
                 before_packing_hooks,
-            );
+                workspace_packages: None,
+            };
+            let mut options = self.pack_options(dir.to_path_buf(), config, shared);
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options).await
                 .map_err(miette::Report::new)
@@ -167,10 +175,7 @@ impl PackArgs {
         &self,
         project: &pnpm_workspace::Project,
         config: &Config,
-        catalogs: Catalogs,
-        out: Option<String>,
-        pack_destination: Option<String>,
-        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+        shared: PackSharedContext,
     ) -> Option<PackOptions> {
         let manifest = project.manifest.value();
         let declares = |field: &str| {
@@ -182,14 +187,7 @@ impl PackArgs {
         if !declares("name") || !declares("version") {
             return None;
         }
-        Some(self.pack_options(
-            project.root_dir.clone(),
-            config,
-            catalogs,
-            out,
-            pack_destination,
-            before_packing_hooks,
-        ))
+        Some(self.pack_options(project.root_dir.clone(), config, shared))
     }
 
     /// Map `self` plus the resolved `config` onto a [`PackOptions`].
@@ -201,11 +199,14 @@ impl PackArgs {
         &self,
         dir: PathBuf,
         config: &Config,
-        catalogs: Catalogs,
-        out: Option<String>,
-        pack_destination: Option<String>,
-        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
+        shared: PackSharedContext,
     ) -> PackOptions {
+        let workspace_packages = shared.workspace_packages.or_else(|| {
+            crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                config.workspace_dir.as_deref(),
+                config,
+            )
+        });
         PackOptions {
             dir,
             workspace_dir: config.workspace_dir.clone(),
@@ -217,7 +218,7 @@ impl PackArgs {
                 extra_env: config.extra_env.clone(),
             },
             manifest: pnpm_pack::PackManifestOptions {
-                catalogs,
+                catalogs: shared.catalogs,
                 catalogs_dir: config.workspace_dir.clone(),
                 embed_readme: config.embed_readme,
                 node_linker: config.node_linker,
@@ -226,13 +227,14 @@ impl PackArgs {
                     self.no_skip_manifest_obfuscation,
                     config.skip_manifest_obfuscation,
                 ),
-                before_packing_hooks,
+                before_packing_hooks: shared.before_packing_hooks,
+                workspace_packages,
             },
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: self.pack_gzip_level,
                 dry_run: self.dry_run,
-                out,
-                destination: pack_destination,
+                out: shared.out,
+                destination: shared.pack_destination,
                 injected_files: Vec::new(),
                 locks: None,
             },
@@ -265,14 +267,14 @@ impl RecursivePack<'_, '_> {
         root: PathBuf,
     ) -> TaskCompletion {
         let project = self.graph[&root].package.project;
-        let Some(mut options) = args.packable_options(
-            project,
-            self.config,
-            self.catalogs.clone(),
-            self.output.out.clone(),
-            self.output.destination.clone(),
-            self.before_packing_hooks.clone(),
-        ) else {
+        let shared = PackSharedContext {
+            catalogs: self.catalogs.clone(),
+            out: self.output.out.clone(),
+            pack_destination: self.output.destination.clone(),
+            before_packing_hooks: self.before_packing_hooks.clone(),
+            workspace_packages: self.workspace_packages.clone(),
+        };
+        let Some(mut options) = args.packable_options(project, self.config, shared) else {
             return TaskCompletion::Passed;
         };
         options.output.locks = Some(Arc::clone(&self.output.locks));

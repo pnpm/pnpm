@@ -139,7 +139,7 @@ fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges)
         .all(|key| dropped.are_absent_from(key.suffix.peer()))
 }
 
-pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
+pub fn prune_unreachable_packages(lockfile: &mut Lockfile) {
     let Some(reachable) = reachable_keys(lockfile) else { return };
     let reachable_metadata: HashSet<_> = reachable
         .iter()

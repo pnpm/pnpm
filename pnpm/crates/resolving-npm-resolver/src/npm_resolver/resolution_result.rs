@@ -4,7 +4,6 @@ use super::{
     PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec, RegistryResponseError,
     RegistryRevisionSelector, ResolveError, ResolveOptions, ResolveResult, TarballResolution,
     TarballRevision, TrustCheckOptions, TrustPolicy, Utc, Version, WantedDependency,
-    fail_if_trust_downgraded,
     release_policy::{
         detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
     },
@@ -230,28 +229,20 @@ pub(crate) fn revision_specifier(
     }
 }
 
-/// Resolver-time `trustPolicy='no-downgrade'` check on a fresh pick.
-/// No-op unless the policy is `NoDowngrade`. When active, runs
-/// [`fail_if_trust_downgraded`] against the picked version using the
-/// full packument the picker fetched (forced to full metadata under
-/// this policy by the install layer) and propagates a downgrade as a
-/// hard [`ResolveError`].
-pub(super) fn fail_if_trust_downgraded_for_pick(
+/// The resolver-time `trustPolicy='no-downgrade'` check for a fresh pick,
+/// or `None` when the policy is off. The picker runs it against the full
+/// packument it fetched (forced to full metadata under this policy by the
+/// install layer).
+pub(super) fn trust_check_for_pick(
     opts: &ResolveOptions,
-    picked: &PickedFromRegistry,
     ignore_missing_time_field: bool,
-) -> Result<(), ResolveError> {
-    if opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade) {
-        return Ok(());
-    }
-    let trust_opts = TrustCheckOptions {
+) -> Option<TrustCheckOptions<'_>> {
+    (opts.policy.trust_policy == Some(TrustPolicy::NoDowngrade)).then_some(TrustCheckOptions {
         trust_policy_exclude: opts.policy.trust_policy_exclude.as_ref(),
         trust_policy_ignore_after_minutes: opts.policy.trust_policy_ignore_after,
         now: None,
         ignore_missing_time_field,
-    };
-    fail_if_trust_downgraded(&picked.meta, &picked.version.version.to_string(), &trust_opts)
-        .map_err(|err| Box::new(err) as ResolveError)
+    })
 }
 
 /// The newest version the registry does not report as deprecated, for the
@@ -341,6 +332,13 @@ pub(crate) fn prefixed_calculated_specifier(
         })
 }
 
+/// Strip default ports (80 for HTTP, 443 for HTTPS) from a tarball URL,
+/// falling back to the original URL if parsing fails.
+#[must_use]
+pub fn normalize_tarball_url(url: &str) -> String {
+    reqwest::Url::parse(url).map_or_else(|_| url.to_string(), |parsed| parsed.to_string())
+}
+
 /// Emit the tarball URL already supplied by the picker, which the install path
 /// consumes directly without reconstructing a registry resolution.
 pub(super) fn picked_tarball_resolution(
@@ -350,7 +348,7 @@ pub(super) fn picked_tarball_resolution(
     let integrity = dist_integrity(&picked.dist)?;
     let revision = tarball_revision(picked, integrity.as_ref(), registry)?;
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: picked.dist.tarball.clone(),
+        tarball: normalize_tarball_url(&picked.dist.tarball),
         integrity,
         revision,
         git_hosted: None,

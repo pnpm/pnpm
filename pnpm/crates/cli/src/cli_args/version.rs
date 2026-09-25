@@ -70,10 +70,11 @@ pub struct VersionGitArgs {
     /// Sign the generated git tag with GPG.
     #[clap(long = "sign-git-tag")]
     pub sign_git_tag: bool,
-    /// Sets the tag prefix. Default is "v". Set to empty string to remove
-    /// the prefix.
-    #[clap(long = "tag-version-prefix", default_value = "v")]
-    pub tag_version_prefix: String,
+    /// Sets the tag prefix. Defaults to the `tagVersionPrefix` setting,
+    /// or "v" when the setting is unset. Set to empty string to remove the
+    /// prefix.
+    #[clap(long = "tag-version-prefix")]
+    pub tag_version_prefix: Option<String>,
 }
 
 /// Errors of `pnpm version`. Codes and messages match the TypeScript CLI.
@@ -142,6 +143,10 @@ impl VersionArgs {
         }
     }
 
+    fn effective_tag_version_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
+        self.git.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
+    }
+
     /// Apply an npm-style bump — `pnpm version <major|minor|…|x.y.z>` — to
     /// the package at `dir`, or to every selected workspace package when
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
@@ -155,8 +160,9 @@ impl VersionArgs {
     ) -> miette::Result<()> {
         let raw = self.params[0].as_str();
         let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+        let tag_version_prefix = self.effective_tag_version_prefix(config);
         let bump = if raw == "from-git" {
-            Bump::Explicit(version_from_git(&git_cwd, &self.git.tag_version_prefix)?)
+            Bump::Explicit(version_from_git(&git_cwd, tag_version_prefix)?)
         } else {
             parse_bump(raw)?
         };
@@ -182,7 +188,7 @@ impl VersionArgs {
             && !self.git.no_git_tag_version
             && is_git_repo::<Host>(&git_cwd)
         {
-            self.commit_and_tag(&changes[0], &git_cwd)?;
+            self.commit_and_tag(&changes[0], &git_cwd, tag_version_prefix)?;
         }
 
         for change in &changes {
@@ -395,9 +401,10 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     };
 
     let root_modules_dir = change.path.join(&config.modules_dir);
+    let (bin_dir, extra_env) = project_scripts_bin_dir_and_env(change, config);
     let script_shell = config.script_shell.as_ref().map(PathBuf::from);
     let run_opts = RunPostinstallHooks {
-        environment: super::run::script_environment(config, init_cwd, &config.extra_env),
+        environment: super::run::script_environment(config, init_cwd, &extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
@@ -406,6 +413,7 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
             ),
             shell: script_shell.as_deref(),
             shell_emulator: config.shell_emulator,
+            wd_bin_dir: Some(&bin_dir),
         },
         dep_path: &change.name,
         pkg_root: &change.path,
@@ -418,6 +426,20 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     let parent_env: HashMap<String, String> = std::env::vars().collect();
     run_lifecycle_hook::<Reporter>(stage, &script, &run_opts, manifest.value(), &parent_env)
         .map_err(miette::Report::new)
+}
+
+fn project_scripts_bin_dir_and_env(
+    change: &VersionChange,
+    config: &Config,
+) -> (PathBuf, HashMap<String, String>) {
+    let modules_dir_name = config.modules_dir_name_for(&change.path, Some(&change.name));
+    let mut extra_env = config.extra_env.clone();
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut extra_env,
+        &change.path,
+        &modules_dir_name,
+    );
+    (change.path.join(modules_dir_name).join(".bin"), extra_env)
 }
 
 /// One package's version bump: what it was, what it became, and where its

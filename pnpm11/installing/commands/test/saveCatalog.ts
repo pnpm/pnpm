@@ -167,9 +167,7 @@ test('saveCatalogName does not work with local dependencies', async () => {
     version: '0.0.0',
     private: true,
     dependencies: {
-      'local-dep': process.platform === 'win32'
-        ? 'link:..\\local-dep'
-        : 'link:../local-dep',
+      'local-dep': 'link:../local-dep',
     },
   })
 

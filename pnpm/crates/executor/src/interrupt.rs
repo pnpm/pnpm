@@ -188,7 +188,7 @@ pub fn exit_like(exit: ScriptExit) -> ! {
     if let ScriptExit::Process(status) = exit
         && let Some(signal) = status.signal()
     {
-        die_from(signal);
+        pnpm_fs::die_from_signal(signal);
     }
     std::process::exit(exit.code().unwrap_or(1));
 }
@@ -203,6 +203,7 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 
 #[cfg(unix)]
 fn install_handler() {
+    pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
@@ -251,7 +252,7 @@ extern "C" fn relay_signal(signal: libc::c_int) {
     // Nothing left to wait for, or every child has had its interrupt and
     // its `SIGTERM` and sat through both.
     if !reached || !still_listening {
-        die_from(signal);
+        pnpm_fs::die_from_signal(signal);
     }
 }
 
@@ -339,33 +340,11 @@ fn open_controlling_terminal() -> Option<libc::c_int> {
     (tty >= 0).then_some(tty)
 }
 
-/// End pnpm as `signal` would have ended it without this module.
-///
-/// The signal is unblocked first because a handler runs with its own
-/// signal blocked: `raise` would otherwise leave it pending until the
-/// handler returned, and the `_exit` below would report a plain exit code
-/// where the caller expects death by a signal.
-#[cfg(unix)]
-fn die_from(signal: libc::c_int) -> ! {
-    // SAFETY: `sigprocmask`, `signal`, `raise` and `_exit` are all
-    // async-signal-safe, and the set is a stack local that outlives the
-    // call. `raise` does not return once the signal is unblocked and back
-    // at its default disposition; `_exit` covers the impossible case.
-    unsafe {
-        let mut unblocked: libc::sigset_t = std::mem::zeroed();
-        libc::sigemptyset(&raw mut unblocked);
-        libc::sigaddset(&raw mut unblocked, signal);
-        libc::signal(signal, libc::SIG_DFL);
-        libc::sigprocmask(libc::SIG_UNBLOCK, &raw const unblocked, std::ptr::null_mut());
-        libc::raise(signal);
-        libc::_exit(128 + signal);
-    }
-}
-
 #[cfg(windows)]
 fn install_handler() {
     use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 
+    pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
         // SAFETY: the handler is a plain `extern "system"` function whose

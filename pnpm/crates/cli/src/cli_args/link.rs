@@ -6,7 +6,8 @@ use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_text_sanitize::sanitize_inline;
 use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
     path::{Path, PathBuf},
@@ -89,7 +90,7 @@ impl LinkArgs {
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
-            let (target_dir, package_name) = link_target(&manifest_dir, path_str)?;
+            let (target_dir, package_name, target_manifest) = link_target(&manifest_dir, path_str)?;
 
             if !already_declared(&manifest, &package_name) {
                 manifest
@@ -100,7 +101,8 @@ impl LinkArgs {
                     )
                     .wrap_err("adding linked dependency to package.json")?;
             }
-            new_overrides.insert(package_name, link_spec(&root_dir, &target_dir));
+            new_overrides.insert(package_name.clone(), link_spec(&root_dir, &target_dir));
+            check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
         }
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
@@ -165,8 +167,11 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
     .wrap_err("linking dependencies")
 }
 
-/// The linked package's directory, and the name it is declared under.
-fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, String)> {
+/// The linked package's directory, the name it is declared under, and its manifest.
+fn link_target(
+    manifest_dir: &Path,
+    path_str: &str,
+) -> miette::Result<(PathBuf, String, PackageManifest)> {
     let target_path = PathBuf::from(path_str);
     let target_dir =
         if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
@@ -183,5 +188,43 @@ fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, 
         .as_str()
         .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
         .to_string();
-    Ok((target_dir, package_name))
+    Ok((target_dir, package_name, target_manifest))
+}
+
+fn sanitize_warning_text(text: &str) -> String {
+    let stripped = console::strip_ansi_codes(text);
+    sanitize_inline(&stripped).into_owned()
+}
+
+fn check_peer_deps<Reporter: self::Reporter>(
+    package_name: &str,
+    target_manifest: &PackageManifest,
+    prefix: &Path,
+) {
+    if let Some(peer_deps_map) = target_manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        && !peer_deps_map.is_empty()
+    {
+        let sanitized_pkg_name = sanitize_warning_text(package_name);
+        let peer_deps = peer_deps_map
+            .iter()
+            .map(|(key, value)| {
+                let sanitized_key = sanitize_warning_text(key);
+                let val_str = value.as_str().map_or_else(|| value.to_string(), ToString::to_string);
+                let sanitized_val = sanitize_warning_text(&val_str);
+                format!("  - {sanitized_key}@{sanitized_val}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                "The package {sanitized_pkg_name}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n{peer_deps}\n\nThe linked in dependency will not resolve the peer dependencies from the target node_modules.\nThis might cause issues in your project. To resolve this, you may use the \"file:\" protocol to reference the local dependency.",
+            ),
+            prefix: prefix.display().to_string(),
+        }));
+    }
 }

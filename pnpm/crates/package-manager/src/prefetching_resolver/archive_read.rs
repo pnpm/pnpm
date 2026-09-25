@@ -8,11 +8,13 @@
 //! every edge that resolves to the same content shares it.
 
 use super::PrefetchingResolver;
-use pnpm_deps_restorer::{CustomFetcherSession, ResolvedTarballMetadata};
+use pnpm_deps_restorer::{
+    CustomFetcherSession, ResolvedTarballMetadata, local_file_tarball_install_url,
+};
 use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
-use pnpm_tarball::FetchTarballForResolution;
+use pnpm_tarball::{FetchTarballForResolution, package_mem_cache_key};
 use std::{path::Path, sync::Arc};
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
@@ -24,11 +26,43 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         result: &mut ResolveResult,
         lockfile_dir: &Path,
     ) -> Result<(), ResolveError> {
-        let Some((missing, tarball)) = MissingTarballMetadata::of(result) else {
+        let Some((missing, tarball)) =
+            MissingTarballMetadata::of(result, self.ctx.policy.custom_session.is_some())
+        else {
             return Ok(());
         };
-        let metadata = self.read_archive_once(result, tarball, lockfile_dir).await?;
-        if self.ctx.policy.custom_session.is_some() {
+        let metadata = match self.read_archive_once(result, tarball, lockfile_dir).await {
+            Ok(metadata) => metadata,
+            Err(err)
+                if is_missing_local_tarball(&err)
+                    && tarball.is_some_and(|tarball| {
+                        tarball.integrity.is_some() && tarball.tarball.starts_with("file:")
+                    }) =>
+            {
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
+        self.record_archive_metadata(result, missing, metadata);
+        Ok(())
+    }
+
+    /// Write back whichever halves the read was there to settle, leaving every
+    /// other field of the resolution as the resolver wrote it.
+    fn record_archive_metadata(
+        &self,
+        result: &mut ResolveResult,
+        missing: MissingTarballMetadata,
+        metadata: ResolvedTarballMetadata,
+    ) {
+        // A custom resolution is the resolver's, and the read only interprets
+        // it, so there is nothing for the archive to name better. Taking the
+        // fetcher's copy would also carry the scratch fields a `canFetch` left
+        // on the object into the lockfile, since `decode_resolution` strips
+        // those only from resolutions that have no `type`.
+        let fetcher_chose_the_content = self.ctx.policy.custom_session.is_some()
+            && !matches!(result.resolution, LockfileResolution::Custom(_));
+        if fetcher_chose_the_content {
             // A fetcher can select different content for the same URL, and
             // the manifest below was read out of whatever it chose. Record
             // the resolution naming those bytes, not the one it replaced.
@@ -45,7 +79,6 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         {
             result.package.manifest = Some(manifest);
         }
-        Ok(())
     }
 
     /// Read the archive once per distinct content and share the result
@@ -54,20 +87,28 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     async fn read_archive_once(
         &self,
         result: &ResolveResult,
-        tarball: &pnpm_lockfile::TarballResolution,
+        tarball: Option<&pnpm_lockfile::TarballResolution>,
         lockfile_dir: &Path,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
-        let package_url = tarball.tarball.clone();
+        // A resolution that names no archive leaves the URL to the fetcher that
+        // claims it, the way the install pass does for the same resolution.
+        let package_url = tarball.map_or_else(String::new, |tarball| {
+            local_file_tarball_install_url(tarball.tarball.as_str().into(), lockfile_dir)
+                .into_owned()
+        });
         // Scope credentials are selected from `name@version` when the
-        // resolver knows it; direct URL tarballs fall back to URL identity.
-        let package_id = result.package.name_ver
-            .as_ref()
-            .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
+        // resolver knows it; direct URL tarballs fall back to URL identity,
+        // and a resolution without one is named by the resolver's own id.
+        let package_id = match result.package.name_ver.as_ref() {
+            Some(name_ver) => format!("{}@{}", name_ver.name, name_ver.suffix),
+            None if tarball.is_some() => package_url.clone(),
+            None => result.id.as_str().to_owned(),
+        };
         let cache_key = self.tarball_metadata_cache_key(result, tarball, &package_id)?;
         let cell = Arc::clone(&self.tarball_metadata_cache.entry(cache_key).or_default());
         cell.get_or_try_init(|| async {
-            match self.ctx.policy.custom_session.as_ref() {
-                Some(session) => {
+            match (self.ctx.policy.custom_session.as_ref(), tarball) {
+                (Some(session), _) => {
                     self.read_archive_by_custom_fetcher(
                         session,
                         result,
@@ -76,7 +117,16 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     )
                     .await
                 }
-                None => self.read_archive(tarball, &package_url, &package_id).await,
+                (None, Some(tarball)) => {
+                    self.read_archive(tarball, &package_url, &package_id).await
+                }
+                // Only a fetcher hook can read an archive the resolution does
+                // not name, and `MissingTarballMetadata::of` reports such a
+                // resolution only when one is configured.
+                (None, None) => Ok(ResolvedTarballMetadata {
+                    resolution: result.resolution.clone(),
+                    manifest: None,
+                }),
             }
         })
         .await
@@ -97,11 +147,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     pub(super) fn tarball_metadata_cache_key(
         &self,
         result: &ResolveResult,
-        tarball: &pnpm_lockfile::TarballResolution,
+        tarball: Option<&pnpm_lockfile::TarballResolution>,
         package_id: &str,
     ) -> Result<String, ResolveError> {
-        Ok(if self.ctx.policy.custom_session.is_some() {
-            format!("custom\t{package_id}\t{}", serde_json::to_string(&result.resolution)?)
+        let Some(tarball) = tarball.filter(|_| self.ctx.policy.custom_session.is_none()) else {
+            return Ok(format!(
+                "custom\t{package_id}\t{}",
+                serde_json::to_string(&result.resolution)?,
+            ));
+        };
+        Ok(if tarball.path.is_some() {
+            format!("subdirectory\t{}", serde_json::to_string(tarball)?)
         } else {
             match tarball.integrity.as_ref() {
                 Some(integrity) => {
@@ -138,14 +194,19 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             ),
         });
         session
-            .resolve_tarball_metadata::<Reporter>(download, &result.resolution, opts)
+            .resolve_tarball_metadata::<Reporter>(
+                download,
+                &result.resolution,
+                opts,
+                self.ctx.config,
+            )
             .await
             .map_err(|error| Box::new(error) as ResolveError)
     }
 
     /// Read a tarball by fetching it into the store, and share the
     /// extraction with the install pass through the mem cache.
-    async fn read_archive(
+    pub(super) async fn read_archive(
         &self,
         tarball: &pnpm_lockfile::TarballResolution,
         package_url: &str,
@@ -176,9 +237,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             },
             auth_headers: &self.ctx.fetching.auth_headers,
             retry_opts: self.ctx.fetching.retry_opts,
-            // git-hosted archives, the sole subdirectory-bearing shape,
-            // are filtered out above.
-            manifest_subdir: None,
+            manifest_subdir: tarball.path.as_deref(),
             revision_addressed,
         }
         .run::<SilentReporter>(Some(&self.ctx.mem_cache))
@@ -191,11 +250,36 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
         let mut resolution = tarball.clone();
-        resolution.integrity = Some(resolved.integrity);
+        if !is_git_hosted_tarball_url(&tarball.tarball) {
+            resolution.integrity = Some(resolved.integrity);
+        } else if tarball.integrity.is_none() {
+            self.share_commit_addressed_archive(
+                package_url,
+                &resolved.integrity,
+                revision_addressed,
+            );
+        }
         Ok::<_, ResolveError>(ResolvedTarballMetadata {
             resolution: LockfileResolution::Tarball(resolution),
             manifest: resolved.manifest.map(Arc::new),
         })
+    }
+    pub(super) fn share_commit_addressed_archive(
+        &self,
+        url: &str,
+        integrity: &ssri::Integrity,
+        revision_addressed: bool,
+    ) {
+        let Some(archive) = self.ctx.mem_cache
+            .get(&package_mem_cache_key(url, Some(integrity), revision_addressed))
+            .map(|entry| Arc::clone(entry.value()))
+        else {
+            // A concurrent pinned fetch can fail and evict the shared entry.
+            return;
+        };
+        self.ctx.mem_cache
+            .entry(package_mem_cache_key(url, None, revision_addressed))
+            .or_insert(archive);
     }
 }
 
@@ -208,28 +292,48 @@ struct MissingTarballMetadata {
 }
 
 impl MissingTarballMetadata {
-    /// `None` when the resolution needs nothing from the archive, and for
-    /// the shapes read here by neither hash nor manifest: a non-tarball
-    /// resolution, a `file:` archive, or a git-hosted one. Those belong to
-    /// the local and git resolvers, which settle both fields themselves;
-    /// a custom resolver that emits one of them and no manifest is
-    /// <https://github.com/pnpm/pnpm/issues/15016>.
-    fn of(result: &ResolveResult) -> Option<(Self, &pnpm_lockfile::TarballResolution)> {
+    /// Skip complete resolutions; commit-addressed archives need no new integrity.
+    ///
+    /// A custom resolution names no archive, so its manifest is only
+    /// readable through the fetcher that claims it, and its integrity is that
+    /// fetcher's to define rather than the archive's to yield.
+    fn of(
+        result: &ResolveResult,
+        custom_fetchers: bool,
+    ) -> Option<(Self, Option<&pnpm_lockfile::TarballResolution>)> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
-            return None;
+            let recoverable = custom_fetchers
+                && matches!(result.resolution, LockfileResolution::Custom(_))
+                && result.package.manifest.is_none();
+            return recoverable.then_some((
+                MissingTarballMetadata { integrity: false, manifest: true },
+                None,
+            ));
         };
         // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
         // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
         // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
         // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
         // bitbucket) always has a matching URL.
-        if is_git_hosted_tarball_url(&tarball.tarball) || tarball.tarball.starts_with("file:") {
-            return None;
-        }
         let missing = MissingTarballMetadata {
-            integrity: tarball.integrity.is_none(),
+            integrity: tarball.integrity.is_none()
+                && !is_git_hosted_tarball_url(&tarball.tarball)
+                && (!tarball.tarball.starts_with("file:")
+                    || result.package.manifest.is_none()),
             manifest: result.package.manifest.is_none(),
         };
-        (missing.integrity || missing.manifest).then_some((missing, tarball))
+        (missing.integrity || missing.manifest).then_some((missing, Some(tarball)))
+    }
+}
+
+fn is_missing_local_tarball(err: &ResolveError) -> bool {
+    if let Some(tarball_err) = err.downcast_ref::<pnpm_tarball::TarballError>() {
+        matches!(
+            tarball_err,
+            pnpm_tarball::TarballError::ReadLocalTarball { source, .. }
+                if source.kind() == std::io::ErrorKind::NotFound,
+        )
+    } else {
+        false
     }
 }

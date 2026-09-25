@@ -62,9 +62,12 @@ pub(super) fn reject_off_allowlist_fetches(
 fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps]) -> Vec<&'a str> {
     let mut url_specs: Vec<&str> = Vec::new();
     for project in projects {
-        for map in
-            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
-        {
+        for map in [
+            &project.dependencies,
+            &project.dev_dependencies,
+            &project.optional_dependencies,
+            &project.peer_dependencies,
+        ] {
             url_specs.extend(map.values().map(String::as_str));
         }
     }

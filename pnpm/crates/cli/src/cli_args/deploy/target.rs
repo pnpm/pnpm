@@ -1,6 +1,6 @@
 use super::{
     AtomicU8, Context, DeployError, DeployFiles, DirectoryFetcher, ImportIndexedDirOpts,
-    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter, Value,
+    IntoDiagnostic, Lockfile, PackageImportMethod, PackageManifest, Path, PathBuf, Reporter,
     WORKSPACE_MANIFEST_FILENAME, Write, apply_deploy_manifest_hook, fs, import_indexed_dir, io,
     lexical_normalize, remove_dirent, warn,
 };
@@ -219,7 +219,7 @@ fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
     }
 }
 
-pub(super) fn copy_project<ReporterT: Reporter>(
+pub(super) fn copy_project(
     src: &Path,
     dest: &Path,
     include_only_package_files: bool,
@@ -228,18 +228,23 @@ pub(super) fn copy_project<ReporterT: Reporter>(
         directory: src.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()
     .map_err(miette::Report::new)
     .wrap_err("fetch project files")?;
     let logged_methods = AtomicU8::new(0);
-    import_indexed_dir::<ReporterT>(
+    import_indexed_dir::<pnpm_reporter::SilentReporter>(
         &logged_methods,
         PackageImportMethod::CloneOrCopy,
         dest,
         &output.files_map,
-        ImportIndexedDirOpts { force: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            force: true,
+            preserve_symlinks: true,
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .map_err(miette::Report::new)
     .wrap_err("copy project files")
@@ -340,12 +345,12 @@ pub(super) fn write_deploy_files(
         .into_diagnostic()
         .wrap_err("write deployed lockfile")?;
     if let Some(workspace_manifest) = &deploy_files.workspace_manifest {
-        write_atomic(
-            &deploy_dir.join(WORKSPACE_MANIFEST_FILENAME),
-            workspace_manifest_yaml(workspace_manifest).as_bytes(),
-        )
-        .into_diagnostic()
-        .wrap_err("write deployed workspace manifest")?;
+        let workspace_manifest = serde_saphyr::to_string(workspace_manifest)
+            .into_diagnostic()
+            .wrap_err("serialize deployed workspace manifest")?;
+        write_atomic(&deploy_dir.join(WORKSPACE_MANIFEST_FILENAME), workspace_manifest.as_bytes())
+            .into_diagnostic()
+            .wrap_err("write deployed workspace manifest")?;
     }
     write_atomic(&deploy_dir.join("package.json"), manifest.as_bytes())
         .into_diagnostic()
@@ -366,22 +371,4 @@ fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
     }
     tmp.persist(path).map_err(|error| error.error)?;
     Ok(())
-}
-
-fn workspace_manifest_yaml(workspace_manifest: &Value) -> String {
-    let mut out = String::new();
-    let Some(object) = workspace_manifest.as_object() else { return out };
-    for field in ["patchedDependencies", "allowBuilds"] {
-        let Some(values) = object.get(field).and_then(Value::as_object) else { continue };
-        out.push_str(field);
-        out.push_str(":\n");
-        for (key, value) in values {
-            out.push_str("  ");
-            out.push_str(&serde_json::to_string(key).unwrap_or_else(|_| format!("{key:?}")));
-            out.push_str(": ");
-            out.push_str(&serde_json::to_string(value).unwrap_or_else(|_| value.to_string()));
-            out.push('\n');
-        }
-    }
-    out
 }

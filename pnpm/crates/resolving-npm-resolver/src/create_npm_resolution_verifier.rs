@@ -21,6 +21,9 @@
 mod registry_tarball;
 use registry_tarball::npm_registry_tarball;
 
+mod registry_routes;
+use registry_routes::VerificationRegistryRoutes;
+
 mod trust_check;
 
 mod policy_snapshot;
@@ -37,7 +40,7 @@ mod age_check;
 
 mod artifact_binding;
 use artifact_binding::{
-    canonical_tarball_url, current_history_violation, current_revision_number, lockfile_revision,
+    current_history_violation, current_revision_number, lockfile_revision,
     missing_artifact_violation, select_revision, tarball_url_violation,
 };
 
@@ -77,14 +80,14 @@ use crate::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
         package_key, version_key,
     },
-    named_registry::{named_registry_tarball_prefixes, pick_registry_for_package},
+    named_registry::named_registry_tarball_prefixes,
     pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -252,15 +255,6 @@ struct TrustCheck {
     exclude: Option<PackageVersionPolicy>,
     ignore_after: Option<u64>,
     sorted_excludes: Vec<String>,
-}
-
-struct VerificationRegistryRoutes {
-    registries: HashMap<String, String>,
-    named_registry_prefixes: Vec<String>,
-    /// Alias → URL map (built-ins merged with the user's setting) for
-    /// routing registry-qualified lockfile keys, which carry no tarball
-    /// URL for the prefix list to match.
-    registries_by_prefix: HashMap<String, String>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -562,48 +556,6 @@ fn format_trust_violation(err: TrustViolation) -> String {
 
 #[cfg(test)]
 mod tests;
-
-impl VerificationRegistryRoutes {
-    /// The URL a registry-qualified entry routes to.
-    ///
-    /// Registry-qualified entries name their registry in the dep path, so
-    /// routing does not depend on a recorded tarball URL (canonical URLs are
-    /// omitted from the lockfile in the 12.0 format). This fails closed on
-    /// an unknown alias: none of the metadata-backed checks could vouch for
-    /// the entry without its registry URL.
-    fn named_registry_url(
-        &self,
-        registry_name: Option<&str>,
-    ) -> Result<Option<String>, ResolutionVerification> {
-        let Some(registry_name) = registry_name else { return Ok(None) };
-        match self.registries_by_prefix.get(registry_name) {
-            Some(url) => Ok(Some(url.clone())),
-            None => Err(ResolutionVerification::Err {
-                code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-                reason: format!(
-                    "has registry prefix '{registry_name}:', which is not declared by the registries setting",
-                ),
-            }),
-        }
-    }
-
-    fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
-        if let Some(url) = tarball_url {
-            // Match on the same canonical form the tarball comparison uses, so
-            // a named-registry tarball that differs from the configured base
-            // only by scheme or `%2f` encoding still routes to its registry
-            // instead of falling back (and then failing closed against the
-            // wrong packument).
-            let normalized = canonical_tarball_url(url);
-            for prefix in &self.named_registry_prefixes {
-                if normalized.starts_with(&canonical_tarball_url(prefix)) {
-                    return prefix.clone();
-                }
-            }
-        }
-        pick_registry_for_package(&self.registries, &name.to_string(), None)
-    }
-}
 
 impl ReleaseAgeCheck {
     fn age_check_active(&self) -> bool {

@@ -72,6 +72,11 @@ export interface ConfigContext {
    * pointed at.
    */
   enginePinManifest?: ProjectManifest
+  /**
+   * `true` when `nodeVersion` was not configured and was taken from the
+   * `devEngines.runtime` / `engines.runtime` of the engine pin manifest.
+   */
+  nodeVersionFromEnginesRuntime?: boolean
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
@@ -146,6 +151,7 @@ export interface Config extends OptionsFromRootManifest {
   shellEmulator?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   force?: boolean
+  forceIgnoresPlatform?: boolean
   depth?: number
   engineStrict?: boolean
   nodeVersion?: string
@@ -195,6 +201,7 @@ export interface Config extends OptionsFromRootManifest {
   cert?: string | string[]
   key?: string
   ca?: string | string[]
+  cafile?: string
   strictSsl?: boolean
 
   userAgent?: string
@@ -235,6 +242,11 @@ export interface Config extends OptionsFromRootManifest {
   workspaceConcurrency: number
   workspaceDir?: string
   workspacePackagePatterns?: string[]
+  /**
+   * The `modulesDir` that `packageConfigs` sets for a project, keyed by
+   * project name. Derived from `packageConfigs`.
+   */
+  modulesDirsByProjectName?: Record<string, string>
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
   catalogPrune?: boolean

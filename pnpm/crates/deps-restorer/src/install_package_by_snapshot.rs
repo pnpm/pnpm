@@ -1,6 +1,7 @@
 pub use runtime::{host_platform_selector, runtime_platform_selector};
-pub(crate) use tarball_resolution::local_file_tarball_install_url;
-pub use tarball_resolution::{tarball_url_and_integrity, unverified_fetch_is_allowed};
+pub use tarball_resolution::{
+    local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
+};
 
 mod fetch;
 
@@ -25,7 +26,7 @@ use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
 /// binary to forward to — and the build then falls back to whatever
 /// package managers the host has installed.
 static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-    let path = std::env::current_exe().ok()?;
+    let path = pnpm_executor::current_pnpm_exe().ok()?;
     let stem = path.file_stem()?.to_str()?;
     (stem == "pnpm").then_some(path)
 });

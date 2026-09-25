@@ -1,3 +1,7 @@
+pub(super) mod json;
+
+pub(super) use json::{render_json, render_recursive_json};
+
 use super::{
     DependencyGroup, IntoDiagnostic, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version,
     Write, sanitize_inline,
@@ -142,32 +146,6 @@ pub(super) fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
         .join("\n\n")
 }
 
-pub(super) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
-    let mut map = serde_json::Map::new();
-    for pkg in outdated {
-        let dependency_type: &'static str =
-            if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
-        let mut entry = serde_json::json!({
-            "current": pkg.current.to_string(),
-            "latest": pkg.target.to_string(),
-            "wanted": pkg.wanted.to_string(),
-            "isDeprecated": pkg.metadata.deprecated.is_some(),
-            "dependencyType": dependency_type,
-        });
-        if long {
-            entry["latestManifest"] = serde_json::json!({
-                "name": pkg.package_name,
-                "version": pkg.target.to_string(),
-                "deprecated": pkg.metadata.deprecated,
-                "homepage": pkg.metadata.homepage,
-            });
-        }
-        map.insert(pkg.package_name.clone(), entry);
-    }
-    serde_json::to_string_pretty(&serde_json::Value::Object(map))
-        .expect("serialize outdated report to JSON")
-}
-
 /// A dependency shared by every project of a large workspace lists all of
 /// them in one `Dependents` cell, so that column is the only one that can
 /// push the table past any terminal. It wraps at this many columns instead.
@@ -241,37 +219,6 @@ pub(super) fn render_recursive_list(outdated: &[OutdatedInWorkspace], long: bool
         .join("\n\n")
 }
 
-pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool) -> String {
-    let mut map = serde_json::Map::new();
-    for entry in outdated {
-        let package = &entry.package;
-        let dependency_type: &'static str =
-            if package.github_action { "githubAction" } else { package.belongs_to.into() };
-        let mut value = serde_json::json!({
-            "current": package.current.to_string(),
-            "latest": package.target.to_string(),
-            "wanted": package.current.to_string(),
-            "isDeprecated": package.metadata.deprecated.is_some(),
-            "dependencyType": dependency_type,
-            "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
-                "name": dependent.name,
-                "location": dependent.location.to_string_lossy(),
-            })).collect::<Vec<_>>(),
-        });
-        if long {
-            value["latestManifest"] = serde_json::json!({
-                "name": package.package_name,
-                "version": package.target.to_string(),
-                "deprecated": package.metadata.deprecated,
-                "homepage": package.metadata.homepage,
-            });
-        }
-        map.insert(package.package_name.clone(), value);
-    }
-    serde_json::to_string_pretty(&serde_json::Value::Object(map))
-        .expect("serialize recursive outdated report to JSON")
-}
-
 pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
     let mut names: Vec<String> = entry.dependents
         .iter()
@@ -282,13 +229,23 @@ pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
 }
 
 fn render_package_name(pkg: &OutdatedPackage) -> String {
+    match dependency_type_label(pkg) {
+        Some(label) => format!("{} {}", pkg.package_name, dimmed(&format!("({label})"))),
+        None => pkg.package_name.clone(),
+    }
+}
+
+/// The qualifier shown after a package name for anything but a production
+/// dependency.
+pub(super) fn dependency_type_label(pkg: &OutdatedPackage) -> Option<&'static str> {
     if pkg.github_action {
-        return format!("{} {}", pkg.package_name, dimmed("(github action)"));
+        return Some("github action");
     }
     match pkg.belongs_to {
-        DependencyGroup::Dev => format!("{} {}", pkg.package_name, dimmed("(dev)")),
-        DependencyGroup::Optional => format!("{} {}", pkg.package_name, dimmed("(optional)")),
-        _ => pkg.package_name.clone(),
+        DependencyGroup::Dev => Some("dev"),
+        DependencyGroup::Optional => Some("optional"),
+        DependencyGroup::Peer => Some("peer"),
+        DependencyGroup::Prod => None,
     }
 }
 

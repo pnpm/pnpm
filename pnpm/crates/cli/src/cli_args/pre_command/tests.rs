@@ -1,16 +1,18 @@
 use super::{
     CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
     PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
-    pre_command_plan_from_input, switch_target,
+    locked_package_manager_to_fetch, pre_command_plan_from_input, switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+    cli_args::{
+        pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+        reporter::{ReporterFlags, ReporterType},
+    },
     config_overrides::ConfigOverrides,
 };
 use clap::{CommandFactory, FromArgMatches};
 use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
-use pnpm_reporter::{Reporter, SilentReporter};
 use std::{
     ffi::OsString,
     fs,
@@ -177,7 +179,7 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
     ]);
     switch.paths.dir = dir.clone();
 
-    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir)
+    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir, false)
         .expect("load the pre-command config");
 
     assert_eq!(
@@ -243,6 +245,21 @@ fn pre_command_plan_accepts_a_pnpm_pin_when_version_switching_is_turned_off() {
         &pre_command_input(root.path()),
         &ConfigOverrides::default(),
         SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected switch plan");
+}
+
+#[test]
+fn pre_command_plan_yields_no_plan_when_root_manifest_is_not_an_object() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), "null");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
     )
     .expect("pre-command plan");
 
@@ -522,6 +539,21 @@ fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turne
 }
 
 #[test]
+fn pre_command_plan_does_not_switch_a_global_command_to_the_pinned_pnpm() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "0.0.1");
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
+#[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");
     write_manifest(
@@ -608,6 +640,55 @@ fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
     assert_ne!(env_root.as_path(), root.path());
 }
 
+/// `pnpm fetch` has only the lockfile to go on, so it installs the pnpm the
+/// env document records whenever a command in the project would switch to
+/// it (pnpm/pnpm#11808).
+#[test]
+fn fetch_picks_the_pnpm_the_lockfile_pins_when_a_command_would_switch_to_it() {
+    let switching =
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false };
+    let root = TempDir::new().expect("tmp dir");
+    let locked = |config: &Config, process_state| {
+        locked_package_manager_to_fetch(config, root.path(), process_state)
+            .expect("read the env lockfile")
+            .map(|(_, version)| version)
+    };
+
+    assert_eq!(locked(&Config::default(), switching), None, "no lockfile");
+
+    write_lockfile(root.path(), &locked_package_manager("99.0.0", "99.0.0"));
+    assert_eq!(locked(&Config::default(), switching).as_deref(), Some("99.0.0"));
+    assert_eq!(
+        locked(
+            &Config::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: true,
+                executed_by_corepack: false
+            },
+        ),
+        None,
+        "version switching turned off",
+    );
+    assert_eq!(
+        locked(
+            &Config::default(),
+            SwitchProcessState {
+                package_manager_switch_disabled: false,
+                executed_by_corepack: true
+            },
+        ),
+        None,
+        "run by corepack",
+    );
+    for on_fail in [PmOnFail::Ignore, PmOnFail::Warn, PmOnFail::Error] {
+        let config = Config { pm_on_fail: Some(on_fail), ..Config::default() };
+        assert_eq!(locked(&config, switching), None, "pmOnFail {on_fail:?}");
+    }
+
+    write_lockfile(root.path(), &locked_package_manager(PNPM_VERSION, PNPM_VERSION));
+    assert_eq!(locked(&Config::default(), switching), None, "the running pnpm");
+}
+
 fn pin_roots(dir: &Path) -> PinRoots {
     PinRoots { manifest: dir.to_path_buf(), env: dir.to_path_buf() }
 }
@@ -634,7 +715,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         global: false,
         skip_pm_handling: false,
         check_runtimes: true,
-        emit: SilentReporter::emit,
+        reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
         key_issues: KeyIssueReporting::Enforce,
     }
 }

@@ -1,6 +1,6 @@
 use super::{
-    Duration, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig,
-    client_with_fetch_timeout, drain_until_timed_out,
+    Duration, NetworkSettings, NoProxySetting, PerRegistryTls, ProxyConfig, ThrottledClient,
+    TlsConfig, client_with_fetch_timeout, drain_until_timed_out,
 };
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.
@@ -202,6 +202,121 @@ async fn no_max_sockets_leaves_per_origin_uncapped() {
     )
     .await
     .expect("a second socket to the same origin should not block without maxSockets");
+}
+
+#[tokio::test]
+async fn proxied_requests_share_proxy_origin_socket_limit() {
+    let proxy = ProxyConfig {
+        https_proxy: Some("http://proxy.example.com:8080".into()),
+        http_proxy: None,
+        no_proxy: Some(NoProxySetting::List(vec!["bypass.example.com".into()])),
+    };
+    let client = ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .unwrap()
+    .with_max_sockets_per_host(Some(1));
+
+    let held = client.acquire_for_url("https://registry.example.com/a").await;
+
+    let blocked = tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://other.example.com/b"),
+    )
+    .await;
+    assert!(
+        blocked.is_err(),
+        "proxied requests to different hosts should share the proxy socket cap",
+    );
+
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://bypass.example.com/c"),
+    )
+    .await
+    .expect("no_proxy bypassed origin should not be blocked by the proxy origin cap");
+
+    drop(held);
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://other.example.com/b"),
+    )
+    .await
+    .expect("slot should be free after first guard drops");
+}
+
+#[tokio::test]
+async fn default_proxy_socket_limit_caps_at_fifty() {
+    let proxy = ProxyConfig {
+        https_proxy: Some("http://proxy.example.com:8080".into()),
+        http_proxy: None,
+        no_proxy: Some(NoProxySetting::List(vec!["bypass.example.com".into()])),
+    };
+    let client = ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings { network_concurrency: 64, ..NetworkSettings::default() },
+    )
+    .unwrap();
+
+    let mut guards = Vec::new();
+    for i in 0..50 {
+        guards.push(client.acquire_for_url(&format!("https://registry.example.com/{i}")).await);
+    }
+
+    let blocked = tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://registry.example.com/extra"),
+    )
+    .await;
+    assert!(blocked.is_err(), "51st proxied request should block on the 50-socket proxy cap");
+
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://bypass.example.com/direct"),
+    )
+    .await
+    .expect("bypassed request should not block on the proxy socket limit");
+
+    guards.pop();
+    tokio::time::timeout(
+        Duration::from_millis(150),
+        client.acquire_for_url("https://registry.example.com/extra"),
+    )
+    .await
+    .expect("releasing one guard should free a proxy slot");
+}
+
+#[tokio::test]
+async fn zero_max_sockets_leaves_proxied_origins_uncapped() {
+    let proxy = ProxyConfig {
+        https_proxy: Some("http://proxy.example.com:8080".into()),
+        http_proxy: None,
+        no_proxy: None,
+    };
+    let client = ThrottledClient::for_installs(
+        &proxy,
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings { network_concurrency: 64, ..NetworkSettings::default() },
+    )
+    .unwrap()
+    .with_max_sockets_per_host(Some(0));
+
+    let mut guards = Vec::new();
+    for i in 0..51 {
+        let guard = tokio::time::timeout(
+            Duration::from_millis(150),
+            client.acquire_for_url(&format!("https://registry.example.com/{i}")),
+        )
+        .await
+        .expect("max_sockets=0 should leave proxied connections uncapped");
+        guards.push(guard);
+    }
 }
 
 #[tokio::test]

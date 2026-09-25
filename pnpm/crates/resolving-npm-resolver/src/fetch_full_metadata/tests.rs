@@ -651,3 +651,82 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
     );
     mock.assert_async().await;
 }
+
+/// A registry that accepts each connection, reads the request, writes
+/// `response` (possibly nothing, or a head promising more body than it
+/// sends), and then holds the socket open without sending another byte.
+async fn start_stalled_registry(response: &'static [u8]) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let address = listener.local_addr().expect("local address");
+    tokio::spawn(async move {
+        let mut sockets = Vec::new();
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let mut request = [0u8; 4096];
+            let _ = socket.read(&mut request).await;
+            let _ = socket.write_all(response).await;
+            sockets.push(socket);
+        }
+    });
+    format!("http://{address}/")
+}
+
+/// Mirrors the production client's inactivity timeout (`fetchTimeout`
+/// drives `read_timeout`), shortened so the test stalls for milliseconds.
+fn short_read_timeout_client() -> ThrottledClient {
+    let build = |redirect| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .read_timeout(Duration::from_millis(200))
+            .redirect(redirect)
+            .build()
+            .expect("build reqwest client")
+    };
+    ThrottledClient::from_clients(
+        build(reqwest::redirect::Policy::limited(10)),
+        build(reqwest::redirect::Policy::none()),
+    )
+}
+
+async fn fetch_from_stalled_registry(response: &'static [u8]) -> super::FetchMetadataError {
+    let registry = start_stalled_registry(response).await;
+    let http_client = short_read_timeout_client();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+    fetch_full_metadata("acme", &opts).await.expect_err("a stalled registry must fail")
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_reports_timeout_when_registry_never_responds() {
+    let err = fetch_from_stalled_registry(b"").await;
+    assert!(
+        matches!(err, super::FetchMetadataError::Network { .. }),
+        "expected Network variant, got: {err:?}",
+    );
+    let rendered = err.to_string();
+    assert!(rendered.contains("timed out"), "timeout must be named, got: {rendered:?}");
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_reports_timeout_when_body_stalls() {
+    let err = fetch_from_stalled_registry(
+        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 1000\r\n\r\n{\"name\":",
+    )
+    .await;
+    assert!(
+        matches!(err, super::FetchMetadataError::BodyRead { .. }),
+        "expected BodyRead variant, got: {err:?}",
+    );
+    let rendered = err.to_string();
+    assert!(rendered.contains("timed out"), "timeout must be named, got: {rendered:?}");
+}

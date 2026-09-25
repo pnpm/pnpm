@@ -15,6 +15,7 @@ import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashe
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  PROJECT_INSTALL_STAGES as EXEC_PROJECT_INSTALL_STAGES,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
@@ -55,6 +56,9 @@ import {
 } from './extendBuildOptions.js'
 
 export type { BuildOptions }
+
+export const PROJECT_INSTALL_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish']
+export const PROJECT_LIFECYCLE_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']
 
 // Serializes builds of a shared GVS projection across concurrent per-project
 // rebuilds: the first build proceeds, concurrent ones await it and reuse the
@@ -216,6 +220,7 @@ export async function buildProjects (
   const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
+    extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -231,7 +236,11 @@ export async function buildProjects (
     importers: Object.values(ctx.projects),
     opts: scriptsOpts,
     projectDependencies: opts.projectDependencies,
-    stages: ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
+    stages: opts.stages ?? (opts.deploy
+      ? EXEC_PROJECT_INSTALL_STAGES
+      : (ctx.include?.devDependencies !== false
+        ? PROJECT_LIFECYCLE_STAGES
+        : PROJECT_INSTALL_STAGES)),
   })
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
@@ -322,6 +331,7 @@ async function _rebuild (
           devDependencies: opts.development,
           optionalDependencies: opts.optional,
         },
+        resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       }
     ).step,
     nodesToBuildAndTransitive,

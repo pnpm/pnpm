@@ -31,6 +31,29 @@ test.each([
   expect(preferredVersions.qar['3.0.0']).toEqual({ selectorType: 'version', weight: lockfileWeight })
 })
 
+test('catalog: specs seed the catalog entry they name', () => {
+  const manifest: ProjectManifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      'from-default': 'catalog:',
+      'from-named': 'catalog:tools',
+      missing: 'catalog:',
+    },
+  }
+
+  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(undefined, [manifest], {
+    catalogs: {
+      default: { 'from-default': '1.2.3' },
+      tools: { 'from-named': '^2.0.0' },
+    },
+  })
+
+  expect(preferredVersions['from-default']).toEqual({ '1.2.3': { selectorType: 'version', weight: 1000 } })
+  expect(preferredVersions['from-named']).toEqual({ '^2.0.0': { selectorType: 'range', weight: 1000 } })
+  expect(preferredVersions.missing).toBeUndefined()
+})
+
 test('a dependency named __proto__ cannot pollute Object.prototype', () => {
   // Manifests and lockfiles are attacker-controlled; JSON.parse produces own
   // `__proto__` keys just like a crafted package.json / pnpm-lock.yaml does.

@@ -38,9 +38,11 @@ pub(super) async fn install_optional_subdeps<Reporter: self::Reporter>(
         let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
         let subdep_rel =
             calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
-        let subdep_dir = join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel)
-            .join("node_modules")
-            .join(&subdep.name);
+        let subdep_dir = pnpm_fs::join_slash_separated_path(
+            &join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel)
+                .join("node_modules"),
+            &subdep.name,
+        );
         if !subdep_dir.join("package.json").exists() {
             started.report::<Reporter>();
             materialize::<Reporter>(

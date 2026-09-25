@@ -14,16 +14,16 @@ use super::{
 pub(super) fn overlay_version_view(
     overlay: &Arc<PreferredVersionsOverlay>,
     wanted: &WantedDependency,
-) -> Vec<(String, Vec<String>)> {
-    let mut view: Vec<(String, Vec<String>)> =
+) -> Vec<(String, Vec<(String, u32)>)> {
+    let mut view: Vec<(String, Vec<(String, u32)>)> =
         overlay_lookup_names(wanted.alias.as_deref(), wanted.bare_specifier.as_deref())
             .into_iter()
             .flatten()
             .filter_map(|name| {
-                let mut versions: Vec<String> = overlay
-                    .versions_for(&name)
+                let mut versions: Vec<(String, u32)> = overlay
+                    .weighted_versions_for(&name)
                     .into_iter()
-                    .map(str::to_string)
+                    .map(|(v, w)| (v.to_string(), w))
                     .collect();
                 if versions.is_empty() {
                     return None;
@@ -100,16 +100,30 @@ pub(super) fn pin_locked_version(
     prior_key: Option<&PkgNameVerPeer>,
     depth: i32,
 ) {
-    let locked_version = prior_key.and_then(|key| key.suffix.version_semver());
     if depth > 0
-        && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
-        && let Some(version) = locked_version
+        && let Some(key) = prior_key
+        && keeps_locked_version(ctx, wanted, key, depth)
+        && let Some(version) = key.suffix.version_semver()
         && wanted.bare_specifier
             .as_deref()
             .is_some_and(|spec| spec.parse::<node_semver::Range>().is_ok())
     {
         wanted.bare_specifier = Some(version.to_string());
     }
+}
+
+/// Whether a transitive edge stays on the version the lockfile recorded
+/// for it. A deduplication target and an edge a `pacquet update` reaches
+/// re-pick through the preferred versions instead.
+pub(super) fn keeps_locked_version(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    prior_key: &PkgNameVerPeer,
+    depth: i32,
+) -> bool {
+    let locked_version = prior_key.suffix.version_semver();
+    !ctx.workspace.reuse.dedupe.covers(&prior_key.name.to_string(), locked_version)
+        && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
 }
 
 pub(super) fn exact_registry_specifier_for_revision_refresh(

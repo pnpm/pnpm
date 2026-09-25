@@ -66,6 +66,12 @@ pub struct AddIncludeArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct AddSaveArgs {
+    /// Add available `@types` packages to `devDependencies` for packages without bundled types.
+    #[clap(long = "save-types", overrides_with = "no_save_types", conflicts_with_all = ["global", "config"])]
+    pub types: bool,
+    /// Do not add `@types` packages automatically.
+    #[clap(long = "no-save-types", overrides_with = "types")]
+    pub no_save_types: bool,
     /// Saved dependencies will be configured with an exact version rather than using
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
@@ -119,6 +125,8 @@ pub struct AddTargetArgs {
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct AddInstallArgs {
+    #[clap(flatten)]
+    pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
     /// its scripts instead. May be repeated.

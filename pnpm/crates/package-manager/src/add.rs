@@ -8,20 +8,20 @@ use specifier::{normalized_save_specifier, resolve_added_dependency, workspace_p
 
 mod registry;
 
+mod types;
+
 mod aliasless;
 
+mod finish;
+use finish::{finish_selected_add, finish_single_add};
+
 mod manifest;
-use manifest::{
-    catalog_version_requests, finish_selected_add, persist_manifest, prepare_selected_add,
-    prepare_single_add,
-};
+use manifest::{catalog_version_requests, prepare_selected_add, prepare_single_add};
 
 use crate::{
     CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
-    catalog_cleanup::{WriteWorkspaceCatalogsError, post_install_prune},
-    defer_ignored_builds,
-    resolve_latest::LatestPicker,
-    selected_project_indices,
+    catalog_cleanup::WriteWorkspaceCatalogsError, defer_ignored_builds,
+    resolve_latest::LatestPicker, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -213,7 +213,7 @@ where
             add.config,
             owned.save_catalog_name.as_deref(),
         );
-        let ignored_builds = add_install(
+        let install_result = add_install(
             add,
             owned,
             manifest,
@@ -228,18 +228,9 @@ where
         )
         .run::<Reporter>()
         .await
-        .pipe(defer_ignored_builds)
-        .map_err(AddError::Install)?;
+        .pipe(defer_ignored_builds);
 
-        persist_manifest::<Reporter>(manifest)?;
-
-        post_install_prune(add.config, Some(&catalog_ctx.workspace_dir), manifest)
-            .map_err(AddError::WriteWorkspaceManifest)?;
-
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(AddError::Install(ignored_builds));
-        }
-        Ok(())
+        finish_single_add::<Reporter>(add, manifest, &catalog_ctx.workspace_dir, install_result)
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -267,12 +258,11 @@ where
             prepared.catalogs_override,
             &prepared.catalogs,
         );
-        let ignored_builds = Box::pin(
+        let install_result = Box::pin(
             add_install(add, owned, manifest, seed).run_selected::<Reporter>(selected.selection()),
         )
         .await
-        .pipe(defer_ignored_builds)
-        .map_err(AddError::Install)?;
+        .pipe(defer_ignored_builds);
 
         finish_selected_add::<Reporter>(
             add,
@@ -280,7 +270,7 @@ where
             selected.projects,
             &selected_indices,
             &prepared.workspace_dir,
-            ignored_builds,
+            install_result,
         )
     }
 }
@@ -304,6 +294,8 @@ pub struct AddOptions<'a> {
     /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
     /// to the follow-up `Install` run. See [`crate::InstallExecution::lockfile_only`].
     pub lockfile_only: bool,
+    /// Discover companion declaration packages for an explicit add command.
+    pub save_types: bool,
 }
 
 /// The add's owned inputs, consumed by the install it runs.
@@ -343,6 +335,7 @@ fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
 /// first use, so a pass that resolves no `latest` tag never builds one),
 /// the packument cache and the fetch locker.
 struct AddResolution<'a> {
+    started_at: chrono::DateTime<chrono::Utc>,
     latest_picker: tokio::sync::OnceCell<LatestPicker<'a>>,
     meta_cache: std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
@@ -351,6 +344,7 @@ struct AddResolution<'a> {
 impl AddResolution<'_> {
     fn new() -> Self {
         Self {
+            started_at: chrono::Utc::now(),
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),
@@ -361,15 +355,34 @@ impl AddResolution<'_> {
 /// What every selector of an add resolves against.
 struct AddResolveInputs<'a, 'r> {
     add: AddOptions<'a>,
-    http_client_arc: &'r std::sync::Arc<ThrottledClient>,
+    owned: &'r AddOwned,
     /// One checkout per repository and commit for every alias-less git
     /// selector this command resolves.
     git_source_cache: &'r std::sync::Arc<pnpm_git_fetcher::GitSourceCache>,
     resolution: &'r AddResolution<'a>,
-    save_catalog_name: Option<&'r str>,
+    preferred_versions: &'r std::sync::OnceLock<pnpm_resolving_resolver_base::PreferredVersions>,
     catalogs: &'r Catalogs,
     prefix: &'r str,
     workspace_packages: Option<&'r WorkspacePackages>,
+}
+
+impl AddResolveInputs<'_, '_> {
+    fn preferred_versions(
+        &self,
+        manifest: &PackageManifest,
+    ) -> &pnpm_resolving_resolver_base::PreferredVersions {
+        self.preferred_versions.get_or_init(|| {
+            pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
+                self.add.lockfile.document.and_then(|lockfile| {
+                    lockfile.snapshots.as_ref()
+                }),
+                pnpm_lockfile_preferred_versions::DirectSpecs {
+                    manifests: &[manifest],
+                    catalogs: self.catalogs,
+                },
+            )
+        })
+    }
 }
 
 #[cfg(test)]

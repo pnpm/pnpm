@@ -3,11 +3,9 @@ use super::{
     workspace_packages_for_add,
 };
 use crate::{
-    CatalogDecision, DIRECT_GROUPS, InstallError,
-    catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
-    },
-    emit_initial_package_manifest, package_manifest_prefix,
+    CatalogDecision, DIRECT_GROUPS,
+    catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
+    emit_initial_package_manifest,
 };
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -15,7 +13,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, SaveWorkspaceProtocol};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
@@ -35,23 +33,6 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     .map_err(AddError::WriteWorkspaceManifest)?;
     Ok(prepared)
 }
-pub(super) fn finish_selected_add<Reporter: self::Reporter>(
-    add: AddOptions<'_>,
-    manifest: &PackageManifest,
-    projects: &mut [pnpm_workspace::Project],
-    indices: &[usize],
-    workspace_dir: &std::path::Path,
-    ignored_builds: Option<InstallError>,
-) -> Result<(), AddError> {
-    persist_selected_manifests::<Reporter>(projects, indices)?;
-
-    post_install_prune(add.config, Some(workspace_dir), manifest)
-        .map_err(AddError::WriteWorkspaceManifest)?;
-    if let Some(ignored_builds) = ignored_builds {
-        return Err(AddError::Install(ignored_builds));
-    }
-    Ok(())
-}
 pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
     add: AddOptions<'_>,
     owned: &AddOwned,
@@ -68,10 +49,10 @@ pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
         manifest,
         &AddResolveInputs {
             add,
-            http_client_arc: &owned.http_client_arc,
+            owned,
             git_source_cache: &git_source_cache,
             resolution: &resolution,
-            save_catalog_name: owned.save_catalog_name.as_deref(),
+            preferred_versions: &std::sync::OnceLock::new(),
             catalogs: &catalog_ctx.catalogs,
             prefix: &catalog_ctx.prefix,
             workspace_packages: workspace_packages.as_ref(),
@@ -192,10 +173,10 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
             &mut projects[index].manifest,
             &AddResolveInputs {
                 add,
-                http_client_arc: &owned.http_client_arc,
+                owned,
                 git_source_cache: &git_source_cache,
                 resolution: &resolution,
-                save_catalog_name: owned.save_catalog_name.as_deref(),
+                preferred_versions: &std::sync::OnceLock::new(),
                 catalogs: &catalogs,
                 prefix: &catalog_ctx.prefix,
                 workspace_packages: workspace_packages.as_ref(),
@@ -244,25 +225,14 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     inputs: &AddResolveInputs<'_, '_>,
     dependency_groups: Option<&[DependencyGroup]>,
 ) -> Result<Catalogs, AddError> {
-    let resolved_dependencies = {
-        let mut resolution_futures = FuturesOrdered::new();
-        for package_selector in inputs.add.package_names {
-            resolution_futures.push_back(resolve_added_dependency(
-                package_selector,
-                manifest,
-                inputs,
-            ));
-        }
-        let mut dependencies = Vec::with_capacity(inputs.add.package_names.len());
-        while let Some(result) = resolution_futures.next().await {
-            let dependency = result?;
-            if let Some(warning) = &dependency.warning {
-                Reporter::emit(warning);
-            }
-            dependencies.push(dependency);
-        }
-        dependencies
-    };
+    let resolved_dependencies = resolve_dependencies::<Reporter>(
+        manifest,
+        inputs,
+        inputs.add.package_names.iter().map(String::as_str),
+    )
+    .await?;
+    let types_dependencies =
+        resolve_types_dependencies::<Reporter>(manifest, inputs, &resolved_dependencies).await?;
 
     emit_initial_package_manifest::<Reporter>(manifest);
 
@@ -280,12 +250,60 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
         }
     }
 
+    for dependency in &types_dependencies {
+        manifest
+            .add_dependency(
+                &dependency.package_name,
+                &dependency.manifest_specifier,
+                DependencyGroup::Dev,
+            )
+            .map_err(AddError::AddDependencyToManifest)?;
+    }
     let mut updated_catalogs = Catalogs::new();
-    for dependency in resolved_dependencies {
+    for dependency in resolved_dependencies.into_iter().chain(types_dependencies) {
         merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
     }
     Ok(updated_catalogs)
 }
+async fn resolve_dependencies<'s, Reporter: self::Reporter>(
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+    selectors: impl IntoIterator<Item = &'s str>,
+) -> Result<Vec<super::specifier::ResolvedAddedDependency>, AddError> {
+    let mut resolution_futures = FuturesOrdered::new();
+    for package_selector in selectors {
+        resolution_futures.push_back(resolve_added_dependency(package_selector, manifest, inputs));
+    }
+    let mut dependencies = Vec::with_capacity(resolution_futures.len());
+    while let Some(result) = resolution_futures.next().await {
+        let dependency = result?;
+        if let Some(warning) = &dependency.warning {
+            Reporter::emit(warning);
+        }
+        dependencies.push(dependency);
+    }
+    Ok(dependencies)
+}
+
+async fn resolve_types_dependencies<Reporter: self::Reporter>(
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+    dependencies: &[super::specifier::ResolvedAddedDependency],
+) -> Result<Vec<super::specifier::ResolvedAddedDependency>, AddError> {
+    if !inputs.add.save_types {
+        return Ok(Vec::new());
+    }
+    let mut names: HashSet<&str> = dependencies
+        .iter()
+        .map(|dependency| dependency.package_name.as_str())
+        .collect();
+    let selectors = dependencies
+        .iter()
+        .filter_map(|dependency| dependency.types_selector.as_deref())
+        .filter(|selector| names.insert(super::specifier::split_name_spec(selector).0));
+    resolve_dependencies::<Reporter>(manifest, inputs, selectors).await
+}
+
 /// The manifest groups an added dependency is written to. With none requested
 /// this is pnpm's `guessDependencyType`: keep an already-declared package in
 /// its group; a peer-only entry stays untouched (the install still resolves
@@ -338,26 +356,6 @@ pub(super) fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
             catalog.insert(dependency.clone(), specifier.clone());
         }
     }
-}
-pub(super) fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pnpm_workspace::Project],
-    selected_indices: &[usize],
-) -> Result<(), AddError> {
-    for &index in selected_indices {
-        persist_manifest::<Reporter>(&mut projects[index].manifest)?;
-    }
-    Ok(())
-}
-pub(super) fn persist_manifest<Reporter: self::Reporter>(
-    manifest: &mut PackageManifest,
-) -> Result<(), AddError> {
-    let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
-    let prefix = package_manifest_prefix(manifest);
-    Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
-        level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated { prefix, updated },
-    }));
-    Ok(())
 }
 /// Write an added dependency's catalog entry when the decision moves it into a
 /// catalog, and hand back the specifier the manifest records.

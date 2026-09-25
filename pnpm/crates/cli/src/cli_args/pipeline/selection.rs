@@ -3,6 +3,8 @@ use super::{
     HashSet, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Project, ProjectGraph,
     create_projects_graph, get_changed_projects,
 };
+use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
+use pnpm_workspace_projects_graph::BaseProject;
 
 /// The identity runs are recorded under on the server: the workspace
 /// directory's name plus the same path hash that keys the local pipeline
@@ -24,21 +26,23 @@ pub(super) fn workspace_identity(workspace_root: &Path) -> String {
 pub(super) fn build_full_graph<'a>(
     projects: &'a [Project],
     config: &Config,
-) -> ProjectGraph<GraphPkg<'a>> {
+) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
+    let catalogs = configured_catalogs(config)?;
     let graph_options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(
             config.link_workspace_packages != pnpm_config::LinkWorkspacePackages::Off,
         ),
+        catalogs: workspace_catalogs(config, &catalogs),
         ..CreateProjectsGraphOptions::default()
     };
-    create_projects_graph(
+    Ok(create_projects_graph(
         projects
             .iter()
             .map(|project| GraphPkg { project })
             .collect(),
         &graph_options,
     )
-    .graph
+    .graph)
 }
 
 /// How the run decided what to cover.
@@ -206,13 +210,21 @@ fn select_changed_projects(
     all_dirs: &[PathBuf],
     merge_base: String,
 ) -> miette::Result<Selection> {
+    let project_dependencies: HashMap<PathBuf, Vec<(String, String)>> = options
+        .graph
+        .iter()
+        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+        .collect();
     let changed = get_changed_projects(
         options.graph.keys().cloned().collect(),
         &merge_base,
         &GetChangedProjectsOptions {
             workspace_dir: options.workspace_root,
+            working_dir: None,
             test_pattern: &options.config.test_pattern,
             changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
+            project_dependencies: Some(&project_dependencies),
+            use_glob_dir_filtering: false,
         },
     )
     .map_err(miette::Report::new)?;

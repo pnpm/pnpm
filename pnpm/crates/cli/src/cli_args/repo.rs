@@ -4,7 +4,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_network_web_auth::OpenUrlAndWait;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{PackageManifest, safe_read_project_manifest_from_dir};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
@@ -92,17 +92,8 @@ pub enum RepoError {
 }
 
 fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
-    let manifest_path = dir.join("package.json");
-    let manifest = PackageManifest::from_path(manifest_path)
-        .map_err(|err| -> miette::Report {
-            match &err {
-                PackageManifestError::NoImporterManifestFound(_) => {
-                    RepoError::NoRepoUrlLocal.into()
-                }
-                _ => err.into(),
-            }
-        })?;
-    let repository = manifest.value().get("repository");
+    let manifest = safe_read_project_manifest_from_dir(dir)?.ok_or(RepoError::NoRepoUrlLocal)?;
+    let repository = manifest.get("repository");
     pick_repo_url(repository).ok_or_else(|| RepoError::NoRepoUrlLocal.into())
 }
 

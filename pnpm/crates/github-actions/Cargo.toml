@@ -11,22 +11,23 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-config = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-git-utils = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-git-resolver = { workspace = true }
 
+chrono = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 yaml_serde = { workspace = true }
 yamlpath = { workspace = true }
-
-[dev-dependencies]
-tempfile = { workspace = true }
 
 [lints]
 workspace = true

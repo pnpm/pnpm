@@ -13,6 +13,10 @@ const LATEST_LOOKUP_TIMEOUT: Duration = Duration::from_secs(10);
 /// Create a `package.json` file.
 #[derive(Debug, Args)]
 pub struct InitArgs {
+    /// Create a package.json file with the bare minimum of required fields.
+    #[clap(long = "bare")]
+    pub bare: bool,
+
     /// Set the module system for the package. Defaults to "module".
     #[clap(long = "init-type", value_name = "commonjs|module")]
     pub init_type: Option<InitTypeArg>,

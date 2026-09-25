@@ -493,3 +493,38 @@ test('satisfiesPackageManifest() ignores configured optional dependencies', () =
     }
   )).toStrictEqual({ satisfies: true })
 })
+
+test('satisfiesPackageManifest() accepts an optional dependency the lockfile left out only when allowed to', () => {
+  const importer = {
+    dependencies: {
+      required: '1.0.0',
+    },
+    specifiers: {
+      required: '1.0.0',
+    },
+  }
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      required: '1.0.0',
+    },
+    optionalDependencies: {
+      unresolvable: '^30000.0.0',
+    },
+  }
+  expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: unresolvable@^30000.0.0\n',
+  })
+  expect(satisfiesPackageManifest({ allowUnresolvedOptionalDependencies: true }, importer, pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest({ allowUnresolvedOptionalDependencies: true }, importer, {
+    ...pkg,
+    dependencies: {
+      ...pkg.dependencies,
+      added: '1.0.0',
+    },
+  })).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: added@1.0.0\n',
+  })
+})

@@ -2,7 +2,7 @@ use super::{
     AddMockedRegistry, CONFLICTED_DEPENDENCY, CommandExtra, CommandTempCwd, IS_POSITIVE_PATCH,
     Path, assert_merged_conflicted_lockfile, configure_pnpr_auth, fs, get_all_files,
     is_symlink_or_junction, pacquet_at, point_npmrc_registry_at, read_workspace_lockfile,
-    start_pnpr, write_conflicted_lockfile_fixture,
+    start_pnpr, workspace_importer_version, write_conflicted_lockfile_fixture,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -47,6 +47,43 @@ fn install_via_pnpr_links_node_modules() {
     // The client store was populated by the frozen install fetching tarballs
     // directly from the registry after pnpr returned the lockfile.
     assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
+
+    drop((root, mock_instance));
+}
+
+/// A project that only declares `peerDependencies` gets them auto-installed,
+/// so the importer the server resolves has to carry them too
+/// ([pnpm/pnpm#14833](https://github.com/pnpm/pnpm/issues/14833)).
+#[test]
+fn install_via_pnpr_auto_installs_the_peers_of_a_peer_only_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "peerDependencies": { "@foo/no-deps": "^1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
+    assert_eq!(
+        workspace_importer_version(&read_workspace_lockfile(&workspace), ".", "@foo/no-deps"),
+        "1.0.0",
+    );
 
     drop((root, mock_instance));
 }

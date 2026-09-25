@@ -34,17 +34,22 @@ interface DirectDependency {
  * comes from the lockfile the previous install left in `node_modules/.pnpm`.
  *
  * `link:` dependencies are left out: they are symlinked even under the hoisted
- * linker, so they are already reported. So are the packages in `skipped`, which
- * the install resolved but left uninstalled.
+ * linker, so they are already reported. So are the packages each install
+ * skipped, which it resolved but left uninstalled. Each side is read against
+ * the skip set of its own install, because a lockfile entry says what that
+ * install resolved and not what it put on disk: a dependency this install
+ * skips but the last one installed has been taken away, and one that both skip
+ * was never there.
  */
 export function reportDirectDependencyChanges (opts: {
   currentLockfile: LockfileObject | null | undefined
   wantedLockfile: LockfileObject
   projects: Array<{ id: ProjectId, rootDir: ProjectRootDir }>
+  previouslySkipped: Set<DepPath>
   skipped: Set<DepPath>
 }): void {
   for (const { id, rootDir } of opts.projects) {
-    const before = directDependencies(opts.currentLockfile, id, opts.skipped)
+    const before = directDependencies(opts.currentLockfile, id, opts.previouslySkipped)
     const after = directDependencies(opts.wantedLockfile, id, opts.skipped)
     for (const [alias, dep] of after) {
       const prev = before.get(alias)

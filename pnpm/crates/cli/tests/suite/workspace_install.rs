@@ -272,6 +272,75 @@ fn recursive_install_false_selects_the_current_project_and_its_dependencies() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn recursive_install_false_with_explicit_recursive_flag_installs_all_projects() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(
+        "packages:\n  - 'packages/*'\nrecursiveInstall: false\ndedupePeerDependents: false\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+
+    for (dir, manifest) in [
+        (
+            "a",
+            serde_json::json!({
+                "name": "a",
+                "version": "1.0.0",
+                "dependencies": {
+                    "b": "workspace:*",
+                    "is-positive": "1.0.0",
+                },
+            }),
+        ),
+        (
+            "b",
+            serde_json::json!({
+                "name": "b",
+                "version": "1.0.0",
+                "dependencies": { "is-negative": "1.0.0" },
+            }),
+        ),
+        (
+            "unrelated",
+            serde_json::json!({
+                "name": "unrelated",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            }),
+        ),
+    ] {
+        let project = workspace.join("packages").join(dir);
+        fs::create_dir_all(&project).expect("create project");
+        fs::write(project.join("package.json"), manifest.to_string()).expect("write manifest");
+    }
+
+    pacquet_at(&workspace.join("packages/a"))
+        .with_args(["install", "-r"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/a/node_modules/is-positive/package.json").exists());
+    assert!(workspace.join("packages/b/node_modules/is-negative/package.json").exists());
+    assert!(
+        workspace
+            .join("packages/unrelated/node_modules/@pnpm.e2e/hello-world-js-bin/package.json")
+            .exists(),
+        "explicit -r must install unrelated workspace projects even when recursive-install is false",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A workspace with two sibling projects, each pulling in a
 /// different mocked package, runs through the fresh-resolve path and
 /// writes per-importer lockfile entries plus per-importer
@@ -442,6 +511,52 @@ fn frozen_install_accepts_auto_installed_workspace_peer() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn removal_override_prevents_optional_peer_resolution_from_a_sibling_workspace_package() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/abc-optional-peers": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "devDependencies": { "@pnpm.e2e/peer-c": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str(concat!(
+        "overrides:\n",
+        "  '@pnpm.e2e/peer-a': '1.0.0'\n",
+        "  '@pnpm.e2e/abc-optional-peers>@pnpm.e2e/peer-c': '-'\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"),
+        "1.0.0(@pnpm.e2e/peer-a@1.0.0)",
+    );
+    let pkg_b = importer(&lockfile, "pkg-b");
+    let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
+    assert!(
+        pkg_b.dev_dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.contains_key(&peer_c)),
+    );
 
     drop((root, mock_instance));
 }
@@ -856,7 +971,7 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 }
 
 /// With `preferSymlinkedExecutables`, the isolated linker also
-/// materializes `.bin` entries as symlinks to the bin file instead of
+/// materializes `.bin` entries as symlinks to executable bin files instead of
 /// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
 /// install coverage.
 #[test]
@@ -874,8 +989,14 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     let mut provider_manifest = read_manifest(&provider);
     provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
     write_manifest_value(&provider, &provider_manifest);
+    #[cfg(windows)]
     fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
         .expect("write project bin");
+    #[cfg(unix)]
+    _utils::write_executable(
+        &provider.join("index.js"),
+        "#!/usr/bin/env node\nconsole.log('hello')\n",
+    );
 
     fixture.run(["install"]);
 
@@ -943,4 +1064,189 @@ fn a_circular_peers_optional_peer_is_shared_by_every_importer() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn workspace_install_with_build_metadata_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
+        .expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(workspace.join("packages/lib")).expect("mkdir packages/lib");
+    fs::write(
+        workspace.join("packages/lib/package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "0.5.6-next.3+f60facc",
+        })
+        .to_string(),
+    )
+    .expect("write packages/lib/package.json");
+
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "dependencies": { "lib": "workspace:0.5.6-next.3+f60facc" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains("link:../lib"));
+
+    drop(root);
+}
+
+#[test]
+fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\nlinkWorkspacePackages: true\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+
+    let pkg_a_dir = workspace.join("packages/pkg-a");
+    let pkg_b_dir = workspace.join("packages/pkg-b");
+    fs::create_dir_all(&pkg_a_dir).expect("mkdir pkg-a");
+    fs::create_dir_all(&pkg_b_dir).expect("mkdir pkg-b");
+
+    fs::write(
+        pkg_a_dir.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "custom-pkg-b": "~1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+
+    fs::write(
+        pkg_b_dir.join("package.json"),
+        serde_json::json!({
+            "name": "custom-pkg-b",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b package.json");
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let root_symlink = workspace.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&root_symlink).expect("query root symlink"),
+        "workspace/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink",
+    );
+
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
+    let root_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read root pnpm-lock.yaml");
+    assert!(!root_lockfile.contains("packages/pkg-a"), "{root_lockfile}");
+
+    fs::remove_dir_all(pkg_a_dir.join("node_modules")).expect("rm node_modules");
+    fs::remove_file(pkg_a_dir.join("pnpm-lock.yaml")).expect("rm pkg-a pnpm-lock.yaml");
+    pacquet_at(workspace)
+        .with_arg("install")
+        .with_arg("--filter")
+        .with_arg("pkg-a")
+        .assert()
+        .success();
+
+    let symlink = pkg_a_dir.join("node_modules/custom-pkg-b");
+    assert!(
+        is_symlink_or_junction(&symlink).expect("query pkg-a symlink"),
+        "pkg-a/node_modules/custom-pkg-b must be a symlink after --filter pkg-a",
+    );
+    let pkg_a_lockfile =
+        fs::read_to_string(pkg_a_dir.join("pnpm-lock.yaml")).expect("read pkg-a pnpm-lock.yaml");
+    assert!(pkg_a_lockfile.contains("version: link:../pkg-b"), "{pkg_a_lockfile}");
+
+    drop(fixture);
+}
+
 mod freshness;
+
+#[cfg(unix)]
+#[test]
+fn a_project_under_a_symlinked_directory_links_its_dependencies_from_the_real_directory() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    let external = fixture.root.path().join("external");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/**'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::create_dir_all(external.join("app")).expect("mkdir external/app");
+    fs::write(
+        external.join("app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write external/app/package.json");
+    std::os::unix::fs::symlink(&external, workspace.join("packages")).expect("symlink packages");
+
+    for args in [vec!["install"], vec!["install", "--frozen-lockfile"]] {
+        pacquet_at(workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        let manifest = external.join("app/node_modules/@pnpm.e2e/pkg-with-1-dep/package.json");
+        assert!(manifest.is_file(), "{manifest:?} does not resolve");
+        fs::remove_dir_all(external.join("app/node_modules")).unwrap();
+        fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    }
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert!(importer(&lockfile, "packages/app").dependencies.is_some());
+}

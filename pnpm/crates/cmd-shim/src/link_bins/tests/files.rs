@@ -71,7 +71,7 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
         }
     }
     impl FsEnsureExecutableBits for FailingModulesRead {
-        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+        fn ensure_executable_bits(_: &Path, _: Option<&Path>) -> io::Result<()> {
             unreachable!()
         }
     }

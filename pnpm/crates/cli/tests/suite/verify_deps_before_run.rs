@@ -17,18 +17,38 @@ use serde_json::json;
 use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
-    write_manifest_with_dependency_groups(workspace, marker, json!({}));
+    write_named_manifest_with_dependency_groups(
+        workspace,
+        "verify-deps-project",
+        marker,
+        json!({}),
+    );
 }
 
-/// The fixture manifest — a `hello` script that touches `marker` —
-/// extended with the dependency groups the caller needs.
+#[cfg(unix)]
+fn write_named_manifest(workspace: &Path, name: &str, marker: &Path) {
+    write_named_manifest_with_dependency_groups(workspace, name, marker, json!({}));
+}
+
+#[cfg(unix)]
 fn write_manifest_with_dependency_groups(
     workspace: &Path,
     marker: &Path,
     groups: serde_json::Value,
 ) {
+    write_named_manifest_with_dependency_groups(workspace, "verify-deps-project", marker, groups);
+}
+
+/// The fixture manifest — a `hello` script that touches `marker` —
+/// extended with the dependency groups the caller needs.
+fn write_named_manifest_with_dependency_groups(
+    workspace: &Path,
+    name: &str,
+    marker: &Path,
+    groups: serde_json::Value,
+) {
     let serde_json::Value::Object(mut manifest) = json!({
-        "name": "verify-deps-project",
+        "name": name,
         "version": "0.0.0",
         "scripts": {
             "hello": format!(r#"touch "{}""#, marker.display()),
@@ -60,6 +80,84 @@ fn default_install_action_installs_before_running_the_script() {
         .success();
     assert!(marker.exists(), "the script must run after the spawned install");
     assert!(workspace.join("node_modules").exists(), "the gate must have spawned an install first");
+
+    drop(root);
+}
+
+/// Concurrent gates on one stale tree start one install instead of one
+/// each racing in the same `node_modules`: the others wait for it, find
+/// the dependencies up to date, and run their scripts
+/// ([pnpm/pnpm#14551](https://github.com/pnpm/pnpm/issues/14551)).
+#[cfg(unix)]
+#[test]
+fn concurrent_gates_on_a_stale_tree_start_one_install() {
+    use std::process::Stdio;
+
+    const RUNS: usize = 4;
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        json!({ "name": "project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the workspace project manifest");
+    let installs = workspace.join("installs.log");
+    let write_root_manifest = |dependencies: serde_json::Value| {
+        let manifest = json!({
+            "name": "verify-deps-root",
+            "version": "0.0.0",
+            "scripts": {
+                "hello": "true",
+                // Keep the install running until every gate has checked
+                // the stale tree.
+                "postinstall": format!(r#"echo installed >> "{}" && sleep 2"#, installs.display()),
+            },
+            "dependencies": dependencies,
+        });
+        fs::write(workspace.join("package.json"), manifest.to_string())
+            .expect("write the root manifest");
+    };
+
+    write_root_manifest(json!({}));
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(&installs).expect("reset the install log");
+
+    write_root_manifest(json!({ "project": "workspace:*" }));
+    bump_mtime(&workspace.join("package.json"));
+    let runs = (0..RUNS)
+        .map(|_| {
+            pacquet_in(&workspace)
+                .with_args(["run", "hello"])
+                .with_stdout(Stdio::null())
+                .with_stderr(Stdio::piped())
+                .spawn()
+                .expect("spawn pacquet run")
+        })
+        .collect::<Vec<_>>();
+    for run in runs {
+        let output = run.wait_with_output().expect("wait for pacquet run");
+        assert!(
+            output.status.success(),
+            "every run must succeed:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    let install_count = fs::read_to_string(&installs)
+        .expect("read the install log")
+        .lines()
+        .count();
+    assert_eq!(install_count, 1, "the concurrent gates must share one install");
+    assert!(
+        workspace.join("node_modules/project").exists(),
+        "the shared install must link the new dependency",
+    );
 
     drop(root);
 }
@@ -400,6 +498,204 @@ fn separate_lockfiles_allow_a_nested_project_without_a_root_manifest() {
         .assert()
         .success();
     assert!(marker.exists(), "the nested workspace script must run");
+
+    drop(root);
+}
+
+/// With `sharedWorkspaceLockfile: false`, a filtered install writes the state
+/// for the selected project, but not for the workspace root. A recursive or
+/// filtered run from the root must check the selected project's state rather
+/// than expecting a root workspace state file (pnpm/pnpm#15272).
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    let marker_b = project_b.join("marker-b.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &marker_b);
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install"])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a shortcut script must run");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    let project_c = workspace.join("packages/project-c");
+    fs::create_dir_all(&project_c).expect("create project-c");
+    fs::write(
+        project_c.join("package.json"),
+        json!({ "name": "project-c", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project-c package.json");
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project-a",
+            "--filter",
+            "project-c",
+            "run",
+            "--if-present",
+            "hello",
+        ])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run with uninstalled project-c skipped");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "project-b", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "uninstalled project-b must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error for uninstalled project:\n{stderr}",
+    );
+
+    write_named_manifest_with_dependency_groups(
+        &project_a,
+        "project-a",
+        &marker_a,
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    bump_mtime(&project_a.join("package.json"));
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "out-of-sync project-a must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected verify-deps error for out-of-sync project:\n{stderr}",
+    );
+
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-b", "install"])
+        .assert()
+        .success();
+    let _ = fs::remove_file(&marker_a);
+
+    pacquet_in(&workspace)
+        .with_args(["--recursive", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run under recursive");
+    assert!(marker_b.exists(), "project-b script must run under recursive");
+
+    drop(root);
+}
+
+/// With `sharedWorkspaceLockfile: false` and project-specific `packageConfigs`
+/// overrides, running a script inside the project or via `--filter` right
+/// after install must not fail the `verifyDepsBeforeRun` check (pnpm/pnpm#15545).
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_with_package_configs_overrides_allows_script_run() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\npackageConfigs:\n  project-a:\n    overrides:\n      ms: 2.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    let marker_b = project_b.join("marker-b.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &marker_b);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet_in(&project_a)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run from inside package dir");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run via --filter from root");
+    fs::remove_file(&marker_a).expect("clean marker-a");
+
+    pacquet_in(&project_a)
+        .with_args(["exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    pacquet_in(&project_b)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_b.exists(), "project-b without overrides must also run");
+    fs::remove_file(&marker_b).expect("clean marker-b");
+
+    // When the override setting in pnpm-workspace.yaml changes, the check
+    // must detect the drift and fail.
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\npackageConfigs:\n  project-a:\n    overrides:\n      ms: 3.0.0\n",
+    )
+    .expect("write updated pnpm-workspace.yaml");
+
+    let output = pacquet_in(&project_a)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "project-a must fail after overrides drift");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected verify-deps error after overrides drift:\n{stderr}",
+    );
+    assert!(
+        stderr.contains("overrides"),
+        "expected overrides setting drift in error message:\n{stderr}",
+    );
 
     drop(root);
 }

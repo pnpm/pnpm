@@ -1,5 +1,12 @@
 use super::{Certificate, Identity, LazyLock, RegistryTls, TlsConfig, TlsError};
 
+#[cfg(target_vendor = "apple")]
+use core_foundation::{base::TCFType, string::CFString};
+#[cfg(target_vendor = "apple")]
+use security_framework::{policy::SecPolicy, secure_transport::SslProtocolSide};
+#[cfg(target_vendor = "apple")]
+use security_framework_sys::{base::SecPolicyRef, policy::SecPolicyCreateSSL};
+
 /// Which trust anchors a client built by
 /// [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) verifies registry certificates
 /// against.
@@ -29,6 +36,80 @@ pub(super) fn bundled_root_certs() -> &'static [Certificate] {
             .collect()
     });
     &CERTS
+}
+
+/// Check if the platform trust verifier is usable on Apple systems.
+///
+/// On macOS, `rustls-platform-verifier` evaluates trust through `Security.framework`,
+/// which relies on Mach IPC to `com.apple.trustd.agent`. In restricted environments
+/// (such as sandboxes or containerized runtimes) where access to `trustd` is denied,
+/// trust evaluation fails with `errSecVerifyActionFailed` (`-26276`).
+/// Unlike Linux, where missing system certificates cause `reqwest::ClientBuilder::build`
+/// to fail immediately, macOS defers verification to connection time.
+/// Probing `SecTrust` once detects an unreachable platform verifier so the client
+/// builder can fall back to [`TrustRoots::Bundled`].
+#[cfg(target_vendor = "apple")]
+pub(super) fn is_platform_verifier_available() -> bool {
+    static AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
+        use security_framework::{certificate::SecCertificate, trust::SecTrust};
+        let der = &webpki_root_certs::TLS_SERVER_ROOT_CERTS[0];
+        let Ok(cert) = SecCertificate::from_der(der.as_ref()) else {
+            return false;
+        };
+        let Some(policy) = ssl_policy(SslProtocolSide::SERVER, "registry.npmjs.org") else {
+            return false;
+        };
+        let Ok(trust) = SecTrust::create_with_certificates(&[cert], &[policy]) else {
+            return false;
+        };
+        match trust.evaluate_with_error() {
+            Ok(()) => true,
+            Err(err) => {
+                const ERR_SEC_VERIFY_ACTION_FAILED: isize = -26276;
+                err.code() != ERR_SEC_VERIFY_ACTION_FAILED
+            }
+        }
+    });
+    *AVAILABLE
+}
+
+/// A server `SecPolicy` for `hostname`, or `None` when `Security.framework`
+/// declines to create one.
+///
+/// `SecPolicy::create_ssl` cannot report that refusal. It hands the C API's
+/// return value to `core-foundation`'s `wrap_under_create_rule`, which
+/// asserts the reference is non-NULL and panics with "Attempted to create a
+/// NULL object" otherwise. A framework that will not hand out a policy is
+/// one of the shapes an unusable platform verifier takes, so the probe asks
+/// the C API directly and reads the NULL as "no platform verifier", which
+/// sends the client builder to [`TrustRoots::Bundled`].
+///
+/// `std::panic::catch_unwind` around the panicking call would not do:
+/// releases are built with `panic = "abort"`, which turns the unwind into
+/// the very abort this avoids.
+#[cfg(target_vendor = "apple")]
+fn ssl_policy(protocol_side: SslProtocolSide, hostname: &str) -> Option<SecPolicy> {
+    let hostname = CFString::new(hostname);
+    let is_server = protocol_side == SslProtocolSide::SERVER;
+    // SAFETY: `SecPolicyCreateSSL` is a plain C function that only reads
+    // `hostname`, which is alive for the duration of the call.
+    let policy = unsafe { SecPolicyCreateSSL(is_server.into(), hostname.as_concrete_TypeRef()) };
+    ssl_policy_from_ref(policy)
+}
+
+/// Take ownership of the reference [`ssl_policy`] got, reading NULL as
+/// "no policy" rather than as the panic `wrap_under_create_rule` raises.
+///
+/// Separate from [`ssl_policy`] so a test can drive the NULL branch without
+/// a restricted `trustd`.
+#[cfg(target_vendor = "apple")]
+fn ssl_policy_from_ref(policy: SecPolicyRef) -> Option<SecPolicy> {
+    if policy.is_null() {
+        return None;
+    }
+    // SAFETY: `SecPolicyCreateSSL` returns a +1 reference, which the create
+    // rule adopts.
+    Some(unsafe { SecPolicy::wrap_under_create_rule(policy) })
 }
 
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
@@ -137,13 +218,24 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
 /// [`ForInstallsError`](crate::ForInstallsError), the way Node throws from
 /// `tls.createSecureContext`. Unreadable `ca` material is dropped
 /// instead — see [`parse_ca_bundle`].
+pub(super) struct AppliedTls {
+    pub(super) builder: reqwest::ClientBuilder,
+    pub(super) has_custom_ca: bool,
+}
+
+/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
+/// CA, install the client identity, set `danger_accept_invalid_certs`
+/// when `strict_ssl: false`, and pin the outbound interface. Returns
+/// the modified builder and whether any valid custom CA roots were loaded.
 pub(super) fn apply_tls(
     mut builder: reqwest::ClientBuilder,
     tls: &TlsConfig,
-) -> Result<reqwest::ClientBuilder, TlsError> {
+) -> Result<AppliedTls, TlsError> {
+    let mut has_custom_ca = false;
     for pem in &tls.ca {
         for cert in parse_ca_bundle(pem.as_bytes()) {
             builder = builder.add_root_certificate(cert);
+            has_custom_ca = true;
         }
     }
     let cert = drop_blank(tls.cert.as_deref());
@@ -177,7 +269,7 @@ pub(super) fn apply_tls(
     if let Some(addr) = tls.local_address {
         builder = builder.local_address(addr);
     }
-    Ok(builder)
+    Ok(AppliedTls { builder, has_custom_ca })
 }
 
 /// `None` for a PEM slot that is empty or all whitespace.
@@ -192,3 +284,6 @@ pub(super) fn apply_tls(
 fn drop_blank(pem: Option<&str>) -> Option<&str> {
     pem.filter(|pem| !pem.trim().is_empty())
 }
+
+#[cfg(all(test, target_vendor = "apple"))]
+mod tests;

@@ -1,5 +1,4 @@
 import { PnpmError } from '@pnpm/error'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type {
   DependenciesField,
@@ -81,10 +80,16 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   modulesDir?: string
+  /**
+   * Lockfile-relative directories keyed by dependency path, recorded by a
+   * `nodeLinker: hoisted` install, which leaves the virtual store empty.
+   */
+  hoistedLocations?: Record<string, string[]>
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
+  resolvePeersFromWorkspaceRoot?: boolean
   supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
@@ -94,10 +99,10 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
-  const depTypes = detectDepTypes(opts.wantedLockfile)
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
+    hoistedLocations: opts.hoistedLocations,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -105,8 +110,8 @@ export async function findDependencyLicenses (opts: {
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     includedImporterIds: opts.includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     supportedArchitectures: opts.supportedArchitectures,
-    depTypes,
   })
 
   // map: name@ver (qualified by named registry, when any) -> LicensePackage

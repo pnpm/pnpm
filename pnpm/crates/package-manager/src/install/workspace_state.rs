@@ -1,7 +1,7 @@
-pub use discovery::check_deps_status_before_run_at;
+pub use discovery::{check_deps_status_before_run_at, deps_install_root};
 pub(super) use projects::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, projects_running_own_scripts,
+    build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
 
@@ -62,8 +62,10 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())?;
+    let ignored_directories = check.config.managed_directories();
     let workspace_projects =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref(), &ignored_directories)
+            .ok()?;
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     // The lockfile the install wrote sits at its `lockfileDir`, which
@@ -326,7 +328,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     filtered_install: bool,
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
-    WorkspaceState {
+    let mut state = WorkspaceState {
         last_validated_timestamp: refreshed_validation_baseline_ms(
             validation_baseline_ms(workspace_root, config, project_manifests)
                 .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
@@ -349,7 +351,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
             supported_architectures,
             catalogs,
         ),
-    }
+    };
+    // Frozen installs share this builder and cannot establish a deduplication baseline.
+    state.settings.auto_dedupe = None;
+    state
 }
 
 /// The wanted lockfile, read on first use — or a stand-in that never reads

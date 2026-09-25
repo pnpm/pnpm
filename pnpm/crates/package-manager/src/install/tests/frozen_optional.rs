@@ -380,7 +380,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
 #[tokio::test]
 async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Lockfile with one `optional: true` snapshot whose `tarball` URL
-    // dials `127.0.0.1:1` (a reserved port that always refuses) so
+    // dials `0.0.0.0:1`, whose connect fails at once on every OS, so
     // the fetch reliably fails without a network round-trip. The
     // integrity is arbitrary — we never get far enough to verify it.
     const BROKEN_OPTIONAL_LOCKFILE: &str = text_block! {
@@ -393,7 +393,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         "        version: 1.0.0"
         "packages:"
         "  broken-pkg@1.0.0:"
-        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://127.0.0.1:1/broken.tgz'}"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/broken.tgz'}"
         "snapshots:"
         "  broken-pkg@1.0.0:"
         "    optional: true"
@@ -420,7 +420,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    // Keep retries minimal — 127.0.0.1:1 fails immediately on every
+    // Keep retries minimal: 0.0.0.0:1 fails immediately on every
     // try, but a long retry schedule would dominate the test runtime.
     config.fetch_retries = 0;
     config.minimum_release_age = None;
@@ -529,7 +529,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         "        version: 1.0.0"
         "packages:"
         "  broken-pkg@1.0.0:"
-        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://127.0.0.1:1/broken.tgz'}"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/broken.tgz'}"
         "snapshots:"
         "  broken-pkg@1.0.0: {}"
     };
@@ -562,7 +562,10 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
-            trust: false,
+            // As in the sister test: without it the lockfile verifier fetches
+            // `broken-pkg` metadata from the live default registry and fails
+            // the install before the tarball fetch this test is about.
+            trust: true,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
@@ -608,7 +611,11 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     .run::<SilentReporter>()
     .await;
 
-    assert!(result.is_err(), "non-optional fetch failure must abort the install, got {result:?}");
+    let error = result.expect_err("non-optional fetch failure must abort the install");
+    assert!(
+        format!("{error:?}").contains("DownloadTarball"),
+        "the install must abort on the tarball fetch, got {error:?}",
+    );
 
     drop(dirs.dir);
 }

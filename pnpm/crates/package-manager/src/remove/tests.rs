@@ -139,7 +139,8 @@ fn selected_remove_prepares_and_persists_only_selected_projects() {
         .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
-    validate_selected_remove(&strings(&["foo"])).expect("every selected manifest contains foo");
+    validate_selected_remove(&projects, &indices, &strings(&["foo"]), None)
+        .expect("every selected manifest contains foo");
     prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &strings(&["foo"]), None);
     persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
         .expect("persist selected manifests");
@@ -169,8 +170,10 @@ fn selected_remove_ignores_projects_without_the_requested_dependency() {
         .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
 
-    validate_selected_remove(&strings(&["foo"]))
-        .expect("missing dependencies are ignored in recursive remove");
+    validate_selected_remove(&projects, &indices, &strings(&["foo"]), None)
+        .expect(
+            "missing dependencies are ignored in recursive remove when at least one project has it",
+        );
     prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &strings(&["foo"]), None);
 
     assert_eq!(dependency_names(&projects[0].manifest), Vec::<String>::new());
@@ -178,8 +181,34 @@ fn selected_remove_ignores_projects_without_the_requested_dependency() {
 }
 
 #[test]
+fn selected_remove_fails_when_package_is_not_in_any_workspace_dependency() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![
+        project_with_dependencies(dir.path(), "a", &["foo"]),
+        project_with_dependencies(dir.path(), "b", &["bar"]),
+    ];
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    let err = validate_selected_remove(&projects, &indices, &strings(&["baz"]), None)
+        .expect_err("non-existent workspace dependency must fail");
+    assert_eq!(err.to_string(), "Cannot remove 'baz': no such dependency found");
+}
+
+#[test]
 fn selected_remove_still_requires_a_dependency_name() {
-    let error = validate_selected_remove(&[]).expect_err("empty recursive removal must fail");
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![project_with_dependencies(dir.path(), "a", &["foo"])];
+    let indices = vec![0];
+    let error = validate_selected_remove(&projects, &indices, &[], None)
+        .expect_err("empty recursive removal must fail");
     assert!(matches!(error, RemoveValidationError::MustRemoveSomething));
 }
 

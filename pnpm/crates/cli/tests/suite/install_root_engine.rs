@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use std::{fs, path::Path, process::Command};
 
 #[test]
 fn engine_strict_rejects_an_incompatible_root_project() {
@@ -51,18 +51,8 @@ fn engine_strict_rejects_an_incompatible_root_project() {
 
 #[test]
 fn engine_strict_accepts_the_active_node_version() {
-    let node_output = Command::new("node")
-        .arg("--version")
-        .output()
-        .expect("run node --version");
-    assert!(node_output.status.success(), "node --version must succeed");
-    let node_version = String::from_utf8(node_output.stdout)
-        .expect("decode node --version")
-        .trim()
-        .trim_start_matches('v')
-        .to_string();
-
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let node_version = node_version_at(&workspace);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -77,6 +67,8 @@ fn engine_strict_accepts_the_active_node_version() {
         .expect("write workspace settings");
 
     pacquet
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .with_env("PNPM_SHIM_BYPASS", "1")
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
@@ -145,18 +137,20 @@ fn update_config_can_disable_the_root_engine_check() {
 
 #[test]
 fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
-    let node_output = Command::new("node")
-        .arg("--version")
-        .output()
-        .expect("run node --version");
-    assert!(node_output.status.success(), "node --version must succeed");
-    let node_version = String::from_utf8(node_output.stdout)
-        .expect("decode node --version")
-        .trim()
-        .trim_start_matches('v')
-        .to_string();
-
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "compatible-root",
+            "version": "1.0.0",
+            "devEngines": {
+                "runtime": { "name": "node", "version": ">=1.0.0" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write initial package.json");
+    let node_version = node_version_at(&workspace);
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -174,11 +168,30 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
         .expect("write workspace settings");
 
     pacquet
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .with_env("PNPM_SHIM_BYPASS", "1")
         .with_args(["install", "--lockfile-only", "--no-runtime"])
         .assert()
         .success();
 
     drop(root);
+}
+
+fn node_version_at(dir: &Path) -> String {
+    let node_output = Command::new("node")
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+        .env("PNPM_SHIM_BYPASS", "1")
+        .arg("--version")
+        .current_dir(dir)
+        .output()
+        .expect("run node --version");
+    assert!(node_output.status.success(), "node --version must succeed");
+    String::from_utf8(node_output.stdout)
+        .expect("decode node --version")
+        .trim()
+        .trim_start_matches('v')
+        .to_string()
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use crate::{
-    ArchiveStoreProjection, FetchedTarball, IgnoreEntryFilter, SharedReportedProgressKeys,
-    TarballError, apply_append_manifest, apply_placeholder_manifest,
+    ArchiveStoreProjection, CachedCasPaths, FetchedTarball, IgnoreEntryFilter,
+    SharedReportedProgressKeys, TarballError, apply_append_manifest, apply_placeholder_manifest,
     download::{download_priority, fetch_and_extract_with_retry, store_index_cache_key},
     emit_progress_found_in_store, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
     local_file_tarball_path,
@@ -40,15 +40,22 @@ impl ArchiveIngestion<'_> {
     pub(crate) async fn run<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        if let Some(paths) = self.load_cache::<Reporter>().await? {
-            return Ok(paths);
+        self.load_or_fetch::<Reporter>().await.map(|cached| cached.files)
+    }
+
+    pub(crate) async fn load_or_fetch<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<CachedCasPaths, TarballError> {
+        if let Some(cached) = self.load_cache::<Reporter>().await? {
+            return Ok(cached);
         }
-        self.fetch::<Reporter>(false).await.map(|result| result.files_map)
+        self.fetch::<Reporter>(false).await
+            .map(|result| CachedCasPaths { files: result.files_map, manifest: result.manifest })
     }
 
     pub(crate) async fn load_cache<Reporter: self::Reporter>(
         &self,
-    ) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Option<CachedCasPaths>, TarballError> {
         let cache_key = self.cache_key();
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         if let Some(prefetched) = self.store.prefetched_cas_paths
@@ -62,7 +69,7 @@ impl ArchiveIngestion<'_> {
                 "Reusing prefetched CAFS entry — skipping download",
             );
             emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-            return Ok(Some((**cas_paths).clone()));
+            return Ok(Some(CachedCasPaths { files: (**cas_paths).clone(), manifest: None }));
         }
         if let Some(cache_key) = cache_key.clone() {
             let cached = load_cached_cas_paths::<Reporter>(
@@ -74,17 +81,17 @@ impl ArchiveIngestion<'_> {
                 Arc::clone(&self.store.verified_files_cache),
             )
             .await?;
-            if let Some(cas_paths) = cached {
+            if let Some(cached) = cached {
                 tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing cached CAFS entry — skipping download");
                 emit_progress_found_in_store::<Reporter>(
                     self.package.id,
                     self.requester,
                     progress_key,
                 );
-                return Ok(Some(cas_paths));
+                return Ok(Some(cached));
             }
             if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key).await? {
-                return Ok(Some(cas_paths));
+                return Ok(Some(CachedCasPaths { files: cas_paths, manifest: None }));
             }
         }
         Ok(None)

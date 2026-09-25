@@ -39,6 +39,42 @@ fn restart_runs_stop_restart_start_scripts() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn restart_runs_stop_and_start_when_restart_script_is_missing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let log_file = workspace.join("log.txt");
+    let append = |name: &str| format!(r#"echo {name} >> "{}""#, log_file.display());
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "prestop": append("prestop"),
+            "stop": append("stop"),
+            "poststop": append("poststop"),
+            "prestart": append("prestart"),
+            "start": append("start"),
+            "poststart": append("poststart"),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet
+        .with_arg("restart")
+        .assert()
+        .success();
+    let content = fs::read_to_string(&log_file).expect("read log file");
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    assert_eq!(lines, vec!["prestop", "stop", "poststop", "prestart", "start", "poststart"]);
+
+    drop(root);
+}
+
 /// When a "stop" script exits non-zero, `pacquet restart` terminates
 /// without running the subsequent "restart" and "start" scripts.
 #[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell `exit` builtin")]

@@ -26,12 +26,19 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
+export type WorkspacePackageLookup =
+  | Array<{ manifest: ProjectManifest, rootDir?: string }>
+  | Map<string, unknown>
+  | Record<string, unknown>
+  | ((depName: string) => ProjectManifest | undefined)
+
 export interface MakePublishManifestOptions {
   catalogs: Catalogs
   hooks?: Hooks
   modulesDir?: string
   skipManifestObfuscation?: boolean
   embedReadme?: boolean
+  workspacePackages?: WorkspacePackageLookup
 }
 
 export async function createExportableManifest (
@@ -52,11 +59,13 @@ export async function createExportableManifest (
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
 
+  const getWorkspaceManifest = buildWorkspaceManifestGetter(opts.workspacePackages)
   const convertDependencyForPublish = combineConverters(replaceCatalogProtocol, replaceWorkspaceProtocol, replaceJsrProtocol)
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish,
+      workspacePackages: getWorkspaceManifest,
     })
     if (deps != null) {
       publishManifest[depsField] = deps
@@ -69,6 +78,7 @@ export async function createExportableManifest (
     publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish: convertPeersForPublish,
+      workspacePackages: getWorkspaceManifest,
     })
   }
 
@@ -123,6 +133,7 @@ export type PublishDependencyConverter = (
 export interface PublishDependencyConverterContext {
   dir: string
   modulesDir?: string
+  workspacePackages?: (depName: string) => ProjectManifest | undefined
 }
 
 function combineConverters (...converters: readonly PublishDependencyConverter[]): PublishDependencyConverter {
@@ -139,32 +150,116 @@ function combineConverters (...converters: readonly PublishDependencyConverter[]
 export interface MakePublishDependenciesOpts {
   readonly modulesDir?: string
   readonly convertDependencyForPublish: PublishDependencyConverter
+  readonly workspacePackages?: (depName: string) => ProjectManifest | undefined
 }
 
 async function makePublishDependencies (
   dir: string,
   dependencies: Dependencies | undefined,
-  { modulesDir, convertDependencyForPublish }: MakePublishDependenciesOpts
+  { modulesDir, convertDependencyForPublish, workspacePackages }: MakePublishDependenciesOpts
 ): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
   const publishDependencies = await Promise.all(
     Object.entries(dependencies).map(async ([depName, depSpec]): Promise<[string, string]> =>
-      [depName, await convertDependencyForPublish(depName, depSpec, { dir, modulesDir })]
+      [depName, await convertDependencyForPublish(depName, depSpec, { dir, modulesDir, workspacePackages })]
     )
   )
   return Object.fromEntries(publishDependencies)
 }
 
-async function readAndCheckManifest (depName: string, dependencyDir: string): Promise<ProjectManifest> {
-  const { manifest } = await tryReadProjectManifest(dependencyDir)
-  if (!manifest?.name || !manifest?.version) {
+function extractManifest (val: unknown): ProjectManifest | undefined {
+  if (!val || typeof val !== 'object') return undefined
+  if ('manifest' in val && val.manifest && typeof val.manifest === 'object') {
+    return val.manifest as ProjectManifest
+  }
+  if ('package' in val && val.package && typeof val.package === 'object' && 'manifest' in val.package && val.package.manifest && typeof val.package.manifest === 'object') {
+    return val.package.manifest as ProjectManifest
+  }
+  if ('name' in val && typeof (val as Record<string, unknown>).name === 'string') {
+    return val as ProjectManifest
+  }
+  return undefined
+}
+
+function buildWorkspaceManifestGetter (
+  workspacePackages?: WorkspacePackageLookup
+): ((depName: string) => ProjectManifest | undefined) | undefined {
+  if (!workspacePackages) return undefined
+  if (typeof workspacePackages === 'function') {
+    return workspacePackages
+  }
+  const byName = new Map<string, ProjectManifest>()
+  const addManifest = (val: unknown) => {
+    const manifest = extractManifest(val)
+    if (!manifest?.name) return
+    const existing = byName.get(manifest.name)
+    if (!existing || (!existing.version && manifest.version)) {
+      byName.set(manifest.name, manifest)
+    }
+  }
+
+  if (Array.isArray(workspacePackages)) {
+    for (const pkg of workspacePackages) {
+      addManifest(pkg)
+    }
+  } else if (workspacePackages instanceof Map) {
+    for (const val of workspacePackages.values()) {
+      if (val instanceof Map) {
+        for (const subVal of val.values()) {
+          addManifest(subVal)
+        }
+      } else {
+        addManifest(val)
+      }
+    }
+  } else if (typeof workspacePackages === 'object') {
+    for (const val of Object.values(workspacePackages)) {
+      addManifest(val)
+    }
+  }
+  return (depName: string) => byName.get(depName)
+}
+
+async function readAndCheckManifest (
+  depName: string,
+  dependencyDir: string,
+  getWorkspaceManifest?: (depName: string) => ProjectManifest | undefined,
+  targetPkgName?: string
+): Promise<ProjectManifest> {
+  const { manifest: dirManifest } = await tryReadProjectManifest(dependencyDir)
+  if (dirManifest?.name && dirManifest?.version) {
+    return dirManifest
+  }
+  const lookupName = targetPkgName ?? depName
+  const workspaceManifest = getWorkspaceManifest?.(lookupName)
+  if (workspaceManifest?.name && workspaceManifest?.version) {
+    return workspaceManifest
+  }
+  const found = dirManifest?.name || dirManifest?.version
+    ? dirManifest
+    : workspaceManifest?.name || workspaceManifest?.version
+      ? workspaceManifest
+      : dirManifest ?? workspaceManifest
+  if (found?.name && !found.version) {
     throw new PnpmError(
       'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
       `Cannot resolve workspace protocol of dependency "${depName}" ` +
-        'because this dependency is not installed. Try running "pnpm install".'
+        'because its package.json has no "version" field.',
+      { hint: `Add a "version" field to the package.json of "${found.name}".` }
     )
   }
-  return manifest
+  if (found) {
+    throw new PnpmError(
+      'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+      `Cannot resolve workspace protocol of dependency "${depName}" ` +
+        'because its package.json has no "name" field.'
+    )
+  }
+  throw new PnpmError(
+    'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    `Cannot resolve workspace protocol of dependency "${depName}" ` +
+      'because this dependency is not installed. Try running "pnpm install".'
+  )
 }
 
 function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {
@@ -180,7 +275,7 @@ function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string
 async function replaceWorkspaceProtocol (
   depName: string,
   depSpec: string,
-  { dir, modulesDir }: PublishDependencyConverterContext
+  { dir, modulesDir, workspacePackages }: PublishDependencyConverterContext
 ): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
@@ -190,7 +285,8 @@ async function replaceWorkspaceProtocol (
   const versionAliasSpecParts = /^workspace:(?:(.+)@)?([\^~*])?$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
+    const targetPkgName = versionAliasSpecParts[1]
+    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), workspacePackages, targetPkgName)
 
     const specifierSuffix: string | undefined = versionAliasSpecParts[2]
     const semverRangeToken = specifierSuffix === '^' || specifierSuffix === '~' ? specifierSuffix : ''
@@ -200,7 +296,7 @@ async function replaceWorkspaceProtocol (
     return `${semverRangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const manifest = await readAndCheckManifest(depName, path.join(dir, depSpec.slice(10)))
+    const manifest = await readAndCheckManifest(depName, path.join(dir, depSpec.slice(10)), workspacePackages)
 
     if (manifest.name === depName) return `${manifest.version}`
     return `npm:${manifest.name}@${manifest.version}`
@@ -215,7 +311,7 @@ async function replaceWorkspaceProtocol (
 async function replaceWorkspaceProtocolPeerDependency (
   depName: string,
   depSpec: string,
-  { dir, modulesDir }: PublishDependencyConverterContext
+  { dir, modulesDir, workspacePackages }: PublishDependencyConverterContext
 ) {
   if (!depSpec.includes('workspace:')) {
     return depSpec
@@ -229,7 +325,7 @@ async function replaceWorkspaceProtocolPeerDependency (
     return `npm:${workspaceSpec.alias}@${version}`
   }
   if (workspaceSpec?.version.startsWith('./') || workspaceSpec?.version.startsWith('../')) {
-    return replaceWorkspaceProtocol(depName, depSpec, { dir, modulesDir })
+    return replaceWorkspaceProtocol(depName, depSpec, { dir, modulesDir, workspacePackages })
   }
 
   // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version
@@ -244,7 +340,7 @@ async function replaceWorkspaceProtocolPeerDependency (
     }
 
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
+    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName), workspacePackages)
     const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
 
     return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)

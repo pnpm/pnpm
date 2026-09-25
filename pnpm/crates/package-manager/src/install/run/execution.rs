@@ -6,7 +6,9 @@ use super::{
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
-    Verification, dispatch, load_lockfiles, settle_wanted_lockfile, workspace_projects,
+    Verification, dispatch, load_lockfiles, settle_wanted_lockfile,
+    time_machine_capture::capture_time_machine_exclusions,
+    workspace_projects,
 };
 
 impl<'a> RunExecution<'a> {
@@ -22,8 +24,10 @@ impl<'a> RunExecution<'a> {
 
     pub(super) async fn run<Reporter: self::Reporter + 'static>(
         mut self,
+        time_machine_exclusions: &mut super::super::TimeMachineExclusions,
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
+        capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,
@@ -203,17 +207,21 @@ impl<'a> RunExecution<'a> {
             catalog_context_present: self.workspace.catalog_context_present,
             verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
             config: self.install.context.config,
+            save_workspace_state: self.options.save.workspace_state,
+            can_prompt: self.mode.can_prompt,
         }
     }
 
     fn take_project_scripts(
         &mut self,
+        root_preinstall_ran: bool,
     ) -> crate::install::state_options::PendingProjectScripts<'a, 'a> {
         crate::install::state_options::PendingProjectScripts {
             mutation: self.install.execution.mutation,
             manifest_dir: self.workspace.dirs.manifest_dir,
             selection: self.options.selection.take(),
             rebuild: self.options.rebuild.take(),
+            root_preinstall_ran,
         }
     }
 
@@ -229,7 +237,6 @@ impl<'a> RunExecution<'a> {
         'a: 'r,
     {
         let (scope, project_manifests) = projects;
-        let workspace_packages = self.workspace.workspace_packages.take();
         ApplyMaterializationInputs {
             completion: self.take_completion_context(),
             mode: crate::install::state_options::CompletionMode {
@@ -249,8 +256,9 @@ impl<'a> RunExecution<'a> {
                     requested_ids: scope.importers.requested_importer_ids.as_ref(),
                     real_ids: &scope.importers.real_importer_ids,
                     manifests: project_manifests,
+                    ignore_manifest_check: self.install.lockfile_policy.ignore_manifest_check,
                 },
-                workspace_packages,
+                workspace_packages: self.workspace.workspace_packages.take(),
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,
@@ -264,8 +272,8 @@ impl<'a> RunExecution<'a> {
                 loaded: lockfiles.wanted.get(),
                 frozen: dispatched.take_frozen_path,
             },
-            scripts: self.take_project_scripts(),
-            write: lockfiles.write_policy(self.options.save_lockfile),
+            scripts: self.take_project_scripts(dispatched.root_preinstall_ran),
+            write: lockfiles.write_policy(self.options.save.lockfile),
             materialized,
         }
     }
@@ -350,7 +358,7 @@ impl super::RunMode {
             early_host_detection,
             resolve_only: self.resolve_only,
             can_prompt: self.can_prompt,
-            save_lockfile: options.save_lockfile,
+            save_lockfile: options.save.lockfile,
             prefix,
         }
     }

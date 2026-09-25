@@ -18,7 +18,9 @@
 pub mod mirror;
 
 pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
-pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
+pub use calc_specifier_for_workspace_dep::{
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
+};
 pub use create_npm_resolution_verifier::{
     CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
     VerificationArtifacts, VerificationMetadataClient, VerificationReleaseAgeOptions,
@@ -39,7 +41,9 @@ pub use named_registry::{
     named_registry_tarball_prefixes, pick_registry_for_version,
 };
 pub use named_registry_resolver::NamedRegistryResolver;
-pub use npm_resolver::{NpmResolver, RegistryMetadataClient, RegistryMetadataFormat};
+pub use npm_resolver::{
+    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, normalize_tarball_url,
+};
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
     parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
@@ -90,4 +94,5 @@ mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
+mod warn_once;
 mod workspace_pref_to_npm;

@@ -129,6 +129,7 @@ fn a_skipped_dep_path_is_dropped_along_with_what_only_it_reaches() {
         include_optional_dependencies: None,
         skipped: Some(vec!["is-odd@3.0.1".to_string()]),
         fail_on_missing_dependencies: None,
+        resolve_peers_from_workspace_root: None,
     };
 
     let filtered =
@@ -149,6 +150,7 @@ fn an_unparsable_skipped_entry_is_ignored() {
         include_optional_dependencies: None,
         skipped: Some(vec![String::new()]),
         fail_on_missing_dependencies: None,
+        resolve_peers_from_workspace_root: None,
     };
 
     let filtered =

@@ -9,10 +9,10 @@ import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
-import { packlist } from '@pnpm/fs.packlist'
+import { packlistWithSources } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { logger } from '@pnpm/logger'
-import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
@@ -136,6 +136,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'localAddress'
 >> & Partial<Pick<ConfigContext,
 | 'hooks'
+| 'allProjects'
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
 | 'prodAllProjectsGraph'
@@ -346,7 +347,7 @@ export function resolvePackOutput (
 
 export async function api (opts: PackOptions): Promise<PackResult> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
-  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, entryManifest)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, entryManifest)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
@@ -367,8 +368,8 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
-  const { manifest } = await readProjectManifest(dir, opts)
-  preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, manifest)
+  const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
+  preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, manifest)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
@@ -378,6 +379,14 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
+  let workspacePackages: WorkspacePackageLookup | undefined = opts.allProjects ??
+    (opts.selectedProjectsGraph ? Object.values(opts.selectedProjectsGraph).map((p) => p.package) : undefined) ??
+    (opts.allProjectsGraph ? Object.values(opts.allProjectsGraph).map((p) => p.package) : undefined)
+  if (!workspacePackages && opts.workspaceDir) {
+    const { filterProjectsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
+    const result = await filterProjectsBySelectorObjectsFromDir(opts.workspaceDir, [])
+    workspacePackages = result.allProjects
+  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -386,6 +395,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     catalogs: opts.catalogs ?? {},
     hooks: opts.hooks,
     skipManifestObfuscation: opts.skipManifestObfuscation,
+    workspacePackages,
   })
   // Strip semver build metadata (the `+<build>` segment) from the published version so that
   // the tarball, the manifest packed inside it, and the metadata sent to the registry all agree.
@@ -411,11 +421,23 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     publishedName,
     publishedVersion: publishManifest.version,
   })
-  const files = await packlist(dir, {
+  const sources = await packlistWithSources(dir, {
     manifest: publishManifest as Record<string, unknown>,
     workspaceDir: opts.workspaceDir,
+    bundledDependenciesDir: opts.dir,
   })
-  const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  const files = Array.from(sources.keys())
+  const filesMap = Object.fromEntries(Array.from(sources, ([file, source]) => [`package/${file}`, source]))
+  for (const name of Object.keys(filesMap)) {
+    if (isManifestEntry(name)) delete filesMap[name]
+  }
+  filesMap['package/package.json'] = path.join(dir, selectedManifestFileName)
+  const binPaths = [
+    ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+    ...(manifest.publishConfig?.executableFiles ?? [])
+      .map((executableFile) => path.join(dir, executableFile)),
+  ]
+  await checkPackedBinsForCrlf(filesMap, binPaths)
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
     const { workspaceDir } = opts
@@ -455,8 +477,8 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     if (isManifestEntry(name)) {
       return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
     }
-    const stat = await fs.promises.stat(source)
-    return stat.size
+    const stat = await fs.promises.lstat(source)
+    return stat.isSymbolicLink() ? 0 : stat.size
   }))
   const injectedSize = Object.values(injectedEntries).reduce((acc, content) => acc + Buffer.byteLength(content), 0)
   const unpackedSize = sizes.reduce((acc, size) => acc + size, 0) + injectedSize
@@ -477,11 +499,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
         modulesDir: path.join(opts.dir, 'node_modules'),
         packGzipLevel: opts.packGzipLevel,
         manifest: publishManifest,
-        bins: [
-          ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
-          ...(manifest.publishConfig?.executableFiles ?? [])
-            .map((executableFile) => path.join(dir, executableFile)),
-        ],
+        bins: binPaths,
       })
       if (!opts.ignoreScripts) {
         await _runScriptsIfPresent(['postpack'], entryManifest)
@@ -565,13 +583,13 @@ function stripBuildMetadata (version: string): string {
   return plusIndex === -1 ? version : version.slice(0, plusIndex)
 }
 
-function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
-  if (nodeLinker === 'hoisted') return
+function preventBundledDependenciesWithPnpNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
+  if (nodeLinker !== 'pnp') return
   for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
     const bundledDependencies = manifest[key]
     if (bundledDependencies) {
       throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with "nodeLinker: ${nodeLinker}"`, {
-        hint: `Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
+        hint: `Set "nodeLinker: isolated" or "nodeLinker: hoisted" in pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
       })
     }
   }
@@ -601,7 +619,27 @@ async function packPkg (opts: {
       pack.entry({ mode: 0o644, mtime, name: entry.name }, entry.content)
       continue
     }
-    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '')
+    if (!isManifestEntry(entry.name) && fs.lstatSync(entry.source).isSymbolicLink()) {
+      let linkname = fs.readlinkSync(entry.source)
+      if (path.isAbsolute(linkname)) {
+        linkname = path.relative(path.dirname(entry.source), linkname)
+      }
+      if (process.platform === 'win32') {
+        linkname = linkname.replace(/\\/g, '/')
+      }
+      const archiveDir = path.posix.dirname(entry.name)
+      const posixTarget = linkname.replace(/\\/g, '/')
+      if (path.posix.isAbsolute(posixTarget)) {
+        continue
+      }
+      const resolvedArchive = path.posix.normalize(path.posix.join(archiveDir, posixTarget))
+      if (resolvedArchive !== 'package' && !resolvedArchive.startsWith('package/')) {
+        continue
+      }
+      pack.entry({ mode: 0o777, mtime, name: entry.name, type: 'symlink', linkname })
+      continue
+    }
+    const isExecutable = bins.some((bin) => path.relative(bin, entry.source) === '') || isFileExecutable(entry.source)
     const mode = isExecutable ? 0o755 : 0o644
     const content = isManifestEntry(entry.name)
       ? JSON.stringify(manifest, null, 2)
@@ -653,14 +691,16 @@ async function createPublishManifest (opts: {
   catalogs: Catalogs
   hooks?: Hooks
   skipManifestObfuscation?: boolean
+  workspacePackages?: WorkspacePackageLookup
 }): Promise<ExportedManifest> {
-  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation } = opts
+  const { projectDir, embedReadme, modulesDir, manifest, catalogs, hooks, skipManifestObfuscation, workspacePackages } = opts
   return createExportableManifest(projectDir, manifest, {
     catalogs,
     hooks,
     embedReadme,
     modulesDir,
     skipManifestObfuscation,
+    workspacePackages,
   })
 }
 
@@ -672,4 +712,67 @@ function toPackResultJson (packResult: PackResult): PackResultJson {
     filename: tarballPath,
     files: contents.map((file) => ({ path: file })),
   }
+}
+
+function isFileExecutable (file: string): boolean {
+  try {
+    return (fs.statSync(file).mode & 0o111) !== 0
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw err
+  }
+}
+
+async function checkPackedBinsForCrlf (
+  filesMap: Record<string, string>,
+  bins: string[]
+): Promise<void> {
+  const binSet = new Set(bins.map((bin) => path.resolve(bin)))
+  const packedBins = Object.entries(filesMap)
+    .filter(([name, source]) => !isManifestEntry(name) && binSet.has(path.resolve(source)))
+  await Promise.all(packedBins.map(async ([name, source]) => {
+    if (await hasShebangWithCrlf(source)) {
+      const relativePath = name.replace(/^package\//, '')
+      throw new PnpmError(
+        'BIN_CRLF',
+        `The bin file "${relativePath}" has a shebang line ending with CRLF (\\r\\n).`,
+        {
+          hint: `CRLF line endings on the shebang line break execution on Unix systems (/usr/bin/env: 'node\\r': No such file or directory). Convert line endings of "${relativePath}" to LF (\\n).`,
+        }
+      )
+    }
+  }))
+}
+
+async function hasShebangWithCrlf (filePath: string): Promise<boolean> {
+  let fileHandle: fs.promises.FileHandle | undefined
+  try {
+    fileHandle = await fs.promises.open(filePath, 'r')
+    const buffer = Buffer.alloc(4096)
+    const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
+    return bufferHasShebangWithCrlf(buffer.subarray(0, bytesRead))
+  } finally {
+    await fileHandle?.close()
+  }
+}
+
+function bufferHasShebangWithCrlf (buf: Buffer | Uint8Array): boolean {
+  let start = 0
+  if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    start = 3
+  }
+  if (buf.length < start + 2 || buf[start] !== 0x23 || buf[start + 1] !== 0x21) {
+    return false
+  }
+  for (let i = start + 2; i < buf.length; i++) {
+    if (buf[i] === 0x0D) {
+      return true
+    }
+    if (buf[i] === 0x0A) {
+      return false
+    }
+  }
+  return false
 }

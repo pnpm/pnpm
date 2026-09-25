@@ -141,7 +141,7 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
 /// spelling of the same rule, so entries and hosts are normalized with
 /// [`reverse_dot_segments`] and match alike. Empty entries (from stray
 /// commas) never match.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct NoProxyMatcher {
     bypass: bool,
     entries: Vec<Vec<String>>,

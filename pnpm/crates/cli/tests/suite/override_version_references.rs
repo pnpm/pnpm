@@ -129,3 +129,31 @@ fn install_rejects_a_reference_to_a_package_that_is_not_a_direct_dependency() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn install_trims_whitespace_in_override_selector() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, "^100.0.0");
+    add_overrides(&workspace, &format!("overrides:\n  \"  {DEP}  \": 100.0.0\n"));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains(&format!("{DEP}@100.0.0")), "{lockfile}");
+    assert!(!lockfile.contains(&format!("{DEP}@100.1.0")), "{lockfile}");
+    assert_eq!(lockfile_overrides(&workspace), vec![(DEP.to_string(), "100.0.0".to_string())]);
+
+    drop((root, mock_instance));
+}

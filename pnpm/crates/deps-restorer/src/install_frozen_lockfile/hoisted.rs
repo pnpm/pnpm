@@ -1,18 +1,21 @@
 //! The hoisted node-linker: a flat `node_modules` instead of a virtual store.
 
+pub(crate) use direct_links::link_selected_hoisted_direct_dependencies;
 pub use hoist_plan::{
-    HoistPlan, collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
-    find_runtime_node_major, parse_major_from_version, workspace_packages_for_hoist,
+    HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
+    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    workspace_packages_for_hoist,
 };
 
+mod direct_links;
 mod hoist_plan;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
     HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
-    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, OsStr, PackageKey, Path, PathBuf,
-    Reporter, SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
-    SymlinkPackageError, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
+    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
+    SkippedSnapshots, SymlinkDirectDependencies, SymlinkDirectDependenciesError,
+    SymlinkPackageError, create_matcher, link_hoisted_modules, lockfile_to_hoisted_dep_graph,
 };
 
 /// Internal handoff between the hoisted-linker walker/linker pass
@@ -40,6 +43,11 @@ pub struct HoistedLinkerOutput {
     /// `CreateVirtualStore`'s materialized list for the hoisted linker,
     /// whose snapshots all survive its skip filter.
     pub hoisted_build_snapshots: Option<Vec<PackageKey>>,
+    /// See [`crate::link_hoisted_modules()`]'s return value.
+    pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
+    /// The workspace projects `hoist-workspace-packages` linked into the
+    /// root `node_modules`, for `.modules.yaml.hoistedDependencies`.
+    pub hoisted_dependencies: crate::HoistedDependencies,
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
@@ -84,6 +92,12 @@ pub enum HoistedLinkerError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+    #[diagnostic(transparent)]
+    PruneWorkspaceHoists(#[error(source)] crate::PruneDirectDepsError),
+    #[diagnostic(transparent)]
+    HoistSymlink(#[error(source)] SymlinkPackageError),
+    #[diagnostic(transparent)]
+    HoistLinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
@@ -109,7 +123,9 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
     let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
-    link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+    unlink_prior_workspace_hoists(inputs)?;
+    let (held_back_bins_dirs, hoisted_dependencies) =
+        link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it
@@ -130,6 +146,8 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_pkg_roots_by_key: Some(pkg_roots),
         hoisted_build_snapshots: Some(build_snapshots),
         hoisted_locations: walked.hoisted_locations,
+        held_back_bins_dirs,
+        hoisted_dependencies,
     })
 }
 
@@ -175,14 +193,31 @@ fn walk_hoisted_graph(
     lockfile: &Lockfile,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::hoisted_dep_graph::LockfileToDepGraphResult, HoistedLinkerError> {
-    let config = inputs.config;
     let walker_skipped: BTreeSet<String> = skipped
         .iter()
         .map(std::string::ToString::to_string)
         .collect();
-    let walker_opts = LockfileToHoistedDepGraphOptions {
+    let walker_opts = hoisted_walker_options(inputs, lockfile, walker_skipped.clone());
+    let walked =
+        lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
+            .map_err(HoistedLinkerError::HoistedDepGraph)?;
+    for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
+        if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
+            skipped.insert_installability(key);
+        }
+    }
+    Ok(walked)
+}
+
+fn hoisted_walker_options<'a>(
+    inputs: &HoistedLinkerInputs<'a>,
+    lockfile: &Lockfile,
+    walker_skipped: BTreeSet<String>,
+) -> LockfileToHoistedDepGraphOptions<'a> {
+    let config = inputs.config;
+    LockfileToHoistedDepGraphOptions {
         installability: crate::HoistedInstallability {
-            engine_strict: config.engine_strict,
+            engine_strict: config.effective_engine_strict(),
             current_node_version: inputs.host_node
                 .map(|host| host.version.clone())
                 .unwrap_or_default(),
@@ -201,24 +236,13 @@ fn walk_hoisted_graph(
             external_dependencies: config.external_dependencies.clone(),
         },
         lockfile_dir: inputs.projects.walker_lockfile_dir.to_path_buf(),
+        root_modules_dir: config.modules_dir.clone(),
 
-        skipped: walker_skipped.clone(),
+        skipped: walker_skipped,
         force: config.force,
-        // Matches the `engineStrict` policy `compute_skipped_snapshots`
-        // used upthread (both read `config.engine_strict`): an engine
-        // mismatch on a required package is a hard error under strict,
-        // otherwise a skip-optional / warning.
+        include_incompatible_packages: config.installs_incompatible_packages(),
         current_hoisted_locations: inputs.prior.current_hoisted_locations,
-    };
-    let walked =
-        lockfile_to_hoisted_dep_graph(lockfile, inputs.prior.current_lockfile, &walker_opts)
-            .map_err(HoistedLinkerError::HoistedDepGraph)?;
-    for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
-        if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
-            skipped.insert_installability(key);
-        }
     }
-    Ok(walked)
 }
 
 fn link_hoisted<Reporter: self::Reporter>(
@@ -226,7 +250,7 @@ fn link_hoisted<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     skipped: &SkippedSnapshots,
-) -> Result<(), HoistedLinkerError> {
+) -> Result<(Vec<crate::HeldBackBinsDir>, crate::HoistedDependencies), HoistedLinkerError> {
     let config = inputs.config;
     // Empty CAS index → linker would refuse every non-optional node.
     // Only happens when the install has no snapshots, in which case
@@ -235,14 +259,8 @@ fn link_hoisted<Reporter: self::Reporter>(
         .as_ref()
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
-    let dir_clone_cache = crate::link_hoisted_modules::HoistedDirCloneCache::new(
-        inputs.materialization.dir_clone_cache,
-        lockfile.packages.as_ref(),
-        inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
-        inputs.materialization.requires_build_by_snapshot,
-        config.force,
-    );
-    link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
+    let dir_clone_cache = hoisted_dir_clone_cache(inputs, lockfile);
+    let held_back_bins_dirs = link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: config.package_import_method,
             patterns: &config.package_import_patterns,
@@ -266,13 +284,125 @@ fn link_hoisted<Reporter: self::Reporter>(
         &walked.direct_dependencies_by_importer_id,
     )?;
     update_hoisted_package_map(inputs, lockfile, walked)?;
+    let hoisted_dependencies = link_hoisted_workspace_packages(inputs, walked, &link_options)?;
     link_hoisted_workspace_dependencies::<Reporter>(inputs, lockfile, skipped, &link_options)?;
     // The pass above links `link:` siblings only, so it reports only
     // those. The rest are real directories this linker wrote.
     crate::report_direct_dependency_changes::report_direct_dependency_changes::<Reporter>(
         inputs, lockfile, skipped,
     );
-    Ok(())
+    Ok((held_back_bins_dirs, hoisted_dependencies))
+}
+
+fn hoisted_dir_clone_cache<'a>(
+    inputs: &'a HoistedLinkerInputs<'a>,
+    lockfile: &'a Lockfile,
+) -> Option<crate::link_hoisted_modules::HoistedDirCloneCache<'a>> {
+    crate::link_hoisted_modules::HoistedDirCloneCache::new(
+        inputs.materialization.dir_clone_cache,
+        lockfile.packages.as_ref(),
+        inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
+        inputs.materialization.requires_build_by_snapshot,
+        inputs.config.force,
+    )
+}
+
+/// Runs before the linker writes the tree, so no package is imported at
+/// a path that is still a project's link.
+fn unlink_prior_workspace_hoists(
+    inputs: &HoistedLinkerInputs<'_>,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dir = &inputs.config.modules_dir;
+    crate::prune_stale_modules::prune_workspace_hoists(
+        &crate::prune_stale_modules::WorkspaceHoistDirs {
+            workspace_root: inputs.projects.walker_lockfile_dir,
+            private: modules_dir,
+            public: modules_dir,
+        },
+        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
+        inputs.prior.hoisted_dependencies,
+        None,
+    )
+    .map_err(HoistedLinkerError::PruneWorkspaceHoists)
+}
+
+/// `hoist-workspace-packages` under this linker: every package lives in
+/// the root `node_modules`, so a project either hoist pattern selects is
+/// linked there.
+fn link_hoisted_workspace_packages(
+    inputs: &HoistedLinkerInputs<'_>,
+    walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+) -> Result<crate::HoistedDependencies, HoistedLinkerError> {
+    let config = inputs.config;
+    if !config.hoist_workspace_packages {
+        return Ok(crate::HoistedDependencies::new());
+    }
+    let workspace_packages = workspace_packages_for_hoist(
+        inputs.projects.walker_lockfile_dir,
+        inputs.projects.manifests,
+    );
+    let root_links = root_dependency_aliases(inputs);
+    let hoists = crate::hoist_workspace_packages_to_root(
+        &workspace_packages,
+        walked.direct_dependencies_by_importer_id
+            .get(".")
+            .into_iter()
+            .flat_map(|root_deps| root_deps.keys().map(String::as_str))
+            .chain(root_links.iter().map(String::as_str)),
+        &create_matcher(
+            config.hoist_pattern
+                .as_deref()
+                .unwrap_or(&[]),
+        ),
+        &create_matcher(
+            config.public_hoist_pattern
+                .as_deref()
+                .unwrap_or(&[]),
+        ),
+    );
+    link_workspace_hoists(inputs, hoists.aliases, link_options)?;
+    Ok(hoists.hoisted_dependencies)
+}
+
+/// The aliases of the root project's dependencies. Its `link:`
+/// dependencies are not in the root hierarchy and take their names after
+/// the workspace pass, so they must be reserved before it.
+fn root_dependency_aliases(inputs: &HoistedLinkerInputs<'_>) -> Vec<String> {
+    inputs.projects.importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .into_iter()
+        .flat_map(|root| {
+            root.dependencies_by_groups(inputs.projects.dependency_groups.iter().copied())
+        })
+        .map(|(alias, _)| alias.to_string())
+        .collect()
+}
+
+/// Symlink each placed project into the root `node_modules` and shim the
+/// bins no hoisted package already provides into the root `.bin`.
+fn link_workspace_hoists(
+    inputs: &HoistedLinkerInputs<'_>,
+    aliases: Vec<(String, pnpm_modules_yaml::HoistKind, PathBuf)>,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dir = &inputs.config.modules_dir;
+    crate::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &aliases,
+        &HashMap::new(),
+        inputs.graph.layout,
+        modules_dir,
+        modules_dir,
+        &std::collections::HashSet::new(),
+    )
+    .map_err(HoistedLinkerError::HoistSymlink)?;
+    let project_dirs: Vec<PathBuf> = aliases
+        .into_iter()
+        .map(|(_, _, project_dir)| project_dir)
+        .collect();
+    crate::link_new_bins_from_locations(modules_dir, &project_dirs, link_options)
+        .map_err(HoistedLinkerError::HoistLinkBins)
 }
 
 fn update_hoisted_package_map(
@@ -361,6 +491,7 @@ fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         // lockfile row for a prefetched manifest to serve.
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)
@@ -395,151 +526,6 @@ fn pkg_roots_by_key<'n>(
         }
     }
     roots
-}
-
-pub(crate) fn link_selected_hoisted_direct_dependencies(
-    config: &Config,
-    lockfile_dir: &Path,
-    project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
-    direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
-) -> Result<(), HoistedLinkerError> {
-    let modules_dir_name =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    let root_modules_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
-    let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
-    for (project_dir, _) in project_manifests {
-        let scope = HoistedLinkScope {
-            importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir),
-            root_modules_dir: &root_modules_dir,
-            modules_dir: project_dir.join(modules_dir_name),
-            // The workspace root owns the hoisted slot itself, so its
-            // own entries are the real directories rather than links to
-            // them.
-            is_workspace_root: pnpm_fs::lexical_normalize(project_dir)
-                == pnpm_fs::lexical_normalize(lockfile_dir),
-        };
-        scope.link_direct_dependencies(direct_dependencies_by_importer_id, &link_options)?;
-    }
-    Ok(())
-}
-
-/// One importer's share of the hoisted direct-dependency linking.
-struct HoistedLinkScope<'a> {
-    importer_id: String,
-    /// The workspace root's `node_modules`, where the hoister put the
-    /// dependency copy every project reaches by walking up.
-    root_modules_dir: &'a Path,
-    modules_dir: PathBuf,
-    is_workspace_root: bool,
-}
-
-impl HoistedLinkScope<'_> {
-    fn link_direct_dependencies(
-        &self,
-        direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
-        link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    ) -> Result<(), HoistedLinkerError> {
-        let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&self.importer_id)
-        else {
-            return Ok(());
-        };
-        let mut linked_names = Vec::new();
-        for (alias, target) in direct_dependencies {
-            if self.link_one(alias, target)? {
-                linked_names.push(alias.clone());
-            }
-        }
-        crate::link_direct_dep_bins(&self.modules_dir, &linked_names, link_options)
-            .map_err(|source| {
-                HoistedLinkerError::SymlinkDirectDependencies(
-                    SymlinkDirectDependenciesError::LinkBins(source),
-                )
-            })
-    }
-
-    /// `Ok(true)` when the alias now resolves inside the project's own
-    /// `node_modules`, so its bins are this importer's to link.
-    fn link_one(&self, alias: &str, target: &Path) -> Result<bool, HoistedLinkerError> {
-        let link_path =
-            crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
-                .map_err(|source| {
-                    self.symlink_failure(alias, SymlinkPackageError::InvalidAlias(source))
-                })?;
-        // A dependency that won the workspace-root slot is reached by
-        // walking up from the project, exactly as it is under pnpm.
-        // Repeating it inside the project would give a build a second
-        // copy to run lifecycle scripts in. Checked after `link_path` so
-        // an unusable alias still reports itself.
-        if !self.is_workspace_root
-            && pnpm_fs::lexical_normalize(target)
-                == pnpm_fs::lexical_normalize(&self.root_modules_dir.join(alias))
-        {
-            self.remove_root_shadow(alias, target, &link_path)?;
-            return Ok(false);
-        }
-        if pnpm_fs::lexical_normalize(&link_path) == pnpm_fs::lexical_normalize(target) {
-            return Ok(true);
-        }
-        crate::symlink_package(target, &link_path)
-            .map_err(|source| self.symlink_failure(alias, source))?;
-        Ok(true)
-    }
-
-    /// An install that predates the walk-up rule, or one where the
-    /// version had lost the root slot, leaves a link shadowing the root
-    /// copy — the duplicate the rule exists to avoid. A real directory
-    /// is the pruner's to remove, and only ever belongs to a version
-    /// that lost the slot.
-    fn remove_root_shadow(
-        &self,
-        alias: &str,
-        target: &Path,
-        link_path: &Path,
-    ) -> Result<(), HoistedLinkerError> {
-        // `is_symlink_or_junction`, not `Path::is_symlink`: on Windows
-        // `symlink_dir` falls back to a junction when it cannot create a
-        // true symlink, and a junction is not a symlink to the stdlib.
-        let stale_link = match pnpm_fs::is_symlink_or_junction(link_path) {
-            Ok(is_link) => is_link,
-            // Nothing to clean up — the common case, and the one
-            // `junction::exists` reports as an error rather than
-            // `Ok(false)`.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-            Err(error) => return Err(self.symlink_dir_failure(alias, target, link_path, error)),
-        };
-        if !stale_link {
-            return Ok(());
-        }
-        pnpm_fs::remove_symlink_dir(link_path)
-            .map_err(|error| self.symlink_dir_failure(alias, target, link_path, error))
-    }
-
-    fn symlink_failure(&self, alias: &str, source: SymlinkPackageError) -> HoistedLinkerError {
-        HoistedLinkerError::SymlinkDirectDependencies(
-            SymlinkDirectDependenciesError::SymlinkPackage {
-                importer_id: self.importer_id.clone(),
-                name: alias.to_owned(),
-                source,
-            },
-        )
-    }
-
-    fn symlink_dir_failure(
-        &self,
-        alias: &str,
-        target: &Path,
-        link_path: &Path,
-        error: std::io::Error,
-    ) -> HoistedLinkerError {
-        self.symlink_failure(
-            alias,
-            SymlinkPackageError::SymlinkDir {
-                symlink_target: target.to_path_buf(),
-                symlink_path: link_path.to_path_buf(),
-                error,
-            },
-        )
-    }
 }
 
 /// Clone the lockfile with every importer's excluded dep groups

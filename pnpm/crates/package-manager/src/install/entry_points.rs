@@ -205,16 +205,17 @@ where
     /// workspace discovery stays anchored at the source workspace so
     /// `workspace:` dependencies still resolve to their projects.
     ///
-    /// The source workspace also still owns `pnpm-lock.yaml`, and this
-    /// resolution describes the deployed project rather than the
-    /// workspace, so nothing is written to it (pnpm's
-    /// `saveLockfile: false`).
+    /// The source workspace also still owns `pnpm-lock.yaml` and
+    /// `node_modules/.pnpm-workspace-state-v1.json`, and this install
+    /// describes the deployed project rather than the workspace, so
+    /// nothing is written to either (pnpm's `saveLockfile: false`).
     pub async fn run_legacy_deploy<Reporter: self::Reporter + 'static>(
-        self,
+        mut self,
     ) -> Result<(), InstallError> {
+        self.execution.mutation = ProjectMutation::Deploy;
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             root_manifest_as_workspace_root: true,
-            save_lockfile: false,
+            save: crate::install::InstallSaveOptions { lockfile: false, workspace_state: false },
             manifests: crate::install::InstallManifestOptions {
                 deploy_hook: true,
                 ..Default::default()

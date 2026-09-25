@@ -2,29 +2,43 @@
 //! `mergeGitBranchLockfiles` combines the per-branch lockfiles with the
 //! shared `pnpm-lock.yaml`.
 //!
-//! The result carries only what pnpm's `mergeLockfileChanges` keeps: the
-//! importers, the packages, the lockfile version, the pnpmfile checksum,
-//! and the ignored optional dependencies. Settings, catalogs, overrides,
-//! and the other recorded-config fields are dropped; the install that
-//! consumes the merge writes its own back.
+//! Merges top-level recorded config fields (settings, catalogs, overrides,
+//! packageExtensionsChecksum, patchedDependencies, time) as well as
+//! importers, packages, snapshots, lockfile version, pnpmfile checksum,
+//! and ignored optional dependencies.
+
+pub use env::merge_env_lockfile_changes;
 
 use crate::{
-    EnvImporterSnapshot, EnvLockfile, Lockfile, LockfileExtra, LockfileVersion, PackageKey,
-    PackageMetadata, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    Lockfile, LockfileExtra, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
+    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
 };
 use node_semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     hash::Hash,
+};
+
+mod config;
+mod env;
+
+use config::{
+    merge_catalogs, merge_overrides, merge_patched_dependencies, merge_settings, merge_time,
 };
 
 /// Merge `theirs` into `ours`, preferring the higher version wherever the
 /// two disagree on how a dependency resolved.
 #[must_use]
 pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
-    Lockfile {
+    let untracked_hook = match (
+        ours.untracked_pnpmfile_read_package_hook(),
+        theirs.untracked_pnpmfile_read_package_hook(),
+    ) {
+        (ours, theirs) if ours == theirs => ours,
+        _ => Some(true),
+    };
+    let mut lockfile = Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
         pnpmfile_checksum: ours.pnpmfile_checksum
             .clone()
@@ -36,119 +50,21 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
         importers: merge_importers(&ours.importers, &theirs.importers),
         packages: merge_maps(ours.packages.as_ref(), theirs.packages.as_ref(), spread),
         snapshots: merge_maps(ours.snapshots.as_ref(), theirs.snapshots.as_ref(), merge_snapshot),
-        settings: None,
-        catalogs: None,
-        overrides: None,
-        package_extensions_checksum: None,
-        patched_dependencies: None,
-        time: None,
+        settings: merge_settings(ours.settings.as_ref(), theirs.settings.as_ref()),
+        catalogs: merge_catalogs(ours.catalogs.as_ref(), theirs.catalogs.as_ref()),
+        overrides: merge_overrides(ours.overrides.as_ref(), theirs.overrides.as_ref()),
+        package_extensions_checksum: ours.package_extensions_checksum
+            .clone()
+            .or_else(|| theirs.package_extensions_checksum.clone()),
+        patched_dependencies: merge_patched_dependencies(
+            ours.patched_dependencies.as_ref(),
+            theirs.patched_dependencies.as_ref(),
+        ),
+        time: merge_time(ours.time.as_ref(), theirs.time.as_ref()),
         extra: merge_extra(&ours.extra, &theirs.extra),
-    }
-}
-
-/// [`merge_lockfile_changes`] for the env document — the config and
-/// package-manager dependencies pnpm records ahead of the project
-/// lockfile. Two branches that each added a config dependency conflict
-/// here rather than in the main document, and the same rules apply:
-/// union the entries, prefer the higher version where both sides
-/// resolved one.
-#[must_use]
-pub fn merge_env_lockfile_changes(ours: &EnvLockfile, theirs: &EnvLockfile) -> EnvLockfile {
-    EnvLockfile {
-        lockfile_version: take_changed(&ours.lockfile_version, &theirs.lockfile_version),
-        importers: merge_env_importers(&ours.importers, &theirs.importers),
-        packages: merge_plain_map(&ours.packages, &theirs.packages, spread::<PackageMetadata>),
-        snapshots: merge_plain_map(&ours.snapshots, &theirs.snapshots, merge_snapshot),
-    }
-}
-
-fn merge_env_importers(
-    ours: &HashMap<String, EnvImporterSnapshot>,
-    theirs: &HashMap<String, EnvImporterSnapshot>,
-) -> HashMap<String, EnvImporterSnapshot> {
-    let mut merged: HashMap<String, EnvImporterSnapshot> = HashMap::new();
-    for id in ours.keys().chain(theirs.keys()) {
-        if merged.contains_key(id) {
-            continue;
-        }
-        let (our_importer, their_importer) = (ours.get(id), theirs.get(id));
-        merged.insert(
-            id.clone(),
-            EnvImporterSnapshot {
-                config_dependencies: merge_specifier_map(
-                    our_importer.map(|importer| &importer.config_dependencies),
-                    their_importer.map(|importer| &importer.config_dependencies),
-                ),
-                package_manager_dependencies: merge_optional_specifier_map(
-                    our_importer.and_then(|importer| {
-                        importer.package_manager_dependencies.as_ref()
-                    }),
-                    their_importer.and_then(|importer| {
-                        importer.package_manager_dependencies.as_ref()
-                    }),
-                ),
-            },
-        );
-    }
-    merged
-}
-
-fn merge_specifier_map(
-    ours: Option<&BTreeMap<String, SpecifierAndResolution>>,
-    theirs: Option<&BTreeMap<String, SpecifierAndResolution>>,
-) -> BTreeMap<String, SpecifierAndResolution> {
-    let mut merged = ours.cloned().unwrap_or_default();
-    for (name, theirs) in theirs.cloned().unwrap_or_default() {
-        let entry = match merged.get(&name) {
-            Some(ours) => merge_specifier_and_resolution(ours, &theirs),
-            None => theirs,
-        };
-        merged.insert(name, entry);
-    }
-    merged
-}
-
-/// [`merge_specifier_map`] for a group pnpm omits when empty, so a merge
-/// of two absent groups stays absent.
-fn merge_optional_specifier_map(
-    ours: Option<&BTreeMap<String, SpecifierAndResolution>>,
-    theirs: Option<&BTreeMap<String, SpecifierAndResolution>>,
-) -> Option<BTreeMap<String, SpecifierAndResolution>> {
-    if ours.is_none() && theirs.is_none() {
-        return None;
-    }
-    Some(merge_specifier_map(ours, theirs))
-}
-
-fn merge_specifier_and_resolution(
-    ours: &SpecifierAndResolution,
-    theirs: &SpecifierAndResolution,
-) -> SpecifierAndResolution {
-    SpecifierAndResolution {
-        specifier: take_changed(&ours.specifier, &theirs.specifier),
-        version: match winner(&ours.version, &theirs.version) {
-            Winner::Ours => ours.version.clone(),
-            Winner::Theirs => theirs.version.clone(),
-        },
-    }
-}
-
-/// [`merge_maps`] for a map the env document always records, so there is
-/// no absent case to collapse to `None`.
-fn merge_plain_map<Value: Clone>(
-    ours: &HashMap<PackageKey, Value>,
-    theirs: &HashMap<PackageKey, Value>,
-    merge: impl Fn(&Value, &Value) -> Value,
-) -> HashMap<PackageKey, Value> {
-    let mut merged = ours.clone();
-    for (key, their_value) in theirs.clone() {
-        let value = match merged.get(&key) {
-            Some(our_value) => merge(our_value, &their_value),
-            None => their_value,
-        };
-        merged.insert(key, value);
-    }
-    merged
+    };
+    lockfile.set_untracked_pnpmfile_read_package_hook(untracked_hook);
+    lockfile
 }
 
 /// Union the top-level keys pnpm does not define, ours winning a conflict —
@@ -157,14 +73,38 @@ fn merge_plain_map<Value: Clone>(
 /// branch is being merged.
 fn merge_extra(ours: &LockfileExtra, theirs: &LockfileExtra) -> LockfileExtra {
     let mut merged = theirs.clone();
-    for (key, value) in ours {
-        merged.insert(key.clone(), value.clone());
+    for (key, our_value) in ours {
+        if let Some(their_value) = merged.get(key) {
+            merged.insert(key.clone(), merge_extra_value(key, our_value, their_value));
+        } else {
+            merged.insert(key.clone(), our_value.clone());
+        }
     }
     merged
 }
 
+fn merge_extra_value(
+    key: &str,
+    ours: &serde_json::Value,
+    theirs: &serde_json::Value,
+) -> serde_json::Value {
+    if (key == "neverBuiltDependencies" || key == "onlyBuiltDependencies")
+        && let (serde_json::Value::Array(our_arr), serde_json::Value::Array(their_arr)) =
+            (ours, theirs)
+    {
+        let mut combined = our_arr.clone();
+        for item in their_arr {
+            if !combined.contains(item) {
+                combined.push(item.clone());
+            }
+        }
+        return serde_json::Value::Array(combined);
+    }
+    ours.clone()
+}
+
 /// Which side of a disagreement a merge keeps.
-enum Winner {
+pub(super) enum Winner {
     Ours,
     Theirs,
 }
@@ -176,7 +116,7 @@ enum Winner {
 /// at all (`link:../pkg`). The suffix is not part of the comparison, and
 /// anything neither side can parse resolves to theirs — the same "prefer
 /// the incoming change" fallback pnpm applies.
-fn winner(ours: &str, theirs: &str) -> Winner {
+pub(super) fn winner(ours: &str, theirs: &str) -> Winner {
     if ours == theirs {
         return Winner::Ours;
     }
@@ -195,7 +135,7 @@ fn winner(ours: &str, theirs: &str) -> Winner {
 
 /// pnpm's `takeChangedValue`: the incoming value, unless it is what we
 /// already had.
-fn take_changed(ours: &str, theirs: &str) -> String {
+pub(super) fn take_changed(ours: &str, theirs: &str) -> String {
     if ours == theirs { ours.to_owned() } else { theirs.to_owned() }
 }
 
@@ -301,7 +241,7 @@ fn merge_resolved_dependency(
     }
 }
 
-fn merge_snapshot(ours: &SnapshotEntry, theirs: &SnapshotEntry) -> SnapshotEntry {
+pub(super) fn merge_snapshot(ours: &SnapshotEntry, theirs: &SnapshotEntry) -> SnapshotEntry {
     SnapshotEntry {
         dependencies: merge_dependency_group(
             ours.dependencies.as_ref(),
@@ -333,7 +273,7 @@ fn merge_snapshot_dep_ref(ours: &SnapshotDepRef, theirs: &SnapshotDepRef) -> Sna
 /// almost always already agree — and a spread of equal entries is one of
 /// them. Taking that shortcut keeps the serialization round-trip off the
 /// merge of two lockfiles that only differ in a handful of packages.
-fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(
+pub(super) fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(
     ours: &Entry,
     theirs: &Entry,
 ) -> Entry {

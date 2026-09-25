@@ -88,6 +88,14 @@ pub(crate) fn read_edit_dir_state(
     Ok(state.get(&key).cloned())
 }
 
+pub(crate) fn read_all_edit_dir_states(
+    modules_dir: &Path,
+) -> Result<BTreeMap<String, EditDirState>, StateFileError> {
+    let path = checked_state_file_path_for_read(modules_dir)?;
+    let Some(text) = read_state_file_text(&path)? else { return Ok(BTreeMap::new()) };
+    serde_json::from_str(&text).map_err(|source| StateFileError::Parse { path, source })
+}
+
 pub(crate) fn write_edit_dir_state(
     modules_dir: &Path,
     edit_dir: &Path,

@@ -1,6 +1,9 @@
 use super::{
-    Config, Path, StoreDir, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    ColorMode, Config, GlobalShimsSetting, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
+use pnpm_testing_utils::env_guard::EnvGuard;
+use std::env;
 
 #[test]
 fn parses_ignore_compatibility_db_from_yaml_and_applies() {
@@ -164,4 +167,81 @@ fn load_at_collects_issues_from_a_tab_indented_file() {
         .expect("pnpm-workspace.yaml is present");
 
     assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+#[test]
+fn load_at_expands_env_placeholders_in_typed_fields() {
+    let _guard = EnvGuard::snapshot([
+        "PNPM_TEST_14914_COLOR",
+        "PNPM_TEST_14914_GLOBAL_SHIMS",
+        "PNPM_TEST_14914_LINKER",
+        "PNPM_TEST_14914_SIDE_EFFECTS_CACHE",
+    ]);
+    // SAFETY: EnvGuard serializes the test and restores these variables on drop.
+    unsafe {
+        env::remove_var("PNPM_TEST_14914_COLOR");
+        env::remove_var("PNPM_TEST_14914_GLOBAL_SHIMS");
+        env::remove_var("PNPM_TEST_14914_LINKER");
+        env::remove_var("PNPM_TEST_14914_SIDE_EFFECTS_CACHE");
+    }
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "color: ${PNPM_TEST_14914_COLOR:-auto}\n",
+            "globalShims: ${PNPM_TEST_14914_GLOBAL_SHIMS:-false}\n",
+            "nodeLinker: ${PNPM_TEST_14914_LINKER:-isolated}\n",
+            "sideEffectsCache: ${PNPM_TEST_14914_SIDE_EFFECTS_CACHE:-false}\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.color, Some(ColorMode::Auto));
+    assert_eq!(settings.global_shims, Some(GlobalShimsSetting::Toggle(false)));
+    assert_eq!(settings.node_linker, Some(NodeLinker::Isolated));
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
+}
+
+#[test]
+fn load_at_rejects_a_boolean_for_a_string_only_enum() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "nodeLinker: false\n").unwrap();
+
+    WorkspaceSettings::load_at(dir.path()).expect_err("a boolean is not a node linker");
+}
+
+#[test]
+fn load_at_preserves_quoted_string_types() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "linkWorkspacePackages: \"false\"\n")
+        .unwrap();
+
+    WorkspaceSettings::load_at(dir.path()).expect_err("a quoted false is not a boolean");
+}
+
+/// A mistyped variable name puts whatever the environment holds under that
+/// name into the setting, and a build log must not be where it turns up.
+#[test]
+fn load_at_keeps_an_invalid_expansion_out_of_the_error() {
+    const SECRET: &str = "secret-that-must-not-appear";
+
+    let env = EnvGuard::snapshot(["PNPM_TEST_14914_SECRET"]);
+    env.set("PNPM_TEST_14914_SECRET", SECRET);
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: ${PNPM_TEST_14914_SECRET}\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path())
+        .expect_err("the secret is not a node linker")
+        .to_string();
+
+    assert!(error.contains("invalid environment-expanded value"), "unexpected error: {error}");
+    assert!(!error.contains(SECRET), "the error names the expanded value");
 }

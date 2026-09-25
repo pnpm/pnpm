@@ -96,6 +96,13 @@ fn fresh_resolves_when_range_no_longer_satisfies_locked_version() {
 }
 
 #[test]
+fn fresh_resolves_when_locked_prerelease_does_not_satisfy_stable_range() {
+    let lockfile = single_dep_lockfile("react", "21.0.0-rc.0", "21.0.0-rc.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "react", "21.0.0").is_none());
+    assert!(reusable_importer_dep(&lockfile, ".", "react", "^21.0.0").is_none());
+}
+
+#[test]
 fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
     assert!(reusable_importer_dep(&lockfile, ".", "left-pad", "^1.0.0").is_none());
@@ -418,6 +425,12 @@ fn prior_child_key_applies_the_satisfies_gate() {
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
     assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
+
+    let prerelease_snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "21.0.0-rc.0" } }))
+            .expect("parse snapshot entry");
+    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "21.0.0").is_none());
+    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "^21.0.0").is_none());
 }
 
 #[test]
@@ -441,4 +454,42 @@ fn reduce_named_registry_spec_matches_registry_and_package_name() {
     // A spec aimed at another registry never satisfies this key.
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
+}
+
+#[test]
+fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
+    let mut manifest = serde_json::json!({ "name": "pkg", "version": "1.0.0" });
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "dependencies": {
+            "is-positive": "1.0.0(peer@2.0.0)",
+            "aliased": "target@2.0.0",
+            "linked": "link:packages/sub",
+            "node": "runtime:22.0.0(peer@1.0.0)",
+            "custom-node": "node@runtime:22.0.0(peer@1.0.0)",
+        },
+        "optionalDependencies": {
+            "opt": "3.0.0",
+        },
+    }))
+    .expect("parse snapshot");
+
+    super::attach_snapshot_dependencies(&mut manifest, Some(&snapshot));
+
+    assert_eq!(
+        manifest,
+        serde_json::json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "aliased": "npm:target@2.0.0",
+                "custom-node": "npm:node@runtime:22.0.0",
+                "is-positive": "1.0.0",
+                "linked": "link:packages/sub",
+                "node": "runtime:22.0.0",
+            },
+            "optionalDependencies": {
+                "opt": "3.0.0",
+            },
+        }),
+    );
 }

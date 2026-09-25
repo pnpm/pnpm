@@ -15,7 +15,7 @@ use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
+use pnpm_package_manager::{Update, build_workspace_packages_map};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -37,6 +37,9 @@ pub struct UpdateDependencyOptions {
     /// Don't update packages in "optionalDependencies".
     #[clap(long, overrides_with = "optional")]
     no_optional: bool,
+    /// Also update packages in "peerDependencies".
+    #[clap(long)]
+    peer: bool,
 }
 
 impl UpdateDependencyOptions {
@@ -66,7 +69,17 @@ impl UpdateDependencyOptions {
             .chain(dependencies.then_some(DependencyGroup::Prod))
             .chain(dev_dependencies.then_some(DependencyGroup::Dev))
             .chain(optional_dependencies.then_some(DependencyGroup::Optional))
+            .chain(self.peer.then_some(DependencyGroup::Peer))
             .collect()
+    }
+
+    pub(crate) fn explicit_groups(&self) -> pnpm_package_manager::UpdateExplicitGroups {
+        pnpm_package_manager::UpdateExplicitGroups {
+            prod: self.prod,
+            dev: self.dev,
+            optional: self.optional,
+            no_optional: self.no_optional,
+        }
     }
 }
 
@@ -166,6 +179,11 @@ pub struct UpdateInstallArgs {
 #[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
 struct PatchesWithSelectorError;
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("--peer cannot be combined with --interactive")]
+#[diagnostic(code(ERR_PNPM_INTERACTIVE_PEER_UNSUPPORTED))]
+struct InteractivePeerUnsupportedError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
@@ -258,6 +276,7 @@ impl UpdateArgs {
         config: &'static Config,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
         self.check_workspace_option(None)?;
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
@@ -321,6 +340,13 @@ impl UpdateArgs {
         Ok(())
     }
 
+    fn check_interactive_peer_options(&self) -> miette::Result<()> {
+        if self.selection.interactive && self.dependency_options.peer {
+            return Err(InteractivePeerUnsupportedError.into());
+        }
+        Ok(())
+    }
+
     fn can_delegate_patch_refresh(
         &self,
         update_actions: bool,
@@ -331,9 +357,42 @@ impl UpdateArgs {
         self.selection.patches
             && self.selection.depth.is_none()
             && !update_actions
+            && !self.dependency_options.no_optional
             && all_dependency_groups
                 .iter()
                 .all(|group| include_direct.contains(group))
+    }
+
+    fn patch_refresh_dependency_groups(&self, state: &State) -> Vec<DependencyGroup> {
+        let prior_included = pnpm_modules_yaml::read_modules_layout::<pnpm_modules_yaml::Host>(
+            &state.config.modules_dir,
+        )
+        .ok()
+        .flatten()
+        .map(|layout| layout.included);
+
+        let explicit = self.dependency_options.explicit_groups();
+        let (prod, dev, optional) = if let Some(included) = prior_included {
+            (
+                included.dependencies || explicit.prod,
+                included.dev_dependencies || explicit.dev,
+                !explicit.no_optional
+                    && (explicit.optional
+                        || (included.optional_dependencies && state.config.optional)),
+            )
+        } else {
+            (
+                true,
+                !explicit.prod || explicit.dev,
+                !explicit.no_optional && (explicit.optional || state.config.optional),
+            )
+        };
+
+        std::iter::empty()
+            .chain(prod.then_some(DependencyGroup::Prod))
+            .chain(dev.then_some(DependencyGroup::Dev))
+            .chain(optional.then_some(DependencyGroup::Optional))
+            .collect()
     }
 
     fn pnpr_patch_link<'path>(
@@ -342,7 +401,7 @@ impl UpdateArgs {
         lockfile_path: &'path Path,
     ) -> super::install::PnprLink<'path> {
         super::install::PnprLink {
-            dependency_groups: included_direct_groups(state.config.optional).collect(),
+            dependency_groups: self.patch_refresh_dependency_groups(state),
             supported_architectures: self.supported_architectures.apply_to(
                 state.config.supported_architectures.clone(),
             ),

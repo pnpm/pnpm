@@ -98,6 +98,13 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
             "default deploy lock graph should include {included}: {graph_keys:#?}",
         );
     }
+    let virtual_store_with_optional = virtual_store_entries(&with_optional);
+    assert!(
+        virtual_store_with_optional
+            .iter()
+            .any(|entry| entry.contains("@pnpm.e2e+qar@")),
+        "default deploy should materialize optional dependencies of workspace dependencies: {virtual_store_with_optional:#?}",
+    );
     let optional_edges = deploy_optional_edges(&with_optional);
     assert!(
         optional_edges
@@ -291,8 +298,9 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 
 /// The invocation pnpm's release tooling (`bundle-deps.ts`) forwards: every
 /// option ahead of the `deploy` subcommand, `--config.*` overrides for
-/// settings the workspace yaml doesn't enable, and `--force` so optional
-/// dependencies of every platform are materialized into the deploy dir.
+/// settings the workspace yaml doesn't enable, and `--force` under
+/// `forceIgnoresPlatform` so optional dependencies of every platform are
+/// materialized into the deploy dir.
 #[test]
 fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform_optionals() {
     let CommandTempCwd {
@@ -347,10 +355,15 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         "the hoisted deploy install must not materialize dev dependencies with --prod",
     );
 
+    let deploy_dir = workspace.join("release-deploy");
+    fs::create_dir_all(&deploy_dir).unwrap();
+    fs::write(deploy_dir.join("pre-existing.txt"), "stale").unwrap();
+
     pacquet_cmd(&workspace)
         .with_args([
             "--config.inject-workspace-packages=true",
             "--config.node-linker=hoisted",
+            "--config.force-ignores-platform=true",
             "--ignore-scripts",
             "--force",
             "--filter=app",
@@ -361,11 +374,14 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
         .assert()
         .success();
 
-    let deploy_dir = workspace.join("release-deploy");
     assert!(deploy_dir.join("index.js").exists());
     assert!(
+        !deploy_dir.join("pre-existing.txt").exists(),
+        "--force must overwrite the non-empty target directory",
+    );
+    assert!(
         deploy_dir.join(incompatible).exists(),
-        "--force must install optional dependencies regardless of platform",
+        "--force under forceIgnoresPlatform must install optional dependencies regardless of platform",
     );
     assert!(
         !deploy_dir.join("node_modules/dev-only").exists(),
@@ -374,6 +390,87 @@ fn release_style_deploy_accepts_pre_subcommand_flags_and_forces_foreign_platform
     assert!(
         deploy_dir.join("node_modules/.modules.yaml").exists(),
         "the hoisted deploy install should write the modules state file",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_prod_preserves_optional_dependencies_of_referenced_workspace_packages_even_when_declared_as_dev_dependencies_elsewhere()
+ {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": {
+                "lib": "workspace:*",
+            },
+            "devDependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+            },
+        }),
+    );
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "other",
+        &serde_json::json!({
+            "name": "other",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "devDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    assert!(!deploy_dir.join("node_modules/@pnpm.e2e/foo").exists());
+    let lib_real = fs::canonicalize(deploy_dir.join("node_modules/lib")).unwrap();
+    let qar = lib_real
+        .parent()
+        .unwrap()
+        .join("@pnpm.e2e/qar");
+    assert!(
+        qar.exists(),
+        "the deployed workspace package should have its optional dependency linked in node_modules: {}",
+        qar.display(),
+    );
+    let virtual_store = virtual_store_entries(&deploy_dir);
+    assert!(
+        virtual_store
+            .iter()
+            .any(|entry| entry.contains("@pnpm.e2e+qar@")),
+        "deploy --prod should materialize optional dependencies of workspace dependencies: {virtual_store:#?}",
     );
 
     drop((root, mock_instance));

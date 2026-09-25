@@ -124,11 +124,58 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
  * host process makes to auth or proxy variables reaches the next invocation.
  */
 export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
-  const gitEnv: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+  const gitEnv = safeGitEnv()
+  gitEnv.GIT_TERMINAL_PROMPT = '0'
   if (gitEnv.GIT_SSH_COMMAND === undefined && gitEnv.GIT_SSH === undefined && !(await hasConfiguredSshCommand(opts))) {
     gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
   }
   return gitEnv
+}
+
+/**
+ * The environment for a noninteractive submodule checkout. Git executes the
+ * submodule URL from repository metadata, so only the supported transports
+ * that the caller's configuration permits are enabled.
+ */
+export async function nonInteractiveGitSubmoduleEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
+  const gitEnv = await nonInteractiveGitEnv(opts)
+  const inheritedProtocols = gitEnv.GIT_ALLOW_PROTOCOL
+  const protocolPolicies = await readGitProtocolPolicies(opts)
+  gitEnv.GIT_ALLOW_PROTOCOL = supportedGitProtocols
+    .filter((protocol) => isGitProtocolEnabled(protocol, protocolPolicies))
+    .filter((protocol) => inheritedProtocols == null || inheritedProtocols.split(':').includes(protocol))
+    .join(':')
+  return gitEnv
+}
+
+const supportedGitProtocols = ['file', 'git', 'http', 'https', 'ssh']
+
+async function readGitProtocolPolicies (opts: GitCwdOptions): Promise<Record<string, string>> {
+  try {
+    const { stdout } = await execa('git', ['config', '--null', '--get-regexp', '^protocol\\.'], { cwd: opts.cwd, env: safeGitEnv() })
+    return Object.fromEntries(
+      String(stdout)
+        .split('\0')
+        .flatMap((entry): Array<[string, string]> => {
+          const separator = entry.indexOf('\n')
+          return separator === -1 ? [] : [[entry.slice(0, separator), entry.slice(separator + 1)]]
+        })
+        .filter(([key]) => key.endsWith('.allow'))
+    )
+  } catch (err: unknown) {
+    if (isMissingGitConfig(err)) return {}
+    throw err
+  }
+}
+
+function isMissingGitConfig (err: unknown): boolean {
+  return typeof err === 'object' && err != null && 'exitCode' in err && err.exitCode === 1
+}
+
+function isGitProtocolEnabled (protocol: string, policies: Record<string, string>): boolean {
+  const defaultPolicy = protocol === 'file' ? 'user' : 'always'
+  const policy = policies[`protocol.${protocol}.allow`] ?? policies['protocol.allow'] ?? defaultPolicy
+  return policy.toLowerCase() === 'always'
 }
 
 /**
@@ -138,9 +185,17 @@ export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<N
  */
 async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
   try {
-    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd })
+    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd, env: safeGitEnv() })
     return true
   } catch {
     return false
   }
+}
+
+export function safeGitEnv (baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const gitEnv = { ...baseEnv }
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
+    delete gitEnv[name]
+  }
+  return gitEnv
 }

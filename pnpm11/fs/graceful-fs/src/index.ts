@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import util, { promisify } from 'node:util'
 
 import gfs from 'graceful-fs'
@@ -55,6 +56,7 @@ function withEagainRetry<T extends unknown[], R> (
 
 /**
  * Renames `src` over `dest`, retrying Windows EBUSY errors for up to a minute.
+ * Windows drives mounted into WSL get the same retries.
  * EPERM and EACCES have a one-second budget because they can also indicate
  * permanent permission or destination conflicts. Other errors are thrown
  * right away.
@@ -67,6 +69,14 @@ export function renameFileWithRetry (src: string, dest: string): void {
   withFileLockRetry(() => {
     fs.renameSync(src, dest)
   })
+}
+
+/**
+ * Asynchronous {@link renameFileWithRetry}, which waits between attempts
+ * without blocking the event loop.
+ */
+export async function renameFileWithRetryAsync (src: string, dest: string): Promise<void> {
+  await withFileLockRetryAsync(() => fs.promises.rename(src, dest))
 }
 
 /**
@@ -91,28 +101,75 @@ export function unlinkWithRetry (target: string): void {
   })
 }
 
-function withFileLockRetry<T> (operation: () => T): T {
-  const startedAt = Date.now()
-  let backoffMs = 0
-  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+/**
+ * Runs a filesystem operation with the retry policy of
+ * {@link renameFileWithRetry}.
+ */
+export function withFileLockRetry<T> (operation: () => T): T {
+  const retry = createFileLockRetry()
   for (;;) {
     try {
       return operation()
     } catch (err) {
-      if (!isTransientFileLockError(err)) throw err
-      if (err.code === 'EPERM' || err.code === 'EACCES') budgetMs = Math.min(budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
-      const remainingMs = budgetMs - (Date.now() - startedAt)
-      if (remainingMs <= 0) throw err
-      if (backoffMs > 0) Atomics.wait(fileLockRetrySleepBuffer, 0, 0, Math.min(backoffMs, remainingMs))
-      if (Date.now() - startedAt >= budgetMs) throw err
-      backoffMs = Math.min(backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
+      const delayMs = retry.delayBeforeNextAttempt(err)
+      if (delayMs > 0) Atomics.wait(fileLockRetrySleepBuffer, 0, 0, delayMs)
+      retry.checkBudgetAfterDelay(err)
     }
   }
 }
 
+async function withFileLockRetryAsync<T> (operation: () => Promise<T>): Promise<T> {
+  const retry = createFileLockRetry()
+  for (;;) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await operation()
+    } catch (err) {
+      const delayMs = retry.delayBeforeNextAttempt(err)
+      if (delayMs > 0) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+      retry.checkBudgetAfterDelay(err)
+    }
+  }
+}
+
+interface FileLockRetry {
+  /** Rethrows `err` unless another attempt fits the budget; returns the delay before it. */
+  delayBeforeNextAttempt: (err: unknown) => number
+  checkBudgetAfterDelay: (err: unknown) => void
+}
+
+function createFileLockRetry (): FileLockRetry {
+  const startedAt = Date.now()
+  let backoffMs = 0
+  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+  return {
+    delayBeforeNextAttempt (err) {
+      if (!isTransientFileLockError(err)) throw err
+      if (err.code === 'EPERM' || err.code === 'EACCES') budgetMs = Math.min(budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
+      const remainingMs = budgetMs - (Date.now() - startedAt)
+      if (remainingMs <= 0) throw err
+      return Math.min(backoffMs, remainingMs)
+    },
+    checkBudgetAfterDelay (err) {
+      if (Date.now() - startedAt >= budgetMs) throw err
+      backoffMs = Math.min(backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
+    },
+  }
+}
+
 function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
-  return process.platform === 'win32' &&
+  return (process.platform === 'win32' || isWsl()) &&
     util.types.isNativeError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
+}
+
+// A Windows drive mounted into WSL (/mnt/c) keeps Windows file locking, so an
+// antivirus or indexer handle fails a rename there with EACCES. WSL kernels
+// carry "microsoft" in their release, e.g. 5.15.167.4-microsoft-standard-WSL2.
+function isWsl (): boolean {
+  return process.platform === 'linux' && os.release().toLowerCase().includes('microsoft')
 }

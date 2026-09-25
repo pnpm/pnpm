@@ -24,7 +24,12 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
         cfg!(unix),
         "relative exec paths use the physical shim directory",
     );
-    assert!(body.contains("  export NODE_PATH=\"/store/links/node_modules\"\n"));
+    let posix_node_path = if cfg!(windows) {
+        "  new_node_path='/store/links/node_modules'\n"
+    } else {
+        "  export NODE_PATH=\"/store/links/node_modules\"\n"
+    };
+    assert!(body.contains(posix_node_path), "the shim must name the store NODE_PATH as is");
     assert!(body.ends_with("# cmd-shim-target=/store/links/tool/cli.js\n"));
 }
 

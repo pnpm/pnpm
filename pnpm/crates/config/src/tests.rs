@@ -17,7 +17,6 @@ use tracing_subscriber::{Layer, layer::SubscriberExt};
 use super::{
     Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings, fs,
-    settings::default_ci,
 };
 use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 
@@ -382,6 +381,10 @@ mod workspace_settings_json_env_env_default;
 
 mod workspace_settings_materialization_env_vars_override;
 
+mod modules_dir_name;
+
+mod place_skipped_store_dir;
+
 mod files;
 
 mod security;
@@ -391,3 +394,5 @@ mod reporting;
 mod dependencies;
 
 mod integrity;
+
+mod json_env_multiple_registries;

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     package_manifest_prefix,
-    resolution_policy::{PickPolicy, create_configured_npm_resolver},
+    resolution_policy::{PickPolicy, create_configured_registry_resolver},
 };
 use chrono::{DateTime, Utc};
 use node_semver::Version;
@@ -171,25 +171,23 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let npm_resolver: Arc<dyn Resolver> = Arc::new(
-            create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
-                .map_err(UpdateError::InvalidNamedRegistry)?,
+        let registry_resolver: Arc<dyn Resolver> = Arc::new(
+            create_configured_registry_resolver(
+                ctx.config,
+                Arc::clone(ctx.http_client_arc),
+                &policy,
+            )
+            .map_err(UpdateError::InvalidNamedRegistry)?,
         );
-        let mut node_resolver = NodeResolver::new_with_auth(
-            Arc::clone(ctx.http_client_arc),
-            Arc::clone(&ctx.config.auth_headers),
-        );
-        node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
-        node_resolver.mirror = ctx.config.tool_mirror(Tool::Node).map(ToString::to_string);
-        node_resolver.channel_mirrors = ctx.config.tool_channel_mirrors(Tool::Node);
-        node_resolver.offline = ctx.config.offline;
-        node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
-            Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
-            Box::new(node_resolver),
-            Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+            Box::new(Arc::clone(&registry_resolver)) as Box<dyn Resolver>,
+            Box::new(ctx.node_resolver()),
+            Box::new(DenoResolver::new(
+                Arc::clone(ctx.http_client_arc),
+                Arc::clone(&registry_resolver),
+            )),
             Box::new(
-                BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))
+                BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&registry_resolver))
                     .with_mirror(ctx.config.tool_mirror(Tool::Bun)),
             ),
             Box::new(YarnResolver::new(
@@ -227,6 +225,19 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
 }
 
 impl LatestRewriteCtx<'_, '_> {
+    fn node_resolver(&self) -> NodeResolver {
+        let mut resolver = NodeResolver::new_with_auth(
+            Arc::clone(self.http_client_arc),
+            Arc::clone(&self.config.auth_headers),
+        );
+        resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
+        resolver.mirror = self.config.tool_mirror(Tool::Node).map(ToString::to_string);
+        resolver.channel_mirrors = self.config.tool_channel_mirrors(Tool::Node);
+        resolver.offline = self.config.offline;
+        resolver.cache_dir = Some(self.config.cache_dir.clone());
+        resolver
+    }
+
     fn resolve_options(&self, chain: &LatestResolverChain) -> ResolveOptions {
         let manifest_dir = self.manifest
             .path()

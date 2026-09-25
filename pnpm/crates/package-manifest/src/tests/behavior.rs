@@ -137,6 +137,50 @@ fn save_preserves_the_source_indentation() {
     );
 }
 
+/// A save keeps the blank lines the source file puts between object
+/// members, at the top level and in nested objects.
+#[test]
+fn save_preserves_blank_lines_between_members() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        "{\n  \"name\": \"foo\",\n  \"scripts\": {\n    \"test\": \"a\",\n\n    \"foo\": \"bar\"\n  },\n\n  \"license\": \"ISC\"\n}\n",
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.add_dependency("axios", "^1.1.3", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        "{\n  \"name\": \"foo\",\n  \"scripts\": {\n    \"test\": \"a\",\n\n    \"foo\": \"bar\"\n  },\n\n  \"license\": \"ISC\",\n  \"dependencies\": {\n    \"axios\": \"^1.1.3\"\n  }\n}\n",
+    );
+}
+
+/// A member removed by one save comes back without its old blank line
+/// when the same manifest adds it again.
+#[test]
+fn save_forgets_the_blank_line_of_a_removed_member() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(
+        &path,
+        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"a\": \"1.0.0\",\n\n    \"b\": \"1.0.0\"\n  }\n}\n",
+    )
+    .unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["b".to_string()], None);
+    manifest.save().unwrap();
+    manifest.add_dependency("b", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    assert_eq!(
+        read_to_string(&path).unwrap(),
+        "{\n  \"name\": \"foo\",\n  \"dependencies\": {\n    \"a\": \"1.0.0\",\n    \"b\": \"1.0.0\"\n  }\n}\n",
+    );
+}
+
 /// The preserved indentation unit is capped at 10 characters on write,
 /// like `JSON.stringify`'s `space` argument.
 #[test]

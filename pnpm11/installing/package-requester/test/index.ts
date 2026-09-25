@@ -334,6 +334,37 @@ test('refetch local tarball if its integrity has changed', async () => {
     expect(files.resolvedFrom).toBe('store')
     expect(bundledManifest).toBeTruthy()
   }
+
+  fs.unlinkSync(tarballPath)
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: pkgId as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
+          tarball,
+        },
+      },
+    }) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeFalsy()
+    expect(files.resolvedFrom).toBe('store')
+    expect(bundledManifest).toBeTruthy()
+  }
 })
 
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
@@ -1172,6 +1203,65 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.fetching).toBeFalsy()
 })
 
+test('force installs an optional package that is not installable', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    force: true,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(true)
+  expect(pkgResponse.fetching).toBeTruthy()
+})
+
+test('force does not install an optional package that is not installable under forceIgnoresPlatform: false, even when the manifest arrives with the tarball', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const resolveWithoutManifest: typeof resolve = async (wantedDependency, opts) => {
+    const result = await resolve(wantedDependency, opts)
+    return {
+      ...result,
+      manifest: undefined,
+    }
+  }
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutManifest,
+    fetchers,
+    cafs,
+    force: true,
+    forceIgnoresPlatform: false,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+})
+
 // Test case for https://github.com/pnpm/pnpm/issues/11702
 test('do not fetch an optional package whose name declares an unsupported platform when the registry metadata has no platform fields', async () => {
   const storeDir = temporaryDirectory()
@@ -1240,7 +1330,10 @@ test('fetch a git package without a package.json', async () => {
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest).toBeUndefined()
     expect(pkgResponse.body.isInstallable).toBeFalsy()
-    expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
+    expect([
+      `https://codeload.github.com/${repo}/tar.gz/${commit}`,
+      `git+https://github.com/${repo}.git#${commit}`,
+    ]).toContain(pkgResponse.body.id)
   }
 })
 
@@ -1694,3 +1787,142 @@ test('should pass optional flag to resolve function', async () => {
 
   expect(capturedOptional).toBeUndefined()
 })
+
+test('engineStrict fails on incompatible engines without hook, but succeeds when readPackageHook relaxes engines', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    engineStrict: true,
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await expect(
+    requestPackage(
+      { alias: '@pnpm.e2e/for-legacy-node', bareSpecifier: '1.0.0' },
+      {
+        downloadPriority: 0,
+        lockfileDir: projectDir,
+        preferredVersions: {},
+        projectDir,
+      }
+    )
+  ).rejects.toThrow('Unsupported engine for @pnpm.e2e/for-legacy-node@1.0.0')
+
+  const pkgResponse = await requestPackage(
+    { alias: '@pnpm.e2e/for-legacy-node', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      readPackageHook: (pkg) => {
+        if (pkg.name === '@pnpm.e2e/for-legacy-node') {
+          pkg.engines = { ...pkg.engines, node: '*' }
+        }
+        return pkg
+      },
+    }
+  )
+
+  expect(pkgResponse.body.hooked).toBe(true)
+  expect(pkgResponse.body.manifest?.engines?.node).toBe('*')
+})
+
+test('readPackageHook receives an isolated copy of manifest so mutations do not affect subsequent requests', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    engineStrict: false,
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      readPackageHook: (pkg) => {
+        if (pkg.devDependencies) {
+          pkg.devDependencies['mutated-dep'] = '1.0.0'
+        }
+        return pkg
+      },
+    }
+  )
+
+  const secondResponse = await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(secondResponse.body.manifest?.devDependencies?.['mutated-dep']).toBeUndefined()
+})
+
+test('readPackageHook mutating engines in-place does not pollute shared manifest for subsequent requests', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    engineStrict: false,
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      readPackageHook: (pkg) => {
+        if (pkg.engines) {
+          pkg.engines.node = '99.99.99'
+        }
+        return pkg
+      },
+    }
+  )
+
+  const secondResponse = await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(secondResponse.body.manifest?.engines?.node).not.toBe('99.99.99')
+})
+

@@ -11,7 +11,9 @@ export type StrictBuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
+  deploy?: boolean
   excludeLinksFromLockfile: boolean
+  extendNodePath?: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   lockfileDir: string
@@ -54,9 +56,11 @@ export type StrictBuildOptions = {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  resolvePeersFromWorkspaceRoot?: boolean
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
   supportedArchitectures?: SupportedArchitectures
+  stages?: string[]
 } & Pick<Config, 'allowBuilds'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &
@@ -69,6 +73,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
   const lockfileDir = opts.lockfileDir ?? dir
   return {
     childConcurrency: 5,
+    deploy: opts.deploy ?? false,
     development: true,
     dir,
     force: false,

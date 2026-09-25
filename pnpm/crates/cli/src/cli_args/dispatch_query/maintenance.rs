@@ -4,7 +4,7 @@ use super::{
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DefaultReporter,
     DocsArgs, DoctorArgs, DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NdjsonReporter,
     NotImplementedError, PrefixArgs, RepoArgs, ReporterType, RootArgs, RunCtx, SelfUpdateArgs,
-    SetupArgs, ShimArgs, SilentReporter, StoreCommand, WithArgs,
+    SetupArgs, ShimArgs, SilentReporter, StoreCommand, TasksArgs, WithArgs,
 };
 
 // `doctor` reports on the installation and its environment, so it needs config
@@ -68,6 +68,18 @@ pub(in super::super) fn prefix<'a>(
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
+pub(in super::super) fn tasks<'a>(
+    ctx: &RunCtx<'a>,
+    args: TasksArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, config, "tasks", args.script_args())? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    args.run(config)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
 pub(in super::super) fn shim<'a>(
     ctx: &RunCtx<'a>,
     args: ShimArgs,
@@ -119,7 +131,7 @@ pub(in super::super) fn repo<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
         }),
@@ -150,7 +162,7 @@ pub(in super::super) fn with<'a>(
             Box::pin(args.run::<$reporter>(config))
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_with!(DefaultReporter),
         ReporterType::Ndjson => run_with!(NdjsonReporter),
         ReporterType::Silent => run_with!(SilentReporter),
@@ -171,7 +183,7 @@ pub(in super::super) fn self_update<'a>(
             Box::pin(args.run::<$reporter>(config, dir))
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_self_update!(DefaultReporter),
         ReporterType::Ndjson => run_self_update!(NdjsonReporter),
         ReporterType::Silent => run_self_update!(SilentReporter),
@@ -203,7 +215,7 @@ pub(in super::super) fn setup<'a>(
             Box::pin(args.run::<$reporter>(dir))
         };
     }
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => run_setup!(DefaultReporter),
         ReporterType::Ndjson => run_setup!(NdjsonReporter),
         ReporterType::Silent => run_setup!(SilentReporter),
@@ -216,7 +228,7 @@ pub(in super::super) fn store<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    Ok(match ctx.reporter {
+    Ok(match ctx.reporter() {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(command.run::<DefaultReporter>(config, dir))
         }

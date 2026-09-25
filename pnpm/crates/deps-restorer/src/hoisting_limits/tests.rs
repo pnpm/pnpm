@@ -81,3 +81,19 @@ fn dependencies_mode_borders_each_importer() {
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "packages%2Ffoo".to_string()]));
     assert_eq!(limits["packages%2Ffoo@workspace:packages/foo"], BTreeSet::from(["b".to_string()]));
 }
+
+#[test]
+fn workspaces_mode_borders_packages_at_root_when_root_importer_omitted() {
+    let mut importers = HashMap::new();
+    importers.insert("packages/foo".to_string(), project_with_deps(&["b"]));
+
+    let limits = get_hoisting_limits(&importers, HoistingLimits::Workspaces);
+    assert_eq!(
+        limits
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![".@".to_string()],
+    );
+    assert_eq!(limits[".@"], BTreeSet::from(["packages%2Ffoo".to_string()]));
+}

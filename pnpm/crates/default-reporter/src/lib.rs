@@ -31,11 +31,12 @@ use std::{
 
 use console::Term;
 use pnpm_config::ColorMode;
-use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
+use pnpm_reporter::{LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,
     format::visible_width,
+    progress::is_coalesceable,
     state::{Output, ReporterState},
 };
 
@@ -203,6 +204,10 @@ fn cwd() -> String {
 pub struct DefaultReporter;
 
 impl Reporter for DefaultReporter {
+    fn report_fatal_error(message: String) -> Option<String> {
+        Some(message)
+    }
+
     fn emit(event: &LogEvent) {
         if progress::is_suppressed(event) {
             return;
@@ -214,19 +219,6 @@ impl Reporter for DefaultReporter {
         }
         let output = sink.state.handle(event);
         sink.write(output, is_coalesceable(event));
-    }
-}
-
-/// Whether an event is a high-volume progress update that may be dropped
-/// under throttling, mirroring pnpm's `throttleProgress` on the progress
-/// stream.
-fn is_coalesceable(event: &LogEvent) -> bool {
-    match event {
-        LogEvent::Progress(_) => true,
-        LogEvent::FetchingProgress(log) => {
-            matches!(log.message, FetchingProgressMessage::InProgress { .. })
-        }
-        _ => false,
     }
 }
 

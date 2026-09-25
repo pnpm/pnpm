@@ -327,6 +327,64 @@ fn outdated_recursive_aggregates_workspace_dependents() {
 }
 
 #[test]
+fn outdated_recursive_json_preserves_distinct_entries_for_same_package() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let app_a = workspace.join("packages/app-a");
+    fs::create_dir_all(&app_a).expect("create app-a");
+    fs::write(
+        app_a.join("package.json"),
+        format!(
+            r#"{{ "name": "app-a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-a package.json");
+
+    let app_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&app_b).expect("create app-b");
+    fs::write(
+        app_b.join("package.json"),
+        format!(
+            r#"{{ "name": "app-b", "version": "1.0.0", "devDependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-b package.json");
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated", "--recursive", "--format", "json"])
+        .output()
+        .expect("run recursive outdated");
+
+    assert_eq!(output.status.code(), Some(1));
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("recursive outdated should emit valid JSON");
+
+    let prod_key = format!("{DEP}@100.1.0");
+    let dev_key = format!("{DEP}@100.1.0 (dev)");
+
+    assert!(value.get(&prod_key).is_some(), "expected prod key {prod_key} in {value}");
+    assert!(value.get(&dev_key).is_some(), "expected dev key {dev_key} in {value}");
+
+    assert_eq!(value[&prod_key]["dependencyType"], "dependencies");
+    assert_eq!(value[&dev_key]["dependencyType"], "devDependencies");
+
+    let prod_dependents =
+        value[&prod_key]["dependentPackages"].as_array().expect("prod dependents");
+    assert_eq!(prod_dependents.len(), 1);
+    assert_eq!(prod_dependents[0]["name"], "app-a");
+
+    let dev_dependents = value[&dev_key]["dependentPackages"].as_array().expect("dev dependents");
+    assert_eq!(dev_dependents.len(), 1);
+    assert_eq!(dev_dependents[0]["name"], "app-b");
+
+    drop((root, anchor));
+}
+
+#[test]
 fn outdated_recursive_reads_dedicated_project_lockfiles() {
     let (root, workspace, anchor) = setup();
     fs::write(
@@ -571,6 +629,146 @@ fn outdated_leaves_out_ignored_dependencies() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(DEP), "report should mention the unignored package: {stdout}");
     assert!(!stdout.contains(FOO), "report should leave out the ignored package: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_fails_when_package_not_in_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-outdated", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }}, "devDependencies": {{ "{FOO}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    for args in [
+        vec!["outdated", "not-a-dep"],
+        vec!["outdated", DEP, "not-a-dep"],
+        vec!["outdated", "--prod", FOO],
+        vec!["outdated", "--dev", DEP],
+    ] {
+        let output = pacquet(&workspace, &args).output().expect("run pacquet outdated");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{args:?} must fail: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+            "{args:?} must report ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+        );
+        assert!(
+            stderr.contains("None of the specified packages were found in the dependencies."),
+            "{args:?} must report single-project message: {stderr}",
+        );
+    }
+
+    let compound = pacquet(&workspace, ["outdated", "!not-a-dep", DEP])
+        .output()
+        .expect("run pacquet outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
+
+    let excluded_only = pacquet(&workspace, ["outdated", &format!("!{DEP}"), &format!("!{FOO}")])
+        .output()
+        .expect("run pacquet outdated with only excluded pattern");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run pacquet outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    let no_lockfile = pacquet(&workspace, ["outdated", "not-a-dep"])
+        .output()
+        .expect("run pacquet outdated without lockfile");
+    let stderr = String::from_utf8_lossy(&no_lockfile.stderr);
+    assert!(!no_lockfile.status.success());
+    assert!(
+        stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+        "must fail with ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES before checking lockfile: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_recursive_validates_workspace_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    write_manifest(&workspace, "{}");
+    let pkg_a = workspace.join("packages/app-a");
+    let pkg_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&pkg_a).expect("create app-a");
+    fs::create_dir_all(&pkg_b).expect("create app-b");
+    fs::write(
+        pkg_a.join("package.json"),
+        format!(
+            r#"{{ "name": "app-a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-a package.json");
+    fs::write(
+        pkg_b.join("package.json"),
+        format!(
+            r#"{{ "name": "app-b", "version": "1.0.0", "devDependencies": {{ "{FOO}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-b package.json");
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let spread = pacquet(&workspace, ["outdated", "-r", DEP, FOO])
+        .output()
+        .expect("run recursive outdated across projects");
+    assert_eq!(spread.status.code(), Some(1));
+
+    for args in [
+        vec!["outdated", "-r", "not-a-dep"],
+        vec!["outdated", "-r", DEP, "not-a-dep"],
+        vec!["outdated", "-r", "--prod", FOO],
+        vec!["--filter", "app-a", "outdated", "-r", FOO],
+    ] {
+        let output = pacquet(&workspace, &args).output().expect("run recursive outdated");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{args:?} must fail: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+            "{args:?} must report ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+        );
+        assert!(
+            stderr.contains(
+                "None of the specified packages were found in the dependencies of any of"
+            ),
+            "{args:?} must report workspace message: {stderr}",
+        );
+    }
+
+    let empty_filter =
+        pacquet(&workspace, ["--filter", "absent-project", "outdated", "-r", "not-a-dep"])
+            .output()
+            .expect("run recursive outdated with empty filter");
+    assert!(empty_filter.status.success(), "empty filter selection should exit 0");
+
+    let compound = pacquet(&workspace, ["outdated", "-r", "!not-a-dep", DEP])
+        .output()
+        .expect("run recursive outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
+
+    let excluded_only =
+        pacquet(&workspace, ["outdated", "-r", &format!("!{DEP}"), &format!("!{FOO}")])
+            .output()
+            .expect("run recursive outdated with only excluded patterns");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", "-r", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run recursive outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
 
     drop((root, anchor));
 }

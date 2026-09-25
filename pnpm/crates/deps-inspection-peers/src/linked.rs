@@ -2,7 +2,7 @@ use super::{
     BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
     Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg, Path, PathBuf,
     PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
-    get_peer_version_range, resolve_from_catalog, satisfies,
+    extract_peer_version, get_peer_version_range, resolve_from_catalog, satisfies,
 };
 
 pub(super) struct CanonicalPathWithin {
@@ -76,6 +76,7 @@ pub(super) struct PeerProviders<'a> {
     pub(super) importer_dir: &'a Path,
     pub(super) linked_importer_dir: &'a Path,
     pub(super) lockfile_dir: &'a Path,
+    pub(super) resolve_peers_from_workspace_root: bool,
 }
 
 pub(super) fn check_linked_package_peers(
@@ -222,7 +223,7 @@ fn resolved_peer_version(
     spec: &ResolvedDependencySpec,
 ) -> Option<String> {
     if let Some(ver_peer) = spec.version.ver_peer() {
-        return Some(ver_peer.version().to_string());
+        return Some(extract_peer_version(ver_peer));
     }
     if let Some(link_target) = spec.version.as_link_target() {
         return Some(
@@ -283,5 +284,16 @@ impl PeerProviders<'_> {
                     .and_then(|importer| project_dependency(importer, name))
                     .map(|spec| (spec, self.linked_importer_dir))
             })
+            .or_else(|| self.root_reference(name))
+    }
+
+    fn root_reference(&self, name: &PkgName) -> Option<(&ResolvedDependencySpec, &Path)> {
+        if !self.resolve_peers_from_workspace_root {
+            return None;
+        }
+        self.lockfile.importers
+            .get(".")
+            .and_then(|root_importer| project_dependency(root_importer, name))
+            .map(|spec| (spec, self.lockfile_dir))
     }
 }

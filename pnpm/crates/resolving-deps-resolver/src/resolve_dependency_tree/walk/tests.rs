@@ -1,5 +1,6 @@
 use super::child_seeds::landed_on_prior_entry;
 mod shared_workspace_resolution_cache;
+mod stale_pin_refresh;
 
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
 
@@ -134,6 +135,7 @@ mod fallback_manifest {
                 directory: "sub".to_string(),
             }),
             published_at: None,
+            manifest: None,
         }
     }
 
@@ -144,7 +146,7 @@ mod fallback_manifest {
                 &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest" }),
         );
     }
 
@@ -155,7 +157,7 @@ mod fallback_manifest {
                 &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest-1.0.0.tgz", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest-1.0.0.tgz" }),
         );
     }
 
@@ -171,13 +173,83 @@ mod fallback_manifest {
     }
 
     #[test]
+    fn the_lockfile_manifest_is_reused() {
+        let mut pkg = current_pkg(Some("sub"), Some("2.0.0"));
+        pkg.manifest = Some(std::sync::Arc::new(serde_json::json!({
+            "name": "sub",
+            "version": "2.0.0",
+            "dependencies": { "dep": "1.0.0" },
+        })));
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&pkg),
+            ),
+            serde_json::json!({
+                "name": "sub",
+                "version": "2.0.0",
+                "dependencies": { "dep": "1.0.0" },
+            }),
+        );
+    }
+
+    #[test]
     fn a_half_recorded_pin_falls_through_to_the_alias() {
         assert_eq!(
             super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), None)),
             ),
-            serde_json::json!({ "name": "sub", "version": "0.0.0" }),
+            serde_json::json!({ "name": "sub" }),
         );
+    }
+
+    #[test]
+    fn a_synthesized_zero_version_in_current_pkg_is_omitted() {
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), Some("0.0.0"))),
+            ),
+            serde_json::json!({ "name": "sub" }),
+        );
+    }
+}
+
+mod overlay_view {
+    use super::super::locked_versions::overlay_version_view;
+    use pnpm_resolving_resolver_base::{
+        DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersionsOverlay, WantedDependency,
+    };
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn overlay_version_view_distinguishes_direct_and_descendant_weights() {
+        let direct_overlay = PreferredVersionsOverlay::layer_direct(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+        let descendant_overlay = PreferredVersionsOverlay::layer(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+
+        let wanted = WantedDependency {
+            alias: Some("foo".to_string()),
+            bare_specifier: Some("^1.0.0".to_string()),
+            ..WantedDependency::default()
+        };
+
+        let direct_view = overlay_version_view(&direct_overlay, &wanted);
+        let descendant_view = overlay_version_view(&descendant_overlay, &wanted);
+
+        assert_eq!(
+            direct_view,
+            vec![("foo".to_string(), vec![("1.0.0".to_string(), DIRECT_DEP_SELECTOR_WEIGHT)])],
+        );
+        assert_eq!(descendant_view, vec![("foo".to_string(), vec![("1.0.0".to_string(), 1)])]);
+        assert_ne!(direct_view, descendant_view);
     }
 }

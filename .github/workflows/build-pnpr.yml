@@ -24,6 +24,10 @@ jobs:
   build-pnpr:
     name: ${{ inputs.os }}
     runs-on: ${{ inputs.os }}
+    env:
+      CARGO_PROFILE_RELEASE_LTO: "off"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: "1"
     steps:
     - name: Free up runner disk space
       if: ${{ runner.os == 'Linux' }}
@@ -38,19 +42,20 @@ jobs:
     # so a run that only touches TypeScript restores them in seconds instead of
     # recompiling. They are copied out of `target/` into a stable dir so
     # `Swatinem/rust-cache`'s `target/` cleanup can't strip them before the
-    # cache saves.
+    # cache saves. Integration test directories never link into these
+    # binaries, so they stay out of the key.
     - name: Restore prebuilt pnpr binaries
       id: pnpr-bins
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .pnpr-bin
-        key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pnpm/**/*.rs') }}
+        key: pnpr-bins-v2-${{ runner.os }}-${{ hashFiles('.github/workflows/build-pnpr.yml', 'rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pnpm/**/*.rs', '!pnpm/crates/*/tests/**', '!pnpr/crates/*/tests/**') }}
     - name: Install Rust
       if: steps.pnpr-bins.outputs.cache-hit != 'true'
       uses: $/.github/actions/rustup
       with:
         save-cache: ${{ github.ref_name == 'main' }}
-        shared-key: registry-prepare
+        shared-key: registry-prepare-v2
     - name: Install pnpm
       if: steps.pnpr-bins.outputs.cache-hit != 'true'
       uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0

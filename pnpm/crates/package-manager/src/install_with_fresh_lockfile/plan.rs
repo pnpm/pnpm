@@ -3,7 +3,6 @@ use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use std::collections::{BTreeMap, HashSet};
@@ -21,6 +20,9 @@ pub(super) struct MaterializationScope {
     /// run leaves out.
     importer_ids: Option<HashSet<String>>,
     closure: Option<crate::MaterializationClosure>,
+    /// The built lockfile's peer classification, shared by every walk of
+    /// this install.
+    pub(super) groups: crate::GroupSelection,
 }
 /// The second closure, with the importers that anchor project links.
 pub(super) struct FinalScope {
@@ -30,6 +32,11 @@ pub(super) struct FinalScope {
 impl MaterializationScope {
     pub(super) fn initial(install: FreshInputs<'_>, is_hoisted: bool, built: &Lockfile) -> Self {
         let importer_ids = closure_importer_ids(install, is_hoisted, built);
+        let groups = crate::GroupSelection::classify(
+            built,
+            install.included(),
+            install.drivers.config.peer_edge_options(),
+        );
         let closure = importer_ids
             .as_ref()
             .map(|importer_ids| {
@@ -37,11 +44,11 @@ impl MaterializationScope {
                     built,
                     install.projects.lockfile_dir,
                     importer_ids,
-                    install.included(),
+                    &groups,
                     &SkippedSnapshots::new(),
                 )
             });
-        MaterializationScope { importer_ids, closure }
+        MaterializationScope { importer_ids, closure, groups }
     }
 
     pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
@@ -62,7 +69,7 @@ impl MaterializationScope {
                     built,
                     install.projects.lockfile_dir,
                     importer_ids,
-                    install.included(),
+                    &self.groups,
                     skipped,
                 )
             });
@@ -114,7 +121,7 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     probe: HostProbeInputs,
     lockfiles: PlanLockfiles<'l>,
     allow_build_policy: &'l AllowBuildPolicy,
-    scope: PlanScope,
+    scope: PlanScope<'_>,
 ) -> Result<FreshPlan<'l>, InstallWithFreshLockfileError> {
     let installability_host = installability_host(
         install.drivers.config,
@@ -139,6 +146,13 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
         engine_name.clone(),
         deferred_engine_name.as_ref(),
     );
+    let installability_host = pnpm_deps_restorer::materialization_plan::with_locked_runtime_node(
+        installability_host.as_ref(),
+        install.drivers.config,
+        &lockfiles.built.importers,
+    );
+    let host_node =
+        installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
     let skipped = compute_fresh_skip_set::<Reporter>(
         install,
         lockfiles,
@@ -189,7 +203,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     install: FreshInputs<'_>,
     lockfiles: PlanLockfiles<'_>,
     installability_host: Option<&pnpm_deps_restorer::InstallabilityHost>,
-    scope: PlanScope,
+    scope: PlanScope<'_>,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
     let closure_importer_ids: std::collections::HashSet<String> = lockfiles
         .built
@@ -203,7 +217,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
                 lockfile: lockfiles.built,
                 root: install.projects.lockfile_dir,
                 importer_ids: &closure_importer_ids,
-                included: scope.included,
+                groups: scope.groups,
             },
             entries: pnpm_lockfile::LockfileEntries {
                 snapshots: lockfiles.initial.snapshots.as_ref(),
@@ -234,8 +248,8 @@ pub(super) struct HostProbeInputs {
 }
 /// Which dependency groups the plan materializes.
 #[derive(Clone, Copy)]
-pub(super) struct PlanScope {
-    pub(super) included: IncludedDependencies,
+pub(super) struct PlanScope<'g> {
+    pub(super) groups: &'g crate::GroupSelection,
     pub(super) include_transitive_optional_dependencies: bool,
 }
 /// The two borrowed views `run` derives from [`Resolved`](crate::install_with_fresh_lockfile::resolution::Resolved) once the
@@ -287,22 +301,13 @@ fn closure_importer_ids(
                 })
         })
 }
-/// The importers a selected install materializes. A hoisted linker shares one
-/// tree, so it still materializes every importer.
+/// The importers a selected install materializes.
 pub(super) fn materialization_importer_ids(
     selected_importer_ids: Option<&HashSet<String>>,
-    is_hoisted: bool,
-    built_lockfile: &Lockfile,
+    _is_hoisted: bool,
+    _built_lockfile: &Lockfile,
 ) -> Option<HashSet<String>> {
     let selected_importer_ids = selected_importer_ids?;
-    if is_hoisted {
-        return Some(
-            built_lockfile.importers
-                .keys()
-                .cloned()
-                .collect(),
-        );
-    }
     Some(selected_importer_ids.clone())
 }
 /// The host the installability checks run against, resolved from the
@@ -314,7 +319,7 @@ pub(super) async fn installability_host(
     host: (Option<String>, Option<&pnpm_package_is_installable::SupportedArchitectures>),
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
     let (node_version, supported_architectures) = host;
-    let needed = !config.force
+    let needed = !config.installs_incompatible_packages()
         && lockfile.packages
             .as_ref()
             .is_some_and(|packages| {
@@ -329,7 +334,7 @@ pub(super) async fn installability_host(
         (_, needed) => {
             pnpm_deps_restorer::materialization_plan::detect_installability_host(
                 needed,
-                config.engine_strict,
+                config.effective_engine_strict(),
                 node_version,
                 supported_architectures,
             )
@@ -361,12 +366,9 @@ pub(super) fn log_layout_phase(config: &Config, phase_start: std::time::Instant)
 }
 /// The importers whose own project manifests anchor the link phase.
 pub(super) fn project_anchor_importer_ids(
-    selected_importer_ids: Option<&HashSet<String>>,
-    is_hoisted: bool,
+    _selected_importer_ids: Option<&HashSet<String>>,
+    _is_hoisted: bool,
     materialization_importer_ids: &HashSet<String>,
 ) -> HashSet<String> {
-    match selected_importer_ids {
-        Some(selected_importer_ids) if is_hoisted => selected_importer_ids.clone(),
-        _ => materialization_importer_ids.clone(),
-    }
+    materialization_importer_ids.clone()
 }

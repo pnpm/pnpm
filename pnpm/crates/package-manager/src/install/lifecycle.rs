@@ -1,12 +1,19 @@
+pub(in crate::install) use graph::{ProjectLifecycleGraph, project_lifecycle_graph};
+pub(super) use uninstall::{project_script_stages, run_pre_uninstall_scripts};
+
+mod graph;
+mod uninstall;
+
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 
 use super::{
-    Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, ExecScriptsPrependNodePath, HashMap,
-    HashSet, InstallError, Lockfile, NodeLinker, PackageManifest, Path, PathBuf, Reporter,
+    Config, DEV_PREINSTALL_ALREADY_RAN_ENV, DependencyGroup, HashMap, HashSet, InstallError,
+    NodeLinker, PackageManifest, Path, PathBuf, ROOT_PREINSTALL_ALREADY_RAN_ENV, Reporter,
     RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
-    run_dev_preinstall_hook, run_project_lifecycle_scripts,
+    run_project_lifecycle_stages,
 };
-use indexmap::IndexMap;
+
+use pnpm_executor::LifecycleScriptError;
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use std::sync::Mutex;
 
@@ -23,182 +30,14 @@ use std::sync::Mutex;
 pub(super) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+    ignored_directories: &[std::path::PathBuf],
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
     let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
         patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
+        ignored_directories: ignored_directories.to_vec(),
     };
     pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
-}
-
-pub(super) struct ProjectLifecycleGraph<'a> {
-    projects_by_dir: HashMap<PathBuf, (PathBuf, &'a PackageManifest)>,
-    pub(super) dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
-}
-
-pub(super) fn project_lifecycle_graph<'a>(
-    projects: &[(PathBuf, &'a PackageManifest)],
-    ordered_dependencies: Option<&IndexMap<PathBuf, Vec<PathBuf>>>,
-    workspace_root: &Path,
-    lockfile: Option<&Lockfile>,
-) -> Result<ProjectLifecycleGraph<'a>, InstallError> {
-    let normalized_project_dirs = projects
-        .iter()
-        .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
-        .collect::<Vec<_>>();
-    let dependencies = lifecycle_dependencies(
-        projects,
-        &normalized_project_dirs,
-        ordered_dependencies,
-        workspace_root,
-        lockfile,
-    )?;
-    let projects_by_dir = projects
-        .iter()
-        .map(|project| (pnpm_fs::lexical_normalize(&project.0), project))
-        .collect::<HashMap<_, _>>();
-    let missing_projects = projects_outside_order(projects, &dependencies, &projects_by_dir);
-    if !missing_projects.is_empty() {
-        return Err(InstallError::ProjectLifecycleOrder { projects: missing_projects.join(", ") });
-    }
-    Ok(ProjectLifecycleGraph {
-        dependencies: retain_known_projects(&dependencies, &projects_by_dir),
-        projects_by_dir: projects_by_dir
-            .into_iter()
-            .map(|(dir, project)| (dir, project.clone()))
-            .collect(),
-    })
-}
-
-fn lifecycle_dependencies<'a>(
-    projects: &[(PathBuf, &PackageManifest)],
-    normalized_project_dirs: &[PathBuf],
-    ordered_dependencies: Option<&'a IndexMap<PathBuf, Vec<PathBuf>>>,
-    workspace_root: &Path,
-    lockfile: Option<&Lockfile>,
-) -> Result<std::borrow::Cow<'a, IndexMap<PathBuf, Vec<PathBuf>>>, InstallError> {
-    let ordered_dirs = ordered_dependencies.map(|dependencies| {
-        dependencies
-            .keys()
-            .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
-            .collect::<HashSet<_>>()
-    });
-    let explicit_order_covers_projects = ordered_dirs
-        .as_ref()
-        .is_some_and(|ordered_dirs| {
-            normalized_project_dirs
-                .iter()
-                .all(|project_dir| ordered_dirs.contains(project_dir))
-        });
-    let dependencies: std::borrow::Cow<IndexMap<PathBuf, Vec<PathBuf>>> =
-        if explicit_order_covers_projects {
-            std::borrow::Cow::Borrowed(ordered_dependencies.expect("checked as present"))
-        } else if let Some(lockfile) = lockfile {
-            std::borrow::Cow::Owned(link_dependencies_from_lockfile(
-                projects,
-                normalized_project_dirs,
-                workspace_root,
-                lockfile,
-            ))
-        } else if let Some(ordered_dirs) = ordered_dirs {
-            return Err(missing_lifecycle_order(normalized_project_dirs, &ordered_dirs));
-        } else {
-            std::borrow::Cow::Owned(
-                normalized_project_dirs
-                    .iter()
-                    .cloned()
-                    .map(|project_dir| (project_dir, Vec::new()))
-                    .collect::<IndexMap<_, _>>(),
-            )
-        };
-    Ok(dependencies)
-}
-
-/// Each project's `link:` dependencies on the other projects, read off the
-/// lockfile's importer entries.
-fn link_dependencies_from_lockfile(
-    projects: &[(PathBuf, &PackageManifest)],
-    normalized_project_dirs: &[PathBuf],
-    workspace_root: &Path,
-    lockfile: &Lockfile,
-) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let included_set = normalized_project_dirs
-        .iter()
-        .cloned()
-        .collect::<HashSet<_>>();
-    projects
-        .iter()
-        .zip(normalized_project_dirs)
-        .map(|((project_dir, _), normalized_project_dir)| {
-            let importer_id =
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
-            let dependencies = lockfile.importers
-                .get(&importer_id)
-                .into_iter()
-                .flat_map(|snapshot| {
-                    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
-                        .into_iter()
-                        .filter_map(|group| snapshot.get_map_by_group(group))
-                        .flat_map(|dependencies| dependencies.values())
-                })
-                .filter_map(|dependency| match &dependency.version {
-                    pnpm_lockfile::ImporterDepVersion::Link(target) => {
-                        Some(pnpm_fs::lexical_normalize(&project_dir.join(target)))
-                    }
-                    _ => None,
-                })
-                .filter(|target| included_set.contains(target))
-                .collect();
-            (normalized_project_dir.clone(), dependencies)
-        })
-        .collect()
-}
-
-fn projects_outside_order(
-    projects: &[(PathBuf, &PackageManifest)],
-    dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
-    projects_by_dir: &HashMap<PathBuf, &(PathBuf, &PackageManifest)>,
-) -> Vec<String> {
-    let included: HashSet<PathBuf> = dependencies
-        .keys()
-        .map(|dir| pnpm_fs::lexical_normalize(dir))
-        .filter(|dir| projects_by_dir.contains_key(dir))
-        .collect();
-    projects
-        .iter()
-        .filter(|(project_dir, _)| !included.contains(&pnpm_fs::lexical_normalize(project_dir)))
-        .map(|(project_dir, _)| project_dir.display().to_string())
-        .collect()
-}
-
-/// The dependency order normalized and narrowed to the projects the run
-/// knows.
-fn retain_known_projects(
-    dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
-    projects_by_dir: &HashMap<PathBuf, &(PathBuf, &PackageManifest)>,
-) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    dependencies
-        .iter()
-        .filter_map(|(dir, project_dependencies)| {
-            let dir = pnpm_fs::lexical_normalize(dir);
-            projects_by_dir
-                .contains_key(&dir)
-                .then(|| {
-                    (
-                        dir,
-                        project_dependencies
-                            .iter()
-                            .map(|dependency| pnpm_fs::lexical_normalize(dependency))
-                            .filter(|dependency| projects_by_dir.contains_key(dependency))
-                            .collect(),
-                    )
-                })
-        })
-        .collect()
-}
-
-pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
-    config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
 }
 
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
@@ -247,20 +86,55 @@ pub(super) fn dev_preinstall_already_ran() -> bool {
     std::env::var(DEV_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
-/// Run the root project's `pnpm:devPreinstall` script, if it defines one.
+/// Whether the delegating CLI claims to have run the root's `preinstall`
+/// already, under the same rules as [`dev_preinstall_already_ran`].
+pub(super) fn root_preinstall_already_ran() -> bool {
+    std::env::var(ROOT_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
+}
+
+/// Run one of the root project's pre-resolution hooks — `run` is
+/// [`pnpm_executor::run_dev_preinstall_hook`] or
+/// [`pnpm_executor::run_root_preinstall_hook`].
 ///
-/// The hook exists so a workspace can prepare state that resolution or
-/// linking depends on — next.js creates the placeholder `next` bin its
-/// other packages link against — so it runs from the lockfile directory
-/// before either, and only for the root project.
-pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
+/// `pnpm:devPreinstall` exists so a workspace can prepare state that
+/// resolution or linking depends on — next.js creates the placeholder
+/// `next` bin its other packages link against — and `preinstall` so a
+/// guard can refuse the install before it changes anything, so both run
+/// from the lockfile directory before either, and only for the root
+/// project.
+pub(super) fn run_root_hook(
     config: &Config,
     workspace_root: &Path,
-) -> Result<(), InstallError> {
-    let root_modules_dir = workspace_root.join(modules_dir_basename(config));
-    let extra_env = config.extra_env_with_node_options();
-    let dep_path = workspace_root.to_string_lossy();
-    run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
+    run: fn(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
+) -> Result<bool, InstallError> {
+    run_project_stages(
+        config,
+        workspace_root,
+        workspace_root,
+        config.extra_env_with_node_options(),
+        run,
+    )
+    .map_err(InstallError::PreResolutionLifecycleScript)
+}
+
+/// Run `stages` for the project at `project_dir`, with the workspace root
+/// as `INIT_CWD` and the project's own bin dir and `NODE_PATH` in scope.
+fn run_project_stages(
+    config: &Config,
+    workspace_root: &Path,
+    project_dir: &Path,
+    mut extra_env: HashMap<String, String>,
+    stages: impl FnOnce(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
+) -> Result<bool, LifecycleScriptError> {
+    let root_modules_dir = project_dir.join(config.modules_dir_name());
+    let bin_dir = root_modules_dir.join(".bin");
+    config.prepend_project_node_path::<pnpm_config::Host>(
+        &mut extra_env,
+        project_dir,
+        config.modules_dir_name(),
+    );
+    let dep_path = project_dir.to_string_lossy();
+    stages(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: workspace_root,
             node_execpath: None,
@@ -275,17 +149,16 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
             prepend_node_path: exec_scripts_prepend_node_path(config),
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
+            wd_bin_dir: Some(&bin_dir),
         },
         dep_path: &dep_path,
-        pkg_root: workspace_root,
+        pkg_root: project_dir,
         root_modules_dir: &root_modules_dir,
 
         unsafe_perm: config.unsafe_perm,
 
         optional: false,
     })
-    .map(drop)
-    .map_err(InstallError::ProjectLifecycleScript)
 }
 
 /// What every project's lifecycle run shares: the bin links come first, so
@@ -294,8 +167,11 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
 struct ProjectScriptRunner<'a> {
     config: &'a Config,
     workspace_root: &'a Path,
-    modules_dir_basename: &'a std::ffi::OsStr,
-    scripts_prepend_node_path: ExecScriptsPrependNodePath,
+    normalized_workspace_root: PathBuf,
+    /// The root project's `preinstall` ran before the install began, here
+    /// (see [`run_root_hook`]) or in the CLI that delegated the install,
+    /// so its run here starts at `install`.
+    root_preinstall_ran: bool,
     extra_env: HashMap<String, String>,
     link_options: pnpm_cmd_shim::LinkBinsOptions,
 }
@@ -305,35 +181,34 @@ impl ProjectScriptRunner<'_> {
         &self,
         project_dir: &Path,
         manifest: &PackageManifest,
+        stages: &[&str],
     ) -> Result<(), InstallError> {
-        let root_modules_dir = project_dir.join(self.modules_dir_basename);
+        let root_modules_dir = project_dir.join(self.config.modules_dir_name());
         link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
             .map_err(InstallError::ProjectBinLink)?;
-        let dep_path = project_dir.to_string_lossy();
-        run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
-            environment: pnpm_executor::ScriptEnvironment {
-                init_cwd: self.workspace_root,
-                node_execpath: None,
-                npm_execpath: None,
-                node_gyp_path: None,
-                user_agent: Some(&self.config.user_agent),
-                extra_env: &self.extra_env,
-            },
-            execution: pnpm_executor::ScriptExecutionOptions {
-                extra_bin_paths: &self.config.extra_bin_paths,
-                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-                prepend_node_path: self.scripts_prepend_node_path,
-                shell: self.config.script_shell.as_deref().map(Path::new),
-                shell_emulator: self.config.shell_emulator,
-            },
-            dep_path: &dep_path,
-            pkg_root: project_dir,
-            root_modules_dir: &root_modules_dir,
+        let stages = if self.root_preinstall_ran
+            && stages.first() == Some(&"preinstall")
+            && pnpm_fs::lexical_normalize(project_dir) == self.normalized_workspace_root
+        {
+            &stages[1..]
+        } else {
+            stages
+        };
+        self.run_without_bin_linking::<Reporter>(project_dir, stages)
+    }
 
-            unsafe_perm: self.config.unsafe_perm,
-
-            optional: false,
-        })
+    pub(super) fn run_without_bin_linking<Reporter: self::Reporter>(
+        &self,
+        project_dir: &Path,
+        stages: &[&str],
+    ) -> Result<(), InstallError> {
+        run_project_stages(
+            self.config,
+            self.workspace_root,
+            project_dir,
+            self.extra_env.clone(),
+            |opts| run_project_lifecycle_stages::<Reporter>(opts, stages),
+        )
         .map(drop)
         .map_err(InstallError::ProjectLifecycleScript)
     }
@@ -356,35 +231,42 @@ fn direct_dep_names(manifest: &PackageManifest) -> Vec<String> {
 }
 
 impl<'a> ProjectScriptRunner<'a> {
-    fn new(config: &'a Config, node_linker: NodeLinker, workspace_root: &'a Path) -> Self {
+    fn new(
+        config: &'a Config,
+        node_linker: NodeLinker,
+        workspace_root: &'a Path,
+        root_preinstall_ran: bool,
+    ) -> Self {
         ProjectScriptRunner {
             config,
             workspace_root,
-            modules_dir_basename: modules_dir_basename(config),
-            scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
+            normalized_workspace_root: pnpm_fs::lexical_normalize(workspace_root),
+            root_preinstall_ran,
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
             link_options: crate::shim_link_options(config, node_linker),
         }
     }
 }
 
-/// Run workspace projects' own lifecycle scripts as soon as their dependency
-/// projects settle.
+/// Run `stages` of workspace projects' own lifecycle scripts as soon as
+/// their dependency projects settle.
 pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     project_graph: &ProjectLifecycleGraph<'_>,
     config: &Config,
     node_linker: NodeLinker,
     workspace_root: &Path,
+    root_preinstall_ran: bool,
+    stages: &[&str],
 ) -> Result<(), InstallError> {
-    let runner = ProjectScriptRunner::new(config, node_linker, workspace_root);
+    let runner = ProjectScriptRunner::new(config, node_linker, workspace_root, root_preinstall_ran);
     let first_error: Mutex<Option<InstallError>> = Mutex::new(None);
     let on_node_skipped: fn(&PathBuf) = |_| {};
     let run_node = |project_dir: PathBuf| {
         let project = &project_graph.projects_by_dir[&project_dir];
-        if !project_requires_lifecycle_scripts(&project.0, project.1) {
+        if !project_requires_lifecycle_scripts(&project.0, project.1, stages) {
             return TaskCompletion::Passed;
         }
-        match runner.run::<Reporter>(&project.0, project.1) {
+        match runner.run::<Reporter>(&project.0, project.1, stages) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => {
                 first_error
@@ -413,18 +295,4 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         .into_inner()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .map_or(Ok(()), Err)
-}
-
-fn missing_lifecycle_order(
-    project_dirs: &[PathBuf],
-    ordered_dirs: &HashSet<PathBuf>,
-) -> InstallError {
-    InstallError::ProjectLifecycleOrder {
-        projects: project_dirs
-            .iter()
-            .filter(|dir| !ordered_dirs.contains(*dir))
-            .map(|dir| dir.display().to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    }
 }

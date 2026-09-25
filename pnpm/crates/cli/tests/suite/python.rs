@@ -1992,7 +1992,10 @@ async fn rejects_a_platform_it_cannot_resolve_for() {
         project(root.path(), &server.url(), &["alpha>=1"]);
         add_supported_architectures(root.path(), &[platform]);
 
-        assert_failure_contains(pacquet_in(root.path()).arg("install"), expected);
+        assert_failure_contains(
+            pacquet_in(root.path()).args(["install", "--runtime-on-fail=error"]),
+            expected,
+        );
     }
 }
 

@@ -6,6 +6,7 @@ use super::{
     fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers, get_node_artifact_address,
 };
+use crate::normalize_arch::node_major;
 
 /// The musl assets `unofficial_mirror` publishes for `version`, or an
 /// empty list when that release has no musl builds.
@@ -162,11 +163,35 @@ fn node_platform_asset(
     let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
     let binary =
         BinaryResolution { url, integrity, bin: bin_spec_for_platform(&platform), archive, prefix };
-    let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
-    Ok(PlatformAssetResolution {
-        resolution: LockfileResolution::Binary(binary),
-        targets: vec![target],
-    })
+    let targets = platform_asset_targets(&platform, &parsed.arch, libc, version);
+    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
+}
+
+fn platform_asset_targets(
+    platform: &str,
+    arch: &str,
+    libc: Option<String>,
+    version: &str,
+) -> Vec<PlatformAssetTarget> {
+    let mut targets =
+        vec![PlatformAssetTarget { os: platform.to_string(), cpu: arch.to_string(), libc }];
+    if let Some(major) = node_major(version) {
+        if platform == "darwin" && arch == "x64" && major < 16 {
+            targets.push(PlatformAssetTarget {
+                os: "darwin".to_string(),
+                cpu: "arm64".to_string(),
+                libc: None,
+            });
+        }
+        if platform == "win32" && arch == "x64" && major < 20 {
+            targets.push(PlatformAssetTarget {
+                os: "win32".to_string(),
+                cpu: "arm64".to_string(),
+                libc: None,
+            });
+        }
+    }
+    targets
 }
 
 pub(super) struct NodeFileName {

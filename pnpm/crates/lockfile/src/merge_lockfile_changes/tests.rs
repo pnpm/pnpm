@@ -137,32 +137,140 @@ snapshots:
 /// recorded-config fields are deliberately dropped rather than picked
 /// from one side — the install writes its own back.
 #[test]
-fn the_recorded_configuration_is_dropped() {
+fn the_recorded_configuration_is_preserved_and_merged() {
     let ours = "\
 lockfileVersion: '9.0'
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
+  dedupePeers: true
 overrides:
   foo: 1.0.0
+  bar: 2.0.0
+neverBuiltDependencies:
+  - fsevents
+onlyBuiltDependencies:
+  - esbuild
+packageExtensionsChecksum: checksum-ours
+pnpmfileChecksum: checksum-pnpmfile-ours
 ignoredOptionalDependencies:
   - fsevents
-pnpmfileChecksum: ours
+patchedDependencies:
+  foo@1.0.0: hash-ours
+  baz@3.0.0: hash-baz
+catalogs:
+  default:
+    react:
+      specifier: ^18.0.0
+      version: 18.2.0
+    lodash:
+      specifier: ^4.17.20
+      version: 4.17.21
+time:
+  foo: '2024-01-01T00:00:00.000Z'
 ";
     let theirs = "\
 lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: true
+  peersSuffixMaxLength: 500
+overrides:
+  foo: 1.1.0
+  qar: 3.0.0
+neverBuiltDependencies:
+  - node-gyp
+onlyBuiltDependencies:
+  - sqlite3
+packageExtensionsChecksum: checksum-theirs
+pnpmfileChecksum: checksum-pnpmfile-theirs
 ignoredOptionalDependencies:
   - node-gyp
-pnpmfileChecksum: theirs
+patchedDependencies:
+  foo@1.0.0: hash-theirs
+  qar@2.0.0: hash-qar
+catalogs:
+  default:
+    react:
+      specifier: ^18.3.0
+      version: 18.3.1
+    axios:
+      specifier: ^1.0.0
+      version: 1.6.0
+  other:
+    vue:
+      specifier: ^3.0.0
+      version: 3.4.0
+time:
+  bar: '2024-02-01T00:00:00.000Z'
 ";
     let merged = merged(ours, theirs);
-    assert!(merged.settings.is_none());
-    assert!(merged.overrides.is_none());
-    assert_eq!(merged.pnpmfile_checksum.as_deref(), Some("ours"));
+    let settings = merged.settings.expect("settings preserved");
+    assert!(settings.auto_install_peers);
+    assert!(settings.exclude_links_from_lockfile);
+    assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.peers_suffix_max_length, Some(500));
+
+    let overrides = merged.overrides.expect("overrides preserved");
+    assert_eq!(overrides.get("foo").map(String::as_str), Some("1.1.0"));
+    assert_eq!(overrides.get("bar").map(String::as_str), Some("2.0.0"));
+    assert_eq!(overrides.get("qar").map(String::as_str), Some("3.0.0"));
+
+    assert_eq!(
+        merged.extra.get("neverBuiltDependencies"),
+        Some(&serde_json::json!(["fsevents", "node-gyp"])),
+    );
+    assert_eq!(
+        merged.extra.get("onlyBuiltDependencies"),
+        Some(&serde_json::json!(["esbuild", "sqlite3"])),
+    );
+
+    assert_eq!(merged.package_extensions_checksum.as_deref(), Some("checksum-ours"));
+    assert_eq!(merged.pnpmfile_checksum.as_deref(), Some("checksum-pnpmfile-ours"));
     assert_eq!(
         merged.ignored_optional_dependencies.as_deref(),
         Some(["fsevents".to_string(), "node-gyp".to_string()].as_slice()),
     );
+
+    let patched = merged.patched_dependencies.expect("patched_dependencies preserved");
+    assert_eq!(patched.get("foo@1.0.0").map(String::as_str), Some("hash-theirs"));
+    assert_eq!(patched.get("baz@3.0.0").map(String::as_str), Some("hash-baz"));
+    assert_eq!(patched.get("qar@2.0.0").map(String::as_str), Some("hash-qar"));
+
+    let catalogs = merged.catalogs.expect("catalogs preserved");
+    let default_cat = &catalogs["default"];
+    assert_eq!(default_cat["react"].specifier, "^18.3.0");
+    assert_eq!(default_cat["react"].version, "18.3.1");
+    assert_eq!(default_cat["lodash"].specifier, "^4.17.20");
+    assert_eq!(default_cat["lodash"].version, "4.17.21");
+    assert_eq!(default_cat["axios"].specifier, "^1.0.0");
+    assert_eq!(default_cat["axios"].version, "1.6.0");
+
+    let other_cat = &catalogs["other"];
+    assert_eq!(other_cat["vue"].specifier, "^3.0.0");
+    assert_eq!(other_cat["vue"].version, "3.4.0");
+
+    let time = merged.time.expect("time preserved");
+    assert_eq!(time.get("foo").map(String::as_str), Some("2024-01-01T00:00:00.000Z"));
+    assert_eq!(time.get("bar").map(String::as_str), Some("2024-02-01T00:00:00.000Z"));
+}
+
+#[test]
+fn merging_preserves_matching_untracked_hook_state() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(false));
+}
+
+#[test]
+fn merging_marks_conflicting_untracked_hook_state_for_resolution() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: true\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(true));
 }
 
 /// A tool driving pnpm records its own state in a top-level block beside

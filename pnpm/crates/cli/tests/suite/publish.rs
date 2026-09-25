@@ -178,6 +178,58 @@ fn publish_config_registry_overrides_the_default() {
 }
 
 #[test]
+fn publish_config_scoped_registry_overrides_the_npmrc_scoped_registry() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut default_registry = mockito::Server::new();
+    let mut npmrc_scoped_registry = mockito::Server::new();
+    let mut unscoped_publish_registry = mockito::Server::new();
+    let mut publish_registry = mockito::Server::new();
+    fs::write(
+        dir.path().join(".npmrc"),
+        format!(
+            "registry={}/\n@scope:registry={}/\n//{}/:_authToken=t\n",
+            default_registry.url(),
+            npmrc_scoped_registry.url(),
+            publish_registry.host_with_port(),
+        ),
+    )
+    .expect("write .npmrc");
+    let manifest = json!({
+        "name": "@scope/pkg",
+        "version": "1.0.0",
+        "publishConfig": {
+            "registry": format!("{}/", unscoped_publish_registry.url()),
+            "@other:registry": format!("{}/", default_registry.url()),
+            "@scope:registry": format!("{}/", publish_registry.url()),
+        },
+    });
+    fs::write(dir.path().join("package.json"), manifest.to_string()).expect("write package.json");
+
+    let unexpected =
+        [&mut default_registry, &mut npmrc_scoped_registry, &mut unscoped_publish_registry].map(
+            |server| {
+                server
+                    .mock("PUT", Matcher::Any)
+                    .expect(0)
+                    .create()
+            },
+        );
+    let publish_mock = publish_registry
+        .mock("PUT", "/@scope%2fpkg")
+        .match_header("authorization", "Bearer t")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &[]));
+    for mock in unexpected {
+        mock.assert();
+    }
+    publish_mock.assert();
+}
+
+#[test]
 fn tag_flag_registers_the_version_under_that_dist_tag() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
@@ -661,3 +713,39 @@ fn publish_rejects_refused_head_metadata_in_ci() {
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_GIT_UNKNOWN_BRANCH"), "stderr: {stderr}");
 }
+
+#[test]
+fn workspace_npmrc_registry_is_effective_for_package_publish() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let project_dir = workspace.path().join("packages/pkg-a");
+    fs::create_dir_all(&project_dir).expect("create project directory");
+    fs::write(workspace.path().join(".npmrc"), format!("registry={}/\n", server.url()))
+        .expect("write .npmrc");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        project_dir.join("package.json"),
+        json!({
+            "name": "test-publish-workspace-pkg",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let mock = server
+        .mock("PUT", "/test-publish-workspace-pkg")
+        .match_body(Matcher::PartialJsonString(
+            r#"{"name":"test-publish-workspace-pkg","dist-tags":{"latest":"1.0.0"}}"#.to_owned(),
+        ))
+        .with_status(200)
+        .with_body(r#"{"ok":true}"#)
+        .expect(1)
+        .create();
+
+    assert_success(&publish(&project_dir, &[]));
+    mock.assert();
+}
+
+mod wait;

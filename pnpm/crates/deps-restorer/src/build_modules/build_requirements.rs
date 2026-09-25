@@ -1,10 +1,10 @@
 use super::slots::PkgRoots;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_package_manifest::{
     file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
 };
 use pnpm_patching::{ExtendedPatchInfo, preview_patch};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Whether each configured patch adds build work its package's published
 /// manifest does not declare, keyed by the peer-stripped package key.
@@ -179,4 +179,57 @@ pub(crate) fn deferred_builds<'a>(
         .collect();
     deferred.sort();
     deferred
+}
+
+/// The inputs of [`ScheduledBuilds::new`].
+#[derive(Clone, Copy)]
+pub struct ScheduledBuildsInputs<'a> {
+    /// This install's materialized snapshots. `None` (a rebuild) schedules
+    /// nothing through this path.
+    pub materialized_snapshots: Option<&'a [PackageKey]>,
+    /// The lockfile's `packages` rows, whose `hasBin` narrows the set to
+    /// snapshots with bins. `None` keeps every snapshot.
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub allow_build_policy: &'a super::AllowBuildPolicy,
+    pub ignore_scripts: bool,
+}
+
+/// The snapshots with bins whose build may run after an install's link
+/// phase: materialized by this install and allowed by `allowBuilds`.
+///
+/// Whether a build actually runs also depends on patches, `binding.gyp`
+/// and `.hooks`, which the link phase does not evaluate. Over-including a
+/// snapshot is safe: its held-back bin is linked by the post-build relink,
+/// which runs whenever a build touched a slot. An ignored or denied build
+/// is never included, since no script creates its bins later.
+pub struct ScheduledBuilds<'a> {
+    snapshots: HashSet<&'a PackageKey>,
+}
+
+impl<'a> ScheduledBuilds<'a> {
+    /// `None` when no dependency build follows the link phase: scripts are
+    /// ignored, or a rebuild passes no materialized snapshots.
+    #[must_use]
+    pub fn new(inputs: ScheduledBuildsInputs<'a>) -> Option<Self> {
+        let materialized = inputs.materialized_snapshots.filter(|_| !inputs.ignore_scripts)?;
+        let snapshots = materialized
+            .iter()
+            .filter(|key| {
+                inputs.packages.is_none_or(|packages| {
+                    packages
+                        .get(&key.without_peer())
+                        .is_some_and(crate::link_bins::may_have_bin)
+                })
+            })
+            .filter(|key| {
+                inputs.allow_build_policy.check(&key.without_peer().to_string()) == Some(true)
+            })
+            .collect();
+        Some(ScheduledBuilds { snapshots })
+    }
+
+    #[must_use]
+    pub fn includes(&self, snapshot_key: &PackageKey) -> bool {
+        self.snapshots.contains(snapshot_key)
+    }
 }

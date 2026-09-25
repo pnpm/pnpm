@@ -134,6 +134,42 @@ fn pinned_writes_a_prerelease_exactly() {
     );
 }
 
+#[test]
+fn pinned_writes_a_non_semver_version_exactly() {
+    for version in ["1", "1.0", "1.x"] {
+        assert_eq!(
+            calc_specifier_for_workspace_dep(
+                DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
+                Some("my-lib"),
+                "my-lib",
+                Some(version),
+                SaveWorkspaceProtocol::On,
+                RangeSpecStyle::Major,
+            ),
+            format!("workspace:{version}"),
+        );
+    }
+}
+
+/// Written exactly, these would mean a wildcard, a tag, an alias, or a
+/// different source inside `workspace:`.
+#[test]
+fn pinned_keeps_the_operator_for_other_non_semver_versions() {
+    for version in ["*", "dev", "other@1", "github:owner/repo", "01"] {
+        assert_eq!(
+            calc_specifier_for_workspace_dep(
+                DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
+                Some("my-lib"),
+                "my-lib",
+                Some(version),
+                SaveWorkspaceProtocol::On,
+                RangeSpecStyle::Major,
+            ),
+            format!("workspace:^{version}"),
+        );
+    }
+}
+
 /// `Off` still renders a `workspace:` specifier — declining to use one
 /// at all is the caller's decision, not this function's.
 #[test]

@@ -7,15 +7,23 @@ snapshot.setDefaultSnapshotSerializers([
 import path from 'node:path'
 import { cmdExtension } from 'cmd-extension'
 import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
-import { cmdShim, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import {
+  cmdShim,
+  cmdShimIfExists,
+  isShimForMissingTarget,
+  isShimNodePath,
+  isShimPointingAt,
+  readShNodePath,
+} from '@pnpm/bins.cmd-shim'
 
 /**
  * @param {import('node:test').TestContext} t
  * @param {string} fileName
  * @param {'\n' | '\r\n'} lineEnding
+ * @param {string} name The subtest name, which keys the snapshot.
  */
-async function testFile (t, fileName, lineEnding = '\n') {
-  await t.test(path.basename(fileName).toLowerCase(), async (t) => {
+async function testFile (t, fileName, lineEnding = '\n', name = path.basename(fileName).toLowerCase()) {
+  await t.test(name, async (t) => {
     const invalidLineEnding = lineEnding === '\r\n' ? /$(?<!\r)\n/ugm : /$\r\n/ugm
     let content = await fs.promises.readFile(fileName, 'utf8')
 
@@ -53,6 +61,41 @@ describe('isShimPointingAt', () => {
     const content = await fs.promises.readFile(to, 'utf8')
     // src without the last path segment — must not match
     assert.equal(isShimPointingAt(content, path.dirname(src)), false)
+  })
+})
+
+describe('missing source', () => {
+  const to = path.resolve(fixtures, 'missing.shim')
+  before(setupFixtures)
+
+  test('infers the runtime from the extension', async () => {
+    const src = path.resolve(fixtures, 'dist', 'missing.js')
+    await cmdShim(src, to, { createCmdFile: true, fs })
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir\/dist\/missing\.js" "\$@"\n/)
+    assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
+  })
+
+  test('runs a source without a known extension directly', async () => {
+    const src = path.resolve(fixtures, 'missing')
+    await cmdShim(src, to, { createCmdFile: false, fs })
+    const content = fs.readFileSync(to, 'utf8')
+    assert.match(content, /\nexec "\$basedir\/missing" +"\$@"\n/)
+    assert.doesNotMatch(content, /exec node/)
+  })
+
+  test('cmdShimIfExists writes no shim', async () => {
+    const skipped = path.resolve(fixtures, 'if-exists.shim')
+    await cmdShimIfExists(path.resolve(fixtures, 'missing'), skipped, { createCmdFile: true, fs })
+    assert.equal(fs.existsSync(skipped), false)
+    assert.equal(fs.existsSync(`${skipped}${cmdExtension}`), false)
+  })
+
+  test('marks the shim as written for a missing target', async () => {
+    await cmdShim(path.resolve(fixtures, 'missing'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), true)
+
+    await cmdShim(path.resolve(fixtures, 'src.env'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), false)
   })
 })
 
@@ -125,7 +168,8 @@ describe('env shebang with NODE_PATH', () => {
   })
 
   test('shim files', async (t) => {
-    await testFile(t, to)
+    // A shim written on Windows picks the NODE_PATH form when it runs.
+    await testFile(t, to, '\n', process.platform === 'win32' ? 'env.shim (windows)' : 'env.shim')
     await testFile(t, `${to}${cmdExtension}`, '\r\n')
     await testFile(t, `${to}.ps1`)
   })
@@ -282,3 +326,30 @@ describe('batch script', () => {
     await testFile(t, `${to}.ps1`)
   })
 })
+
+describe('readShNodePath & isShimNodePath', () => {
+  test('extracts posix new_node_path with single quote escapes from Windows shim', () => {
+    const shim = `
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    exe=".exe"
+    msys="true"
+  ;;
+esac
+
+if [ -n "$msys" ]; then
+  new_node_path='C:\\foo\\bar'
+  node_path_sep=';'
+else
+  new_node_path='/mnt/c/it'\\''s/path'
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+fi
+`
+    assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
+    assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+})
+

@@ -16,7 +16,22 @@ fn update_args(args: &[&str]) -> UpdateArgs {
 }
 
 fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions { prod, dev, optional, no_optional }
+    UpdateDependencyOptions { prod, dev, optional, no_optional, peer: false }
+}
+
+#[test]
+fn peer_is_opt_in() {
+    let mut options = options(false, false, false, false);
+    options.peer = true;
+    assert!(options.include_direct().contains(&DependencyGroup::Peer));
+}
+
+#[test]
+fn interactive_peer_is_rejected() {
+    let error = update_args(&["--interactive", "--peer"])
+        .check_interactive_peer_options()
+        .expect_err("interactive peer updates are not supported");
+    assert!(error.to_string().contains("--peer cannot be combined with --interactive"));
 }
 
 #[test]
@@ -192,4 +207,8 @@ fn constrained_patch_refresh_stays_on_the_client() {
     );
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
+    assert!(
+        !update_args(&["--patches", "--no-optional"])
+            .can_delegate_patch_refresh(false, &all_groups),
+    );
 }

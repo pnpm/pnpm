@@ -26,6 +26,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     // they go to the real filesystem rather than the mocks above.
     lstatWithRetry: jest.fn(lstatSync),
     unlinkWithRetry: jest.fn(unlinkSync),
+    withFileLockRetry: <T>(operation: () => T): T => operation(),
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))

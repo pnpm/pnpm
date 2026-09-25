@@ -2,40 +2,10 @@
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
-use pnpm_network::redact_url_for_display;
+use pnpm_network::{redact_url_for_display, walk_reqwest_chain};
 use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
 use std::{error::Error as StdError, io, path::PathBuf};
 use zune_inflate::errors::InflateDecodeErrors;
-
-/// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
-/// `error sending request for url (URL): <inner>` only if it can find
-/// an inner source, and on some failure modes (e.g. the request was
-/// dropped before a connect was attempted) `inner` is `None` —
-/// leaving the user with the truly opaque `error sending request for
-/// url (URL)` and no clue about what actually failed.
-///
-/// [`walk_reqwest_chain`] walks `error.source()` itself and joins every
-/// stage's `Display` with `: ` so the rendered [`NetworkError`] always
-/// carries the leaf reason (e.g. `Connection refused (os error 61)`,
-/// `tls handshake eof`, `dns error: failed to lookup address`),
-/// regardless of which intermediate `reqwest` / `hyper` / `io::Error`
-/// happens to elide it.
-fn walk_reqwest_chain(error: &reqwest::Error) -> String {
-    let mut out = error.to_string();
-    let mut error: &dyn std::error::Error = error;
-    while let Some(src) = error.source() {
-        let frame = src.to_string();
-        // Skip empty or duplicate frames — hyper occasionally repeats
-        // the same message across two layers, and reqwest sometimes
-        // already includes the inner string in its top-level Display.
-        if !frame.is_empty() && !out.ends_with(&frame) {
-            out.push_str(": ");
-            out.push_str(&frame);
-        }
-        error = src;
-    }
-    out
-}
 
 /// Every URL below is rendered through [`redact_url_for_display`]: a
 /// tarball URL can carry inline `user:pass@` credentials — typed on the

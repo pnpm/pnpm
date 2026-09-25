@@ -70,16 +70,16 @@ pub(super) fn resolution_changed_at(
     })
 }
 /// Whether the installability filter rules this package out on this
-/// host. Applied only when `!opts.force`. An optional dep on an
-/// unsupported platform is silently skipped; a required one is an
-/// error.
+/// host. Applied only when `!opts.include_incompatible_packages`. An
+/// optional dep on an unsupported platform is silently skipped; a
+/// required one is an error.
 pub(super) fn installability_skip(
     state: &WalkState<'_>,
     pkg_key: &PackageKey,
     metadata: &pnpm_lockfile::PackageMetadata,
     optional: bool,
 ) -> Result<bool, HoistedDepGraphError> {
-    if state.opts.force {
+    if state.opts.include_incompatible_packages {
         return Ok(false);
     }
     let manifest = manifest_for_installability(pkg_key, metadata);

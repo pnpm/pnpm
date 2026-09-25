@@ -38,3 +38,29 @@ fn directory_resolution_rejects_symlink_escape() {
         "expected path_escape error, got {err:?}",
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn directory_resolution_preserves_internal_directory_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let workspace = tmp.path().join("workspace");
+    let package_dir = workspace.join("packages/dep");
+    let sub = package_dir.join("sub");
+    std::fs::create_dir_all(&sub).expect("create sub dir");
+    std::fs::write(sub.join("file.txt"), b"sub content").expect("write sub file");
+    symlink("sub", package_dir.join("link_sub")).expect("create internal directory symlink");
+
+    let files_map = fetch_directory_resolution(
+        &workspace,
+        &DirectoryResolution { directory: "packages/dep".to_string() },
+        false,
+    )
+    .expect("directory resolution should succeed");
+
+    assert!(
+        files_map.contains_key("link_sub"),
+        "files_map must include internal directory symlink",
+    );
+}

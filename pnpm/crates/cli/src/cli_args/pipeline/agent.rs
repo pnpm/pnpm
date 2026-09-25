@@ -215,7 +215,7 @@ fn run_pipeline_in_checkout(
     revision: &str,
     last_built: Option<&str>,
 ) -> miette::Result<()> {
-    let program = std::env::current_exe()
+    let program = pnpm_executor::current_pnpm_exe()
         .map_err(|error| miette::miette!("cannot locate the pnpm executable: {error}"))?;
     let mut child = Command::new(program);
     child.arg("pipeline");

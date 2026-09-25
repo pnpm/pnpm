@@ -2,15 +2,28 @@ import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
-import { stage } from '@pnpm/releasing.commands'
 import { overrideTty, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import tar from 'tar-stream'
 import { temporaryDirectory } from 'tempy'
 
 import { DEFAULT_OPTS } from './publish/utils/index.js'
+
+const realNetworkFetch = await import('@pnpm/network.fetch')
+const createFetchFromRegistry: typeof realNetworkFetch.createFetchFromRegistry = (opts) => {
+  const fetch = realNetworkFetch.createFetchFromRegistry(opts)
+  return (url, options) => fetch(url, {
+    ...options,
+    retry: { ...options?.retry, minTimeout: 1, maxTimeout: 1 },
+  })
+}
+jest.unstable_mockModule('@pnpm/network.fetch', () => ({
+  ...realNetworkFetch,
+  createFetchFromRegistry,
+}))
+const { stage } = await import('@pnpm/releasing.commands')
 
 const STAGE_ID = '1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f'
 const SECOND_STAGE_ID = '2b8f1c14-4a0d-4a4a-9a2e-6c5a2f0a1b33'
@@ -465,6 +478,7 @@ describe('stage command against the registry mock', () => {
         otp: '123456',
       }, ['approve', STAGE_ID, SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 1, output: 'Approved 1 of 2 staged packages.' })
+      expect(registry.requests.filter((request) => approvedStageId(request) === STAGE_ID)).toHaveLength(3)
     } finally {
       await registry.close()
     }
@@ -544,7 +558,7 @@ describe('stage command against the registry mock', () => {
       // The dependency is attempted (and retried by the registry client); the
       // dependent is never sent, as its dependency never reached the registry.
       expect(approveAttempts).not.toContain(STAGE_ID)
-      expect(approveAttempts).toContain(SECOND_STAGE_ID)
+      expect(approveAttempts).toEqual([SECOND_STAGE_ID, SECOND_STAGE_ID, SECOND_STAGE_ID])
     } finally {
       await registry.close()
     }

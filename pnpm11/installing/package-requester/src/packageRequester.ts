@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
+import { installabilityUnderForce, packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
@@ -46,7 +46,12 @@ import type {
   WantedDependency,
 } from '@pnpm/store.controller-types'
 import { gitHostedStoreIndexKey, pickStoreIndexKey } from '@pnpm/store.index'
-import type { DependencyManifest, DepPath, SupportedArchitectures } from '@pnpm/types'
+import {
+  DEPENDENCIES_OR_PEER_FIELDS,
+  type DependencyManifest,
+  type DepPath,
+  type SupportedArchitectures,
+} from '@pnpm/types'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
@@ -76,6 +81,7 @@ export function createPackageRequester (
   opts: {
     engineStrict?: boolean
     force?: boolean
+    forceIgnoresPlatform?: boolean
     nodeVersion?: string
     pnpmVersion?: string
     resolve: ResolveFunction
@@ -130,6 +136,7 @@ export function createPackageRequester (
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
+    forceIgnoresPlatform: opts.forceIgnoresPlatform,
     fetchPackageToStore,
     requestsQueue,
     resolve: opts.resolve,
@@ -152,6 +159,7 @@ async function resolveAndFetch (
   ctx: {
     engineStrict?: boolean
     force?: boolean
+    forceIgnoresPlatform?: boolean
     nodeVersion?: string
     pnpmVersion?: string
     requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
@@ -254,15 +262,25 @@ async function resolveAndFetch (
     }
   }
 
+  let hooked = false
+  if (options.readPackageHook != null && manifest != null) {
+    const hookedManifest = await options.readPackageHook(copyManifest(manifest))
+    if (hookedManifest != null) {
+      manifest = hookedManifest as DependencyManifest
+    }
+    hooked = true
+  }
+
+  const { engineStrict, includeIncompatiblePackages } = installabilityUnderForce(ctx)
   let isInstallable: boolean | null | undefined = (
-    ctx.force === true ||
+    includeIncompatiblePackages ||
     (
       manifest == null
         ? undefined
         : packageIsInstallable(id, manifest, {
-          engineStrict: ctx.engineStrict,
+          engineStrict,
           lockfileDir: options.lockfileDir,
-          nodeVersion: ctx.nodeVersion,
+          nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
           optional: wantedDependency.optional === true,
           supportedArchitectures: options.supportedArchitectures,
         })
@@ -296,6 +314,7 @@ async function resolveAndFetch (
         publishedAt,
         alias,
         policyViolation,
+        hooked,
       },
     }
   }
@@ -359,10 +378,17 @@ async function resolveAndFetch (
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
   if (isInstallable === undefined && manifest != null) {
-    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
-      engineStrict: ctx.engineStrict,
+    if (options.readPackageHook != null && !hooked) {
+      const hookedManifest = await options.readPackageHook(copyManifest(manifest))
+      if (hookedManifest != null) {
+        manifest = hookedManifest as DependencyManifest
+      }
+      hooked = true
+    }
+    isInstallable = packageIsInstallable(id, manifest, {
+      engineStrict,
       lockfileDir: options.lockfileDir,
-      nodeVersion: ctx.nodeVersion,
+      nodeVersion: options.nodeVersion ?? ctx.nodeVersion,
       optional: wantedDependency.optional === true,
       supportedArchitectures: options.supportedArchitectures,
     })
@@ -382,6 +408,7 @@ async function resolveAndFetch (
       publishedAt,
       alias,
       policyViolation,
+      hooked,
     },
     fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -795,6 +822,15 @@ async function tarballIsUpToDate (
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
   const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
+  try {
+    await fs.stat(tarball)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (!resolution.integrity) return false
+      return true
+    }
+    throw err
+  }
   const tarballStream = createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
@@ -826,4 +862,23 @@ async function fetcher (
     })
     throw err
   }
+}
+
+function copyManifest (manifest: DependencyManifest): DependencyManifest {
+  const copy: DependencyManifest = { ...manifest }
+  for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (manifest[depsField] != null) {
+      copy[depsField] = { ...manifest[depsField] }
+    }
+  }
+  if (manifest.peerDependenciesMeta != null) {
+    copy.peerDependenciesMeta = {}
+    for (const [peerName, peerMeta] of Object.entries(manifest.peerDependenciesMeta)) {
+      copy.peerDependenciesMeta[peerName] = { ...peerMeta }
+    }
+  }
+  if (manifest.engines != null) {
+    copy.engines = { ...manifest.engines }
+  }
+  return copy
 }

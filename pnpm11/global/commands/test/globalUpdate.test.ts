@@ -21,11 +21,13 @@ const promptApproveGlobalBuilds = jest.fn<(...args: unknown[]) => Promise<void>>
 const readInstalledPackages = jest.fn<(installDir: string) => Promise<Array<{ alias: string, manifest: { name: string, version: string } }>>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
 const info = jest.fn()
+const globalWarn = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
 const getActualBinNames = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['fresh']))
 
-jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
+const originalCoreLoggers = await import('@pnpm/core-loggers')
+jest.unstable_mockModule('@pnpm/core-loggers', () => ({ ...originalCoreLoggers, summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
   cleanOrphanedInstallDirs,
   createInstallDir,
@@ -36,7 +38,8 @@ jest.unstable_mockModule('@pnpm/global.packages', () => ({
 }))
 jest.unstable_mockModule('@pnpm/installing.modules-yaml', () => ({ readModulesManifest }))
 jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({ readWantedLockfile }))
-jest.unstable_mockModule('@pnpm/logger', () => ({ logger: { info } }))
+const originalLogger = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => ({ ...originalLogger, globalWarn, logger: { ...originalLogger.logger, info } }))
 jest.unstable_mockModule('../src/checkGlobalBinConflicts.js', () => ({ checkGlobalBinConflicts }))
 jest.unstable_mockModule('../src/globalActivation.js', () => ({
   activateGlobalInstall,
@@ -527,13 +530,16 @@ test('global update does not clean up or persist policy when activation fails', 
 })
 
 test('global update --latest drops the spec only of plain version dependencies', async () => {
+  const tarballsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-tarballs-'))
+  const localTarball = path.join(tarballsDir, 'local-tarball-pkg.tgz')
+  fs.writeFileSync(localTarball, '')
   createInstallDir.mockReturnValueOnce('/global/v11/install-3')
   getHashLink.mockReturnValueOnce('/global/v11/hash-local')
   scanGlobalPackages.mockReturnValue([
     {
       dependencies: {
         'private-linked-pkg': 'link:/home/user/projects/private-linked-pkg',
-        'local-tarball-pkg': 'file:/home/user/tarballs/local-tarball-pkg.tgz',
+        'local-tarball-pkg': `file:${localTarball}`,
         'git-pkg': 'github:user/git-pkg',
         'remote-tarball-pkg': 'https://example.com/pkg.tgz',
         'aliased-pkg': 'npm:other-pkg@^2.0.0',
@@ -546,11 +552,15 @@ test('global update --latest drops the spec only of plain version dependencies',
     },
   ])
 
-  await handleGlobalUpdate({
-    bin: '/global/bin',
-    globalPkgDir: '/global/v11',
-    latest: true,
-  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  try {
+    await handleGlobalUpdate({
+      bin: '/global/bin',
+      globalPkgDir: '/global/v11',
+      latest: true,
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } finally {
+    fs.rmSync(tarballsDir, { recursive: true, force: true })
+  }
 
   expect(installGlobalPackages).toHaveBeenCalledTimes(2)
   expect(installGlobalPackages).toHaveBeenNthCalledWith(
@@ -563,7 +573,7 @@ test('global update --latest drops the spec only of plain version dependencies',
     }),
     [
       'private-linked-pkg@link:/home/user/projects/private-linked-pkg',
-      'local-tarball-pkg@file:/home/user/tarballs/local-tarball-pkg.tgz',
+      `local-tarball-pkg@file:${localTarball}`,
       'git-pkg@github:user/git-pkg',
       'remote-tarball-pkg@https://example.com/pkg.tgz',
       'aliased-pkg@npm:other-pkg@^2.0.0',
@@ -572,6 +582,61 @@ test('global update --latest drops the spec only of plain version dependencies',
       'bar',
     ]
   )
+})
+
+test('global update skips a group whose file: source no longer exists and updates the rest', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'global-update-missing-source-'))
+  const missingSource = path.join(root, 'since-deleted')
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { 'local-pkg': `file:${missingSource}` },
+      hash: 'hash-local',
+      installDir: '/global/v11/old-local',
+    },
+    {
+      dependencies: { foo: '^1.0.0' },
+      hash: 'hash-foo',
+      installDir: '/global/v11/old-foo',
+    },
+  ])
+
+  try {
+    await handleGlobalUpdate({
+      bin: '/global/bin',
+      globalPkgDir: '/global/v11',
+    } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+
+  expect(globalWarn).toHaveBeenCalledWith(
+    `Skipped updating local-pkg because "${missingSource}" no longer exists. Reinstall local-pkg from an existing location, or remove it with "pnpm remove -g local-pkg".`
+  )
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  for (const [, depSpecs] of installGlobalPackages.mock.calls) {
+    expect(depSpecs).toEqual(['foo@^1.0.0'])
+  }
+})
+
+test('global update does not report already up to date when every group was skipped', async () => {
+  scanGlobalPackages.mockReturnValue([
+    {
+      dependencies: { 'local-pkg': `file:${path.join(os.tmpdir(), 'global-update-never-created')}` },
+      hash: 'hash-local',
+      installDir: '/global/v11/old-local',
+    },
+  ])
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(globalWarn).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).not.toHaveBeenCalled()
+  expect(info).not.toHaveBeenCalledWith(expect.objectContaining({ message: 'Already up to date' }))
 })
 
 // `pnpm self-update` owns the pnpm CLI's global install: it is what points the
@@ -710,4 +775,93 @@ test('global update without --latest resolves once before materialization', asyn
     expect.objectContaining({ dir: '/global/v11/install-1', lockfileOnly: false }),
     ['foo@^1.0.0']
   )
+})
+
+test('global update approves an immature version once across its resolution passes', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const violation = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    await installOpts.handleResolutionPolicyViolations?.([violation])
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: [violation], resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(installGlobalPackages).toHaveBeenCalledTimes(2)
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledWith([violation])
+  expect(activateGlobalInstall).toHaveBeenCalledTimes(1)
+})
+
+test('global update approves a version only a later resolution pass reports', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const first = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  const later = { name: 'bar', version: '3.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  let pass = 0
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    const violations = pass++ === 0 ? [first] : [first, later]
+    await installOpts.handleResolutionPolicyViolations?.(violations)
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: violations, resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>().mockResolvedValue(undefined)
+
+  const updateResolutionPolicyManifest = jest.fn<(violations: unknown[], dir: string) => Promise<void>>().mockResolvedValue(undefined)
+
+  await handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+    updateResolutionPolicyManifest,
+  } as any, [], {}) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(2)
+  expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(1, [first])
+  expect(handleResolutionPolicyViolations).toHaveBeenNthCalledWith(2, [later])
+  expect(updateResolutionPolicyManifest).toHaveBeenCalledWith([first, later], '/global/v11')
+})
+
+test('global update aborts without installing when the immature version is not approved', async () => {
+  createInstallDir.mockReturnValue('/global/v11/install-1')
+  getHashLink.mockReturnValue('/global/v11/hash-foo')
+  scanGlobalPackages.mockReturnValue([
+    { dependencies: { foo: '^1.0.0' }, hash: 'hash-foo', installDir: '/global/v11/old-foo' },
+  ])
+  const violation = { name: 'foo', version: '2.0.0', code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'published too recently' }
+  installGlobalPackages.mockImplementation(async (...args: unknown[]) => {
+    const installOpts = args[0] as { handleResolutionPolicyViolations?: (violations: unknown[]) => Promise<void> }
+    await installOpts.handleResolutionPolicyViolations?.([violation])
+    return { ignoredBuilds: undefined, resolutionPolicyViolations: [violation], resolvedVersions: { foo: '2.0.0' } }
+  })
+  const handleResolutionPolicyViolations = jest.fn<(violations: unknown[]) => Promise<void>>()
+    .mockRejectedValue(new Error('Aborted: the immature versions were not approved.'))
+
+  await expect(handleGlobalUpdate({
+    bin: '/global/bin',
+    globalPkgDir: '/global/v11',
+    handleResolutionPolicyViolations,
+  } as any, [], {})) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .rejects.toThrow('Aborted: the immature versions were not approved.')
+
+  expect(handleResolutionPolicyViolations).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledTimes(1)
+  expect(installGlobalPackages).toHaveBeenCalledWith(
+    expect.objectContaining({ lockfileOnly: true }),
+    ['foo@^1.0.0']
+  )
+  expect(activateGlobalInstall).not.toHaveBeenCalled()
 })

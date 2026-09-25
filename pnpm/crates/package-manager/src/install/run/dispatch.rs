@@ -1,19 +1,21 @@
 use super::{
     super::{
-        Arc, ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions,
-        Lockfile, LogEvent, LogLevel, PackageManifest, Path, PathBuf, PrepareModulesStateInputs,
+        ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
+        LogEvent, LogLevel, PackageManifest, PathBuf, PrepareModulesStateInputs,
         PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
-        lockfile_freshness::LockfileFreshnessInputs, map_frozen_lockfile_error,
-        prepare_modules_state, verify_lockfile_eagerly,
+        lockfile_freshness::{
+            LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
+        },
+        map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
     },
     InstallOwned, InstallView, RunMode, Verification,
     lockfile_load::Loaded,
-    manifests::{DevPreinstallScope, run_dev_preinstall_hook},
-    reject_frozen_with_update_checksums,
+    manifests::{RootHooksScope, run_root_hooks},
+    reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
     wanted::Lockfiles,
     workspace::{InstallScope, InstallWorkspace},
 };
-use pnpm_config::Config;
+use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
 /// Everything the run has settled before it dispatches.
 #[derive(Clone, Copy)]
@@ -37,6 +39,9 @@ pub(super) struct SettledProjects<'r, 'a> {
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {
     pub(super) take_frozen_path: bool,
+    /// Whether the root's `preinstall` is taken care of, so its run after
+    /// linking starts at `install`.
+    pub(super) root_preinstall_ran: bool,
     pub(super) modules: PreparedModulesState<'install>,
 }
 /// Announce the install, run `pnpm:devPreinstall`, and decide between the
@@ -48,7 +53,8 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     options: &mut InstallRunOptions<'install, '_>,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled { install, mode, lockfiles, .. } = settled;
-    announce_import::<Reporter>(settled, options.rebuild.as_ref())?;
+    let root_preinstall_ran = announce_import::<Reporter>(settled, options)?;
+    run_pre_uninstall_hooks::<Reporter>(settled, options.selection.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
     //
@@ -83,7 +89,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     // the would-be lockfile to diff against the existing one, and the
     // frozen freshness gate would otherwise abort on a stale lockfile
     // instead of reporting the change.
-    let take_frozen_path = decide_frozen_path(&FrozenDispatch {
+    let take_frozen_path = decide_frozen_path::<Reporter>(&FrozenDispatch {
         dry_run: install.execution.dry_run,
         frozen_lockfile: install.lockfile_policy.frozen,
         lockfile_had_conflicts: settled.loaded.wanted.had_conflicts,
@@ -95,6 +101,9 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     })
     .await?;
 
+    let take_frozen_path = take_frozen_path
+        && super::frozen_local_tarballs::local_tarballs_keep_frozen_path(settled).await?;
+
     if take_frozen_path && mode.lockfile_only {
         finish_dispatched_lockfile::<Reporter>(
             settled,
@@ -104,7 +113,27 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         return Ok(None);
     }
 
-    prepare_dispatched_modules::<Reporter>(settled, options, take_frozen_path).await
+    prepare_dispatched_modules::<Reporter>(
+        settled,
+        options,
+        Decided { take_frozen_path, root_preinstall_ran },
+    )
+    .await
+}
+/// What [`dispatch`] settled before it prepares the modules state.
+#[derive(Clone, Copy)]
+pub(super) struct Decided {
+    pub(super) take_frozen_path: bool,
+    pub(super) root_preinstall_ran: bool,
+}
+impl Decided {
+    fn with_modules(self, modules: PreparedModulesState<'_>) -> Dispatched<'_> {
+        let Decided {
+            take_frozen_path,
+            root_preinstall_ran,
+        } = self;
+        Dispatched { take_frozen_path, root_preinstall_ran, modules }
+    }
 }
 pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
@@ -118,18 +147,29 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         ..
     } = settled;
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
-    finish_frozen_lockfile_only::<Reporter>(
-        lockfile,
-        install.context.config,
-        LockfileOnlyFrozen {
-            workspace_root: &workspace.dirs.workspace_root,
-            prefix: &workspace.prefix,
-            resolution_verifiers: &verification.resolution_verifiers,
-            derived_lockfile_path: verification.derived_lockfile_path.as_deref(),
-            lockfile_verification_override,
-        },
-    )
-    .await?;
+    if let Some(lockfile_verification_override) = lockfile_verification_override {
+        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
+    } else {
+        verify_lockfile_eagerly::<Reporter>(
+            lockfile,
+            &verification.resolution_verifiers,
+            verification.derived_lockfile_path.as_deref(),
+            &install.context.config.cache_dir,
+        )
+        .await?;
+    }
+    if install.context.config.lockfile {
+        lockfile
+            .save_to_path(&workspace.dirs.workspace_root.join(
+                install.context.config.wanted_lockfile_name(),
+            ))
+            .map_err(InstallError::SaveWantedLockfile)?;
+    }
+    Reporter::emit(&LogEvent::Stage(StageLog {
+        level: LogLevel::Debug,
+        prefix: workspace.prefix.clone(),
+        stage: Stage::ImportingDone,
+    }));
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: workspace.prefix.clone(),
@@ -139,7 +179,7 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
 pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
-    take_frozen_path: bool,
+    decided: Decided,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled {
         install,
@@ -165,7 +205,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             workspace_packages: workspace.workspace_packages.as_ref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
-            frozen: take_frozen_path,
+            frozen: decided.take_frozen_path,
             filtered: scope.importers.filtered_install,
             disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
             supported_architectures: owned.projects.supported_architectures.as_ref(),
@@ -173,18 +213,18 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             effective_node_version: mode.effective_node_version.as_deref(),
         },
         verification,
-        write: lockfiles.write_policy(options.save_lockfile),
+        write: lockfiles.write_policy(options.save.lockfile),
         resolve_only: mode.resolve_only,
 
         installs_only: install.execution.installs_only,
     })
     .await?
-    .map(|modules| Dispatched { take_frozen_path, modules }))
+    .map(|modules| decided.with_modules(modules)))
 }
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
-    rebuild: Option<&crate::RebuildOptions>,
-) -> Result<(), InstallError> {
+    options: &InstallRunOptions<'_, '_>,
+) -> Result<bool, InstallError> {
     let Settled {
         install,
         mode,
@@ -213,19 +253,26 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     //   `--lockfile-only` (and `--dry-run`, which sets it) imply
     //   `ignoreScripts`.
     // - A rebuild, which resolves and links nothing.
+    // - An install that excludes `devDependencies`, such as `--prod`.
     // - `ignore_manifest_check`, which covers `pacquet fetch` (pnpm's
     //   `ignorePackageManifest`, installing from the lockfile alone)
     //   and the TypeScript CLI delegating a frozen materialization,
     //   which already ran the hook before handing the install over.
     // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
     //   marker for the one path that carries no flag of its own.
-    run_dev_preinstall_hook::<Reporter>(&DevPreinstallScope {
+    let root_preinstall_ran = run_root_hooks::<Reporter>(&RootHooksScope {
         config: install.context.config,
         workspace_root: &workspace.dirs.workspace_root,
         project_manifests,
         resolve_only: mode.resolve_only,
         ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-        rebuild,
+        scripts: crate::install::state_options::ProjectScriptSelection {
+            mutation: install.execution.mutation,
+            manifest_dir: workspace.dirs.manifest_dir,
+            workspace: options.selection.as_ref(),
+            rebuild: options.rebuild.as_ref(),
+            include_dev: mode.included.dev_dependencies,
+        },
     })?;
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
@@ -233,7 +280,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
         stage: Stage::ImportingStarted,
     }));
     tracing::info!(target: "pacquet::install", "Start all");
-    Ok(())
+    Ok(root_preinstall_ran)
 }
 /// What the frozen-vs-fresh dispatch decides on.
 pub(super) struct FrozenDispatch<'a> {
@@ -254,7 +301,7 @@ pub(super) struct FrozenDispatch<'a> {
 /// would-be lockfile to diff against the existing one, and the frozen
 /// freshness gate would otherwise abort on a stale lockfile instead of
 /// reporting the change.
-pub(super) async fn decide_frozen_path(
+pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
     dispatch: &FrozenDispatch<'_>,
 ) -> Result<bool, InstallError> {
     if dispatch.dry_run {
@@ -271,17 +318,24 @@ pub(super) async fn decide_frozen_path(
         //
         // pnpm's importer-set gate sits in the auto-frozen branch of
         // `isFrozenInstallPossible`, which an explicit `--frozen-lockfile`
-        // short-circuits past, so a removed project does not fail the install
-        // there.
+        // short-circuits past, so a project removed from the workspace
+        // patterns does not fail the install there. One whose manifest is
+        // gone does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
                 allow_missing_dependency_free_importers: false,
+                allow_unresolved_optional_dependencies: true,
                 prune_stale_importers: false,
                 ..dispatch.freshness.scope
             },
             ..dispatch.freshness
         };
-        check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        let skipped =
+            check_lockfile_freshness(lockfile, &freshness).await.map_err(InstallError::from)?;
+        if dispatch.freshness.scope.prune_stale_importers {
+            check_importer_manifests_exist(lockfile, &freshness).map_err(InstallError::from)?;
+        }
+        report_unresolved_optional_dependencies::<Reporter>(&skipped);
         return Ok(true);
     }
     // The wanted lockfile was only usable because its Git conflict markers
@@ -302,6 +356,24 @@ pub(super) async fn decide_frozen_path(
     }
     auto_frozen_path(dispatch, lockfile).await
 }
+fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
+    skipped: &[UnresolvedOptionalDependency],
+) {
+    for item in skipped {
+        Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: None,
+            package: SkippedOptionalPackage::ResolutionFailure {
+                name: Some(item.alias.clone()),
+                version: Some(item.specifier.clone()),
+                bare_specifier: item.specifier.clone(),
+            },
+            parents: Some(Vec::new()),
+            prefix: item.prefix.clone(),
+            reason: SkippedOptionalReason::ResolutionFailure,
+        }));
+    }
+}
 /// Consult the freshness gate for an auto-frozen install. A `Stale` /
 /// `NoImporter` outcome routes to the fresh-resolve path; a malformed
 /// `pnpm.overrides` is a user-config error that surfaces regardless of
@@ -316,14 +388,30 @@ pub(super) async fn auto_frozen_path(
         // hook's verdict blocks the frozen install. A lockfile synthesized
         // from the current snapshot skips the check (it only gates on a
         // non-empty wanted lockfile). A throwing hook aborts the install.
-        Ok(()) => Ok(dispatch.lockfile_synthesized_from_current
-            || dispatch.freshness.config.ignore_pnpmfile
-            || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
-                lockfile,
-                dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
-            )
-            .await
-            .map_err(InstallError::CustomResolverForceResolve)?),
+        Ok(_) => {
+            // An unchecksummed `readPackage` hook can change dependency
+            // manifests without changing the regular freshness inputs.
+            if !dispatch.freshness.config.ignore_pnpmfile {
+                let current =
+                    pnpm_hooks::untracked_read_package_hook(dispatch.freshness.pnpmfile_hook)
+                        .await
+                        .map_err(InstallError::ReadPackageHook)?;
+                if crate::install::untracked_read_package_hook_may_have_changed(
+                    lockfile.untracked_pnpmfile_read_package_hook(),
+                    current,
+                ) {
+                    return Ok(false);
+                }
+            }
+            Ok(dispatch.lockfile_synthesized_from_current
+                || dispatch.freshness.config.ignore_pnpmfile
+                || !crate::check_custom_resolver_force_resolve::force_resolve_from_pnpmfile(
+                    lockfile,
+                    dispatch.freshness.pnpmfile_hook.map(std::convert::AsRef::as_ref),
+                )
+                .await
+                .map_err(InstallError::CustomResolverForceResolve)?)
+        }
         Err(error @ (FreshnessCheckError::Stale(_) | FreshnessCheckError::NoImporter { .. })) => {
             tracing::info!(
                 target: "pacquet::install",
@@ -337,44 +425,6 @@ pub(super) async fn auto_frozen_path(
             | FreshnessCheckError::CalcPatchHashes(_)),
         ) => Err(error.into()),
     }
-}
-/// What a frozen `--lockfile-only` run still has to verify and write.
-pub(super) struct LockfileOnlyFrozen<'a, 'install> {
-    workspace_root: &'a Path,
-    prefix: &'a str,
-    resolution_verifiers: &'a [Arc<dyn super::super::ResolutionVerifier>],
-    derived_lockfile_path: Option<&'a Path>,
-    lockfile_verification_override: Option<super::super::LockfileVerificationOverride<'install>>,
-}
-/// This path materializes nothing, so there's no fetch to overlap; verify
-/// eagerly to keep the gate before the early return.
-pub(super) async fn finish_frozen_lockfile_only<Reporter: self::Reporter + 'static>(
-    lockfile: &Lockfile,
-    config: &Config,
-    finish: LockfileOnlyFrozen<'_, '_>,
-) -> Result<(), InstallError> {
-    if let Some(lockfile_verification_override) = finish.lockfile_verification_override {
-        lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
-    } else {
-        verify_lockfile_eagerly::<Reporter>(
-            lockfile,
-            finish.resolution_verifiers,
-            finish.derived_lockfile_path,
-            &config.cache_dir,
-        )
-        .await?;
-    }
-    if config.lockfile {
-        lockfile
-            .save_to_path(&finish.workspace_root.join(config.wanted_lockfile_name()))
-            .map_err(InstallError::SaveWantedLockfile)?;
-    }
-    Reporter::emit(&LogEvent::Stage(StageLog {
-        level: LogLevel::Debug,
-        prefix: finish.prefix.to_string(),
-        stage: Stage::ImportingDone,
-    }));
-    Ok(())
 }
 
 impl Verification {
@@ -419,6 +469,7 @@ impl<'r> Settled<'r, '_> {
                 ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                 prune_stale_importers: scope.prune_stale_importers,
                 allow_missing_dependency_free_importers: true,
+                allow_unresolved_optional_dependencies: false,
             },
         }
     }

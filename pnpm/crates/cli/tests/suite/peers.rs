@@ -198,14 +198,14 @@ fn strict_peer_dependencies_fails_a_resolving_install() {
         .output()
         .expect("run pnpm install");
     assert!(!output.status.success(), "install must fail: {output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     assert!(
-        stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
-        "stdout:\n{stdout}",
+        stderr.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
+        "stderr:\n{stderr}",
     );
-    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
-    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
-    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    assert!(stderr.contains("unmet peer @pnpm.e2e/foo"), "stderr:\n{stderr}");
+    assert!(stderr.contains("strictPeerDependencies: false"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("autoInstallPeers: true"), "stderr:\n{stderr}");
     assert!(workspace.join("node_modules").exists(), "the install must still have materialized");
 
     drop((root, mock_instance));
@@ -389,12 +389,67 @@ fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
         .output()
         .expect("run pnpm install");
     assert!(!output.status.success(), "install must fail: {output:?}");
-    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     assert!(
-        stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
-        "stdout:\n{stdout}",
+        stderr.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
+        "stderr:\n{stderr}",
     );
-    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
+    assert!(stderr.contains("unmet peer @pnpm.e2e/foo"), "stderr:\n{stderr}");
+
+    drop((root, mock_instance));
+}
+
+/// pnpm/pnpm#15351
+#[test]
+fn peers_check_names_the_project_of_each_issue() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nautoInstallPeers: false\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    write_linked_chain_project(
+        &workspace,
+        "lib",
+        serde_json::json!({ "peerDependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    for app in ["app-a", "app-b"] {
+        write_linked_chain_project(
+            &workspace,
+            app,
+            serde_json::json!({ "dependencies": { "lib": "workspace:*" } }),
+        );
+    }
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["peers", "check", "--lockfile-only"])
+        .output()
+        .expect("run pnpm peers check");
+    assert_eq!(output.status.code(), Some(1), "the lib's peer is missing: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    let project_report = |project: &str| {
+        format!(
+            "{project}\n  ✕ missing peer @pnpm.e2e/foo\n    Wanted:\n      100.0.0:\n        lib@1.0.0\n",
+        )
+    };
+    for project in ["packages/app-a", "packages/app-b"] {
+        assert!(stdout.contains(&project_report(project)), "stdout:\n{stdout}");
+    }
 
     drop((root, mock_instance));
 }
@@ -457,7 +512,7 @@ fn a_transitively_linked_packages_peer_is_reported_only_under_its_own_consumer()
 
 /// One project of the `app` -> `mid` -> `leaf` chain, named after its
 /// directory, with `extra` merged over the shared name and version.
-fn write_linked_chain_project(workspace: &std::path::Path, name: &str, extra: Value) {
+pub(super) fn write_linked_chain_project(workspace: &std::path::Path, name: &str, extra: Value) {
     let project_dir = workspace.join("packages").join(name);
     fs::create_dir_all(&project_dir).expect("create the chained project directory");
     let mut manifest = serde_json::json!({ "name": name, "version": "1.0.0" });
@@ -857,8 +912,8 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
         serde_json::json!({ "@pnpm.e2e/foo": "2.0.0", "@pnpm.e2e/bar": "100.0.0" }),
     );
     assert!(!unfiltered.status.success(), "the unfiltered install must fail: {unfiltered:?}");
-    let stdout = String::from_utf8(unfiltered.stdout).expect("stdout is UTF-8");
-    assert!(stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES]"), "stdout:\n{stdout}");
+    let stderr = String::from_utf8(unfiltered.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("[ERR_PNPM_PEER_DEP_ISSUES]"), "stderr:\n{stderr}");
 
     let filtered = install_and_resolve(
         &["--filter", "clean", "install"],
@@ -916,3 +971,6 @@ fn invalid_peer_dependency_specification_fails_install() {
 }
 
 mod catalogs;
+
+mod named_registry;
+mod workspace_root;

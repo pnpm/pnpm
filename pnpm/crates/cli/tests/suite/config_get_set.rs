@@ -100,3 +100,95 @@ fn config_set_checks_the_package_manager_when_writing_project_configuration() {
 
     drop(root);
 }
+
+#[test]
+fn config_set_preserves_repeated_ca_and_comments_in_npmrc() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let npmrc_path = workspace.join(".npmrc");
+    fs::write(
+        &npmrc_path,
+        "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n",
+    )
+    .expect("write .npmrc");
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "config",
+            "set",
+            "--location=project",
+            "registry",
+            "https://registry.example.com/",
+        ])
+        .output()
+        .expect("run pacquet config set");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let text = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(text.contains("registry=https://registry.example.com/"));
+    assert!(!text.contains("registry=https://registry.npmjs.org/"));
+
+    drop(root);
+}
+
+#[test]
+fn config_delete_preserves_repeated_ca_and_comments_in_npmrc() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let npmrc_path = workspace.join(".npmrc");
+    fs::write(
+        &npmrc_path,
+        "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n",
+    )
+    .expect("write .npmrc");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["config", "delete", "--location=project", "registry"])
+        .output()
+        .expect("run pacquet config delete");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let text = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(!text.contains("registry="));
+
+    drop(root);
+}
+
+#[test]
+fn config_set_ca_array_json_writes_unbracketed_ca_keys_to_clean_file() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let npmrc_path = workspace.join(".npmrc");
+    fs::write(&npmrc_path, "# Existing comment\nregistry=https://registry.npmjs.org/\n")
+        .expect("write .npmrc");
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "config",
+            "set",
+            "--json",
+            "--location=project",
+            "ca",
+            r#"["cert-x", "cert-y"]"#,
+        ])
+        .output()
+        .expect("run pacquet config set");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr={stderr}");
+
+    let text = fs::read_to_string(&npmrc_path).expect("read .npmrc");
+    assert!(text.contains("# Existing comment"));
+    assert!(text.contains("ca=cert-x"));
+    assert!(text.contains("ca=cert-y"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    drop(root);
+}

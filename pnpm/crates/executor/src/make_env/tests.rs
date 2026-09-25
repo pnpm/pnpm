@@ -1,7 +1,7 @@
 use super::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env,
-    build_env_for_platform, escape_newlines, is_dev_preinstall_marker, is_stamping_key,
-    sanitize_env_key, stamp_package,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
+    is_delegation_marker, is_stamping_key, sanitize_env_key, stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -330,21 +330,26 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
     assert!(!is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
     assert!(is_stamping_key(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
+    assert!(is_stamping_key(ROOT_PREINSTALL_ALREADY_RAN_ENV, false));
+    assert!(!is_stamping_key(&ROOT_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
+    assert!(is_stamping_key(&ROOT_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
 }
 
 /// The marker describes the install currently running. Leaving it in a
 /// script's env would make a nested install started by that script
 /// treat its own root hook as already run.
 #[test]
-fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
+fn the_delegation_markers_never_reach_a_script() {
     let mut parent = HashMap::new();
     parent.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
+    parent.insert(ROOT_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
 
     let pkg_root = Path::new("/tmp/nested");
     // Whichever way the value arrives: inherited above, or named by a
     // user's `extraEnv`, which is merged in after the parent-env filter.
     let mut extra = empty_extra();
     extra.insert(DEV_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
+    extra.insert(ROOT_PREINSTALL_ALREADY_RAN_ENV.into(), "true".into());
     let built = build_env(
         &base_opts(pkg_root, pkg_root, &extra),
         &json!({ "name": "nested", "version": "1.0.0" }),
@@ -352,16 +357,19 @@ fn the_dev_preinstall_delegation_marker_never_reaches_a_script() {
     );
 
     assert_eq!(built.env.get(DEV_PREINSTALL_ALREADY_RAN_ENV), None);
+    assert_eq!(built.env.get(ROOT_PREINSTALL_ALREADY_RAN_ENV), None);
 }
 
 /// On Windows a differently-cased spelling is the same variable, so an
 /// `extraEnv` naming it that way must be dropped too.
 #[test]
 fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
-    assert!(is_dev_preinstall_marker(DEV_PREINSTALL_ALREADY_RAN_ENV, false));
-    assert!(!is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), false));
-    assert!(is_dev_preinstall_marker(&DEV_PREINSTALL_ALREADY_RAN_ENV.to_lowercase(), true));
-    assert!(!is_dev_preinstall_marker("PNPM_INTERNAL_SOMETHING_ELSE", true));
+    for marker in [DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV] {
+        assert!(is_delegation_marker(marker, false));
+        assert!(!is_delegation_marker(&marker.to_lowercase(), false));
+        assert!(is_delegation_marker(&marker.to_lowercase(), true));
+    }
+    assert!(!is_delegation_marker("PNPM_INTERNAL_SOMETHING_ELSE", true));
 }
 
 /// Regression: the byte-level prefix check inside the Windows
@@ -418,4 +426,25 @@ fn escape_newlines_json_encodes_multi_line_only() {
     assert_eq!(escape_newlines("plain"), "plain");
     assert_eq!(escape_newlines("a\nb"), r#""a\nb""#);
     assert_eq!(escape_newlines(r#"has "quotes""#), r#"has "quotes""#);
+}
+
+#[cfg(unix)]
+#[test]
+fn package_manager_environment_preserves_native_node_paths() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt, process::Command};
+
+    let node = b"/node-\xff/node";
+    let env = super::package_manager_env(
+        Path::new("/"),
+        Some(Path::new(OsStr::from_bytes(node))),
+        None,
+        None,
+    );
+    let output = Command::new("/bin/sh")
+        .args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
+        .envs(env)
+        .output()
+        .expect("spawn shell");
+    assert!(output.status.success());
+    assert_eq!(output.stdout, [node.as_slice(), b"\n", node.as_slice(), b"\n"].concat());
 }

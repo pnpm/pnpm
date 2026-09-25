@@ -1,18 +1,17 @@
 use super::{
     Arc, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Config, Cow,
-    DependencyGroup, HashMap, InMemoryPackageMetaCache, LatestQuery, Lockfile, Matcher,
-    NpmResolver, PackageManifest, PickPolicy, ResolveOptions, ResolverWantedDependency,
-    ThrottledClient, Version, configured_catalogs, create_configured_npm_resolver, create_matcher,
-    github_actions, parse_catalog_protocol, resolve_from_catalog,
+    DefaultResolver, DependencyGroup, HashMap, LatestQuery, Lockfile, Matcher, PackageManifest,
+    PickPolicy, ResolveOptions, ResolverWantedDependency, ThrottledClient, Version,
+    configured_catalogs, create_configured_registry_resolver, create_matcher, github_actions,
+    parse_catalog_protocol, resolve_from_catalog,
 };
-use pnpm_resolving_resolver_base::Resolver;
 
 /// State shared by every importer inspected in one `outdated` (or
 /// `update --interactive`) run: one resolver and metadata cache, so a
 /// dependency several workspace projects share is fetched once, plus the
 /// catalogs their `catalog:` specifiers dereference against.
 pub(crate) struct OutdatedRun {
-    pub(super) resolver: NpmResolver<InMemoryPackageMetaCache>,
+    pub(super) resolver: DefaultResolver,
     pub(super) resolve_options: ResolveOptions,
     pub(super) catalogs: Catalogs,
 }
@@ -27,7 +26,7 @@ impl OutdatedRun {
         if query.full_metadata {
             policy.force_unfiltered_full_metadata();
         }
-        let resolver = create_configured_npm_resolver(config, http_client, &policy)
+        let resolver = create_configured_registry_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
         Ok(Self {
             resolver,
@@ -66,11 +65,11 @@ pub enum TargetVersion {
 /// `current` is the lockfile-pinned version; `target` is the resolved
 /// [`TargetVersion`]. Both are always present — dependencies without a
 /// lockfile pin, without a registry target, or whose specifier is not a
-/// plain semver range are dropped during collection because they cannot
+/// supported registry specifier are dropped during collection because they cannot
 /// be diffed.
 pub struct OutdatedPackage {
     /// The `package.json` key (and `node_modules` directory name). Equals
-    /// `package_name` except for npm-alias entries (`"foo": "npm:bar@^1"`).
+    /// `package_name` except for aliased registry entries (`"foo": "npm:bar@^1"`).
     pub alias: String,
     /// The registry package name actually queried.
     pub package_name: String,
@@ -323,7 +322,13 @@ pub(super) fn current_versions_from_importer(
         return map;
     };
     for (name, spec) in importer.dependencies_by_groups(include_direct.iter().copied()) {
-        if let Some(version) = spec.version.ver_peer().and_then(|ver| ver.version_semver()) {
+        let Some(ver) = spec.version.ver_peer() else {
+            continue;
+        };
+        if let Some(version) = ver
+            .version_semver()
+            .or_else(|| ver.registry_qualified().map(|(_, version)| version))
+        {
             map.insert(name.to_string(), version.clone());
         }
     }

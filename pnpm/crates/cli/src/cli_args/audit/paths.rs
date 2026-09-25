@@ -24,7 +24,7 @@ pub(crate) fn build_audit_path_index(
     include: Include,
 ) -> AuditPathIndex {
     let mut paths = AuditPathIndex::default();
-    let main = AuditGraph::main(lockfile);
+    let main = AuditGraph::main(lockfile, include.peer_edges);
     walk_for_paths(&main, vulnerable_names, include, &mut paths);
     if let Some(env_lockfile) = env_lockfile {
         let env = AuditGraph::env(env_lockfile);
@@ -53,12 +53,13 @@ pub(crate) fn walk_for_paths(
     include: Include,
     paths: &mut AuditPathIndex,
 ) {
-    let mut walk = PathWalk::new(graph, vulnerable_names, include, paths);
+    let mut walk = PathWalk::new(graph, vulnerable_names, include);
     for importer in &graph.importers {
         let importer_trail =
             Rc::new(TrailNode { name: importer.path_segment.clone(), parent: None });
         let mut in_trail = HashSet::new();
         let mut stack: Vec<PathFrame> = Vec::new();
+        walk.begin_importer();
         for (_, root) in importer.roots.iter().filter(|(kind, _)| root_included(*kind, include)) {
             open_path_node(
                 &mut walk,
@@ -74,17 +75,33 @@ pub(crate) fn walk_for_paths(
 }
 
 /// The inputs one path walk reads for every node it visits.
+///
+/// Each importer records its first path to a finding even after the finding
+/// reached [`MAX_PATHS_PER_FINDING`], so a project whose dependency is shared
+/// through many chains cannot hide that another project depends on the same
+/// vulnerable package. Targets pruned as saturated are restored when the next
+/// importer begins.
 pub(crate) struct PathWalk<'a> {
     graph: &'a AuditGraph<'a>,
     vulnerable_names: &'a HashSet<String>,
     include: Include,
     classes: HashMap<PackageKey, DepClass>,
     pending: BTreeMap<String, BTreeMap<String, Vec<PackageKey>>>,
+    saturated: Vec<PackageKey>,
+    importer_findings: HashSet<(String, String)>,
     live: LiveGraph,
 }
 
-fn finding_saturated(key: &PackageKey, class: DepClass, paths: &AuditPathIndex) -> bool {
+fn finding_saturated(
+    key: &PackageKey,
+    class: DepClass,
+    paths: &AuditPathIndex,
+    importer_findings: &HashSet<(String, String)>,
+) -> bool {
     let version = package_version(key).expect("vulnerable target has a version");
+    if !importer_findings.contains(&(key.name.to_string(), version.clone())) {
+        return false;
+    }
     let Some(info) = paths
         .get(&key.name.to_string())
         .and_then(|versions| versions.get(&version))
@@ -101,17 +118,14 @@ impl<'a> PathWalk<'a> {
         graph: &'a AuditGraph<'a>,
         vulnerable_names: &'a HashSet<String>,
         include: Include,
-        paths: &AuditPathIndex,
     ) -> Self {
         let classes = classify_graph(graph, include);
         let targets = classes
-            .iter()
-            .filter(|(key, class)| {
-                vulnerable_names.contains(&key.name.to_string())
-                    && package_version(key).is_some()
-                    && !finding_saturated(key, **class, paths)
+            .keys()
+            .filter(|key| {
+                vulnerable_names.contains(&key.name.to_string()) && package_version(key).is_some()
             })
-            .map(|(key, _)| key.clone())
+            .cloned()
             .collect::<Vec<_>>();
         let live = LiveGraph::new(graph, include, &classes, &targets);
         let mut pending: BTreeMap<String, BTreeMap<String, Vec<PackageKey>>> = BTreeMap::new();
@@ -124,7 +138,29 @@ impl<'a> PathWalk<'a> {
                 .or_default()
                 .push(key);
         }
-        Self { graph, vulnerable_names, include, classes, pending, live }
+        Self {
+            graph,
+            vulnerable_names,
+            include,
+            classes,
+            pending,
+            saturated: Vec::new(),
+            importer_findings: HashSet::new(),
+            live,
+        }
+    }
+
+    fn begin_importer(&mut self) {
+        self.importer_findings.clear();
+        for key in std::mem::take(&mut self.saturated) {
+            self.live.add_target(&key);
+            let version = package_version(&key).expect("vulnerable target has a version");
+            self.pending
+                .get_mut(&key.name.to_string())
+                .and_then(|versions| versions.get_mut(&version))
+                .expect("saturated target has a pending finding")
+                .push(key);
+        }
     }
 
     fn prune_saturated_findings(&mut self, name: &str, version: &str, paths: &AuditPathIndex) {
@@ -133,8 +169,9 @@ impl<'a> PathWalk<'a> {
             .and_then(|versions| versions.get_mut(version))
             .expect("recorded finding has pending targets");
         for key in std::mem::take(targets) {
-            if finding_saturated(&key, self.classes[&key], paths) {
+            if finding_saturated(&key, self.classes[&key], paths, &self.importer_findings) {
                 self.live.remove_target(&key);
+                self.saturated.push(key);
             } else {
                 targets.push(key);
             }
@@ -181,13 +218,17 @@ pub(crate) fn open_path_node(
             .get(&key)
             .copied()
             .unwrap_or(DepClass { dev_only: false, optional_only: false });
+        let first_from_importer = walk.importer_findings.insert((name.clone(), version.clone()));
         if record_path(
             paths,
             &name,
             &version,
             join_trail(&trail),
-            class.dev_only,
-            class.optional_only,
+            PathClass {
+                is_dev: class.dev_only,
+                is_optional: class.optional_only,
+                exceeds_cap: first_from_importer,
+            },
         ) {
             walk.prune_saturated_findings(&name, &version, paths);
         }
@@ -195,7 +236,7 @@ pub(crate) fn open_path_node(
     if !walk.live.contains(&key) {
         return;
     }
-    let children = walk.graph.children(&key, walk.include.optional_dependencies);
+    let children = walk.graph.children(&key, walk.include);
     if children.is_empty() {
         return;
     }
@@ -203,14 +244,22 @@ pub(crate) fn open_path_node(
     stack.push(PathFrame { key, trail, children, next: 0 });
 }
 
-/// Returns whether the finding became saturated or its saturated classification changed.
+/// How a recorded path classifies its finding, and whether it is recorded past
+/// [`MAX_PATHS_PER_FINDING`].
+pub(crate) struct PathClass {
+    pub(crate) is_dev: bool,
+    pub(crate) is_optional: bool,
+    pub(crate) exceeds_cap: bool,
+}
+
+/// Returns whether the finding is saturated and either the path exceeded the cap,
+/// the finding just became saturated, or its saturated classification changed.
 pub(crate) fn record_path(
     paths: &mut AuditPathIndex,
     name: &str,
     version: &str,
     joined: String,
-    is_dev: bool,
-    is_optional: bool,
+    PathClass { is_dev, is_optional, exceeds_cap }: PathClass,
 ) -> bool {
     let by_version = paths.entry(name.to_string()).or_default();
     let info = by_version
@@ -221,11 +270,12 @@ pub(crate) fn record_path(
     let previous_optional = info.optional;
     info.dev &= is_dev;
     info.optional &= is_optional;
-    if info.paths.len() < MAX_PATHS_PER_FINDING && !info.paths.contains(&joined) {
+    if (exceeds_cap || info.paths.len() < MAX_PATHS_PER_FINDING) && !info.paths.contains(&joined) {
         info.paths.push(joined);
     }
     info.paths.len() >= MAX_PATHS_PER_FINDING
-        && (previous_count < MAX_PATHS_PER_FINDING
+        && (exceeds_cap
+            || previous_count < MAX_PATHS_PER_FINDING
             || previous_dev != info.dev
             || previous_optional != info.optional)
 }

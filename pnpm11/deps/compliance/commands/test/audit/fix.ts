@@ -9,7 +9,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { caretRangeForPatched, createMinimumReleaseAgeExcludes } from '../../src/audit/fix.js'
+import { caretRangeForPatched, createMinimumReleaseAgeExcludes, createOverrides } from '../../src/audit/fix.js'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
@@ -55,15 +55,12 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(output).toContain('entries were added to minimumReleaseAgeExclude')
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('^1.15.0')
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
-  // minimumReleaseAgeExclude should combine versions per module
   const axiosExclude = manifest.minimumReleaseAgeExclude?.find((e) => e.startsWith('axios@'))
-  expect(axiosExclude).toBeDefined()
-  expect(axiosExclude).toContain('0.18.1')
-  expect(axiosExclude).toContain('0.21.1')
-  expect(axiosExclude).toContain('0.21.2')
+  expect(axiosExclude).toBe('axios@1.15.0')
 })
 
 test('no minimumReleaseAgeExclude entries are added for patched versions published before the cutoff', async () => {
@@ -252,7 +249,8 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
 
   // Critical advisories should be fixed
-  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('^1.6.1')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.2']).toBe('^1.6.2')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBeFalsy()
   expect(manifest.overrides?.['nodemailer@<6.4.16']).toBe('^6.4.16')
   expect(manifest.overrides?.['netmask@<1.1.0']).toBe('^1.1.0')
 
@@ -552,7 +550,8 @@ test.each([
   expect(output).toMatch(/Run "pnpm install"/)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('^1.15.0')
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
 })
 
 test('an invalid --fix value is rejected', async () => {
@@ -590,7 +589,7 @@ test('saveExact saves the override as an exact version', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
 })
 
 test('savePrefix ~ saves the override as a tilde range', async () => {
@@ -612,7 +611,7 @@ test('savePrefix ~ saves the override as a tilde range', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('~0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('~1.15.0')
 })
 
 test('savePrefix = saves the override as an exact = range', async () => {
@@ -634,7 +633,7 @@ test('savePrefix = saves the override as an exact = range', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('=0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('=1.15.0')
 })
 
 test('savePrefix "" saves the override as an exact version', async () => {
@@ -656,7 +655,7 @@ test('savePrefix "" saves the override as an exact version', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
 })
 
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
@@ -897,3 +896,75 @@ describe('caretRangeForPatched', () => {
     expect(caretRangeForPatched('>=1.0.0 <2.0.0')).toBe('^1.0.0')
   })
 })
+
+describe('createOverrides', () => {
+  test('prunes subset overrides for the same package', () => {
+    const advisories = [
+      advisory('postcss', '<7.0.36', '>=7.0.36'),
+      advisory('postcss', '<8.4.31', '>=8.4.31'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'postcss@<8.4.31': '^8.4.31',
+    })
+  })
+
+  test('keeps different packages as separate overrides', () => {
+    const advisories = [
+      advisory('postcss', '<8.4.31', '>=8.4.31'),
+      advisory('axios', '<1.15.0', '>=1.15.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'axios@<1.15.0': '^1.15.0',
+      'postcss@<8.4.31': '^8.4.31',
+    })
+  })
+
+  test('keeps disjoint ranges for the same package', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '>=2.0.0 <2.1.0', '>=2.1.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.0',
+      'foo@>=2.0.0 <2.1.0': '^2.1.0',
+    })
+  })
+
+  test('prefers higher patched version for equivalent ranges', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '<1.0.0', '>=1.0.2'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.2',
+    })
+  })
+
+  test('deduplicates identical vulnerable and patched ranges', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.0',
+    })
+  })
+
+  test('retains narrower range when it has a higher patched version floor', () => {
+    const advisories = [
+      advisory('foo', '<1.0.2', '>=1.0.2'),
+      advisory('foo', '<2.0.0', '>=1.0.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.2': '^1.0.2',
+      'foo@<2.0.0': '^1.0.0',
+    })
+  })
+})
+

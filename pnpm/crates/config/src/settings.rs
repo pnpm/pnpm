@@ -1,33 +1,21 @@
 use super::{
-    AuditConfig, AuditLevel, BTreeMap, BTreeSet, CalcPatchHashError, CargoSettings, CatalogMode,
-    ColorMode, ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host,
-    IndexMap, InitType, LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PatchGroupRecord, PatchInput, Path, PathBuf, Pipe, PmOnFail,
-    ProjectConfig, PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ResolutionMode,
-    ResolvePatchedDependenciesError, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceKeyIssues, create_hex_hash_from_file, default_cache_dir, default_child_concurrency,
-    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
-    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
-    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_peers_suffix_max_length, default_public_hoist_pattern, default_registry,
-    default_state_dir, default_store_dir, default_unsafe_perm, default_user_agent,
-    default_virtual_store_dir, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    group_patched_dependencies, npmrc_auth, resolve_and_group, side_effects_cache_remote_env,
-    workspace_yaml,
+    AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
+    ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
+    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
+    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
+    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
+    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_git_shallow_hosts, default_hoist_pattern, default_modules_cache_max_age,
+    default_modules_dir, default_peers_suffix_max_length, default_public_hoist_pattern,
+    default_registry, default_state_dir, default_store_dir, default_tag_version_prefix,
+    default_unsafe_perm, default_user_agent, default_virtual_store_dir,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
+    side_effects_cache_remote_env, workspace_yaml,
 };
-
-pub(super) fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
-    let ci = Sys::var("CI");
-    if ci.as_deref() == Some("false") {
-        return false;
-    }
-
-    matches!(ci.as_deref(), Some("true" | "1" | "woodpecker"))
-        || Sys::var("GITHUB_ACTIONS").is_some()
-        || detect_ci()
-}
 
 /// The two hoist patterns as one value, for
 /// [`Config::hoist_patterns_before_virtual_store_only`].
@@ -35,6 +23,17 @@ pub(super) fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
 pub struct HoistPatterns {
     pub hoist_pattern: Option<Vec<String>>,
     pub public_hoist_pattern: Option<Vec<String>>,
+}
+
+/// Machine-local macOS Time Machine policy. Both directories remain eligible
+/// for backup unless the user opts out in the global pnpm configuration or
+/// through `PNPM_CONFIG_*` environment variables.
+#[derive(Debug, Clone, SmartDefault)]
+pub struct MacosBackupConfig {
+    #[default = false]
+    pub exclude_modules_dir: bool,
+    #[default = false]
+    pub exclude_store_dir: bool,
 }
 
 /// Resolved runtime config built from defaults, the auth subset of
@@ -61,7 +60,7 @@ pub struct Config {
     /// Whether pnpm is running in a continuous-integration environment.
     /// Defaults to automatic CI detection and may be overridden through
     /// configuration.
-    #[default(_code = "default_ci::<Host>(is_ci::cached)")]
+    #[default(_code = "is_ci()")]
     pub ci: bool,
 
     /// Whether the default reporter renders dependency and download progress.
@@ -76,6 +75,12 @@ pub struct Config {
 
     /// ANSI color policy for human-readable output.
     pub color: ColorMode,
+
+    /// What level of logs to print.
+    pub loglevel: Option<LogLevel>,
+
+    /// Output format for progress and log messages.
+    pub reporter: Option<ReporterType>,
 
     /// Include a package's README in the generated manifest when packing.
     pub embed_readme: bool,
@@ -250,6 +255,22 @@ pub struct Config {
     /// processes.
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
+
+    /// Skip the filesystem probe when loading configuration for checks that
+    /// do not use the package store. Store consumers must load configuration
+    /// with this disabled to select a store on the project's volume.
+    pub skip_store_dir_resolution: bool,
+
+    /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
+    /// left the default store unplaced, still on the home volume.
+    /// [`Config::place_skipped_store_dir`] places it. A pinned store is never
+    /// marked.
+    pub store_dir_placement_skipped: bool,
+
+    /// Whether macOS Time Machine may back up newly created pnpm directories.
+    /// Set `macosBackup.excludeModulesDir` or `macosBackup.excludeStoreDir` to `true` in
+    /// the global pnpm configuration to exclude them with `tmutil`.
+    pub macos_backup: MacosBackupConfig,
 
     /// The machine-local directory in which pnpm persists state across
     /// invocations. A project's manifest cannot set this path.
@@ -767,6 +788,9 @@ pub struct Config {
     /// default `false`.
     pub dedupe_peers: bool,
 
+    /// Deduplicate compatible versions during non-frozen installs.
+    pub auto_dedupe: bool,
+
     /// When `true`, a direct dependency of a non-root workspace
     /// project is omitted from that project's `node_modules/` when
     /// the workspace root resolves the same alias to the same target.
@@ -856,19 +880,25 @@ pub struct Config {
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
 
-    /// pnpm's `--force`. Install every package the lockfile names, even
-    /// ones whose `cpu` / `os` / `libc` / `engines` don't match the host
-    /// — the per-snapshot installability check is bypassed entirely, so
-    /// optional dependencies for foreign platforms are materialized
-    /// instead of skipped, mirroring pnpm's `!opts.force &&
-    /// packageIsInstallable(...)` gate in its dep-graph builders.
-    ///
-    /// It also re-materializes every slot, changed or not.
+    /// pnpm's `--force`. Refetch every package and re-materialize every
+    /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
+    /// so an `engines` mismatch on a required package warns instead of
+    /// failing. Optional dependencies whose `cpu` / `os` / `libc` don't
+    /// match the host stay skipped unless
+    /// [`force_ignores_platform`](Self::force_ignores_platform) is set.
     ///
     /// CLI-only (merged from `--force` on `pnpm install` / `pnpm add` /
     /// `pnpm deploy` at the dispatch, like `ignoreScripts`); not a
     /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
+
+    /// `forceIgnoresPlatform`. When `true`, [`force`](Self::force) also
+    /// bypasses the per-snapshot installability check, so optional
+    /// dependencies for foreign platforms are materialized instead of
+    /// skipped. Default `false`. pnpm v11 defaults it to `true`, the
+    /// behaviour its `--force` always had; see
+    /// [`Config::installs_incompatible_packages`].
+    pub force_ignores_platform: bool,
 
     /// Whether to consult the side-effects cache
     /// (`PackageFilesIndex.sideEffects`) when importing a package
@@ -1014,12 +1044,21 @@ pub struct Config {
 
     /// Directory containing the nearest ancestor `pnpm-workspace.yaml`.
     /// Set by [`WorkspaceSettings::apply_to`](crate::WorkspaceSettings::apply_to) when yaml was found, so
-    /// later install-time code (notably [`resolve_and_group`] for
+    /// later install-time code (notably [`pnpm_patching::resolve_and_group`] for
     /// `patchedDependencies`) can resolve relative paths against the
     /// same dir pnpm does. `None` when no `pnpm-workspace.yaml` exists
     /// anywhere up the tree — in that case there are no patches /
     /// allowBuilds settings to resolve either.
     pub workspace_dir: Option<PathBuf>,
+
+    /// Where an install writes the `minimumReleaseAgeExclude` entries it
+    /// approves, when that is not its own `workspace_dir`.
+    ///
+    /// An isolated sub-install, such as provisioning an engine into a
+    /// temporary directory, points `workspace_dir` at that directory to
+    /// isolate discovery. Its approvals stay there unless the caller sets
+    /// this to the project that asked for the engine.
+    pub target_workspace_dir: Option<PathBuf>,
 
     /// Raw `patchedDependencies` from `pnpm-workspace.yaml`: keys are
     /// `name[@version]`, values are patch file paths (relative to
@@ -1120,6 +1159,19 @@ pub struct Config {
     #[default(true)]
     pub git_checks: bool,
 
+    /// Maximum time in milliseconds to wait for published versions and their
+    /// tarballs to become available. Zero disables the check.
+    pub publish_wait_timeout: u64,
+
+    /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
+    /// version when `pnpm version` creates its git tag, and stripped when
+    /// `pnpm version from-git` reads the version back from the latest tag.
+    /// Settable via `tagVersionPrefix` in `pnpm-workspace.yaml` or the global
+    /// `config.yaml`, layered over by the CLI flag. An empty string removes
+    /// the prefix. Default `"v"`.
+    #[default(_code = "default_tag_version_prefix()")]
+    pub tag_version_prefix: String,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
     /// whether `dirname(node_execpath)` is prepended to `PATH` when
     /// running lifecycle scripts. Default `Never` (`scriptsPrependNodePath:
@@ -1214,9 +1266,14 @@ pub struct Config {
     /// [`TaskSettings::concurrency_group`](workspace_yaml::TaskSettings::concurrency_group),
     /// how many of the group's tasks may run at once on this machine,
     /// counted across every pnpm process. A task past its group's limit
-    /// waits for a running one to finish. A group no entry names has no
-    /// limit, and neither has a group whose entry is `0`, which is how a
-    /// higher layer lifts a limit a lower one set.
+    /// waits for a running one to finish. Waiters start in the order they
+    /// began waiting, and a higher
+    /// [`TaskSettings::priority`](workspace_yaml::TaskSettings::priority)
+    /// starts before waiters that arrived earlier. When limits differ
+    /// across workspaces, a later waiter can take a free slot outside
+    /// every earlier waiter's limit. A group no entry names
+    /// has no limit, and neither has a group whose entry is `0`, which is
+    /// how a higher layer lifts a limit a lower one set.
     ///
     /// Each configuration layer merges its entries into the map, so a
     /// workspace can raise or lower one group's limit without restating
@@ -1606,6 +1663,9 @@ pub struct Config {
     /// `savePeer` setting, equivalent to passing `--save-peer`.
     pub save_peer: bool,
 
+    /// Add available `DefinitelyTyped` packages to `devDependencies` when adding packages.
+    pub save_types: bool,
+
     /// Whether the configured registry returns the per-version `time`
     /// field in its *abbreviated* metadata. When `false` (the default),
     /// [`ResolutionMode::TimeBased`] resolution (and the
@@ -1714,6 +1774,21 @@ pub struct Config {
 }
 
 impl Config {
+    /// Whether this install materializes every snapshot the lockfile
+    /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
+    /// under [`force_ignores_platform`](Self::force_ignores_platform).
+    /// Every installability gate reads this rather than `force` alone.
+    pub fn installs_incompatible_packages(&self) -> bool {
+        self.force && self.force_ignores_platform
+    }
+
+    /// [`engine_strict`](Self::engine_strict) as an install applies it.
+    /// `--force` lifts it, as npm's does: an `engines` mismatch on a
+    /// required package warns instead of failing the install.
+    pub fn effective_engine_strict(&self) -> bool {
+        self.engine_strict && !self.force
+    }
+
     /// Where the builds of one tool are downloaded from, as
     /// `tools.<name>.mirror` names it, without the trailing slash a
     /// caller joins onto.
@@ -1750,74 +1825,22 @@ impl Config {
         Self::default()
     }
 
-    pub fn resolved_patched_dependencies(
-        &self,
-    ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
-        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            let groups = group_patched_dependencies(
-                hashes
-                    .iter()
-                    .map(|(key, hash)| {
-                        (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-                    }),
-            )?;
-            return Ok((!groups.is_empty()).then_some(groups));
-        }
-        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
-        else {
-            return Ok(None);
-        };
-        resolve_and_group(workspace_dir, raw)
-    }
-
-    /// Resolve relative patch file paths in
-    /// [`Config::patched_dependencies`] against
-    /// [`Config::workspace_dir`] and hash each file, producing the
-    /// `patchedDependencies` map the lockfile records: each configured
-    /// key mapped to its patch file's SHA-256 hex digest.
-    ///
-    /// Distinct from [`Self::resolved_patched_dependencies`], which
-    /// groups the same entries by package name for the resolver — this
-    /// keeps the user's verbatim keys so the lockfile is byte-faithful
-    /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
-    /// collapsing into one group bucket).
-    ///
-    /// Returns `Ok(None)` when either field is unset.
-    pub fn patched_dependency_hashes(
-        &self,
-    ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
-        Ok(self
-            .patched_dependency_hashes_in_config_order()?
-            .map(|hashes| hashes.into_iter().collect()))
-    }
-
-    /// Return patch hashes in configured selector order.
-    ///
-    /// Precomputed overrides avoid file reads. Without an override, each
-    /// configured patch file is hashed and any I/O or hashing error is
-    /// propagated. Returns `None` when no non-empty patch configuration is
-    /// available.
-    pub fn patched_dependency_hashes_in_config_order(
-        &self,
-    ) -> Result<Option<IndexMap<String, String>>, CalcPatchHashError> {
-        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            return Ok((!hashes.is_empty()).then(|| hashes.clone()));
-        }
-        let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
-        else {
-            return Ok(None);
-        };
-        let mut hashes = IndexMap::with_capacity(raw.len());
-        for (key, rel_or_abs) in raw {
-            let candidate = Path::new(rel_or_abs);
-            let path = if candidate.is_absolute() {
-                candidate.to_path_buf()
-            } else {
-                workspace_dir.join(candidate)
-            };
-            hashes.insert(key.clone(), create_hex_hash_from_file(&path)?);
-        }
-        Ok((!hashes.is_empty()).then_some(hashes))
+    /// pnpm-managed directories that workspace project discovery must
+    /// never report projects from: the store, cache, and state roots
+    /// plus the install-target directories. Entries may be absolute or
+    /// relative to the workspace root; discovery resolves them the way
+    /// [`pnpm_workspace::find_workspace_inventory`] resolves its
+    /// `ignored_directories`.
+    #[must_use]
+    pub fn managed_directories(&self) -> Vec<PathBuf> {
+        vec![
+            self.store_dir.root().to_path_buf(),
+            self.cache_dir.clone(),
+            self.state_dir.clone(),
+            self.modules_dir.clone(),
+            self.virtual_store_dir.clone(),
+            self.global_virtual_store_dir.clone(),
+        ]
     }
 
     /// Persist the config data until the program terminates.
@@ -1827,3 +1850,4 @@ impl Config {
 }
 
 mod cache;
+mod patches;

@@ -12,6 +12,7 @@ pub mod refused_keys;
 pub mod version_policy;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
+    ci_detection::{CI_ENV_VARS, is_ci},
     defaults::{
         BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
         available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
@@ -26,20 +27,20 @@ pub use crate::{
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
-pub use settings::{Config, HoistPatterns};
+pub use settings::{Config, HoistPatterns, MacosBackupConfig};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
     DEFAULT_PYTHON_DOWNLOAD_URL, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    NAMED_UNRECOGNIZED_TASK_SETTINGS, PackageExtension, PeerDependencyMeta, PeerDependencyRules,
-    PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings, TaskSettings, Tool,
-    ToolSettings, UnrecognizedTaskSettings, UpdateConfig, UpdateSettings,
+    MacosBackupSettings, NAMED_UNRECOGNIZED_TASK_SETTINGS, PackageExtension, PeerDependencyMeta,
+    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
+    TaskSettings, Tool, ToolSettings, UnrecognizedTaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
@@ -50,6 +51,7 @@ pub use workspace_yaml::{
 };
 
 mod api;
+mod ci_detection;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;
@@ -64,8 +66,8 @@ use crate::{
         default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
         default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
         default_fetch_warn_timeout_ms, default_hoist_pattern, default_modules_cache_max_age,
-        default_modules_dir, default_public_hoist_pattern, default_store_dir, default_user_agent,
-        default_virtual_store_dir,
+        default_modules_dir, default_public_hoist_pattern, default_store_dir,
+        default_tag_version_prefix, default_user_agent, default_virtual_store_dir,
     },
     npmrc_auth::NpmrcAuth,
 };
@@ -209,19 +211,33 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     })
 }
 
-/// Read the text of the `.npmrc` in `dir`, returning `None` for anything
-/// from "file doesn't exist" to "not valid UTF-8" — same best-effort
-/// behaviour as pnpm. The caller decides which keys to honour.
-fn read_npmrc(dir: &std::path::Path) -> Option<String> {
-    fs::read_to_string(dir.join(".npmrc")).ok()
-}
-
-/// Read a `.npmrc` by explicit file path (as opposed to [`read_npmrc`],
-/// which joins `.npmrc` onto a directory). Used for the `npmrcAuthFile`
-/// override, which names the file directly. `None` on any read /
-/// UTF-8 failure, same best-effort behaviour as [`read_npmrc`].
-fn read_npmrc_file(path: &std::path::Path) -> Option<String> {
-    fs::read_to_string(path).ok()
+/// Read a `.npmrc` the way pnpm does: a missing file, or a directory in its
+/// place, reads as `Ok(None)`, and invalid UTF-8 is decoded lossily. Any
+/// other failure comes back as the warning to print, so the caller surfaces
+/// it rather than silently dropping every setting the file holds.
+fn read_npmrc_file<Sys: api::FsReadFile>(path: &Path) -> Result<Option<String>, String> {
+    match Sys::read_file(path) {
+        Ok(mut bytes) => {
+            if bytes.starts_with(b"\xEF\xBB\xBF") {
+                bytes.drain(..3);
+            }
+            match String::from_utf8(bytes) {
+                Ok(text) => Ok(Some(text)),
+                Err(error) => Ok(Some(String::from_utf8_lossy(error.as_bytes()).into_owned())),
+            }
+        }
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory,
+            ) =>
+        {
+            Ok(None)
+        }
+        // Windows reports reading a directory as `PermissionDenied`.
+        Err(_) if path.is_dir() => Ok(None),
+        Err(error) => Err(format!(r#"Issue while reading "{}". {error}"#, path.display())),
+    }
 }
 
 /// Read `pnpm_config_<lower>`, falling back to `PNPM_CONFIG_<UPPER>`,

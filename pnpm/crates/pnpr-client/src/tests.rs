@@ -211,6 +211,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dependencies: BTreeMap::from([("acme".to_string(), "catalog:".to_string())]),
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
+            peer_dependencies: BTreeMap::new(),
         }],
         fix_lockfile: false,
         routing: crate::RegistryRouting {

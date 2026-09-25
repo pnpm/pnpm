@@ -1,4 +1,6 @@
-use crate::_utils::{has_link, importer_has_group_dependency, read_lockfile};
+use crate::_utils::{
+    append_line_script, has_link, importer_has_group_dependency, pacquet_in, read_lockfile,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -7,6 +9,7 @@ use std::fs;
 
 const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";
 const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
+const ORDER_FILE: &str = "order.txt";
 
 #[test]
 fn prune_writes_lockfile() {
@@ -140,6 +143,43 @@ fn prune_with_prod_only_unlinks_dev_deps() {
 }
 
 #[test]
+fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { PROD: "100.0.0" },
+            "devDependencies": { FILTERED: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write pnpm-workspace.yaml");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "install must not write a lockfile");
+    assert!(has_link(&workspace, PROD));
+    assert!(has_link(&workspace, FILTERED));
+
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+    assert!(has_link(&workspace, PROD));
+    assert!(!has_link(&workspace, FILTERED));
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "prune must not write a lockfile");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn prune_with_dev_only_unlinks_prod_deps() {
     assert_prune_filter_reaches_node_modules_only("--dev", "devDependencies", PROD);
 }
@@ -151,4 +191,75 @@ fn prune_with_no_optional_unlinks_optional_deps() {
         "optionalDependencies",
         FILTERED,
     );
+}
+
+/// `prepare` needs a devDependency, like a `husky` git-hooks setup, so
+/// running it after `prune --prod` unlinked that dependency would fail
+/// the prune (pnpm/pnpm#4770).
+#[test]
+fn prune_with_prod_only_does_not_run_prepare_scripts() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let prepare = format!(
+        r#"node -e "require('is-negative')" && {}"#,
+        append_line_script("prepare", ORDER_FILE),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "prune-prod-skips-prepare",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+            "scripts": {
+                "preinstall": append_line_script("preinstall", ORDER_FILE),
+                "install": append_line_script("install", ORDER_FILE),
+                "postinstall": append_line_script("postinstall", ORDER_FILE),
+                "preprepare": append_line_script("preprepare", ORDER_FILE),
+                "prepare": prepare,
+                "postprepare": append_line_script("postprepare", ORDER_FILE),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let order_path = workspace.join(ORDER_FILE);
+    let read_stages = || {
+        fs::read_to_string(&order_path)
+            .expect("read order.txt")
+            .lines()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
+    );
+    fs::remove_file(&order_path).expect("remove order.txt");
+
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall"],
+        "prepare lifecycle scripts must not run during prune --prod",
+    );
+    assert_eq!(
+        (has_link(&workspace, "is-positive"), has_link(&workspace, "is-negative")),
+        (true, false),
+        "prune --prod must keep the prod dependency linked and unlink the dev dependency",
+    );
+
+    drop((root, mock_instance));
 }

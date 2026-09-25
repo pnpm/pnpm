@@ -11,6 +11,7 @@ fn type_membership() {
     assert!(is_type_key("virtual-store-type"));
     assert!(is_type_key("enable-global-virtual-store"));
     assert!(is_type_key("progress"));
+    assert!(!is_type_key("macos-backup"));
     assert!(!is_type_key("no-such-setting"));
     // prototype-chain names must not be members
     assert!(!is_type_key("constructor"));
@@ -53,6 +54,7 @@ fn config_file_keys() {
     assert!(is_config_file_key("node-download-mirrors"));
     assert!(is_config_file_key("virtual-store-type"));
     assert!(is_config_file_key("enable-global-virtual-store"));
+    assert!(is_config_file_key("macos-backup"));
     // A machine-level preference, so it is settable in the global file.
     assert!(is_config_file_key("progress"));
     // npm-compatible, not excluded
@@ -69,4 +71,11 @@ fn config_file_keys() {
     // catalog / package-extensions are not even type keys → not config-file keys
     assert!(!is_config_file_key("catalog"));
     assert!(!is_config_file_key("package-extensions"));
+}
+
+#[test]
+fn publish_wait_timeout_is_numeric_and_routes_to_yaml() {
+    assert!(super::type_includes_number("publish-wait-timeout"));
+    assert!(super::is_config_file_key("publish-wait-timeout"));
+    assert!(!super::is_ini_config_key("publish-wait-timeout"));
 }

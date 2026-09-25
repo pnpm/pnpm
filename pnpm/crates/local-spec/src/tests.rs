@@ -239,3 +239,24 @@ fn normalizes_a_specifier_as_documented() {
     assert_eq!(normalize_specifier("file:/~/deps/x"), "~/deps/x", "step 4: tilde stays relative");
     assert_eq!(normalize_specifier("^1.2.3"), "^1.2.3", "no protocol: step 1 alone");
 }
+
+#[test]
+fn recognizes_filespec_shapes() {
+    use super::is_filespec;
+
+    assert!(is_filespec("./foo"));
+    assert!(is_filespec("../foo"));
+    assert!(is_filespec("/abs/path"));
+    assert!(is_filespec(r"\root\relative"));
+    assert!(is_filespec(r"\\server\share\@scope\pkg"));
+    assert!(is_filespec("~/pkg"));
+    assert!(is_filespec(r"~\@scope\pkg"));
+    assert!(is_filespec("c:/foo"));
+    assert!(is_filespec("c:foo"));
+    assert!(is_filespec(r"c:\foo\@scope"));
+
+    assert!(!is_filespec("@scope/pkg@^1.0.0"));
+    assert!(!is_filespec("pkg@^1.0.0"));
+    assert!(!is_filespec("^1.0.0"));
+    assert!(!is_filespec("*"));
+}

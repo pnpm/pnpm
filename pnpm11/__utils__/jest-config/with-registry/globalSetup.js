@@ -26,7 +26,8 @@ export default async () => {
   // registry mutates this storage during tests (publishes, dist-tags), so it
   // gets its own writable copy in a temp dir, never the read-only fixtures.
   const storage = mkdtempSync(path.join(tmpdir(), STORAGE_PREFIX))
-  buildStorage(storage)
+  const pnpmVersion = JSON.parse(readFileSync(path.join(REPO_ROOT, 'pnpm11', 'pnpm', 'package.json'), 'utf8')).version
+  buildStorage(storage, pnpmVersion)
   process.env.PNPM_REGISTRY_MOCK_STORAGE = storage
   // Handed to globalTeardown so it removes only the directory this run
   // created. The storage is a couple of gigabytes, so leaking one per
@@ -34,6 +35,7 @@ export default async () => {
   // whichever test happens to write next.
   global.registryMockStorage = storage
   const config = writeTestConfig(storage)
+  const currentVersionConfig = writeCurrentVersionTestConfig(storage)
 
   const bin = resolvePnprBin()
 
@@ -51,33 +53,48 @@ export default async () => {
     ],
     { stdio: 'inherit' }
   )
+  const currentVersionPort = await getPort({ from: 7801, to: 7900 })
+  const currentVersionServer = spawn(
+    bin,
+    [
+      '--config', currentVersionConfig,
+      '--listen', `127.0.0.1:${currentVersionPort}`,
+      '--storage', storage,
+      '--public-url', `http://localhost:${currentVersionPort}`,
+      '--packument-ttl-secs', '31536000',
+    ],
+    { stdio: 'inherit' }
+  )
+  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/`
 
   let killed = false
-  let closed = false
-  const serverClosed = new Promise((resolve) => {
-    server.on('close', () => {
-      closed = true
+  const closed = new Set()
+  const serverClosed = Promise.all([server, currentVersionServer].map((child) => new Promise((resolve) => {
+    child.on('close', () => {
+      closed.add(child)
       if (!killed) {
         console.log('Error: The registry server was killed!')
         process.exit(1)
       }
       resolve()
     })
-  })
-  server.on('error', (err) => {
-    console.log(err)
-  })
+    child.on('error', (err) => {
+      console.log(err)
+    })
+  })))
   global.killServer = async () => {
     killed = true
-    if (closed) return
-    if (server.pid != null) {
-      try {
-        await kill(server.pid)
-      } catch (err) {
-        if (!closed) throw err
+    for (const child of [server, currentVersionServer]) {
+      if (closed.has(child)) continue
+      if (child.pid != null) {
+        try {
+          await kill(child.pid)
+        } catch (err) {
+          if (!closed.has(child) && child.exitCode == null && child.signalCode == null) throw err
+        }
+      } else {
+        child.kill()
       }
-    } else {
-      server.kill()
     }
     await Promise.race([
       serverClosed,
@@ -87,7 +104,7 @@ export default async () => {
     ])
   }
 
-  await waitForServerOnline()
+  await Promise.all([waitForServerOnline(process.env.PNPM_REGISTRY_MOCK_PORT), waitForServerOnline(currentVersionPort)])
 
   // Register the test user and store the auth token for bearer-based tests
   const { token } = await addUser({
@@ -110,14 +127,24 @@ function writeTestConfig (storage) {
   return target
 }
 
+function writeCurrentVersionTestConfig (storage) {
+  const target = path.join(storage, 'current-version-config.yaml')
+  writeFileSync(target, `storage: ${JSON.stringify(storage)}\nsecret: pnpm-registry-mock-secret-key-32\nregistries:\n  local:\n    type: hosted\n    access: $all\n    packages:\n      pnpm: {}\n      '@pnpm/exe': {}\n  npmjs:\n    type: upstream\n    url: https://registry.npmjs.org/\n    public: true\n  main:\n    type: router\n    sources: [local, npmjs]\ndefaultRegistry: main\n`)
+  return target
+}
+
 /**
- * Build registry storage from the in-repo fixtures into `out` using the
- * `pnpr-prepare` binary (built from the `pnpr-fixtures` crate). The same
- * builder backs pacquet's in-process registry.
+ * Build registry storage from the in-repo fixtures into `out`, replacing the
+ * current-version sentinel with `pnpmVersion`. Throws if `pnpr-prepare`
+ * cannot build the storage.
  */
-function buildStorage (out) {
+function buildStorage (out, pnpmVersion) {
   const bin = resolvePnprPrepareBin()
-  const result = spawnSync(bin, ['--packages', FIXTURE_PACKAGES, '--out', out], { stdio: 'inherit' })
+  const result = spawnSync(bin, [
+    '--packages', FIXTURE_PACKAGES,
+    '--out', out,
+    '--substitute', `0.0.0-test-current-pnpm=${pnpmVersion}`,
+  ], { stdio: 'inherit' })
   if (result.status !== 0) {
     throw new Error(
       `pnpr-prepare failed to build fixture storage (exit ${result.status ?? result.signal}).`
@@ -181,12 +208,12 @@ function findRustTargetBin (name) {
 
 const UNUSUAL_REGISTRY_STARTUP_THRESHOLD = 15 // seconds
 
-async function waitForServerOnline () {
+async function waitForServerOnline (port) {
   const start = performance.now()
 
   for (const delay of exponentialBackoff()) {
     try {
-      await fetch(`http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`, { method: 'HEAD' })
+      await fetch(`http://localhost:${port}`, { method: 'HEAD' })
 
       const totalWait = (performance.now() - start) / 1000
       if (totalWait > UNUSUAL_REGISTRY_STARTUP_THRESHOLD) {

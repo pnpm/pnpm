@@ -242,7 +242,7 @@ struct TaskRunStateWriter {
 impl TaskRunState {
     pub fn record_passed(
         &self,
-        key: &TaskKey,
+        key: TaskKey,
         node: &TaskNode,
         workspace_dir: &Path,
     ) -> miette::Result<()> {
@@ -250,7 +250,7 @@ impl TaskRunState {
         if writer.file.is_none() {
             return Ok(());
         }
-        if !writer.completed.insert(key.clone()) {
+        if writer.completed.contains(&key) {
             return Ok(());
         }
         let id = task_id(node, workspace_dir);
@@ -268,11 +268,11 @@ impl TaskRunState {
                 let _ = fs::remove_file(&self.published_path);
                 return Ok(());
             }
-            writer.completed.remove(key);
             return Err(error)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("writing {}", self.file_path.display()));
         }
+        writer.completed.insert(key);
         Ok(())
     }
 

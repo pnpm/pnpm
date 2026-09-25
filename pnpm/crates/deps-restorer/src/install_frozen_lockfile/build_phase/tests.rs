@@ -116,6 +116,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
         extra_env: &extra_env,
 
         skipped: &skipped,
+        held_back_bins_dirs: &[],
     })
     .expect("build phase succeeds");
 

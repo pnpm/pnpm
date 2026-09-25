@@ -6,6 +6,7 @@ use super::{
     parse_catalog_protocol, parse_manifest, parse_overrides_iter, parse_wanted_dependency,
     resolve_from_catalog,
 };
+use pnpm_graph_hasher::{detect_node_major, engine_name};
 
 /// Install the packages into a fresh prepare directory and point the
 /// cache link at it.
@@ -158,9 +159,9 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
 }
 
 /// Build the dlx cache key from the sorted package specs, sorted
-/// registries, the optional `allow_build` list, and each non-empty
+/// registries, the optional `allow_build` list, each non-empty
 /// `supportedArchitectures` axis (deduped + sorted, in `cpu` / `libc` /
-/// `os` order), all hashed together. pacquet keys on the raw specs (not
+/// `os` order), and the Node.js engine name, all hashed together. pacquet keys on the raw specs (not
 /// resolved ids) and uses [`create_short_hash`] rather than a full-length
 /// hex digest; the dlx caches are not shared between the two
 /// implementations, so the key format is not a cross-tool contract.
@@ -169,6 +170,7 @@ pub(super) fn create_cache_key(
     registries: &BTreeMap<String, String>,
     allow_build: &[String],
     supported_architectures: Option<&SupportedArchitectures>,
+    engine: Option<&str>,
 ) -> String {
     let mut sorted: Vec<&str> = pkgs
         .iter()
@@ -189,6 +191,9 @@ pub(super) fn create_cache_key(
         args.push(json!({ "allowBuild": sorted_allow }));
     }
     args.extend(architecture_key_inputs(supported_architectures));
+    // `null` when no `node` is found, which still differs from a key that
+    // records no engine at all.
+    args.push(json!({ "engine": engine }));
     create_short_hash(&serde_json::to_string(&args).expect("serialize cache key inputs"))
 }
 
@@ -240,15 +245,15 @@ fn sorted_once(values: &[String]) -> Vec<&str> {
     deduped
 }
 
-/// Return the cache target behind `cache_link` when it is a symlink whose
+/// Return the cache target behind `cache_link` when it is a symlink or junction whose
 /// own mtime is within `max_age_minutes` of `now`.
 pub(super) fn get_valid_cache_dir(
     cache_link: &Path,
     max_age_minutes: u64,
     now: SystemTime,
 ) -> Option<PathBuf> {
-    let meta = fs::symlink_metadata(cache_link).ok()?;
-    if !meta.file_type().is_symlink() {
+    let meta = pnpm_fs::symlink_metadata_with_retry(cache_link).ok()?;
+    if !pnpm_fs::is_symlink_or_junction(cache_link).ok()? {
         return None;
     }
     // `dunce::canonicalize` (not `fs::canonicalize`) so the cache-hit path
@@ -257,13 +262,14 @@ pub(super) fn get_valid_cache_dir(
     // `node_modules/.bin` string into `PATH`.
     let target = dunce::canonicalize(cache_link).ok()?;
     let mtime = meta.modified().ok()?;
+    (!is_expired(mtime, max_age_minutes, now)).then_some(target)
+}
+
+pub(super) fn is_expired(mtime: SystemTime, max_age_minutes: u64, now: SystemTime) -> bool {
     let max_age = Duration::from_secs(max_age_minutes.saturating_mul(60));
-    // Valid while `mtime + max_age >= now`. A negative elapsed time
-    // (clock skew, `now` before `mtime`) is treated as still valid,
-    // matching pnpm's numeric comparison.
     match now.duration_since(mtime) {
-        Ok(age) => (age <= max_age).then_some(target),
-        Err(_) => Some(target),
+        Ok(age) => age > max_age,
+        Err(_) => false,
     }
 }
 
@@ -337,6 +343,7 @@ pub(super) fn command_cache_dir(
             &build_registries_map(config),
             allow_build,
             supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
+            detect_node_major().map(|major| engine_name(major, None, None)).as_deref(),
         ),
     )
 }

@@ -3,8 +3,10 @@
 //! error when the running pnpm is the version the project pins, and stay off
 //! `pnpm config get <key>` entirely.
 
+use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
@@ -150,6 +152,73 @@ fn a_kebab_case_spelling_of_a_known_setting_warns() {
     assert_contains(
         &stderr(&output),
         r#"[WARN] The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: "store-dir" (use "storeDir")."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_outside_a_workspace() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--shared-workspace-lockfile"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_for_a_query_command() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+
+    let output = run(pacquet, root.path(), &["list", "--shared-workspace-lockfile"]);
+
+    assert_success(&output);
+    assert_contains(
+        &stderr(&output),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn shared_workspace_lockfile_cli_option_warns_on_the_install_fast_path() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    let program = pacquet.get_program().to_owned();
+
+    let first = run(pacquet, root.path(), &["install"]);
+    assert_success(&first);
+
+    let second = run(
+        Command::new(program).with_current_dir(&workspace).without_ambient_pnpm_config(),
+        root.path(),
+        &["install", "--shared-workspace-lockfile"],
+    );
+
+    assert_success(&second);
+    assert_contains(
+        &stderr(&second),
+        r#"[WARN] The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#,
+    );
+}
+
+#[test]
+fn configured_shared_workspace_lockfile_stays_quiet_outside_a_workspace() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_plain_manifest(&workspace);
+    pacquet.env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "true");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert!(
+        !stderr.contains("shared-workspace-lockfile"),
+        "configured value should stay quiet: {stderr}",
     );
 }
 

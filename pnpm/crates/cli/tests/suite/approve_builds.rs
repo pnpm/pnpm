@@ -36,9 +36,23 @@ fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
 
+/// `pacquet` on a pseudo-terminal outside CI, where a person is there to
+/// answer for the run. The fixture answers only the `minimumReleaseAge`
+/// prompt, which none of these installs render.
+#[cfg(unix)]
+fn pacquet_in_terminal(workspace: &Path) -> Command {
+    let pacquet = pacquet(workspace);
+    Command::new("python3")
+        .with_env("CI", "false")
+        .with_arg("-c")
+        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(pacquet.get_program())
+        .with_current_dir(workspace)
+}
+
 /// Set up a workspace that depends on `@pnpm.e2e/install-script-example`
-/// and install it with its build ignored (not in `allowBuilds`).
-fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
+/// with its build not in `allowBuilds`.
+fn workspace_with_unapproved_build() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
 
@@ -48,6 +62,13 @@ fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
     disable_strict_dep_builds(&workspace);
+    (harness, workspace)
+}
+
+/// Set up a workspace that depends on `@pnpm.e2e/install-script-example`
+/// and install it with its build ignored (not in `allowBuilds`).
+fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path::PathBuf) {
+    let (harness, workspace) = workspace_with_unapproved_build();
 
     pacquet(&workspace)
         .with_arg("install")
@@ -86,21 +107,17 @@ fn ignored_builds_lists_the_blocked_dependency() {
     drop(harness);
 }
 
-/// pnpm scaffolds an `allowBuilds` entry per ignored build with a
-/// placeholder string. The workspace pnpm left behind must stay usable:
+/// A workspace whose `allowBuilds` holds placeholder entries stays usable:
 /// the config still loads, and the undecided package is reported as
-/// automatically — not explicitly — ignored.
+/// automatically ignored, not explicitly ignored.
 #[test]
 fn allow_builds_placeholder_does_not_block_commands() {
     let (harness, workspace) = install_with_ignored_build();
 
-    // The install already scaffolded the blocked package; restate it in
-    // the quoted spelling pnpm writes and add a second undecided entry,
-    // both inside the one `allowBuilds` block a YAML document may have.
+    // Write the blocked package in the quoted spelling pnpm scaffolds and
+    // add a second undecided entry.
     let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
-    let (before, _) = yaml.split_once("allowBuilds:").expect("the install scaffolded the block");
-    let mut yaml = before.to_string();
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
     writeln!(
         yaml,
         "allowBuilds:\n  \"@pnpm.e2e/install-script-example\": set this to true or false\n  \
@@ -150,9 +167,14 @@ fn allow_builds_placeholder_does_not_block_commands() {
 /// instead of making them recall the `allowBuilds` shape. The
 /// placeholder is not a decision, so the package stays blocked and a
 /// rerun must neither duplicate the entry nor fail to load the config.
+#[cfg(unix)]
 #[test]
 fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
-    let (harness, workspace) = install_with_ignored_build();
+    let (harness, workspace) = workspace_with_unapproved_build();
+    pacquet_in_terminal(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("read pnpm-workspace.yaml");
@@ -163,7 +185,7 @@ fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
         "yaml: {yaml}",
     );
 
-    pacquet(&workspace)
+    pacquet_in_terminal(&workspace)
         .with_arg("install")
         .assert()
         .success();
@@ -180,6 +202,53 @@ fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
     drop(harness);
 }
 
+/// Nobody is at the terminal to edit a placeholder in CI or under a
+/// dependency-update bot, and it would land in the committed workspace
+/// manifest: such a run leaves the manifest alone
+/// ([pnpm/pnpm#11574](https://github.com/pnpm/pnpm/issues/11574)).
+#[test]
+fn non_interactive_install_does_not_scaffold_allow_builds() {
+    let (harness, workspace) = workspace_with_unapproved_build();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let before = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+    pacquet(&workspace)
+        .with_env("CI", "false")
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),
+        before,
+        "an install without a terminal must not scaffold allowBuilds",
+    );
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "the build must still be ignored");
+
+    drop(harness);
+}
+
+#[cfg(unix)]
+#[test]
+fn ci_install_on_a_terminal_does_not_scaffold_allow_builds() {
+    let (harness, workspace) = workspace_with_unapproved_build();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let before = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+    pacquet_in_terminal(&workspace)
+        .with_env("CI", "true")
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),
+        before,
+        "an install in CI must not scaffold allowBuilds",
+    );
+
+    drop(harness);
+}
+
+#[cfg(unix)]
 #[test]
 fn install_scaffolds_allow_builds_in_discovered_workspace_with_project_lockfiles() {
     let harness = CommandTempCwd::init().add_mocked_registry();
@@ -200,7 +269,7 @@ fn install_scaffolds_allow_builds_in_discovered_workspace_with_project_lockfiles
     )
     .expect("write project package.json");
 
-    pacquet(&project)
+    pacquet_in_terminal(&project)
         .with_arg("install")
         .assert()
         .success();
@@ -484,8 +553,8 @@ fn allow_builds(workspace: &Path) -> std::collections::BTreeMap<String, bool> {
 }
 
 /// Seed an existing `allowBuilds: { name: true }` entry in the manifest,
-/// merging into the block the install already scaffolded rather than
-/// starting a second one (which YAML rejects as a duplicate key).
+/// merging into an existing block rather than starting a second one
+/// (which YAML rejects as a duplicate key).
 fn seed_allow_build(workspace: &Path, name: &str) {
     const BLOCK: &str = "allowBuilds:\n";
     let path = workspace.join("pnpm-workspace.yaml");
@@ -639,7 +708,8 @@ fn approve_builds_all_with_args_is_rejected() {
     drop(root);
 }
 /// `--ignore-workspace` disowns the workspace manifest, so the install
-/// must not write the `allowBuilds` scaffold into one.
+/// must not write the `allowBuilds` scaffold into one, even on a terminal.
+#[cfg(unix)]
 #[test]
 fn ignore_workspace_skips_the_allow_builds_scaffold() {
     let harness = CommandTempCwd::init().add_mocked_registry();
@@ -655,7 +725,7 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let before = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
 
-    pacquet(&workspace)
+    pacquet_in_terminal(&workspace)
         .with_arg("--ignore-workspace")
         // The run reads no workspace manifest, so the settings the
         // harness put there — the test store and cache, and the relaxed

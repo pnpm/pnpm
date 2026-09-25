@@ -40,6 +40,7 @@ fn filter_package_selectors(packages: &[String], include_github_actions: bool) -
 
 struct UpdateInputs {
     include_direct: Vec<DependencyGroup>,
+    explicit_groups: pnpm_package_manager::UpdateExplicitGroups,
     update_actions: bool,
     lockfile_path: std::path::PathBuf,
     workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
@@ -63,9 +64,11 @@ impl UpdateArgs {
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         self.check_patches_options()?;
+        self.check_interactive_peer_options()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
+        let explicit_groups = self.dependency_options.explicit_groups();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let lockfile_path = state.lockfile_path();
         if let Some(pnpr_server) =
@@ -91,6 +94,7 @@ impl UpdateArgs {
             selection,
             &UpdateInputs {
                 include_direct,
+                explicit_groups,
                 update_actions,
                 lockfile_path,
                 workspace_packages,
@@ -222,6 +226,7 @@ impl UpdateArgs {
                     packages,
                     depth: self.selection.depth.unwrap_or(usize::MAX),
                     workspace_packages: inputs.workspace_packages.as_ref(),
+                    interactive: self.selection.interactive,
                 },
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,
@@ -234,6 +239,7 @@ impl UpdateArgs {
                 tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
                 http_client_arc: std::sync::Arc::clone(&state.http_client),
                 include_direct: inputs.include_direct.clone(),
+                explicit_groups: inputs.explicit_groups,
                 supported_architectures: self.supported_architectures.apply_to(
                     state.config.supported_architectures.clone(),
                 ),
@@ -258,6 +264,7 @@ impl UpdateArgs {
             self.selection.latest,
             matcher,
             config.update_config.github_actions_server.as_deref(),
+            crate::github_actions::release_age(config)?.as_ref(),
         )
         .await?;
         Ok(())

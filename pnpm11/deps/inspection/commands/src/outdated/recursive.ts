@@ -6,7 +6,7 @@ import {
 } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import type {
-  DependenciesField,
+  DependenciesOrPeersField,
   IncludedDependencies,
   ProjectManifest,
   ProjectRootDir,
@@ -16,7 +16,9 @@ import chalk from 'chalk'
 import { isEmpty, sortWith } from 'ramda'
 
 import {
+  createOutdatedJSONKeyGetter,
   getCellWidth,
+  hasUnmatchedPackageParams,
   type OutdatedCommandOptions,
   type OutdatedItem,
   type OutdatedPackageJSONOutput,
@@ -29,10 +31,11 @@ import {
 } from './outdated.js'
 import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
 
-const DEP_PRIORITY: Record<DependenciesField, number> = {
+const DEP_PRIORITY: Record<DependenciesOrPeersField, number> = {
   dependencies: 1,
   devDependencies: 2,
   optionalDependencies: 0,
+  peerDependencies: 3,
 }
 
 const COMPARATORS = [
@@ -42,7 +45,7 @@ const COMPARATORS = [
 ]
 
 interface OutdatedInWorkspace extends OutdatedItem {
-  belongsTo: DependenciesField
+  belongsTo: DependenciesOrPeersField
   current?: string
   dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>
   latest?: string
@@ -57,6 +60,10 @@ export async function outdatedRecursive (
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  if (pkgs.length > 0 && hasUnmatchedPackageParams(pkgs, packageParams, opts.include)) {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+      'None of the specified packages were found in the dependencies of any of the projects.')
+  }
   const outdatedPackagesByProject = params.length === 0 || packageParams.length > 0
     ? await outdatedDepsOfProjects(pkgs, packageParams, {
       ...opts,
@@ -88,6 +95,8 @@ export async function outdatedRecursive (
       compatible: opts.compatible,
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       serverUrl: opts.updateConfig?.githubActionsServer,
     })
     for (const action of outdatedActions) {
@@ -205,9 +214,12 @@ function renderOutdatedJSON (
   outdatedMap: Record<string, OutdatedInWorkspace>,
   opts: { long?: boolean }
 ): string {
-  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
+  const outdatedPackages = Object.values(outdatedMap)
+  const getOutdatedJSONKey = createOutdatedJSONKeyGetter(outdatedPackages)
+  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(outdatedPackages)
     .reduce((acc, outdatedPkg) => {
-      acc[outdatedPkg.packageName] = {
+      const key = getOutdatedJSONKey(outdatedPkg)
+      acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
@@ -216,7 +228,7 @@ function renderOutdatedJSON (
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {
-        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+        acc[key].latestManifest = outdatedPkg.latestManifest
       }
       return acc
     }, {} as Record<string, OutdatedPackageInWorkspaceJSONOutput>)

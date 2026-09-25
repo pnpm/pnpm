@@ -333,7 +333,7 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
         }),
     );
 
-    for name in [".", "..", "", "a/b", "/abs"] {
+    for name in [".", "..", "", "a/../b", "./a", "/abs"] {
         let result = link_manifest_link_deps::<SilentReporter>(
             dir.path(),
             &[(project_dir.clone(), &manifest)],
@@ -353,6 +353,18 @@ fn non_normal_modules_dir_name_is_rejected_without_writes() {
     assert!(!project_dir.join("dep").exists());
     assert!(!dir.path().join("dep").exists());
     assert!(!project_dir.join("node_modules").exists());
+
+    link_manifest_link_deps::<SilentReporter>(
+        dir.path(),
+        &[(project_dir.clone(), &manifest)],
+        None,
+        None,
+        all_dependencies(),
+        std::ffi::OsStr::new("www/modules"),
+        &LinkBinsOptions::default(),
+    )
+    .expect("a nested modules dir is a valid name");
+    assert!(project_dir.join("www/modules/dep").exists());
 
     drop(dir);
 }

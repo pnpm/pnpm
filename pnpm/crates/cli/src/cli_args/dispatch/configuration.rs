@@ -2,9 +2,9 @@ use super::{
     CliArgs, CliCommand, Config, Context, DefaultReporter, Host, IntoDiagnostic, NdjsonReporter,
     Path, PathBuf, ReporterType, SilentReporter, SummaryScope, apply_state_dir_override,
     apply_store_dir_override, configure_color, default_pnpm_home_dir, now_millis, prepare_config,
-    prints_json_errors,
+    prints_json_errors, warn_shared_workspace_lockfile_outside_workspace,
 };
-use crate::config_overrides::apply_registry_override;
+use crate::config_overrides::{ConfigOverrides, apply_registry_override};
 
 /// The directories a run is anchored at.
 pub(super) struct RunAnchors {
@@ -51,9 +51,9 @@ impl RunAnchors {
 
 /// What the command line settles before any config is loaded, and when
 /// the run began.
-pub(super) struct RunSetup {
+pub(super) struct RunSetup<'a> {
     pub(super) started_at: u128,
-    pub(super) reporter: ReporterType,
+    pub(super) effective_reporter: &'a std::sync::atomic::AtomicU8,
     pub(super) is_install_family: bool,
     pub(super) print_json_errors: bool,
     pub(super) recursive_by_default: bool,
@@ -62,11 +62,11 @@ pub(super) struct RunSetup {
     pub(super) uses_stderr_reporter: bool,
 }
 
-impl RunSetup {
-    pub(super) fn of(args: &CliArgs) -> Self {
+impl<'a> RunSetup<'a> {
+    pub(super) fn of(args: &CliArgs, effective_reporter: &'a std::sync::atomic::AtomicU8) -> Self {
         RunSetup {
             started_at: now_millis(),
-            reporter: args.effective_reporter(),
+            effective_reporter,
             is_install_family: matches!(
                 &args.command,
                 CliCommand::Add(_)
@@ -98,6 +98,102 @@ impl RunSetup {
             summary_scope: args.command.default_reporter_summary_scope(),
             reports_scope: args.command.reports_scope(args.workspace.recursive),
             uses_stderr_reporter: args.command.uses_stderr_reporter(),
+        }
+    }
+}
+
+/// Where a command's config is loaded from, and what that command does
+/// with the package store.
+#[derive(Clone, Copy)]
+pub(super) struct ConfigTarget<'a> {
+    pub(super) anchor: &'a Path,
+    pub(super) is_global: bool,
+    pub(super) store_use: StoreUse,
+}
+
+/// How a command uses the package store, which decides whether its config
+/// load places the default store. Placing it probes for hardlink support
+/// by writing a temporary file into the project directory, and file
+/// watchers such as the Nx daemon pick that write up.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StoreUse {
+    /// The command reads or writes the store.
+    Opens,
+    /// The command touches the store only to install the project's
+    /// `configDependencies` before it runs the `updateConfig` hooks.
+    ConfigDependencies,
+    /// The command never touches the store.
+    Never,
+}
+
+fn talks_only_to_the_registry(command: &CliCommand) -> bool {
+    matches!(
+        command,
+        CliCommand::Access(_)
+            | CliCommand::Bugs(_)
+            | CliCommand::Deprecate(_)
+            | CliCommand::DistTag(_)
+            | CliCommand::Docs(_)
+            | CliCommand::Login(_)
+            | CliCommand::Logout(_)
+            | CliCommand::Owner(_)
+            | CliCommand::Ping(_)
+            | CliCommand::Repo(_)
+            | CliCommand::Search(_)
+            | CliCommand::Star(_)
+            | CliCommand::Stars(_)
+            | CliCommand::Team(_)
+            | CliCommand::Undeprecate(_)
+            | CliCommand::Unpublish(_)
+            | CliCommand::Unstar(_)
+            | CliCommand::Whoami,
+    )
+}
+
+impl StoreUse {
+    /// A command missing from these lists only pays for an unneeded probe.
+    pub(super) fn of(command: &CliCommand) -> Self {
+        match command {
+            CliCommand::View(_)
+            | CliCommand::Config(_)
+            | CliCommand::Get(_)
+            | CliCommand::Set(_)
+            | CliCommand::Root(_)
+            | CliCommand::Prefix(_)
+            | CliCommand::Bin(_) => StoreUse::Never,
+            command if talks_only_to_the_registry(command) => StoreUse::Never,
+            CliCommand::Exec(_)
+            | CliCommand::Run(_)
+            | CliCommand::Test(_)
+            | CliCommand::Start(_)
+            | CliCommand::Stop(_)
+            | CliCommand::Restart(_)
+            | CliCommand::External(_) => StoreUse::ConfigDependencies,
+            _ => StoreUse::Opens,
+        }
+    }
+
+    /// Load the command's config through `load`, whose argument says
+    /// whether to place the store. A config loaded without placing it is
+    /// loaded again with it placed when the command turns out to need it.
+    pub(super) fn load<Error>(
+        self,
+        mut load: impl FnMut(bool) -> Result<Config, Error>,
+    ) -> Result<Config, Error> {
+        let config = load(self == StoreUse::Opens)?;
+        if config.skip_store_dir_resolution && self.needs_store_placed(&config) {
+            return load(true);
+        }
+        Ok(config)
+    }
+
+    fn needs_store_placed(self, config: &Config) -> bool {
+        match self {
+            StoreUse::Opens => true,
+            StoreUse::ConfigDependencies => config.config_dependencies
+                .as_ref()
+                .is_some_and(|deps| !deps.is_empty()),
+            StoreUse::Never => false,
         }
     }
 }
@@ -160,6 +256,7 @@ pub(super) fn apply_location_overrides(
 /// `.failIfNoMatch`.
 pub(super) struct ProjectSelectors<'a> {
     pub(super) recursive: bool,
+    pub(super) recursive_from_command_line: bool,
     pub(super) recursive_by_default_command: bool,
     pub(super) filter: &'a [String],
     pub(super) filter_prod: &'a [String],
@@ -171,7 +268,9 @@ pub(super) fn apply_project_selectors(cfg: &mut Config, selectors: &ProjectSelec
     cfg.recursive = selectors.recursive;
     cfg.filter = selectors.filter.to_vec();
     cfg.filter_prod = selectors.filter_prod.to_vec();
-    if selectors.recursive_by_default_command
+    if selectors.recursive_from_command_line {
+        cfg.recursive_install = true;
+    } else if selectors.recursive_by_default_command
         && cfg.recursive
         && !cfg.recursive_install
         && cfg.filter.is_empty()
@@ -240,4 +339,49 @@ pub(in super::super) async fn apply_update_config(
         ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
     };
     Ok(())
+}
+
+pub(super) fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
+    warn_shared_workspace_lockfile_outside_workspace(
+        config_overrides.shared_workspace_lockfile(),
+        config.workspace_dir.as_deref(),
+    );
+}
+
+pub(super) fn apply_run_output_config(args: &CliArgs, cfg: &mut Config) {
+    cfg.bail = super::resolve_bool_override(
+        args.workspace.execution.bail,
+        args.workspace.execution.no_bail,
+        cfg.bail,
+    );
+    cfg.progress = args.progress_enabled(cfg.progress);
+    cfg.stream |= args.output.lifecycle.stream;
+    cfg.aggregate_output |= args.output.lifecycle.aggregate_output;
+    cfg.use_stderr |= args.output.lifecycle.use_stderr;
+    cfg.sort = super::resolve_bool_override(
+        args.workspace.ordering.sort,
+        args.workspace.ordering.no_sort,
+        cfg.sort,
+    );
+    cfg.reverse = super::resolve_bool_override(
+        args.workspace.ordering.reverse,
+        args.workspace.ordering.no_reverse,
+        cfg.reverse,
+    );
+    cfg.include_workspace_root = super::resolve_bool_override(
+        args.workspace.selection.include_workspace_root,
+        args.workspace.selection.no_include_workspace_root,
+        cfg.include_workspace_root,
+    );
+    apply_output_overrides(
+        cfg,
+        &OutputOverrides {
+            reporter_hide_prefix: args.output.lifecycle.hide_prefix,
+            no_reporter_hide_prefix: args.output.lifecycle.no_hide_prefix,
+            workspace_packages: &args.paths.workspace_packages,
+            test_pattern: &args.workspace.selection.test_pattern,
+            changed_files_ignore_pattern: &args.workspace.selection.changed_files_ignore_pattern,
+            workspace_concurrency: args.workspace.ordering.concurrency,
+        },
+    );
 }

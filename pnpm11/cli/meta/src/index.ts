@@ -1,3 +1,7 @@
+import { findPnpmEntryScript, findPnpmExecutable } from './selfEntry.js'
+
+export { isPnpxExecutable } from './selfEntry.js'
+
 const defaultManifest = {
   name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
     ? process.env.npm_package_name
@@ -18,6 +22,29 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
+/**
+ * The command that re-invokes the pnpm running now, so a child runs the same
+ * version: the executable for the `@pnpm/exe` single-file build, and
+ * `node <entry>` for every other install method. Either is pnpm's own even
+ * when this process runs as `pnpx`. Falls back to whichever pnpm is on `PATH`
+ * when this process is not running pnpm.
+ */
+export function resolvePnpmSelfCommand (): string[] {
+  if (detectIfCurrentPkgIsExecutable()) return [findPnpmExecutable(process.execPath)]
+  const entryScript = findSelfEntryScript()
+  return entryScript == null ? ['pnpm'] : [process.execPath, entryScript]
+}
+
+/**
+ * The file that runs the pnpm running now, as scripts expect it in
+ * `npm_execpath`: the `@pnpm/exe` executable, or pnpm's entry script. Returns
+ * `undefined` when this process is not running pnpm.
+ */
+export function resolvePnpmExecPath (): string | undefined {
+  if (detectIfCurrentPkgIsExecutable()) return findPnpmExecutable(process.execPath)
+  return findSelfEntryScript()
+}
+
 export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
   try {
     // require() is available here because esbuild injects a createRequire shim
@@ -28,6 +55,17 @@ export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
   } catch {
     return false
   }
+}
+
+let selfEntryScript: { value: string | undefined } | undefined
+
+/**
+ * Neither `process.argv[1]` nor this module moves while the process runs, and
+ * lifecycle scripts ask once per script, so the answer is looked up once.
+ */
+function findSelfEntryScript (): string | undefined {
+  selfEntryScript ??= { value: findPnpmEntryScript(process.argv[1], import.meta.filename) }
+  return selfEntryScript.value
 }
 
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {

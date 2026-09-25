@@ -81,6 +81,7 @@ pub(super) struct OnDiskStore<'a> {
     pub(super) store_index_ref: Option<&'a pnpm_store_dir::SharedReadonlyStoreIndex>,
     pub(super) store_index_writer: Arc<pnpm_store_dir::StoreIndexWriter>,
     pub(super) caches: &'a resolver_setup::StoreCaches,
+    pub(super) resolution_observer: Option<&'a dyn crate::ResolutionObserver>,
 }
 
 pub(super) struct OnDiskRuntime<'a> {
@@ -105,9 +106,9 @@ pub(super) struct OnDiskOutput {
 }
 impl<'a> OnDiskInputs<'a> {
     /// See `linking::run_link_phase` for why this anchors on
-    /// `modules_dir.parent()` rather than the install root.
+    /// `Config::modules_dir_anchor` rather than the install root.
     fn symlink_root(&self) -> &'a Path {
-        self.ctx.config.modules_dir.parent().unwrap_or(self.ctx.workspace_root)
+        self.ctx.config.modules_dir_anchor().unwrap_or(self.ctx.workspace_root)
     }
 
     /// Materialize the virtual store. Skipped snapshots stay out of every
@@ -227,6 +228,9 @@ impl<'a> OnDiskInputs<'a> {
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
+        if let Some(observer) = self.store.resolution_observer {
+            observer.flush_progress();
+        }
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: self.ctx.requester.to_string(),
@@ -292,6 +296,7 @@ impl<'a> OnDiskInputs<'a> {
                 extra_env: &extra_env,
 
                 skipped,
+                held_back_bins_dirs: &linked.held_back_bins_dirs,
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },
@@ -439,6 +444,7 @@ impl<'a> super::FreshPriorInstall<'a> {
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.
             build_present_packages: self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }

@@ -91,6 +91,7 @@ pub mod stars;
 pub mod store;
 pub mod sudo_guard;
 pub mod supported_architectures;
+pub mod tasks;
 pub mod team;
 pub mod undeprecate;
 pub mod unlink;
@@ -104,6 +105,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+pub(crate) mod workspace_packages;
 pub(crate) mod yarn_workspaces_field;
 
 pub(crate) use cli_command::CliArgs;

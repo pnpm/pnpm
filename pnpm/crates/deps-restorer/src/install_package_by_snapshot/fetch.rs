@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     CreateVirtualDirBySnapshot, build_modules::exec_scripts_prepend_node_path,
-    retry_config::retry_opts_from_config,
+    create_virtual_store::requires_build_from_cas_paths, retry_config::retry_opts_from_config,
 };
 use pnpm_config::NodeLinker;
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
@@ -62,16 +62,10 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
 /// owned `HashMap` is cloned out of the shared `Arc` so the rest of the
 /// pass keeps its by-value contract.
 ///
-/// The caller passes a mem cache only for registry resolutions: those
-/// are the only ones the background prefetchers populate — the pnpr
-/// `TarballPrefetcher` and the resolve-time `PrefetchingResolver` both
-/// key by `name@version`, and a remote tarball resolves with no
-/// `name_ver`, so they skip it. Its only mem-cache entry comes from the
-/// resolver's download-to-resolve, and a hit on that entry returns the
-/// extraction without touching the store index. Taking the standalone
-/// path instead keeps this pass reconciling the row itself, so a later
-/// re-resolve finds the warm store whatever the resolver did or didn't
-/// write.
+/// Registry resolutions reuse background downloads. Commit-addressed git archives
+/// reuse the raw extraction from manifest recovery and still run prepare and
+/// packlist processing at installation. Other tarballs fetch standalone to
+/// reconcile their store index entries.
 pub(super) async fn download_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     tarball_mem_cache: Option<&MemCache>,
@@ -109,6 +103,7 @@ pub(super) fn fetch_directory_resolution(
         directory,
         include_only_package_files,
         resolve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .run()
@@ -354,6 +349,8 @@ impl InstallPackageBySnapshot<'_> {
                 is_mutable: slot.source_is_mutable,
                 force: false,
                 build_marker: None,
+                needs_build: requires_build_from_cas_paths(cas_paths)
+                    || crate::snapshot_has_patch(slot.package_key),
             },
             layout: self.ctx.linker.layout,
             cas_paths,

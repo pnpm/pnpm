@@ -91,6 +91,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
 
             package_manifests: None,
             requires_build_by_snapshot: None,
+            scheduled_builds: None,
         }
         .run::<SilentReporter>();
 
@@ -164,6 +165,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>()
     .expect("a declared project at `..` must be allowed");
@@ -194,6 +196,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
 
         package_manifests: None,
         requires_build_by_snapshot: None,
+        scheduled_builds: None,
     }
     .run::<SilentReporter>();
     assert!(

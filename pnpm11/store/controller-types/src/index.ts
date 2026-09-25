@@ -31,6 +31,7 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   RangeSpecStyle,
+  ReadPackageHook,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -165,6 +166,11 @@ export interface RequestPackageOptions {
   ignoreScripts?: boolean
   projectDir: string
   lockfileDir: string
+  /**
+   * The Node.js version this package's engines are checked against. Defaults
+   * to the one the store controller was created with.
+   */
+  nodeVersion?: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
   sideEffectsCache?: boolean
@@ -190,6 +196,7 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
+  readPackageHook?: ReadPackageHook
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -232,6 +239,7 @@ export interface PackageResponse {
      * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
     policyViolation?: ResolutionPolicyViolation
+    hooked?: boolean
   } & (
     {
       isLocal: true

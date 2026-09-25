@@ -3,8 +3,9 @@
 
 use super::{
     DedicatedProjects, InstallFamilyPlan, InstallFamilySelection, configuration,
-    configuration::apply_runtime_on_fail, precomputed_workspace_cycles, project_dependencies,
-    sequence_project_dependencies,
+    configuration::apply_runtime_on_fail,
+    nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
+    project_dependencies, sequence_project_dependencies,
 };
 use crate::cli_args::recursive::{
     AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
@@ -117,6 +118,10 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
         total: Some(selection.projects.len()),
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
+    report_nested_workspace_manifests::<Reporter>(
+        &selection.workspace_root,
+        selection.selected_dirs.iter().map(PathBuf::as_path),
+    );
     let plan = if cfg.shares_one_lockfile() {
         InstallFamilyPlan::Shared(Box::new(selection))
     } else {

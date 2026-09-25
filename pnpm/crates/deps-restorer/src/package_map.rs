@@ -21,7 +21,7 @@ use pnpm_lockfile::{Lockfile, PackageKey};
 use pnpm_package_manifest::PackageManifest;
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt::Write as _,
     path::{Path, PathBuf},
 };
@@ -152,11 +152,20 @@ pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>
     }
 
     // A package with metadata but no snapshot still needs a map entry:
-    // it resolves to its own slot and to nothing else.
+    // it resolves to its own slot and to nothing else. A metadata key
+    // that is the peer-stripped form of a snapshot key is not such a
+    // package: it is installed only under its snapshots' slots, and
+    // nothing references the stripped key.
+    let snapshot_package_keys: HashSet<PackageKey> = lockfile.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.without_peer())
+        .collect();
     for key in lockfile.packages
         .iter()
         .flatten()
         .map(|(key, _)| key)
+        .filter(|key| !snapshot_package_keys.contains(*key))
     {
         add_metadata_only_package(&mut accum, opts, key);
     }
@@ -237,10 +246,10 @@ fn add_snapshot_package(
     for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
         add_snapshot_dependencies(packages, &mut dependencies, lockfile, opts, group);
     }
-    let package_dir = opts.layout
-        .slot_dir(key)
-        .join("node_modules")
-        .join(key.name.to_string());
+    let package_dir = pnpm_fs::join_slash_separated_path(
+        &opts.layout.slot_dir(key).join("node_modules"),
+        &key.name.to_string(),
+    );
     add_package(packages, id, package_dirs, &package_dir, dependencies, opts.modules_dir);
     let Some(loose_index) = loose_index.as_mut() else { return };
     if let Some(modules_dir) = get_node_modules_path(&package_dir) {
@@ -266,10 +275,10 @@ fn add_metadata_only_package(
 ) {
     let id = key.to_string();
     let package_dir = || {
-        opts.layout
-            .slot_dir(key)
-            .join("node_modules")
-            .join(key.name.to_string())
+        pnpm_fs::join_slash_separated_path(
+            &opts.layout.slot_dir(key).join("node_modules"),
+            &key.name.to_string(),
+        )
     };
     accum.packages
         .entry(id.clone())

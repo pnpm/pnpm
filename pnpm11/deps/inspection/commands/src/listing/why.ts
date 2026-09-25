@@ -79,6 +79,7 @@ export async function handler (
     lockfileDir,
     reportAs,
     modulesDir: opts.modulesDir,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     checkWantedLockfileOnly: opts.lockfileOnly,
     finders,
   })

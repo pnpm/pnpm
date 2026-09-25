@@ -87,6 +87,12 @@ fn parses_node_file_names() {
     assert_eq!(windows.arch, "x64");
     assert!(!windows.is_musl);
 
+    let windows_arm64 =
+        parse_node_file_name("node-v22.0.0-win-arm64.zip", version).expect("windows arm64");
+    assert_eq!(windows_arm64.platform, "win");
+    assert_eq!(windows_arm64.arch, "arm64");
+    assert!(!windows_arm64.is_musl);
+
     assert!(parse_node_file_name("node-v22.0.0.pkg", version).is_none());
     assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", version).is_none());
 }
@@ -434,6 +440,7 @@ async fn musl_reader_propagates_a_mirror_server_error() {
 async fn musl_reader_propagates_an_unreachable_mirror() {
     // Binding and dropping a listener hands back a port the OS just confirmed
     // free, so the connect is refused instead of answered or left hanging.
+    // `0.0.0.0` fails it at once on Windows too, unlike a refused loopback port.
     let closed_port = std::net::TcpListener::bind("127.0.0.1:0")
         .expect("bind an ephemeral port")
         .local_addr()
@@ -443,7 +450,7 @@ async fn musl_reader_propagates_an_unreachable_mirror() {
     let err = read_musl_assets(
         &ThrottledClient::new_for_installs(),
         &AuthHeaders::default(),
-        &format!("http://127.0.0.1:{closed_port}/download/release/"),
+        &format!("http://0.0.0.0:{closed_port}/download/release/"),
         "22.11.0",
         None,
     )
@@ -496,3 +503,83 @@ ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-
 const SHASUMS_WITH_ONE_NODE_ASSET: &str = "\
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz
 ";
+
+const SHASUMS_WITH_WIN_ASSETS_NODE_22: &str = "\
+b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2  node-v22.11.0-win-x64.zip
+a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1  node-v22.11.0-win-arm64.zip
+";
+
+const SHASUMS_WITH_WIN_X64_NODE_18: &str = "\
+c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3  node-v18.20.0-win-x64.zip
+";
+
+#[tokio::test]
+async fn resolves_native_win_arm64_variant_for_node_20_plus() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/rc/v22.11.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(SHASUMS_WITH_WIN_ASSETS_NODE_22)
+        .create_async()
+        .await;
+    let client = ThrottledClient::new_for_installs();
+    let mirror = format!("{}/download/rc/", server.url());
+
+    let assets = read_node_assets_from_mirror(
+        &client,
+        &AuthHeaders::default(),
+        &mirror,
+        "22.11.0",
+        false,
+        false,
+        None,
+    )
+    .await
+    .expect("fetch the asset list");
+
+    let win_arm64 = assets
+        .iter()
+        .find(|asset| {
+            asset.targets
+                .iter()
+                .any(|target| target.os == "win32" && target.cpu == "arm64")
+        })
+        .expect("win32-arm64 variant exists");
+
+    assert_eq!(win_arm64.targets.len(), 1);
+    assert_eq!(win_arm64.targets[0].os, "win32");
+    assert_eq!(win_arm64.targets[0].cpu, "arm64");
+}
+
+#[tokio::test]
+async fn includes_win32_arm64_target_on_win_x64_variant_for_node_under_20() {
+    let mut server = mockito::Server::new_async().await;
+    let _shasums = server
+        .mock("GET", "/download/rc/v18.20.0/SHASUMS256.txt")
+        .with_status(200)
+        .with_body(SHASUMS_WITH_WIN_X64_NODE_18)
+        .create_async()
+        .await;
+    let client = ThrottledClient::new_for_installs();
+    let mirror = format!("{}/download/rc/", server.url());
+
+    let assets = read_node_assets_from_mirror(
+        &client,
+        &AuthHeaders::default(),
+        &mirror,
+        "18.20.0",
+        false,
+        false,
+        None,
+    )
+    .await
+    .expect("fetch the asset list");
+
+    assert_eq!(assets.len(), 1);
+    let targets = &assets[0].targets;
+    assert_eq!(targets.len(), 2);
+    assert_eq!(targets[0].os, "win32");
+    assert_eq!(targets[0].cpu, "x64");
+    assert_eq!(targets[1].os, "win32");
+    assert_eq!(targets[1].cpu, "arm64");
+}

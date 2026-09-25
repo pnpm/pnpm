@@ -4,15 +4,49 @@ use super::is_shim_pointing_at;
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
 use crate::shim::is_within_root;
+#[cfg(unix)]
+use crate::{FsReadHead, read_head_filled};
 
-/// Make the underlying script executable: apply a minimum mode of
-/// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so a chmod alone suffices.
-pub(super) fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
+/// Add missing executable bits to installed targets without modifying
+/// workspace files or rewriting CRLF shebangs.
+pub(super) fn ensure_target_executable<Sys>(
+    target_path: &Path,
+    installed_modules_dir: Option<&Path>,
+) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
 {
-    chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+    chmod_tolerating_removal(target_path, |path| {
+        Sys::ensure_executable_bits(path, installed_modules_dir)
+    })
+}
+
+#[cfg(unix)]
+pub(super) fn target_requires_shim<Sys: FsReadHead>(target_path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    if std::fs::metadata(target_path)
+        .is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0o111)
+    {
+        return true;
+    }
+    let mut head = [0; 2048];
+    let Ok(read) = read_head_filled::<Sys>(target_path, &mut head) else {
+        return false;
+    };
+    head.starts_with(b"#!")
+        && head[..read]
+            .split(|&byte| byte == b'\n')
+            .next()
+            .is_some_and(|line| line.ends_with(b"\r"))
+}
+
+#[cfg(not(unix))]
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "The Windows stub shares the Unix call site."
+)]
+pub(super) fn target_requires_shim<Sys>(_target_path: &Path) -> bool {
+    false
 }
 
 /// Apply `chmod` to `path`, treating a path that has vanished as success.
@@ -40,7 +74,7 @@ pub(super) fn chmod_tolerating_removal(
 /// `node_modules` (bundled deps) followed by the slot's
 /// `node_modules` (sibling deps), so tools that resolve from CWD
 /// (`import-local` in jest, eslint, ...) find the correct versions.
-/// `dir` must already be symlink-free — [`shim_node_path`](super::shim_node_path) passes the
+/// `dir` must already be symlink-free — [`shim_node_path`](super::linking_paths::shim_node_path) passes the
 /// caller-resolved location or a canonicalized fallback.
 pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
     let Some(node_modules_dir) = dir
@@ -184,7 +218,7 @@ pub(super) fn link_symlinked_executable<Sys>(
     shim_path: &Path,
 ) -> Result<bool, LinkBinsError>
 where
-    Sys: FsReadToString + FsEnsureExecutableBits,
+    Sys: FsReadToString,
 {
     use std::os::unix::fs::symlink;
     // pnpm's warm-install short-circuit also accepts an existing shim
@@ -196,7 +230,6 @@ where
         Sys::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, shim_path, target_path),
     ) {
-        ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);
     }
     let link_target = shim_path
@@ -212,22 +245,16 @@ where
             dst: shim_path.to_path_buf(),
             error,
         })?;
-    match Sys::ensure_executable_bits(target_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            // pnpm's `Failed to create bin at ...` globalWarn: the
-            // symlink dangles until a later step materializes the
-            // target, which is worth telling the user about but not
-            // worth failing the install over.
-            let shim_path = shim_path.display();
-            let target_path = target_path.display();
-            tracing::warn!(
-                "Failed to create bin at {shim_path}. The target {target_path} does not exist",
-            );
-        }
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error });
-        }
+    if !target_path.exists() {
+        // pnpm's `Failed to create bin at ...` globalWarn: the
+        // symlink dangles until a later step materializes the
+        // target, which is worth telling the user about but not
+        // worth failing the install over.
+        let shim_path = shim_path.display();
+        let target_path = target_path.display();
+        tracing::warn!(
+            "Failed to create bin at {shim_path}. The target {target_path} does not exist",
+        );
     }
     Ok(true)
 }
@@ -276,22 +303,25 @@ pub(super) fn symlink_already_points_at(
     pnpm_fs::lexical_normalize(&bins_dir.join(&existing)) == pnpm_fs::lexical_normalize(target_path)
 }
 
-/// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard
-/// link cheaply via the OS file identity (device + inode on Unix, file index +
-/// volume serial on Windows). When that identity can't be obtained — a missing
-/// file, or a filesystem that doesn't expose a stable index — we fall back to
-/// comparing the file contents after a quick size check, which also treats a
-/// byte-identical copy as the same file.
+/// Whether `first_path` and `second_path` are the same file.
+/// [`same_file::Handle`] proves a hard link cheaply via the OS file identity
+/// (device + inode on Unix, file index + volume serial on Windows). When
+/// that identity can't be obtained — a missing file, or a filesystem that
+/// doesn't expose a stable index — we fall back to comparing the file contents
+/// after a quick size check, which also treats a byte-identical copy as the
+/// same file.
 #[cfg(windows)]
-fn is_same_file(a: &Path, b: &Path) -> bool {
+fn is_same_file(first_path: &Path, second_path: &Path) -> bool {
     if let (Ok(handle_a), Ok(handle_b)) =
-        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
+        (same_file::Handle::from_path(first_path), same_file::Handle::from_path(second_path))
         && handle_a == handle_b
     {
         return true;
     }
-    match (std::fs::metadata(a), std::fs::metadata(b)) {
-        (Ok(meta_a), Ok(meta_b)) => meta_a.len() == meta_b.len() && have_equal_contents(a, b),
+    match (std::fs::metadata(first_path), std::fs::metadata(second_path)) {
+        (Ok(meta_a), Ok(meta_b)) => {
+            meta_a.len() == meta_b.len() && have_equal_contents(first_path, second_path)
+        }
         _ => false,
     }
 }
@@ -299,9 +329,11 @@ fn is_same_file(a: &Path, b: &Path) -> bool {
 /// Compare two equally-sized files chunk by chunk, so an executable is never
 /// fully buffered in memory and a mismatch returns as early as possible.
 #[cfg(windows)]
-fn have_equal_contents(a: &Path, b: &Path) -> bool {
+fn have_equal_contents(first_path: &Path, second_path: &Path) -> bool {
     const CHUNK_SIZE: usize = 64 * 1024;
-    let (Ok(mut file_a), Ok(mut file_b)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+    let (Ok(mut file_a), Ok(mut file_b)) =
+        (std::fs::File::open(first_path), std::fs::File::open(second_path))
+    else {
         return false;
     };
     let mut buf_a = vec![0u8; CHUNK_SIZE];

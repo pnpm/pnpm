@@ -1,12 +1,13 @@
-use super::{build_has_bin_set, pkg_dir_under, read_package};
+use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_location_bin_sources};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
     collect_packages_in_modules_dir, link_bins_of_packages, link_bins_of_packages_cached,
+    link_bins_of_packages_with_excludes,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::parse_manifest_bytes;
+use pnpm_package_manifest::{parse_manifest_bytes, safe_read_project_manifest_from_dir};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -44,7 +45,13 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
     LinkBinsOptions {
         extra_node_paths,
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
-        relocatable_root: config.modules_dir.parent().map(Path::to_path_buf),
+        relocatable_root: config.modules_dir_anchor().map(Path::to_path_buf),
+        project_modules_dir_name: (config.extend_node_path
+            && config.modules_dir_name() != "node_modules")
+            .then(|| config.modules_dir_name().to_owned()),
+        installed_modules_dir: (config.modules_dir_name() != "node_modules").then(|| {
+            config.modules_dir.clone()
+        }),
     }
 }
 /// Read the `package.json` of every direct dependency under `modules_dir`
@@ -66,7 +73,24 @@ pub fn link_direct_dep_bins(
         .iter()
         .map(|name| (name.as_str(), None))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
+}
+/// [`link_direct_dep_bins`] for a `.bin` under the hoisted linker that is
+/// linked again after the builds. Every bin whose target is missing is held
+/// back until then, so a dependency's lifecycle scripts cannot reach a shim of
+/// a file they have yet to create. See [`PackageBinSource::build_pending`].
+///
+/// Returns whether a bin was held back.
+pub fn link_direct_dep_bins_before_builds(
+    modules_dir: &Path,
+    dep_names: &[String],
+    link_options: &LinkBinsOptions,
+) -> Result<bool, LinkBinsError> {
+    let deps: Vec<(&str, Option<&Path>)> = dep_names
+        .iter()
+        .map(|name| (name.as_str(), None))
+        .collect();
+    link_named_dep_bins(modules_dir, &deps, link_options, true)
 }
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
 /// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
@@ -97,7 +121,7 @@ pub fn link_direct_dep_bins_resolved(
         .iter()
         .map(|(name, target)| (name.as_str(), Some(target.as_path())))
         .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options)
+    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
 }
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
@@ -127,8 +151,30 @@ pub struct PrefetchedBinLookup<'a> {
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
     shim_cache: ShimTargetCache,
+    /// See [`Self::with_scheduled_builds`].
+    scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
 impl<'a> PrefetchedBinLookup<'a> {
+    /// Record the builds that run after this pass. The bins of a package
+    /// among them are marked [`PackageBinSource::build_pending`], so a bin
+    /// its scripts have yet to create stays off the importer's `.bin` until
+    /// the post-build relink.
+    #[must_use]
+    pub fn with_scheduled_builds(
+        mut self,
+        scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
+    ) -> Self {
+        self.scheduled_builds = scheduled_builds;
+        self
+    }
+
+    fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
+        let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
+            return false;
+        };
+        scheduled.includes(key)
+    }
+
     #[must_use]
     pub fn new(
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -140,6 +186,7 @@ impl<'a> PrefetchedBinLookup<'a> {
             package_manifests,
             requires_build,
             shim_cache: ShimTargetCache::default(),
+            scheduled_builds: None,
         }
     }
 }
@@ -160,11 +207,19 @@ pub fn link_direct_dep_bins_prefetched(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, target, snapshot_key)| {
-            match prefetched_bin_source(modules_dir, name, target, snapshot_key.as_ref(), lookup) {
+            let source = match prefetched_bin_source(
+                modules_dir,
+                name,
+                target,
+                snapshot_key.as_ref(),
+                lookup,
+            ) {
                 PrefetchedBin::NoBins => None,
                 PrefetchedBin::Source(source) => Some(Ok(source)),
                 PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
-            }
+            };
+            let build_pending = lookup.is_build_pending(snapshot_key.as_ref());
+            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
@@ -176,6 +231,7 @@ pub fn link_direct_dep_bins_prefetched(
         link_options,
         &lookup.shim_cache,
     )
+    .map(|_| ())
 }
 /// What the prefetched facts say about one direct dependency's bins.
 pub(super) enum PrefetchedBin {
@@ -219,6 +275,41 @@ pub(super) fn prefetched_bin_source(
             .with_resolved_location(target.to_path_buf()),
     )
 }
+fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    let bytes = match fs::read(manifest_path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(LinkBinsError::ReadManifest { path: manifest_path.to_path_buf(), error });
+        }
+    };
+    parse_manifest_bytes(&bytes)
+        .map(Some)
+        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
+}
+
+/// The manifest of a project enclosing `target` whose
+/// `publishConfig.directory` is `target`.
+fn read_parent_publish_manifest(target: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    let normalized_target = pnpm_fs::lexical_normalize(target);
+    for parent in target.ancestors().skip(1) {
+        let Some(manifest) = safe_read_project_manifest_from_dir(parent)
+            .map_err(LinkBinsError::ReadProjectManifest)?
+        else {
+            continue;
+        };
+        let is_publish_dir = manifest
+            .get("publishConfig")
+            .and_then(|cfg| cfg.get("directory"))
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
+    }
+    Ok(None)
+}
+
 /// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
 /// same `NotFound`-tolerant / other-IO-fatal policy as
 /// [`link_direct_dep_bins`].
@@ -227,29 +318,41 @@ pub(super) fn read_dep_bin_source(
     name: &str,
     target: &Path,
 ) -> Option<Result<PackageBinSource, LinkBinsError>> {
+    read_dep_manifest(modules_dir, name, Some(target))
+        .map(|result| {
+            result.map(|(location, manifest)| {
+                PackageBinSource::new(location, Arc::new(manifest))
+                    .with_resolved_location(target.to_path_buf())
+            })
+        })
+}
+/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
+/// `publishConfig.directory` that has no manifest of its own falls back
+/// to the manifest of the project that declares that directory, found
+/// through `target`.
+fn read_dep_manifest(
+    modules_dir: &Path,
+    name: &str,
+    target: Option<&Path>,
+) -> Option<Result<(PathBuf, serde_json::Value), LinkBinsError>> {
     let location = modules_dir.join(name);
-    let manifest_path = location.join("package.json");
-    let bytes = match fs::read(&manifest_path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-        Err(error) => {
-            return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-        }
+    let manifest = match read_manifest_at(&location.join("package.json")) {
+        Ok(Some(manifest)) => manifest,
+        Ok(None) => match read_parent_publish_manifest(target?) {
+            Ok(Some(manifest)) => manifest,
+            Ok(None) => return None,
+            Err(err) => return Some(Err(err)),
+        },
+        Err(err) => return Some(Err(err)),
     };
-    let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-        Ok(manifest) => manifest,
-        Err(error) => {
-            return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-        }
-    };
-    Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
-        .with_resolved_location(target.to_path_buf())))
+    Some(Ok((location, manifest)))
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,
     deps: &[(&str, Option<&Path>)],
     link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
+    build_pending: bool,
+) -> Result<bool, LinkBinsError> {
     // Swallow only `NotFound`: a direct-dep symlink target can
     // legitimately be missing right after a partial pacquet run, or
     // be an in-progress install. Every other IO error (permission
@@ -261,22 +364,12 @@ pub(super) fn link_named_dep_bins(
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
         .filter_map(|(name, resolved)| {
-            let location = modules_dir.join(name);
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
+            let (location, manifest) = match read_dep_manifest(modules_dir, name, *resolved)? {
+                Ok(found) => found,
+                Err(err) => return Some(Err(err)),
             };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
-            };
-            let mut source = PackageBinSource::new(location, Arc::new(manifest));
+            let mut source = PackageBinSource::new(location, Arc::new(manifest))
+                .with_build_pending(build_pending);
             if let Some(resolved) = resolved {
                 source = source.with_resolved_location(resolved.to_path_buf());
             }
@@ -284,9 +377,14 @@ pub(super) fn link_named_dep_bins(
         })
         .collect::<Result<_, _>>()?;
     if bin_sources.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
-    link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+    link_bins_of_packages_cached::<Host>(
+        &bin_sources,
+        &modules_dir.join(".bin"),
+        link_options,
+        &ShimTargetCache::default(),
+    )
 }
 /// Link bins from resolved direct-dependency locations without requiring
 /// importer symlinks. This is the `symlink: false` counterpart of
@@ -297,20 +395,27 @@ pub fn link_direct_dep_bins_from_locations(
     locations: &[PathBuf],
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkBinsError> {
-    let bin_sources = locations
-        .par_iter()
-        .filter_map(|location| match read_package::<Host>(location) {
-            // The locations are already the symlink-resolved package
-            // dirs, so they double as `resolved_location`.
-            Ok(Some(source)) => Some(Ok(source.with_resolved_location(location.clone()))),
-            Ok(None) => None,
-            Err(error) => Some(Err(error)),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let bin_sources = read_location_bin_sources(locations)?;
     if bin_sources.is_empty() {
         return Ok(());
     }
     link_bins_of_packages::<Host>(&bin_sources, &modules_dir.join(".bin"), link_options)
+}
+/// [`link_direct_dep_bins_from_locations`] that leaves every command
+/// already in `<modules_dir>/.bin` in place, so the packages at
+/// `locations` only add commands nothing else provides.
+pub fn link_new_bins_from_locations(
+    modules_dir: &Path,
+    locations: &[PathBuf],
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkBinsError> {
+    let bin_sources = read_location_bin_sources(locations)?;
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    let bins_dir = modules_dir.join(".bin");
+    let existing = existing_commands(&bins_dir)?;
+    link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
 /// Top-level bin link that mixes direct-dep candidates and hoisted
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single

@@ -36,6 +36,7 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
             dependencies: deps([("app-dependency", "1.0.0")]),
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
+            peer_dependencies: BTreeMap::new(),
         },
         ResolveProject {
             dir: "packages/lib".to_string(),
@@ -44,6 +45,7 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
             dependencies: BTreeMap::new(),
             dev_dependencies: deps([("lib-tool", "2.0.0")]),
             optional_dependencies: BTreeMap::new(),
+            peer_dependencies: BTreeMap::new(),
         },
     ];
 

@@ -6,6 +6,7 @@ use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
+    PublishFailure,
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     publish_options::{
@@ -17,6 +18,7 @@ use crate::{
         registry_for_display, web_auth_fetch_options,
     },
     publish_summary::PublishSummary,
+    publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
 };
 
@@ -34,6 +36,7 @@ struct BatchGroup {
 pub fn validate_batch_publish_options(
     opts: &PublishPackedPkgOptions,
 ) -> Result<(), BatchPublishError> {
+    opts.validate()?;
     if opts.stage {
         return Err(BatchPublishError::Stage);
     }
@@ -51,18 +54,18 @@ pub async fn batch_publish_packed_pkgs<Reporter, OnGroupComplete, Error>(
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
     mut on_group_complete: OnGroupComplete,
-) -> Result<Vec<PublishSummary>, Error>
+) -> Result<Vec<PublishSummary>, PublishFailure<Error>>
 where
     Reporter: self::Reporter,
     OnGroupComplete: FnMut(&[usize]) -> Result<(), Error>,
     Error: From<BatchPublishError>,
 {
-    validate_batch_publish_options(opts)?;
+    validate_batch_publish_options(opts).map_err(Error::from)?;
 
     let mut summaries = Vec::with_capacity(packages.len());
     let mut groups: Vec<BatchGroup> = Vec::new();
     for package in packages {
-        group_packed_pkg(package, opts, &mut summaries, &mut groups)?;
+        group_packed_pkg(package, opts, &mut summaries, &mut groups).map_err(Error::from)?;
     }
 
     let authorizations = if opts.dry_run {
@@ -71,31 +74,76 @@ where
         groups
             .iter()
             .map(|group| batch_authorization(group, network))
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(Error::from)?
     };
 
-    for (group, authorization) in groups.into_iter().zip(authorizations) {
-        let registry = registry_for_display(&group.registry);
-        for &summary_index in &group.summary_indexes {
-            global_info::<Reporter>(&format!("📦 {} → {registry}", summaries[summary_index].id));
-        }
-        if opts.dry_run {
-            global_warn::<Reporter>(&format!(
-                "Skip publishing {} package(s) to {registry} (dry run)",
-                group.documents.len(),
-            ));
-        } else {
-            put_batch::<Reporter>(&group, authorization.as_deref(), opts, network, &registry)
+    let mut accepted = Vec::new();
+    let result = async {
+        for (group, authorization) in groups.into_iter().zip(authorizations) {
+            publish_group::<Reporter>(&group, authorization.as_deref(), opts, network, &summaries)
                 .await?;
-            global_info::<Reporter>(&format!(
-                "✅ Published {} package(s) to {registry} in a single request",
-                group.summary_indexes.len(),
-            ));
+            if !opts.dry_run {
+                accepted.extend(
+                    group.summary_indexes
+                        .iter()
+                        .map(|&index| summaries[index].clone()),
+                );
+                wait_for_group::<Reporter>(&group, &summaries, opts, network)
+                    .await
+                    .map_err(BatchPublishError::Wait)?;
+            }
+            on_group_complete(&group.summary_indexes)?;
         }
-        on_group_complete(&group.summary_indexes)?;
+        Ok::<_, Error>(())
     }
+    .await;
+    result.map_err(|error| PublishFailure { published: accepted, error })?;
 
     Ok(summaries)
+}
+
+async fn publish_group<Reporter: self::Reporter>(
+    group: &BatchGroup,
+    authorization: Option<&str>,
+    opts: &PublishPackedPkgOptions,
+    network: &PublishNetwork<'_>,
+    summaries: &[PublishSummary],
+) -> Result<(), BatchPublishError> {
+    let registry = registry_for_display(&group.registry);
+    for &summary_index in &group.summary_indexes {
+        global_info::<Reporter>(&format!("📦 {} → {registry}", summaries[summary_index].id));
+    }
+    if opts.dry_run {
+        global_warn::<Reporter>(&format!(
+            "Skip publishing {} package(s) to {registry} (dry run)",
+            group.documents.len(),
+        ));
+        return Ok(());
+    }
+    put_batch::<Reporter>(group, authorization, opts, network, &registry).await?;
+    global_info::<Reporter>(&format!(
+        "✅ Published {} package(s) to {registry} in a single request",
+        group.summary_indexes.len(),
+    ));
+    Ok(())
+}
+
+async fn wait_for_group<Reporter: self::Reporter>(
+    group: &BatchGroup,
+    summaries: &[PublishSummary],
+    opts: &PublishPackedPkgOptions,
+    network: &PublishNetwork<'_>,
+) -> Result<(), PublishWaitError> {
+    let packages = group.summary_indexes
+        .iter()
+        .map(|&index| {
+            let summary = &summaries[index];
+            (summary.name.as_str(), summary.version.as_str())
+        })
+        .collect::<Vec<_>>();
+    wait_for_published_packages::<Reporter>(&packages, &group.registry, network, opts.wait_timeout)
+        .await
 }
 
 /// Summarize one packed package and fold it into the group of everything
@@ -111,12 +159,11 @@ fn group_packed_pkg(
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let publish_config_registry = crate::publish_options::manifest_registry(manifest);
     let registry = find_registry_info(
         name,
         &opts.registry.default,
         &opts.registry.scoped,
-        publish_config_registry,
+        crate::publish_options::publish_config_registry(manifest, name),
     )?;
     let summary = package.summary();
     let document = build_publish_document(
@@ -211,6 +258,8 @@ fn batch_authorization(
 /// Failures specific to batch publishing.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum BatchPublishError {
+    #[diagnostic(transparent)]
+    Wait(PublishWaitError),
     #[display("Staged publishing cannot be combined with --batch")]
     #[diagnostic(code(ERR_PNPM_BATCH_PUBLISH_NO_STAGE))]
     Stage,

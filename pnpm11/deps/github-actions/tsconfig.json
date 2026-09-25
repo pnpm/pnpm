@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../network/git-utils"
     },
     {
       "path": "../../resolving/git-resolver"

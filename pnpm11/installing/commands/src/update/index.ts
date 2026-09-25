@@ -94,6 +94,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     interactive: Boolean,
     latest: Boolean,
     patches: Boolean,
+    peer: Boolean,
     recursive: Boolean,
     workspace: Boolean,
   }
@@ -157,6 +158,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Don\'t update packages in "optionalDependencies"',
             name: '--no-optional',
+          },
+          {
+            description: 'Also update packages in "peerDependencies"',
+            name: '--peer',
           },
           {
             description: 'Tries to link all packages from the workspace. \
@@ -338,6 +343,8 @@ async function interactiveUpdate (
         compatible: opts.latest !== true,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: input.length > 0 ? createMatcher(input.map(normalizeGitHubActionSelector)) : undefined,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
         serverUrl: opts.updateConfig?.githubActionsServer,
       })
       : [],
@@ -406,7 +413,7 @@ async function interactiveUpdate (
     },
   }))
 
-  return update(updatePkgNames, opts, rebuildHandler) as Promise<undefined>
+  return update(updatePkgNames, { ...opts, interactive: false, interactiveUpdate: true }, rebuildHandler) as Promise<undefined>
 }
 
 /**
@@ -443,16 +450,7 @@ async function update (
   const packageDependencies = updateActions
     ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
     : dependencies
-  // include is always all-true for updates: updates should not change which
-  // dep types the modules directory supports. The filtering of which deps to
-  // actually resolve/update is handled by includeDirect (from CLI flags).
-  // This matches the original behavior where rawConfig didn't have derived
-  // values like dev=false from --prod, so include defaulted to all-true.
-  const include = {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
+  const include = opts.include
   const depth = opts.depth ?? Infinity
   let updateMatching: UpdateMatchingFunction | undefined
   if (opts.packageVulnerabilityAudit != null) {
@@ -467,6 +465,7 @@ async function update (
       ...opts,
       rebuildHandler,
       allowNew: false,
+      peer: opts.cliOptions.peer === true,
       depth,
       ignoreCurrentSpecifiers: false,
       include,
@@ -487,6 +486,8 @@ async function update (
       dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
       latest: opts.latest,
       match: dependencies.length > 0 ? createMatcher(dependencies.map(normalizeGitHubActionSelector)) : undefined,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       serverUrl: opts.updateConfig?.githubActionsServer,
     })
   }
@@ -512,10 +513,12 @@ function makeIncludeDependenciesFromCLI (opts: {
   production?: boolean
   dev?: boolean
   optional?: boolean
+  peer?: boolean
 }): IncludedDependencies {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
-    optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
+    optionalDependencies: opts.optional === true || (opts.optional !== false && opts.dev !== true),
+    ...(opts.peer === true ? { peerDependencies: true } : {}),
   }
 }

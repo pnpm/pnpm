@@ -75,7 +75,7 @@ pub(super) fn settle_repeat_install(
     // it carries the previous run's `filtered_install` forward: clearing it
     // would claim every importer is materialized when a filtered install
     // left the unselected ones untouched.
-    let new_state = crate::install::build_workspace_state::<Host>(
+    let mut new_state = crate::install::build_workspace_state::<Host>(
         workspace_root,
         config,
         node_linker,
@@ -86,6 +86,7 @@ pub(super) fn settle_repeat_install(
         state.filtered_install,
         filesystem_now,
     );
+    new_state.settings.auto_dedupe = state.settings.auto_dedupe;
     if let Err(error) = update_workspace_state(workspace_root, &new_state) {
         tracing::warn!(
             target: "pacquet::install",
@@ -239,10 +240,11 @@ pub(super) fn first_project_missing_modules_dir(
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
-            let root_project_dir = workspace_dir_of(config, root_dir);
-            let is_root = *root_dir == root_project_dir;
+            let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
             let installed = !manifest_has_runtime_deps(manifest)
-                || modules_dir_exists(node_linker, root_dir, is_root, root_modules_dir_exists)
+                || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
+                    sibling_modules_dir(config, root_dir, manifest)
+                })
                 || (!is_root
                     && root_modules_dir_exists
                     && config.dedupe_direct_deps
@@ -251,7 +253,7 @@ pub(super) fn first_project_missing_modules_dir(
                         &included_groups(included),
                         DedupeImporters {
                             lockfile_root: workspace_root,
-                            root_dir: &root_project_dir,
+                            root_dir: workspace_root,
                             sibling_dir: root_dir,
                         },
                     ));
@@ -262,15 +264,67 @@ pub(super) fn first_project_missing_modules_dir(
         })
 }
 
-/// The root importer uses `config.modules_dir`; siblings use their own
-/// `<root>/node_modules`. Matches the isolated-linker default —
-/// `config.modules_dir` is `<workspace_root>/node_modules` unless the user
-/// overrode it explicitly.
+/// Whether a direct dependency's entry in its project's modules directory is
+/// a link whose target no longer exists. Nothing the fast path records moves
+/// when a link is broken or retargeted outside pnpm, and the full install
+/// relinks it. A missing entry is not a broken link: skipped optional and
+/// excluded dependencies have none, and a healthy entry costs one `stat`.
+/// The hoisted linker places a sibling's dependencies in the root modules
+/// directory too, so both are probed there.
+pub(super) fn direct_dependency_link_dangling(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
+    let groups = included_groups(check.layout.included);
+    check.project_manifests
+        .iter()
+        .any(|(root_dir, manifest)| {
+            project_modules_dirs(check, root_dir, manifest)
+                .iter()
+                .any(|modules_dir| {
+                    manifest
+                        .dependencies(groups.iter().copied())
+                        .any(|(alias, _)| is_dangling_link(&modules_dir.join(alias)))
+                })
+        })
+}
+
+/// The modules directories the linker may place a project's direct
+/// dependencies in.
+fn project_modules_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    root_dir: &Path,
+    manifest: &PackageManifest,
+) -> Vec<PathBuf> {
+    let config = check.config;
+    if lexical_normalize(root_dir) == lexical_normalize(check.workspace_root) {
+        return vec![config.modules_dir.clone()];
+    }
+    let own = sibling_modules_dir(config, root_dir, manifest);
+    if check.layout.node_linker == NodeLinker::Hoisted {
+        vec![own, config.modules_dir.clone()]
+    } else {
+        vec![own]
+    }
+}
+
+fn is_dangling_link(path: &Path) -> bool {
+    fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
+}
+
+/// The modules directory an isolated install creates for the workspace
+/// project at `root_dir`.
+fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {
+    root_dir.join(config.modules_dir_name_for(
+        root_dir,
+        manifest_string_field(manifest, "name").as_deref(),
+    ))
+}
+
+/// The root importer uses `config.modules_dir`; under the isolated linker
+/// each sibling has its own, which the last argument computes.
 fn modules_dir_exists(
     node_linker: NodeLinker,
-    root_dir: &Path,
     is_root: bool,
     root_modules_dir_exists: bool,
+    sibling_modules_dir: impl FnOnce() -> PathBuf,
 ) -> bool {
     match node_linker {
         NodeLinker::Hoisted => root_modules_dir_exists,
@@ -278,7 +332,7 @@ fn modules_dir_exists(
             if is_root {
                 root_modules_dir_exists
             } else {
-                root_dir.join("node_modules").is_dir()
+                sibling_modules_dir().is_dir()
             }
         }
     }
@@ -379,13 +433,4 @@ fn resolves_to_same_target(
         (None, None) => root_dep.version == dep.version,
         _ => false,
     }
-}
-/// Recover the workspace root from `config.modules_dir`. The root
-/// importer's `root_dir` equals `config.modules_dir.parent()` because
-/// `config.modules_dir` is `<workspace_root>/node_modules`. Used by
-/// [`modules_dirs_present`] to tell root from sibling — a brittle
-/// shape but it matches how the install path itself derives
-/// `config.modules_dir`.
-pub(super) fn workspace_dir_of(config: &Config, fallback: &Path) -> PathBuf {
-    config.modules_dir.parent().map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
 }

@@ -1,6 +1,6 @@
 use super::{
     GitFetcher, GitManifestQuery, exec_git_with, extract_host, is_safe_repo_arg,
-    is_valid_commit_hash, read_git_manifest, should_use_shallow, ssh_repo_host,
+    is_valid_commit_hash, prepare_git_cmd, read_git_manifest, should_use_shallow, ssh_repo_host,
 };
 use crate::{
     error::{GitFetcherError, PreparePackageError},

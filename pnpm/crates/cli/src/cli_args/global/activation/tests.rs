@@ -96,8 +96,14 @@ macro_rules! delegate_cmd_shim_capabilities {
         }
 
         impl FsEnsureExecutableBits for $system {
-            fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-                <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+            fn ensure_executable_bits(
+                path: &Path,
+                installed_modules_dir: Option<&Path>,
+            ) -> io::Result<()> {
+                <Host as FsEnsureExecutableBits>::ensure_executable_bits(
+                    path,
+                    installed_modules_dir,
+                )
             }
         }
     };

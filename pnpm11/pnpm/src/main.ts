@@ -6,6 +6,7 @@ declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
 
@@ -33,7 +34,7 @@ import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from '.
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
-import { switchCliVersion } from './switchCliVersion.js'
+import { fetchLockedPackageManager, switchCliVersion } from './switchCliVersion.js'
 import { syncEnvLockfile } from './syncEnvLockfile.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
@@ -121,14 +122,18 @@ export async function main (inputArgv: string[]): Promise<void> {
         const pm = context.wantedPackageManager
         if (pm.onFail !== 'ignore') {
           const printingVersion = cmd == null && cliOptions.version === true
-          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+          if (cliOptions.global) {
+            // Global state belongs to the pnpm the user invoked, not to the
+            // project, so a global command never switches to the pinned pnpm.
+            if (!isRunningPnpmPinned(pm)) {
+              globalWarn('Using --global skips the package manager check for this project')
+            }
+          } else if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
             // Corepack owns version switching; pnpm only switches versions when
             // the user is running pnpm directly.
             await tolerateWhenPrintingVersion(printingVersion, async () => {
               await switchCliVersion(config, context)
             })
-          } else if (cliOptions.global) {
-            globalWarn('Using --global skips the package manager check for this project')
           } else {
             // checkPackageManager and syncEnvLockfile run regardless of how pnpm
             // was invoked. Different developers on the same project may use
@@ -143,6 +148,8 @@ export async function main (inputArgv: string[]): Promise<void> {
             })
           }
         }
+      } else if (cmd === 'fetch' && !isExecutedByCorepack()) {
+        await fetchLockedPackageManager(config, context)
       }
       if (cmd != null && !cliOptions.global) {
         for (const runtime of getWantedRuntimes(context)) {
@@ -257,19 +264,29 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
   }
 
+  const hasFilter = Boolean(config.filter?.length || config.filterProd?.length)
+  const isWorkspaceSubdirectory = typeof workspaceDir === 'string' &&
+    getRealPathSync(config.dir) !== getRealPathSync(workspaceDir)
+  const isListCommand = cmd === 'list' || cmd === 'll'
+  const hasExplicitRecursive = cliOptions['recursive'] === true
+
   if (
     cmd != null && recursiveByDefaultCommands.has(cmd) &&
-    typeof workspaceDir === 'string'
+    typeof workspaceDir === 'string' &&
+    !(isListCommand && isWorkspaceSubdirectory && !hasFilter)
   ) {
     cliOptions['recursive'] = true
     config.recursive = true
 
-    if (!config.recursiveInstall && !config.filter && !config.filterProd) {
+    if (hasExplicitRecursive) {
+      config.recursiveInstall = true
+    } else if (!config.recursiveInstall && !config.filter && !config.filterProd) {
       config.filter = ['{.}...']
     }
   }
 
   if (cliOptions['recursive']) {
+    config.recursive = true
     const wsDir = workspaceDir ?? process.cwd()
 
     config.filter = config.filter ?? []
@@ -300,9 +317,12 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
 
     const filterResults = await filterProjectsFromDir(wsDir, filters, {
+      catalogs: config.catalogs,
       engineStrict: config.engineStrict,
       nodeVersion: config.nodeVersion,
       patterns: config.workspacePackagePatterns,
+      modulesDir: config.modulesDir,
+      modulesDirsByProjectName: config.modulesDirsByProjectName,
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,
@@ -477,6 +497,11 @@ function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location
   return false
 }
 
+function isRunningPnpmPinned (pm: EngineDependency): boolean {
+  if (pm.name !== 'pnpm' || packageManager.name !== 'pnpm') return false
+  return !pm.version || semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })
+}
+
 function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean }): void {
   if (!pm.name) return
   const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
@@ -572,6 +597,19 @@ function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
     throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
   }
   globalWarn(message)
+}
+
+function getRealPathSync (dir: string): string {
+  const resolved = path.resolve(dir)
+  try {
+    return fs.realpathSync.native(resolved)
+  } catch (err: unknown) {
+    throw new PnpmError(
+      'WORKSPACE_DIR_NOT_FOUND',
+      `Failed to resolve real path for "${resolved}"`,
+      { cause: err }
+    )
+  }
 }
 
 const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

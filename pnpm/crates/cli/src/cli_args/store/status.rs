@@ -18,14 +18,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// pnpm renders this as a title plus the list, so the message carries the
-/// dep paths one per line and the remedy is the diagnostic's help.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Packages in the store have been mutated\nThese packages are modified:\n{}", modified.join("\n"))]
-#[diagnostic(
-    code(ERR_PNPM_MODIFIED_DEPENDENCY),
-    help(r#"You can run "pnpm install --force" to refetch the modified packages"#)
-)]
+#[diagnostic(code(ERR_PNPM_MODIFIED_DEPENDENCY))]
 pub struct ModifiedDependencyError {
     #[error(not(source))]
     pub modified: Vec<String>,
@@ -65,6 +60,11 @@ pub(super) async fn run<Reporter: self::Reporter>(
 }
 
 /// Every installed package the store can verify, with where each lives.
+///
+/// Iterated from `snapshots:` rather than `packages:`: the snapshot key
+/// carries the peer-dependency suffix that names the package's
+/// materialized slot in the virtual store, and is the dep path
+/// `.modules.yaml.skipped` records.
 fn packages_to_check(
     config: &Config,
     lockfile: &Lockfile,
@@ -85,11 +85,14 @@ fn packages_to_check(
     );
 
     let max_length = config.virtual_store_dir_max_length as usize;
-    lockfile.packages
+    lockfile.snapshots
         .iter()
         .flatten()
         .filter(|(key, _)| !skipped.contains(key.to_string().as_str()))
-        .filter_map(|(key, metadata)| {
+        .filter_map(|(key, _)| {
+            let metadata = lockfile.packages
+                .as_ref()?
+                .get(&key.without_peer())?;
             let store_index_key =
                 store_index_key_for_resolution(&metadata.resolution, &key.pkg_id(), true)?;
             let modules_dir = virtual_store_dir

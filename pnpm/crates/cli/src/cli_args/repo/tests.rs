@@ -8,6 +8,30 @@ use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, io, sync::Mutex};
 
+#[test]
+fn current_project_repo_uses_manifest_precedence() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("package.yaml"), "repository: https://example.test/yaml\n")
+        .unwrap();
+    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/yaml");
+    std::fs::write(dir.path().join("package.json5"), "{repository: 'https://example.test/json5'}")
+        .unwrap();
+    assert_eq!(
+        get_repo_url_from_current_project(dir.path()).unwrap(),
+        "https://example.test/json5",
+    );
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"repository":"https://example.test/json"}"#,
+    )
+    .unwrap();
+    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/json");
+    std::fs::write(dir.path().join("package.json"), "{ invalid:").unwrap();
+    let error = get_repo_url_from_current_project(dir.path()).unwrap_err();
+    eprintln!("ERROR: {error:?}");
+    assert!(format!("{error:?}").contains("package.json"));
+}
+
 #[tokio::test]
 async fn test_registry_package_name_defaults_to_latest() {
     let mut server = mockito::Server::new_async().await;

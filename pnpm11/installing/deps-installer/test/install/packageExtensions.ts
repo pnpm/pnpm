@@ -1,4 +1,6 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import zlib from 'node:zlib'
 
 import { expect, test } from '@jest/globals'
 import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
@@ -605,3 +607,131 @@ test('manifests are not patched by extensions from the compatibility database wh
   const lockfile = project.readLockfile()
   expect(lockfile.packages['debug@4.0.0'].peerDependenciesMeta).toBeUndefined()
 })
+
+test('manifests without version do not match ranged packageExtensions selectors', async () => {
+  const project = prepareEmpty()
+
+  const tarballPath = path.resolve('no-manifest-1.0.0.tgz')
+  fs.writeFileSync(tarballPath, createTarGz([{ name: 'package/README.md', content: 'placeholder' }]))
+
+  const packageExtensions: Record<string, PackageExtension> = {
+    'no-manifest@<2': {
+      dependencies: {
+        '@pnpm.e2e/bar': '100.1.0',
+      },
+    },
+    'no-manifest@*': {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    'no-manifest@>=100': {
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    'no-manifest': {
+      dependencies: {
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    },
+  }
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    [`no-manifest@file:${tarballPath}`],
+    testDefaults({
+      packageExtensions,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    const depKey = Object.keys(lockfile.snapshots).find((key) => key.startsWith('no-manifest@'))!
+    const snapshot = lockfile.snapshots[depKey]
+    // Ranged selectors (@<2, @*, @>=100) must not match synthesized/absent version
+    expect(snapshot.dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
+    expect(snapshot.dependencies?.['is-positive']).toBeUndefined()
+    expect(snapshot.dependencies?.['is-negative']).toBeUndefined()
+    // Bare selector must match
+    expect(snapshot.dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
+  }
+
+  // Second install with existing lockfile (where currentPkg.version is synthesized 0.0.0)
+  await addDependenciesToPackage(
+    manifest,
+    [],
+    testDefaults({
+      packageExtensions,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    const depKey = Object.keys(lockfile.snapshots).find((key) => key.startsWith('no-manifest@'))!
+    const snapshot = lockfile.snapshots[depKey]
+    expect(snapshot.dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
+    expect(snapshot.dependencies?.['is-positive']).toBeUndefined()
+    expect(snapshot.dependencies?.['is-negative']).toBeUndefined()
+    expect(snapshot.dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
+  }
+})
+
+test('ranged packageExtensions selectors do not match a local directory with no package.json', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('debug')
+  fs.writeFileSync('debug/index.js', '', 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./debug'], testDefaults({
+    packageExtensions: {
+      'debug@<1': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      debug: {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  }))
+
+  expect(project.readLockfile().snapshots['debug@file:debug']).toStrictEqual({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+})
+
+function createTarGz (entries: Array<{ name: string, content: string | Buffer }>): Buffer {
+  const blocks: Buffer[] = []
+  for (const entry of entries) {
+    const header = Buffer.alloc(512)
+    header.write(entry.name, 0, 100, 'utf8')
+    header.write('0000644\0', 100, 8, 'ascii')
+    header.write('0000000\0', 108, 8, 'ascii')
+    header.write('0000000\0', 116, 8, 'ascii')
+    const content = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content, 'utf8')
+    header.write(content.length.toString(8).padStart(11, '0') + '\0', 124, 12, 'ascii')
+    header.write(Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + '\0', 136, 12, 'ascii')
+    header.fill(32, 148, 156)
+    header.write('0', 156, 1, 'ascii')
+    header.write('ustar\0', 257, 6, 'ascii')
+    header.write('00', 263, 2, 'ascii')
+
+    let checksum = 0
+    for (let i = 0; i < 512; i++) checksum += header[i]
+    header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii')
+
+    blocks.push(header)
+    blocks.push(content)
+    const remainder = content.length % 512
+    if (remainder !== 0) {
+      blocks.push(Buffer.alloc(512 - remainder))
+    }
+  }
+  blocks.push(Buffer.alloc(1024))
+  return zlib.gzipSync(Buffer.concat(blocks))
+}
+

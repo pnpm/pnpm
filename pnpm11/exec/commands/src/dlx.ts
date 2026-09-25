@@ -14,6 +14,7 @@ import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createShortHash } from '@pnpm/crypto.hash'
+import { engineName, getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
@@ -166,6 +167,7 @@ export async function handler (
     registriesByScope: opts.registriesByScope,
     allowBuild: opts.allowBuild,
     supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: getSystemNodeVersion(),
   })
   const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
   if (!cacheExists) {
@@ -380,6 +382,7 @@ function findCache (opts: {
   registriesByScope: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
+  nodeVersion?: string
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
@@ -398,6 +401,7 @@ function createDlxCommandCacheDir (
     cacheDir: string
     allowBuild?: string[]
     supportedArchitectures?: SupportedArchitectures
+    nodeVersion?: string
   }
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
@@ -412,6 +416,7 @@ export function createCacheKey (opts: {
   registriesByScope: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
+  nodeVersion?: string
 }): string {
   const sortedPkgs = [...opts.packages].sort(lexCompare)
   const sortedRegistries = Object.entries(opts.registriesByScope).sort(([k1], [k2]) => lexCompare(k1, k2))
@@ -431,6 +436,9 @@ export function createCacheKey (opts: {
       })
     }
   }
+  // Packages built by lifecycle scripts, native addons especially, only load
+  // on the platform, architecture, and Node.js major they were built for.
+  args.push({ engine: engineName(opts.nodeVersion) })
   const hashStr = JSON.stringify(args)
   // A short (truncated) hash keeps the dlx cache path short. The full
   // virtual-store path below it (`<key>/<prepare>/node_modules/.pnpm/<pkgId>/

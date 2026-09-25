@@ -52,7 +52,8 @@ export async function getPeerDependencyIssues (
   }))
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
     ctx.wantedLockfile.packages,
-    Object.values(ctx.projects).map(({ manifest }) => manifest)
+    Object.values(ctx.projects).map(({ manifest }) => manifest),
+    { catalogs: opts.catalogs }
   )
   const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
   const {

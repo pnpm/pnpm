@@ -1,16 +1,24 @@
 use super::{
     ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
     InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
-    PathBuf, resolve_bool_override,
+    PathBuf, ReporterFlags, resolve_bool_override,
 };
+
+mod reporter_flags;
 
 pub(super) struct PreCommandInput {
     pub(super) switch: SwitchInput,
     pub(super) global: bool,
     pub(super) skip_pm_handling: bool,
     pub(super) check_runtimes: bool,
-    pub(super) emit: fn(&LogEvent),
+    pub(super) reporter: ReporterFlags,
     pub(super) key_issues: KeyIssueReporting,
+}
+
+impl PreCommandInput {
+    pub(super) fn emit(&self, config: &Config) -> fn(&LogEvent) {
+        self.reporter.configure_with(config)
+    }
 }
 
 /// What to do about the problem keys of the project's `pnpm-workspace.yaml`

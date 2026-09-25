@@ -94,6 +94,9 @@ pub struct FrozenProjectInputs<'a> {
     /// [`workspace_root`]: Self::workspace_root
     pub requester: &'a str,
     pub dependency_groups: &'a [DependencyGroup],
+    /// [`Self::dependency_groups`] with the peer-satisfaction edges the
+    /// caller classified on the wanted lockfile.
+    pub groups: &'a crate::GroupSelection,
     pub manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
 }
@@ -151,6 +154,8 @@ pub struct PriorMaterialization<'a> {
     /// `None` on a first install or when the file couldn't be fully
     /// parsed.
     pub hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorLinkState::previously_skipped`].
+    pub previously_skipped: &'a crate::SkippedSnapshots,
     /// `allowBuilds` changed since the previous install: a build it
     /// ignored may now be allowed, or one it ran may no longer be. The
     /// hoisted linker then hands every package to the build phase, present
@@ -196,6 +201,7 @@ impl<'a> PriorMaterialization<'a> {
             hoisted_locations: self.hoisted_locations,
             build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
+            previously_skipped: self.previously_skipped,
         }
     }
 }

@@ -149,7 +149,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
     );
 }
 
-/// `load_workspace_state` surfaces non-NotFound read errors via
+/// [`load_workspace_state`] surfaces non-NotFound read errors via
 /// the typed `ReadFile` variant. Here we make the target a
 /// directory: `read_to_string` on a directory returns
 /// `IsADirectory` (or `Other`) on Unix, never `NotFound`, which
@@ -183,5 +183,39 @@ fn load_surfaces_parse_json_error_on_malformed_state() {
     assert!(
         matches!(err, LoadWorkspaceStateError::ParseJson { .. }),
         "expected ParseJson error, got {err:?}",
+    );
+}
+
+#[test]
+fn update_overwrites_existing_state_file() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+
+    let mut state = WorkspaceState { last_validated_timestamp: 100, ..Default::default() };
+    update_workspace_state(workspace_dir, &state).expect("write first state");
+
+    let loaded1 = load_workspace_state(workspace_dir).expect("load state").expect("file present");
+    assert_eq!(loaded1.last_validated_timestamp, 100);
+
+    state.last_validated_timestamp = 200;
+    update_workspace_state(workspace_dir, &state).expect("overwrite state");
+
+    let loaded2 = load_workspace_state(workspace_dir).expect("load state").expect("file present");
+    assert_eq!(loaded2.last_validated_timestamp, 200);
+}
+
+#[test]
+fn update_surfaces_write_file_error_when_target_is_a_directory() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    let target = get_file_path(workspace_dir);
+    std::fs::create_dir_all(&target).expect("seed directory at state file path");
+
+    let state = WorkspaceState::default();
+    let err = update_workspace_state(workspace_dir, &state)
+        .expect_err("renaming over a directory should fail");
+    assert!(
+        matches!(err, UpdateWorkspaceStateError::WriteFile { .. }),
+        "expected WriteFile error, got {err:?}",
     );
 }

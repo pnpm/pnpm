@@ -8,7 +8,7 @@ import normalize from 'normalize-path'
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
-const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar)$/i
+const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
 const driveLetterPrefixPattern = /^[a-z]:/i
 
@@ -132,6 +132,15 @@ export function parseLocalScheme (
   return null
 }
 
+/**
+ * The path a `file:` specifier resolves to: the package directory, or the
+ * tarball file. `undefined` for any other specifier.
+ */
+export function localFilePath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!bareSpecifier.startsWith('file:')) return undefined
+  return parseLocalScheme({ bareSpecifier }, projectDir, projectDir, { preserveAbsolutePaths: false })?.fetchSpec
+}
+
 export function parseLocalPath (
   wd: WantedLocalDependency,
   projectDir: string,
@@ -140,6 +149,7 @@ export function parseLocalPath (
 ): LocalPackageSpec | null {
   if (isTarballFilename(wd.bareSpecifier) ||
     wd.bareSpecifier.includes(path.sep) ||
+    (path.sep === '\\' && wd.bareSpecifier.includes('/')) ||
     isFilespec(wd.bareSpecifier)
   ) {
     const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'
@@ -178,24 +188,26 @@ function fromLocal (
     if (isAbsolute(spec)) {
       normalizedBareSpecifier = `${protocol}${spec}`
     } else {
-      normalizedBareSpecifier = `${protocol}${path.relative(projectDir, fetchSpec)}`
+      normalizedBareSpecifier = `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
     }
   }
 
   function normalizeRelativeOrAbsolute (relativeTo: string, fromPath: string) {
     let specPath
-    if (opts.preserveAbsolutePaths && isAbsolute(spec)) {
+    if (isDifferentUncRoot(relativeTo, fromPath)) {
+      specPath = fromPath
+    } else if (opts.preserveAbsolutePaths && isAbsolute(spec)) {
       specPath = path.resolve(fromPath)
     } else {
       specPath = path.relative(relativeTo, fromPath)
     }
-    return normalize(specPath)
+    return normalizePathPreservingUnc(specPath)
   }
 
   injected = protocol === 'file:'
   const dependencyPath = injected
     ? normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)
-    : normalize(path.resolve(fetchSpec))
+    : normalizePathPreservingUnc(path.resolve(fetchSpec))
   const id = (
     !injected && (type === 'directory' || projectDir === lockfileDir)
       ? `${protocol}${normalizeRelativeOrAbsolute(projectDir, fetchSpec)}`
@@ -220,4 +232,27 @@ function isAbsolute (dir: string): boolean {
   if (dir[0] === '/') return true
   if (/^[A-Z]:/i.test(dir)) return true
   return false
+}
+
+function isUncPath (dir: string): boolean {
+  return isWindows && (dir.startsWith('//') || dir.startsWith('\\\\'))
+}
+
+function normalizePathPreservingUnc (path: string): string {
+  const normalizedPath = normalize(path)
+  return isUncPath(path) && !normalizedPath.startsWith('//')
+    ? `/${normalizedPath}`
+    : normalizedPath
+}
+
+function isDifferentUncRoot (relativeTo: string, fromPath: string): boolean {
+  const relativeToRoot = path.win32.parse(relativeTo).root
+  const fromRoot = path.win32.parse(fromPath).root
+  if (!isUncPath(relativeToRoot) || !isUncPath(fromRoot)) return false
+  return normalizeUncRoot(relativeToRoot) !== normalizeUncRoot(fromRoot)
+}
+
+function normalizeUncRoot (root: string): string {
+  const slashRoot = root.replace(/\\/g, '/')
+  return (slashRoot.endsWith('/') ? slashRoot.slice(0, -1) : slashRoot).toLowerCase()
 }

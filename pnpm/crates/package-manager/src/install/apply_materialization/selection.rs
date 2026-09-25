@@ -7,9 +7,8 @@ pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
     pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
     pub(super) workspace_root: &'a Path,
-    pub(super) included: IncludedDependencies,
+    pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
-    pub(super) node_linker: NodeLinker,
     pub(super) is_inconsistent: bool,
 }
 pub(super) struct MaterializedState<'a> {
@@ -28,7 +27,7 @@ pub(super) fn select_materialized_state<'a>(
                 wanted,
                 inputs.workspace_root,
                 requested,
-                inputs.included,
+                &inputs.groups,
                 inputs.install_skipped,
             )
             .lockfile
@@ -59,7 +58,6 @@ pub(super) fn project_anchor_importers(
     wanted_lockfile: Option<&Lockfile>,
 ) -> HashSet<String> {
     match inputs.projects.requested_ids {
-        Some(requested) if matches!(inputs.node_linker, NodeLinker::Hoisted) => requested.clone(),
         Some(requested) => wanted_lockfile.map_or_else(
             || requested.clone(),
             |wanted| {
@@ -67,7 +65,7 @@ pub(super) fn project_anchor_importers(
                     wanted,
                     inputs.workspace_root,
                     requested,
-                    inputs.included,
+                    &crate::GroupSelection::following_every_edge(inputs.groups.included),
                     inputs.install_skipped,
                 )
                 .importer_ids
@@ -80,20 +78,19 @@ pub(super) fn materialized_current_lockfile(
     inputs: &SelectMaterializedStateInputs<'_>,
     wanted: &Lockfile,
 ) -> Lockfile {
-    if inputs.projects.requested_ids.is_some() && matches!(inputs.node_linker, NodeLinker::Hoisted)
-    {
-        crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
-    } else if let Some(requested_importer_ids) = inputs.projects.requested_ids {
+    if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
+        crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
+    } else {
         crate::merge_filtered_current_lockfile(
-            (!inputs.is_inconsistent).then_some(inputs.lockfiles.current).flatten(),
+            (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)
+                .then_some(inputs.lockfiles.current)
+                .flatten(),
             wanted,
-            requested_importer_ids,
-            inputs.included,
+            inputs.projects.requested_ids.unwrap_or(inputs.projects.real_ids),
+            &inputs.groups,
             inputs.install_skipped,
             inputs.workspace_root,
         )
-    } else {
-        crate::filter_lockfile_for_current(wanted, inputs.included, inputs.install_skipped)
     }
 }
 pub(super) struct LinkMaterializedProjectsInputs<'a> {
@@ -135,9 +132,7 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
             }),
             inputs.manifest_links.workspace_packages,
             inputs.manifest_links.included,
-            inputs.config.modules_dir
-                .file_name()
-                .unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
+            inputs.config.modules_dir_name(),
             &crate::shim_link_options(inputs.config, inputs.node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;

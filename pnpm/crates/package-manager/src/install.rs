@@ -5,19 +5,20 @@ pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
 pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    ImporterSatisfactionCheck, check_importer_satisfies, check_lockfile_settings_drift,
-    parse_config_overrides,
+    ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
+    check_lockfile_settings_drift, parse_config_overrides,
 };
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
 pub(crate) use modules_state::{
-    frozen_tree_intact, modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
+    frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+    modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
 };
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, install_already_up_to_date,
+    check_deps_status_before_run_at, deps_install_root, install_already_up_to_date,
 };
 pub(crate) use workspace_state::{
     build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
@@ -44,16 +45,17 @@ use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
 use pnpm_executor::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, RunPostinstallHooks,
-    ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_dev_preinstall_hook,
-    run_project_lifecycle_scripts,
+    DEV_PREINSTALL_ALREADY_RAN_ENV, PROJECT_INSTALL_STAGES, PROJECT_LIFECYCLE_STAGES,
+    PROJECT_POST_UNINSTALL_STAGES, PROJECT_PRE_UNINSTALL_STAGES, ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    RunPostinstallHooks, run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
+    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PkgName, PnpmfileChecksumCheck,
     StalenessReason, VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
+    ReplacedEntries, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::{
     Clock, Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
@@ -71,7 +73,6 @@ use pnpm_tarball::MemCache;
 use pnpm_workspace_state::{ProjectEntry, WorkspaceState, update_workspace_state};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    io::IsTerminal,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
@@ -83,6 +84,7 @@ mod lockfile_freshness;
 mod materialize;
 mod modules_state;
 mod prepare_modules_state;
+mod time_machine;
 /// The dependency groups the install includes, as `.modules.yaml` records
 /// them and the dependency-graph walker observes them.
 pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> IncludedDependencies {
@@ -99,10 +101,12 @@ mod workspace_state;
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
     dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
-    run_dev_preinstall, run_projects_lifecycle_scripts,
+    project_script_stages, root_preinstall_already_ran, run_pre_uninstall_scripts,
+    run_projects_lifecycle_scripts, run_root_hook,
 };
 use lockfile_freshness::{
-    FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
+    FastUpdateLockfileOptions, LockfileFreshnessInputs, check_lockfile_freshness,
+    try_fast_update_lockfile,
 };
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
@@ -116,10 +120,11 @@ use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
     prior_hoisted_dependencies, prior_hoisted_locations,
 };
+use time_machine::TimeMachineExclusions;
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,
-    selected_manifest_freshness_inputs,
+    build_selected_project_manifests_list, lockfile_root_for, mutated_project_dirs,
+    projects_running_own_scripts, selected_manifest_freshness_inputs,
 };
 
 #[cfg(test)]
@@ -147,6 +152,7 @@ async fn verify_lockfile_eagerly<Reporter: pnpm_reporter::Reporter>(
             concurrency: None,
             lockfile_path,
             cache_dir: Some(cache_dir),
+            replaced: None,
         },
     )
     .await
@@ -168,6 +174,33 @@ pub struct LockfileVerificationGate(
     tokio::task::JoinHandle<Result<(), pnpm_lockfile_verification::VerifyError>>,
 );
 
+/// Owned form of [`ReplacedEntries`], for the spawned gate.
+pub(crate) type IsReplaced = Arc<dyn Fn(&PkgName, &str) -> bool + Send + Sync>;
+
+pub(crate) fn untracked_read_package_hook_may_have_changed(
+    recorded: Option<bool>,
+    current: Option<bool>,
+) -> bool {
+    current == Some(true) || recorded != current
+}
+
+/// What the freshness gates compare the lockfile's `pnpmfileChecksum`
+/// against: the `current` checksum, unless the install loads no pnpmfile
+/// because of `ignorePnpmfile`. The flag skips the pnpmfile for that run
+/// only, so the checksum is left uncompared and a lockfile that is
+/// otherwise up to date installs as it is
+/// (<https://github.com/pnpm/pnpm/issues/10944>). A run that goes on to
+/// resolve still sees the drift in the reuse gate and records no checksum.
+fn pnpmfile_checksum_check<'a>(
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    current: Option<&'a str>,
+) -> PnpmfileChecksumCheck<'a> {
+    if inputs.config.ignore_pnpmfile && inputs.pnpmfile_hook.is_none() {
+        return PnpmfileChecksumCheck::Skip;
+    }
+    PnpmfileChecksumCheck::Current(current)
+}
+
 impl LockfileVerificationGate {
     /// Start the fan-out in the background, or `None` when no verifier
     /// is active (`trustLockfile`).
@@ -176,6 +209,7 @@ impl LockfileVerificationGate {
         verifiers: &[Arc<dyn ResolutionVerifier>],
         lockfile_path: Option<&Path>,
         cache_dir: &Path,
+        replaced: Option<IsReplaced>,
     ) -> Option<Self> {
         if verifiers.is_empty() {
             return None;
@@ -192,6 +226,7 @@ impl LockfileVerificationGate {
                     concurrency: None,
                     lockfile_path: lockfile_path.as_deref(),
                     cache_dir: Some(&cache_dir),
+                    replaced: replaced.as_deref().map(ReplacedEntries),
                 },
             )
             .await
@@ -249,6 +284,9 @@ pub struct WorkspaceInstallSelection<'a> {
     /// Projects chosen by the original filter. Manifest mutations stay
     /// scoped to these projects.
     pub selected_dirs: &'a HashSet<PathBuf>,
+    /// The subset of [`Self::selected_dirs`] whose manifests the command
+    /// changed; `None` when it changed every one of them.
+    pub edited_dirs: Option<&'a HashSet<PathBuf>>,
     /// Importers to materialize: [`Self::selected_dirs`] plus an omitted
     /// workspace root that pnpm treats as a full-install importer.
     pub install_dirs: &'a HashSet<PathBuf>,
@@ -288,9 +326,11 @@ pub enum PrecomputedWorkspaceCycles<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectMutation {
     /// pnpm's workspace-wide `mutation: 'install'`: `pacquet install`,
-    /// `dedupe`, `prune`, `deploy`. Every project the run materializes is
+    /// `dedupe`, `prune`. Every project the run materializes is
     /// installed in full and runs its own scripts.
     InstallWorkspace,
+    /// `pacquet deploy`. Deploys the project without running `prepare` scripts.
+    Deploy,
     /// pnpm's `mutation: 'install'` narrowed to the projects the command
     /// was pointed at: a selector-less `pacquet update`, which installs
     /// those projects in full but leaves the rest of the workspace alone.
@@ -302,7 +342,8 @@ pub enum ProjectMutation {
     InstallSome,
     /// pnpm's `mutation: 'uninstallSome'`: `pacquet remove`, which
     /// deletes named dependencies from the manifest before the install
-    /// runs.
+    /// runs. The edited projects run the uninstall stages, not the
+    /// install stages.
     UninstallSome,
     /// A run that installs no project's manifest: the commands that
     /// only materialize what the lockfile already records
@@ -315,7 +356,12 @@ impl ProjectMutation {
     /// `mutation: 'install'`) rather than a partial one.
     #[must_use]
     pub fn is_full_install(self) -> bool {
-        matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
+        matches!(
+            self,
+            ProjectMutation::InstallWorkspace
+                | ProjectMutation::InstallSelected
+                | ProjectMutation::Deploy,
+        )
     }
 
     /// Whether the run may absorb its manifest drift by rewriting the
@@ -447,11 +493,7 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
-    /// pnpm's `saveLockfile`: whether the resolved graph may be written
-    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
-    /// whose resolution belongs to a project other than the one that
-    /// owns that lockfile, so the run must leave it untouched.
-    save_lockfile: bool,
+    save: InstallSaveOptions,
     /// pnpm's `lockfileCheck`: the caller restores the lockfile and diffs
     /// it once the install returns, so the run must leave nothing else on
     /// disk changed either. Only `pacquet dedupe --check` sets it.
@@ -460,6 +502,21 @@ struct InstallRunOptions<'install, 'selection> {
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
     manifests: InstallManifestOptions<'install>,
+}
+
+/// The workspace files the run may write besides the installed modules.
+#[derive(Clone, Copy)]
+struct InstallSaveOptions {
+    /// pnpm's `saveLockfile`: whether the resolved graph may be written
+    /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
+    /// whose resolution belongs to a project other than the one that
+    /// owns that lockfile, so the run must leave it untouched.
+    lockfile: bool,
+    /// Whether the run may record itself in
+    /// `node_modules/.pnpm-workspace-state-v1.json`. `false` for an install
+    /// whose importers are not the workspace's projects, so that state
+    /// keeps describing the workspace's last install.
+    workspace_state: bool,
 }
 
 #[derive(Default)]
@@ -489,7 +546,7 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
-            save_lockfile: true,
+            save: InstallSaveOptions { lockfile: true, workspace_state: true },
             lockfile_check: false,
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {

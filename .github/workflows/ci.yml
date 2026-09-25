@@ -5,8 +5,7 @@ on:
   # fires both a `push` and a `pull_request` event for the same commit, and
   # both runs report the `TS CI / Success` context to that commit. Branch
   # protection then sees two results for the required check, so a cancellation
-  # or flake on the push side (e.g. two pushes racing on the test.yml
-  # concurrency group) blocks the PR even when the pull_request run passed.
+  # or flake on the push side blocks the PR even when the pull_request run passed.
   # Restricting push to `main` means PRs carry `TS CI / Success` only via
   # their `pull_request` run (and the merge queue via `merge_group`); `main`
   # is validated pre-merge by `merge_group` and re-checked post-merge here.
@@ -18,6 +17,10 @@ on:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -40,7 +43,7 @@ jobs:
         id: force
         run: echo "ts=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && github.event_name != 'pull_request'
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -65,6 +68,9 @@ jobs:
               - '.github/workflows/test.yml'
               - '.github/workflows/build-pnpr.yml'
               - '.github/scripts/**'
+            # Skill scripts under .agents/ ship their own *.test.sh, run by the
+            # Compile & Lint job next to the publication scripts above.
+              - '.agents/skills/**/scripts/**'
             # A pending change intent is validated by `pn lint`, which runs in
             # Compile & Lint. Nothing under .changeset/ can affect a test, so
             # it gates that job alone.
@@ -96,10 +102,12 @@ jobs:
       uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
         install: false
-    - name: Test release publication scripts
+    - name: Test CI and release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
+        .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
+        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts
@@ -120,91 +128,83 @@ jobs:
   # build. `needs` can only target a whole job, never an individual matrix
   # leg, so a matrix build would make the ubuntu tests wait for the slower
   # windows build and vice versa.
+  # Every push to main builds them, including Rust-only pushes that skip the
+  # tests, so pull requests merged with the latest main find them cached.
   build-pnpr-linux:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
-      os: blacksmith-8vcpu-ubuntu-2404
+      os: blacksmith-16vcpu-ubuntu-2404
 
   build-pnpr-windows:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.outputs.ts == 'true' || github.event_name == 'push') }}
     name: TS CI / Build pnpr
     uses: $/.github/workflows/build-pnpr.yml
     with:
-      os: blacksmith-8vcpu-windows-2025
+      os: blacksmith-16vcpu-windows-2025
 
+  # Like the Windows chunks, the Linux chunks start while the Linux pnpr
+  # build runs and wait for it inside the job (wait_for_pnpr).
   test:
-    name: TS CI / Test / ${{ matrix.platform_label }}
-    needs: [compile-and-lint, build-pnpr-linux]
+    name: TS CI / Test / ubuntu
+    needs: [changes, compile-and-lint]
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && needs.compile-and-lint.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
+        node: ['22.13.0', '24.0.0', '26.10.0']
+        test_chunk: ['1', '2', '3']
         include:
           - node: '22.13.0'
             node_major: '22'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
           - node: '24.0.0'
             node_major: '24'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
+          # Garnet's post step costs about 100 s, so it runs on one chunk:
+          # the one whose tests finish first.
+          - node: '24.0.0'
+            test_chunk: '2'
             garnet: true
-          - node: '26.9.0'
+          - node: '26.10.0'
             node_major: '26'
-            platform: blacksmith-8vcpu-ubuntu-2404
-            platform_label: ubuntu
-            test_chunk: '1'
-            test_chunk_total: '1'
     uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
-      platform: ${{ matrix.platform }}
+      platform: blacksmith-8vcpu-ubuntu-2404
       test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: ${{ matrix.test_chunk_total }}
+      test_chunk_total: '3'
       garnet: ${{ matrix.garnet == true }}
+      wait_for_pnpr: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
+  # Windows chunks start while the Windows pnpr build runs and wait for it
+  # inside the job (wait_for_pnpr), so runner startup and installs overlap it.
   test-windows:
-    name: TS CI / Test / ${{ matrix.platform_label }}
-    needs: [compile-and-lint, build-pnpr-windows]
+    name: TS CI / Test / windows ${{ matrix.test_chunk }}/5
+    needs: [changes, compile-and-lint]
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && needs.compile-and-lint.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 1/3
-            test_chunk: '1'
-            test_chunk_total: '3'
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 2/3
-            test_chunk: '2'
-            test_chunk_total: '3'
-          - node: '22.13.0'
-            node_major: '22'
-            platform: blacksmith-8vcpu-windows-2025
-            platform_label: windows 3/3
-            test_chunk: '3'
-            test_chunk_total: '3'
+        test_chunk: ['1', '2', '3', '4', '5']
     uses: $/.github/workflows/test.yml
     with:
-      node: ${{ matrix.node }}
-      node_major: ${{ matrix.node_major }}
-      platform: ${{ matrix.platform }}
+      node: '22.13.0'
+      node_major: '22'
+      platform: blacksmith-8vcpu-windows-2025
       test_chunk: ${{ matrix.test_chunk }}
-      test_chunk_total: ${{ matrix.test_chunk_total }}
+      test_chunk_total: '5'
+      wait_for_pnpr: true
 
   # Single aggregate gate — the only TS CI context branch protection needs
   # to require. Listing the individual jobs as required checks does not

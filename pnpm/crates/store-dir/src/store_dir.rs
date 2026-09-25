@@ -161,6 +161,12 @@ impl StoreDir {
         self.root.join("tmp")
     }
 
+    /// A path under [`Self::tmp`] no other process names, for a
+    /// directory labelled `label` (a single path component).
+    pub fn unique_tmp_dir(&self, label: &str) -> PathBuf {
+        self.tmp().join(unique_dir_name(label))
+    }
+
     /// Path to the shared global-virtual-store directory inside the
     /// store, at `<store-dir>/links`. pnpm builds this as
     /// `<storeDir>/links` where `storeDir` already carries the
@@ -255,6 +261,15 @@ impl StoreDir {
         }
         Ok(())
     }
+}
+
+/// A directory name no concurrent process produces, so installs that
+/// share a parent directory never collide.
+pub(crate) fn unique_dir_name(label: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos =
+        SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
+    format!("{label}-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]

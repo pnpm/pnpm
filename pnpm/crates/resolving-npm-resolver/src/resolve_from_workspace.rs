@@ -231,7 +231,11 @@ pub fn pick_matching_local_version_or_null(
             resolve_workspace_range("*", &raw)
         }
         RegistryPackageSpecType::Version => {
-            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
+            if versions.contains_key(&spec.fetch_spec) {
+                return Some(spec.fetch_spec.clone());
+            }
+            let raw: Vec<String> = versions.keys().cloned().collect();
+            resolve_workspace_range(&spec.fetch_spec, &raw)
         }
         RegistryPackageSpecType::Range => {
             let raw: Vec<String> = versions.keys().cloned().collect();
@@ -363,14 +367,22 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     Some(out.display().to_string())
 }
 
-/// Compare semver versions in *descending* order for the "available
-/// versions" hint. Versions that don't parse fall back to lexicographic
-/// reverse so the message at least stays stable.
+/// Descending order for the "available versions" hint: semver versions
+/// first, then versions that don't parse. Strings compare by UTF-16 code
+/// units so the list matches the TypeScript CLI's.
 fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (Version::parse(left), Version::parse(right)) {
-        (Ok(left_parsed), Ok(right_parsed)) => right_parsed.cmp(&left_parsed),
-        _ => right.cmp(left),
+        (Ok(left_parsed), Ok(right_parsed)) => {
+            right_parsed.cmp(&left_parsed).then_with(|| rcompare_utf16(left, right))
+        }
+        (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+        (Err(_), Err(_)) => rcompare_utf16(left, right),
     }
+}
+
+fn rcompare_utf16(left: &str, right: &str) -> std::cmp::Ordering {
+    right.encode_utf16().cmp(left.encode_utf16())
 }
 
 fn available_workspace_versions(matching_name: &WorkspacePackagesByVersion) -> String {

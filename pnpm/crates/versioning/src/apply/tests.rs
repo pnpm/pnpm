@@ -63,6 +63,7 @@ fn make_workspace(pkgs: &[FixturePkg<'_>]) -> Workspace {
             .expect("write package.json");
             WorkspaceProject {
                 root_dir,
+                private: false,
                 name: Some((*name).to_string()),
                 version: Some((*version).to_string()),
                 prod_dependencies: deps
@@ -191,6 +192,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     // the intent is garbage-collected.
     let graduated_projects = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        private: false,
         name: Some("cli".to_string()),
         version: Some("2.1.0-alpha.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -291,6 +293,44 @@ fn registry_storage_parks_the_section_and_defers_intent_gc() {
 }
 
 #[test]
+fn registry_storage_commits_a_private_project_section_and_collects_its_intent() {
+    let mut workspace = make_workspace(&[("app", "1.0.0", &[])]);
+    workspace.projects[0].private = true;
+    let releases = IndexMap::from([("app".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(workspace.dir.path(), &releases, "Added a feature.")
+        .expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &intents,
+        &read_ledger(workspace.dir.path()).expect("ledger reads"),
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        None,
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    let changelog = fs::read_to_string(workspace.projects[0].root_dir.join("CHANGELOG.md"))
+        .expect("changelog is committed");
+    assert!(changelog.contains("- Added a feature."), "unexpected: {changelog}");
+    assert_eq!(
+        read_pending_changelog(workspace.dir.path(), "app", "1.1.0").expect("pending read"),
+        None,
+    );
+    assert!(read_change_intents(workspace.dir.path()).expect("intents read").is_empty());
+}
+
+#[test]
 fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
     let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
@@ -320,6 +360,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     // confirmed published, so its intent and parked section are collected.
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        private: false,
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -394,12 +435,14 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
     let released = [
         WorkspaceProject {
             root_dir: workspace.projects[0].root_dir.clone(),
+            private: false,
             name: Some("lib".to_string()),
             version: Some("1.1.0".to_string()),
             prod_dependencies: Vec::new(),
         },
         WorkspaceProject {
             root_dir: workspace.projects[1].root_dir.clone(),
+            private: false,
             name: Some("cli".to_string()),
             version: Some("2.0.1".to_string()),
             prod_dependencies: vec![ManifestDependency {
@@ -465,6 +508,7 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
 
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
+        private: false,
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -506,4 +550,96 @@ fn prepend_keeps_the_title_above_the_new_section_even_without_a_trailing_newline
         .expect("changelog updates");
     let changelog = fs::read_to_string(dir.path().join("CHANGELOG.md")).expect("read changelog");
     assert!(changelog.starts_with("# lib\n\n## 1.0.1"), "unexpected changelog: {changelog}");
+}
+
+#[test]
+fn apply_updates_the_selected_json5_manifest_without_creating_json() {
+    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let root_dir = &workspace.projects[0].root_dir;
+    fs::remove_file(root_dir.join("package.json")).expect("remove the fixture JSON manifest");
+    let manifest_path = root_dir.join("package.json5");
+    fs::write(
+        &manifest_path,
+        "// release metadata\n{ name: 'lib', version: '1.0.0', /* version note */ }\n",
+    )
+    .expect("write the JSON5 manifest");
+    let yaml = "name: alternate\nversion: 9.0.0\n";
+    fs::write(root_dir.join("package.yaml"), yaml).expect("write the alternate YAML manifest");
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
+    write_change_intent(workspace.dir.path(), &releases, "Fixed a bug.").expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &intents,
+        &ledger,
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+
+    let applied = apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    assert_eq!(applied.len(), 1);
+    assert_eq!(applied[0].new_version, "1.0.1");
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
+        .expect("read the updated manifest");
+    assert_eq!(manifest.value()["version"], "1.0.1");
+    let written = fs::read_to_string(manifest_path).expect("read the JSON5 source");
+    eprintln!("WRITTEN:\n{written}");
+    assert!(written.contains("// release metadata"));
+    assert!(written.contains("/* version note */"));
+    assert!(!root_dir.join("package.json").exists());
+    assert_eq!(fs::read_to_string(root_dir.join("package.yaml")).expect("read YAML"), yaml);
+}
+
+#[test]
+fn apply_bumps_package_yaml_manifest() {
+    let dir = tempfile::tempdir().expect("create temp workspace");
+    let root_dir = dir.path().join("lib");
+    fs::create_dir_all(&root_dir).expect("create package dir");
+    fs::write(root_dir.join("package.yaml"), "name: lib\nversion: 1.0.0\n")
+        .expect("write package.yaml");
+    let projects = vec![WorkspaceProject {
+        root_dir: root_dir.clone(),
+        private: false,
+        name: Some("lib".to_string()),
+        version: Some("1.0.0".to_string()),
+        prod_dependencies: Vec::new(),
+    }];
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Minor)]);
+    write_change_intent(dir.path(), &releases, "Added a feature.").expect("intent writes");
+    let intents = read_change_intents(dir.path()).expect("intents read");
+    let ledger = read_ledger(dir.path()).expect("ledger reads");
+    let plan = assemble_release_plan(
+        &projects,
+        dir.path(),
+        &intents,
+        &ledger,
+        Some(&repository()),
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+    apply_release_plan(
+        &plan,
+        dir.path(),
+        &projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    let yaml_content =
+        fs::read_to_string(root_dir.join("package.yaml")).expect("read package.yaml");
+    assert!(yaml_content.contains("version: 1.1.0"), "unexpected yaml: {yaml_content}");
 }

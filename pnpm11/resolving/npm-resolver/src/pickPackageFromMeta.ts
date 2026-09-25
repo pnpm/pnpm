@@ -185,35 +185,31 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
-      if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
-        return latest
-      }
-      const preferredVersion = maxSatisfyingLoose(preferredVersions, versionRange)
+      const preferredVersion = latest != null && preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)
+        ? latest
+        : maxSatisfyingLoose(preferredVersions, versionRange)
       if (preferredVersion) {
-        return preferredVersion
+        return nonDeprecatedPick(meta, preferredVersions, preferredVersion, versionRange) ?? preferredVersion
       }
     }
   }
 
-  const versions = Object.keys(meta.versions)
   if (latest && (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))) {
     // Not using semver.satisfies in case of * because it does not select beta versions.
     // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
-    return latest
+    if (!meta.versions[latest]?.deprecated) {
+      return latest
+    }
+    const versions = Object.keys(meta.versions)
+    return nonDeprecatedPick(meta, versions, latest, versionRange) ?? latest
   }
 
+  const versions = Object.keys(meta.versions)
   const maxVersion = maxSatisfyingLoose(versions, versionRange)
-
-  // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
-  if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
-    const nonDeprecatedVersions = versions.map((version) => meta.versions[version])
-      .filter((versionMeta) => !versionMeta.deprecated)
-      .map((versionMeta) => versionMeta.version)
-
-    const maxNonDeprecatedVersion = maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
-    if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
+  if (maxVersion) {
+    return nonDeprecatedPick(meta, versions, maxVersion, versionRange) ?? maxVersion
   }
-  return maxVersion
+  return null
 }
 
 /**
@@ -480,6 +476,47 @@ export function findNonDeprecatedAlternative (
       spec.fetchSpec !== '*' &&
       !semverSatisfiesLoose(version, spec.fetchSpec),
   }
+}
+
+function nonDeprecatedPick (
+  meta: PackageMeta,
+  candidates: string[],
+  picked: string,
+  versionRange: string
+): string | null {
+  if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
+  const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
+  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
+    const pickedParsed = parseSemverLoose(picked)
+    if (pickedParsed != null) {
+      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
+        const parsed = parseSemverLoose(version)
+        return parsed != null &&
+          parsed.major === pickedParsed.major &&
+          parsed.minor === pickedParsed.minor &&
+          parsed.patch === pickedParsed.patch
+      })
+      const sameRelease = maxVersionLoose(sameReleasePrereleases)
+      if (sameRelease != null) return sameRelease
+    }
+  }
+
+  return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
+}
+
+/** The newest version by semver order, without a range check. */
+function maxVersionLoose (versions: string[]): string | null {
+  let bestVersion: string | null = null
+  let bestParsed: semver.SemVer | null = null
+  for (const version of versions) {
+    const parsed = parseSemverLoose(version)
+    if (parsed == null) continue
+    if (bestParsed == null || parsed.compare(bestParsed) > 0) {
+      bestVersion = version
+      bestParsed = parsed
+    }
+  }
+  return bestVersion
 }
 
 function maxSatisfyingLoose (versions: string[], range: string): string | null {

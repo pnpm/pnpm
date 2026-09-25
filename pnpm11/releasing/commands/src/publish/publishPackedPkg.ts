@@ -5,7 +5,7 @@ import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createDispatchedFetch } from '@pnpm/network.fetch'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
-import { type Creds, DEFAULT_REGISTRY_SCOPE, type RegistryConfig } from '@pnpm/types'
+import { type Creds, DEFAULT_REGISTRY_SCOPE, type PublishConfig, type RegistryConfig } from '@pnpm/types'
 import type { PublishOptions } from 'libnpmpublish'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
@@ -118,10 +118,7 @@ export async function createPublishOptions (
   options: PublishPackedPkgOptions,
   { oidc = true }: { oidc?: boolean } = {}
 ): Promise<StagePublishOptions> {
-  const publishConfigRegistry = typeof manifest.publishConfig?.registry === 'string'
-    ? manifest.publishConfig.registry
-    : undefined
-  const { registry, config } = findRegistryInfo(manifest, options, publishConfigRegistry)
+  const { registry, config } = findRegistryInfo(manifest, options, getPublishConfigRegistry(manifest.publishConfig, manifest.name))
   const tls = config?.tls
   const creds = config?.[DEFAULT_REGISTRY_SCOPE]
 
@@ -211,11 +208,25 @@ interface RegistryInfo {
   config: RegistryConfig
 }
 
+const SCOPED_NAME_REGEX = /^@(?<scope>[^/]+)\/[^/]+/
+
+/**
+ * Returns the registry `publishConfig` sets for `name`: its `@<scope>:registry`
+ * entry for the scope of `name`, else `publishConfig.registry`. Entries that are
+ * not strings are ignored. `undefined` means the configured registries apply.
+ *
+ * @internal Exported for batch and recursive publish.
+ */
+export function getPublishConfigRegistry (publishConfig: PublishConfig | undefined, name: string | undefined): string | undefined {
+  const scope = name == null ? undefined : SCOPED_NAME_REGEX.exec(name)?.groups?.scope
+  const scopedRegistry = scope == null ? undefined : publishConfig?.[`@${scope}:registry`]
+  if (typeof scopedRegistry === 'string') return scopedRegistry
+  return typeof publishConfig?.registry === 'string' ? publishConfig.registry : undefined
+}
+
 /**
  * Find credentials and SSL info for a package's registry.
  * Follows {@link https://docs.npmjs.com/cli/v10/configuring-npm/npmrc#auth-related-configuration}.
- *
- * The manifest's `publishConfig.registry`, when set, takes precedence over `registries`.
  *
  * @internal Exported for batch publish, which groups packages by their target registry.
  */
@@ -224,8 +235,7 @@ export function findRegistryInfo (
   { configByUri, registriesByScope }: Pick<Config, 'configByUri' | 'registriesByScope'>,
   publishConfigRegistry?: string
 ): Partial<RegistryInfo> {
-  // eslint-disable-next-line regexp/no-unused-capturing-group
-  const scopedMatches = /@(?<scope>[^/]+)\/(?<slug>[^/]+)/.exec(name)
+  const scopedMatches = SCOPED_NAME_REGEX.exec(name)
 
   const registryName = scopedMatches?.groups ? `@${scopedMatches.groups.scope}` : 'default'
   const nonNormalizedRegistry = publishConfigRegistry ?? registriesByScope[registryName] ?? registriesByScope.default

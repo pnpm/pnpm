@@ -4,6 +4,7 @@ use super::{
     scan_global_packages,
 };
 use pnpm_cmd_shim::{FsReadDir, FsReadFile, FsWalkFiles};
+use pnpm_fs::symlink_dir;
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::json;
 use std::{io, path::Path};
@@ -12,6 +13,17 @@ use tempfile::TempDir;
 fn write_json(path: &Path, value: &serde_json::Value) {
     std::fs::create_dir_all(path.parent().expect("json path has a parent")).unwrap();
     std::fs::write(path, serde_json::to_string_pretty(value).unwrap()).unwrap();
+}
+
+fn write_readable_manifest(install_dir: &Path) {
+    write_json(
+        &install_dir.join("node_modules/readable/package.json"),
+        &json!({
+            "name": "readable",
+            "version": "1.0.0",
+            "bin": { "readable-command": "bin/cli.js" },
+        }),
+    );
 }
 
 fn package_group(install_dir: &Path, aliases: &[&str]) -> GlobalPackageInfo {
@@ -120,16 +132,33 @@ fn installed_bin_names_rejects_a_malformed_declared_alias_manifest() {
 }
 
 #[test]
+fn installed_bin_names_treats_an_absent_dependency_dir_as_binless() {
+    let tmp = TempDir::new().unwrap();
+    write_readable_manifest(tmp.path());
+    let info = package_group(tmp.path(), &["readable", "absent"]);
+
+    assert_eq!(get_installed_bin_names(&info).unwrap(), vec!["readable-command".to_string()]);
+}
+
+#[test]
+fn installed_bin_names_treats_a_dangling_dependency_link_as_binless() {
+    let tmp = TempDir::new().unwrap();
+    write_readable_manifest(tmp.path());
+    symlink_dir(
+        &tmp.path().join("store/links/pruned/node_modules/pruned"),
+        &tmp.path().join("node_modules/pruned"),
+    )
+    .unwrap();
+    let info = package_group(tmp.path(), &["readable", "pruned"]);
+
+    assert_eq!(get_installed_bin_names(&info).unwrap(), vec!["readable-command".to_string()]);
+}
+
+#[test]
 fn installed_bin_names_does_not_return_a_partial_set_when_one_manifest_is_missing() {
     let tmp = TempDir::new().unwrap();
-    write_json(
-        &tmp.path().join("node_modules/readable/package.json"),
-        &json!({
-            "name": "readable",
-            "version": "1.0.0",
-            "bin": { "readable-command": "bin/cli.js" },
-        }),
-    );
+    write_readable_manifest(tmp.path());
+    std::fs::create_dir_all(tmp.path().join("node_modules/missing")).unwrap();
     let info = package_group(tmp.path(), &["readable", "missing"]);
 
     assert!(get_installed_bin_names(&info).is_err());

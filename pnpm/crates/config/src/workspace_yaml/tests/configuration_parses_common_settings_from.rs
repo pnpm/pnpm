@@ -1,7 +1,7 @@
 use super::{
     AuditLevel, BTreeMap, CASE, ColorMode, Config, ConfigDependency, ConfigDependencyDetail,
-    EnvVar, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
-    NodePackageMapType, Path, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
+    EnvVar, LoadWorkspaceYamlError, LogLevel, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
+    NodePackageMapType, Path, ReporterType, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceSettings, assert_eq, fs,
 };
 use std::fmt::Write as _;
@@ -14,6 +14,7 @@ registry: https://reg.example
 lockfile: false
 autoInstallPeers: true
 dedupePeers: true
+autoDedupe: true
 preferWorkspacePackages: true
 nodeLinker: hoisted
 nodeExperimentalPackageMap: true
@@ -27,6 +28,7 @@ packages:
     assert_eq!(settings.lockfile, Some(false));
     assert_eq!(settings.auto_install_peers, Some(true));
     assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.auto_dedupe, Some(true));
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
@@ -39,6 +41,8 @@ fn parity_settings_parse_and_apply() {
         r"
 bail: false
 color: never
+loglevel: error
+reporter: silent
 embedReadme: true
 ignoreWorkspaceRootCheck: true
 optional: false
@@ -58,6 +62,8 @@ useBetaCli: true
 
     assert!(!config.bail);
     assert_eq!(config.color, ColorMode::Never);
+    assert_eq!(config.loglevel, Some(LogLevel::Error));
+    assert_eq!(config.reporter, Some(ReporterType::Silent));
     assert!(config.embed_readme);
     assert!(config.ignore_workspace_root_check);
     assert!(!config.optional);
@@ -77,6 +83,8 @@ fn parity_settings_follow_global_config_key_routing() {
         r"
 bail: false
 color: never
+loglevel: error
+reporter: silent
 embedReadme: true
 ignoreWorkspaceRootCheck: true
 optional: false
@@ -95,6 +103,8 @@ useBetaCli: true
 
     assert_eq!(settings.bail, Some(false));
     assert_eq!(settings.color, Some(ColorMode::Never));
+    assert_eq!(settings.loglevel, Some(LogLevel::Error));
+    assert_eq!(settings.reporter, Some(ReporterType::Silent));
     assert_eq!(settings.optional, Some(false));
     assert_eq!(settings.package_lock, Some(false));
     assert_eq!(settings.shell_emulator, Some(true));
@@ -838,6 +848,44 @@ fn parses_task_concurrency_groups() {
             .copied(),
         Some(4),
     );
+}
+
+#[test]
+fn parses_task_priority() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrencyGroup: cargo\n    priority: 10\n  test:\n    concurrencyGroup: cargo\n    priority: -1\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    let tasks = settings.tasks.as_ref().unwrap();
+    assert_eq!(tasks["build"].priority, Some(10));
+    assert_eq!(tasks["test"].priority, Some(-1));
+}
+
+#[test]
+fn rejects_a_non_integer_task_priority() {
+    for priority in ["1.5", "'2'", "2147483648"] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("packages:\n  - packages/*\ntasks:\n  build:\n    priority: {priority}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        dbg!(priority, &error);
+        assert!(matches!(
+            error,
+            LoadWorkspaceYamlError::InvalidTaskPriority { ref task, .. }
+                if task == "build"
+        ));
+    }
 }
 
 /// A layer restating one group's limit leaves the other groups as the

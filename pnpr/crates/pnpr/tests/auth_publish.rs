@@ -13,12 +13,7 @@ mod behavior;
 #[path = "auth_publish/authentication.rs"]
 mod authentication;
 
-// `#[path]` rather than the `tests/common/mod.rs` layout, which the
-// Perfectionist dylint forbids.
-#[path = "common/storage.rs"]
-mod common;
-#[path = "common/npm.rs"]
-mod npm;
+use crate::{npm, storage as common};
 
 use axum::{
     body::{Body, to_bytes},

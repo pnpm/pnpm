@@ -1,7 +1,9 @@
+pub(crate) use clean::clean_expired_dlx_cache;
+
 use crate::{
     State,
     cli_args::{
-        add::add_package, catalogs::configured_catalogs,
+        add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
         supported_architectures::SupportedArchitecturesArgs,
     },
     engine_pm::{channel::PackageManager, provision::provision},
@@ -21,7 +23,7 @@ use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::force_symlink_dir;
+use pnpm_fs::{force_symlink_dir, remove_dirent};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{
     DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
@@ -35,7 +37,8 @@ use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runt
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
-    fs,
+    ffi::OsStr,
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -203,12 +206,22 @@ impl DlxArgs {
         let bin_name =
             if self.package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        run_bin(
+        let status = run_bin(
             DlxProgram::Named(&bin_name),
             args,
             vec![cached_dir.join("node_modules").join(".bin")],
             &spawn,
-        )
+        )?;
+        exit_unless_success(status);
+        Ok(())
+    }
+}
+
+/// End pnpm the way a failed child did. `exit_like` runs no destructors,
+/// so a caller drops what has to be cleaned up before calling this.
+fn exit_unless_success(status: std::process::ExitStatus) {
+    if !status.success() {
+        pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
     }
 }
 
@@ -319,7 +332,7 @@ fn run_bin(
     args: &[String],
     bin_dirs: Vec<PathBuf>,
     spawn: &DlxSpawn<'_>,
-) -> miette::Result<()> {
+) -> miette::Result<std::process::ExitStatus> {
     let mut prepend = bin_dirs;
     prepend.extend(spawn.extra_bin_paths.iter().cloned());
     let path = prepend_dirs_to_path(&prepend).map_err(DlxError::from)?;
@@ -359,15 +372,13 @@ fn run_bin(
     // works if that changes.
     cmd.envs(spawn.extra_env);
     set_command_path(&mut cmd, &path);
+    set_package_manager_env(&mut cmd, spawn.cwd, spawn.extra_env);
     cmd.env("npm_config_user_agent", spawn.user_agent);
 
-    let status = pnpm_executor::spawn_child(&mut cmd, None)
+    pnpm_executor::spawn_child(&mut cmd, None)
         .and_then(|mut child| child.wait())
-        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
-    if !status.success() {
-        pnpm_executor::exit_like(pnpm_executor::ScriptExit::Process(status));
-    }
-    Ok(())
+        .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })
+        .map_err(miette::Report::new)
 }
 
 /// Determine the bin to run from the first installed dependency.
@@ -432,5 +443,6 @@ fn scopeless(pkg_name: &str) -> &str {
 mod tests;
 
 mod cache;
+mod clean;
 
 mod provision;

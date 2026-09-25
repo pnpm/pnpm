@@ -1,7 +1,8 @@
 use super::{
     super::{
-        Install, ProjectMutation, configured_or_discovered_workspace_dir, load_workspace_projects,
-        project_requires_lifecycle_scripts,
+        Install, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
+        PROJECT_PRE_UNINSTALL_STAGES, ProjectMutation, configured_or_discovered_workspace_dir,
+        load_workspace_projects, project_requires_lifecycle_scripts,
     },
     InstallDirs, empty_test_lockfile, install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
@@ -28,17 +29,39 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
         project_dir.join("package.json"),
         serde_json::json!({ "name": "project" }),
     );
-    assert!(!project_requires_lifecycle_scripts(project_dir, &scriptless));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
 
     fs::write(project_dir.join("binding.gyp"), "{}").unwrap();
-    assert!(project_requires_lifecycle_scripts(project_dir, &scriptless));
+    assert!(project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &scriptless,
+        &PROJECT_PRE_UNINSTALL_STAGES
+    ));
 
     fs::remove_file(project_dir.join("binding.gyp")).unwrap();
     let with_prepare = PackageManifest::from_value(
         project_dir.join("package.json"),
         serde_json::json!({ "scripts": { "prepare": "node prepare.js" } }),
     );
-    assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
+    assert!(project_requires_lifecycle_scripts(
+        project_dir,
+        &with_prepare,
+        &PROJECT_LIFECYCLE_STAGES
+    ));
+    assert!(!project_requires_lifecycle_scripts(
+        project_dir,
+        &with_prepare,
+        &PROJECT_POST_UNINSTALL_STAGES
+    ));
 }
 /// [`Config::workspace_search_skipped`] alone suppresses the ancestor walk,
 /// never [`Config::ignore_workspace`]. No CLI run reaches the state where
@@ -82,7 +105,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("read workspace manifest")
         .expect("workspace manifest present");
 
-    let projects = load_workspace_projects(dir.path(), Some(&manifest))
+    let projects = load_workspace_projects(dir.path(), Some(&manifest), &[])
         .expect("load workspace projects")
         .expect("workspace projects");
     let names: Vec<&str> = projects
@@ -835,4 +858,144 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),
     );
+}
+
+#[cfg(unix)]
+fn setup_symlinked_workspace(dir: &std::path::Path, outside: &std::path::Path) {
+    let target_dir = outside.join("target-pkg");
+    fs::create_dir_all(&target_dir).unwrap();
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "target-pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    fs::write(
+        dir.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .unwrap();
+    fs::write(dir.join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    let packages_dir = dir.join("packages");
+    fs::create_dir_all(&packages_dir).unwrap();
+    pnpm_fs::symlink_dir(&target_dir, &packages_dir.join("linked-pkg")).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn load_workspace_projects_discovers_symlinked_packages() {
+    let dir = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    setup_symlinked_workspace(dir.path(), outside.path());
+
+    let manifest = pnpm_workspace::read_workspace_manifest(dir.path())
+        .expect("read workspace manifest")
+        .expect("workspace manifest present");
+
+    let projects = load_workspace_projects(dir.path(), Some(&manifest), &[])
+        .expect("load workspace projects")
+        .expect("workspace projects");
+
+    let names: Vec<&str> = projects
+        .iter()
+        .filter_map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(|value| value.as_str())
+        })
+        .collect();
+
+    assert_eq!(names, vec!["root", "target-pkg"]);
+}
+
+#[tokio::test]
+async fn install_succeeds_even_when_workspace_state_write_fails() {
+    let mock_instance = TestRegistry::start();
+
+    let dirs = InstallDirs::new();
+
+    std::fs::create_dir_all(&dirs.project_root).expect("create project root");
+    let manifest_path = dirs.project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    config.registry = mock_instance.url().to_string();
+    let config = config.leak();
+
+    // Create a directory at node_modules/.pnpm-workspace-state-v1.json so that
+    // update_workspace_state fails to rename into place.
+    let state_file_path = workspace_state::get_file_path(&dirs.project_root);
+    std::fs::create_dir_all(&state_file_path).expect("seed directory at state file path");
+
+    let result = Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "install must succeed even if workspace state cannot be written: {result:?}",
+    );
+    assert!(dirs.project_root.join("pnpm-lock.yaml").exists(), "install must write lockfile");
 }

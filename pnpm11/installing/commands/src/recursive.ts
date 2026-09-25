@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { UNDECIDED_ALLOW_BUILD } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -10,6 +10,7 @@ import {
 } from '@pnpm/cli.utils'
 import { createMatcherWithIndex } from '@pnpm/config.matcher'
 import {
+  binDirOf,
   type Config,
   type ConfigContext,
   createProjectConfigRecord,
@@ -22,6 +23,7 @@ import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   addDependenciesToPackage,
+  type BeforeLifecycleScriptsResult,
   type DryRunInstallResult,
   install,
   type InstallOptions,
@@ -45,7 +47,6 @@ import type {
   Project,
   ProjectManifest,
   ProjectRootDir,
-  ProjectRootDirRealPath,
   ProjectsGraph,
   RangeSpecStyle,
 } from '@pnpm/types'
@@ -53,13 +54,12 @@ import { filteredProjectsDependencies, projectsDependencies } from '@pnpm/worksp
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 import { isSubdir } from 'is-subdir'
-import pFilter from 'p-filter'
 import getVersionSelectorType from 'version-selector-type'
 
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
-import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
+import { resolvedPackageVersionsForPrune, resolvedPackageVersionsOfProjectLockfiles } from './resolvedPackageVersionsForPrune.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -113,6 +113,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   latest?: boolean
   pending?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   allowNew?: boolean
   ignoredPackages?: Set<string>
   /**
@@ -152,6 +153,8 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ci'
 | 'sort'
 | 'strictDepBuilds'
+| 'useGitBranchLockfile'
+| 'mergeGitBranchLockfiles'
 | 'workspaceConcurrency'
   >
 > & Required<
@@ -269,9 +272,9 @@ export async function recursive (
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
-    const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
+    const calculatedRepositoryRoot = calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
-    importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
+    importers = importers.filter(({ rootDir }) => isFromWorkspace(rootDir))
     if (importers.length === 0) return { passed: true }
     let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
@@ -307,6 +310,7 @@ export async function recursive (
           include: includeDirect,
           workspacePackages,
           userNamedDeps,
+          fromInteractiveUpdate: opts.interactiveUpdate,
         })
       }
       switch (mutation) {
@@ -365,6 +369,38 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
+    let manifestsSaved = false
+    const saveManifests = async ({
+      updatedProjects,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    }: BeforeLifecycleScriptsResult) => {
+      if (manifestsSaved) return
+      manifestsSaved = true
+      if (opts.save !== false && !opts.dryRun) {
+        // Only pick entries when we'll actually persist. Otherwise the
+        // info log would claim entries were added that the workspace
+        // manifest never saw, and the next install would re-prompt or
+        // fail verification.
+        const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+        const promises: Array<Promise<void>> = updatedProjects
+          .filter(({ rootDir }) => manifestsByPath[rootDir] != null)
+          .map(async ({ originalManifest, manifest, rootDir }) => {
+            return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
+          })
+        promises.push(updateWorkspaceManifest(opts.workspaceDir, {
+          updatedCatalogs,
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
+          allProjects,
+          ...policyUpdates,
+        }))
+        await Promise.all(promises)
+      }
+    }
     const {
       updatedCatalogs,
       updatedProjects: mutatedPkgs,
@@ -376,27 +412,14 @@ export async function recursive (
       ...installOpts,
       storeController: store.ctrl,
       resolutionVerifiers: store.resolutionVerifiers,
+      beforeLifecycleScripts: saveManifests,
     })
-    if (opts.save !== false && !opts.dryRun) {
-      // Only pick entries when we'll actually persist. Otherwise the
-      // info log would claim entries were added that the workspace
-      // manifest never saw, and the next install would re-prompt or
-      // fail verification.
-      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
-        return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
-      })
-      promises.push(updateWorkspaceManifest(opts.workspaceDir, {
-        updatedCatalogs,
-        catalogPrune: opts.catalogPrune,
-        resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
-        minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
-        trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
-        allProjects,
-        ...policyUpdates,
-      }))
-      await Promise.all(promises)
-    }
+    await saveManifests({
+      updatedProjects: mutatedPkgs,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    })
     await handleIgnoredBuilds(opts, ignoredBuilds)
     return { passed: true, updatedCatalogs, dryRunResult }
   }
@@ -421,6 +444,7 @@ export async function recursive (
     runNode: async (rootDir): Promise<TaskCompletion> => {
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
+          result[rootDir] = { status: 'skipped' }
           return 'passed'
         }
         result[rootDir] = { status: 'running' }
@@ -439,7 +463,10 @@ export async function recursive (
         let currentInput = [...params]
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-          if (currentInput.length === 0) return 'passed'
+          if (currentInput.length === 0) {
+            result[rootDir] = { status: 'skipped' }
+            return 'passed'
+          }
         }
         if (updateToLatest && (!params || (params.length === 0))) {
           currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
@@ -450,6 +477,7 @@ export async function recursive (
             include: includeDirect,
             workspacePackages,
             userNamedDeps,
+            fromInteractiveUpdate: opts.interactiveUpdate,
           })
         }
 
@@ -507,7 +535,7 @@ export async function recursive (
             ...installOpts,
             ...localConfig,
             ...opts.allProjectsGraph[rootDir]?.package,
-            bin: path.join(rootDir, 'node_modules', '.bin'),
+            bin: binDirOf(rootDir, localConfig.modulesDir ?? opts.modulesDir),
             dir: rootDir,
             hooks,
             ignoreScripts: true,
@@ -568,9 +596,22 @@ export async function recursive (
     // info log would claim entries were added that the workspace
     // manifest never saw, mirroring the gate the shared-lockfile
     // branch + installDeps already apply.
+    // Only a run that installed every workspace project leaves no lockfile
+    // behind its manifest; a filtered or partly skipped run prunes nothing.
+    const everyProjectInstalled = allProjects.every(({ rootDir }) => result[rootDir]?.status === 'passed')
+    const needsResolvedPackageVersions = Boolean(
+      opts.minimumReleaseAgeExcludePrune ||
+      opts.trustPolicyExcludePrune ||
+      Object.values(opts.allowBuilds ?? {}).includes(UNDECIDED_ALLOW_BUILD)
+    )
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
       catalogPrune: opts.catalogPrune,
+      resolvedPackageVersions: everyProjectInstalled && !opts.dryRun && needsResolvedPackageVersions
+        ? await resolvedPackageVersionsOfProjectLockfiles(opts, allProjects.map(({ rootDir }) => rootDir))
+        : undefined,
+      minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+      trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
     })
@@ -828,10 +869,10 @@ function getManifestsByPath (projects: Project[]): Record<ProjectRootDir, Omit<P
   return manifestsByPath
 }
 
-function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: ProjectRootDir, rootDirRealPath: ProjectRootDirRealPath }> {
+function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>): Array<{ rootDir: ProjectRootDir }> {
   let rootDirs = Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]
   if (opts.ignoredPackages != null) {
     rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
   }
-  return rootDirs.map((rootDir) => ({ rootDir, rootDirRealPath: opts.selectedProjectsGraph[rootDir].package.rootDirRealPath }))
+  return rootDirs.map((rootDir) => ({ rootDir }))
 }

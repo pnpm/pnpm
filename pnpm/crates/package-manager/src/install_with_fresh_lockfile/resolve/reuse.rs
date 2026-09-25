@@ -1,8 +1,10 @@
 use super::super::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_lockfile_preferred_versions::DirectSpecs;
 use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use std::{
@@ -20,7 +22,8 @@ use std::{
 /// <https://pnpm.io/settings#preferfrozenlockfile>.
 ///
 /// `pacquet update` withholds the pins for the names it is bumping so
-/// they re-resolve to highest-in-range; everything else keeps its pin.
+/// they re-resolve to highest-in-range, and every seed withholds the
+/// pins of [`stale_override_targets`]; everything else keeps its pin.
 /// Manifest preferences remain workspace-wide. Returns the workspace-wide
 /// seed plus the per-importer overrides
 /// [`UpdateSeedPolicy::ByImporter`] asks for (empty otherwise).
@@ -32,29 +35,28 @@ use std::{
 pub(in super::super) fn preferred_versions_seeds(
     update_seed_policy: &UpdateSeedPolicy,
     wanted_lockfile: Option<&Lockfile>,
-    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
+    stale_override_targets: &UpdateTargets,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
     use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
     };
 
-    let manifests: Vec<&PackageManifest> = importer_manifests
-        .values()
-        .copied()
-        .collect();
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
+    let stale = withheld_pin(stale_override_targets);
 
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
         | UpdateSeedPolicy::FixLockfile
         | UpdateSeedPolicy::RefreshRevisions
-        | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
-        UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
+        | UpdateSeedPolicy::ByImporter { .. } => from_lockfile_excluding(snapshots, direct, &stale),
+        UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, direct),
         UpdateSeedPolicy::DropOnly { targets, .. } => {
-            from_lockfile_excluding(snapshots, manifests.as_slice(), &withheld_pin(targets))
+            let withheld = withheld_pin(targets);
+            from_lockfile_excluding(snapshots, direct, &|key| stale(key) || withheld(key))
         }
     };
 
@@ -67,7 +69,7 @@ pub(in super::super) fn preferred_versions_seeds(
 
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
-        by_importer = by_importer_seeds(policies, snapshots, &manifests, overrides);
+        by_importer = by_importer_seeds(policies, snapshots, direct, overrides, &stale);
     }
 
     (Arc::new(workspace_seed), by_importer)
@@ -78,8 +80,9 @@ pub(in super::super) fn preferred_versions_seeds(
 pub(super) fn by_importer_seeds(
     policies: &BTreeMap<String, ImporterUpdateSeedPolicy>,
     snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
+    stale: &dyn Fn(&pnpm_lockfile::PackageKey) -> bool,
 ) -> BTreeMap<String, Arc<PreferredVersions>> {
     let mut by_importer = BTreeMap::new();
     let mut drop_all_seed = None;
@@ -89,13 +92,13 @@ pub(super) fn by_importer_seeds(
             ImporterUpdateSeedPolicy::DropAll => Arc::clone(drop_all_seed.get_or_insert_with(|| {
                 let mut seed =
                     pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-                        None, manifests,
+                        None, direct,
                     );
                 merge_preferred_versions(&mut seed, overrides);
                 Arc::new(seed)
             })),
             ImporterUpdateSeedPolicy::DropOnly(targets) => {
-                drop_only_seed(&mut drop_only_seeds, targets, snapshots, manifests, overrides)
+                drop_only_seed(&mut drop_only_seeds, targets, snapshots, direct, overrides, stale)
             }
         };
         by_importer.insert(importer_id.clone(), seed);
@@ -106,22 +109,50 @@ pub(super) fn drop_only_seed(
     cache: &mut HashMap<UpdateTargets, Arc<PreferredVersions>>,
     targets: &UpdateTargets,
     snapshots: Option<&HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::SnapshotEntry>>,
-    manifests: &[&PackageManifest],
+    direct: DirectSpecs<'_>,
     overrides: Option<&PreferredVersions>,
+    stale: &dyn Fn(&pnpm_lockfile::PackageKey) -> bool,
 ) -> Arc<PreferredVersions> {
     if let Some(seed) = cache.get(targets) {
         return Arc::clone(seed);
     }
+    let withheld = withheld_pin(targets);
     let mut seed =
         pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests_excluding(
             snapshots,
-            manifests,
-            &withheld_pin(targets),
+            direct,
+            &|key| stale(key) || withheld(key),
         );
     merge_preferred_versions(&mut seed, overrides);
     let seed = Arc::new(seed);
     cache.insert(targets.clone(), Arc::clone(&seed));
     seed
+}
+/// The names targeted by an unscoped selector the lockfile records but
+/// `overrides` no longer has. Such an override governed every edge of its
+/// name, and a version it locked can still satisfy the declared range, so
+/// these names are resolved as if the lockfile held no version of them.
+///
+/// A selector scoped to a parent or a version range governed only some edges
+/// of its name. Reopening every edge would move the others too, so a scoped
+/// selector contributes nothing. A selector that is still set keeps governing
+/// its edges, so a version it locked stays while the new value accepts it.
+pub(in super::super) fn stale_override_targets(
+    wanted_lockfile: Option<&Lockfile>,
+    overrides: Option<&IndexMap<String, String>>,
+) -> UpdateTargets {
+    let Some(locked_overrides) =
+        wanted_lockfile.and_then(|lockfile| lockfile.overrides.as_ref())
+    else {
+        return UpdateTargets::default();
+    };
+    locked_overrides
+        .keys()
+        .filter(|selector| !overrides.is_some_and(|overrides| overrides.contains_key(*selector)))
+        .filter_map(|selector| parse_pkg_and_parent_selector(selector).ok())
+        .filter(|(parent, target)| parent.is_none() && target.bare_specifier.is_none())
+        .map(|(_, target)| (target.name, None))
+        .collect()
 }
 /// Layer caller-supplied preferences onto a seed, per package name. A
 /// selector present in both wins from `overrides`, which is how a version
@@ -137,15 +168,18 @@ pub(super) fn merge_preferred_versions(
             .extend(selectors.clone());
     }
 }
-/// Which lockfile pins `pacquet update` withholds from the seed, so its
-/// targets re-resolve instead of settling back on their recorded version.
-/// A target scoped to a version line withholds only that line's pins: the
-/// other lines are not part of the update and must keep resolving to what
-/// the lockfile recorded.
+/// Which lockfile pins are withheld from the seed, so the targets of a
+/// `pacquet update` or of a removed override re-resolve instead of settling
+/// back on their recorded version. A target scoped to a version line
+/// withholds only that line's pins: the other lines are not part of the
+/// update and must keep resolving to what the lockfile recorded.
 pub(super) fn withheld_pin(
     targets: &UpdateTargets,
 ) -> impl Fn(&pnpm_lockfile::PackageKey) -> bool + '_ {
-    |key| targets.covers(key.name.to_string().as_str(), key.suffix.version_semver())
+    |key| {
+        !targets.is_empty()
+            && targets.covers(key.name.to_string().as_str(), key.suffix.version_semver())
+    }
 }
 pub(in super::super) struct ReuseSeedInputs<'a> {
     pub hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks,
@@ -168,10 +202,17 @@ impl ReuseSeedInputs<'_> {
     /// rewrites a dependency's own manifest, so a drifted one leaves
     /// every snapshot it touched describing a manifest that is no longer
     /// what the resolver would read, and the seed has to be withheld for
-    /// those subtrees to be resolved again.
+    /// those subtrees to be resolved again. A `readPackage` hook from a
+    /// checksum-excluded pnpmfile is drift the checksum comparison
+    /// cannot see, so the seed is withheld whenever such a hook is
+    /// present (<https://github.com/pnpm/pnpm/issues/15136>).
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
         lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
             && lockfile.pnpmfile_checksum.as_deref() == self.lockfile.pnpmfile_checksum
+            && !crate::install::untracked_read_package_hook_may_have_changed(
+                lockfile.untracked_pnpmfile_read_package_hook(),
+                self.lockfile.untracked_pnpmfile_read_package_hook,
+            )
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),

@@ -15,7 +15,7 @@ import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
+import { readMetadataMirror, testDefaults } from '../utils/index.js'
 
 test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()
@@ -244,6 +244,24 @@ test('a readPackage hook that edits a manifest in place does not affect a later 
   const withoutHook = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], opts)
   expect(Object.keys(withoutHook.readLockfile().snapshots)).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+})
+
+test('a readPackage hook that edits a manifest in place does not change the metadata cache', async () => {
+  prepareEmpty()
+  const readPackageHook: ReadPackageHook = (manifest) => {
+    if (manifest.name === '@pnpm.e2e/pkg-with-1-dep') {
+      manifest.dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+    }
+    return manifest
+  }
+
+  const opts = testDefaults({ hooks: { readPackage: [readPackageHook] } })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  const { meta } = await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
+  expect(meta.versions['100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
 })
 
 const SUPERSEDED_WARNING = 'Ignoring "is-positive@3.1.0": "is-positive" is controlled by a package extension, readPackage hook, or override, so its specifier "1.0.0" was used instead.'

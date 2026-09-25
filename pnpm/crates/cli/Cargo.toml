@@ -66,6 +66,7 @@ pnpm-registry = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-default-resolver = { workspace = true }
 pnpm-resolving-git-resolver = { workspace = true }
+pnpm-resolving-local-resolver = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
@@ -95,7 +96,6 @@ futures-util = { workspace = true }
 getrandom = { workspace = true }
 home = { workspace = true }
 indexmap = { workspace = true }
-is_ci = { workspace = true }
 node-semver = { workspace = true }
 miette = { workspace = true }
 owo-colors.workspace = true
@@ -113,6 +113,7 @@ reqwest = { workspace = true }
 rmp-serde = { workspace = true }
 same-file = { workspace = true }
 serde = { workspace = true }
+serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
 semver = { workspace = true }
 shell-words = { workspace = true }
@@ -155,7 +156,6 @@ flate2 = { workspace = true }
 insta = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
-serde-saphyr = { workspace = true }
 sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }

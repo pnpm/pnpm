@@ -54,7 +54,7 @@ fn standalone_manifest_declares_package_files() {
     assert_eq!(
         standalone_manifest("pnpm.exe"),
         serde_json::json!({
-            "name": "@pnpm/exe",
+            "name": "pnpm",
             "version": PNPM_VERSION,
             "type": "module",
             "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
@@ -95,6 +95,35 @@ fn alias_scripts_are_written_and_executable() {
             .mode();
         assert_eq!(mode & 0o777, 0o755);
     }
+}
+
+/// pnpm/pnpm#15494: an alias name can be a hardlink of the running pnpm
+/// executable, which Linux refuses to open for writing. The test binary is
+/// the running executable here, linked from beside it so the link stays on
+/// one filesystem.
+#[cfg(target_os = "linux")]
+#[test]
+fn alias_scripts_replace_a_hardlink_of_the_running_executable() {
+    let exe = std::env::current_exe().expect("locate the test binary");
+    let dir = tempfile::tempdir_in(exe.parent().expect("test binary has a parent"))
+        .expect("create temp dir");
+    let bin_dir = dir.path().join("bin");
+    std::fs::create_dir_all(&bin_dir).expect("create bin dir");
+    for name in ["pn", "pnpx", "pnx"] {
+        std::fs::hard_link(&exe, bin_dir.join(name)).expect("hardlink the test binary");
+    }
+
+    create_alias_scripts(&bin_dir).expect("write alias scripts");
+
+    for name in ["pn", "pnpx", "pnx"] {
+        let script = std::fs::read_to_string(bin_dir.join(name)).expect("read alias script");
+        assert!(script.starts_with("#!/bin/sh\n"), "{name} = {script}");
+    }
+    assert_eq!(
+        std::fs::read_dir(&bin_dir).expect("read bin dir").count(),
+        3,
+        "no temporary file is left behind",
+    );
 }
 
 /// The aliases are `sh` scripts, so this runs where `sh` does. On Windows the

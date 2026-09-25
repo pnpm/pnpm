@@ -250,6 +250,35 @@ function condenseMetaForCache (
   return retainsFullMeta(ctx) ? meta : clearMeta(meta)
 }
 
+function toPickerOptions (
+  ctx: { ignoreMissingTimeField?: boolean },
+  opts: PickPackageOptions
+): PickerOptions {
+  return {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+    publishedBy: opts.publishedBy,
+    publishedByExclude: opts.publishedByExclude,
+    pickLowestVersion: opts.pickLowestVersion,
+    includeLatestTag: opts.includeLatestTag,
+    ignoreMissingTimeField: ctx.ignoreMissingTimeField,
+  }
+}
+
+/**
+ * Picks from a packument that {@link pickPackage} already fetched, applying
+ * the same version preferences and `minimumReleaseAge` handling, so a caller
+ * that narrows the packument after the first pick gets the pick the resolver
+ * would have made had those versions never been published.
+ */
+export function pickPackageFromFetchedMeta (
+  ctx: { ignoreMissingTimeField?: boolean },
+  spec: RegistryPackageSpec,
+  opts: PickPackageOptions,
+  meta: PackageMeta
+): PackageInRegistry | null {
+  return pickMatchingVersionFinal(toPickerOptions(ctx, opts), spec, meta)
+}
+
 export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, opts: { registry: string, authHeaderValue?: string, cacheBypass?: boolean, fullMetadata?: boolean, etag?: string, modified?: string }) => Promise<FetchMetadataResult | FetchMetadataNotModifiedResult>
@@ -277,14 +306,7 @@ export async function pickPackage (
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
 
-  const pickerOpts: PickerOptions = {
-    preferredVersionSelectors: opts.preferredVersionSelectors,
-    publishedBy: opts.publishedBy,
-    publishedByExclude: opts.publishedByExclude,
-    pickLowestVersion: opts.pickLowestVersion,
-    includeLatestTag: opts.includeLatestTag,
-    ignoreMissingTimeField: ctx.ignoreMissingTimeField,
-  }
+  const pickerOpts = toPickerOptions(ctx, opts)
 
   validatePackageName(spec.name)
 
@@ -515,9 +537,8 @@ export async function pickPackage (
       return await persistFreshMeta(refetched)
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
-      const meta = await loadMetaCondensed() // TODO: add test for this usecase
+      const meta = await loadMetaCondensed()
       if (meta == null) throw err
-      logger.error(err, err)
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,

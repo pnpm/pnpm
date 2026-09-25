@@ -109,6 +109,14 @@ impl PnpmfileHooks for JsReadPackageHook {
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
         true
     }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
+    }
 }
 
 /// Upper bound on manifests per batched JS call, keeping one call's
@@ -261,5 +269,13 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
         true
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
     }
 }

@@ -5,9 +5,11 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { IgnoredBuilds } from '@pnpm/types'
+import { isCI } from 'ci-info'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
+  ci?: boolean
   ignoreWorkspace?: boolean
   rootProjectManifestDir?: string
   workspaceDir?: string
@@ -19,7 +21,10 @@ export async function handleIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
-  if (!opts.ignoreWorkspace) {
+  // Nobody is at the terminal to edit a placeholder in CI or under a
+  // dependency-update bot, and it would land in the committed workspace manifest.
+  const canPrompt = !(opts.ci ?? isCI) && Boolean(process.stdin.isTTY)
+  if (canPrompt && !opts.ignoreWorkspace) {
     await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
   }
   if (opts.strictDepBuilds) {

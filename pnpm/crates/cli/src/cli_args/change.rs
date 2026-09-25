@@ -1,9 +1,6 @@
 pub use report::render_release_plan;
 
-use crate::cli_args::{
-    changelog::{published_names, unpublished_release_dirs},
-    recursive::discover_workspace_projects,
-};
+use crate::cli_args::{changelog::published_names, recursive::discover_workspace_projects};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::{Input, MultiSelect};
@@ -169,7 +166,16 @@ impl ChangeArgs {
         match self.params[0].as_str() {
             "status" => {
                 let names = published_names(projects);
-                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                let private_dirs =
+                    pnpm_versioning::private_project_dirs(engine_projects, workspace_dir);
+                let output = render_status(report::RenderStatusOptions {
+                    workspace_dir,
+                    projects: engine_projects,
+                    published_names: &names,
+                    private_dirs: &private_dirs,
+                    config,
+                })
+                .await?;
                 println!("{output}");
             }
             "check" => run_check(workspace_dir, engine_projects, config)?,
@@ -284,8 +290,11 @@ fn detect_changed_dirs(
         .collect();
     let opts = GetChangedProjectsOptions {
         workspace_dir,
+        working_dir: None,
         test_pattern: &config.test_pattern,
         changed_files_ignore_pattern: &config.changed_files_ignore_pattern,
+        project_dependencies: None,
+        use_glob_dir_filtering: false,
     };
     let Ok(changed) = get_changed_projects(project_dirs, &base_commit, &opts) else {
         return HashSet::new();
@@ -430,6 +439,7 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             }
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
+                private: manifest.get("private").and_then(serde_json::Value::as_bool) == Some(true),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

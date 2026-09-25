@@ -57,22 +57,22 @@ fn extract_accepts_the_install_settings_as_bare_flags() {
     assert!(!config.lockfile);
 }
 
-/// `install` declares `--trust-lockfile` itself; every other command
+/// `install` and `remove` declare `--trust-lockfile` themselves; every other command
 /// takes the spelling from the table, so it lands on [`Config`] before
 /// the command reads `config.trust_lockfile`.
 #[test]
 fn trust_lockfile_is_a_bare_flag_where_no_command_declares_it() {
     let (overrides, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "remove", "foo", "--trust-lockfile"]));
-    assert_eq!(remaining, argv(["pacquet", "remove", "foo"]));
+        ConfigOverrides::extract(argv(["pacquet", "update", "foo", "--trust-lockfile"]));
+    assert_eq!(remaining, argv(["pacquet", "update", "foo"]));
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.trust_lockfile);
     assert_eq!(config.explicit_settings.get("trustLockfile"), Some(&serde_json::Value::Bool(true)));
 
     let (overrides, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "remove", "foo", "--no-trust-lockfile"]));
-    assert_eq!(remaining, argv(["pacquet", "remove", "foo"]));
+        ConfigOverrides::extract(argv(["pacquet", "update", "foo", "--no-trust-lockfile"]));
+    assert_eq!(remaining, argv(["pacquet", "update", "foo"]));
     let mut config = Config { trust_lockfile: true, ..Config::default() };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.trust_lockfile);

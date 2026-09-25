@@ -1,15 +1,15 @@
 #[cfg(unix)]
 use super::{
     super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture, key,
+    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture,
     root_importers,
 };
 use super::{
     super::{
         allow_build_policy::AllowBuildPolicy,
-        slots::{is_contained_descendant, parse_name_version_from_key},
+        slots::{is_contained_descendant, parse_name_version_from_key, virtual_store_dir_for_key},
     },
-    policy_from_specs,
+    key, policy_from_specs,
 };
 #[cfg(unix)]
 use crate::SkippedSnapshots;
@@ -703,6 +703,23 @@ fn pkg_root_for_key_isolated_uses_layout() {
         "trailing path is `node_modules/<name>`: {result:?}",
     );
 }
+
+#[test]
+fn pkg_root_for_key_uses_parsed_name_for_non_registry_version() {
+    let dir = tempdir().unwrap();
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = dir.path().join("node_modules");
+    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let config = config.leak();
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
+
+    let key = key("foo", "git+ssh://git@example.com/org/foo.git#abc123");
+    let result = virtual_store_dir_for_key(&layout, &key);
+
+    assert!(result.ends_with(Path::new("node_modules").join("foo")), "package name: {result:?}");
+}
+
 /// The GVS build-failure cleanup only recurse-deletes a slot that sits
 /// strictly inside the store root through `..`-free components, so a
 /// crafted package name cannot turn the cleanup into a path traversal.

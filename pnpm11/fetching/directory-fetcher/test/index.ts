@@ -38,6 +38,24 @@ test('fetch including only package files', async () => {
   ])
 })
 
+test('fetch including only package files of a package with package.yaml', async () => {
+  const packageDir = f.find('pkg-with-package-yaml')
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: packageDir,
+  })
+
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
+    'out/index.js',
+    'package.yaml',
+  ])
+})
+
 test('fetch package files includes bundled dependencies under a listed directory', async () => {
   const packageDir = f.find('standalone-pkg')
   const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })

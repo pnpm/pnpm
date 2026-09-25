@@ -12,7 +12,7 @@
 //! upstream would make these tests depend on the network and on versions
 //! published after they were written.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys};
+use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys, read_lockfile};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -909,4 +909,104 @@ fn import_from_shared_npm_shrinkwrap_json_of_monorepo() {
     assert_workspace_pins(&workspace);
 
     drop((root, mock_instance));
+}
+
+fn importer_version(workspace: &Path, importer: &str, name: &str) -> String {
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let dependencies = lockfile.importers[importer].dependencies
+        .as_ref()
+        .unwrap_or_else(|| panic!("importer {importer} has no dependencies"));
+    dependencies[&name.parse().expect("valid package name")].version.to_string()
+}
+
+#[test]
+fn import_keeps_the_root_on_its_yarn_lock_pin_when_another_member_allows_newer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    append_workspace_yaml_key(&workspace, "packages", r#"["packages/*"]"#);
+    write_file(
+        &workspace,
+        "package.json",
+        r#"{"name":"root","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.0"}}"#,
+    );
+    write_file(&workspace, "yarn.lock", "\"@pnpm.e2e/bravo-dep@^1.0.0\":\n  version \"1.0.0\"\n");
+    write_file(
+        &workspace,
+        "packages/foo/package.json",
+        r#"{"name":"foo","version":"1.0.0","dependencies":{"@pnpm.e2e/bravo-dep":"^1.0.1"}}"#,
+    );
+
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    assert_eq!(importer_version(&workspace, ".", "@pnpm.e2e/bravo-dep"), "1.0.0");
+    assert_eq!(importer_version(&workspace, "packages/foo", "@pnpm.e2e/bravo-dep"), "1.1.0");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn import_deduplicates_compatible_locked_versions_from_package_lock_json() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    npmrc_info.set_dist_tag(DEP_OF_PKG_WITH_1_DEP, "101.0.0", "latest");
+
+    const MANIFEST: &str = r#"{
+  "name": "import-dedupe-compatible",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": "*",
+    "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+  }
+}"#;
+
+    const LOCKFILE: &str = r#"{
+  "name": "import-dedupe-compatible",
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "dependencies": {
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": {
+      "version": "100.0.0"
+    },
+    "@pnpm.e2e/pkg-with-1-dep": {
+      "version": "100.0.0",
+      "dependencies": {
+        "@pnpm.e2e/dep-of-pkg-with-1-dep": {
+          "version": "100.1.0"
+        }
+      }
+    }
+  }
+}"#;
+
+    write_file(&workspace, "package.json", MANIFEST);
+    write_file(&workspace, "package-lock.json", LOCKFILE);
+
+    pacquet
+        .with_arg("import")
+        .assert()
+        .success();
+
+    assert_pins(
+        &workspace,
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0", "@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0"],
+    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
+
+    drop((root, npmrc_info));
 }

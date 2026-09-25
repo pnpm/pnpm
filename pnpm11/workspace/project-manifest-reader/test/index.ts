@@ -5,10 +5,21 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { ProjectManifest } from '@pnpm/types'
-import { readExactProjectManifest, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { readExactProjectManifest, readExactProjectManifestSync, readProjectManifest, tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
+
+test.each([
+  'package-json/package.json',
+  'package-json5/package.json5',
+  'package-yaml/package.yaml',
+])('readExactProjectManifestSync() reads %s', (manifestPath) => {
+  expect(readExactProjectManifestSync(f.find(manifestPath)).manifest).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+  })
+})
 
 test('readProjectManifest()', async () => {
   expect(
@@ -401,12 +412,72 @@ test('do not save manifest if it had no changes', async () => {
 
   await writeProjectManifest({
     dependencies: { bar: '*', foo: '*' },
+    devDependencies: {},
     peerDependencies: {},
   })
 
   const stat2 = fs.statSync('package.json5')
 
   expect(stat1.ino).toBe(stat2.ino)
+})
+
+test('writeProjectManifest() keeps a dependency field that was already empty on read', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', '{\n  "name": "foo",\n  "peerDependencies": {}\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: { bar: '1.0.0' } })
+
+  expect(fs.readFileSync('package.json', 'utf8')).toBe('{\n  "name": "foo",\n  "peerDependencies": {},\n  "dependencies": {\n    "bar": "1.0.0"\n  }\n}\n')
+})
+
+test('writeProjectManifest() drops a dependency field the write emptied', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', '{\n  "name": "foo",\n  "dependencies": {\n    "bar": "1.0.0"\n  },\n  "peerDependencies": {}\n}\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, dependencies: {} })
+
+  expect(fs.readFileSync('package.json', 'utf8')).toBe('{\n  "name": "foo",\n  "peerDependencies": {}\n}\n')
+})
+
+test('writeProjectManifest() keeps a dependency field that was already empty on read when engines runtime is present', async () => {
+  process.chdir(temporaryDirectory())
+
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'foo',
+    dependencies: {},
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  }, null, 2) + '\n', 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ ...manifest, devDependencies: { bar: '1.0.0' } })
+
+  expect(JSON.parse(fs.readFileSync('package.json', 'utf8'))).toStrictEqual({
+    name: 'foo',
+    dependencies: {},
+    devDependencies: {
+      bar: '1.0.0',
+    },
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  })
 })
 
 test('fail on invalid JSON', async () => {
@@ -528,3 +599,64 @@ metadata:
   expect(result).toContain('# binary value')
   expect((await readProjectManifest(dir)).manifest).toStrictEqual({ ...manifest, version: '1.0.0' })
 })
+
+test('preserve CRLF line endings in package.json and package.json5', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, '{\r\n\t"name": "foo",\r\n\t"version": "1.0.0"\r\n}\r\n')
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  manifest.version = '2.0.0'
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(jsonPath, 'utf8')).toBe('{\r\n\t"name": "foo",\r\n\t"version": "2.0.0"\r\n}\r\n')
+
+  const dir5 = temporaryDirectory()
+  const json5Path = path.join(dir5, 'package.json5')
+  await fs.promises.writeFile(json5Path, "{\r\n\tname: 'foo',\r\n\tversion: '1.0.0',\r\n}\r\n")
+  const reader5 = await readProjectManifest(dir5)
+  reader5.manifest.version = '2.0.0'
+  await reader5.writeProjectManifest(reader5.manifest)
+  expect(await fs.promises.readFile(json5Path, 'utf8')).toBe("{\r\n\tname: 'foo',\r\n\tversion: '2.0.0',\r\n}\r\n")
+})
+
+test('readProjectManifest() succeeds with malformed dependency fields and allows writing corrected manifest', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  await fs.promises.writeFile(jsonPath, JSON.stringify({
+    name: 'test-package',
+    dependencies: 'invalid',
+  }, null, 2) + '\n')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  const m = manifest as Record<string, unknown>
+  delete m.dependencies
+
+  await writeProjectManifest(m as ProjectManifest)
+  expect(JSON.parse(await fs.promises.readFile(jsonPath, 'utf8'))).toStrictEqual({
+    name: 'test-package',
+  })
+})
+
+test('writeProjectManifest() preserves engines.runtime when explicit non-runtime dependency is present', async () => {
+  const dir = temporaryDirectory()
+  const jsonPath = path.join(dir, 'package.json')
+  const original = JSON.stringify({
+    name: 'fixture',
+    dependencies: {
+      node: '18.0.0',
+    },
+    engines: {
+      runtime: {
+        name: 'node',
+        version: '24.6.0',
+        onFail: 'download',
+      },
+    },
+  }, null, 2) + '\n'
+  await fs.promises.writeFile(jsonPath, original)
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
+  await writeProjectManifest(manifest)
+  expect(await fs.promises.readFile(jsonPath, 'utf8')).toBe(original)
+})
+
+

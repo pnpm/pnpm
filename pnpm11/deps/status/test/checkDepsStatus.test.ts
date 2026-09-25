@@ -450,6 +450,74 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     expect(result.issue).toBe('pnpmfile at "pnpmfile.js" was modified')
   })
 
+  it('skips pnpmfile modification and list checks when ignorePnpmfile is true', async () => {
+    const lastValidatedTimestamp = Math.floor(Date.now() / 1000) * 1000 + 500 - 10_000
+    const beforeLastValidation = lastValidatedTimestamp - 10_000
+    const afterLastValidation = lastValidatedTimestamp + 1_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: ['pnpmfile.js'],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
+      if (filePath === 'pnpmfile.js') {
+        return {
+          mtime: new Date(afterLastValidation),
+          mtimeMs: afterLastValidation,
+        } as Stats
+      }
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => {
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => {
+      return {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+      } as Stats
+    })
+    const returnEmptyLockfile = async () => ({} as LockfileObject)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(returnEmptyLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(returnEmptyLockfile)
+
+    const optsWithModifiedMtime: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: mockWorkspaceState.pnpmfiles,
+      ignorePnpmfile: true,
+      ...mockWorkspaceState.settings,
+    }
+    const resultMtime = await checkDepsStatus(optsWithModifiedMtime)
+    expect(resultMtime.upToDate).toBe(true)
+    expect(resultMtime.issue).toBeUndefined()
+
+    const optsWithChangedList: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ignorePnpmfile: true,
+      ...mockWorkspaceState.settings,
+    }
+    const resultList = await checkDepsStatus(optsWithChangedList)
+    expect(resultList.upToDate).toBe(true)
+    expect(resultList.issue).toBeUndefined()
+  })
+
   it('returns upToDate: false when a patch was modified and manifests were not modified', async () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
@@ -1799,6 +1867,10 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     /** The sibling's `devDependencies.bar`, which the root never declares. */
     siblingDevBarVersion?: string
     include?: IncludedDependencies
+    modulesDir?: string
+    packageConfigs?: CheckDepsStatusOptions['packageConfigs']
+    /** The modules directory the sibling has, if any. */
+    siblingModulesDir?: string
   }
 
   // A root and a sibling that both declare foo; only the root has a
@@ -1810,6 +1882,9 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     siblingVersion = '1.0.0',
     siblingDevBarVersion,
     include,
+    modulesDir,
+    packageConfigs,
+    siblingModulesDir,
   }: DedupedSibling) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-dedupe-'))
     try {
@@ -1851,8 +1926,12 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
       jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
       jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
         filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
+      const existingModulesDirs = new Set([
+        path.join(workspaceDir, modulesDir ?? 'node_modules'),
+        ...(siblingModulesDir == null ? [] : [path.join(siblingDir, siblingModulesDir)]),
+      ])
       jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
-        if (filePath === path.join(workspaceDir, 'node_modules')) return beforeValidation
+        if (existingModulesDirs.has(filePath)) return beforeValidation
         if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
         return undefined
       })
@@ -1892,6 +1971,8 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
         rootProjectManifestDir: workspaceDir,
         pnpmfile: [],
         include,
+        modulesDir,
+        packageConfigs,
         ...mockWorkspaceState.settings,
       }
       return await checkDepsStatus(opts)
@@ -1906,6 +1987,29 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     const result = await checkWithDedupe({ dedupeDirectDeps: true })
     expect(result.issue).toBeUndefined()
     expect(result.upToDate).toBe(true)
+  })
+
+  it('is up to date when the sibling has the custom modules directory', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: false, modulesDir: 'vendor', siblingModulesDir: 'vendor' })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is up to date when the sibling has the modules directory its packageConfigs entry names', async () => {
+    const result = await checkWithDedupe({
+      dedupeDirectDeps: false,
+      modulesDir: 'vendor',
+      packageConfigs: { 'pkg-a': { modulesDir: 'deps' } },
+      siblingModulesDir: 'deps',
+    })
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  it('is outdated when the sibling has only node_modules under a custom modules directory', async () => {
+    const result = await checkWithDedupe({ dedupeDirectDeps: false, modulesDir: 'vendor', siblingModulesDir: 'node_modules' })
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe(MISSING_MODULES_DIR)
   })
 
   it('is outdated when the sibling was not deduped', async () => {
@@ -1963,5 +2067,37 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
     const result = await checkWithDedupe({ dedupeDirectDeps: true, siblingDevBarVersion: '2.0.0' })
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe(MISSING_MODULES_DIR)
+  })
+})
+
+describe('checkDepsStatus - moved project', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  it('returns upToDate: false when the single project was installed in another directory', async () => {
+    const settings = {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: true,
+      preferWorkspacePackages: true,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue({
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings,
+      projects: { ['/old/project' as ProjectRootDir]: { name: 'project', version: '1.0.0' } },
+      filteredInstall: false,
+    })
+
+    const result = await checkDepsStatus({
+      rootProjectManifest: { name: 'project', version: '1.0.0' },
+      rootProjectManifestDir: '/new/project',
+      pnpmfile: [],
+      ...settings,
+    })
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The project directory has changed since last install')
   })
 })

@@ -12,6 +12,7 @@ import {
   spawnPnpx,
   waitForPnpmExit,
 } from './execPnpm.js'
+import { writeFakeBin } from './fakeBin.js'
 import { pathToLocalPkg } from './localPkg.js'
 import testDefaults from './testDefaults.js'
 
@@ -30,4 +31,5 @@ export {
   spawnPnpx,
   testDefaults,
   waitForPnpmExit,
+  writeFakeBin,
 }

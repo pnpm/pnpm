@@ -1,5 +1,6 @@
 //! Ports `pnpm11/pnpm/test/withCommand.test.ts`.
 
+use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
@@ -189,6 +190,35 @@ fn with_version_ignores_the_package_manager_pin_and_uses_the_requested_version()
 }
 
 #[test]
+fn with_version_does_not_record_minimum_release_age_excludes_in_the_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", false);
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+    let registry_arg = format!("--config.registry={}", mock_instance.url());
+    let output = test_command(pacquet, root.path())
+        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .output()
+        .expect("run pacquet with a specified pnpm version");
+    dbg!(&output);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Version 9.3.0"), "stdout:\n{}", stdout(&output));
+    assert_eq!(fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml"), yaml);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn with_current_requires_a_command() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
@@ -259,6 +289,59 @@ fn stdout(output: &Output) -> String {
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[test]
+fn a_held_engine_lock_installs_the_engine_privately() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
+    let engine_store = root.path().join("pnpm-home/package-manager-store/v11");
+    // A lock directory with no liveness record is one an older pnpm
+    // holds, and counts as held until it ages out.
+    fs::create_dir_all(engine_store.join(format!(
+        "tmp/engine-locks/@pnpm+exe@{PINNED_PNPM_VERSION}.lock",
+    )))
+    .expect("hold the engine slot lock");
+
+    let registry_arg = format!("--config.registry={}", mock_instance.url());
+    let output = test_command(pacquet, root.path())
+        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .output()
+        .expect("run pacquet with a specified pnpm version");
+    dbg!(&output);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Version 9.3.0"), "stdout:\n{}", stdout(&output));
+    // Entering the slot links the engine's bins into it, at
+    // `links/<scope>/<name>/<version>/<hash>/bin`. (`links` itself is no
+    // evidence on macOS, where every install stages packages under it
+    // through the directory clone cache.)
+    let linked_slots: Vec<_> = walkdir::WalkDir::new(engine_store.join("links"))
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .map(|entry| entry.path().to_path_buf())
+        .collect();
+    assert!(linked_slots.is_empty(), "the held slot must not be entered: {linked_slots:?}");
+    let private_installs = engine_store.join("tmp/private");
+    let left_behind: Vec<_> = fs::read_dir(&private_installs)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+    assert!(
+        left_behind.is_empty(),
+        "the private install is removed once the engine has run: {left_behind:?}",
+    );
+
+    drop((root, mock_instance));
 }
 
 /// A task runner that pins `packageManager` spawns many `pnpm run`

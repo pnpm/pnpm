@@ -46,6 +46,76 @@ fn run(workspace: &Path, args: &[&str]) -> std::process::Output {
 }
 
 #[test]
+fn tasks_script_overrides_the_builtin_and_receives_arguments() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, "tasks-project", &serde_json::json!({ "tasks": "node tasks.cjs" }));
+    write_workspace_yaml(&workspace);
+    fs::write(
+        workspace.join("tasks.cjs"),
+        "require('fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+    )
+    .unwrap();
+
+    for args in [
+        vec!["tasks"],
+        vec!["tasks", "status", "cargo"],
+        vec!["tasks", "status", "--custom-flag"],
+        vec!["tasks", "custom", "--flag"],
+        vec!["tasks", "--custom-flag"],
+    ] {
+        let output = run(&workspace, &args);
+        assert!(output.status.success(), "{output:?}");
+        let forwarded: Vec<String> =
+            serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).unwrap())
+                .unwrap();
+        assert_eq!(forwarded, args[1..]);
+    }
+
+    let output = run(&workspace, &["pm", "tasks", "status", "unused-test-group"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "{output:?}");
+    assert!(stdout.contains("unused-test-group"), "{stdout}");
+    let forwarded: Vec<String> =
+        serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).unwrap()).unwrap();
+    assert_eq!(forwarded, ["--custom-flag"]);
+
+    drop(root);
+}
+
+#[test]
+fn tasks_from_a_workspace_subdirectory_refuses_when_the_root_declares_the_script() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, "root-pkg", &serde_json::json!({ "tasks": "echo tasks-script" }));
+    write_workspace_yaml(&workspace);
+    let member = workspace.join("packages/a");
+    fs::create_dir_all(&member).unwrap();
+    write_manifest(&member, "a", &serde_json::json!({}));
+
+    let output = run(&member, &["tasks", "status"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "{output:?}");
+    assert!(stderr.contains("ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT"), "{stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn tasks_without_a_script_requires_a_known_subcommand() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, "tasks-project", &serde_json::json!({}));
+    for (args, expected) in [
+        (vec!["tasks"], "a tasks subcommand is required"),
+        (vec!["tasks", "unknown"], "unrecognized tasks subcommand"),
+    ] {
+        let output = run(&workspace, &args);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{output:?}");
+        assert!(stderr.contains(expected), "{stderr}");
+    }
+    drop(root);
+}
+
+#[test]
 fn pm_deploy_runs_the_builtin_when_a_deploy_script_exists() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     workspace_with_member_scripts(
@@ -199,6 +269,54 @@ mod scripts {
         assert!(
             stdout.contains("setup-script-executed"),
             "the setup script should replace the built-in: {stdout}",
+        );
+
+        drop(root);
+    }
+
+    #[test]
+    fn ci_with_ignore_scripts_skips_lifecycle_scripts_when_clean_script_is_present() {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        super::write_manifest(
+            &workspace,
+            "ci-pkg",
+            &serde_json::json!({
+                "clean": "echo clean-script-ran",
+                "install": "echo project-install-script-ran",
+            }),
+        );
+        std::fs::write(
+            workspace.join("pnpm-lock.yaml"),
+            "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+        )
+        .expect("write lockfile");
+
+        for flag in ["--ignore-scripts", "--config.ignore-scripts=true"] {
+            let output = run(&workspace, &["ci", flag]);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(output.status.success(), "pnpm ci {flag} should succeed:\n{stdout}\n{stderr}");
+            assert!(
+                !stdout.contains("clean-script-ran"),
+                "the clean script must not run with {flag}: {stdout}",
+            );
+            assert!(
+                !stdout.contains("project-install-script-ran"),
+                "the install lifecycle script must not run with {flag}: {stdout}",
+            );
+        }
+
+        let output = run(&workspace, &["ci"]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "pnpm ci should succeed:\n{stdout}\n{stderr}");
+        assert!(
+            !stdout.contains("clean-script-ran"),
+            "the clean script must not run without ignore-scripts: {stdout}",
+        );
+        assert!(
+            stdout.contains("project-install-script-ran"),
+            "the install lifecycle script should run without ignore-scripts: {stdout}",
         );
 
         drop(root);

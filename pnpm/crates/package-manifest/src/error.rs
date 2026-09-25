@@ -19,6 +19,15 @@ pub enum PackageManifestError {
 
     #[from(ignore)]
     #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_JSON5_PARSE))]
+    ParseJson5 {
+        path: PathBuf,
+        #[error(source)]
+        source: json5::Error,
+    },
+
+    #[from(ignore)]
+    #[display("Failed to parse {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_YAML_PARSE))]
     ParseYaml {
         path: PathBuf,
@@ -47,17 +56,22 @@ pub enum PackageManifestError {
         source: io::Error,
     },
 
-    #[display("package.json file already exists")]
+    #[display("{filename} file already exists")]
     #[diagnostic(
         code(ERR_PNPM_PACKAGE_JSON_EXISTS),
-        help("Your current working directory already has a package.json file.")
+        help("Your current working directory already has a {filename} file.")
     )]
-    AlreadyExist,
+    AlreadyExist { filename: String },
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("invalid attribute: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_INVALID_ATTRIBUTE))]
     InvalidAttribute(#[error(not(source))] String),
+
+    #[from(ignore)]
+    #[display("{}: the manifest root must be an object", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_MANIFEST))]
+    InvalidRoot { path: PathBuf },
 
     #[from(ignore)] // TODO: remove this after derive(From) has been removed
     #[display("No package.json was found in {_0}")]

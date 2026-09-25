@@ -1,9 +1,10 @@
 use super::{
-    Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
+    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
     relocatable::{
         BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
         shim_target_markers,
     },
+    sh_single_quote,
 };
 use std::fmt::Write as _;
 
@@ -29,7 +30,11 @@ pub fn generate_sh_shim(
     if physical_basedir {
         sh.push_str(BASEDIR_ABS_PRELUDE);
     }
-    write_sh_node_path(&mut sh, &sh_node_path_entries(node_path, shim_dir, relocatable_root));
+    write_sh_node_path(
+        &mut sh,
+        &sh_node_path_entries(node_path, shim_dir, relocatable_root),
+        cfg!(windows),
+    );
 
     let sh_target = relative_target(target_path, shim_path);
     let absolute = Path::new(&sh_target).is_absolute();
@@ -76,14 +81,30 @@ struct QuotedTarget {
 
 /// Prepend the shim's own `node_modules` directories to `NODE_PATH`, when the
 /// linker asked for any.
-fn write_sh_node_path(sh: &mut String, node_path: &[String]) {
-    let sh_node_path = normalize_node_path_env_var(node_path).posix;
-    if sh_node_path.is_empty() {
+///
+/// A shim generated on Windows (`windows_host`) runs under shells that disagree
+/// on the path form, so it picks one when it runs: Cygwin and MSYS start the
+/// native Windows `node`, which reads `;`-separated Windows paths (MSYS would
+/// otherwise move `/mnt/c/...` under its own install directory), while WSL
+/// reads the `/mnt` form.
+pub(super) fn write_sh_node_path(sh: &mut String, node_path: &[String], windows_host: bool) {
+    let NodePathEnvVar { win32, posix } = normalize_node_path_env_var(node_path, windows_host);
+    if posix.is_empty() {
         return;
     }
+    if !windows_host {
+        writeln!(
+            sh,
+            "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{posix}\"\nelse\n  export NODE_PATH=\"{posix}:$NODE_PATH\"\nfi",
+        )
+        .unwrap();
+        return;
+    }
+    let win32 = sh_single_quote(&win32);
+    let posix = sh_single_quote(&posix);
     writeln!(
         sh,
-        "if [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"{sh_node_path}\"\nelse\n  export NODE_PATH=\"{sh_node_path}:$NODE_PATH\"\nfi",
+        "if [ -n \"$msys\" ]; then\n  new_node_path={win32}\n  node_path_sep=';'\nelse\n  new_node_path={posix}\n  node_path_sep=':'\nfi\nif [ -z \"$NODE_PATH\" ]; then\n  export NODE_PATH=\"$new_node_path\"\nelse\n  export NODE_PATH=\"$new_node_path$node_path_sep$NODE_PATH\"\nfi",
     )
     .unwrap();
 }
@@ -162,6 +183,24 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from `${link%/*}`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, `command -p` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=${PATH+set}
+caller_path=${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=${rest%%:*}
+  rest=${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -208,6 +247,7 @@ case `command -p uname -a` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 "#;
 
@@ -292,6 +332,10 @@ pub(super) const SH_SHIM_CYGPATH_LINE: &str = r#"    if converted=$(command -p c
 /// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
+/// The line that keeps `node_modules` entries out of the `PATH` the helpers
+/// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
+
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
 ///
@@ -309,6 +353,7 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         SH_SHIM_PATH_PRINTF_LINE,
         SH_SHIM_CYGPATH_LINE,
         SH_SHIM_WSLPATH_LINE,
+        SH_SHIM_HELPER_PATH_FILTER_LINE,
     ]
     .iter()
     .all(|pinned| {

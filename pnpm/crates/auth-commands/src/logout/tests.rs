@@ -13,14 +13,18 @@ fn no_retry() -> RetryOpts {
     RetryOpts { retries: 0, factor: 1, min_timeout: Duration::ZERO, max_timeout: Duration::ZERO }
 }
 
-/// A `127.0.0.1:<port>` address guaranteed to refuse connections: bind an
-/// ephemeral port, then drop the listener so the OS frees it. Deterministic
-/// across environments, unlike assuming a fixed low port is closed.
+/// A `0.0.0.0:<port>` address whose connect fails at once: bind an ephemeral
+/// loopback port, then drop the listener so the OS frees it. Linux and macOS
+/// refuse it like loopback; Windows rejects `0.0.0.0` without sending a
+/// packet, where a refused loopback port takes 2 s to fail.
 fn refused_local_addr() -> String {
     let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind ephemeral port");
-    let addr = listener.local_addr().expect("read local addr");
+    let port = listener
+        .local_addr()
+        .expect("read local addr")
+        .port();
     drop(listener);
-    addr.to_string()
+    format!("0.0.0.0:{port}")
 }
 
 /// A throwaway HTTP client. Every test fakes [`RevokeToken`], so the

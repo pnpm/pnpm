@@ -3,14 +3,17 @@ pub use output::StreamedScript;
 use crate::{
     extend_path::extend_path,
     make_env::{EnvBuild, EnvOptions, build_env, path_value},
-    process_tracker::spawn_child,
+    process_tracker::{SpawnedChild, spawn_child},
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, select_shell},
+    script_working_dir::{
+        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+    },
+    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{PackageManifestError, safe_read_project_manifest_from_dir};
 use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
 use serde_json::Value;
 use std::{
@@ -29,7 +32,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LifecycleScriptError {
-    #[display("Failed to read package.json at {path}: {source}")]
+    #[display("Failed to read package manifest at {path}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_READ_MANIFEST))]
     ReadManifest {
         path: String,
@@ -41,11 +44,14 @@ pub enum LifecycleScriptError {
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
     ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
-    #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
+    #[display("Failed to spawn lifecycle script for {dep_path} {stage} in {dir}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
     Spawn {
         dep_path: String,
         stage: String,
+        /// The directory the spawn needed: the package root the script
+        /// runs in, or the temporary directory pnpm could not create.
+        dir: String,
         #[error(source)]
         source: std::io::Error,
     },
@@ -98,10 +104,21 @@ pub struct RunPostinstallHooks<'a> {
 /// phase, in execution order.
 const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postinstall"];
 
+/// The install lifecycle stages pnpm runs for each workspace *project* during
+/// `pnpm deploy`, during `pnpm install` when devDependencies are excluded
+/// (e.g. `--prod`), or when installing specific packages, in execution order.
+pub const PROJECT_INSTALL_STAGES: [&str; 3] = ["preinstall", "install", "postinstall"];
+
 /// The lifecycle stages pnpm runs for each workspace *project* during
 /// `pnpm install`, in execution order.
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
+
+/// The project stages `pnpm remove` runs before it unlinks anything.
+pub const PROJECT_PRE_UNINSTALL_STAGES: [&str; 2] = ["preuninstall", "uninstall"];
+
+/// The project stage `pnpm remove` runs after unlinking.
+pub const PROJECT_POST_UNINSTALL_STAGES: [&str; 1] = ["postuninstall"];
 
 /// The pnpm-specific hook the root project may define to prepare state
 /// the install itself depends on. It runs before resolution, so unlike
@@ -125,6 +142,17 @@ pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
 /// [`build_env`]: crate::build_env
 pub const DEV_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN";
 
+/// Set by the TypeScript CLI when it delegates an install to pacquet
+/// after running the root project's `preinstall` itself, so pacquet
+/// runs neither its early copy ([`run_root_preinstall_hook`]) nor the
+/// stage after linking. Unlike [`DEV_PREINSTALL_ALREADY_RAN_ENV`] it is
+/// set on every delegation shape, because whether the TypeScript side
+/// ran the hook depends on the command, not on the shape: a `pnpm add`
+/// at a workspace root does not run the root's scripts there, and
+/// pacquet then still owes the hook. Handled like its sibling
+/// otherwise: private, and dropped from every script environment.
+pub const ROOT_PREINSTALL_ALREADY_RAN_ENV: &str = "PNPM_INTERNAL_ROOT_PREINSTALL_ALREADY_RAN";
+
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
 ///
@@ -147,7 +175,41 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
 pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
 ) -> Result<bool, LifecycleScriptError> {
-    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+    run_project_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES)
+}
+
+/// Run `stages` of a workspace project's own lifecycle scripts, in order.
+///
+/// Returns `true` if any script was present and executed.
+pub fn run_project_lifecycle_stages<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+    stages: &[&str],
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, stages)
+}
+
+/// [`run_project_lifecycle_scripts`] without its `preinstall` stage, for
+/// the root project, whose `preinstall` [`run_root_preinstall_hook`] ran
+/// before the install began.
+///
+/// Returns `true` if any script was present and executed.
+pub fn run_project_lifecycle_scripts_after_preinstall<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[1..])
+}
+
+/// Run the root project's `preinstall` script, if it has one.
+///
+/// Like [`run_dev_preinstall_hook`] it runs before resolution, so a guard
+/// such as `npx only-allow yarn` can refuse the install before any
+/// dependency reaches `node_modules`.
+///
+/// Returns `true` when the script was present and executed.
+pub fn run_root_preinstall_hook<Reporter: self::Reporter>(
+    opts: &RunPostinstallHooks<'_>,
+) -> Result<bool, LifecycleScriptError> {
+    run_lifecycle_stages::<Reporter>(opts, &PROJECT_LIFECYCLE_STAGES[..1])
 }
 
 /// Run the root project's [`DEV_PREINSTALL_STAGE`] script, if it has one.
@@ -161,7 +223,7 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
 
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
 /// script is present, in order. Shared by [`run_postinstall_hooks`],
-/// [`run_project_lifecycle_scripts`], and [`run_dev_preinstall_hook`].
+/// [`run_project_lifecycle_stages`], and [`run_dev_preinstall_hook`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
 /// `install` nor `preinstall` is defined and a `binding.gyp` exists.
@@ -217,12 +279,9 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 fn read_lifecycle_manifest(
     pkg_root: &Path,
 ) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
-    safe_read_package_json_from_dir(pkg_root)
+    safe_read_project_manifest_from_dir(pkg_root)
         .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pkg_root
-                .join("package.json")
-                .display()
-                .to_string(),
+            path: pnpm_package_manifest::project_manifest_path(pkg_root).display().to_string(),
             source,
         })
 }
@@ -360,6 +419,7 @@ fn prepare_lifecycle_path(
             .map_err(|error| LifecycleScriptError::Spawn {
                 dep_path: opts.dep_path.to_string(),
                 stage: stage.to_string(),
+                dir: tmpdir.display().to_string(),
                 source: error,
             })?;
     }
@@ -371,6 +431,7 @@ fn prepare_lifecycle_path(
     let original_path = path_value(&built.env).map(OsString::from);
     let path_env = extend_path(
         opts.pkg_root,
+        opts.execution.wd_bin_dir,
         original_path.as_ref(),
         opts.execution.node_gyp_bin,
         opts.execution.extra_bin_paths,
@@ -379,6 +440,51 @@ fn prepare_lifecycle_path(
     );
 
     Ok(path_env)
+}
+
+/// Start `cmd` in `pkg_root`, and retry shorter spellings when Windows
+/// refuses that working directory.
+///
+/// The original refusal is returned when no spelling works because it
+/// names the directory the install computed.
+fn spawn_in_pkg_root<'tracker>(
+    cmd: &mut Command,
+    pkg_root: &Path,
+) -> io::Result<SpawnedChild<'tracker>> {
+    cmd.current_dir(pkg_root);
+    let refusal = match spawn_child(cmd, None) {
+        Err(error) if is_refused_directory(&error) => error,
+        result => return result,
+    };
+    for spelling in shorter_working_dirs(pkg_root) {
+        cmd.current_dir(&spelling);
+        match spawn_child(cmd, None) {
+            Err(error) if is_refused_directory(&error) => continue,
+            result => return result,
+        }
+    }
+    Err(refusal)
+}
+
+fn spawn_error(
+    opts: &RunPostinstallHooks<'_>,
+    stage: &str,
+    pkg_root: &Path,
+    error: io::Error,
+) -> LifecycleScriptError {
+    match missing_script_shell(opts.execution.shell, error, pkg_root) {
+        Ok(source) => LifecycleScriptError::ScriptShell {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source,
+        },
+        Err(source) => LifecycleScriptError::Spawn {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            dir: pkg_root.display().to_string(),
+            source,
+        },
+    }
 }
 
 /// Spawn `script` under `shell`, pumping the child's output to the
@@ -391,6 +497,7 @@ fn run_in_shell<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
+    let pkg_root = script_working_dir(opts.pkg_root);
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     // Append the script body. The chain is broken here because the
@@ -398,21 +505,16 @@ fn run_in_shell<Reporter: self::Reporter>(
     // (see [`push_script_arg`]) — a branch the method chain can't
     // express.
     push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root)
-        // Stripping inherited env so leftover npm_* keys from a wrapping
-        // invocation cannot leak in. `build_env` already folded the
-        // surviving parent keys into `built.env`.
-        .env_clear()
+    // Stripping inherited env so leftover npm_* keys from a wrapping
+    // invocation cannot leak in. `build_env` already folded the
+    // surviving parent keys into `built.env`.
+    cmd.env_clear()
         .envs(env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = spawn_child(&mut cmd, None)
-        .map_err(|error| LifecycleScriptError::Spawn {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            source: error,
-        })?;
+    let mut child = spawn_in_pkg_root(&mut cmd, pkg_root)
+        .map_err(|error| spawn_error(opts, stage, pkg_root, error))?;
 
     let stdout = child.child_mut().stdout.take();
     let stderr = child.child_mut().stderr.take();
@@ -450,9 +552,10 @@ fn run_in_emulator<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
+    let pkg_root = emulator_working_dir(opts.pkg_root);
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let emit_line = |stdio, line| target.emit_line(stdio, line);
-    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
+    execute_emulated(script, &pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
         .map(ScriptExit::Emulated)
         .map_err(LifecycleScriptError::ShellEmulator)
 }

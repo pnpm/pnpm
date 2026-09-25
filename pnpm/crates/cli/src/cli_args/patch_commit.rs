@@ -1,9 +1,13 @@
 use crate::{
     State,
-    cli_args::patch_state::{EditDirState, StateFileError, read_edit_dir_state},
+    cli_args::patch_state::{
+        EditDirState, StateFileError, read_all_edit_dir_states, read_edit_dir_state,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
+use lockfile_update::update_lockfile_snapshots;
 use miette::Diagnostic;
 use paths::{
     PatchFileWriteContext, clean_source_dir, cleanup_after_diff, normalize_patches_dir_name,
@@ -11,7 +15,7 @@ use paths::{
 };
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_fs::{is_subdir, lexical_normalize};
-use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey};
+use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey, SaveLockfileError};
 use pnpm_package_manager::{
     PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, PkgFilesForDiff,
     WritePackageForPatch, WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
@@ -20,6 +24,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
+use resolution::{format_candidates, resolve_patch_dir};
 use serde_json::Value;
 use std::{
     fs, io,
@@ -29,7 +34,7 @@ use std::{
 
 #[derive(Debug, Args)]
 pub struct PatchCommitArgs {
-    /// Directory created by `pnpm patch`.
+    /// Directory created by `pnpm patch` or package name/specifier.
     pub patch_dir: PathBuf,
     /// The generated patch file will be saved to this directory.
     #[clap(long = "patches-dir", value_name = "dir")]
@@ -45,6 +50,13 @@ pub(crate) enum PatchCommitError {
         help("A valid patch directory should be created by `pnpm patch`")
     )]
     InvalidPatchDir { patch_dir: PathBuf },
+
+    #[display("Found multiple patch directories for `{query}`:\n{}", format_candidates(candidates))]
+    #[diagnostic(
+        code(ERR_PNPM_AMBIGUOUS_PATCH_TARGET),
+        help("Specify the exact patch directory or version")
+    )]
+    AmbiguousPatchTarget { query: String, candidates: Vec<PathBuf> },
 
     #[display("Missing package manifest field `{field}` in {}", path.display())]
     #[diagnostic(code(ERR_PNPM_PATCH_COMMIT_MISSING_MANIFEST_FIELD))]
@@ -109,6 +121,9 @@ pub(crate) enum PatchCommitError {
     LoadLockfile(#[error(source)] LoadLockfileError),
 
     #[diagnostic(transparent)]
+    SaveLockfile(#[error(source)] SaveLockfileError),
+
+    #[diagnostic(transparent)]
     PatchTarget(#[error(source)] PatchTargetError),
 
     #[diagnostic(transparent)]
@@ -122,16 +137,18 @@ pub(crate) enum PatchCommitError {
 }
 
 impl PatchCommitArgs {
+    /// Commit the edits and return the `patchedDependencies` now recorded
+    /// in the workspace, for the install that follows to run with. `None`
+    /// when the directory holds no changes, so nothing was recorded.
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
         state: State,
-    ) -> Result<bool, PatchCommitError> {
-        let patch_dir = resolve_path(dir, &self.patch_dir);
-        let (name, version) = patched_identity(&patch_dir)?;
-        let state_value = read_edit_dir_state(&state.config.modules_dir, &patch_dir)
-            .map_err(PatchCommitError::StateFile)?
-            .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: patch_dir.clone() })?;
+    ) -> Result<Option<IndexMap<String, String>>, PatchCommitError> {
+        let resolved = resolve_patch_dir(dir, &state.config.modules_dir, &self.patch_dir)?;
+        let patch_dir = resolved.patch_dir;
+        let state_value = resolved.state_value;
+        let (name, version, patched_manifest) = patched_identity(&patch_dir)?;
 
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
@@ -144,15 +161,29 @@ impl PatchCommitArgs {
 
         if patch_content.is_empty() {
             println!("No changes were found to the following directory: {}", patch_dir.display());
-            return Ok(false);
+            return Ok(None);
         }
 
-        self.record_patch(&state, dir, &name, &version, state_value.apply_to_all, &patch_content)?;
-        Ok(true)
+        let patched_dependencies = self.record_patch(
+            &state,
+            dir,
+            &name,
+            &version,
+            state_value.apply_to_all,
+            &patch_content,
+        )?;
+        update_lockfile_snapshots(
+            &state,
+            &name,
+            &version,
+            state_value.apply_to_all,
+            &patched_manifest,
+        )?;
+        Ok(Some(patched_dependencies))
     }
 
     /// Write the patch under the patches directory and record it in the
-    /// workspace's `patchedDependencies`.
+    /// workspace's `patchedDependencies`, returning the recorded map.
     fn record_patch(
         &self,
         state: &State,
@@ -161,7 +192,7 @@ impl PatchCommitArgs {
         version: &str,
         apply_to_all: bool,
         patch_content: &str,
-    ) -> Result<(), PatchCommitError> {
+    ) -> Result<IndexMap<String, String>, PatchCommitError> {
         let workspace_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let patches_dir_name = normalize_patches_dir_name(
             self.patches_dir
@@ -193,20 +224,22 @@ impl PatchCommitArgs {
             &workspace_dir,
             &patched_dependencies,
         )
-        .map_err(PatchCommitError::UpdateWorkspaceManifest)
+        .map_err(PatchCommitError::UpdateWorkspaceManifest)?;
+        Ok(patched_dependencies)
     }
 }
 
 /// The patched package's name and version, from the manifest `pnpm patch`
 /// left in the directory.
-fn patched_identity(patch_dir: &Path) -> Result<(String, String), PatchCommitError> {
+fn patched_identity(
+    patch_dir: &Path,
+) -> Result<(String, String, PackageManifest), PatchCommitError> {
     let manifest_path = patch_dir.join("package.json");
     let patched_manifest = PackageManifest::from_path(manifest_path.clone())
         .map_err(|source| PatchCommitError::ReadManifest { path: manifest_path.clone(), source })?;
-    Ok((
-        manifest_string(patched_manifest.value(), "name", &manifest_path)?,
-        manifest_string(patched_manifest.value(), "version", &manifest_path)?,
-    ))
+    let name = manifest_string(patched_manifest.value(), "name", &manifest_path)?;
+    let version = manifest_string(patched_manifest.value(), "version", &manifest_path)?;
+    Ok((name, version, patched_manifest))
 }
 
 /// The diff between the package as installed and the edited copy, with
@@ -330,4 +363,6 @@ fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests;
 
+mod lockfile_update;
 mod paths;
+mod resolution;

@@ -27,6 +27,23 @@ test('resolves to an empty result when the whole node_modules directory is missi
   await expect(getInstalledBinNames(info)).resolves.toStrictEqual([])
 })
 
+test('resolves without the bins of a declared package whose directory is absent', async () => {
+  const info = await createGlobalPackageInfo({ known: readableManifest('known', { known: 'bin/known.js' }) })
+
+  await expect(getInstalledBinNames(withExtraAlias(info, 'absent'))).resolves.toStrictEqual(['known'])
+})
+
+test('resolves without the bins of a declared package whose link into the store dangles', async () => {
+  const info = await createGlobalPackageInfo({ known: readableManifest('known', { known: 'bin/known.js' }) })
+  await fs.symlink(
+    path.join(info.installDir, 'store/links/pruned/node_modules/pruned'),
+    path.join(info.installDir, 'node_modules', 'pruned'),
+    process.platform === 'win32' ? 'junction' : 'dir'
+  )
+
+  await expect(getInstalledBinNames(withExtraAlias(info, 'pruned'))).resolves.toStrictEqual(['known'])
+})
+
 test('rejects instead of treating one missing declared package as a complete empty result', async () => {
   const info = await createGlobalPackageInfo({ missing: null })
 
@@ -135,6 +152,13 @@ function withAliases (info: GlobalPackageInfo, aliases: string[]): GlobalPackage
   return {
     ...info,
     dependencies: Object.fromEntries(aliases.map((alias) => [alias, info.dependencies[alias]])),
+  }
+}
+
+function withExtraAlias (info: GlobalPackageInfo, alias: string): GlobalPackageInfo {
+  return {
+    ...info,
+    dependencies: { ...info.dependencies, [alias]: '1.0.0' },
   }
 }
 

@@ -3,7 +3,7 @@
 //! [`pnpm_network_web_auth`], and turn the registry's response into a
 //! [`PublishSummary`].
 
-pub(crate) use document::{DistHashes, build_publish_document};
+pub(crate) use document::{DistHashes, build_publish_document, clean_version};
 pub use request::PublishHttpError;
 pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
 
@@ -21,6 +21,7 @@ use pnpm_reporter::Reporter;
 use serde_json::{Map, Value};
 
 use crate::{
+    PublishFailure,
     capabilities::{Clock, EnvVar, OidcFetch},
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
@@ -30,6 +31,7 @@ use crate::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
     publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
+    publish_wait::{PublishWaitError, wait_for_published_packages},
     registry_config_keys::NormalizedRegistryUrl,
 };
 
@@ -64,7 +66,17 @@ impl PackedPkg<'_> {
 pub struct PublishPackedPkgOptions {
     pub dry_run: bool,
     pub stage: bool,
+    pub wait_timeout: std::time::Duration,
     pub registry: PublishRegistryOptions,
+}
+
+impl PublishPackedPkgOptions {
+    pub fn validate(&self) -> Result<(), PublishPackedPkgError> {
+        if self.stage && !self.wait_timeout.is_zero() {
+            return Err(PublishPackedPkgError::WaitWithStage);
+        }
+        Ok(())
+    }
 }
 
 pub struct PublishRegistryOptions {
@@ -92,14 +104,16 @@ pub async fn publish_packed_pkg<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
-) -> Result<PublishSummary, PublishPackedPkgError>
+) -> Result<PublishSummary, PublishFailure<PublishPackedPkgError>>
 where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
+    opts.validate()?;
     let input = opts.registry.create_options_input();
-    let resolved =
-        create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true).await?;
+    let resolved = create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true)
+        .await
+        .map_err(PublishPackedPkgError::from)?;
 
     let name = manifest_string(pkg.published_manifest, "name");
     let version = manifest_string(pkg.published_manifest, "version");
@@ -118,13 +132,48 @@ where
         return Ok(summary);
     }
 
-    let body =
-        publish_body::<Sys, Reporter>(pkg, opts, &resolved, &summary, &name, &version).await?;
+    let response = upload_package::<Sys, Reporter>(pkg, opts, network, &resolved, &summary).await?;
 
-    let put_url = publish_endpoint(&registry, &name, is_stage)?;
-    let authorization = publish_authorization(&resolved, network, &registry, &name);
+    finish_publish::<Reporter>(
+        response,
+        &mut summary,
+        &PublishedPkg { name: &name, version: &version, is_stage },
+    )?;
+    wait_for_published_packages::<Reporter>(
+        &[(&name, &version)],
+        &registry,
+        network,
+        opts.wait_timeout,
+    )
+    .await
+    .map_err(|error| PublishFailure {
+        published: vec![summary.clone()],
+        error: PublishPackedPkgError::Wait(error),
+    })?;
+    Ok(summary)
+}
 
-    let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
+async fn upload_package<Sys, Reporter>(
+    pkg: &PackedPkg<'_>,
+    opts: &PublishPackedPkgOptions,
+    network: &PublishNetwork<'_>,
+    resolved: &crate::publish_options::ResolvedPublishOptions,
+    summary: &PublishSummary,
+) -> Result<PublishResponse, PublishPackedPkgError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    let name = &summary.name;
+    let version = &summary.version;
+    let registry = &resolved.registry;
+    let is_stage = opts.stage;
+    let body = publish_body::<Sys, Reporter>(pkg, opts, resolved, summary, name, version).await?;
+
+    let put_url = publish_endpoint(registry, name, is_stage)?;
+    let authorization = publish_authorization(resolved, network, registry, name);
+
+    publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
         &put_url,
         authorization.as_deref(),
@@ -134,14 +183,8 @@ where
         is_stage,
         web_auth_fetch_options(&opts.registry.http),
     )
-    .await?;
-
-    finish_publish::<Reporter>(
-        response,
-        &mut summary,
-        &PublishedPkg { name: &name, version: &version, is_stage },
-    )?;
-    Ok(summary)
+    .await
+    .map_err(PublishPackedPkgError::from)
 }
 
 /// Reuse the summary's digests and attach provenance when the resolved
@@ -305,6 +348,18 @@ pub(crate) fn registry_for_display(registry: &NormalizedRegistryUrl) -> String {
 /// Failure surface of [`publish_packed_pkg`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum PublishPackedPkgError {
+    #[display("--publish-wait-timeout cannot be used with stage publish")]
+    #[diagnostic(
+        code(ERR_PNPM_PUBLISH_WAIT_WITH_STAGE),
+        help(
+            "Staged versions are not available for installation. Set --publish-wait-timeout=0 to stage a package."
+        )
+    )]
+    WaitWithStage,
+
+    #[diagnostic(transparent)]
+    Wait(PublishWaitError),
+
     #[diagnostic(transparent)]
     CreateOptions(CreatePublishOptionsError),
 

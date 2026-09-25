@@ -86,3 +86,129 @@ test('a devEngines.runtime is never promoted into a catalog under catalogMode=st
     },
   })
 })
+
+test('devEngines.runtime range without download does not replace running Node.js version for optional dependencies', async () => {
+  const runningNodeMajor = Number(process.versions.node.split('.')[0])
+  const project = prepare({
+    optionalDependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: `>=${runningNodeMajor - 1}.0.0`,
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: `>=${runningNodeMajor}.0.0`,
+    },
+  }))
+
+  await execPnpm(['install'])
+
+  project.has('dependency')
+})
+
+test('optional dependencies are checked against the Node.js version locked for a devEngines.runtime range', async () => {
+  const project = prepare({
+    optionalDependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: '>=24.1.0',
+    },
+  }))
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+})
+
+test('a resolving install checks optional dependencies against the Node.js version resolved for a devEngines.runtime range', async () => {
+  const project = prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/requires-node-24-1': '1.0.0',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  await execPnpm(['install', '--no-runtime'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+  project.has('@pnpm.e2e/requires-node-24-1')
+})
+
+test('pnpm add checks optional dependencies against the Node.js version locked for a devEngines.runtime range', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['add', '--save-optional', '--config.runtime=false', '@pnpm.e2e/requires-node-24-1@1.0.0'])
+
+  expect(project.readModulesManifest()?.skipped).toStrictEqual([])
+  project.has('@pnpm.e2e/requires-node-24-1')
+})
+
+test('an explicit nodeVersion takes priority over the Node.js version locked for devEngines.runtime', async () => {
+  const project = prepare({
+    dependencies: {
+      dependency: 'file:dependency',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '^24.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    engineStrict: true,
+    nodeVersion: '20.0.0',
+  })
+  fs.mkdirSync('dependency')
+  fs.writeFileSync('dependency/package.json', JSON.stringify({
+    name: 'dependency',
+    version: '1.0.0',
+    engines: {
+      node: '<21',
+    },
+  }))
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--no-runtime'])
+
+  project.has('dependency')
+})

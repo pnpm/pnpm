@@ -2,7 +2,10 @@ use super::{
     CreateVirtualStoreError, SnapshotWithCacheKey,
     cache_keys::{SlotReuse, dir_clone_cacheable},
     cas_paths_key, partition, removed_aliases_for,
-    slot_linking::{LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel},
+    slot_linking::{
+        LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel,
+        warm_progress_already_reported,
+    },
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
 use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
@@ -112,7 +115,10 @@ pub(super) fn is_git_hosted_resolution(resolution: &LockfileResolution) -> bool 
         _ => false,
     }
 }
-pub(super) fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
+/// Whether a package's own files ask for a build: a `binding.gyp` or
+/// `.hooks/` entry, or an install script in its `package.json`.
+#[must_use]
+pub fn requires_build_from_cas_paths(cas_paths: &HashMap<String, PathBuf>) -> bool {
     if files_include_install_scripts(cas_paths.keys()) {
         return true;
     }
@@ -200,6 +206,7 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                     build_marker: needs_build_marker
                         .then_some(batch.needs_build_marker_source)
                         .flatten(),
+                    needs_build: *needs_build_marker,
                 },
                 snapshot_key,
                 snapshot,
@@ -233,7 +240,7 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
         emit_warm_snapshot_progress::<Reporter>(
             &snapshot_key.pkg_id(),
             batch.template.import.requester,
-            batch.template.progress_reported.contains(*cache_key),
+            warm_progress_already_reported(batch.template.progress_reported, cache_key),
         );
     }
 }

@@ -1,4 +1,4 @@
-use super::frozen_tree_intact;
+use super::{frozen_tree_intact, hoisted_workspace_packages_present};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, SnapshotEntry};
 use pnpm_modules_yaml::{
@@ -203,6 +203,95 @@ fn skipped_hoisted_packages_do_not_require_placements() {
         dir.path(),
         NodeLinker::Hoisted
     ));
+}
+
+#[test]
+fn skipped_direct_dependency_does_not_claim_a_workspace_hoist_alias() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().join("workspace");
+    let project_dir = root.join("packages/foo");
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "foo" }),
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    optionalDependencies:"
+        "      foo:"
+        "        specifier: 1.0.0"
+        "        version: 1.0.0"
+        "packages:"
+        "  foo@1.0.0:"
+        "    resolution: {tarball: https://example.test/foo.tgz}"
+        "snapshots:"
+        "  foo@1.0.0: {}"
+    })
+    .unwrap();
+    let mut config = Config::new();
+    config.modules_dir = root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.hoist_workspace_packages = true;
+    config.hoist_pattern = Some(vec!["*".to_string()]);
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    };
+    let skipped = crate::SkippedSnapshots::from_strings(["foo@1.0.0"]);
+
+    assert!(!hoisted_workspace_packages_present(
+        &lockfile,
+        &config,
+        &root,
+        included,
+        &[(project_dir, &manifest)],
+        &skipped,
+    ));
+}
+
+#[test]
+fn workspace_hoist_link_must_target_the_selected_project() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().join("workspace");
+    let project_dir = root.join("packages/foo");
+    let stale_dir = root.join("packages/stale");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&stale_dir).unwrap();
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        project_dir.join("package.json"),
+        serde_json::json!({ "name": "foo" }),
+    );
+    let mut config = Config::new();
+    config.modules_dir = root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    config.hoist_workspace_packages = true;
+    config.hoist_pattern = Some(vec!["*".to_string()]);
+    let projects = [(project_dir.clone(), &manifest)];
+    let skipped = crate::SkippedSnapshots::new();
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers: {}"
+    })
+    .unwrap();
+    let present = || {
+        hoisted_workspace_packages_present(
+            &lockfile,
+            &config,
+            &root,
+            IncludedDependencies::default(),
+            &projects,
+            &skipped,
+        )
+    };
+
+    fs::create_dir_all(config.virtual_store_dir.join("node_modules")).unwrap();
+    pnpm_fs::symlink_dir(&stale_dir, &config.virtual_store_dir.join("node_modules/foo")).unwrap();
+    assert!(!present());
+    pnpm_fs::remove_symlink_dir(&config.virtual_store_dir.join("node_modules/foo")).unwrap();
+    pnpm_fs::symlink_dir(&project_dir, &config.virtual_store_dir.join("node_modules/foo")).unwrap();
+    assert!(present());
 }
 
 #[test]

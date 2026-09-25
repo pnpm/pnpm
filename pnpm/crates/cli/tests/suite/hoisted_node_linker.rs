@@ -555,10 +555,8 @@ fn node_major() -> u32 {
 /// TS: `install only the dependencies of the specified importer, when
 /// node-linker is hoisted` (`multipleImporters.ts:87`). The subset
 /// install lands the selected project's dependency at the workspace
-/// root, and the wanted lockfile keeps the unselected importer's
-/// entries. (Upstream leaves "the unselected dependency is absent" as a
-/// TODO — the hoisted linker materializes the full shared graph — so
-/// only the positive assertions are pinned, matching upstream.)
+/// root, the unselected dependency is absent, and the wanted lockfile keeps
+/// the unselected importer's entries.
 #[test]
 fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
     let fixture = WorkspaceFixture::new();
@@ -580,8 +578,55 @@ fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
         is_real_dir(&fixture.workspace, "node_modules/@pnpm.e2e/foo"),
         "the selected project's dependency must be hoisted to the workspace root",
     );
+    assert!(
+        !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
+        "unselected project's dependency must not be installed",
+    );
     let wanted = fixture.wanted();
     assert_eq!(importer_version(&wanted, "packages/project-2", "@foo/no-deps"), "1.0.0");
+}
+
+#[test]
+fn install_filter_prod_with_hoisted_linker_and_shamefully_hoist() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\nshamefullyHoist: true\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("is-positive", "1.0.0")],
+            dev: &[("@pnpm.e2e/foo", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps {
+            prod: &[("is-negative", "1.0.0")],
+            dev: &[("@foo/no-deps", "1.0.0")],
+            ..Default::default()
+        },
+    );
+
+    fixture.run(["--filter", "project-1...", "--prod", "install"]);
+
+    assert!(
+        is_real_dir(&fixture.workspace, "node_modules/is-positive"),
+        "the selected project's prod dependency must be hoisted to the workspace root",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        "selected project's dev dependency must not be installed under --prod",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/is-negative").exists(),
+        "unselected project's prod dependency must not be installed",
+    );
+    assert!(
+        !fixture.workspace.join("node_modules/@foo/no-deps").exists(),
+        "unselected project's dev dependency must not be installed",
+    );
 }
 
 /// A version that lost the root slot and later wins it must leave no
@@ -641,6 +686,63 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     fixture.run(["install"]);
 
     assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
+}
+
+/// TS: `bins of a nested package are removed when the package is deduped
+/// into the root node_modules` (`hoistedNodeLinker/install.ts`).
+#[test]
+fn bins_of_a_nested_copy_are_removed_with_it() {
+    const BIN_PKG: &str = "@pnpm.e2e/hello-world-js-bin";
+    const BIN_NAME: &str = "hello-world-js-bin";
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("nodeLinker: hoisted\n");
+    fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(BIN_PKG, "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(BIN_PKG, "0.0.0")], ..Default::default() },
+    );
+    let project_bin_entries = || -> Vec<String> {
+        fs::read_dir(project_2.join("node_modules/.bin"))
+            .expect("read project-2 node_modules/.bin")
+            .map(|entry| {
+                entry
+                    .expect("read .bin entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.starts_with(BIN_NAME))
+            .collect()
+    };
+    fixture.run(["install"]);
+    assert_eq!(read_pkg_version(&project_2, &format!("node_modules/{BIN_PKG}")), "0.0.0");
+    assert!(!project_bin_entries().is_empty(), "the nested copy links its command");
+
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(BIN_PKG, "1.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+
+    assert!(
+        !project_2
+            .join("node_modules")
+            .join(BIN_PKG)
+            .exists(),
+        "the nested copy is deduped",
+    );
+    assert_eq!(
+        project_bin_entries(),
+        Vec::<String>::new(),
+        "no command of the removed copy survives",
+    );
+    assert_bin_linked(&fixture.workspace.join("node_modules/.bin").join(BIN_NAME));
 }
 
 /// TS: `overwriting (…@3.0.0 with …@latest)`
@@ -1010,6 +1112,9 @@ fn peer_variants_of_one_version_share_the_root_slot() {
         );
     }
 }
+
+#[cfg(unix)]
+mod local_symlinks;
 
 mod repeat_install;
 

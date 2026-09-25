@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import util from 'node:util'
 
-import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import chalk from 'chalk'
@@ -93,7 +93,7 @@ export interface DoctorCommandOptions {
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
 
 export async function handler (opts: DoctorCommandOptions): Promise<{ output: string, exitCode: number }> {
-  const pnpmCommand = opts.pnpmCommand ?? resolveSelfCommand()
+  const pnpmCommand = opts.pnpmCommand ?? resolvePnpmSelfCommand()
 
   const checks: CheckResult[] = [
     checkVersions(),
@@ -344,18 +344,6 @@ function statusMark (status: CheckStatus): string {
     case 'warn': return chalk.yellow('‼')
     case 'fail': return chalk.red('✗')
   }
-}
-
-/**
- * Re-invoke the pnpm that is running now: `node <entry>` for the bundled
- * package, or the executable itself for the `@pnpm/exe` single-file build,
- * whose `process.argv[1]` is the binary rather than a script.
- */
-function resolveSelfCommand (): string[] {
-  if (detectIfCurrentPkgIsExecutable()) return [process.execPath]
-  const entry = process.argv[1]
-  if (!entry) return [process.execPath]
-  return [process.execPath, entry]
 }
 
 async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, hardlink: boolean, symlink: boolean }> {

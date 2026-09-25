@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
-import { cmdShim } from '@pnpm/bins.cmd-shim'
+import { cmdShim, readShNodePath } from '@pnpm/bins.cmd-shim'
 import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
@@ -46,6 +46,8 @@ const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 
 const testOnWindows = IS_WINDOWS ? test : test.skip
 const testOnPosix = IS_WINDOWS ? test.skip : test
+// Root reads through a directory whose permissions deny access.
+const testOnPosixAsNonRoot = IS_WINDOWS || process.getuid?.() === 0 ? test.skip : test
 
 function getExpectedBins (bins: string[]) {
   const expectedBins = [...bins]
@@ -102,6 +104,71 @@ test('linkBins() skips bins that already reference the correct target', async ()
 
   expect(fs.readFileSync(binLocation, 'utf8')).toBe(sentinel)
 })
+
+test('linkBins() puts projectModulesDir first on NODE_PATH, then the bin\'s own directories, then extraNodePaths', async () => {
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const hoisted = path.join(modulesDir, '.pnpm', 'node_modules')
+
+  const binTarget = temporaryDirectory()
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths: [hoisted], projectModulesDir: path.join(modulesDir, '..', 'vendor') })
+  const entries = nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))
+  expect(entries).toHaveLength(4)
+  expect(entries[0]).toMatch(/\/vendor$/)
+  expect(entries[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
+  expect(entries[3]).toMatch(/\/node_modules\/\.pnpm\/node_modules$/)
+
+  const dedupedTarget = temporaryDirectory()
+  const realModulesDir = fs.realpathSync(modulesDir)
+  await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
+  const deduped = nodePathEntries(fs.readFileSync(path.join(dedupedTarget, 'simple'), 'utf8'))
+  expect(deduped).toHaveLength(2)
+  expect(deduped[0]).toBe(nodePathEntries(fs.readFileSync(path.join(binTarget, 'simple'), 'utf8'))[2])
+  expect(deduped[1]).toMatch(/\/node_modules\/simple\/node_modules$/)
+
+  fs.appendFileSync(path.join(dedupedTarget, 'simple'), '# sentinel\n')
+  await linkBins(modulesDir, dedupedTarget, { warn, extraNodePaths: [realModulesDir], projectModulesDir: realModulesDir })
+  expect(fs.readFileSync(path.join(dedupedTarget, 'simple'), 'utf8')).toContain('# sentinel')
+})
+
+test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to its options', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(modulesDir, '.pnpm', 'node_modules')]
+  const projectModulesDir = path.join(modulesDir, '..', 'vendor')
+  // The sentinel survives only when linkBins() leaves the bin in place.
+  const relink = async (opts: { extraNodePaths?: string[], projectModulesDir?: string }): Promise<{ kept: boolean, entries: string[] }> => {
+    fs.appendFileSync(binLocation, '# sentinel\n')
+    await linkBins(modulesDir, binTarget, { warn, ...opts })
+    const content = fs.readFileSync(binLocation, 'utf8')
+    return { kept: content.includes('# sentinel'), entries: nodePathEntries(content) }
+  }
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+
+  const withProject = await relink({ extraNodePaths, projectModulesDir })
+  expect(withProject.kept).toBe(false)
+  expect(withProject.entries[0]).toMatch(/\/vendor$/)
+  expect(await relink({ extraNodePaths, projectModulesDir })).toMatchObject({ kept: true })
+  expect(await relink({ projectModulesDir })).toMatchObject({ kept: true })
+  expect(await relink({ extraNodePaths })).toMatchObject({ kept: true })
+  expect(await relink({})).toMatchObject({ kept: true, entries: withProject.entries })
+
+  expect(await relink({ extraNodePaths: [] })).toStrictEqual({ kept: false, entries: [] })
+
+  const projectWithoutExtras = await relink({ projectModulesDir })
+  expect(projectWithoutExtras.kept).toBe(false)
+  expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
+})
+
+// A shim written on Windows keeps its posix entries in `new_node_path` and
+// picks the form it exports when it runs.
+function nodePathEntries (shim: string): string[] {
+  const value = readShNodePath(shim)
+  return value ? value.split(':') : []
+}
 
 // A shim an older pnpm wrote still points at the right target, so the warm
 // install path had nothing to notice and left it in place. It resolved
@@ -227,6 +294,30 @@ exec node  "$basedir/../simple/index.js" "$@"
   expect(content).toContain('    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n')
   expect(content).toContain('    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n')
   expect(content).not.toContain('# outdated-path-converters')
+})
+
+// Where no default path is compiled in, as on Nix, command -p searches the
+// caller's PATH, so a shim that resolves every helper through command -p still
+// needs the node_modules entries dropped from that PATH.
+test('linkBins() replaces a shim that resolves its helpers with node_modules on PATH', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+  const helperPathFilterLine = '    */node_modules/*|*/node_modules) ;;\n'
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const current = fs.readFileSync(binLocation, 'utf8')
+  expect(current).toContain(helperPathFilterLine)
+  fs.writeFileSync(binLocation, `${current.replace(helperPathFilterLine, '')}# outdated-helper-path\n`, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(helperPathFilterLine)
+  expect(content).not.toContain('# outdated-helper-path')
 })
 
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
@@ -360,6 +451,43 @@ test('linkBins() with exotic manifests do not fail on directory w/o manifest fil
   expect(warn).not.toHaveBeenCalled()
 })
 
+describe('linkBins() with a dependency linked to its publishConfig.directory', () => {
+  function prepareWorkspace (opts: { symlinkedPublishDir: boolean }) {
+    const root = temporaryDirectory()
+    const projectDir = path.join(root, 'project')
+    const outputDir = opts.symlinkedPublishDir ? path.join(root, 'output') : path.join(projectDir, 'dist')
+    fs.mkdirSync(projectDir, { recursive: true })
+    fs.mkdirSync(outputDir, { recursive: true })
+    fs.writeFileSync(path.join(outputDir, 'cli.js'), '#!/usr/bin/env node\n', 'utf8')
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+      name: 'project',
+      version: '1.0.0',
+      bin: { 'project-cli': './cli.js' },
+      publishConfig: { directory: 'dist' },
+    }), 'utf8')
+    if (opts.symlinkedPublishDir) {
+      fs.symlinkSync(outputDir, path.join(projectDir, 'dist'), 'junction')
+    }
+    const modulesDir = path.join(root, 'consumer/node_modules')
+    fs.mkdirSync(modulesDir, { recursive: true })
+    fs.symlinkSync(path.join(projectDir, 'dist'), path.join(modulesDir, 'project'), 'junction')
+    return modulesDir
+  }
+
+  test.each([false, true])('links the project\'s bins (symlinked publish directory: %s)', async (symlinkedPublishDir) => {
+    const binTarget = temporaryDirectory()
+    const warn = jest.fn()
+
+    await linkBins(prepareWorkspace({ symlinkedPublishDir }), binTarget, {
+      allowExoticManifests: false,
+      warn,
+    })
+
+    expect(warn).not.toHaveBeenCalled()
+    expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['project-cli']))
+  })
+})
+
 test('linkBins() does not link own bins', async () => {
   const target = f.prepare('foobar')
 
@@ -392,6 +520,24 @@ test('linkBinsOfPackages()', async () => {
   expect(fs.existsSync(binLocation)).toBe(true)
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
+})
+
+test('linkBinsOfPackages() matches excludeBins case-insensitively only on Windows', async () => {
+  const binTarget = temporaryDirectory()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(simpleFixture, 'node_modules/simple'),
+        manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
+      },
+    ],
+    binTarget,
+    { excludeBins: new Set(['Simple']) }
+  )
+
+  expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(!IS_WINDOWS)
 })
 
 test('linkBinsOfPkgsByAliases()', async () => {
@@ -736,7 +882,7 @@ test('linkBins() fix window shebang line', async () => {
   }
 })
 
-test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
   const binTarget = temporaryDirectory()
   const binNotExistFixture = f.prepare('bin-not-exist')
 
@@ -745,10 +891,123 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
     warn: () => {},
   })
 
-  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
-  expect(
-    globalWarn
-  ).toHaveBeenCalled()
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+  expect(globalWarn).not.toHaveBeenCalled()
+  if (IS_WINDOWS) {
+    expect(fs.readFileSync(path.join(binTarget, `meow${CMD_EXTENSION}`), 'utf8')).toMatch('node')
+  }
+
+  const binSource = path.join(binNotExistFixture, 'node_modules', 'foo', 'dist', 'not-exist.js')
+  fs.mkdirSync(path.dirname(binSource), { recursive: true })
+  fs.writeFileSync(binSource, 'console.log(\'built\')\n')
+  const shim = path.join(binTarget, IS_WINDOWS ? `meow${CMD_EXTENSION}` : 'meow')
+  const result = spawnSync(IS_WINDOWS ? `"${shim}"` : shim, { shell: IS_WINDOWS })
+  expect(result.stdout.toString()).toMatch('built')
+})
+
+test('linkBinsOfPackages() rewrites a shim written for a missing target once the target exists', async () => {
+  const pkgDir = temporaryDirectory()
+  const binsDir = temporaryDirectory()
+  const pkg = { location: pkgDir, manifest: { name: 'tool', version: '1.0.0', bin: 'bin/tool' } }
+
+  await linkBinsOfPackages([pkg], binsDir)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).not.toMatch(/exec node /)
+
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
+  await linkBinsOfPackages([pkg], binsDir)
+
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir\//)
+  if (IS_WINDOWS) {
+    expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
+  }
+})
+
+test('linkBins() holds back a bin whose target is missing when holdBackMissingTargets is set', async () => {
+  const binTarget = temporaryDirectory()
+  const binNotExistFixture = f.prepare('bin-not-exist')
+  const warn = () => {}
+
+  const heldBackBinsDirs = new Set<string>()
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { heldBackBinsDirs, holdBackMissingTargets: true, warn })
+
+  expect(fs.readdirSync(binTarget)).toEqual([])
+  expect(Array.from(heldBackBinsDirs)).toEqual([binTarget])
+
+  await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+})
+
+test("linkBinsOfPackages() does not link a package's missing bin into its own .bin directory", async () => {
+  const binNotExistFixture = f.prepare('bin-not-exist')
+  const pkgDir = path.join(binNotExistFixture, 'node_modules', 'foo')
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  const pkg = {
+    location: pkgDir,
+    manifest: JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')),
+  }
+
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual([])
+
+  const binSource = path.join(pkgDir, 'dist', 'not-exist.js')
+  fs.mkdirSync(path.dirname(binSource), { recursive: true })
+  fs.writeFileSync(binSource, 'console.log(\'built\')\n')
+
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['meow']))
+
+  fs.rmSync(binSource)
+  await linkBinsOfPackages([pkg], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual([])
+})
+
+testOnWindows("linkBinsOfPackages() links a package's own bin whose target exists only with an .exe extension", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'tool.exe'), '')
+
+  await linkBinsOfPackages([{ location: pkgDir, manifest: { name: 'tool', version: '1.0.0', bin: 'bin/tool' } }], ownBinsDir)
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(getExpectedBins(['tool']))
+})
+
+testOnPosixAsNonRoot("linkBinsOfPackages() links a package's other own bins when probing one of them fails", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  const lockedDir = path.join(pkgDir, 'locked')
+  fs.mkdirSync(lockedDir)
+  fs.writeFileSync(path.join(pkgDir, 'ok.js'), 'console.log(\'ok\')\n')
+  fs.chmodSync(lockedDir, 0o000)
+  try {
+    await expect(linkBinsOfPackages([{
+      location: pkgDir,
+      manifest: { name: 'tool', version: '1.0.0', bin: { locked: 'locked/tool.js', ok: 'ok.js' } },
+    }], ownBinsDir)).rejects.toHaveProperty('code', 'EACCES')
+  } finally {
+    fs.chmodSync(lockedDir, 0o755)
+  }
+
+  expect(fs.readdirSync(ownBinsDir)).toEqual(['ok'])
+})
+
+testOnWindows("linkBinsOfPackages() keeps a bin named like the .cmd sibling of a package's own missing bin", async () => {
+  const pkgDir = temporaryDirectory()
+  const ownBinsDir = path.join(pkgDir, 'node_modules', '.bin')
+  fs.mkdirSync(path.join(pkgDir, 'bin'))
+  fs.writeFileSync(path.join(pkgDir, 'bin', 'cli.js'), 'console.log(\'cli\')\n')
+
+  await linkBinsOfPackages([{
+    location: pkgDir,
+    manifest: { name: 'tool', version: '1.0.0', bin: { tool: 'bin/missing.js', 'tool.cmd': 'bin/cli.js' } },
+  }], ownBinsDir)
+
+  expect(fs.readFileSync(path.join(ownBinsDir, 'tool.cmd'), 'utf8')).toMatch('cli.js')
 })
 
 testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
@@ -802,7 +1061,7 @@ describe('enable prefer-symlinked-executables', () => {
     }
   })
 
-  test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+  test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {
     const binTarget = temporaryDirectory()
     const binNotExistFixture = f.prepare('bin-not-exist')
 
@@ -812,16 +1071,8 @@ describe('enable prefer-symlinked-executables', () => {
       preferSymlinkedExecutables: true,
     })
 
-    if (IS_WINDOWS) {
-      // cmdShim
-      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins([]))
-    } else {
-      // it will fix symlink file permission
-      expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
-    }
-    expect(
-      globalWarn
-    ).toHaveBeenCalled()
+    expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['meow']))
+    expect(globalWarn).not.toHaveBeenCalled()
   })
 })
 

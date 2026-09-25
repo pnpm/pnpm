@@ -168,9 +168,7 @@ fn resolve_selection(
     else {
         return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
-    // `.modules.yaml` sits in the root `node_modules`, so its importer
-    // ids are relative to that directory's parent.
-    let lockfile_dir = config.modules_dir.parent().unwrap_or(&config.modules_dir);
+    let lockfile_dir = config.modules_dir_anchor().unwrap_or(&config.modules_dir);
     // An importer id is always a relative path; a dep path can be
     // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
     // replaces the base on an absolute component, so probe only for

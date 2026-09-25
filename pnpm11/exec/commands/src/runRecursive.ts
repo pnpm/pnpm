@@ -3,11 +3,12 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, getWorkspaceConcurrency } from '@pnpm/config.reader'
+import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
@@ -54,7 +55,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeOptions'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   json?: boolean
@@ -75,6 +76,7 @@ export async function runRecursive (
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
   }
 
+  const modulesDirFor = createProjectModulesDirResolver(opts)
   const fullTaskGraph = buildRunTaskGraph(scriptName, opts)
   const taskRunStateContext = new TaskRunStateContext({
     command: 'run',
@@ -224,13 +226,16 @@ export async function runRecursive (
           hasCommand++
         }
         try {
+          const wdBinDir = binDirOf(node.project, modulesDirFor(pkg.package.manifest.name))
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: node.project,
+            wdBinDir,
             extraBinPaths: opts.extraBinPaths,
-            extraEnv: opts.extraEnv,
+            extraEnv: { ...opts.extraEnv, ...await makeProjectNodePathOption({ modulesDir: path.dirname(wdBinDir), rootDir: node.project }, opts) },
             pkgRoot: node.project,
+            raiseOnInterrupt: true,
             userAgent: opts.userAgent,
-            rootModulesDir: await realpathMissing(path.join(node.project, 'node_modules')),
+            rootModulesDir: await realpathMissing(path.dirname(wdBinDir)),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
             silent: opts.reporter === 'silent',

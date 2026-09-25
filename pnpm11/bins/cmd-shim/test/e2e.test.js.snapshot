@@ -9,6 +9,24 @@ exports[`create a command shim for a .exe file > shim files 1`] = `
 # path instead. A dependency's bin cannot stand in for one of them and take over
 # the shim before it reaches its target. Directories come from \`\${link%/*}\`,
 # which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -55,6 +73,7 @@ case \`command -p uname -a\` in
     fi
   ;;
 esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
 
 exec "$basedir/foo"   "$@"
 exit $?

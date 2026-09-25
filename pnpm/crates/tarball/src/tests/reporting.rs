@@ -1,7 +1,7 @@
 use super::{
     ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
     IngestTarballToStore, MemCache, SharedReportedProgressKeys, SharedVerifiedFilesCache,
-    StoreIndex, ThrottledClient, assert_eq, fast_fail_client, integrity,
+    StoreIndex, ThrottledClient, UNREACHABLE_URL, assert_eq, fast_fail_client, integrity,
     seed_row_holding_another_package, store_index_key, tempdir_with_leaked_path, test_retry_opts,
 };
 
@@ -108,7 +108,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
-            url: "http://127.0.0.1:1/unreachable.tgz",
+            url: UNREACHABLE_URL,
             id: pkg_id,
         },
         store: crate::ArchiveStoreContext {

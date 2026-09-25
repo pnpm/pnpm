@@ -14,7 +14,8 @@ import {
 } from '@pnpm/global.packages'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
+import { localFilePath } from '@pnpm/resolving.local-resolver'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
@@ -82,14 +83,38 @@ export async function handleGlobalUpdate (
 
   // Update each package group sequentially to avoid overwhelming the system
 
+  let checked = false
   let changed = false
   for (const pkg of packagesToUpdate) {
+    const missingSourceWarning = missingFileSourceWarning(pkg)
+    if (missingSourceWarning != null) {
+      globalWarn(missingSourceWarning)
+      continue
+    }
+    checked = true
     changed = await updateGlobalPackageGroup(opts, globalDir, globalBinDir, pkg, commands) || changed // eslint-disable-line no-await-in-loop
   }
-  if (!changed) {
+  if (checked && !changed) {
     logger.info({ message: 'Already up to date', prefix: opts.dir })
   }
   summaryLogger.debug({ prefix: globalDir })
+  return undefined
+}
+
+/**
+ * The warning `update -g` prints for a group it skips because the `file:`
+ * source one of its dependencies was installed from is gone. Reinstalling the
+ * group would fail with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`, and the group
+ * still works from what it installed, so the other groups are updated instead.
+ */
+function missingFileSourceWarning (pkg: GlobalPackageInfo): string | undefined {
+  for (const [alias, spec] of Object.entries(pkg.dependencies)) {
+    const source = localFilePath(spec, pkg.installDir)
+    if (source != null && fs.statSync(source, { throwIfNoEntry: false }) == null) {
+      return `Skipped updating ${Object.keys(pkg.dependencies).join(', ')} because "${source}" no longer exists. ` +
+        `Reinstall ${alias} from an existing location, or remove it with "pnpm remove -g ${alias}".`
+    }
+  }
   return undefined
 }
 
@@ -101,12 +126,13 @@ async function updateGlobalPackageGroup (
   commands: CommandHandlerMap
 ): Promise<boolean> {
   const installDir = createInstallDir(globalDir)
-  const downgradeCheck = await pinsForDowngrades(opts, installDir, pkg)
+  const groupOpts = withSharedApprovals(opts)
+  const downgradeCheck = await pinsForDowngrades(groupOpts, installDir, pkg)
   const depSpecs = depSpecsForUpdate(pkg.dependencies, opts.latest, downgradeCheck.pins)
   const comparison = downgradeCheck.candidate != null && downgradeCheck.pins.size === 0
     ? downgradeCheck.candidate
     : await installGroup(
-      { ...opts, lockfileOnly: true, groupDependencies: pkg.dependencies },
+      { ...groupOpts, lockfileOnly: true, groupDependencies: pkg.dependencies },
       installDir,
       depSpecs
     )
@@ -127,7 +153,7 @@ async function updateGlobalPackageGroup (
     return false
   }
 
-  const { ignoredBuilds } = await installGroup(opts, installDir, depSpecs)
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGroup(groupOpts, installDir, depSpecs)
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
@@ -180,8 +206,25 @@ async function updateGlobalPackageGroup (
     activatedBins,
     protectedBins: ownership.protectedBins,
   })
-  await opts.updateResolutionPolicyManifest?.(comparison.resolutionPolicyViolations, globalDir)
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
   return true
+}
+
+function withSharedApprovals (opts: GlobalUpdateOptions): GlobalUpdateOptions {
+  const handleResolutionPolicyViolations = opts.handleResolutionPolicyViolations
+  if (handleResolutionPolicyViolations == null) return opts
+  const approved = new Set<string>()
+  return {
+    ...opts,
+    handleResolutionPolicyViolations: async (violations: readonly ResolutionPolicyViolation[]): Promise<void> => {
+      const pending = violations.filter(({ name, version }) => !approved.has(`${name}@${version}`))
+      if (pending.length === 0) return
+      await handleResolutionPolicyViolations(pending)
+      for (const { name, version } of pending) {
+        approved.add(`${name}@${version}`)
+      }
+    },
+  }
 }
 
 type InstallGroupOptions = GlobalUpdateOptions & {

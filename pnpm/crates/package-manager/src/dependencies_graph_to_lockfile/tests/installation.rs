@@ -3,7 +3,7 @@ use super::{
     error_from_single_node_graph, make_file_node, make_named_registry_node, make_node,
     make_node_with_optional, named_registries_with, single_importer_opts, write_manifest,
 };
-use crate::dependencies_graph_to_lockfile::packages::read_string_or_list;
+use crate::dependencies_graph_to_lockfile::packages::{read_engines, read_string_or_list};
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
     ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName,
@@ -133,6 +133,20 @@ fn string_or_list_metadata_accepts_arrays_and_rejects_other_values() {
 
     let object_manifest = json!({ "libc": { "name": "musl" } });
     assert_eq!(read_string_or_list(Some(&object_manifest), "libc"), None);
+}
+#[test]
+fn engines_record_only_constraining_object_entries() {
+    let object_manifest = json!({ "engines": { "node": ">=18", "npm": "*" } });
+    assert_eq!(
+        read_engines(Some(&object_manifest)),
+        Some([("node".to_string(), ">=18".to_string())].into()),
+    );
+
+    let wildcard_manifest = json!({ "engines": { "npm": "*" } });
+    assert_eq!(read_engines(Some(&wildcard_manifest)), None);
+
+    let array_manifest = json!({ "engines": ["node >= 0.2.0"] });
+    assert_eq!(read_engines(Some(&array_manifest)), None);
 }
 #[test]
 fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
@@ -628,5 +642,57 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
         build(Some(&previous)).deprecated,
         None,
         "a changed resolution takes the freshly served metadata",
+    );
+}
+
+#[test]
+fn unchanged_resolutions_keep_their_recorded_deprecation_over_stale_metadata() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "react": "^17.0.2" },
+    }));
+    let build = |previous: Option<&std::collections::HashMap<PackageKey, PackageMetadata>>| {
+        let node = make_node(
+            "react",
+            "17.0.2",
+            json!({ "name": "react", "version": "17.0.2", "deprecated": "Old message" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct =
+            BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.metadata_sources.previous_packages = previous;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "react@17.0.2".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].clone()
+    };
+
+    let mut undeprecated = build(None);
+    undeprecated.deprecated = None;
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        undeprecated.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)).deprecated.as_deref(),
+        Some("Old message"),
+        "an entry without a recorded deprecation takes the served one",
+    );
+
+    let mut recorded = undeprecated;
+    recorded.deprecated = Some("New message".to_string());
+    let previous = std::collections::HashMap::from([(
+        "react@17.0.2".parse::<PackageKey>().unwrap(),
+        recorded.clone(),
+    )]);
+    assert_eq!(
+        build(Some(&previous)),
+        recorded,
+        "an unchanged resolution keeps its recorded deprecation message",
     );
 }

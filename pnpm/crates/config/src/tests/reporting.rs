@@ -1,4 +1,8 @@
-use super::{assert_eq, capture_warnings, load_with_project_and_user, tempdir, write_file};
+use super::{
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
+    PathBuf, assert_eq, capture_warnings, fs, io, load_with_project_and_user, tempdir, write_file,
+};
+use crate::{api::FsReadFile, auth_sources::npmrc_source, npmrc_auth::NpmrcAuth};
 
 /// The rescope warning names the file it read and every key it pinned,
 /// so a user can find and migrate the offending line.
@@ -57,4 +61,85 @@ pub fn rescoped_creds_are_reported_under_their_pinned_key() {
         Some("user-secret"),
     );
     assert!(!config.raw_auth_config.contains_key("_authToken"));
+}
+
+#[test]
+pub fn unreadable_npmrc_becomes_a_source_carrying_its_warning() {
+    struct PermissionDenied;
+    impl FsReadFile for PermissionDenied {
+        fn read_file(_: &Path) -> io::Result<Vec<u8>> {
+            Err(io::ErrorKind::PermissionDenied.into())
+        }
+    }
+    let project = tempdir().expect("project tempdir");
+    let path = project.path().join(".npmrc");
+    write_file(&path, "registry=https://example.com/\n");
+
+    let source = npmrc_source::<PermissionDenied>(&path, |_| NpmrcAuth::default())
+        .expect("an unreadable file is still a source");
+
+    assert_eq!(source.warnings.len(), 1);
+    let warning = source.warnings[0].clone();
+    assert!(
+        warning.starts_with(&format!(r#"Issue while reading "{}". "#, path.display())),
+        "{warning:?} should name the unreadable file",
+    );
+    let mut config = Config::default();
+    source.apply_to::<HostNoHome>(&mut config);
+    assert_eq!(config.npmrc_warnings, vec![warning]);
+}
+
+#[test]
+pub fn missing_npmrc_does_not_warn() {
+    let auth = tempdir().expect("auth tempdir");
+    let config = load_with_project_and_user("", auth.path().join("missing-npmrc"));
+    assert_eq!(config.npmrc_warnings, Vec::<String>::new());
+}
+
+#[test]
+pub fn npmrc_with_invalid_utf8_is_still_read() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), b"# \xff\nregistry=https://example.com/\n")
+        .expect("write .npmrc");
+
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://example.com/");
+    assert_eq!(config.npmrc_warnings, Vec::<String>::new());
+}
+
+#[test]
+pub fn npmrc_with_utf8_bom_parses_first_setting() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), b"\xef\xbb\xbfregistry=https://example.invalid/\n")
+        .expect("write .npmrc");
+
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://example.invalid/");
+    assert_eq!(config.npmrc_warnings, Vec::<String>::new());
+}
+
+#[test]
+pub fn unresolved_env_placeholder_keeps_the_rest_of_the_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let user_file = auth.path().join("user-npmrc");
+    write_file(
+        &user_file,
+        "//reg.example.com/:_authToken=${PNPM_TEST_UNSET_5065}\nregistry=https://example.com/\n",
+    );
+
+    set_fake_env(&[("PNPM_CONFIG_NPMRC_AUTH_FILE", user_file.to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://example.com/");
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| warning.contains("${PNPM_TEST_UNSET_5065}")),
+        "{:?} should report the unresolved placeholder",
+        config.npmrc_warnings,
+    );
 }

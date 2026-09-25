@@ -48,6 +48,34 @@ export function checkPackageInstallability (
   return checkPackage(pkgId, { engines: pkg.engines, ...effectivePlatform(pkg, options.optional) }, options)
 }
 
+export interface ForcedInstallabilityOptions {
+  engineStrict: boolean
+  /**
+   * Install every package the lockfile names, whatever its `os`, `cpu`,
+   * `libc` or `engines` say: the installability check is skipped entirely.
+   */
+  includeIncompatiblePackages: boolean
+}
+
+/**
+ * How `--force` changes the installability check. It lifts `engineStrict`,
+ * as npm's does, so an `engines` mismatch on a required package warns
+ * instead of failing. Under `forceIgnoresPlatform` (the default) it also
+ * skips the check altogether, so optional dependencies for other platforms
+ * are installed instead of skipped.
+ */
+export function installabilityUnderForce (opts: {
+  engineStrict?: boolean
+  force?: boolean
+  forceIgnoresPlatform?: boolean
+}): ForcedInstallabilityOptions {
+  const force = opts.force === true
+  return {
+    engineStrict: opts.engineStrict === true && !force,
+    includeIncompatiblePackages: force && opts.forceIgnoresPlatform !== false,
+  }
+}
+
 export function packageIsInstallable (
   pkgId: string,
   pkg: InstallabilityManifest,

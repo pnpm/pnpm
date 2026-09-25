@@ -84,6 +84,9 @@ pub(super) fn set_policy(
 /// projects that pin nothing. Only a package the user has not decided
 /// about is recorded: an entry of its own, or a `globalShims: false` that
 /// turns every shim off, is a decision and stands.
+///
+/// pnpm itself is left out: its own executable switches to the version a
+/// project pins, so a shim in front of it would dispatch to nothing new.
 pub(crate) fn record_package_manager_shims<'a>(
     config: &Config,
     packages: impl IntoIterator<Item = &'a str>,
@@ -97,7 +100,7 @@ pub(crate) fn record_package_manager_shims<'a>(
     for package in packages {
         // A disable that outranks this record leaves the shim doing
         // nothing, and the entry would outlive the disable.
-        if PackageManager::parse(package).is_none()
+        if PackageManager::parse(package).is_none_or(|pm| pm == PackageManager::Pnpm)
             || recorded.contains_key(package)
             || !would_dispatch(config, package)?
         {

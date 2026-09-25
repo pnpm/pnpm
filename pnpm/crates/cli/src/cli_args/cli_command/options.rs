@@ -1,8 +1,8 @@
 use super::{
-    CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, LogLevelSetting,
-    Pipe, ReporterType,
+    CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, Pipe, ReporterType,
 };
 
+use crate::cli_args::reporter::ReporterFlags;
 use std::path::{Path, PathBuf};
 
 /// Error type of [`CliArgs::apply_workspace_root`].
@@ -21,14 +21,23 @@ pub enum WorkspaceRootError {
 }
 
 impl CliArgs {
-    /// The reporter the command should drive: `--loglevel silent` forces
-    /// the silent reporter over any `--reporter` choice, mirroring the
-    /// reporter selection in pnpm 11's `main.ts`.
-    pub(crate) fn effective_reporter(&self) -> ReporterType {
-        if self.output.presentation.loglevel == Some(LogLevelSetting::Silent) {
-            return ReporterType::Silent;
+    pub(crate) fn reporter_flags(&self) -> ReporterFlags {
+        ReporterFlags {
+            reporter: self.output.presentation.reporter,
+            loglevel: self.output.presentation.loglevel,
         }
-        self.output.presentation.reporter
+    }
+
+    pub(crate) fn effective_reporter(&self) -> ReporterType {
+        self.effective_reporter_with_config(None, None)
+    }
+
+    pub(crate) fn effective_reporter_with_config(
+        &self,
+        config_loglevel: Option<pnpm_config::LogLevel>,
+        config_reporter: Option<pnpm_config::ReporterType>,
+    ) -> ReporterType {
+        self.reporter_flags().resolve(config_loglevel, config_reporter)
     }
 
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
@@ -148,8 +157,13 @@ impl CliArgs {
         if !self.workspace.recursive
             && !self.paths.ignore_workspace
             && self.command.recursive_by_default()
-            && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
+            && let Ok(Some(workspace_dir)) = pnpm_workspace::find_workspace_dir(&dir)
         {
+            if matches!(self.command, CliCommand::List(_) | CliCommand::Ll(_))
+                && dir != resolve_real_dir(&workspace_dir)
+            {
+                return;
+            }
             self.workspace.recursive = true;
         }
     }
@@ -196,7 +210,10 @@ impl CliArgs {
     }
 
     fn validate_no_bail_global_option(&self) -> Result<(), clap::Error> {
-        if matches!(self.command, CliCommand::Rebuild(_) | CliCommand::Rb(_)) {
+        if matches!(
+            self.command,
+            CliCommand::Rebuild(_) | CliCommand::Rb(_) | CliCommand::InstallTest(_),
+        ) {
             return Ok(());
         }
         self.validate_run_scoped_global_option("--no-bail")

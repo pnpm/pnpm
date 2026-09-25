@@ -37,6 +37,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",
     "detect-libc": "catalog:",

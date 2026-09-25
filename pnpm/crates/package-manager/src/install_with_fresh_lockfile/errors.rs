@@ -17,6 +17,8 @@ pub enum InstallWithFreshLockfileError {
     /// same code and message from `requireHooks`.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
     MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
     /// The concurrent pre-resolve verification of the existing lockfile
     /// rejected it. The orchestrator maps this back to
     /// `InstallError::LockfileVerification` so the failure keeps the
@@ -250,6 +252,15 @@ impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFre
             }
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallWithFreshLockfileError::WritePackageMap(error)
+            }
+            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+                InstallWithFreshLockfileError::PruneStaleModules(error)
+            }
+            HoistedLinkerError::HoistSymlink(error) => {
+                InstallWithFreshLockfileError::HoistSymlink(error)
+            }
+            HoistedLinkerError::HoistLinkBins(error) => {
+                InstallWithFreshLockfileError::HoistLinkBins(error)
             }
         }
     }

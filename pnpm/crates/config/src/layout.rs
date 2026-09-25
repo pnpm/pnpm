@@ -108,6 +108,15 @@ impl Config {
         self.lockfile_dir.is_some() || self.shared_workspace_lockfile
     }
 
+    /// How a walk that leaves out a dependency group classifies the lockfile's
+    /// optional-peer edges.
+    #[must_use]
+    pub fn peer_edge_options(&self) -> pnpm_lockfile::PeerEdgeOptions {
+        pnpm_lockfile::PeerEdgeOptions {
+            resolve_peers_from_workspace_root: self.resolve_peers_from_workspace_root,
+        }
+    }
+
     /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
     /// the config dependencies (`node_modules/.pnpm-config`), and the
     /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??
@@ -156,14 +165,22 @@ impl Config {
                 Some(raw) => dir.join(raw),
                 None => dir.join("node_modules"),
             };
-        if !self.enable_global_virtual_store {
-            self.virtual_store_dir = match self.explicit_settings
-                .get("virtualStoreDir")
-                .and_then(serde_json::Value::as_str)
-            {
-                Some(raw) => dir.join(raw),
-                None => self.modules_dir.join(".pnpm"),
-            };
+        match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
+            Some(raw) if !self.enable_global_virtual_store => {
+                self.virtual_store_dir = dir.join(raw);
+            }
+            _ => self.follow_modules_dir_with_virtual_store(),
+        }
+    }
+
+    /// Put the virtual store at `<modules_dir>/.pnpm`, pnpm's default,
+    /// unless `virtualStoreDir` is set or a global virtual store is on,
+    /// whose virtual store is store-anchored and follows nothing.
+    pub(crate) fn follow_modules_dir_with_virtual_store(&mut self) {
+        if !self.enable_global_virtual_store
+            && !self.explicit_settings.contains_key("virtualStoreDir")
+        {
+            self.virtual_store_dir = self.modules_dir.join(".pnpm");
         }
     }
 
@@ -185,6 +202,106 @@ impl Config {
             return;
         };
         project_config.apply_to(self, project_dir);
+    }
+
+    /// The path, relative to a project's directory, of the modules
+    /// directory an install gives every project. It is `node_modules`
+    /// unless `modulesDir` is configured, and the joins that build a
+    /// project's modules or `.bin` path must use it rather than the
+    /// literal `node_modules`.
+    ///
+    /// A relative `modulesDir` such as `www/modules` carries over whole,
+    /// joined onto every project. A value that climbs out of
+    /// the project (`..`) or is absolute cannot, so only its last
+    /// component does.
+    pub fn modules_dir_name(&self) -> &std::ffi::OsStr {
+        self.explicit_settings
+            .get("modulesDir")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|raw| project_relative_modules_dir(raw, &self.modules_dir))
+            .map(Path::as_os_str)
+            .or_else(|| self.modules_dir.file_name())
+            .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+    }
+
+    /// The directory [`Config::modules_dir`] was resolved against: the
+    /// lockfile directory, onto which the install places every importer.
+    #[must_use]
+    pub fn modules_dir_anchor(&self) -> Option<&Path> {
+        self.modules_dir
+            .ancestors()
+            .nth(Path::new(self.modules_dir_name()).components().count())
+    }
+
+    /// Whether a `packageConfigs` entry can still change a project's
+    /// layout. An entry reaches its project through the install that
+    /// project owns, so a workspace sharing one lockfile applies none of
+    /// them, and a command reading a project's directories back has to
+    /// draw the line in the same place.
+    #[must_use]
+    pub fn applies_package_configs(&self) -> bool {
+        self.package_configs.is_some() && !self.shares_one_lockfile()
+    }
+
+    /// [`Self::modules_dir_name`] for one project, which the
+    /// `packageConfigs` entry naming it may point elsewhere. The name
+    /// the install gave that project.
+    ///
+    /// `project_name` is what [`Self::anchor_dedicated_project`] takes,
+    /// and for the same reason: callers hold a manifest they already
+    /// read rather than reading one here.
+    #[must_use]
+    pub fn modules_dir_name_for(
+        &self,
+        project_dir: &Path,
+        project_name: Option<&str>,
+    ) -> std::borrow::Cow<'_, std::ffi::OsStr> {
+        self.applies_package_configs()
+            .then(|| {
+                self.package_configs
+                    .as_ref()?
+                    .get(project_name?)?
+                    .modules_dir_name_for(project_dir)
+            })
+            .flatten()
+            .unwrap_or_else(|| std::borrow::Cow::Borrowed(self.modules_dir_name()))
+    }
+
+    /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
+    /// `env`, the environment of that project's scripts and commands, when
+    /// it is a custom modules directory and the project's executables are
+    /// symlinks, which have no shim to carry the entry. The rest of
+    /// `NODE_PATH` is the one `env` sets, or else the inherited one.
+    pub fn prepend_project_node_path<Sys: EnvVar>(
+        &self,
+        env: &mut HashMap<String, String>,
+        project_dir: &Path,
+        modules_dir_name: &std::ffi::OsStr,
+    ) {
+        let symlinked = cfg!(unix) && self.prefer_symlinked_executables == Some(true);
+        if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
+            return;
+        }
+        let project_node_path = project_dir
+            .join(modules_dir_name)
+            .display()
+            .to_string();
+        if project_node_path.contains(':') {
+            return;
+        }
+        let rest = env
+            .get("NODE_PATH")
+            .cloned()
+            .or_else(|| Sys::var("NODE_PATH"))
+            .unwrap_or_default();
+        let node_path = std::iter::once(project_node_path.as_str())
+            .chain(
+                rest.split(':')
+                    .filter(|entry| !entry.is_empty() && *entry != project_node_path),
+            )
+            .collect::<Vec<_>>()
+            .join(":");
+        env.insert("NODE_PATH".to_string(), node_path);
     }
 
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
@@ -372,10 +489,35 @@ impl Config {
         self.resolve_default_store_dir::<Sys>(start_dir);
     }
 
+    /// Place a store the load left unplaced
+    /// ([`store_dir_placement_skipped`](Self::store_dir_placement_skipped))
+    /// where a store consumer's load from `start_dir` would have placed it.
+    pub fn place_skipped_store_dir<Sys>(&mut self, start_dir: &Path)
+    where
+        Sys: GetHomeDir + LinkProbe,
+    {
+        if !std::mem::take(&mut self.store_dir_placement_skipped) {
+            return;
+        }
+        self.skip_store_dir_resolution = false;
+        self.resolve_default_store_dir::<Sys>(start_dir);
+        let virtual_store_dir_explicit = self.explicit_settings.contains_key("virtualStoreDir");
+        let global_virtual_store_dir_explicit =
+            self.explicit_settings.contains_key("globalVirtualStoreDir");
+        self.apply_global_virtual_store_derivation(
+            virtual_store_dir_explicit,
+            global_virtual_store_dir_explicit,
+        );
+    }
+
     pub(super) fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(
         &mut self,
         start_dir: &Path,
     ) {
+        if self.skip_store_dir_resolution {
+            self.store_dir_placement_skipped = true;
+            return;
+        }
         let Some(home_dir) = Sys::home_dir() else {
             return;
         };
@@ -422,4 +564,21 @@ impl Config {
             &self.virtual_store_dir
         }
     }
+}
+
+/// `raw`, the configured `modulesDir`, with a leading `./` dropped, when
+/// it names a directory inside the project and `modules_dir` is still
+/// the path resolved from it. `None` otherwise, which leaves callers
+/// with the basename of `modules_dir`.
+pub(crate) fn project_relative_modules_dir<'a>(
+    raw: &'a str,
+    modules_dir: &Path,
+) -> Option<&'a Path> {
+    let raw = Path::new(raw);
+    let relative = raw.strip_prefix(".").unwrap_or(raw);
+    let mut components = relative.components().peekable();
+    (components.peek().is_some()
+        && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+        && modules_dir.ends_with(relative))
+    .then_some(relative)
 }

@@ -1,6 +1,6 @@
 use super::{
-    AllowBuild, Config, PackageConfigsSetting, PnpmfileSetting, WorkspaceSettings, as_set,
-    global_shims_setting, opt_path, path, side_effects_cache_setting,
+    AllowBuild, Config, MacosBackupSettings, PackageConfigsSetting, PnpmfileSetting,
+    WorkspaceSettings, as_set, global_shims_setting, opt_path, path, side_effects_cache_setting,
 };
 
 impl WorkspaceSettings {
@@ -98,6 +98,11 @@ impl WorkspaceSettings {
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
 
+            macos_backup: Some(MacosBackupSettings {
+                exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
+                exclude_store_dir: Some(config.macos_backup.exclude_store_dir),
+            }),
+
             global_shims: Some(global_shims_setting(config)),
 
             frozen_lockfile: config.frozen_lockfile,
@@ -110,6 +115,8 @@ impl WorkspaceSettings {
             tools: Some(config.tools.clone()),
             remote_side_effects_cache: config.remote_side_effects_cache.clone(),
             reporter_hide_prefix: config.reporter_hide_prefix,
+            loglevel: config.loglevel,
+            reporter: config.reporter,
             max_sockets: config.max_sockets,
             patched_dependencies: config.patched_dependencies.clone(),
             patches_dir: config.patches_dir.clone(),
@@ -127,6 +134,7 @@ impl WorkspaceSettings {
             ignore_pnpmfile: Some(config.ignore_pnpmfile),
             git_checks: Some(config.git_checks),
             engine_strict: Some(config.engine_strict),
+            force_ignores_platform: Some(config.force_ignores_platform),
             node_version: config.node_version.clone(),
             runtime_on_fail: config.runtime_on_fail,
             node_download_mirrors: Some(config.node_download_mirrors.clone()),
@@ -166,6 +174,7 @@ impl WorkspaceSettings {
             versioning: Some(config.versioning.clone()),
             save_catalog_name: config.save_catalog_name.clone(),
             save_prefix: config.save_prefix.clone(),
+            tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
             concurrency_groups: Some(config.concurrency_groups.clone()),
 

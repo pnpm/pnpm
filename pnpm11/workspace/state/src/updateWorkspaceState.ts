@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import type { ConfigDependencies } from '@pnpm/types'
 import writeFileAtomic from 'write-file-atomic'
 
@@ -23,6 +23,10 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   const workspaceState = createWorkspaceState(opts)
   const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
   const cacheFile = getFilePath(opts.workspaceDir)
-  await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
-  await writeFileAtomic(cacheFile, workspaceStateJSON)
+  try {
+    await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
+    await writeFileAtomic(cacheFile, workspaceStateJSON)
+  } catch (err: unknown) {
+    globalWarn(`Failed to write the workspace state: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }

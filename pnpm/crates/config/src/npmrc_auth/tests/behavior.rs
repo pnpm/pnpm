@@ -23,6 +23,35 @@ fn preserves_existing_trailing_slash() {
 }
 
 #[test]
+fn strips_leading_utf8_bom_from_ini() {
+    let ini = "\u{feff}registry=https://example.invalid/\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://example.invalid/"));
+
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.registry, "https://example.invalid/");
+}
+
+#[test]
+fn strips_leading_utf8_bom_before_comment_in_ini() {
+    let ini = "\u{feff}# comment\nregistry=https://example.invalid/\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(auth.routes.default.as_deref(), Some("https://example.invalid/"));
+}
+
+#[test]
+fn does_not_strip_bom_from_later_lines() {
+    let ini = "fetch-retries=0\n\u{feff}registry=https://example.invalid/\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(auth.routes.default, None);
+
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+}
+
+#[test]
 fn parses_scoped_registry_and_applies() {
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "@private:registry=https://private.example/npm\n",

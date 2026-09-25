@@ -547,7 +547,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         "        version: 1.0.0"
         "packages:"
         "  placeholder@1.0.0:"
-        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/placeholder.tgz'}"
         "snapshots:"
         "  placeholder@1.0.0: {}"
     })
@@ -680,7 +680,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         "        version: 1.0.0"
         "packages:"
         "  placeholder@1.0.0:"
-        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://invalid.local/placeholder.tgz'}"
+        "    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, tarball: 'http://0.0.0.0:1/placeholder.tgz'}"
         "snapshots:"
         "  placeholder@1.0.0: {}"
     })

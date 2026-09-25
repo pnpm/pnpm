@@ -205,3 +205,47 @@ just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.co
 # See more options
 just integrated-benchmark --help
 ```
+
+### CI regression checks
+
+Each PR benchmark scenario measures HEAD and main on the same runner. The check
+uses a tolerance of **5% of main's median or 2 ms, whichever is larger**. That is
+2 ms for a 10 ms baseline and 150 ms for a 3 second baseline.
+
+A regression requires both the median slowdown and the gap between the fastest
+retained HEAD sample and slowest retained main sample to exceed that tolerance.
+The comparison trims `floor(sample count / 10)` samples from each tail and
+requires at least nine successful samples per target. Missing or invalid data
+fails the check. Both pacquet and pnpr are checked, except in the two client-only
+resolver scenarios.
+
+Slowdowns above the tolerance without this sample separation are reported as
+inconclusive and do not fail CI. Suspected regressions are automatically rerun
+once with target order reversed. Only a slowdown reproduced in both runs fails
+the check; both measurements remain in the artifact and report. This also
+guards against sustained runner drift during a single batch of samples.
+Confirmation command failures propagate, and a missing required confirmation
+report fails the comparison.
+
+This conservative noise guard is not a
+statistical confidence interval; sequential measurements remain vulnerable to
+runner drift. All timings remain available for performance review.
+
+Bencher retains absolute minimum timings for historical tracking. Historical
+alerts do not gate PRs, since their baselines may come from faster machines.
+The privileged comment workflow runs the comparator from the default branch,
+treats PR artifacts only as data, posts the report before enforcing the result,
+and preserves the `Bencher Report (pnpm's project)` check name. Non-main manual
+dispatches use the same comparison. The peer-heavy Rust-versus-TypeScript
+speedup assertion remains active.
+
+To replay a downloaded `integrated-benchmark-report-ubuntu-latest` artifact,
+run these commands from the repository root:
+
+```sh
+node .github/scripts/compare-integrated-benchmarks.mjs /path/to/artifact
+node --test .github/scripts/compare-integrated-benchmarks.test.mjs .github/scripts/run-integrated-benchmark.test.mjs
+```
+
+Adding a scenario requires updating the comparison script's scenario list and
+the workflow. The tests check that both cover the benchmark matrix.

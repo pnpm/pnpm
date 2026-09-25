@@ -10,8 +10,10 @@ use super::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
+    remove::RemoveArgs,
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
+    tasks::{TasksArgs, TasksCommand},
     unlink::UnlinkArgs,
     version::VersionArgs,
 };
@@ -25,6 +27,13 @@ fn install_args(argv: &[&str]) -> InstallArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {
         CliCommand::Install(install) => install,
         other => panic!("expected install, got {other:?}"),
+    }
+}
+
+fn remove_args(argv: &[&str]) -> RemoveArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Remove(remove) => remove,
+        other => panic!("expected remove, got {other:?}"),
     }
 }
 
@@ -338,6 +347,19 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
         last_on.lockfile_updates.trust_lockfile && !last_on.lockfile_updates.no_trust_lockfile,
         "--trust wins when last",
     );
+}
+
+#[test]
+fn remove_trust_lockfile_pair_resolves_last_one_wins() {
+    assert!(remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile"]).no_trust_lockfile);
+    assert!(remove_args(&["pacquet", "remove", "foo", "--trust-lockfile"]).trust_lockfile);
+
+    let last_off =
+        remove_args(&["pacquet", "remove", "foo", "--trust-lockfile", "--no-trust-lockfile"]);
+    assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
+    let last_on =
+        remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile", "--trust-lockfile"]);
+    assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
 }
 
 /// Returns the canonicalized root too: a temp dir is a symlink on some
@@ -656,6 +678,55 @@ fn store_status_and_add_are_subcommands_of_store() {
         panic!("expected store add");
     };
     assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
+}
+
+#[test]
+fn tasks_status_accepts_group_names() {
+    let CliCommand::Tasks(TasksArgs {
+        command: Some(TasksCommand::Status(args)),
+        ..
+    }) = command(&["pacquet", "tasks", "status", "cargo", "typescript"])
+    else {
+        panic!("expected tasks status");
+    };
+    assert_eq!(args.groups, ["cargo", "typescript"]);
+}
+
+#[test]
+fn tasks_status_accepts_no_group_names() {
+    let CliCommand::Tasks(TasksArgs {
+        command: Some(TasksCommand::Status(args)),
+        ..
+    }) = command(&["pacquet", "tasks", "status"])
+    else {
+        panic!("expected tasks status");
+    };
+    assert_eq!(args.groups, Vec::<String>::new());
+}
+
+#[test]
+fn tasks_accepts_script_arguments_before_resolving_an_override() {
+    for args in [vec![], vec!["custom", "--flag"], vec!["--custom-flag"]] {
+        let argv: Vec<_> = ["pacquet", "tasks"]
+            .into_iter()
+            .chain(args.iter().copied())
+            .collect();
+        let CliCommand::Tasks(parsed) = command(&argv) else {
+            panic!("expected tasks");
+        };
+        assert_eq!(parsed.script_args(), args);
+    }
+}
+
+#[test]
+fn tasks_status_help_describes_concurrency_groups() {
+    let error = CliArgs::try_parse_from(["pacquet", "tasks", "status", "--help"]).unwrap_err();
+    assert_eq!(error.kind(), clap::error::ErrorKind::DisplayHelp);
+    let help = error.to_string();
+    eprintln!("{help}");
+    assert!(help.contains("Show running and waiting tasks in concurrency groups"));
+    assert!(help.contains("tasks status"));
+    assert!(help.contains("[GROUPS]"));
 }
 
 /// `--production` is the setting name behind `--prod`, and pnpm accepts

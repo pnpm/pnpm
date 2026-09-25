@@ -1,17 +1,11 @@
+#[cfg(unix)]
+use crate::_utils::write_executable;
+use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, time::Duration};
-
-#[cfg(unix)]
-fn write_executable(path: &std::path::Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod executable");
-}
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -161,6 +155,62 @@ JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
             Vec::<String>::new(),
         ],
     );
+
+    drop(root);
+}
+
+/// A script shortcut forwards options that are also pnpm global options.
+/// `--filter` must not turn `pnpm test` into a recursive workspace run
+/// (`pnpm/pnpm#15217`).
+#[test]
+fn script_shortcuts_forward_global_options() {
+    for shortcut in ["test", "start", "stop"] {
+        for script_args in [
+            &["--filter=Foo"][..],
+            &["--filter", "Foo", "--reporter", "custom"],
+            &["-r", "--help"],
+            &["--", "--filter=Foo"],
+            &[],
+        ] {
+            assert_shortcut_arguments(shortcut, script_args);
+        }
+    }
+}
+
+fn assert_shortcut_arguments(shortcut: &str, script_args: &[&str]) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("recordArgs.js"),
+        "require('fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)), 'utf8')",
+    )
+    .expect("write recordArgs.js");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "test": "node recordArgs.js",
+                "start": "node recordArgs.js",
+                "stop": "node recordArgs.js",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("--dir")
+        .with_arg(&workspace)
+        .with_arg(shortcut)
+        .with_args(script_args)
+        .assert()
+        .success();
+
+    let recorded: Vec<String> =
+        serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).expect("read args"))
+            .expect("parse args");
+    assert_eq!(recorded, script_args, "{shortcut} {script_args:?}");
 
     drop(root);
 }
@@ -779,3 +829,72 @@ mod shell_emulator {
 mod selection;
 
 mod environment;
+
+#[test]
+fn run_resolves_commands_from_the_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "greet": "greet" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
+        write_fake_bin(&workspace.join(modules_dir).join(".bin"), "greet", marker);
+    }
+
+    let output = pacquet
+        .with_args(["run", "greet"])
+        .output()
+        .expect("run pacquet run greet");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet run greet should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "the configured modules dir must win: {stdout}");
+    assert!(!stdout.contains("stale"), "node_modules/.bin must not win: {stdout}");
+
+    drop(root);
+}
+
+#[test]
+fn run_with_a_missing_script_shell_names_it() {
+    for streamed in [false, true] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest =
+            json!({ "name": "test", "version": "0.0.0", "scripts": { "build": "echo built" } })
+                .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let missing_shell = workspace.join("no-such-shell");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("scriptShell: '{}'\n", missing_shell.display()),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        if streamed {
+            pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+        }
+        let output = pacquet
+            .with_args(["run", "build"])
+            .output()
+            .expect("spawn pacquet run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // miette wraps the report at the terminal width, splitting the temp path.
+        let unwrapped: String = stderr
+            .chars()
+            .filter(|&c| !c.is_whitespace() && c != '│')
+            .collect();
+        assert!(!output.status.success(), "streamed: {streamed}, got: {output:?}");
+        assert!(
+            unwrapped.contains("TheconfiguredscriptShellwasnotfound")
+                && unwrapped.contains(&missing_shell.display().to_string()),
+            "streamed: {streamed}, the error must name the configured scriptShell, got: {stderr}",
+        );
+
+        drop(root);
+    }
+}

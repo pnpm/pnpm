@@ -14,9 +14,12 @@
 use super::{
     AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,
     NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
-    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url, percent_decode_str,
+    TrustRoots, apply_tls, bundled_root_certs, nerf_dart, parse_proxy_url, percent_decode_str,
 };
-use crate::proxy::strip_userinfo;
+use crate::{
+    client_builder::{EffectiveTrustRoots, select_trust_roots},
+    proxy::strip_userinfo,
+};
 use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,
@@ -127,6 +130,11 @@ async fn drain_until_timed_out(
             return;
         }
     }
+}
+
+pub(crate) fn origin_of(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    super::origin_of_url(&parsed)
 }
 
 mod behavior_capped_dns_resolver_limits;

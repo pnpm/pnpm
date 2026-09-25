@@ -14,7 +14,7 @@ use pnpm_resolving_resolver_base::{
 use tempfile::TempDir;
 
 use super::{
-    VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
+    ReplacedEntries, VerifyLockfileResolutionsOptions, collect_resolution_policy_violations,
     verify_lockfile_resolutions,
 };
 use crate::VerifyError;

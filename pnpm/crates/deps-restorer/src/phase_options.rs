@@ -16,7 +16,7 @@ pub struct LinkProjects<'a> {
     pub package_map_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub dependency_groups: &'a [DependencyGroup],
     /// Anchor for each importer's `node_modules`. The frozen path uses
-    /// `workspace_root`; the fresh path uses `modules_dir.parent()`,
+    /// `workspace_root`; the fresh path uses `Config::modules_dir_anchor`,
     /// because its tests relocate `modules_dir` away from the manifest.
     pub symlink_root: &'a Path,
     /// Importer ids allowed to live outside the lockfile dir (Bit's
@@ -64,6 +64,25 @@ pub struct PriorLinkState<'a> {
     pub build_present_packages: bool,
     /// See [`crate::PriorHoistedState::unbuilt_builds`].
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// The snapshots the previous install's `.modules.yaml` recorded as
+    /// skipped. A lockfile entry says what an install resolved rather than
+    /// what it put on disk, so telling the two apart for the previous
+    /// install takes this set (pnpm/pnpm#15161).
+    pub previously_skipped: &'a crate::SkippedSnapshots,
+}
+
+impl<'a> PriorLinkState<'a> {
+    #[must_use]
+    pub fn hoisted_state(self, current_lockfile: Option<&'a Lockfile>) -> PriorHoistedState<'a> {
+        PriorHoistedState {
+            current_lockfile,
+            hoisted_dependencies: self.hoisted_dependencies,
+            current_hoisted_locations: self.hoisted_locations,
+            previously_skipped: self.previously_skipped,
+            unbuilt_builds: self.unbuilt_builds,
+            build_present_packages: self.build_present_packages,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -81,7 +100,7 @@ pub struct HoistedProjects<'a> {
     pub walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
     /// `node_modules` lookup. Equals `walker_lockfile_dir` on the
-    /// frozen path; the fresh path passes `config.modules_dir.parent()`
+    /// frozen path; the fresh path passes `Config::modules_dir_anchor`
     /// so relocated `modules_dir` test configs land symlinks where the
     /// rest of the install writes.
     pub symlink_workspace_root: &'a Path,
@@ -94,10 +113,15 @@ pub struct PriorHoistedState<'a> {
     /// for a directory against the wanted one. Both install paths pass
     /// it; `None` when the file is absent, which is a first install.
     pub current_lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` from the previous install's `.modules.yaml`:
+    /// the workspace projects it linked into the root `node_modules`.
+    pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` from the previous install's `.modules.yaml`,
     /// so the walker can mark packages that are already on disk. `None`
     /// on a first install.
     pub current_hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`crate::PriorLinkState::previously_skipped`].
+    pub previously_skipped: &'a crate::SkippedSnapshots,
     /// Packages the previous install's `.modules.yaml` recorded as not
     /// built. A present one among them still reaches the build phase.
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
@@ -165,7 +189,7 @@ pub struct BuildPhaseDirectories<'a> {
     /// Directory each importer's `node_modules/.bin` is anchored under
     /// in the post-build top-level bin pass. Equals `workspace_root`
     /// in production (and on the frozen path); the fresh path passes
-    /// its `symlink_root` (`config.modules_dir.parent()`), which can
+    /// its `symlink_root` (`Config::modules_dir_anchor`), which can
     /// differ when a test relocates `modules_dir`.
     pub top_level_bin_root: &'a Path,
     pub layout: &'a VirtualStoreLayout,

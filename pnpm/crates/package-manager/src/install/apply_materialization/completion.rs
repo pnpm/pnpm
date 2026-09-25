@@ -1,8 +1,8 @@
 use super::super::{
     BTreeSet, Catalogs, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent,
     LogLevel, NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
-    SummaryLog, drain_settled_projects, project_lifecycle_graph, projects_running_own_scripts,
-    run_projects_lifecycle_scripts,
+    SummaryLog, drain_settled_projects, project_lifecycle_graph, project_script_stages,
+    projects_running_own_scripts, run_projects_lifecycle_scripts,
 };
 use crate::peer_dependency_issues::report_peer_dependency_issues;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -64,6 +64,7 @@ pub(super) struct MaterializedProjectScriptsInputs<'a, 'selection> {
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_current_lockfile: Option<&'a Lockfile>,
+    pub(super) root_preinstall_ran: bool,
 }
 pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     inputs: MaterializedProjectScriptsInputs<'_, '_>,
@@ -82,6 +83,8 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.config,
                 inputs.node_linker,
                 inputs.workspace_root,
+                inputs.root_preinstall_ran,
+                project_script_stages(inputs.request.mutation, inputs.request.include_dev),
             )?;
         }
         if let Some(rebuild) = inputs.request.rebuild {
@@ -113,6 +116,7 @@ pub(super) fn materialized_script_projects<'a>(
             workspace_root: inputs.workspace_root,
             active_project_dir: inputs.request.manifest_dir,
             selected_dirs: inputs.request.workspace.map(|selection| selection.selected_dirs),
+            edited_dirs: inputs.request.workspace.and_then(|selection| selection.edited_dirs),
             project_manifests: inputs.project_manifests,
             materialized_project_manifests: inputs.materialized_project_manifests,
         })
@@ -129,6 +133,7 @@ pub(super) struct ReportInstallCompletionInputs<'a> {
     pub(super) resolved_lockfile: Option<&'a Lockfile>,
     pub(super) peer_issue_importer_ids: &'a HashSet<String>,
     pub(super) installed_importer_ids: &'a HashSet<String>,
+    pub(super) can_prompt: bool,
 }
 pub(super) fn report_install_completion<Reporter: self::Reporter>(
     inputs: ReportInstallCompletionInputs<'_>,
@@ -168,8 +173,12 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
     // `--ignore-workspace` opts out: the run disowned the workspace
-    // manifest, so it must not write to one either.
+    // manifest, so it must not write to one either. So does a run nobody
+    // is at the terminal for, such as CI or a dependency-update bot: no
+    // one there edits the line, and it would land in the committed
+    // manifest as a value that is not a decision.
     if !inputs.ignored_builds.is_empty()
+        && inputs.can_prompt
         && !is_global_install
         && !inputs.workspace.config.ignore_workspace
     {

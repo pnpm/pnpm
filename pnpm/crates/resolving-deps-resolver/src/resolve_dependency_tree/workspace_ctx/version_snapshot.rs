@@ -6,6 +6,14 @@ use super::{
 };
 
 impl WorkspaceTreeCtx {
+    pub(crate) fn duplicate_versions(&self) -> pnpm_resolving_resolver_base::PreferredVersions {
+        self.run_preferred_versions().versions
+            .iter()
+            .filter(|(_, versions)| versions.len() > 1)
+            .map(|(name, versions)| (name.clone(), versions.clone()))
+            .collect()
+    }
+
     /// Snapshot the workspace context into a [`ResolvedTree`] without
     /// consuming `self`. `direct` carries the combined direct-dep
     /// envelopes the caller built up across importers; multi-importer

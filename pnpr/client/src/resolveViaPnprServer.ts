@@ -20,6 +20,7 @@ export interface PnprProject {
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
 }
 
 export interface ResolveViaPnprServerOptions {
@@ -35,6 +36,8 @@ export interface ResolveViaPnprServerOptions {
   devDependencies?: Record<string, string>
   /** Optional dependencies to resolve (single project) */
   optionalDependencies?: Record<string, string>
+  /** Peer dependencies, auto-installed under autoInstallPeers (single project) */
+  peerDependencies?: Record<string, string>
   /** Multiple projects in a workspace */
   projects?: PnprProject[]
   /**
@@ -165,6 +168,7 @@ export async function resolveViaPnprServer (
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
+    peerDependencies: opts.peerDependencies,
   }]
 
   const requestBody = JSON.stringify({

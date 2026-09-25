@@ -1,23 +1,28 @@
+pub(crate) use context::{
+    CommandFuture, CommandLoaders, CommandLocations, RunCtx, WorkspaceInvocation,
+};
+
 pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
+    config_warnings::warn_shared_workspace_lockfile_outside_workspace,
     dispatch_install, dispatch_query, dispatch_script,
-    install::resolve_bool_override,
+    install::{InstallArgs, resolve_bool_override},
     reporter::{
         DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
         configure_max_log_level, reporter_emit,
     },
 };
 use crate::{
-    State,
     config_deps::prepare_config,
     config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
 };
 
 use configuration::{
-    OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
-    apply_location_overrides, apply_output_overrides, apply_project_selectors,
+    ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_color_override,
+    apply_location_overrides, apply_project_selectors, apply_run_output_config,
+    warn_fast_path_config,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
@@ -28,76 +33,9 @@ use routing::{
     emit_execution_time, now_millis, print_json_error, prints_json_errors, run_routed_command,
 };
 use std::{
-    future::Future,
     path::{Path, PathBuf},
-    pin::Pin,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU8, Ordering},
 };
-
-pub(crate) type CommandFuture<'a, Output = ()> =
-    Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
-
-/// The shared context every subcommand handler needs: the canonicalized
-/// `--dir`, the derived `package.json` path, the selected reporter, the
-/// `--recursive` flag, and the two lazily-loaded resources (`config` /
-/// `state`) the handlers pull from on demand.
-///
-/// `config` and `state` are passed as `&dyn Fn` rather than eagerly loaded
-/// so a handler that never needs them (`pacquet init`) doesn't pay for the
-/// `.npmrc` / lockfile read, and so each call re-loads a fresh
-/// `&'static mut Config` (some handlers, like `patch-commit`, deliberately
-/// initialize state more than once). The closures are built in
-/// [`CliArgs::run`]; their `&dyn Fn` shape matches what
-/// [`super::approve_builds::ApproveBuildsArgs::prepare`] already consumes.
-pub(crate) struct RunCtx<'a> {
-    pub(crate) reporter: ReporterType,
-    /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
-    /// command, so a `package.json` script of the same name must not
-    /// override it. See [`crate::pm_prefix`].
-    pub(crate) builtin_command_forced: bool,
-    /// Set by [`super::script_override::resolve`] when a same-named
-    /// `package.json` script replaces the built-in command. The run then
-    /// prints what `pnpm run` prints, so the install-family `Done in ...`
-    /// footer of the command that was typed has to stay out of it.
-    pub(crate) builtin_replaced_by_script: &'a AtomicBool,
-    pub(crate) locations: CommandLocations<'a>,
-    pub(crate) workspace: WorkspaceInvocation<'a>,
-    pub(crate) loaders: CommandLoaders<'a>,
-}
-
-pub(crate) struct CommandLocations<'a> {
-    pub(crate) dir: &'a Path,
-    /// The `--dir` as the command line gave it, or the process cwd when it
-    /// gave none — pnpm's `cliOptions.dir ?? process.cwd()`. `init`
-    /// scaffolds here and a non-recursive `exec` runs here, rather than at
-    /// the local prefix [`Self::dir`] resolves to.
-    pub(crate) cli_dir: &'a Path,
-    pub(crate) manifest_path: &'a Path,
-}
-
-pub(crate) struct WorkspaceInvocation<'a> {
-    pub(crate) recursive: bool,
-    pub(crate) resume_from: Option<&'a str>,
-    pub(crate) report_summary: bool,
-    pub(crate) parallel: bool,
-    /// The top-level `--if-present` spelling (`pnpm --if-present test`);
-    /// merged with the flag the script subcommands declare themselves.
-    pub(crate) if_present: bool,
-}
-
-pub(crate) struct CommandLoaders<'a> {
-    pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
-    /// Like [`Self::config`] but anchored at the pnpm home dir instead of
-    /// `--dir`, so a `-g` install can't inherit the caller project's
-    /// `.npmrc` network / TLS / registry settings.
-    pub(crate) global_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
-    /// Like [`Self::config`] but loaded through
-    /// [`Config::current_for_self_update`], so a repo-controlled
-    /// `pnpm-workspace.yaml` can only tighten the release-age policy that
-    /// governs the pnpm download.
-    pub(crate) config_self_update: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
-    pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
-}
 
 impl CliArgs {
     /// Seed the process-global default-reporter state from the parsed
@@ -166,6 +104,43 @@ impl CliArgs {
         }
     }
 
+    fn prepare_fast_path_config(
+        &self,
+        config_overrides: &ConfigOverrides,
+        install_args: &InstallArgs,
+    ) -> Option<(PathBuf, Config)> {
+        if !self.workspace.selection.filter.is_empty()
+            || !self.workspace.selection.filter_prod.is_empty()
+        {
+            return None;
+        }
+        let dir = dunce::canonicalize(&self.paths.dir).ok()?;
+        let mut config =
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
+                .current::<Host>(&dir)
+                .ok()?;
+        config_overrides.apply(&mut config, &dir);
+        self.network.apply(&mut config);
+        if let Some(store_dir) = self.paths.store_dir.as_deref()
+            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
+        {
+            return None;
+        }
+        if let Some(state_dir) = self.paths.state_dir.as_deref() {
+            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
+        }
+        install_args.lockfile.directory.apply_to(&mut config, &dir);
+        config.progress = self.progress_enabled(config.progress);
+        self.configure_reporter();
+        if self.output.presentation.loglevel.is_none()
+            && let Some(config_loglevel) = config.loglevel
+        {
+            configure_max_log_level(Some(config_loglevel.into()));
+        }
+        pnpm_default_reporter::set_progress(config.progress);
+        Some((dir, config))
+    }
+
     /// Try to finish `pacquet install` synchronously through the
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
@@ -187,37 +162,15 @@ impl CliArgs {
         let CliCommand::Install(install_args) = &self.command else {
             return false;
         };
-        if !self.workspace.selection.filter.is_empty()
-            || !self.workspace.selection.filter_prod.is_empty()
-        {
-            return false;
-        }
-        let Ok(dir) = dunce::canonicalize(&self.paths.dir) else {
+        let Some((dir, config)) = self.prepare_fast_path_config(config_overrides, install_args)
+        else {
             return false;
         };
-        let loaded =
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current::<Host>(&dir);
-        let Ok(mut config) = loaded else {
-            return false;
-        };
-        config_overrides.apply(&mut config, &dir);
-        self.network.apply(&mut config);
-        if let Some(store_dir) = self.paths.store_dir.as_deref()
-            && apply_store_dir_override::<Host>(&mut config, store_dir, &dir).is_err()
-        {
-            return false;
-        }
-        if let Some(state_dir) = self.paths.state_dir.as_deref() {
-            apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
-        }
-        install_args.lockfile.directory.apply_to(&mut config, &dir);
-        config.progress = self.progress_enabled(config.progress);
-        self.configure_reporter();
-        pnpm_default_reporter::set_progress(config.progress);
-        let emit = reporter_emit(self.effective_reporter());
+        let emit =
+            reporter_emit(self.effective_reporter_with_config(config.loglevel, config.reporter));
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
+            warn_fast_path_config(config_overrides, &config);
             emit_execution_time(emit, started_at);
         }
         finished
@@ -241,7 +194,8 @@ impl CliArgs {
         self.configure_reporter();
 
         let anchors = RunAnchors::resolve(&self)?;
-        let setup = RunSetup::of(&self);
+        let effective_reporter = AtomicU8::new(self.effective_reporter() as u8);
+        let setup = RunSetup::of(&self, &effective_reporter);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
         let builtin_replaced_by_script =
@@ -252,7 +206,8 @@ impl CliArgs {
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
         // commands drive the visual reporter, so the rest stay silent.
         if setup.is_install_family && !builtin_replaced_by_script {
-            emit_execution_time(reporter_emit(setup.reporter), setup.started_at);
+            let final_reporter: ReporterType = effective_reporter.load(Ordering::Relaxed).into();
+            emit_execution_time(reporter_emit(final_reporter), setup.started_at);
         }
 
         Ok(())
@@ -262,72 +217,90 @@ impl CliArgs {
         command: CliCommand,
         config_overrides: &ConfigOverrides,
         builtin_command_forced: bool,
-        setup: &RunSetup,
+        setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
-        let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
-            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
-                .current::<Host>(anchor)
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-                .and_then(|cfg| {
-                    self.finalize_run_config(cfg, anchor, config_overrides, setup, anchors)
-                })
+        let store_use = StoreUse::of(&command);
+        let load_config = |anchor: &Path, is_global: bool| {
+            let target = ConfigTarget { anchor, is_global, store_use };
+            self.load_and_finalize_config(&target, config_overrides, setup, anchors)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
-        let config = || load_config(&anchors.dir);
+        let config = || load_config(&anchors.dir, false);
         let config_self_update = || -> miette::Result<&'static mut Config> {
             seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
                 .current_for_self_update::<Host>(&anchors.dir)
                 .map_err(miette::Report::new)
                 .wrap_err("load configuration")
                 .and_then(|cfg| {
-                    self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
+                    self.finalize_run_config(
+                        cfg,
+                        &anchors.dir,
+                        false,
+                        config_overrides,
+                        setup,
+                        anchors,
+                    )
                 })
         };
-        // `require_lockfile` is the "this subcommand cannot run without a
-        // lockfile loaded" signal, used by `State::init` to override
-        // `config.lockfile=false`. Only `install --frozen-lockfile` needs
-        // it today; other subcommands follow `config.lockfile`. Matches
-        // pnpm's CLI: `--frozen-lockfile` is the strongest signal and
-        // must not be silently dropped because `lockfile=false` was set
-        // (or defaulted) in config.
-        let state = |require_lockfile: bool| -> miette::Result<State> {
-            State::init(anchors.manifest_path.clone(), config()?, require_lockfile)
-                .wrap_err("initialize the state")
-        };
-
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
-            reporter: setup.reporter,
+            effective_reporter: setup.effective_reporter,
             builtin_command_forced,
             builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),
             workspace: WorkspaceInvocation::from(&self.workspace),
             loaders: CommandLoaders {
                 config: &config,
-                global_config: &|| load_config(&anchors.global_config),
+                global_config: &|| load_config(&anchors.global_config, true),
                 config_self_update: &config_self_update,
-                state: &state,
             },
         };
         exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)?;
         Ok(builtin_replaced_by_script.load(Ordering::Relaxed))
     }
 
+    fn load_and_finalize_config(
+        &self,
+        target: &ConfigTarget<'_>,
+        config_overrides: &ConfigOverrides,
+        setup: &RunSetup<'_>,
+        anchors: &RunAnchors,
+    ) -> miette::Result<&'static mut Config> {
+        let ConfigTarget { anchor, is_global, store_use } = *target;
+        let cfg = store_use.load(|place_store| self.load_config_at(anchor, place_store))?;
+        self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
+    }
+
+    fn load_config_at(&self, anchor: &Path, place_store: bool) -> miette::Result<Config> {
+        let mut seed =
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace);
+        seed.skip_store_dir_resolution = !place_store;
+        seed.current::<Host>(anchor)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")
+    }
+
     fn finalize_run_config(
         &self,
         mut cfg: Config,
         anchor: &Path,
+        is_global: bool,
         config_overrides: &ConfigOverrides,
-        setup: &RunSetup,
+        setup: &RunSetup<'_>,
         anchors: &RunAnchors,
     ) -> miette::Result<&'static mut Config> {
         config_overrides.apply(&mut cfg, anchor);
+        if !is_global {
+            warn_shared_workspace_lockfile_outside_workspace(
+                config_overrides.shared_workspace_lockfile(),
+                cfg.workspace_dir.as_deref(),
+            );
+        }
         apply_color_override(
             &mut cfg,
             self.output.presentation.color,
@@ -348,6 +321,7 @@ impl CliArgs {
             &mut cfg,
             &ProjectSelectors {
                 recursive: self.workspace.recursive,
+                recursive_from_command_line: self.workspace.recursive_from_command_line,
                 recursive_by_default_command: setup.recursive_by_default,
                 filter: &self.workspace.selection.filter,
                 filter_prod: &self.workspace.selection.filter_prod,
@@ -355,15 +329,28 @@ impl CliArgs {
                 fail_if_no_match: self.workspace.selection.fail_if_no_match,
             },
         );
-        self.apply_run_output_config(&mut cfg);
-        self.configure_run_reporter(&cfg, setup, anchors);
+        apply_run_output_config(self, &mut cfg);
+        let reporter = self.effective_reporter_with_config(cfg.loglevel, cfg.reporter);
+        setup.effective_reporter.store(reporter as u8, Ordering::Relaxed);
+        self.configure_run_reporter(&cfg, reporter, setup, anchors);
         Ok(Config::leak(cfg))
     }
 
-    fn configure_run_reporter(&self, cfg: &Config, setup: &RunSetup, anchors: &RunAnchors) {
+    fn configure_run_reporter(
+        &self,
+        cfg: &Config,
+        reporter: ReporterType,
+        setup: &RunSetup,
+        anchors: &RunAnchors,
+    ) {
         pnpm_default_reporter::set_progress(cfg.progress);
+        if self.output.presentation.loglevel.is_none()
+            && let Some(config_loglevel) = cfg.loglevel
+        {
+            configure_max_log_level(Some(config_loglevel.into()));
+        }
         configure_default_reporter(&DefaultReporterSetup {
-            reporter: setup.reporter,
+            reporter,
             dir: &anchors.dir,
             summary_scope: setup.summary_scope,
             reports_scope: setup.reports_scope,
@@ -376,45 +363,6 @@ impl CliArgs {
                 hide_prefix: cfg.reporter_hide_prefix.unwrap_or(false),
             },
         });
-    }
-
-    fn apply_run_output_config(&self, cfg: &mut Config) {
-        cfg.bail = resolve_bool_override(
-            self.workspace.execution.bail,
-            self.workspace.execution.no_bail,
-            cfg.bail,
-        );
-        cfg.progress = self.progress_enabled(cfg.progress);
-        cfg.stream |= self.output.lifecycle.stream;
-        cfg.aggregate_output |= self.output.lifecycle.aggregate_output;
-        cfg.use_stderr |= self.output.lifecycle.use_stderr;
-        cfg.sort = resolve_bool_override(
-            self.workspace.ordering.sort,
-            self.workspace.ordering.no_sort,
-            cfg.sort,
-        );
-        cfg.reverse = resolve_bool_override(
-            self.workspace.ordering.reverse,
-            self.workspace.ordering.no_reverse,
-            cfg.reverse,
-        );
-        cfg.include_workspace_root = resolve_bool_override(
-            self.workspace.selection.include_workspace_root,
-            self.workspace.selection.no_include_workspace_root,
-            cfg.include_workspace_root,
-        );
-        apply_output_overrides(
-            cfg,
-            &OutputOverrides {
-                reporter_hide_prefix: self.output.lifecycle.hide_prefix,
-                no_reporter_hide_prefix: self.output.lifecycle.no_hide_prefix,
-                workspace_packages: &self.paths.workspace_packages,
-                test_pattern: &self.workspace.selection.test_pattern,
-                changed_files_ignore_pattern: &self.workspace.selection
-                    .changed_files_ignore_pattern,
-                workspace_concurrency: self.workspace.ordering.concurrency,
-            },
-        );
     }
 }
 
@@ -438,20 +386,4 @@ mod routing;
 
 mod configuration;
 
-impl<'a> From<&'a RunAnchors> for CommandLocations<'a> {
-    fn from(anchors: &'a RunAnchors) -> Self {
-        Self { dir: &anchors.dir, cli_dir: &anchors.cli_dir, manifest_path: &anchors.manifest_path }
-    }
-}
-
-impl<'a> From<&'a crate::cli_args::cli_command::CliWorkspaceArgs> for WorkspaceInvocation<'a> {
-    fn from(args: &'a crate::cli_args::cli_command::CliWorkspaceArgs) -> Self {
-        Self {
-            recursive: args.recursive,
-            resume_from: args.ordering.resume_from.as_deref(),
-            report_summary: args.execution.report_summary,
-            parallel: args.ordering.parallel,
-            if_present: args.execution.if_present,
-        }
-    }
-}
+mod context;

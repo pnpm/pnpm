@@ -14,7 +14,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::tarball_with_manifest,
-    fs::SameFileWitness,
+    fs::{SameFileWitness, is_symlink_or_junction},
 };
 use std::{fs, path::Path};
 
@@ -85,6 +85,40 @@ fn reinstalls_missing_packages_during_headless_install() {
         second_events.contains(reported_dep_location.trim_matches('"')),
         "the event must carry the missing path {reported_dep_location}: {second_events}",
     );
+    assert_eq!(version_of(&workspace, "node_modules/is-positive"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// A direct dependency whose link was pointed at a missing target outside
+/// pnpm leaves every manifest, lockfile, and state file untouched, so the
+/// optimistic repeat install must notice the dangling link itself and relink
+/// it instead of reporting the tree up to date.
+#[test]
+fn repeat_install_relinks_a_dangling_direct_dependency() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    let direct_link = workspace.join("node_modules/is-positive");
+    pnpm_fs::remove_dirent(&direct_link).expect("remove the direct-dep link");
+    pnpm_fs::symlink_dir(&workspace.join("node_modules/.pnpm/is-positive@0.0.0"), &direct_link)
+        .expect("point the direct-dep link at a missing target");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(version_of(&workspace, "node_modules/is-positive"), "1.0.0");
 
     drop((root, mock_instance));
@@ -821,6 +855,94 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
     assert!(
         second_output.contains("Already up to date"),
         "the repeat install must short-circuit: {second_output}",
+    );
+    assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
+
+    drop((root, mock_instance));
+}
+
+/// The hoisted linker writes no isolated-style `hoistWorkspacePackages`
+/// links, so the frozen up-to-date short-circuit must not require them.
+#[test]
+fn repeat_frozen_hoisted_install_with_named_workspace_member_is_up_to_date() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
+    let hoisted_witness = SameFileWitness::take(&hoisted_manifest, root.path());
+
+    let second = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
+        .assert()
+        .success();
+    let second_events = String::from_utf8_lossy(&second.get_output().stderr).into_owned();
+    assert!(
+        second_events.contains("Lockfile is up to date, resolution step is skipped"),
+        "the repeat frozen install must reuse the lockfile: {second_events}",
+    );
+    assert!(
+        !second_events.contains(r#""name":"pnpm:progress""#),
+        "the repeat frozen install must not walk the tree: {second_events}",
+    );
+    assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
+
+    drop((root, mock_instance));
+}
+
+/// Under the hoisted linker, a root `workspace:` dependency is linked at
+/// the project's name in the root `node_modules` even when
+/// `hoistWorkspacePackages` is off, so that link must not read as a stale
+/// workspace hoist and keep the frozen short-circuit from ever settling.
+#[test]
+fn repeat_frozen_hoisted_install_with_root_workspace_dependency_is_up_to_date() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("hoistWorkspacePackages: false\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "ws-root",
+            "private": true,
+            "dependencies": { "member": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write the root package.json");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules/member")).unwrap(),
+        "the root's workspace dependency must be linked into the root node_modules",
+    );
+    let hoisted_witness = SameFileWitness::take(&hoisted_manifest, root.path());
+
+    let second = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
+        .assert()
+        .success();
+    let second_events = String::from_utf8_lossy(&second.get_output().stderr).into_owned();
+    assert!(
+        !second_events.contains(r#""name":"pnpm:progress""#),
+        "the repeat frozen install must not walk the tree: {second_events}",
     );
     assert!(hoisted_witness.is_intact(), "the second install must re-import nothing");
 

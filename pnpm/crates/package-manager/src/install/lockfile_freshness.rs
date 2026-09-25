@@ -1,6 +1,9 @@
+pub(super) mod directory_deps;
 pub(super) mod manifest;
 pub(super) use manifest::manifest_has_effective_dependencies;
-pub(crate) use manifest::{ImporterSatisfactionCheck, check_importer_satisfies};
+pub(crate) use manifest::{
+    ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
+};
 
 use rayon::prelude::*;
 
@@ -84,23 +87,18 @@ async fn workspace_manifests_satisfy(
     let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(workspace_root) else {
         return false;
     };
-    let Ok(workspace_projects) =
-        super::load_workspace_projects(workspace_root, workspace_manifest.as_ref())
-    else {
+    let ignored_directories = check.config.managed_directories();
+    let Ok(workspace_projects) = super::load_workspace_projects(
+        workspace_root,
+        workspace_manifest.as_ref(),
+        &ignored_directories,
+    ) else {
         return false;
     };
     let project_manifests =
         build_project_manifests_list(check.manifest, workspace_projects.as_deref());
     let workspace_packages = workspace_packages_for_freshness(check, workspace_projects.as_deref());
-    let manifest_freshness_inputs: Vec<(String, &PackageManifest)> = project_manifests
-        .iter()
-        .map(|(project_dir, project_manifest)| {
-            (
-                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
-                *project_manifest,
-            )
-        })
-        .collect();
+    let manifest_freshness_inputs = manifest_freshness_inputs(lockfile_root, &project_manifests);
     check_lockfile_freshness(
         check.lockfile,
         &LockfileFreshnessInputs {
@@ -113,12 +111,30 @@ async fn workspace_manifests_satisfy(
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: false,
+                allow_unresolved_optional_dependencies: false,
                 prune_stale_importers: true,
             },
         },
     )
     .await
     .is_ok()
+}
+
+/// Importer IDs paired with their manifests, the form
+/// [`check_lockfile_freshness`] matches lockfile importers against.
+fn manifest_freshness_inputs<'manifest>(
+    lockfile_root: &Path,
+    project_manifests: &[(PathBuf, &'manifest PackageManifest)],
+) -> Vec<(String, &'manifest PackageManifest)> {
+    project_manifests
+        .iter()
+        .map(|(project_dir, project_manifest)| {
+            (
+                pnpm_workspace::importer_id_from_root_dir(lockfile_root, project_dir),
+                *project_manifest,
+            )
+        })
+        .collect()
 }
 
 fn workspace_packages_for_freshness(
@@ -198,6 +214,12 @@ pub(crate) struct FreshnessScope {
     /// Treat a project with no importer entry and no dependencies as
     /// satisfied rather than missing.
     pub(crate) allow_missing_dependency_free_importers: bool,
+    /// Treat an `optionalDependencies` entry the importer has no entry
+    /// for as satisfied: the install that wrote the lockfile could not
+    /// resolve it and skipped it. Only the explicit `--frozen-lockfile`
+    /// path may assume this; a resolving install retries the dependency
+    /// instead ([pnpm/pnpm#3960](https://github.com/pnpm/pnpm/issues/3960)).
+    pub(crate) allow_unresolved_optional_dependencies: bool,
     /// Treat an importer no project claims as staleness. Only an
     /// unfiltered workspace install may, since only it sees the
     /// complete project list.
@@ -209,14 +231,47 @@ pub(super) fn removed_importer_id<'a>(
     lockfile: &'a Lockfile,
     manifest_freshness_inputs: &[(String, &PackageManifest)],
 ) -> Option<&'a str> {
+    unclaimed_importer_id(lockfile, manifest_freshness_inputs, |_| true)
+}
+
+fn unclaimed_importer_id<'a>(
+    lockfile: &'a Lockfile,
+    manifest_freshness_inputs: &[(String, &PackageManifest)],
+    mut matches: impl FnMut(&str) -> bool,
+) -> Option<&'a str> {
     let manifest_ids: std::collections::HashSet<&str> = manifest_freshness_inputs
         .iter()
         .map(|(id, _)| id.as_str())
         .collect();
     lockfile.importers
         .keys()
-        .find(|importer_id| !manifest_ids.contains(importer_id.as_str()))
         .map(String::as_str)
+        .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
+}
+
+/// Fail on an importer no project claims whose directory holds no project
+/// manifest. A project left out of the workspace patterns keeps its manifest
+/// and a frozen install skips it, but one whose directory or manifest is gone
+/// cannot be installed at all.
+pub(super) fn check_importer_manifests_exist(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+) -> Result<(), FreshnessCheckError> {
+    if inputs.scope.ignore_manifest_check {
+        return Ok(());
+    }
+    let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
+        let project_dir = inputs.lockfile_dir.join(importer_id);
+        !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+            .iter()
+            .any(|basename| project_dir.join(basename).exists())
+    });
+    match missing {
+        Some(importer_id) => Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
+            importer_id: importer_id.to_string(),
+        })),
+        None => Ok(()),
+    }
 }
 
 /// Run every gate the frozen-lockfile dispatch consults before
@@ -245,11 +300,12 @@ pub(super) fn removed_importer_id<'a>(
 /// `pnpmfile_hook` is the pnpmfile an install of this project would
 /// load, whose checksum the settings gate compares against
 /// `lockfile.pnpmfileChecksum` (see
-/// [`pnpm_hooks::current_pnpmfile_checksum`]).
+/// [`pnpm_hooks::current_pnpmfile_checksum`]), unless `ignorePnpmfile`
+/// leaves it uncompared (see [`super::pnpmfile_checksum_check`]).
 pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
-) -> Result<(), FreshnessCheckError> {
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
     let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
         inputs.pnpmfile_hook,
@@ -262,13 +318,13 @@ pub(super) async fn check_lockfile_freshness(
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
-            pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
+            pnpmfile_checksum: super::pnpmfile_checksum_check(inputs, pnpmfile_checksum.as_deref()),
             dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;
 
     if inputs.scope.ignore_manifest_check {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     // An importer whose project is gone leaves the recorded graph wider
@@ -283,59 +339,95 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    check_importer_freshness(
-        lockfile,
-        inputs.lockfile_dir,
-        inputs.manifests,
-        inputs.config,
-        inputs.workspace_packages,
-        parsed_overrides_opt.as_deref(),
-        inputs.scope.allow_missing_dependency_free_importers,
-    )
+    check_importer_freshness(lockfile, inputs, parsed_overrides_opt.as_deref())
 }
 
 // Parallel checks settle before the serial fold reports the first error in importer order.
 fn check_importer_freshness(
     lockfile: &Lockfile,
-    lockfile_dir: &Path,
-    manifest_freshness_inputs: &[(String, &PackageManifest)],
-    config: &Config,
-    workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    allow_missing_dependency_free_importers: bool,
-) -> Result<(), FreshnessCheckError> {
-    let ignored_optional_matcher = pnpm_matcher::create_matcher(
-        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
-    );
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
+    let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order, like the
     // loop it replaces.
-    let results: Vec<Result<(), FreshnessCheckError>> = manifest_freshness_inputs
+    let results: Vec<Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError>> = inputs
+        .manifests
         .par_iter()
         .map(|(importer_id, manifest)| {
-            if allow_missing_dependency_free_importers
-                && !lockfile.importers.contains_key(importer_id)
-                && !manifest_has_effective_dependencies(manifest, &ignored_optional_matcher)
-            {
-                return Ok(());
-            }
-            check_importer_satisfies(&ImporterSatisfactionCheck {
+            check_single_importer(
                 lockfile,
-                lockfile_dir,
-                manifest,
-                importer_id,
-                config,
-                workspace_packages,
-                ignored_optional_matcher: &ignored_optional_matcher,
+                inputs,
                 parsed_overrides,
-            })
+                &ignored_optional_matcher,
+                importer_id,
+                manifest,
+            )
         })
         .collect();
+    let mut all_skipped = Vec::new();
     for result in results {
-        result?;
+        all_skipped.extend(result?);
     }
-    Ok(())
+    Ok(all_skipped)
+}
+
+fn check_single_importer(
+    lockfile: &Lockfile,
+    inputs: &LockfileFreshnessInputs<'_, '_>,
+    parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
+    ignored_optional_matcher: &pnpm_matcher::Matcher,
+    importer_id: &str,
+    manifest: &PackageManifest,
+) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
+    if inputs.scope.allow_missing_dependency_free_importers
+        && !lockfile.importers.contains_key(importer_id)
+        && !manifest_has_effective_dependencies(manifest, ignored_optional_matcher)
+    {
+        return Ok(Vec::new());
+    }
+    let skipped = check_importer_satisfies(&ImporterSatisfactionCheck {
+        lockfile,
+        lockfile_dir: inputs.lockfile_dir,
+        manifest,
+        importer_id,
+        config: inputs.config,
+        workspace_packages: inputs.workspace_packages,
+        optional_exclusions: OptionalDependencyExclusions {
+            ignored: ignored_optional_matcher,
+            allow_unresolved: inputs.scope.allow_unresolved_optional_dependencies,
+        },
+        parsed_overrides,
+    })?;
+    let prefix = manifest
+        .path()
+        .parent()
+        .map(|project_dir| project_dir.display().to_string())
+        .unwrap_or_default();
+    Ok(skipped
+        .into_iter()
+        .map(|(alias, specifier)| UnresolvedOptionalDependency {
+            prefix: prefix.clone(),
+            alias,
+            specifier,
+        })
+        .collect())
+}
+
+fn ignored_optional_matcher(config: &Config) -> pnpm_matcher::Matcher {
+    pnpm_matcher::create_matcher(
+        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    )
+}
+
+/// A direct optional dependency the frozen install skips again, with the
+/// project directory it belongs to as the reporter's `prefix`.
+pub(super) struct UnresolvedOptionalDependency {
+    pub(super) prefix: String,
+    pub(super) alias: String,
+    pub(super) specifier: String,
 }
 
 /// Parse `pnpm.overrides` from the config. Values can use the
