@@ -151,7 +151,10 @@ export async function findDependencyLicenses (opts: {
 
 /**
  * Adds the installed locations of `added` to `target`, which describes the
- * same package version, so that every copy stays in the report.
+ * same package version and license, so that every copy stays in the report.
+ * Each side contributes its `paths`, or its `path` when `paths` is unset.
+ * `target.paths` is set to the distinct locations only when there are more
+ * than one; otherwise `target` is left unchanged.
  */
 export function mergeLicensePackagePaths (target: LicensePackage, added: LicensePackage): void {
   const paths = [...new Set([...installedPaths(target), ...installedPaths(added)])]
