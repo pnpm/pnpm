@@ -46,22 +46,6 @@ impl pnpm_hooks::CustomFetcher for CountingDelegateFetcher {
     }
 }
 
-fn fixture_tarball(name: &str, version: &str) -> Vec<u8> {
-    let manifest = serde_json::json!({ "name": name, "version": version }).to_string();
-    let mut builder = tar::Builder::new(Vec::new());
-    let mut header = tar::Header::new_gnu();
-    header.set_path("package/package.json").unwrap();
-    header.set_size(manifest.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    builder.append(&header, manifest.as_bytes()).unwrap();
-    let tar_bytes = builder.into_inner().unwrap();
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    use std::io::Write as _;
-    encoder.write_all(&tar_bytes).unwrap();
-    encoder.finish().unwrap()
-}
-
 fn leaked_config(store_dir: &Path) -> &'static pnpm_config::Config {
     let mut config = pnpm_config::Config::new();
     config.store_dir = store_dir.to_path_buf().into();
@@ -109,7 +93,7 @@ fn ingest<'a>(
 #[tokio::test]
 async fn resolve_time_custom_fetch_is_reused_by_the_install_pass() {
     let dir = tempfile::tempdir().unwrap();
-    let body = fixture_tarball("foo", "1.0.0");
+    let body = pnpm_testing_utils::fixtures::minimal_tarball("foo", "1.0.0");
     let tarball_path = dir.path().join("foo.tgz");
     std::fs::write(&tarball_path, &body).unwrap();
     let integrity = ssri::Integrity::from(&body).to_string();
