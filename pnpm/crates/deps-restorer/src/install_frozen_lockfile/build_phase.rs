@@ -348,7 +348,7 @@ fn auto_installed_peer_bin_locations(
         .filter(|key| {
             packages
                 .get(&key.without_peer())
-                .is_some_and(|peer| peer.has_bin == Some(true))
+                .is_some_and(crate::link_bins::may_have_bin)
                 || inputs.cache.requires_build_by_snapshot.get(key) == Some(&true)
         })
         .map(|key| {

@@ -111,12 +111,9 @@ impl PackageBinSource {
     }
 }
 
-/// Whether a [`PackageBinSource`] came from a project's direct dependencies,
-/// a hoisted package, or an auto-installed peer.
-///
-/// Used by `pick_winner` (private) as the highest-precedence tier
-/// in the conflict-resolution rule: direct bins take precedence over
-/// publicly hoisted bins, which take precedence over auto-installed peers.
+/// Origin of a [`PackageBinSource`] determining precedence during conflict resolution:
+/// direct dependencies take precedence over publicly hoisted packages, which take precedence
+/// over auto-installed peers.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum BinOrigin {
     /// The candidate is a direct dependency of the importer

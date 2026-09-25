@@ -417,12 +417,10 @@ pub fn link_new_bins_from_locations(
     let existing = existing_commands(&bins_dir)?;
     link_bins_of_packages_with_excludes::<Host>(&bin_sources, &bins_dir, &existing, link_options)
 }
-/// Top-level bin link that mixes direct-dep candidates, publicly hoisted
-/// aliases, and auto-installed peers in a single
-/// [`link_bins_of_packages`] call so `pnpm_cmd_shim::pick_winner` (private)
-/// can apply [`BinOrigin::Direct`] precedence over
-/// [`BinOrigin::Hoisted`] — a hoisted (transitive) dep's bin must
-/// never shadow a direct dep's bin with the same name.
+/// Top-level bin link that links direct-dep candidates, publicly hoisted
+/// aliases, and auto-installed peer dependencies in a single
+/// [`link_bins_of_packages`] pass so direct dependencies take precedence
+/// over publicly hoisted packages, which take precedence over auto-installed peers.
 ///
 /// Direct deps come from the importer's dependency groups, hoisted
 /// aliases from the hoist result, and peers from their resolved slots.
