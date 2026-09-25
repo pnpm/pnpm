@@ -529,6 +529,25 @@ pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), Verif
     Err(VerifyError::invalid_dependency_aliases(&invalid))
 }
 
+/// Reject a lockfile whose importer dependency references resolve to no
+/// `snapshots:` entry.
+///
+/// Like [`verify_lockfile_dependency_names`], this is an offline,
+/// network-free structural check that must run on every install,
+/// including under `trustLockfile`. A missing snapshot means the install
+/// would write a direct-dependency symlink into a virtual-store slot that
+/// is never created, then exit successfully. The check mirrors the
+/// TypeScript CLI, which fails the same lockfile with
+/// `ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY` while linking.
+///
+/// Surfaces [`VerifyError::MissingDependency`]
+/// (`ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY`) naming the first missing key.
+pub fn verify_lockfile_importer_snapshot_links(lockfile: &Lockfile) -> Result<(), VerifyError> {
+    lockfile
+        .verify_importer_snapshot_links()
+        .map_err(|error| VerifyError::missing_dependency(&error.0))
+}
+
 fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
     Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
 }

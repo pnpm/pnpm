@@ -187,6 +187,10 @@ impl<'a> FrozenInputs<'a> {
         // install-time `layout`, so it can't live in the verifier crate.
         pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfiles.verified)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        pnpm_lockfile_verification::verify_lockfile_importer_snapshot_links(
+            install.lockfiles.verified,
+        )
+        .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
 

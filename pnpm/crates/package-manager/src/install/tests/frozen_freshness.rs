@@ -5,6 +5,7 @@ use super::{
 use crate::PolicyExcludes;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile_verification::VerifyError;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
@@ -409,6 +410,93 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
         matches!(err, InstallError::OutdatedLockfile { .. }),
         "expected OutdatedLockfile, got {err:?}",
     );
+
+    drop(dirs.dir);
+}
+/// A lockfile whose importer names a dependency version with no
+/// `snapshots:` entry must fail the install, not exit 0 after writing a
+/// symlink into a virtual-store slot that is never materialized.
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14764>.
+#[tokio::test]
+async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
+    let dirs = InstallDirs::new();
+
+    let manifest_path = dirs.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("is-positive", "3.1.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = dirs.store_dir.clone().into();
+    config.modules_dir = dirs.modules_dir.clone();
+    config.virtual_store_dir = dirs.virtual_store_dir.clone();
+    let config = config.leak();
+
+    // `is-positive@3.1.0` survives in `packages:` and the importer still
+    // names it, but its `snapshots:` entry was dropped — the shape a bad
+    // merge conflict or an older pnpm's fast lockfile update leaves behind.
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-positive:\n        specifier: 3.1.0\n        version: 3.1.0\n\npackages:\n\n  is-positive@3.1.0:\n    resolution: {integrity: sha512-deadbeef}\n",
+    )
+    .expect("parse fixture lockfile");
+
+    let result = Install {
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: true,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+            manifest_freshness: crate::ManifestFreshness::Mtime,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
+    }
+    .run::<SilentReporter>()
+    .await;
+
+    let err = result.expect_err("an importer reference with no snapshot must fail the install");
+    let InstallError::LockfileVerification(VerifyError::MissingDependency { dep_path }) = err
+    else {
+        panic!("expected LockfileVerification(MissingDependency), got {err:?}");
+    };
+    assert_eq!(dep_path, "is-positive@3.1.0");
 
     drop(dirs.dir);
 }

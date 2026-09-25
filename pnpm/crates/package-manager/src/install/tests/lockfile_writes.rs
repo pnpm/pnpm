@@ -249,8 +249,18 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
     // Manifest must match the fixture lockfile below — the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
-    manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
+    manifest.add_dependency("sibling", "link:./sibling", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
+
+    // The `link:` target must exist so the direct-dependency link pass can
+    // read its manifest.
+    let sibling_dir = dirs.path().join("sibling");
+    std::fs::create_dir_all(&sibling_dir).unwrap();
+    std::fs::write(
+        sibling_dir.join("package.json"),
+        r#"{ "name": "sibling", "version": "1.0.0" }"#,
+    )
+    .unwrap();
 
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
@@ -258,27 +268,21 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
-    // Non-empty lockfile with no snapshots: the root importer lists
-    // one dependency so `Lockfile::is_empty` returns `false` (and
-    // the end-of-install write persists the file rather than
-    // deleting it), but the empty `snapshots:` map means
-    // `CreateVirtualStore::run` has no fetches to attempt. The
-    // dangling symlink that `SymlinkDirectDependencies` creates is
-    // fine — `link_direct_dep_bins` swallows `NotFound` on the
-    // target's `package.json`. This keeps the test off the mock
-    // registry while still driving the read-after-write loop.
+    // A `link:` dependency keeps the lockfile non-empty without pulling a
+    // snapshot from a registry: `Lockfile::is_empty` is false, the write
+    // path persists the file, and the install needs no network.
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
         "    dependencies:"
-        "      placeholder:"
-        "        specifier: 1.0.0"
-        "        version: 1.0.0"
+        "      sibling:"
+        "        specifier: link:./sibling"
+        "        version: link:./sibling"
         "packages: {}"
         "snapshots: {}"
     })
-    .expect("parse minimal v9 lockfile");
+    .expect("parse minimal v9 lockfile with one link dep");
     assert!(!lockfile.is_empty(), "fixture must be non-empty so the write path persists it");
 
     // First install: `lock.yaml` does not exist yet.

@@ -197,6 +197,34 @@ fn skipped_keys_and_what_only_they_reach_are_dropped() {
 }
 
 #[test]
+fn verify_importer_snapshot_links_accepts_a_clean_lockfile() {
+    lockfile().verify_importer_snapshot_links().expect("every reference has a snapshot");
+}
+
+#[test]
+fn verify_importer_snapshot_links_reports_a_missing_direct_snapshot() {
+    let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
+    let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+    let error =
+        lockfile.verify_importer_snapshot_links().expect_err("the missing snapshot is reported");
+    assert!(error.to_string().contains("prod-dep@1.0.0"), "{error}");
+}
+
+#[test]
+fn verify_importer_snapshot_links_reports_a_missing_transitive_snapshot() {
+    let source = LOCKFILE.replace("  deep@1.0.0: {}\n\n", "");
+    let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+    let error = lockfile
+        .verify_importer_snapshot_links()
+        .expect_err("the missing transitive snapshot is reported");
+    assert!(error.to_string().contains("deep@1.0.0"), "{error}");
+}
+
+#[test]
 fn a_missing_dependency_is_reported_only_when_asked_for() {
     let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
     let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
