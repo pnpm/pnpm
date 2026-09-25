@@ -209,6 +209,7 @@ pub struct BuildSnapshotInputs<'a> {
     pub(crate) packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     pub(crate) patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     pub(crate) requires_build_map: &'a HashMap<PackageKey, bool>,
+    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
 }
 
 #[derive(Clone, Copy)]
