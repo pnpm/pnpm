@@ -1,4 +1,5 @@
 use super::{super::integrity_equal, metadata_with_integrity};
+use pnpm_lockfile::PackageMetadata;
 
 #[test]
 fn integrity_equal_matches_when_integrities_agree() {
@@ -36,4 +37,16 @@ fn integrity_equal_treats_one_sided_missing_as_unequal() {
     );
     assert!(!integrity_equal(None, Some(&with_integrity)));
     assert!(!integrity_equal(Some(&with_integrity), None));
+}
+#[test]
+fn integrity_equal_compares_custom_resolution_integrities() {
+    let custom = |integrity: &str| -> PackageMetadata {
+        serde_json::from_value(serde_json::json!({
+            "resolution": { "type": "custom:served", "integrity": integrity },
+        }))
+        .expect("parse custom package metadata")
+    };
+
+    assert!(integrity_equal(Some(&custom("sha512-old")), Some(&custom("sha512-old"))));
+    assert!(!integrity_equal(Some(&custom("sha512-old")), Some(&custom("sha512-new"))));
 }
