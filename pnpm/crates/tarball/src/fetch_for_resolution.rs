@@ -317,7 +317,7 @@ impl FetchTarballForResolution<'_> {
                     cache_control: meta.cache_control,
                 });
             }
-            AttemptedFetch::Extracted(extracted) => extracted,
+            AttemptedFetch::Extracted(extracted) => *extracted,
         };
         let mut cas_paths = extracted.files;
         let mut pkg_files_idx = extracted.index;

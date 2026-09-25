@@ -8,8 +8,13 @@ import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
-import type { Cafs } from '@pnpm/store.cafs-types'
-import type { StoreIndex } from '@pnpm/store.index'
+import {
+  loadTarballResolution,
+  storeTarballResolution,
+  tarballFreshness,
+} from '@pnpm/resolving.tarball-resolver'
+import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
+import { type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
@@ -33,6 +38,7 @@ export type DownloadOptions = {
   retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
+  cacheDir?: string
   pkgId?: string
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
@@ -129,10 +135,21 @@ export function createDownloader (
     })
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
+      const cacheKey = opts.pkgId ?? url
+      const cached = opts.cacheDir && !opts.getAuthHeaderByURI(cacheKey)
+        ? loadTarballResolution(opts.cacheDir, cacheKey)
+        : undefined
+      const freshness = cached ? tarballFreshness(cached) : undefined
+      if (freshness === 'fresh' && cached) {
+        const reused = fetchResultFromStore(opts, cached.integrity)
+        if (reused) return reused
+      }
       let data: Buffer
+      let res: Response
       try {
-        const res = await fetchFromRegistry(url, {
+        res = await fetchFromRegistry(url, {
           authHeaderValue,
+          ifNoneMatch: freshness === 'revalidate' ? cached?.etag : undefined,
           // Tarballs are already compressed; ask the server not to apply an additional
           // Content-Encoding so Content-Length matches the body we receive and we don't
           // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
@@ -147,6 +164,18 @@ export function createDownloader (
           timeout: gotOpts.timeout,
         })
 
+        if (res.status === 304 && cached && opts.cacheDir) {
+          const reused = fetchResultFromStore(opts, cached.integrity)
+          if (reused) {
+            storeTarballResolution(opts.cacheDir, {
+              ...cached,
+              etag: res.headers.get('etag') ?? cached.etag,
+              cacheControl: res.headers.get('cache-control') ?? cached.cacheControl,
+              fetchedAt: Date.now(),
+            })
+            return reused
+          }
+        }
         if (res.status !== 200) {
           throw new FetchError({ url, authHeaderValue }, res)
         }
@@ -222,7 +251,7 @@ export function createDownloader (
         })
         throw error
       }
-      return addFilesFromTarball({
+      const fetched = await addFilesFromTarball({
         buffer: data,
         storeDir: opts.cafs.storeDir,
         storeIndex: opts.storeIndex,
@@ -235,8 +264,66 @@ export function createDownloader (
         appendManifest: opts.appendManifest,
         ignoreFilePattern: opts.ignoreFilePattern,
       })
+      rememberTarballResolution(opts, cacheKey, url, res, fetched.integrity)
+      return fetched
     }
   }
+}
+
+function rememberTarballResolution (
+  opts: DownloadOptions,
+  cacheKey: string,
+  requestedUrl: string,
+  res: { url: string, headers: { get (name: string): string | null } },
+  integrity: string | undefined
+): void {
+  if (opts.cacheDir && integrity && !opts.getAuthHeaderByURI(requestedUrl)) {
+    const cacheControl = res.headers.get('cache-control') ?? undefined
+    storeTarballResolution(opts.cacheDir, {
+      url: cacheKey,
+      tarball: cacheControl?.includes('immutable') ? res.url : requestedUrl,
+      integrity,
+      etag: res.headers.get('etag') ?? undefined,
+      cacheControl,
+      fetchedAt: Date.now(),
+    })
+  }
+  if (!integrity) return
+  opts.storeIndex.flush()
+  const raw = opts.storeIndex.getRaw(opts.filesIndexFile)
+  const pkgId = opts.pkgId
+  if (!raw || !pkgId) return
+  const key = storeIndexKey(integrity, pkgId)
+  if (key !== opts.filesIndexFile) {
+    opts.storeIndex.setRawMany([{ key, buffer: raw }])
+  }
+}
+
+function fetchResultFromStore (opts: DownloadOptions, integrity: string): FetchResult | undefined {
+  const pkgId = opts.pkgId
+  const keys = pkgId ? [storeIndexKey(integrity, pkgId), opts.filesIndexFile] : [opts.filesIndexFile]
+  for (const key of keys) {
+    const index = opts.storeIndex.get(key) as {
+      files?: Map<string, { digest: string, mode: number }>
+      manifest?: FetchResult['manifest']
+      requiresBuild?: boolean
+      requiresPrepare?: boolean
+    } | undefined
+    if (!index?.files) continue
+    const filesMap: FilesMap = new Map()
+    for (const [name, info] of index.files) {
+      filesMap.set(name, opts.cafs.getFilePathByModeInCafs(info.digest, info.mode))
+    }
+    return {
+      filesIndexFile: key,
+      filesMap,
+      manifest: index.manifest,
+      requiresBuild: index.requiresBuild === true,
+      requiresPrepare: index.requiresPrepare,
+      integrity,
+    }
+  }
+  return undefined
 }
 
 function getSecureNodeMirrorAuthHeader (

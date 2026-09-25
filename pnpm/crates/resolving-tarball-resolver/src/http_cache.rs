@@ -9,6 +9,7 @@
 //! and until when the response may be reused.
 
 use std::{
+    fmt::Write,
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -88,8 +89,7 @@ impl CacheControl {
             }
             let (name, value) = directive
                 .split_once('=')
-                .map(|(name, value)| (name.trim(), Some(value.trim())))
-                .unwrap_or((directive, None));
+                .map_or((directive, None), |(name, value)| (name.trim(), Some(value.trim())));
             match name {
                 "no-store" => parsed.no_store = true,
                 "no-cache" => parsed.no_cache = true,
@@ -114,8 +114,7 @@ pub(crate) fn should_store(cache_control: Option<&str>, etag: Option<&str>) -> b
 pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |duration| duration.as_millis() as u64)
 }
 
 pub(crate) fn load(cache_dir: &Path, url: &str) -> Option<TarballResolutionRecord> {
@@ -142,10 +141,7 @@ pub(crate) fn store(cache_dir: &Path, record: &TarballResolutionRecord) {
         "cacheControl": record.cache_control,
         "fetchedAt": record.fetched_at,
     });
-    let body = match serde_json::to_vec(&body) {
-        Ok(body) => body,
-        Err(_) => return,
-    };
+    let Ok(body) = serde_json::to_vec(&body) else { return };
     let tmp = path.with_extension("json.tmp");
     if fs::write(&tmp, body).is_ok() {
         let _ = fs::rename(&tmp, path);
@@ -171,12 +167,11 @@ fn record_path_checked(cache_dir: &Path, url: &str) -> Option<PathBuf> {
 
 fn url_digest(url: &str) -> String {
     let digest = Sha256::digest(url.as_bytes());
-    digest
-        .iter()
-        .fold(String::with_capacity(64), |mut out, byte| {
-            out.push_str(&format!("{byte:02x}"));
-            out
-        })
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
 }
 
 fn parse_record(text: &str) -> Option<TarballResolutionRecord> {

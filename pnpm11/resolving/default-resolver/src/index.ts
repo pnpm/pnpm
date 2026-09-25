@@ -136,7 +136,9 @@ export function createResolver (
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }, opts) ??
-          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
+          await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }, {
+            cacheDir: getAuthHeader(wantedDependency.bareSpecifier) ? undefined : pnpmOpts.cacheDir,
+          }) ??
           await _resolveFromLocalScheme(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
         await _resolveNodeRuntime(wantedDependency, opts) ??

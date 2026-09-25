@@ -50,12 +50,12 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     };
     if let Some(path) = local_file_tarball_path(package_url) {
         let (integrity, files, index) = download.fetch_local::<Reporter>(&path, attempt).await?;
-        return Ok(AttemptedFetch::Extracted(ExtractedArchive {
+        return Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
             integrity,
             files,
             index,
             meta: empty_meta(package_url),
-        }));
+        })));
     }
     let (client, response_head, meta) = crate::archive_request::request_archive::<Reporter>(
         http_client,
@@ -74,7 +74,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     }
     let (integrity, files, index) =
         download.extract_response::<Reporter, _>(client, response_head, attempt).await?;
-    Ok(AttemptedFetch::Extracted(ExtractedArchive { integrity, files, index, meta }))
+    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive { integrity, files, index, meta })))
 }
 
 pub(crate) struct ExtractedArchive {
@@ -85,7 +85,7 @@ pub(crate) struct ExtractedArchive {
 }
 
 pub(crate) enum AttemptedFetch {
-    Extracted(ExtractedArchive),
+    Extracted(Box<ExtractedArchive>),
     NotModified(crate::archive_request::ArchiveResponseMeta),
 }
 

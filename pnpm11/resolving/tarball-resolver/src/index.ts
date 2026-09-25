@@ -1,6 +1,11 @@
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 
+import { loadTarballResolution, tarballFreshness } from './httpCache.js'
+
+export type { TarballResolutionRecord } from './httpCache.js'
+export { loadTarballResolution, removeTarballResolution, storeTarballResolution, tarballFreshness } from './httpCache.js'
+
 export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
   resolution: TarballResolution
@@ -9,7 +14,8 @@ export interface TarballResolveResult extends ResolveResult {
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
-  wantedDependency: { bareSpecifier: string }
+  wantedDependency: { bareSpecifier: string },
+  opts?: { cacheDir?: string }
 ): Promise<TarballResolveResult | null> {
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
@@ -17,6 +23,10 @@ export async function resolveFromTarball (
 
   // The URL is normalized to remove the port if it is the default port of the protocol.
   const normalizedBareSpecifier = new URL(wantedDependency.bareSpecifier).toString()
+  const cached = opts?.cacheDir ? loadTarballResolution(opts.cacheDir, normalizedBareSpecifier) : undefined
+  if (cached && tarballFreshness(cached) === 'fresh') {
+    return tarballResult(normalizedBareSpecifier, cached.tarball, cached.integrity)
+  }
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
@@ -27,12 +37,15 @@ export async function resolveFromTarball (
     resolvedUrl = normalizedBareSpecifier
   }
 
+  return tarballResult(normalizedBareSpecifier, resolvedUrl)
+}
+
+function tarballResult (normalizedBareSpecifier: string, tarball: string, integrity?: string): TarballResolveResult {
+  const resolution: TarballResolution = integrity ? { tarball, integrity } : { tarball }
   return {
     id: normalizedBareSpecifier as PkgResolutionId,
     normalizedBareSpecifier,
-    resolution: {
-      tarball: resolvedUrl,
-    },
+    resolution,
     resolvedVia: 'url',
   }
 }

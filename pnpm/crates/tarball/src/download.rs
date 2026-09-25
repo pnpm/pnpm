@@ -481,6 +481,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                 .await?
                 {
                     AttemptedFetch::Extracted(extracted) => {
+                        let extracted = *extracted;
                         Ok((extracted.integrity, extracted.files, extracted.index))
                     }
                     AttemptedFetch::NotModified(meta) => {

@@ -11,6 +11,10 @@ pub(crate) struct ArchiveResponseMeta {
     pub final_url: String,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent request inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
 pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     http_client: &'client ThrottledClient,
     package_url: &str,
