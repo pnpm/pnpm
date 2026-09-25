@@ -173,8 +173,12 @@ fn sync_injected_deps_from_source(
     }
     patch_targets(source_dir, &resolved_targets)?;
 
+    // Read from the project root, not `source_dir`: when `source_dir` is a
+    // `publishConfig.directory`, `prepare` has already run by the time this
+    // is called, so scanning `source_dir` for the pre-script manifest's bins
+    // would look at post-build content instead of what existed before.
     let previous_bin_names = opts.manifest_before_scripts.map_or_else(Vec::new, |manifest| {
-        bin_names(manifest, source_dir)
+        bin_names(manifest, &workspace_dir.join(opts.pkg_root_dir))
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
     sync_bin_links(&SyncBinLinks {

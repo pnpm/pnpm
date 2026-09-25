@@ -269,6 +269,9 @@ function hardlinkPkg (
   to: string,
   opts: ImportOptions
 ): 'hardlink' | undefined {
+  // Checked ahead of `opts.force`: a caller-requested force must not be able
+  // to bypass the missing-source preservation below.
+  if (missingSourceHasSomethingToPreserve(to, opts)) return undefined
   if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir({ importFile, importFileAtomic: importFile }, to, opts.filesMap, opts)
     removeQuarantineFromNativeBinaries(to, opts)
@@ -292,11 +295,19 @@ function shouldRelinkPkg (
   // target. Only skip the relink when there is something in the target
   // worth preserving — an empty or missing target has nothing to lose, and
   // still needs the relink to create it so the post-build resync has
-  // somewhere to write into.
+  // somewhere to write into. `hardlinkPkg` checks this same condition ahead
+  // of its own `opts.force`, so this only runs once that has already passed.
   if (opts.resolvedFrom === 'local-dir' && opts.sourceExists === false) {
     return targetHasNothingToLose(to)
   }
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
+}
+
+// See `shouldRelinkPkg`'s comment on the missing-source case. Pulled out so
+// `hardlinkPkg` can apply the same guard ahead of its `opts.force` check,
+// which would otherwise bypass it.
+function missingSourceHasSomethingToPreserve (to: string, opts: ImportOptions): boolean {
+  return opts.resolvedFrom === 'local-dir' && opts.sourceExists === false && !targetHasNothingToLose(to)
 }
 
 function targetHasNothingToLose (to: string): boolean {

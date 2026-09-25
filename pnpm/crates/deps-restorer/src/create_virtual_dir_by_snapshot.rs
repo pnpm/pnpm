@@ -393,7 +393,12 @@ fn slot_import_opts(
     // Mutable sources can reuse a slot for different contents, so a complete
     // import may be stale.
     let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
-    if interrupted_build || (source_is_mutable && source_exists) || force_import {
+    // A mutable source that is currently missing must never be forced, even by
+    // interrupted_build or force_import — see SlotImportSource::source_exists.
+    if source_is_mutable && !source_exists {
+        return ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() };
+    }
+    if interrupted_build || source_is_mutable || force_import {
         return ImportIndexedDirOpts {
             force: true,
             keep_modules_dir: true,

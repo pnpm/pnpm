@@ -707,3 +707,41 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
     );
     assert!(existing_source.force, "an existing mutable source must still force a reimport");
 }
+
+/// `interrupted_build` and `force_import` are independent reasons to force a
+/// reimport, but neither may override the missing-source preservation above:
+/// `pnpm install --force`, or a stale `.pnpm-needs-build` marker from an
+/// interrupted build, must not wipe a slot whose mutable source is missing.
+#[test]
+fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import() {
+    let dir = tempdir().expect("tempdir");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().to_path_buf(),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+
+    let interrupted_build = slot_import_opts(
+        &layout,
+        SlotForceInputs {
+            interrupted_build: true,
+            source_is_mutable: true,
+            source_exists: false,
+            force_import: false,
+        },
+    );
+    assert!(
+        !interrupted_build.force,
+        "interrupted_build must not force a reimport of a missing source"
+    );
+
+    let force_import = slot_import_opts(
+        &layout,
+        SlotForceInputs {
+            interrupted_build: false,
+            source_is_mutable: true,
+            source_exists: false,
+            force_import: true,
+        },
+    );
+    assert!(!force_import.force, "force_import must not force a reimport of a missing source");
+}
