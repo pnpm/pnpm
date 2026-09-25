@@ -88,6 +88,7 @@ function getResolutionSettings (opts: ResolveDependenciesOptions): ResolutionSet
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
     readPackageHook: opts.hooks.readPackage,
+    parsedOverrides: opts.parsedOverrides,
     overrideBareSpecifier: opts.overrideBareSpecifier,
     ...pickRegistryContext(opts),
     namedRegistryPrefixes: getNamedRegistryPrefixes(opts.registriesByPrefix),

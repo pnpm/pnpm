@@ -12,6 +12,7 @@ import semver from 'semver'
 import { getExactSinglePreferredVersions } from './getExactSinglePreferredVersions.js'
 import { hasAlias, type WantedDependency } from './getWantedDependencies.js'
 import { readLockedGitPackage } from './lockedGitPackage.js'
+import { toOverrideNoMatchingVersionError } from './overrideNoMatchingVersionError.js'
 import { getRangeOfLockedPackage, isNamedRegistrySpecifier } from './lockedRegistryKey.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 import type { ParentPkg, ResolutionContext, ResolveDependencyOptions, ResolvedPkgsById } from './resolutionTypes.js'
@@ -187,6 +188,11 @@ function handlePackageRequestFailure ({ ctx, detached, options, wantedDependency
     err.hint ??= 'This optional dependency is not skipped, because the lockfile contains a resolution for it. ' +
       'Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. ' +
       'If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile.'
+  }
+  const overrideError = toOverrideNoMatchingVersionError(err, wantedDependency, ctx.parsedOverrides)
+  if (overrideError != null) {
+    overrideError.prefix = options.prefix
+    throw overrideError
   }
   err.package = wantedDependencyDetails
   err.prefix = options.prefix

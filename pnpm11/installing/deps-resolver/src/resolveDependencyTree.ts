@@ -1,4 +1,5 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import { globalWarn } from '@pnpm/logger'
@@ -132,6 +133,8 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   hooks: {
     readPackage?: ReadPackageHook
   }
+  parsedOverrides?: VersionOverride[]
+  parsedOverrides?: VersionOverride[]
   overrideBareSpecifier?: (name: string, bareSpecifier: string, dir?: string) => string | undefined
   nodeVersion?: string
   /**
