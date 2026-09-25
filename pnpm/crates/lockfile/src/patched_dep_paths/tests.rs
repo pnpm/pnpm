@@ -737,7 +737,7 @@ importers:
   .: {{}}
 snapshots:
   {key}: {{}}
-"
+",
     )
 }
 
