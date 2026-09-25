@@ -71,14 +71,15 @@ export function pruneLockfile (
     const ref = importer.optionalDependencies?.[depName] ??
       importer.dependencies?.[depName] ??
       importer.devDependencies?.[depName]
+    if (ref == null) continue
     if (pkg.optionalDependencies?.[depName] != null) {
-      lockfileOptionalDependencies[depName] = importer.optionalDependencies?.[depName] ?? ref!
+      lockfileOptionalDependencies[depName] = importer.optionalDependencies?.[depName] ?? ref
     } else {
       if (pkg.dependencies?.[depName] != null) {
-        lockfileDependencies[depName] = importer.dependencies?.[depName] ?? ref!
+        lockfileDependencies[depName] = importer.dependencies?.[depName] ?? ref
       }
       if (pkg.devDependencies?.[depName] != null) {
-        lockfileDevDependencies[depName] = importer.devDependencies?.[depName] ?? ref!
+        lockfileDevDependencies[depName] = importer.devDependencies?.[depName] ?? ref
       }
     }
   }

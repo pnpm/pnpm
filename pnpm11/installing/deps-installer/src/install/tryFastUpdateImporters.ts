@@ -124,7 +124,12 @@ export function tryFastUpdateImporters (
         targetGroups.some((g) => !recordedGroups.includes(g))
       if (groupsChanged || specifierChanged) {
         if (recordedGroups.length > 0) {
-          const ref = importer[recordedGroups[0]]![alias]
+          const ref = specifierChanged
+            ? importer[recordedGroups[0]]![alias]
+            : targetGroups
+              .map((group) => importer[group]?.[alias])
+              .find((reference): reference is string => reference != null) ??
+              importer[recordedGroups[0]]![alias]
           for (const targetGroup of targetGroups) {
             (importer[targetGroup] ??= {})[alias] = ref
           }

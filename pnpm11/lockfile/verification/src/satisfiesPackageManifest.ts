@@ -137,10 +137,13 @@ export function satisfiesPackageManifest (
           detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
         }
       }
-      if (!dependencySpecifiersAreEqual(importer.specifiers?.[depName], pkgDeps[depName])) {
+      const manifestSpecifier = depField === 'devDependencies' && pkg.dependencies?.[depName] != null
+        ? pkg.dependencies[depName]
+        : pkgDeps[depName]
+      if (!dependencySpecifiersAreEqual(importer.specifiers?.[depName], manifestSpecifier)) {
         return {
           satisfies: false,
-          detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
+          detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${manifestSpecifier})`,
         }
       }
       if (importer?.specifiers[depName] == null || !semver.validRange(importer?.specifiers[depName])) continue
