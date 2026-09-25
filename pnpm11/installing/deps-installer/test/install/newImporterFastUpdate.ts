@@ -230,6 +230,42 @@ test('a new project that depends on a patched package falls back to the resolver
   })).toBe(false)
 })
 
+test('a patched version the range does not admit does not stop the fast path', async () => {
+  const subject: LockfileObject = {
+    lockfileVersion: '9.0',
+    patchedDependencies: { '@pnpm.e2e/foo@1.2.0': 'foo-hash' },
+    importers: {
+      ['project-1' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '1.2.0' },
+        dependencies: { '@pnpm.e2e/foo': '1.2.0(patch_hash=foo-hash)' },
+      },
+      ['project-2' as ProjectId]: { specifiers: {} },
+      ['project-3' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '2.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '2.0.0' },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@1.2.0(patch_hash=foo-hash)' as DepPath]: { resolution: { integrity: 'sha512-foo' } },
+      ['@pnpm.e2e/foo@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo2' } },
+    },
+  }
+
+  expect(await tryComposeFastUpdates(subject, {
+    drift: { importers: true },
+    workspacePackages: new Map(),
+    resolutionPicksLowest: false,
+    projects: [
+      { id: 'project-1' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '1.2.0' } } as ProjectManifest },
+      { id: 'project-2' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '^2.0.0' } } as ProjectManifest },
+      { id: 'project-3' as ProjectId, manifest: { dependencies: { '@pnpm.e2e/foo': '2.0.0' } } as ProjectManifest },
+    ],
+  })).toBe(true)
+  expect(subject.importers['project-2' as ProjectId].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '2.0.0',
+  })
+})
+
 test('a new project that names a dependency the lockfile has never held falls back', async () => {
   const subject = lockfileWithAnEmptyEntryForANewProject()
 

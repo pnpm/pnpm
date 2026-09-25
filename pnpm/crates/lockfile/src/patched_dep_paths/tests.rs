@@ -809,3 +809,47 @@ fn parentheses_in_a_file_locator_are_not_suffix_segments() {
         assert_eq!(status(&file_locator_lockfile(locator, STALE)), PatchedDepPathsStatus::Stale);
     }
 }
+
+fn unmarked_peer_lockfile(settings: &str, peer: &str) -> String {
+    format!(
+        r"
+lockfileVersion: '9.0'
+{settings}patchedDependencies:
+  react: {CURRENT}
+importers:
+  .: {{}}
+snapshots:
+  foo@1.0.0({peer}): {{}}
+",
+    )
+}
+
+/// Unless peers are deduped, a peer segment is the peer's whole depPath, so a
+/// patched peer missing its hash there is as stale as anywhere else.
+#[test]
+fn a_patched_peer_segment_missing_its_hash_is_stale() {
+    assert_eq!(status(&unmarked_peer_lockfile("", "react@18.0.0")), PatchedDepPathsStatus::Stale);
+}
+
+/// With `dedupePeers` a peer segment is only `name@version`, which never
+/// carries a hash.
+#[test]
+fn a_deduped_patched_peer_segment_needs_no_hash() {
+    assert_eq!(
+        status(&unmarked_peer_lockfile(
+            "settings:\n  autoInstallPeers: true\n  dedupePeers: true\n  excludeLinksFromLockfile: false\n",
+            "react@18.0.0"
+        )),
+        PatchedDepPathsStatus::UpToDate,
+    );
+}
+
+/// A `link:` peer is written with a path where the version goes, and patches
+/// never apply to it.
+#[test]
+fn a_linked_peer_named_like_a_patched_package_needs_no_hash() {
+    assert_eq!(
+        status(&unmarked_peer_lockfile("", "react@packages+react")),
+        PatchedDepPathsStatus::UpToDate,
+    );
+}

@@ -505,6 +505,26 @@ test('checkPatchedDepPaths() does not read parentheses in a file locator as suff
   }
 })
 
+// Unless peers are deduped, a peer segment is the peer's whole dependency path, so a patched peer
+// missing its hash there is as stale as anywhere else. With `dedupePeers` it is only
+// `name@version`, and a `link:` peer is written with a path where the version goes.
+test('checkPatchedDepPaths() judges a patched peer segment that carries no hash', () => {
+  const cases = [
+    { settings: undefined, peer: 'react@18.0.0', expected: 'stale' },
+    { settings: { dedupePeers: true }, peer: 'react@18.0.0', expected: 'up-to-date' },
+    { settings: undefined, peer: 'react@packages+react', expected: 'up-to-date' },
+  ] as const
+  for (const { settings, peer, expected } of cases) {
+    expect(checkPatchedDepPaths(lockfile({
+      settings,
+      patchedDependencies: { react: CURRENT },
+      packages: {
+        [`foo@1.0.0(${peer})` as DepPath]: { resolution: { integrity: 'sha512-fake' } },
+      },
+    }))).toBe(expected)
+  }
+})
+
 function lockfile (overrides: Partial<LockfileObject>): LockfileObject {
   return {
     lockfileVersion: '9.0',

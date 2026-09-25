@@ -37,7 +37,7 @@ const PATCH_HASH_PREFIX = '(patch_hash='
 export function checkPatchedDepPaths (lockfile: LockfileObject): PatchedDepPathsStatus {
   const ctx = createJudgeContext(lockfile)
   let indeterminate = false
-  for (const depPath of depPathsToJudge(lockfile, ctx.patchedNames)) {
+  for (const depPath of depPathsToJudge(lockfile, ctx)) {
     switch (judgeWithPeers(depPath, ctx)) {
       case 'stale': return 'stale'
       case 'indeterminate': indeterminate = true; break
@@ -62,6 +62,11 @@ interface JudgeContext {
    * judged only when it carries a suffix.
    */
   patchedNames: Set<string>
+  /**
+   * Whether a peer segment is the peer's whole dependency path, and so carries the peer's own
+   * patch hash. With `dedupePeers` it is only the peer's `name@version`.
+   */
+  peersCarryPatchHashes: boolean
   packages: PackageSnapshots
   verdicts: Map<DepPath, Verdict>
 }
@@ -83,19 +88,21 @@ function createJudgeContext (lockfile: LockfileObject): JudgeContext {
     patchGroups,
     unusableNames,
     patchedNames: new Set([...Object.keys(patchGroups), ...unusableNames]),
+    peersCarryPatchHashes: lockfile.settings?.dedupePeers !== true,
     packages: lockfile.packages ?? {},
     verdicts: new Map(),
   }
 }
 
 /**
- * The worst verdict among the dependency path and every peer path nested in its suffix that
- * carries a patch hash, cached in `ctx.verdicts`.
+ * The worst verdict among the dependency path and the peer paths nested in its suffix, cached in
+ * `ctx.verdicts`.
  *
  * pnpm writes a package's own hash as the first segment of the suffix. Unless peers are deduped,
  * a peer segment is that peer's whole dependency path, so a patched peer carries its hash inside
- * it, and that hash is part of this path's identity. A peer segment without a marker is a plain
- * `name@version` or an unpatched path, and has nothing to judge.
+ * it, and that hash is part of this path's identity. A peer segment is judged when it carries a
+ * marker, or when it should: it names a registry version of a patched package and peers are not
+ * deduped.
  *
  * A path holding a marker is `'indeterminate'` when the marker is anywhere but the leading segment
  * of its suffix, which is the trailing run of balanced, back-to-back parenthesized segments that
@@ -122,21 +129,35 @@ function judgeWithPeers (depPath: DepPath, ctx: JudgeContext): Verdict {
 
 /** The verdict on the path's own hash, and the peer paths in its suffix that carry one. */
 function judgeOwnHash (depPath: DepPath, ctx: JudgeContext): { verdict: Verdict, peers: DepPath[] } {
-  if (!depPath.includes(PATCH_HASH_PREFIX)) return { verdict: judge(depPath, ctx), peers: [] }
   const suffix = splitSuffix(depPath)
   if (
-    suffix == null ||
-    suffix.locator.includes(PATCH_HASH_PREFIX) ||
-    suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
+    depPath.includes(PATCH_HASH_PREFIX) && (
+      suffix == null ||
+      suffix.locator.includes(PATCH_HASH_PREFIX) ||
+      suffix.segments.slice(1).some((segment) => segment.startsWith(PATCH_HASH_PREFIX))
+    )
   ) {
     return { verdict: 'indeterminate', peers: [] }
   }
-  return {
-    verdict: judge(depPath, ctx),
-    peers: suffix.segments
-      .filter((segment) => !segment.startsWith(PATCH_HASH_PREFIX) && segment.includes(PATCH_HASH_PREFIX))
-      .map((segment) => segment.slice(1, -1) as DepPath),
+  const peers: DepPath[] = []
+  for (const segment of suffix?.segments ?? []) {
+    if (segment.startsWith(PATCH_HASH_PREFIX)) continue
+    const peer = segment.slice(1, -1) as DepPath
+    if (segment.includes(PATCH_HASH_PREFIX) || (ctx.peersCarryPatchHashes && isPatchedRegistryPeer(peer, ctx))) {
+      peers.push(peer)
+    }
   }
+  return { verdict: judge(depPath, ctx), peers }
+}
+
+/**
+ * Whether a peer segment names a registry version of a patched package, so it has to carry that
+ * package's hash. A `link:` peer is written with a path where the version goes, and patches never
+ * apply to it.
+ */
+function isPatchedRegistryPeer (peer: DepPath, ctx: JudgeContext): boolean {
+  const { name, version } = parse(peer)
+  return name != null && version != null && ctx.patchedNames.has(name)
 }
 
 function worseVerdict (a: Verdict, b: Verdict): Verdict {
@@ -211,30 +232,40 @@ function isUnusablePatchConfig (err: unknown): boolean {
 }
 
 /** Every dependency path in the lockfile that either carries a patch-hash marker or names a patched package. */
-function * depPathsToJudge (lockfile: LockfileObject, patchedNames: Set<string>): Generator<DepPath> {
+function * depPathsToJudge (lockfile: LockfileObject, ctx: JudgeContext): Generator<DepPath> {
   for (const importer of Object.values(lockfile.importers ?? {})) {
-    yield * referencesToJudge(importer.dependencies, patchedNames)
-    yield * referencesToJudge(importer.devDependencies, patchedNames)
-    yield * referencesToJudge(importer.optionalDependencies, patchedNames)
+    yield * referencesToJudge(importer.dependencies, ctx)
+    yield * referencesToJudge(importer.devDependencies, ctx)
+    yield * referencesToJudge(importer.optionalDependencies, ctx)
   }
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
-    if (mayBePatched(depPath, patchedNames)) yield depPath
-    yield * referencesToJudge(snapshot.dependencies, patchedNames)
-    yield * referencesToJudge(snapshot.optionalDependencies, patchedNames)
+    if (mayBePatched(depPath, ctx)) yield depPath
+    yield * referencesToJudge(snapshot.dependencies, ctx)
+    yield * referencesToJudge(snapshot.optionalDependencies, ctx)
   }
 }
 
-function * referencesToJudge (deps: ResolvedDependencies | undefined, patchedNames: Set<string>): Generator<DepPath> {
+function * referencesToJudge (deps: ResolvedDependencies | undefined, ctx: JudgeContext): Generator<DepPath> {
   if (deps == null) return
   for (const [alias, reference] of Object.entries(deps)) {
     // A reference without an `@` points at a package named after its alias, so most edges are
     // skipped here without building their dependency path.
-    if (!reference.includes('@') && !patchedNames.has(alias) && !reference.includes(PATCH_HASH_PREFIX)) continue
+    if (!reference.includes('@') && !ctx.patchedNames.has(alias) && !reference.includes(PATCH_HASH_PREFIX)) continue
     const depPath = refToRelative(reference, alias)
-    if (depPath != null && mayBePatched(depPath, patchedNames)) yield depPath
+    if (depPath != null && mayBePatched(depPath, ctx)) yield depPath
   }
 }
 
-function mayBePatched (depPath: DepPath, patchedNames: Set<string>): boolean {
-  return depPath.includes(PATCH_HASH_PREFIX) || patchedNames.has(depPath.slice(0, depPath.indexOf('@', 1)))
+function mayBePatched (depPath: DepPath, ctx: JudgeContext): boolean {
+  return depPath.includes(PATCH_HASH_PREFIX) ||
+    ctx.patchedNames.has(depPath.slice(0, depPath.indexOf('@', 1))) ||
+    (ctx.peersCarryPatchHashes && namesAPatchedPeer(depPath, ctx.patchedNames))
+}
+
+function namesAPatchedPeer (depPath: DepPath, patchedNames: Set<string>): boolean {
+  if (!depPath.includes('(')) return false
+  for (const name of patchedNames) {
+    if (depPath.includes(`(${name}@`)) return true
+  }
+  return false
 }

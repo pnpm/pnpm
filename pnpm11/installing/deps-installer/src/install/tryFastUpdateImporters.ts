@@ -276,12 +276,12 @@ export function lockedVersionResolutionWouldPick (
     const { name, version, nonSemverVersion, registryName } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (name !== alias) continue
     if (nonSemverVersion != null) continue
-    if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '' || dp.parse(depPath).patchHash != null) {
-      return null
-    }
-    if (semver.valid(version) != null && semver.satisfies(version, wanted.specifier)) {
-      versions.add(version)
-    }
+    if (registryName != null || dp.parseDepPath(depPath).peerDepGraphHash !== '') return null
+    if (semver.valid(version) == null || !semver.satisfies(version, wanted.specifier)) continue
+    // A patched version the range does not admit cannot be the pick, so it does not stop the
+    // fast path.
+    if (dp.parse(depPath).patchHash != null) return null
+    versions.add(version)
   }
   if (versions.size === 0) return null
   if (versions.size > 1 && wanted.resolutionPicksLowest) return null

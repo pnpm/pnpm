@@ -4,7 +4,7 @@ use crate::{
 use pnpm_patching::{
     PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
 };
-use segments::{peer_to_judge, split_suffix};
+use segments::split_suffix;
 use std::collections::{HashMap, HashSet};
 
 /// The version a patch was matched against, when the lockfile records one.
@@ -126,6 +126,10 @@ struct Checker<'a> {
     /// package is judged only when it carries a segment, which keeps the walk
     /// from allocating for the unpatched bulk of the graph.
     patched_names: HashSet<PkgName>,
+    /// `(<name>@` for every patched package, which a peer segment naming it
+    /// starts with. Empty when peers are deduped: a peer segment is then only
+    /// the peer's `name@version`, and carries no patch hash of its own.
+    patched_peer_markers: Vec<String>,
     packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     verdicts: HashMap<PackageKey, Verdict>,
     indeterminate: bool,
@@ -150,10 +154,22 @@ impl<'a> Checker<'a> {
             .chain(&unusable)
             .filter_map(|name| PkgName::parse(name.as_str()).ok())
             .collect();
+        let peers_are_deduped =
+            lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers) == Some(true);
+        let patched_peer_markers = if peers_are_deduped {
+            Vec::new()
+        } else {
+            groups
+                .keys()
+                .chain(&unusable)
+                .map(|name| format!("({name}@"))
+                .collect()
+        };
         Checker {
             groups,
             unusable,
             patched_names,
+            patched_peer_markers,
             packages: lockfile.packages.as_ref(),
             verdicts: HashMap::new(),
             indeterminate: false,
@@ -212,7 +228,13 @@ impl<'a> Checker<'a> {
 
     /// Returns `true` when the depPath definitely disagrees.
     fn visit(&mut self, name: &PkgName, ver_peer: &PkgVerPeer) -> bool {
-        if !ver_peer.peer().contains(PATCH_HASH_PREFIX) && !self.patched_names.contains(name) {
+        let suffix = ver_peer.peer();
+        if !suffix.contains(PATCH_HASH_PREFIX)
+            && !self.patched_names.contains(name)
+            && !self.patched_peer_markers
+                .iter()
+                .any(|marker| suffix.contains(marker.as_str()))
+        {
             return false;
         }
         let verdict = self.verdict(PackageKey::new(name.clone(), ver_peer.clone()));
@@ -235,14 +257,13 @@ impl<'a> Checker<'a> {
         verdict
     }
 
-    /// The worst verdict among the depPath and every peer depPath nested in
-    /// its suffix that carries a patch hash.
+    /// The worst verdict among the depPath and the peer depPaths nested in its
+    /// suffix that [`Checker::peer_to_judge`] selects.
     ///
     /// pnpm writes a package's own hash as the first segment of the suffix.
     /// Unless peers are deduped, a peer segment is that peer's whole depPath,
     /// so a patched peer carries its hash inside it, and that hash is part of
-    /// this depPath's identity. A peer segment without a marker is a plain
-    /// `name@version` or an unpatched depPath, and has nothing to judge.
+    /// this depPath's identity.
     ///
     /// A depPath holding a marker is [`Verdict::Indeterminate`] when the
     /// marker is anywhere but the leading segment of its suffix, which is the
@@ -268,18 +289,18 @@ impl<'a> Checker<'a> {
     /// suffix that carry one.
     fn judge_own_hash(&self, key: &PackageKey) -> (Verdict, Vec<PackageKey>) {
         let suffix = key.suffix.peer();
-        if !suffix.contains(PATCH_HASH_PREFIX) {
-            return (self.judge(key, None), Vec::new());
-        }
+        let has_marker = suffix.contains(PATCH_HASH_PREFIX);
         let Some((locator, segments)) = split_suffix(suffix) else {
-            return (Verdict::Indeterminate, Vec::new());
+            let verdict = if has_marker { Verdict::Indeterminate } else { self.judge(key, None) };
+            return (verdict, Vec::new());
         };
         // The hash is only read from the leading segment.
-        if locator.contains(PATCH_HASH_PREFIX)
-            || segments
-                .iter()
-                .skip(1)
-                .any(|segment| segment.starts_with(PATCH_HASH_PREFIX))
+        if has_marker
+            && (locator.contains(PATCH_HASH_PREFIX)
+                || segments
+                    .iter()
+                    .skip(1)
+                    .any(|segment| segment.starts_with(PATCH_HASH_PREFIX)))
         {
             return (Verdict::Indeterminate, Vec::new());
         }
@@ -288,13 +309,43 @@ impl<'a> Checker<'a> {
             .and_then(|segment| segment.strip_prefix(PATCH_HASH_PREFIX)?.strip_suffix(')'));
         let mut verdict = self.judge(key, recorded);
         let mut peers = Vec::new();
-        for peer in segments.into_iter().filter_map(peer_to_judge) {
+        for peer in segments
+            .into_iter()
+            .filter_map(|segment| self.peer_to_judge(segment))
+        {
             match peer {
                 Ok(peer) => peers.push(peer),
                 Err(()) => verdict = verdict.worse(Verdict::Indeterminate),
             }
         }
         (verdict, peers)
+    }
+
+    /// The peer depPath a suffix segment names, when it has a patch hash to
+    /// judge: one it carries, or one it should carry because it names a
+    /// registry version of a patched package and peers are not deduped. A
+    /// `link:` peer is written with a path where the version goes, and patches
+    /// never apply to it. `Some(Err(()))` for a segment carrying a marker that
+    /// does not parse as a depPath.
+    fn peer_to_judge(&self, segment: &str) -> Option<Result<PackageKey, ()>> {
+        if segment.starts_with(PATCH_HASH_PREFIX) {
+            return None;
+        }
+        let inner = segment.strip_prefix('(')?.strip_suffix(')')?;
+        if segment.contains(PATCH_HASH_PREFIX) {
+            return Some(
+                inner
+                    .parse::<PackageKey>()
+                    .map_err(|_| ()),
+            );
+        }
+        if self.patched_peer_markers.is_empty() {
+            return None;
+        }
+        let peer = inner.parse::<PackageKey>().ok()?;
+        let registry_version =
+            peer.suffix.version_semver().is_some() || peer.suffix.registry_qualified().is_some();
+        (registry_version && self.patched_names.contains(&peer.name)).then_some(Ok(peer))
     }
 
     /// Compares `recorded`, the depPath's own patch hash, with the one
