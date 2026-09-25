@@ -1,5 +1,7 @@
 ---
 "@pnpm/lockfile.settings-checker": patch
+"@pnpm/deps.status": patch
+"@pnpm/installing.deps-installer": patch
 "pnpm": patch
 ---
 
