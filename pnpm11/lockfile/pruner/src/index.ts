@@ -87,7 +87,7 @@ export function pruneLockfile (
     for (const [alias, dep] of Object.entries(importer.dependencies)) {
       if (
         !lockfileDependencies[alias] && dep.startsWith('link:') &&
-        (!allDeps.has(alias) ? !lockfileSpecs[alias] : pkg.dependencies?.[alias] != null)
+        (!allDeps.has(alias) ? !lockfileSpecs[alias] : (pkg.dependencies?.[alias] != null && pkg.optionalDependencies?.[alias] == null))
       ) {
         lockfileDependencies[alias] = dep
       }

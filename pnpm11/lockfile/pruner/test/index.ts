@@ -280,6 +280,35 @@ test('moving a linked package from dependencies to devDependencies does not reta
   })
 })
 
+test('linked package declared in both dependencies and optionalDependencies is only recorded in optionalDependencies', () => {
+  const result = pruneLockfile({
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          linked: 'link:../linked',
+        },
+        specifiers: {
+          linked: 'link:../linked',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      linked: 'link:../linked',
+    },
+    optionalDependencies: {
+      linked: 'link:../linked',
+    },
+  }, '.' as ProjectId, DEFAULT_OPTS)
+  expect(result.importers['.' as ProjectId].dependencies).toBeUndefined()
+  expect(result.importers['.' as ProjectId].optionalDependencies).toStrictEqual({
+    linked: 'link:../linked',
+  })
+})
+
 test('optional dependency should have optional = true', () => {
   expect(pruneLockfile({
     importers: {
