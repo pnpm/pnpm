@@ -29,6 +29,8 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     const { filesMap, manifest, requiresBuild, integrity } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: rawFilesIndexFile,
+      // The raw archive is not the prepared package, so it must not be indexed under the package's integrity key.
+      pkgResolutionId: undefined,
     })
     // Flush any queued store index writes so that the raw files index entry
     // written during tarball extraction is visible to subsequent reads.

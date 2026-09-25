@@ -33,6 +33,7 @@ export type DownloadOptions = {
   retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
+  pkgId?: string
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
 export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
@@ -228,6 +229,7 @@ export function createDownloader (
         readManifest: opts.readManifest,
         integrity: opts.integrity,
         filesIndexFile: opts.filesIndexFile,
+        pkgId: opts.pkgId,
         url,
         pkg: opts.pkg,
         appendManifest: opts.appendManifest,
