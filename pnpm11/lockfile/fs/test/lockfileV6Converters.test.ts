@@ -1,5 +1,7 @@
 import { expect, test } from '@jest/globals'
+import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
+import yaml from 'js-yaml'
 
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
 
@@ -213,4 +215,87 @@ test('convertToLockfileFile() with lockfile v6', () => {
   }
   expect(convertToLockfileFile(lockfileV5)).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
+})
+
+test('convertToLockfileObject() reads a dependency named constructor', () => {
+  const lockfileFile = yaml.load(`
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      constructor:
+        specifier: ^0.0.6
+        version: 0.0.6
+packages:
+  constructor@0.0.6:
+    resolution: {integrity: sha512-constructor}
+snapshots:
+  constructor@0.0.6: {}
+`) as LockfileFile
+  const lockfile = convertToLockfileObject(lockfileFile)
+  expect(lockfile.importers['.']).toStrictEqual({
+    specifiers: { constructor: '^0.0.6' },
+    dependencies: { constructor: '0.0.6' },
+    devDependencies: undefined,
+    optionalDependencies: undefined,
+  })
+  expect(lockfile.packages?.['constructor@0.0.6' as DepPath]).toStrictEqual({
+    resolution: { integrity: 'sha512-constructor' },
+  })
+  expect(convertToLockfileFile(lockfile).importers?.['.']).toEqual({
+    dependencies: {
+      constructor: { specifier: '^0.0.6', version: '0.0.6' },
+    },
+  })
+})
+
+test('convertToLockfileObject() keeps __proto__ keys of a lockfile as own properties', () => {
+  const lockfileFile = yaml.load(`
+lockfileVersion: '9.0'
+importers:
+  __proto__:
+    dependencies:
+      __proto__:
+        specifier: ^1.0.0
+        version: 1.0.0
+packages:
+  foo@1.0.0:
+    resolution: {integrity: sha512-foo}
+    __proto__:
+      polluted: true
+snapshots:
+  foo@1.0.0: {}
+  __proto__:
+    dependencies:
+      foo: 1.0.0
+patchedDependencies:
+  __proto__:
+    hash: abc
+`) as LockfileFile
+  const lockfile = convertToLockfileObject(lockfileFile)
+
+  expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  expect(Object.prototype).not.toHaveProperty('polluted')
+
+  const foo = lockfile.packages!['foo@1.0.0' as DepPath]
+  expect(Object.getPrototypeOf(foo)).toBe(Object.prototype)
+  expect(foo).not.toHaveProperty('polluted')
+  expect(foo.resolution).toStrictEqual({ integrity: 'sha512-foo' })
+
+  expect(Object.getPrototypeOf(lockfile.packages)).toBe(Object.prototype)
+  expect(Object.keys(lockfile.packages!)).toStrictEqual(['foo@1.0.0', '__proto__'])
+  expect(Object.getOwnPropertyDescriptor(lockfile.packages, '__proto__')?.value).toStrictEqual({
+    dependencies: { foo: '1.0.0' },
+  })
+
+  expect(Object.getPrototypeOf(lockfile.importers)).toBe(Object.prototype)
+  expect(Object.keys(lockfile.importers)).toStrictEqual(['__proto__'])
+  const importer = Object.getOwnPropertyDescriptor(lockfile.importers, '__proto__')?.value
+  expect(Object.getPrototypeOf(importer.specifiers)).toBe(Object.prototype)
+  expect(Object.getOwnPropertyDescriptor(importer.specifiers, '__proto__')?.value).toBe('^1.0.0')
+  expect(Object.getPrototypeOf(importer.dependencies)).toBe(Object.prototype)
+  expect(Object.getOwnPropertyDescriptor(importer.dependencies, '__proto__')?.value).toBe('1.0.0')
+
+  expect(Object.getPrototypeOf(lockfile.patchedDependencies)).toBe(Object.prototype)
+  expect(Object.getOwnPropertyDescriptor(lockfile.patchedDependencies, '__proto__')?.value).toBe('abc')
 })
