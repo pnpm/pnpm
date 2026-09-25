@@ -50,6 +50,11 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     };
     let sent =
         send_archive_request(&client, package_url, package_id, auth_headers, if_none_match).await;
+    if let Err(error) = &sent
+        && error.is_timeout()
+    {
+        http_client.downscale_while_peers_active();
+    }
     // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()

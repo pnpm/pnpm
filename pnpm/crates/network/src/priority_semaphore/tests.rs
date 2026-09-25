@@ -203,3 +203,36 @@ async fn background_is_served_between_latency_and_overflow_downloads() {
     download.await.unwrap();
     assert_eq!(*order.lock().unwrap(), vec!["background", "download"]);
 }
+
+#[tokio::test]
+async fn a_timeout_with_peers_in_flight_downscales_the_pool_to_one() {
+    let sem = Arc::new(PrioritySemaphore::new(3));
+    let first = sem.acquire(1).await;
+    let second = sem.acquire(1).await;
+    let third = sem.acquire(1).await;
+    assert!(sem.downscale_while_peers_active());
+    assert_eq!(sem.concurrency_limit(), 1);
+    assert!(!sem.downscale_while_peers_active());
+
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let waiter = spawn_waiter(&sem, &order, "next", 1).await;
+    drop(third);
+    tokio::task::yield_now().await;
+    drop(second);
+    tokio::task::yield_now().await;
+    assert_eq!(*order.lock().unwrap(), Vec::<&str>::new());
+    assert_eq!(sem.queued_waiters(), 1);
+
+    drop(first);
+    waiter.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["next"]);
+}
+
+#[tokio::test]
+async fn a_lone_in_flight_request_does_not_downscale_the_pool() {
+    let sem = PrioritySemaphore::new(4);
+    let only = sem.acquire(1).await;
+    assert!(!sem.downscale_while_peers_active());
+    assert_eq!(sem.concurrency_limit(), 4);
+    drop(only);
+}

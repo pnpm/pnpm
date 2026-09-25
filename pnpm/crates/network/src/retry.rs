@@ -132,6 +132,41 @@ pub async fn send_with_retry<'client>(
 }
 
 /// [`send_with_retry`] queueing at an explicit `priority` — the way a
+enum AttemptOutcome {
+    Success(Response),
+    Fatal(reqwest::Error),
+    Retry(std::time::Duration),
+}
+
+fn classify_response(
+    http_client: &ThrottledClient,
+    url: &str,
+    attempt: u32,
+    retry_opts: RetryOpts,
+    response: Result<Response, reqwest::Error>,
+) -> AttemptOutcome {
+    match response {
+        Ok(res) if should_retry_status(res.status()) && attempt < retry_opts.retries => {
+            let delay = retry_opts.delay_for(attempt);
+            warn_retry_status(url, res.status(), attempt, retry_opts, delay);
+            AttemptOutcome::Retry(delay)
+        }
+        Ok(res) => AttemptOutcome::Success(res),
+        Err(err) => {
+            if err.is_timeout() {
+                http_client.downscale_while_peers_active();
+            }
+            if attempt >= retry_opts.retries || is_permanent_error(&err) {
+                AttemptOutcome::Fatal(err)
+            } else {
+                let delay = retry_opts.delay_for(attempt);
+                warn_retry_error(url, err, attempt, retry_opts, delay);
+                AttemptOutcome::Retry(delay)
+            }
+        }
+    }
+}
+
 /// caller opts its requests into the [`crate::BACKGROUND`] class.
 pub async fn send_with_retry_at_priority<'client>(
     http_client: &'client ThrottledClient,
@@ -143,37 +178,35 @@ pub async fn send_with_retry_at_priority<'client>(
     let mut attempt = 0;
     loop {
         let client = http_client.acquire_for_url_with_priority(url, priority).await;
-        match build_request(&client).send().await {
-            Ok(response)
-                if should_retry_status(response.status()) && attempt < retry_opts.retries =>
-            {
-                let status = response.status();
-                drop(response);
+        let response = build_request(&client).send().await;
+        match classify_response(http_client, url, attempt, retry_opts, response) {
+            AttemptOutcome::Success(response) => return Ok((client, response)),
+            AttemptOutcome::Fatal(error) => return Err(error),
+            AttemptOutcome::Retry(delay) => {
                 drop(client);
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pnpm_network::retry",
-                    url = %redact_url_for_display(url),
-                    ?status,
-                    attempt = attempt + 1,
-                    max_attempts = u64::from(retry_opts.retries) + 1,
-                    ?delay,
-                    "Request failed; retrying after backoff",
-                );
                 tokio::time::sleep(delay).await;
                 attempt += 1;
             }
-            Ok(response) => return Ok((client, response)),
-            Err(error) if attempt < retry_opts.retries && !is_permanent_error(&error) => {
-                drop(client);
-                let delay = retry_opts.delay_for(attempt);
-                warn_retry_error(url, error, attempt, retry_opts, delay);
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-            Err(error) => return Err(error),
         }
     }
+}
+
+fn warn_retry_status(
+    url: &str,
+    status: reqwest::StatusCode,
+    attempt: u32,
+    retry_opts: RetryOpts,
+    delay: std::time::Duration,
+) {
+    tracing::warn!(
+        target: "pnpm_network::retry",
+        url = %redact_url_for_display(url),
+        ?status,
+        attempt = attempt + 1,
+        max_attempts = u64::from(retry_opts.retries) + 1,
+        ?delay,
+        "Request failed; retrying after backoff",
+    );
 }
 
 fn warn_retry_error(

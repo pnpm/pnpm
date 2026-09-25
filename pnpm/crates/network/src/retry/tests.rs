@@ -510,3 +510,47 @@ async fn assert_bounded_metadata(status: usize, chunked: bool) {
     assert_eq!(response.status.as_u16(), status as u16);
     request.assert_async().await;
 }
+
+#[tokio::test]
+async fn a_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let mut buf = [0u8; 2048];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket.read(&mut buf).await;
+            });
+        }
+    });
+
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &crate::NetworkSettings {
+            network_concurrency: 4,
+            fetch_timeout: Duration::from_millis(200),
+            ..crate::NetworkSettings::default()
+        },
+    )
+    .expect("client builds");
+    let url = format!("http://{addr}/pkg.tgz");
+    let retry = instant_retry_opts(0);
+    let first = crate::send_with_retry(&client, &url, retry, |http| http.get(&url));
+    let second = crate::send_with_retry(&client, &url, retry, |http| http.get(&url));
+    let (left, right) = tokio::join!(first, second);
+    let Err(left_error) = left else {
+        panic!("stalled request times out");
+    };
+    let Err(right_error) = right else {
+        panic!("stalled request times out");
+    };
+    assert!(left_error.is_timeout(), "{left_error:?}");
+    assert!(right_error.is_timeout(), "{right_error:?}");
+    assert_eq!(client.concurrency_limit(), 1);
+}
