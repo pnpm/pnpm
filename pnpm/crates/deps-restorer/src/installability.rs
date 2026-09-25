@@ -21,7 +21,9 @@ pub use platform::{
 mod reachability;
 use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
+mod patched;
 mod platform;
+use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
 use std::collections::{HashMap, HashSet};
@@ -434,19 +436,17 @@ impl SkipScan<'_, '_> {
             (snapshot.optional, !snapshot.optional)
         };
 
-        // A patch is applied to the extracted package after this pass. The
-        // lockfile still records the published `engines`, so a patch that
-        // relaxes them would fail here. Leave that check to the build phase,
-        // which reads the patched manifest. Platform constraints stay.
-        let warn = if self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot)
-        {
-            let mut manifest = manifest_from_metadata(&metadata_key, metadata);
-            manifest.engines = None;
-            let options = pnpm_package_is_installable::InstallabilityOptions {
-                optional: skip_check_optional,
-                ..self.base_options
-            };
-            check_installability(&metadata_key.to_string(), &manifest, &options)?
+        // A patch is applied after this pass. Published engines would fail
+        // here, so that check waits for the patched manifest.
+        let defer_engines =
+            self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
+        let warn = if defer_engines {
+            without_published_engines(
+                &metadata_key,
+                metadata,
+                skip_check_optional,
+                &self.base_options,
+            )?
         } else {
             cached_check(
                 &mut self.check_cache,
@@ -464,8 +464,6 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        let defer_engines =
-            self.base_options.engine_strict && snapshot_is_patched(snapshot_key, snapshot);
         self.report_incompatible_required(
             &metadata_key,
             metadata,
@@ -492,30 +490,6 @@ impl SkipScan<'_, '_> {
         }
     }
 
-    fn recheck_required(
-        &mut self,
-        metadata_key: &PackageKey,
-        metadata: &PackageMetadata,
-        defer_engines: bool,
-    ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
-        if !defer_engines {
-            return cached_check(
-                &mut self.check_cache,
-                metadata_key,
-                metadata,
-                false,
-                &self.base_options,
-            );
-        }
-        let mut manifest = manifest_from_metadata(metadata_key, metadata);
-        manifest.engines = None;
-        let options = pnpm_package_is_installable::InstallabilityOptions {
-            optional: false,
-            ..self.base_options
-        };
-        check_installability(&metadata_key.to_string(), &manifest, &options)
-    }
-
     /// A package that an installed non-optional edge reaches cannot be
     /// skipped: under `engine-strict` it fails the install, otherwise
     /// it warns.
@@ -531,8 +505,10 @@ impl SkipScan<'_, '_> {
         // platform-from-name inference, so its verdict needs the
         // non-optional check. A patched package still omits published
         // engines; the build phase checks the patched manifest.
-        let warn = if skip_check_optional {
-            self.recheck_required(metadata_key, metadata, defer_engines)?
+        let warn = if skip_check_optional && defer_engines {
+            without_published_engines(metadata_key, metadata, false, &self.base_options)?
+        } else if skip_check_optional {
+            cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
         } else {
             Some(warn)
         };
