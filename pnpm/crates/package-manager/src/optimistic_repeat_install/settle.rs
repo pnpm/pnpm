@@ -344,7 +344,7 @@ fn included_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     [
         (included.dependencies, DependencyGroup::Prod),
         (included.dev_dependencies, DependencyGroup::Dev),
-        (included.optional_dependencies, DependencyGroup::Optional),
+        (included.includes_project_optional_dependencies(), DependencyGroup::Optional),
     ]
     .into_iter()
     .filter_map(|(included, group)| included.then_some(group))

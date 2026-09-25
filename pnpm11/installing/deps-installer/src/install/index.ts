@@ -483,10 +483,6 @@ export async function mutateModules (
     ctx.include = opts.include
   }
 
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
     extraBinPaths: opts.extraBinPaths,
     extendNodePath: opts.extendNodePath,
@@ -2603,7 +2599,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
-          linkedDep.optional && !opts.include.optionalDependencies ||
+          linkedDep.optional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
         )),
       linkedDependenciesByProjectId ?? {}
@@ -2619,7 +2615,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
           include = !(
             isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
+            isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
             !isDev && !isOptional && !opts.include.dependencies
           )
         }

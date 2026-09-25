@@ -62,7 +62,7 @@ export function buildDependencyGraph (
       ? {
         ...(opts.include.dependencies !== false ? snapshot.dependencies : undefined),
         ...(opts.include.devDependencies !== false ? (snapshot as ProjectSnapshot).devDependencies : undefined),
-        ...(opts.include.optionalDependencies ? snapshot.optionalDependencies : undefined),
+        ...(opts.include.dependencies !== false && opts.include.optionalDependencies ? snapshot.optionalDependencies : undefined),
       }
       : !opts.include.optionalDependencies
         ? snapshot.dependencies

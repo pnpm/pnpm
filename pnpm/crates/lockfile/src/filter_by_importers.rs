@@ -40,6 +40,14 @@ impl IncludedDependencies {
     pub fn excludes_a_group(self) -> bool {
         !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
     }
+
+    /// Whether a project's own `optionalDependencies` are included. They
+    /// install with its production dependencies, so `--dev` leaves them
+    /// out while it still installs the optional dependencies of packages.
+    #[must_use]
+    pub fn includes_project_optional_dependencies(self) -> bool {
+        self.dependencies && self.optional_dependencies
+    }
 }
 
 impl Default for IncludedDependencies {
@@ -147,7 +155,7 @@ fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) ->
         dev_dependencies: Some(pick(importer.dev_dependencies.as_ref(), include.dev_dependencies)),
         optional_dependencies: Some(pick(
             importer.optional_dependencies.as_ref(),
-            include.optional_dependencies,
+            include.includes_project_optional_dependencies(),
         )),
         dependencies_meta: None,
         publish_directory: None,

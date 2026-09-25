@@ -358,7 +358,7 @@ function toImporterDepPaths (
     .map(importer => [
       ...(opts.include.dependencies ? toDepRefs(importer.dependencies, false) : []),
       ...(opts.include.devDependencies ? toDepRefs(importer.devDependencies, false) : []),
-      ...(opts.include.optionalDependencies ? toDepRefs(importer.optionalDependencies, true) : []),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? toDepRefs(importer.optionalDependencies, true) : []),
     ])
     .map(refs => opts.skipRuntimes ? refs.filter(({ ref }) => !ref.startsWith('runtime:')) : refs)
 

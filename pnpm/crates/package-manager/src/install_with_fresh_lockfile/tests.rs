@@ -9,6 +9,7 @@ use crate::install_with_fresh_lockfile::{
 };
 use pnpm_config::{Config, PackageExtension};
 use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -43,12 +44,13 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
 
 #[test]
 fn partial_installs_keep_transitive_optional_dependencies() {
-    let prod_only = [DependencyGroup::Prod];
-    let with_optional = [DependencyGroup::Prod, DependencyGroup::Optional];
+    let without_optional =
+        IncludedDependencies { optional_dependencies: false, ..Default::default() };
+    let with_optional = IncludedDependencies { optional_dependencies: true, ..Default::default() };
 
-    assert!(include_transitive_optional_dependencies(false, &prod_only));
-    assert!(!include_transitive_optional_dependencies(true, &prod_only));
-    assert!(include_transitive_optional_dependencies(true, &with_optional));
+    assert!(include_transitive_optional_dependencies(false, without_optional));
+    assert!(!include_transitive_optional_dependencies(true, without_optional));
+    assert!(include_transitive_optional_dependencies(true, with_optional));
 }
 
 #[tokio::test]

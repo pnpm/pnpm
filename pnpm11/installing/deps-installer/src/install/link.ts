@@ -109,7 +109,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     return true
   })
   if (!opts.include.dependencies) {
-    depNodes = depNodes.filter(({ dev, optional }) => dev || optional)
+    depNodes = depNodes.filter(({ dev }) => dev)
   }
   if (!opts.include.devDependencies) {
     depNodes = depNodes.filter(({ optional, prod }) => prod || optional)

@@ -44,6 +44,7 @@ mod dedupe_reporting;
 mod deploy;
 mod deploy_specifiers;
 mod deprecate;
+mod dev_install;
 mod dir_clone_cache;
 mod dist_tag;
 mod dlx;

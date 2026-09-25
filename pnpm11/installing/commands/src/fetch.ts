@@ -53,8 +53,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
-    // when including optional deps, production is also required when perform headless install
-    optionalDependencies: opts.production !== false,
+    optionalDependencies: true,
   }
   await mutateModulesInSingleProject({
     manifest: {},
