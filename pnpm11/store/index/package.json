@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/store.file-mode": "workspace:*",
     "msgpackr": "catalog:"
   },
   "devDependencies": {

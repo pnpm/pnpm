@@ -9525,6 +9525,9 @@ importers:
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../controller-types
+      '@pnpm/store.file-mode':
+        specifier: workspace:*
+        version: link:../file-mode
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -9919,11 +9922,23 @@ importers:
         specifier: 'catalog:'
         version: 0.32.0
 
+  pnpm11/store/file-mode:
+    devDependencies:
+      '@pnpm/store.file-mode':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.19
+
   pnpm11/store/index:
     dependencies:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/store.file-mode':
+        specifier: workspace:*
+        version: link:../file-mode
       msgpackr:
         specifier: 'catalog:'
         version: 2.1.0
