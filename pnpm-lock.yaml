@@ -8751,6 +8751,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@pnpm/workspace.project-manifest-reader':
+        specifier: workspace:*
+        version: link:../../workspace/project-manifest-reader
       '@pnpm/workspace.projects-filter':
         specifier: workspace:*
         version: link:../../workspace/projects-filter

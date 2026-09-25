@@ -2,6 +2,7 @@ use crate::{
     State,
     cli_args::{
         install::{InstallArgs, NodeLinkerArg, resolve_bool_override},
+        package_manager::read_root_manifest,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
@@ -13,6 +14,7 @@ use lockfile::{
     load_deploy_lockfile, manifest_dependency_names,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use package_manager::{inherit_package_manager, write_inherited_package_manager};
 use peers::{
     bind_singleton_peers, deploy_peer_edges, omit_peers_of_excluded_dependencies,
     prune_deploy_lockfile_graph,
@@ -142,6 +144,7 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
+    engine_pin_manifest: Option<Value>,
 }
 
 impl SelectedProject {
@@ -216,7 +219,9 @@ impl DeployArgs {
         deploy_dir: &Path,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        apply_deploy_hook(&deploy_dir.join("package.json"))?;
+        let manifest_path = deploy_dir.join("package.json");
+        apply_deploy_hook(&manifest_path)?;
+        write_inherited_package_manager(&manifest_path, selected.engine_pin_manifest.as_ref())?;
         let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),
@@ -280,7 +285,7 @@ impl DeployArgs {
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
-        let deploy_files = create_deploy_files(
+        let mut deploy_files = create_deploy_files(
             &lockfile,
             selected,
             &project_id,
@@ -289,6 +294,7 @@ impl DeployArgs {
             config,
             &dependency_groups,
         )?;
+        inherit_package_manager(&mut deploy_files.manifest, selected.engine_pin_manifest.as_ref());
         write_deploy_files(deploy_dir, &deploy_files)?;
         // Boxed for the same large-future reason as the legacy path above.
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
@@ -344,7 +350,11 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject { project, projects_by_path })
+    Ok(SelectedProject {
+        project,
+        projects_by_path,
+        engine_pin_manifest: read_root_manifest(workspace_dir),
+    })
 }
 
 /// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
@@ -398,3 +408,5 @@ mod lockfile;
 mod install;
 
 mod workspace_manifest;
+
+mod package_manager;
