@@ -1,7 +1,7 @@
 //! `pnpm audit <pkg>...`: audit packages by name, without a project.
 
 use super::{
-    AuditArgs, AuditError, AuditOutcome, Config, DependencyGroup, IntoDiagnostic, Path,
+    AuditArgs, AuditError, AuditOutcome, Config, DependencyGroup, Include, IntoDiagnostic, Path,
     RangeSpecStyle, State, correct_inferred_patched_versions,
 };
 use crate::cli_args::{
@@ -42,26 +42,28 @@ impl AuditArgs {
             &SupportedArchitecturesArgs::default(),
         )?;
         let config: &'static Config = config;
-        // `--dev` audits the packages as `pnpm add --save-dev` would add them.
+        let include = self.dependency_options.include(config);
+        // Saved into a group the audit includes, so `--dev` audits the
+        // packages as `pnpm add --save-dev` would add them.
         let save_target =
-            if self.dependency_options.dev { DependencyGroup::Dev } else { DependencyGroup::Prod };
+            if include.dependencies { DependencyGroup::Prod } else { DependencyGroup::Dev };
         resolve_packages(&manifest_path, &self.params, save_target, config).await?;
         let state =
             State::init(manifest_path, config, true).wrap_err("initialize the audit state")?;
-        self.audit_resolved(&state, temp_dir.path()).await
+        self.audit_resolved(&state, temp_dir.path(), include).await
     }
 
     async fn audit_resolved(
         &self,
         state: &State,
         project_dir: &Path,
+        include: Include,
     ) -> miette::Result<AuditOutcome> {
         let config = state.config;
         let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
             .ok_or(AuditError::NoLockfile)?;
-        let include = self.dependency_options.include(config);
         let audit_level = self.advisories.effective_level(config.audit_level);
         let Some(mut report) =
             self.audit_lockfile(state, lockfile, include, audit_level, project_dir).await?
