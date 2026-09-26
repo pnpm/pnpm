@@ -338,13 +338,13 @@ fn ssh_publickey_hint(repo: &str, detail: &str) -> Option<String> {
         })
         .unwrap_or_default();
     Some(format!(
-        r#"Git refused the SSH key for {hostname} (Permission denied (publickey)).
+        r"Git refused the SSH key for {hostname} (Permission denied (publickey)).
 
 Make sure ssh-agent has a key for that host loaded:
 
     ssh-add -l
 
-If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.{rewrite}"#,
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.{rewrite}",
     ))
 }
 
