@@ -2,7 +2,7 @@ use super::{
     Arc, Package, PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
     PickPackageResult, PickState, PolicyMatch, RegistryPackageSpec, RegistryPackageSpecType,
     TrustPolicy, dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
-    pick_from_meta_fast, pick_stable_cached_range_version,
+    pick_from_meta_fast, pick_from_meta_offline, pick_stable_cached_range_version,
 };
 use crate::{errors::legacy_mirror_hint, mirror::get_legacy_pkg_mirror_path};
 
@@ -223,7 +223,17 @@ impl PickState<'_> {
             // without any network access.
             self.promote_unverified(ctx, opts, &meta);
             let (meta, picked) =
-                pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
+                pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
+            let (meta, picked) = pick_from_meta_offline(
+                ctx.store_view,
+                &self.cache_key,
+                &self.picker_opts,
+                spec,
+                meta,
+                picked,
+                opts.blocked_versions,
+            )
+            .await?;
             return Ok(Some(PickPackageResult { meta, picked_package: picked }));
         }
 

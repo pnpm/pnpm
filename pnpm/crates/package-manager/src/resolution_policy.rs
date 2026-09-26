@@ -201,7 +201,7 @@ fn create_configured_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_index: None,
+        store_view: None,
     })
 }
 
@@ -228,6 +228,7 @@ pub(crate) fn pick_package_context<'a>(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_view: None,
         metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
             meta_cache,
             fetch_locker,

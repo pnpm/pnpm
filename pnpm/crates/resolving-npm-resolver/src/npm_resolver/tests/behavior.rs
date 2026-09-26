@@ -416,7 +416,8 @@ async fn peek_manifest_from_store_bypasses_network_when_package_in_store() {
         )
         .unwrap();
 
-    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -488,7 +489,8 @@ async fn store_peek_bypassed_under_trust_policy_no_downgrade() {
         )
         .unwrap();
 
-    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -555,7 +557,8 @@ async fn store_peek_bypassed_when_version_guard_configured() {
         )
         .unwrap();
 
-    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -628,7 +631,8 @@ async fn store_peek_bypassed_when_cached_version_does_not_satisfy_spec() {
         )
         .unwrap();
 
-    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -697,7 +701,8 @@ async fn store_peek_bypassed_when_update_checksums_is_true() {
         )
         .unwrap();
 
-    resolver.store_index = Some(Arc::new(std::sync::Mutex::new(index)));
+    resolver.store_view =
+        Some(crate::OfflineStoreView::new(Arc::new(std::sync::Mutex::new(index))));
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),

@@ -1,11 +1,14 @@
 use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
-    PickPackageContext, PickPackageFromMetaOptions, PickPackageOptions, RegistryPackageSpec,
-    RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc, VersionSelectors,
-    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_stable_cached_range_version, pick_version_by_version_range, warn_missing_time_once,
+    PickPackageContext, PickPackageError, PickPackageFromMetaOptions, PickPackageOptions,
+    RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
+    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
+    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
+    warn_missing_time_once,
 };
+use crate::OfflineStoreView;
 use crate::PickPackageFromMetaError;
+use pnpm_store_dir::store_index_key;
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact
@@ -243,4 +246,53 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
         published_by: picker_opts.published_by,
         published_by_exclude: picker_opts.published_by_exclude,
     }
+}
+
+/// The offline adjustment: when the pick the preferences made names a version
+/// the store does not hold, the fetcher could only reject it with
+/// `ERR_PNPM_NO_OFFLINE_TARBALL`, so the pick is redone over the packument
+/// narrowed to the store-held versions; when nothing store-held satisfies the
+/// spec, the original pick returns so the existing failure surfaces unchanged
+/// ([pnpm/pnpm#10715](https://github.com/pnpm/pnpm/issues/10715)).
+/// An exact-version or tag pick names its target outright — only a range has
+/// older alternatives worth falling back to.
+pub(super) async fn pick_from_meta_offline(
+    store_view: Option<&OfflineStoreView>,
+    route_key: &str,
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: Arc<Package>,
+    picked: Option<Arc<PackageVersion>>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageError> {
+    let Some(picked_version) = picked.as_ref() else {
+        return Ok((meta, None));
+    };
+    if !matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+        return Ok((meta, picked));
+    }
+    let Some(store_view) = store_view else {
+        return Ok((meta, picked));
+    };
+    // Fast path: the pick the preferences already made is installable
+    // offline — one presence check, no re-pick.
+    let Some(integrity) = picked_version.dist.integrity.as_ref() else {
+        return Ok((meta, picked));
+    };
+    let picked_key = store_index_key(
+        &integrity.to_string(),
+        &format!("{}@{}", meta.name, picked_version.version),
+    );
+    if store_view.holds(&picked_key) {
+        return Ok((meta, picked));
+    }
+    let Some(narrowed) = store_view.narrowed(route_key, &meta).await else {
+        return Ok((meta, picked));
+    };
+    let (narrowed_meta, narrowed_pick) =
+        pick_from_meta(picker_opts, spec, narrowed, blocked_versions)?;
+    if let Some(adjusted) = narrowed_pick {
+        return Ok((narrowed_meta, Some(adjusted)));
+    }
+    Ok((meta, picked))
 }

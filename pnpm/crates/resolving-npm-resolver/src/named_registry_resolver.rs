@@ -196,7 +196,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let base_selectors = overlay_selectors
             .as_ref()
             .or_else(|| opts.version.preferred_versions.get(&spec.name));
-        let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
+        let ctx = self.metadata.pick_context(&self.format, self.cache_policy, None);
 
         let picked = pick_from_registry_with_guard(
             &ctx,

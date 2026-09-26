@@ -34,6 +34,7 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -86,6 +87,7 @@ async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -143,6 +145,7 @@ async fn stable_range_does_not_promote_meta_for_a_later_unproven_range() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -202,6 +205,7 @@ async fn blocked_dominant_version_falls_through_to_registry_pick() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -258,6 +262,7 @@ async fn pick_lowest_version_picks_min() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

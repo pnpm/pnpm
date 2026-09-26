@@ -51,10 +51,11 @@ pub use parse_bare_specifier::{
 };
 pub use pick_package::{
     CachedPackument, InMemoryPackageMetaCache, MetadataCachePolicy, MetadataPickRequest,
-    MetadataRequestContext, MirrorPersistError, PackageMetaCache, PackagePickPolicy,
-    PackumentFetchLocker, PickPackageContext, PickPackageError, PickPackageOptions,
-    PickPackageResult, PickedManifestCache, persist_meta_to_mirror, pick_package,
-    shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    MetadataRequestContext, MirrorPersistError, OfflineStoreView, PackageMetaCache,
+    PackagePickPolicy, PackumentFetchLocker, PickPackageContext, PickPackageError,
+    PickPackageOptions, PickPackageResult, PickedManifestCache, persist_meta_to_mirror,
+    pick_package, shared_in_memory_cache, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 pub use pick_package_from_meta::{
     PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,

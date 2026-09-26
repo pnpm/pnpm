@@ -63,6 +63,9 @@ mod errors;
 
 mod options;
 
+mod offline_store;
+pub use offline_store::OfflineStoreView;
+
 mod mirror_pick;
 
 mod mirror_persistence;
@@ -74,7 +77,10 @@ use release_age_upgrade::{
 };
 
 mod version_pick;
-use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, unverified_pick_is_safe};
+use version_pick::{
+    PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
+    unverified_pick_is_safe,
+};
 
 mod metadata_cache;
 
@@ -568,6 +574,26 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
+    let (meta, picked) = if ctx.cache_policy.offline {
+        pick_from_meta_offline(
+            ctx.store_view,
+            cache_key,
+            picker_opts,
+            spec,
+            meta,
+            picked,
+            opts.blocked_versions,
+        )
+        .await?
+    } else {
+        (meta, picked)
+    };
+    if !ctx.cache_policy.offline
+        && !registry_verified
+        && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())
+    {
+        return Ok(None);
+    }
     if !ctx.cache_policy.offline
         && !registry_verified
         && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())
