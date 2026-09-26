@@ -241,6 +241,7 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -307,6 +308,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 strict_pkg_content_check: true,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: None,
             },
 
             requester: "",
@@ -348,6 +350,7 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
                 strict_pkg_content_check: true,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: None,
             },
 
             requester: "",
@@ -404,6 +407,7 @@ async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",

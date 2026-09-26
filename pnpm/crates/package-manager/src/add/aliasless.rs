@@ -151,6 +151,7 @@ fn aliasless_tarball_resolver(
                 index: None,
                 verify_integrity: config.verify_store_integrity,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
+                fallback_dir: None,
             },
         }),
     }

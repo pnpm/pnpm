@@ -301,6 +301,7 @@ impl WritePackageForPatch<'_> {
                 strict_pkg_content_check: self.config.strict_store_pkg_content_check,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: self.config.fallback_store(),
             },
 
             requester: "",

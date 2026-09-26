@@ -337,6 +337,7 @@ impl ResolverChainInputs<'_> {
                     index: self.store.index.cloned(),
                     verify_integrity: self.config.verify_store_integrity,
                     verified_files_cache: Arc::clone(self.store.verified_files_cache),
+                    fallback_dir: self.config.fallback_store(),
                 },
             }),
         }

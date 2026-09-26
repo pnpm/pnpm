@@ -26,6 +26,7 @@ mod download;
 mod error;
 mod extract;
 mod extraction_task;
+mod fallback_store;
 mod fetch_for_resolution;
 mod ingestion;
 mod local_tarball;

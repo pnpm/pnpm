@@ -216,6 +216,7 @@ impl TarballPrefetcher {
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 prefetched_cas_paths: None,
+                fallback_dir: config.fallback_store(),
             },
             fetching: PrefetchHttpClient::new(config, http_client, auth_override),
         }

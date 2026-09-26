@@ -2,8 +2,9 @@ use crate::{
     ArchiveStoreProjection, CachedCasPaths, FetchedTarball, IgnoreEntryFilter,
     SharedReportedProgressKeys, TarballError, apply_append_manifest, apply_placeholder_manifest,
     download::{download_priority, fetch_and_extract_with_retry, store_index_cache_key},
-    emit_progress_found_in_store, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
-    local_file_tarball_path,
+    emit_progress_found_in_store,
+    fallback_store::import_from_fallback_store,
+    load_cached_cas_paths, load_legacy_synthesized_cas_paths, local_file_tarball_path,
     zip_archive::fetch_and_extract_zip_with_retry,
 };
 use pnpm_reporter::Reporter;
@@ -47,6 +48,9 @@ impl ArchiveIngestion<'_> {
         &self,
     ) -> Result<CachedCasPaths, TarballError> {
         if let Some(cached) = self.load_cache::<Reporter>().await? {
+            return Ok(cached);
+        }
+        if let Some(cached) = self.import_from_fallback_store::<Reporter>().await? {
             return Ok(cached);
         }
         self.fetch::<Reporter>(false).await
@@ -117,6 +121,35 @@ impl ArchiveIngestion<'_> {
         self.project_files(&mut paths, &mut index)?;
         self.queue_index_row(self.cache_key(), index);
         Ok(paths)
+    }
+
+    async fn import_from_fallback_store<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<Option<CachedCasPaths>, TarballError> {
+        let (Some(fallback_dir), Some(cache_key)) = (self.store.fallback_dir, self.cache_key())
+        else {
+            return Ok(None);
+        };
+        let Some(imported) = import_from_fallback_store::<Reporter>(
+            fallback_dir,
+            self.store.dir,
+            cache_key.clone(),
+            self.store_projection.package_content_check(self.store.strict_pkg_content_check),
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+        tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Copied from the fallback store — skipping download");
+        emit_progress_found_in_store::<Reporter>(
+            self.package.id,
+            self.requester,
+            self.progress_reported
+                .as_ref()
+                .map(|keys| (keys, cache_key.as_str())),
+        );
+        self.queue_index_row(Some(cache_key), imported.row);
+        Ok(Some(imported.cached))
     }
 
     async fn load_legacy_cache<Reporter: self::Reporter>(

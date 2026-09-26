@@ -168,6 +168,7 @@ async fn ingest_benchmark_package(
             strict_pkg_content_check: true,
             verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
         package: pnpm_tarball::TarballPackage {
             integrity: Some(&package.integrity),

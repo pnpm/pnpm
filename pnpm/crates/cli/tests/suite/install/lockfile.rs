@@ -892,3 +892,86 @@ fn a_dev_install_records_every_group_and_materializes_only_development() {
         1,
     );
 }
+
+/// <https://github.com/pnpm/pnpm/issues/3392>
+#[cfg(unix)]
+#[test]
+fn fallback_store_dir_supplies_packages_missing_from_the_store() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        store_dir: fallback_store_dir,
+        npmrc_path,
+        mock_instance,
+        ..
+    } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write to package.json");
+
+    eprintln!("Populating the future fallback store...");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    set_dir_modes(&fallback_store_dir, 0o555);
+
+    eprintln!("Pointing storeDir at an empty store with the populated one as fallback...");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path)
+        .expect("read pnpm-workspace.yaml")
+        .replace(
+            "storeDir: ../pacquet-store",
+            "storeDir: ../primary-store\nfallbackStoreDir: ../pacquet-store",
+        );
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    let npmrc = fs::read_to_string(&npmrc_path)
+        .expect("read .npmrc")
+        .replace("store-dir=../pacquet-store", "store-dir=../primary-store");
+    fs::write(&npmrc_path, npmrc).expect("write .npmrc");
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .output()
+        .expect("run pacquet install");
+    set_dir_modes(&fallback_store_dir, 0o755);
+    assert!(
+        output.status.success(),
+        "an offline install must be served by the fallback store: stderr={}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let bin_manifest =
+        workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent/package.json");
+    assert!(bin_manifest.is_file(), "the dependency must be materialized");
+    let primary_store = root
+        .path()
+        .join("primary-store")
+        .join(STORE_VERSION);
+    assert!(
+        primary_store.join("index.db").is_file(),
+        "the copied packages must be indexed in the primary store",
+    );
+    for sidecar in ["index.db-wal", "index.db-shm", "index.db-journal"] {
+        assert!(
+            !fallback_store_dir
+                .join(STORE_VERSION)
+                .join(sidecar)
+                .exists(),
+            "reading the fallback store must not create its {sidecar} sidecar",
+        );
+    }
+
+    drop((root, mock_instance));
+}

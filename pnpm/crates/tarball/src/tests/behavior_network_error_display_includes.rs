@@ -77,7 +77,7 @@ async fn packages_under_orgs_should_work() {
     let cas_files = IngestTarballToStore {
 fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false},
 package: crate::TarballPackage {integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
-store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
+store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None,fallback_dir: None},
 
 
 
@@ -166,6 +166,7 @@ async fn store_row_holding_another_package_fails_the_read() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -322,6 +323,7 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
                 strict_pkg_content_check: true,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: None,
             },
 
             requester: "",
@@ -447,6 +449,7 @@ async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -533,6 +536,7 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -587,6 +591,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -698,6 +703,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -779,6 +785,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",

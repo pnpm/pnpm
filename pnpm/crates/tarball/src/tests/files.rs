@@ -83,6 +83,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         // Any request that reaches the network here would fail the
@@ -167,6 +168,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: Some(&prefetched),
+            fallback_dir: None,
         },
 
         // No SQLite handle: any fall-through to the per-snapshot
@@ -528,6 +530,7 @@ async fn falls_through_when_cafs_file_missing() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -607,6 +610,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",
@@ -718,6 +722,7 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",

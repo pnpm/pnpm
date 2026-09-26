@@ -488,6 +488,17 @@ impl Config {
             (self.node_linker == NodeLinker::Hoisted).then_some(true);
     }
 
+    /// The store to copy missing packages from. `None` under
+    /// [`frozen_store`](Self::frozen_store), which forbids writing the
+    /// copies into [`store_dir`](Self::store_dir), and when the fallback
+    /// is `store_dir` itself.
+    #[must_use]
+    pub fn fallback_store(&self) -> Option<&StoreDir> {
+        self.fallback_store_dir
+            .as_deref()
+            .filter(|fallback| !self.frozen_store && *fallback != &self.store_dir)
+    }
+
     /// Restore the smart default store after a higher-precedence config
     /// source explicitly clears `storeDir`.
     pub fn reset_store_dir_to_default<Sys>(&mut self, start_dir: &Path)

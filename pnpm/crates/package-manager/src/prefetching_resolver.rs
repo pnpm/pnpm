@@ -428,6 +428,7 @@ impl PrefetchStoreRefs<'_> {
             verify_integrity: config.verify_store_integrity,
             strict_pkg_content_check: config.strict_store_pkg_content_check,
             prefetched_cas_paths: None,
+            fallback_dir: config.fallback_store(),
         }
     }
 }
