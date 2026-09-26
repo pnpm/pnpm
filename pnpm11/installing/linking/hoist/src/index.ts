@@ -540,6 +540,8 @@ function hoistGraph<T extends string> (
       for (const [childAlias, childNodeId] of Object.entries<T>(depNode.children)) {
         const privateRootDependency = opts.privateRootAliases.has(childAlias)
         if (privateRootDependency && currentSpecifiers.get(childAlias) !== childNodeId) continue
+        const node = opts.graph[childNodeId as T]
+        if (privateRootDependency && node?.depPath != null && opts.skipped.has(node.depPath)) continue
         const hoist = privateRootDependency ? 'private' : opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -551,7 +553,6 @@ function hoistGraph<T extends string> (
           hoistedDependenciesByNodeId.set(childNodeId, {})
         }
         hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
-        const node = opts.graph[childNodeId as T]
         if (node?.depPath == null || opts.skipped.has(node.depPath)) {
           continue
         }

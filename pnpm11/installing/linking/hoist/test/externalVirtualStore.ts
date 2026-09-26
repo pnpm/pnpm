@@ -9,6 +9,41 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
 
+test('does not link skipped root dependencies into an external virtual store', async () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-external-hoist-')))
+  const virtualStoreDir = path.join(root, 'store')
+  const depPath = '@types/fixture@1.0.0' as DepPath
+  try {
+    await hoist({
+      graph: {
+        [depPath]: {
+          dir: path.join(virtualStoreDir, '@types+fixture@1.0.0/node_modules/@types/fixture'),
+          children: {},
+          optionalDependencies: new Set(),
+          hasBin: false,
+          name: '@types/fixture',
+          depPath,
+        },
+      },
+      directDepsByImporterId: {
+        ['.' as ProjectId]: new Map([['@types/fixture', depPath]]),
+      },
+      skipped: new Set([depPath]),
+      privateHoistPattern: ['*'],
+      publicHoistPattern: [],
+      privateHoistedModulesDir: path.join(virtualStoreDir, 'node_modules'),
+      publicHoistedModulesDir: path.join(root, 'project/node_modules'),
+      virtualStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(() => fs.lstatSync(path.join(virtualStoreDir, 'node_modules/@types/fixture')))
+      .toThrow(expect.objectContaining({ code: 'ENOENT' }))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test.each([
   { store: 'external', privatePattern: ['*'], publicPattern: [], resolves: true },
   { store: 'internal', privatePattern: ['*'], publicPattern: [], resolves: true },
