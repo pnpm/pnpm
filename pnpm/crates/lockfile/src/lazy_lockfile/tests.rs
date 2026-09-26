@@ -383,6 +383,46 @@ fn empty_and_env_only_files_count_as_absent() {
     );
 }
 
+#[test]
+fn a_detached_head_candidate_counts_as_the_wanted_lockfile() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // No shared lockfile; only the branch the checked-out commit belongs
+    // to carries one.
+    fs::write(dir.path().join("pnpm-lock.feature.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("write branch lockfile");
+
+    let selection = WantedLockfileSelection {
+        branch_lockfile_candidates: vec!["pnpm-lock.feature.yaml".to_owned()],
+        ..WantedLockfileSelection::default()
+    };
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
+    assert!(
+        lazy.is_loaded_or_on_disk(),
+        "a candidate's lockfile stands in for the absent shared one",
+    );
+}
+
+#[test]
+fn an_attached_branch_keeps_the_single_file_existence_check() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // Only the shared lockfile is on disk; the checked-out branch has no
+    // lockfile of its own yet.
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write shared lockfile");
+
+    let selection = WantedLockfileSelection {
+        file_name: "pnpm-lock.feature.yaml".to_owned(),
+        ..WantedLockfileSelection::default()
+    };
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
+    assert!(
+        !lazy.is_loaded_or_on_disk(),
+        "the branch's own lockfile is the only one that counts on a branch",
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn unreadable_lockfile_counts_as_present() {
