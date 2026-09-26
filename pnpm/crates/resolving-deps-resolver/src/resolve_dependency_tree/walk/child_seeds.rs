@@ -107,6 +107,8 @@ pub(super) struct ChildSeedScope<'s> {
     pub(super) direct_versions: Option<Arc<super::super::workspace_ctx::DirectDepVersions>>,
     pub(super) declaring_dir: Option<Arc<Path>>,
     pub(super) parent_is_workspace: bool,
+    /// See [`ChildEdge::parent_is_directory`].
+    pub(super) parent_is_directory: bool,
 }
 
 impl<'s> ChildSeedScope<'s> {
@@ -127,6 +129,10 @@ impl<'s> ChildSeedScope<'s> {
                 .map(Arc::clone),
             declaring_dir: declaring_manifest_dir(ctx, &pending.result),
             parent_is_workspace: pending.result.resolved_via == "workspace",
+            parent_is_directory: matches!(
+                pending.result.resolution,
+                pnpm_lockfile::LockfileResolution::Directory(_),
+            ),
         }
     }
 }
@@ -154,6 +160,7 @@ where
             reuse: ReuseSource::Transitive { key: prior },
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
+            parent_is_directory: scope.parent_is_directory,
             parent_pkg_aliases: &node.children_pkg_aliases,
             parent_is_workspace: scope.parent_is_workspace,
         },

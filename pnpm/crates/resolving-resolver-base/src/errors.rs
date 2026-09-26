@@ -232,6 +232,21 @@ fn is_semver(candidate: &str) -> bool {
     candidate.parse::<node_semver::Version>().is_ok()
 }
 
+/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`: a `file:` directory or tarball points
+/// at a path that does not exist.
+///
+/// The dependency tree walker recovers this code to tell a specifier that
+/// names a path inside the declaring package — which pnpm never unpacks to a
+/// directory, so there is nothing to resolve it against — apart from a path
+/// the user got wrong, which has to keep failing the install.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Could not install from \"{path}\" as it does not exist.")]
+#[diagnostic(code(ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND))]
+pub struct LinkedPkgDirNotFoundError {
+    /// The path the specifier resolved to.
+    pub path: String,
+}
+
 /// `ERR_PNPM_GIT_RESOLVE_FAILED`: a git specifier's `git ls-remote` failed —
 /// the remote was unreachable, refused the request, or git could not be run —
 /// so the committish cannot be pinned to a commit.

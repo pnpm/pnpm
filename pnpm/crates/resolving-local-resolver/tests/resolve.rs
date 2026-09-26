@@ -704,7 +704,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
         .display()
         .to_string();
     match err {
-        ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
+        ResolveLocalError::LinkedPkgDirNotFound(err) => assert_eq!(err.path, expected),
         other => panic!("unexpected error: {other:?}"),
     }
 }
@@ -740,7 +740,7 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
         );
     }
     match err {
-        ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
+        ResolveLocalError::LinkedPkgDirNotFound(err) => assert_eq!(err.path, expected),
         other => panic!("unexpected error: {other:?}"),
     }
 }

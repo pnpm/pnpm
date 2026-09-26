@@ -291,6 +291,7 @@ export async function resolveDependencyTree<T> (
       currentDepth: 0,
       parentPkg: {
         installable: true,
+        isDirectoryResolution: true,
         nodeId: importer.id as unknown as NodeId,
         optional: false,
         pkgId: importer.id as unknown as PkgResolutionId,

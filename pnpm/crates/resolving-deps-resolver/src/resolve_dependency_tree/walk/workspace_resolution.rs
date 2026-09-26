@@ -1,8 +1,8 @@
 use super::{
-    Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PickPackageError,
-    PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError, ResolveError,
-    ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey,
-    WorkspaceFinalWantedKey, lock_recoverable, render_specifier,
+    Arc, CurrentPkg, GitResolveError, LinkedPkgDirNotFoundError, NoMatchingVersionError, Path,
+    PickPackageError, PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError,
+    ResolveError, ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, WantedDependency,
+    WantedKey, WorkspaceFinalWantedKey, lock_recoverable, render_specifier,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -418,6 +418,10 @@ pub(super) fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError
     };
     let err = match err.downcast::<GitResolveError>() {
         Ok(git) => return ResolveDependencyTreeError::GitResolve(*git),
+        Err(err) => err,
+    };
+    let err = match err.downcast::<LinkedPkgDirNotFoundError>() {
+        Ok(linked) => return ResolveDependencyTreeError::LinkedPkgDirNotFound(*linked),
         Err(err) => err,
     };
     match err.downcast::<PickPackageError>() {

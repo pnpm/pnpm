@@ -12,7 +12,9 @@ use pnpm_package_manifest::{
     PackageManifestError, find_parent_publish_manifest, safe_read_package_json_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{
+    LatestInfo, LatestQuery, LinkedPkgDirNotFoundError, PkgResolutionId, ResolveResult,
+};
 use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 
 use crate::parse_bare_specifier::{
@@ -122,14 +124,12 @@ pub enum ResolveLocalError {
     /// `path:`; reserved for future additions.
     Spec(#[error(source)] LocalSpecError),
 
-    /// `file:` directory or tarball points at a path that doesn't
-    /// exist. Carries the `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code.
-    #[display("Could not install from \"{path}\" as it does not exist.")]
-    #[diagnostic(code(ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND))]
-    LinkedPkgDirNotFound {
-        #[error(not(source))]
-        path: String,
-    },
+    /// `file:` directory or tarball points at a path that doesn't exist.
+    /// Carries the `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code, which the
+    /// dependency tree walker recovers to recognise a specifier that names
+    /// a path inside the declaring package.
+    #[diagnostic(transparent)]
+    LinkedPkgDirNotFound(#[error(source)] LinkedPkgDirNotFoundError),
 
     /// `<spec.fetchSpec>` exists but isn't a directory (ENOTDIR).
     /// Carries the `ERR_PNPM_NOT_PACKAGE_DIRECTORY` code.
@@ -311,9 +311,9 @@ async fn resolve_local_tarball(
     } = match read_local_tarball_metadata(&spec.fetch_spec).await {
         Ok(metadata) => metadata,
         Err(err) if is_missing_tarball(&err) => {
-            return Err(ResolveLocalError::LinkedPkgDirNotFound {
+            return Err(ResolveLocalError::LinkedPkgDirNotFound(LinkedPkgDirNotFoundError {
                 path: spec.fetch_spec.display().to_string(),
-            });
+            }));
         }
         Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
     };
@@ -370,9 +370,9 @@ fn synthesize_fallback_manifest(
     let metadata = std::fs::metadata(&spec.fetch_spec);
     if matches!(&metadata, Err(err) if err.kind() == std::io::ErrorKind::NotFound) {
         if spec.id.as_str().starts_with("file:") {
-            return Err(ResolveLocalError::LinkedPkgDirNotFound {
+            return Err(ResolveLocalError::LinkedPkgDirNotFound(LinkedPkgDirNotFoundError {
                 path: spec.fetch_spec.display().to_string(),
-            });
+            }));
         }
         // Warn via `tracing::warn!` until pacquet's reporter grows a
         // generic `pnpm:logger` channel.
