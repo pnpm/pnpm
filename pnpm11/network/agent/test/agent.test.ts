@@ -112,7 +112,7 @@ test('should return the correct client certificates', () => {
     key: 'key',
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
@@ -132,7 +132,7 @@ test('should not return client certificates for a different host', () => {
   expect(agent).toEqual({
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
@@ -158,7 +158,7 @@ test('scoped certificates override global certificates', () => {
     key: 'scoped-key',
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
@@ -181,7 +181,7 @@ test('select correct client certificates when host has a port', () => {
     key: 'key',
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
@@ -204,7 +204,7 @@ test('select correct client certificates when host has a path', () => {
     key: 'key',
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
@@ -227,8 +227,20 @@ test('select correct client certificates when host has a path and the cert conta
     key: 'key',
     localAddress: undefined,
     maxSockets: 50,
-    rejectUnauthorized: undefined,
+    rejectUnauthorized: true,
     timeout: 0,
     __type: 'https',
   })
+})
+
+test('an omitted strictSsl does not reuse the agent created for strictSsl: false', () => {
+  expect(getAgent('https://strict-ssl.test/', { strictSsl: false })).toHaveProperty('rejectUnauthorized', false)
+  expect(getAgent('https://strict-ssl.test/', {})).toHaveProperty('rejectUnauthorized', true)
+})
+
+test('agents with different connection settings are not shared', () => {
+  expect(getAgent('https://sockets.test/', { maxSockets: 1 })).toHaveProperty('maxSockets', 1)
+  expect(getAgent('https://sockets.test/', { maxSockets: 2 })).toHaveProperty('maxSockets', 2)
+  expect(getAgent('https://timeout.test/', { timeout: 1 })).toHaveProperty('timeout', 2)
+  expect(getAgent('https://timeout.test/', { timeout: 2 })).toHaveProperty('timeout', 3)
 })

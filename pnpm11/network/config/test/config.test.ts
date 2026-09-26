@@ -41,3 +41,12 @@ describe('pickSettingByUrl', () => {
     )
   })
 })
+
+test('returns a matching setting whose value is falsy', () => {
+  expect(pickSettingByUrl({ '//example.com/': false }, 'https://example.com/foo')).toBe(false)
+  expect(pickSettingByUrl({ 'https://example.com/foo': '' }, 'https://example.com/foo')).toBe('')
+})
+
+test('keeps the path of a URL with a port and a query when matching without the port', () => {
+  expect(pickSettingByUrl({ '//example.com/path/': 'PathSetting' }, 'https://example.com:8080/path?a=1')).toBe('PathSetting')
+})

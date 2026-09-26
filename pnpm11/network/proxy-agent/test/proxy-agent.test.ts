@@ -2,6 +2,8 @@ import { expect, test } from '@jest/globals'
 import { getProxyAgent } from '@pnpm/network.proxy-agent'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 
+type HttpProxyAgentInternals = HttpsProxyAgentInternals
+
 interface HttpsProxyAgentInternals {
   connectOpts: unknown
   proxy: URL
@@ -84,4 +86,30 @@ test('proxy credentials that are not URL-encoded are rejected', () => {
     ...OPTS,
   }
   expect(() => getProxyAgent('https://foo.com/bar', opts)).toThrow("Couldn't parse proxy URL")
+})
+
+test('an omitted strictSsl does not reuse the proxy agent created for strictSsl: false', () => {
+  const httpsProxy = 'https://strict-ssl.proxy:1234'
+  const insecure = getProxyAgent('https://foo.com/bar', { httpsProxy, strictSsl: false }) as unknown as HttpsProxyAgentInternals
+  const secure = getProxyAgent('https://foo.com/bar', { httpsProxy }) as unknown as HttpsProxyAgentInternals
+  expect(insecure.connectOpts).toHaveProperty('rejectUnauthorized', false)
+  expect(secure.connectOpts).toHaveProperty('rejectUnauthorized', true)
+})
+
+test('proxy agents with different connection settings are not shared', () => {
+  const httpsProxy = 'https://settings.proxy:1234'
+  const getConnectOpts = (opts: { maxSockets?: number, timeout?: number }) =>
+    (getProxyAgent('https://foo.com/bar', { httpsProxy, ...opts }) as unknown as HttpsProxyAgentInternals).connectOpts
+  expect(getConnectOpts({ maxSockets: 1 })).toHaveProperty('maxSockets', 1)
+  expect(getConnectOpts({ maxSockets: 2 })).toHaveProperty('maxSockets', 2)
+  expect(getConnectOpts({ timeout: 1 })).toHaveProperty('timeout', 2)
+  expect(getConnectOpts({ timeout: 2 })).toHaveProperty('timeout', 3)
+})
+
+test('an http: destination behind an https: proxy does not reuse the agent created for strictSsl: false', () => {
+  const httpsProxy = 'https://http-destination.proxy:1234'
+  const insecure = getProxyAgent('http://foo.com/bar', { httpProxy: httpsProxy, strictSsl: false }) as unknown as HttpProxyAgentInternals
+  const secure = getProxyAgent('http://foo.com/bar', { httpProxy: httpsProxy }) as unknown as HttpProxyAgentInternals
+  expect(insecure.connectOpts).toHaveProperty('rejectUnauthorized', false)
+  expect(secure.connectOpts).toHaveProperty('rejectUnauthorized', true)
 })
