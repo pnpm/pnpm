@@ -1554,9 +1554,10 @@ export async function mutateModules (
     async function getHookGovernedAdds (
       project: Pick<InstallSomeProject, 'dependencySelectors' | 'manifest' | 'originalManifest' | 'peer' | 'peerAliases' | 'rootDir' | 'targetDependenciesField'>
     ): Promise<{ superseded?: Map<string, string>, removed?: Set<string> } | undefined> {
-      const hooks = opts.readPackageHook == null
+      const hook = opts.projectReadPackageHook
+      const hooks = hook == null
         ? []
-        : Array.isArray(opts.readPackageHook) ? opts.readPackageHook : [opts.readPackageHook]
+        : Array.isArray(hook) ? hook : [hook]
       if (hooks.length === 0) return undefined
       const requestedByAlias = new Map<string, string | undefined>()
       for (const selector of project.dependencySelectors) {

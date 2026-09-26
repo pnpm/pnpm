@@ -846,6 +846,32 @@ fn frozen_lockfile_accepts_a_peer_package_extensions_injected() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn built_in_compat_extensions_do_not_apply_to_workspace_projects() {
+    let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "vue-loader", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let importer = &wanted.importers["."];
+    assert!(importer.dependencies.as_ref().is_none_or(std::collections::HashMap::is_empty));
+    assert!(importer.dev_dependencies.as_ref().is_none_or(std::collections::HashMap::is_empty));
+    assert!(
+        importer.optional_dependencies.as_ref().is_none_or(std::collections::HashMap::is_empty),
+    );
+}
+
 /// `@pnpm.e2e/has-optional-peer-also-in-deps` depends on
 /// `@pnpm.e2e/bravo-dep@1.0.0` and also declares it as an optional peer,
 /// the shape vite uses for `lightningcss`.

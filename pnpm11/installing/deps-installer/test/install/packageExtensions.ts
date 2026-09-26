@@ -704,6 +704,22 @@ test('ranged packageExtensions selectors do not match a local directory with no 
   })
 })
 
+test('built-in compatibility database extensions are not applied to workspace project manifests', async () => {
+  const project = prepareEmpty()
+
+  const manifest = {
+    name: 'vue-loader',
+    version: '0.0.0',
+  }
+
+  await install(manifest, testDefaults())
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies).toBeUndefined()
+  expect(lockfile.importers['.'].devDependencies).toBeUndefined()
+  expect(lockfile.importers['.'].optionalDependencies).toBeUndefined()
+})
+
 function createTarGz (entries: Array<{ name: string, content: string | Buffer }>): Buffer {
   const blocks: Buffer[] = []
   for (const entry of entries) {

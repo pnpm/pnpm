@@ -103,6 +103,7 @@ export interface GetContextOptions {
   modulesDir?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   readPackageHook?: ReadPackageHook
+  projectReadPackageHook?: ReadPackageHook
   include?: IncludedDependencies
   registriesByScope: RegistriesByScope
   storeDir: string
@@ -141,10 +142,11 @@ export async function getContext (
       prefix: project.rootDir,
     })
   }
-  if (opts.readPackageHook != null) {
+  const readPackageHook = 'projectReadPackageHook' in opts ? opts.projectReadPackageHook : opts.readPackageHook
+  if (readPackageHook != null) {
     await Promise.all(importersContext.projects.map(async (project) => {
       project.originalManifest = project.manifest
-      project.manifest = await opts.readPackageHook!(clone(project.manifest), project.rootDir)
+      project.manifest = await readPackageHook(clone(project.manifest), project.rootDir)
     }))
   }
 
@@ -261,6 +263,7 @@ export async function getContextForSingleImporter (
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     modulesDir?: string
     readPackageHook?: ReadPackageHook
+    projectReadPackageHook?: ReadPackageHook
     include?: IncludedDependencies
     dir: string
     registriesByScope: RegistriesByScope
@@ -322,7 +325,8 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
-  const hookedManifest = await opts.readPackageHook?.(manifest) ?? manifest
+  const readPackageHook = 'projectReadPackageHook' in opts ? opts.projectReadPackageHook : opts.readPackageHook
+  const hookedManifest = await readPackageHook?.(manifest) ?? manifest
   const ctx: PnpmSingleContext = {
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({
