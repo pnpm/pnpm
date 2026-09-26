@@ -30,7 +30,7 @@ pub enum CacheCommand {
     /// Deletes registry metadata cache directories that this version of pnpm
     /// can no longer read.
     ///
-    /// pnpm 11.26 and earlier, and pnpm 12.3 and earlier, still read these
+    /// pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these
     /// directories. Projects that use those versions refetch registry metadata
     /// after a prune, and their offline installs fail until they do.
     Prune {
@@ -272,7 +272,7 @@ impl CacheCommand {
 /// The cache directory is shared machine-wide, and `packageManager` lets each
 /// project pick its own pnpm, so a version from before the key change may still
 /// be reading what prune lists.
-const OLDER_VERSIONS_READ_PRUNED_DIRS: &str = "pnpm 11.26 and earlier, and pnpm 12.3 and earlier, still read these directories. Projects that use those versions refetch registry metadata after a prune, and their offline installs fail until they do.";
+const OLDER_VERSIONS_DEPEND_ON_PRUNED_DIRS: &str = "pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these directories. Projects that use those versions refetch registry metadata after a prune, and their offline installs fail until they do.";
 
 /// What one `pnpm cache prune` managed and what it could not.
 #[derive(Default)]
@@ -368,7 +368,7 @@ impl PruneOutcome {
         }
         if !self.pruned.is_empty() {
             println!("{}", self.pruned.join("\n"));
-            eprintln!("{OLDER_VERSIONS_READ_PRUNED_DIRS}");
+            eprintln!("{OLDER_VERSIONS_DEPEND_ON_PRUNED_DIRS}");
         }
         if self.failures.is_empty() {
             return Ok(());

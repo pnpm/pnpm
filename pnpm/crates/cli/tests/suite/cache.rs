@@ -288,8 +288,8 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
         "the notice must agree in number with the one directory found, got: {stderr}",
     );
     assert!(
-        stderr.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, still read these"),
-        "the listing must warn that older versions still read it, got: {stderr}",
+        stderr.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these"),
+        "the listing must warn that older versions depend on it, got: {stderr}",
     );
 }
 
@@ -489,7 +489,7 @@ fn should_report_a_zero_count_on_a_dry_run_of_a_clean_cache() {
         "a dry run must say so even when it finds nothing, got: {stderr}",
     );
     assert!(
-        !stderr.contains("still read these"),
+        !stderr.contains("depend on these"),
         "nothing listed, nothing to warn about, got: {stderr}",
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "", "nothing to list on stdout");
