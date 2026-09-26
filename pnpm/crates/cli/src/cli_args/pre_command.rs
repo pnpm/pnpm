@@ -85,6 +85,7 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
+            printing_version: false,
             reporter: args.reporter_flags(),
             key_issues: key_issue_reporting(&args.command),
         },
@@ -94,9 +95,8 @@ pub(crate) fn pre_command_plan(
 }
 
 /// The `pnpm --version` path, which clap answers before a command is
-/// parsed. pnpm checks the package manager there too, but skips the runtime
-/// checks — printing the version must work in a project whose runtime pin
-/// the system cannot satisfy.
+/// parsed. Resolves a pnpm version pin when one is present, but skips
+/// runtime checks and mismatches naming other package managers.
 pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
@@ -107,6 +107,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
+            printing_version: true,
             reporter: SwitchInput::reporter_flags_from_version_argv(argv),
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.

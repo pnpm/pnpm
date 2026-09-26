@@ -715,6 +715,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         global: false,
         skip_pm_handling: false,
         check_runtimes: true,
+        printing_version: false,
         reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
         key_issues: KeyIssueReporting::Enforce,
     }

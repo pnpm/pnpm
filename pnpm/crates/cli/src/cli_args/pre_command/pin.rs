@@ -37,25 +37,11 @@ fn resolve_package_manager_pin(
         return Ok(PinOutcome::Sync(None));
     }
     let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
-    // Turning `manage-package-manager-versions` off is the user taking over
-    // version selection, so a pin that only asked pnpm to switch has nothing
-    // left to report. Corepack is the opposite case: it manages the version
-    // and picked the wrong one, so the mismatch is reported rather than
-    // switched.
+    if input.printing_version && pm.name != "pnpm" {
+        return Ok(PinOutcome::Sync(None));
+    }
     if switch_wanted && process_state.package_manager_switch_disabled {
-        // Which pnpm runs is the user's choice here; which one the lockfile
-        // records is still the project's, and a frozen install has to find it
-        // there (pnpm/pnpm#14575).
-        if input.global {
-            return Ok(PinOutcome::Sync(None));
-        }
-        return Ok(PinOutcome::Sync(env_lockfile_sync(
-            config,
-            root_manifest,
-            roots,
-            on_fail,
-            ReadEnvLockfile::NotYet,
-        )?));
+        return disabled_switch_outcome(input, config, roots, root_manifest, on_fail);
     }
     // Global state belongs to the pnpm the user invoked, not to the project,
     // so a global command never switches to the pinned pnpm (pnpm/pnpm#14531).
@@ -67,6 +53,25 @@ fn resolve_package_manager_pin(
         return switch_or_sync(resolution, root_manifest, on_fail);
     }
     check_package_manager(pm, on_fail, process_state, input.emit(config))?;
+    Ok(PinOutcome::Sync(env_lockfile_sync(
+        config,
+        root_manifest,
+        roots,
+        on_fail,
+        ReadEnvLockfile::NotYet,
+    )?))
+}
+
+fn disabled_switch_outcome(
+    input: &PreCommandInput,
+    config: &Config,
+    roots: &PinRoots,
+    root_manifest: &Value,
+    on_fail: PmOnFail,
+) -> miette::Result<PinOutcome> {
+    if input.global {
+        return Ok(PinOutcome::Sync(None));
+    }
     Ok(PinOutcome::Sync(env_lockfile_sync(
         config,
         root_manifest,

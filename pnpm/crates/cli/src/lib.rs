@@ -187,9 +187,6 @@ fn print_version(
 /// that pnpm, and recording the pin, both write, and a sandbox with a
 /// read-only home has nowhere to write — printing a version has to work
 /// there too, so the failure is reported and the running version answers.
-/// The checks themselves still fail the command: a project pinned to
-/// another package manager is not something a version string can stand in
-/// for.
 fn pinned_pnpm_printed_the_version(
     argv: &[OsString],
     child_argv: &[OsString],

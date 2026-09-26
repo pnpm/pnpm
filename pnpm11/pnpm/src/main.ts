@@ -143,10 +143,13 @@ export async function main (inputArgv: string[]): Promise<void> {
             // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
             // it only writes to the lockfile when the project opted in (via
             // `devEngines.packageManager`, or a v12+ `packageManager` pin).
-            checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
-            await tolerateWhenPrintingVersion(printingVersion, async () => {
-              await syncEnvLockfile(config, context)
-            })
+            const isHelpOrVersion = printingVersion || cliOptions.help === true || cmd === 'help'
+            if (!isHelpOrVersion || pm.name === 'pnpm') {
+              checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+              await tolerateWhenPrintingVersion(printingVersion, async () => {
+                await syncEnvLockfile(config, context)
+              })
+            }
           }
         }
       } else if (cmd === 'fetch' && !isExecutedByCorepack()) {
@@ -449,8 +452,9 @@ export async function main (inputArgv: string[]): Promise<void> {
  * `pnpm --version` must answer even where the pinned pnpm cannot be installed
  * or recorded: a sandbox with a read-only filesystem leaves pnpm nowhere to
  * write. The failure is reported and the running pnpm's version is printed
- * instead of the pinned one. Checks that reject the project outright, like a
- * pin naming another package manager, still fail the command.
+ * instead of the pinned one. Checks that reject the project outright for
+ * mutating commands, like a pin naming another package manager, are
+ * bypassed when printing the version.
  */
 async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () => Promise<void>): Promise<void> {
   try {
