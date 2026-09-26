@@ -3,14 +3,15 @@ use super::{
     CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs, CompletionServerArgs,
     ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs, DedupeArgs, DeployArgs,
     DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs, ExecArgs, FetchArgs,
-    FindHashArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs, InstallTestArgs, LaneArgs,
-    LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs, NotImplementedArgs, OutdatedArgs,
-    OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs, PeersArgs,
-    PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs,
-    RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs,
-    SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, UndeprecateArgs, UnlinkArgs,
-    UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhyArgs, WithArgs,
+    FindHashArgs, FundArgs, IgnoredBuildsArgs, ImportArgs, InitArgs, InstallArgs, InstallTestArgs,
+    LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs, LogoutArgs, NotImplementedArgs,
+    OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs, PatchRemoveArgs,
+    PeersArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs, PruneArgs, PublishArgs, RebuildArgs,
+    RemoveArgs, RepoArgs, RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs,
+    ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs,
+    StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs,
+    UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs,
+    WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -57,6 +58,8 @@ pub enum CliCommand {
     /// Check the licenses of the installed packages.
     #[clap(visible_aliases = ["licences"])]
     Licenses(LicensesArgs),
+    /// Retrieve the funding information of the installed packages.
+    Fund(FundArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// View registry information about a package.
@@ -311,6 +314,7 @@ impl CliCommand {
                 | CliCommand::Clean(_)
                 | CliCommand::Exec(_)
                 | CliCommand::External(_)
+                | CliCommand::Fund(_)
                 | CliCommand::Pkg(_)
                 | CliCommand::Purge(_)
                 | CliCommand::Restart(_)
