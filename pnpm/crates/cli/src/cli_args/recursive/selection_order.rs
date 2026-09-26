@@ -1,7 +1,16 @@
 use super::{RecursiveSelection, sequence_graph_by_project};
+use pnpm_workspace::GraphPkg;
+use pnpm_workspace_projects_graph::ProjectGraph;
 use std::path::PathBuf;
 
-impl RecursiveSelection<'_> {
+impl<'a> RecursiveSelection<'a> {
+    /// The full graph the sort resolves transitive edges through: `all` when
+    /// present, otherwise `selected`. See the `all` field for why `selected`
+    /// suffices when nothing narrowed the run.
+    pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
+        self.all.as_ref().unwrap_or(&self.selected)
+    }
+
     /// Sequence selected projects through the full workspace graph, using
     /// production-only edges for projects selected only by `--filter-prod`.
     pub fn sequenced_dirs(&self) -> Vec<PathBuf> {
