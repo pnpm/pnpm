@@ -11,7 +11,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, PackageExtension};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 

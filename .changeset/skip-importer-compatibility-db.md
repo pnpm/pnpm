@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-`pnpm update` no longer adds dependencies when a project's name and version match an entry in the built-in package compatibility database [#11700](https://github.com/pnpm/pnpm/issues/11700). User-configured package extensions continue to apply to project manifests.
+pnpm's built-in package compatibility database no longer applies to a project's own manifest. A project named like a published package, such as `vue-loader`, no longer gains dependencies on `pnpm install` or `pnpm update`. User-configured `packageExtensions` still apply to project manifests [#11700](https://github.com/pnpm/pnpm/issues/11700).

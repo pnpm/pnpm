@@ -270,6 +270,8 @@ test('update does not add compatibility peers to a dependency-free project', asy
   })
   expect(pkg.dependencies).toBeUndefined()
   expect(project.readLockfile().importers['.']).toStrictEqual({})
+
+  await execPnpm(['install', '--frozen-lockfile'])
 })
 
 test('recursive update --no-save', async () => {
