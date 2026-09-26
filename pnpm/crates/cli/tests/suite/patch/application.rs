@@ -1,6 +1,6 @@
 use super::{
     AddMockedRegistry, BINDING_GYP_DELETION_HUNK, CommandTempCwd, GYPFILE_FALSE_REMOVAL_PATCH,
-    GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH, IS_POSITIVE_PATCH,
+    GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH,
     IS_POSITIVE_POSTINSTALL_PATCH, MANIFEST_DELETION_PATCH, MARKER_PATCH, Path, Value,
     append_workspace_yaml_key, assert_patch_apply_failure, assert_patch_install_scenario, fs,
     is_positive_store_row, pacquet, patch_file_hash, read_installed_index, read_wanted_lockfile,
@@ -449,6 +449,20 @@ fn hoisted_patch_reaches_every_nested_copy_of_a_package() {
     drop((root, mock_instance));
 }
 
+/// Prepends a line to `index.js`. The hunk's context still matches, at an
+/// offset, on a copy that already carries the patch, so a second
+/// application duplicates the line instead of being rejected.
+const IS_POSITIVE_PREPEND_PATCH: &str = concat!(
+    "diff --git a/index.js b/index.js\n",
+    "--- a/index.js\n",
+    "+++ b/index.js\n",
+    "@@ -1,3 +1,4 @@\n",
+    "+// patched\n",
+    " 'use strict';\n",
+    " \n",
+    " module.exports = function (n) {\n",
+);
+
 /// Regression test for <https://github.com/pnpm/pnpm/issues/7565>.
 ///
 /// Under the hoisted linker, a workspace project's dependency whose
@@ -475,7 +489,7 @@ fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
     )
     .expect("write root package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PREPEND_PATCH)
         .expect("write patch file");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
@@ -507,7 +521,7 @@ fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
         .expect("write project package.json");
     }
 
-    let assert_patched_copies = |workspace: &std::path::Path| {
+    let assert_patched_copies = |workspace: &Path| {
         for project in ["pkg-a", "pkg-b"] {
             let nested = workspace
                 .join("packages")
@@ -541,12 +555,7 @@ fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
 
     // A reinstall that restores one wiped project's copy must patch that
     // copy from pristine files and leave the surviving copy untouched.
-    remove_dir_if_exists(
-        &workspace
-            .join("packages")
-            .join("pkg-a")
-            .join("node_modules"),
-    );
+    remove_dir_if_exists(&workspace.join("packages/pkg-a/node_modules"));
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     assert_patched_copies(&workspace);
 
@@ -559,6 +568,7 @@ fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
 fn install_level_exact_version_patch_that_does_not_apply_fails() {
     assert_patch_apply_failure("is-positive@3.1.0");
 }
+
 /// TS: `patch package should fail when the version range patch fails to
 /// apply` (`patch.ts:530`).
 #[test]
