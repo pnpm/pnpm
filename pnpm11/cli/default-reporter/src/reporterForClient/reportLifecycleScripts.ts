@@ -1,11 +1,12 @@
 import path from 'node:path'
 
 import type { LifecycleLog } from '@pnpm/core-loggers'
+import type { LogLevel } from '@pnpm/logger'
 import chalk from 'chalk'
 import cliTruncate from 'cli-truncate'
 import prettyTime from 'pretty-ms'
 import * as Rx from 'rxjs'
-import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
+import { buffer, filter, groupBy, map, mergeMap } from 'rxjs/operators'
 
 import { EOL } from '../constants.js'
 import { hlValue } from './outputConstants.js'
@@ -31,6 +32,8 @@ export function reportLifecycleScripts (
     appendOnly?: boolean
     aggregateOutput?: boolean
     hideLifecyclePrefix?: boolean
+    logLevel?: LogLevel
+    annotateOptionalFailure?: boolean
     cwd: string
     width: number
   }
@@ -40,10 +43,10 @@ export function reportLifecycleScripts (
   if (opts.appendOnly) {
     let lifecycle$ = log$.lifecycle
     if (opts.aggregateOutput) {
-      lifecycle$ = lifecycle$.pipe(aggregateOutput)
+      lifecycle$ = lifecycle$.pipe(aggregateOutput(opts.logLevel))
     }
 
-    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix)
+    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix, opts.annotateOptionalFailure)
     return lifecycle$.pipe(
       map((log: LifecycleLog) => Rx.of({
         msg: streamLifecycleOutput(log),
@@ -218,16 +221,17 @@ function highlightLastFolder (p: string): string {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean): (logObj: LifecycleLog) => string {
+function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean, annotateOptionalFailure = false): (logObj: LifecycleLog) => string {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix)
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix, annotateOptionalFailure)
 }
 
 function streamLifecycleOutput (
   colorByPkg: ColorByPkg,
   cwd: string,
   hideLifecyclePrefix: boolean,
+  annotateOptionalFailure: boolean,
   logObj: LifecycleLog
 ): string {
   const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
@@ -235,7 +239,7 @@ function streamLifecycleOutput (
     if (logObj.exitCode === 0) {
       return `${prefix}: Done`
     } else {
-      return `${prefix}: Failed`
+      return `${prefix}: Failed${annotateOptionalFailure && logObj.optional ? ' (skipped as optional)' : ''}`
     }
   }
   if (logObj['script']) {
@@ -283,19 +287,19 @@ function cutLine (line: string | undefined, maxLength: number): string {
   return cliTruncate(line, maxLength)
 }
 
-function aggregateOutput (source: Rx.Observable<LifecycleLog>): Rx.Observable<LifecycleLog> {
-  return source.pipe(
-    // The '\0' is a null character which delimits these strings. This works since JS doesn't use
-    // null-terminated strings.
-    groupBy((data) => `${data.depPath}\0${data.stage}`),
-    mergeMap(group => {
-      return group.pipe(
-        buffer(
-          group.pipe(filter(msg => 'exitCode' in msg))
-        )
-      )
-    }),
-    map(ar => Rx.from(ar)),
-    mergeAll()
+function aggregateOutput (logLevel: LogLevel | undefined): (source: Rx.Observable<LifecycleLog>) => Rx.Observable<LifecycleLog> {
+  return (source) => source.pipe(
+    // `pnpm -r exec` reports a project's manifest name as its depPath, so
+    // same-named projects differ only by wd.
+    groupBy((data) => `${data.depPath}\0${data.stage}\0${data.wd}`),
+    mergeMap(group => group.pipe(
+      buffer(group.pipe(filter(msg => 'exitCode' in msg))),
+      filter((messages) => {
+        if (logLevel == null || logLevel === 'info' || logLevel === 'debug') return true
+        const exit = messages.at(-1)
+        return exit != null && 'exitCode' in exit && exit.exitCode !== 0 && !(exit.optional === true && logLevel === 'error')
+      }),
+      mergeMap((messages) => Rx.from(messages))
+    ))
   )
 }
