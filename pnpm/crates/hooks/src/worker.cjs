@@ -3,6 +3,12 @@ let mod = null;
 let loadErr = null;
 let nextCallbackId = 0;
 const pendingCallbacks = new Map();
+class BadReadPackageResultError extends Error {
+  constructor(message) {
+    super(message + " Hook imported via " + pnpmfilePath);
+    this.code = "ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT";
+  }
+}
 async function ensureLoaded() {
   if (mod !== null || loadErr !== null) return;
   try { mod = await loadPnpmfile(pnpmfilePath); } catch (err) { loadErr = err && err.stack ? err.stack : String(err); }
@@ -152,21 +158,23 @@ async function handle(req) {
       pkg.optionalDependencies = pkg.optionalDependencies ?? {};
       pkg.peerDependencies = pkg.peerDependencies ?? {};
       const newPkg = await fn(pkg, context);
-      if (!newPkg) {
-        throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + pnpmfilePath);
+      if (!newPkg || typeof newPkg !== "object" || Array.isArray(newPkg)) {
+        throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
       }
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
-        const v = newPkg[dep];
-        if (v != null && (typeof v !== "object" || Array.isArray(v))) {
-          throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + pnpmfilePath);
-        }
-        for (const [name, range] of Object.entries(v ?? {})) {
-          if (typeof range !== "string") {
-            throw new Error("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property. Hook imported via " + pnpmfilePath);
-          }
-        }
+      validatePackageDependencies(newPkg);
+      let response;
+      let serializedPkg;
+      try {
+        response = JSON.stringify({ id, ok: newPkg });
+        serializedPkg = JSON.parse(response).ok;
+      } catch {
+        throw new BadReadPackageResultError("readPackage hook did not return a serializable package manifest object.");
       }
-      send({ ok: newPkg });
+      if (!serializedPkg || typeof serializedPkg !== "object" || Array.isArray(serializedPkg)) {
+        throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
+      }
+      validatePackageDependencies(serializedPkg);
+      process.stdout.write(response + '\n');
     } else if (req.hook === 'beforePacking') {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
@@ -179,11 +187,29 @@ async function handle(req) {
       send({ ok: res === undefined ? null : res });
     }
   } catch (err) {
-    send({ err: err && err.stack ? err.stack : String(err) });
+    if (err instanceof BadReadPackageResultError) {
+      send({ err: err.message, code: err.code });
+    } else {
+      send({ err: err && err.stack ? err.stack : String(err) });
+    }
   }
 }
 
 function describePackage(pkg) {
   if (typeof pkg.name !== "string" || !pkg.name) return "an unnamed package";
   return typeof pkg.version === "string" && pkg.version ? pkg.name + "@" + pkg.version : pkg.name;
+}
+
+function validatePackageDependencies(pkg) {
+  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    const v = pkg[dep];
+    if (v != null && (typeof v !== "object" || Array.isArray(v))) {
+      throw new BadReadPackageResultError("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
+    }
+    for (const [name, range] of Object.entries(v ?? {})) {
+      if (typeof range !== "string") {
+        throw new BadReadPackageResultError("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(pkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
+      }
+    }
+  }
 }

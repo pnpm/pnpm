@@ -48,7 +48,14 @@ pub enum HookError {
     Timeout(String, u64),
 
     #[display("Error during pnpmfile execution. pnpmfile: \"{pnpmfile}\". Error: \"{message}\".")]
-    Execution { pnpmfile: String, message: String },
+    Execution {
+        pnpmfile: String,
+        message: String,
+    },
+
+    BadReadPackageResult {
+        message: String,
+    },
 }
 
 /// Context provided to pnpmfile hooks.
