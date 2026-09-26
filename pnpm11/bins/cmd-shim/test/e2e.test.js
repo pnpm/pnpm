@@ -13,6 +13,56 @@ import { cmdShim } from '@pnpm/bins.cmd-shim'
 const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
 const describeOnPosix = process.platform === 'win32' ? describe.skip : describe
 
+describeOnWindows('CMD shims with Unicode paths', () => {
+  for (const codepage of [437, 936, 65001]) {
+    for (const exitCode of [0, 7]) {
+      test(`runs a Unicode target under CP ${codepage} and preserves exit ${exitCode}`, async () => {
+        const tempDir = temporaryDirectory()
+        try {
+          const targetDir = path.join(tempDir, '工具')
+          fs.mkdirSync(targetDir)
+          const target = path.join(targetDir, 'cli.js')
+          fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)))\nprocess.exit(Number(process.argv[4]))\n', 'utf8')
+          await cmdShim(target, path.join(tempDir, 'shim'))
+          fs.writeFileSync(path.join(tempDir, 'run.cmd'), [
+            '@echo off',
+            '@for /f "tokens=2 delims=:" %%a in (\'chcp\') do @set "original_codepage=%%a"',
+            `@chcp ${codepage}>nul`,
+            `@call shim.cmd "argument with spaces" "a&b" ${exitCode}`,
+            '@set "shim_exit=%errorlevel%"',
+            '@chcp',
+            '@chcp %original_codepage%>nul',
+            '@exit /b %shim_exit%',
+          ].join('\r\n') + '\r\n', 'utf8')
+          const result = spawnSync('cmd.exe', ['/d', '/c', 'run.cmd'], {
+            cwd: tempDir,
+            encoding: 'utf8',
+            windowsHide: true,
+            timeout: 30000,
+          })
+          assert.equal(result.status, exitCode, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
+          const [args, restoredCodepage] = result.stdout.trim().split(/\r?\n/)
+          assert.deepEqual(JSON.parse(args), ['argument with spaces', 'a&b', String(exitCode)])
+          assert.match(restoredCodepage, new RegExp(`\\b${codepage}\\b`))
+          if (codepage === 936) {
+            fs.writeFileSync(path.join(tempDir, 'exit-only.cmd'), `@shim.cmd "argument with spaces" "a&b" ${exitCode}\r\n`, 'utf8')
+            const shadowedResult = spawnSync('cmd.exe', ['/d', '/c', 'exit-only.cmd'], {
+              cwd: tempDir,
+              env: { ...process.env, ERRORLEVEL: '99' },
+              encoding: 'utf8',
+              windowsHide: true,
+              timeout: 30000,
+            })
+            assert.equal(shadowedResult.status, exitCode, `stdout: ${shadowedResult.stdout}\nstderr: ${shadowedResult.stderr}`)
+          }
+        } finally {
+          fs.rmSync(tempDir, { recursive: true, force: true })
+        }
+      })
+    }
+  }
+})
+
 describeOnWindows('create a command shim for a .exe file', () => {
   test('shim files', async (t) => {
     const tempDir = temporaryDirectory()
