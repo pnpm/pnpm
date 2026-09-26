@@ -117,25 +117,7 @@ impl StoreDir {
             projects.len(),
         );
 
-        // Canonicalize the links root once and pass it down. The
-        // mark walk compares every target's canonical form against
-        // this root, and canonicalising inside the per-entry loop
-        // would burn one extra syscall per visited symlink — wasteful
-        // on large trees where the answer is invariant.
-        let canonical_links = dunce::canonicalize(&links_dir).unwrap_or_else(|_| links_dir.clone());
-        let mut reachable: HashSet<PathBuf> = HashSet::new();
-        let mut visited: HashSet<PathBuf> = HashSet::new();
-        for project_dir in &projects {
-            for modules_dir in find_all_node_modules_dirs(project_dir) {
-                walk_symlinks_to_store(
-                    &modules_dir,
-                    &canonical_links,
-                    &mut reachable,
-                    &mut visited,
-                );
-            }
-        }
-
+        let reachable = mark_reachable_slots(&links_dir, &projects);
         // Projects without the global virtual store register too, and frozen
         // store installs don't, so no link from any registered project leaves
         // the slots' users as unknown as an empty registry does.
@@ -155,6 +137,25 @@ impl StoreDir {
         }
         Ok(())
     }
+}
+
+/// Every `<store_dir>/links` slot the registered projects link into.
+fn mark_reachable_slots(links_dir: &Path, projects: &[PathBuf]) -> HashSet<PathBuf> {
+    // Canonicalize the links root once and pass it down. The
+    // mark walk compares every target's canonical form against
+    // this root, and canonicalising inside the per-entry loop
+    // would burn one extra syscall per visited symlink — wasteful
+    // on large trees where the answer is invariant.
+    let canonical_links =
+        dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
+    let mut reachable: HashSet<PathBuf> = HashSet::new();
+    let mut visited: HashSet<PathBuf> = HashSet::new();
+    for project_dir in projects {
+        for modules_dir in find_all_node_modules_dirs(project_dir) {
+            walk_symlinks_to_store(&modules_dir, &canonical_links, &mut reachable, &mut visited);
+        }
+    }
+    reachable
 }
 
 /// Find every `node_modules/` directory under `project_dir`,
