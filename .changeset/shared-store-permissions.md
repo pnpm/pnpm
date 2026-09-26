@@ -1,4 +1,8 @@
 ---
+"@pnpm/bins.linker": patch
+"@pnpm/store.cafs": patch
+"@pnpm/store.file-mode": patch
+"@pnpm/store.index": patch
 "pacquet": patch
 "pnpm": patch
 ---
