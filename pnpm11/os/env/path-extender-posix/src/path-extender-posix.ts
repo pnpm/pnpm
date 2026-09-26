@@ -1,14 +1,17 @@
+// cspell:ignore ZDOTDIR esep
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
+import writeFileAtomic from 'write-file-atomic'
 
-class BadShellSectionError extends PnpmError {
+export class BadShellSectionError extends PnpmError {
   public current: string
   public wanted: string
   constructor (opts: { configSectionName: string, wanted: string, current: string, configFile: string }) {
-    super('BAD_SHELL_SECTION', `The config file at "${opts.configFile} already contains a ${opts.configSectionName} section but with other configuration`)
+    super('BAD_SHELL_SECTION', `The config file at "${opts.configFile}" already contains a ${opts.configSectionName} section but with other configuration`)
     this.current = opts.current
     this.wanted = opts.wanted
   }
@@ -47,7 +50,7 @@ export async function addDirToPosixEnvPath (
   return updateShell(currentShell, dir, opts)
 }
 
-function detectCurrentShell () {
+function detectCurrentShell (): string | null {
   if (process.env.ZSH_VERSION) return 'zsh'
   if (process.env.BASH_VERSION) return 'bash'
   if (process.env.FISH_VERSION) return 'fish'
@@ -76,10 +79,11 @@ async function updateShell (
     }
   }
   const supportedShellsMsg = 'Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.'
-  if (!currentShell) throw new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.', {
-    hint: `Set the SHELL environment variable to your active shell.
-${supportedShellsMsg}`,
-  })
+  if (!currentShell) {
+    throw new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.', {
+      hint: `Set the SHELL environment variable to your active shell.\n${supportedShellsMsg}`,
+    })
+  }
   throw new PnpmError('UNSUPPORTED_SHELL', `Can't setup configuration for "${currentShell}" shell`, {
     hint: supportedShellsMsg,
   })
@@ -91,7 +95,7 @@ async function setupShell (
   opts: AddDirToPosixEnvPathOpts
 ): Promise<PathExtenderPosixReport> {
   const configFile = getConfigFilePath(shell)
-  let newSettings!: string
+  let newSettings: string
   const _createPathValue = createPathValue.bind(null, opts.position ?? 'start')
   if (opts.proxyVarName) {
     const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
@@ -132,7 +136,7 @@ function getConfigFilePath (shell: 'bash' | 'zsh' | 'ksh' | 'dash' | 'sh'): stri
   }
 }
 
-function createPathValue (position: AddingPosition, dir: string) {
+function createPathValue (position: AddingPosition, dir: string): string {
   return position === 'start'
     ? `${dir}:$PATH`
     : `$PATH:${dir}`
@@ -140,7 +144,7 @@ function createPathValue (position: AddingPosition, dir: string) {
 
 async function setupFishShell (dir: string, opts: AddDirToPosixEnvPathOpts): Promise<PathExtenderPosixReport> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
-  let newSettings!: string
+  let newSettings: string
   const _createPathValue = createFishPathValue.bind(null, opts.position ?? 'start')
   if (opts.proxyVarName) {
     const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
@@ -168,7 +172,7 @@ end`
 
 async function setupNuShell (dir: string, opts: AddDirToPosixEnvPathOpts): Promise<PathExtenderPosixReport> {
   const configFile = path.join(os.homedir(), '.config/nushell/env.nu')
-  let newSettings!: string
+  let newSettings: string
   const addingCommand = (opts.position ?? 'start') === 'start' ? 'prepend' : 'append'
   if (opts.proxyVarName) {
     const pathRef = opts.proxyVarSubDir
@@ -190,13 +194,14 @@ $env.PATH = ($env.PATH | split row (char esep) | ${addingCommand} ${pathRef} )`
     newSettings,
   }
 }
-function wrapSettings (sectionName: string, settings: string): string {
+
+export function wrapSettings (sectionName: string, settings: string): string {
   return `# ${sectionName}
 ${settings}
 # ${sectionName} end`
 }
 
-function createFishPathValue (position: AddingPosition, dir: string) {
+function createFishPathValue (position: AddingPosition, dir: string): string {
   return position === 'start'
     ? `"${dir}" $PATH`
     : `$PATH "${dir}"`
@@ -207,40 +212,45 @@ interface UpdateShellResult {
   oldSettings: string
 }
 
-async function updateShellConfig (
+export async function updateShellConfig (
   configFile: string,
   newContent: string,
   opts: AddDirToPosixEnvPathOpts
 ): Promise<UpdateShellResult> {
-  if (!fs.existsSync(configFile)) {
-    await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
-    await fs.promises.writeFile(configFile, `${newContent}\n`, 'utf8')
+  await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
+  try {
+    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
     return {
       changeType: 'created',
       oldSettings: '',
     }
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') {
+      throw err
+    }
   }
   const configContent = await fs.promises.readFile(configFile, 'utf8')
-  const match = new RegExp(`# ${opts.configSectionName}\n([\\s\\S]*)\n# ${opts.configSectionName} end`, 'g').exec(configContent)
-  if (!match) {
+  const section = findSection(configContent, opts.configSectionName, opts.proxyVarName)
+  if (!section) {
     await fs.promises.appendFile(configFile, `\n${newContent}\n`, 'utf8')
     return {
       changeType: 'appended',
       oldSettings: '',
     }
   }
-  const oldSettings = match[1]
-  if (match[0] !== newContent) {
+  const oldSettings = section.inner
+  const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
+  if (normalizedFullMatch !== newContent) {
     if (!opts.overwrite) {
       throw new BadShellSectionError({
         configSectionName: opts.configSectionName,
-        current: match[0],
+        current: section.fullMatch,
         wanted: newContent,
         configFile,
       })
     }
-    const newConfigContent = replaceSection(configContent, newContent, opts.configSectionName)
-    await fs.promises.writeFile(configFile, newConfigContent, 'utf8')
+    const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
+    await writeFileAtomic(configFile, newConfigContent, 'utf8')
     return {
       changeType: 'modified',
       oldSettings,
@@ -252,6 +262,90 @@ async function updateShellConfig (
   }
 }
 
-function replaceSection (originalContent: string, newSection: string, sectionName: string): string {
-  return originalContent.replace(new RegExp(`# ${sectionName}[\\s\\S]*# ${sectionName} end`, 'g'), newSection)
+export interface FoundSection {
+  start: number
+  end: number
+  inner: string
+  fullMatch: string
+}
+
+/**
+ * Locate the `# <section>` ... `# <section> end` block.
+ *
+ * A valid section is bounded by an opening `# <section>` line and a closing
+ * `# <section> end` line with no intermediate `# <section>` or `# <section> end`
+ * markers. If several valid sections exist, the last one whose non-comment
+ * lines reference both `PATH` and `homeVar` wins, then the last one
+ * referencing `homeVar`, then the last one referencing `PATH`, then the last
+ * section. Returns `null` when the content holds no complete section.
+ */
+export function findSection (
+  content: string,
+  section: string,
+  homeVar = `${section.toUpperCase()}_HOME`
+): FoundSection | null {
+  if (!content) return null
+  const startMarker = `# ${section}`
+  const endMarker = `# ${section} end`
+
+  const sections: FoundSection[] = []
+  let lastStart: { lineStart: number, innerStart: number } | null = null
+  let offset = 0
+
+  const lines = content.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const lineStart = offset
+    const lineLengthWithNewline = i < lines.length - 1 ? line.length + 1 : line.length
+    offset += lineLengthWithNewline
+
+    const trimmed = line.replace(/[\r \t]+$/, '')
+    if (trimmed === startMarker) {
+      lastStart = {
+        lineStart,
+        innerStart: offset,
+      }
+    } else if (trimmed === endMarker) {
+      if (lastStart) {
+        const { lineStart: startOffset, innerStart } = lastStart
+        lastStart = null
+
+        const inner = content.slice(innerStart, lineStart).replace(/[\r\n]+$/, '')
+        const markerLen = line.replace(/[\r\n]+$/, '').length
+        const rangeEnd = lineStart + markerLen
+        sections.push({
+          start: startOffset,
+          end: rangeEnd,
+          inner,
+          fullMatch: content.slice(startOffset, rangeEnd),
+        })
+      }
+    }
+  }
+
+  if (sections.length === 0) return null
+  if (sections.length === 1) return sections[0]
+
+  const settings = sections.map(({ inner }) => stripComments(inner))
+  const predicates: Array<(text: string) => boolean> = [
+    (text) => text.includes('PATH') && text.includes(homeVar),
+    (text) => text.includes(homeVar),
+    (text) => text.includes('PATH'),
+  ]
+  for (const predicate of predicates) {
+    for (let i = sections.length - 1; i >= 0; i--) {
+      if (predicate(settings[i])) return sections[i]
+    }
+  }
+  return sections[sections.length - 1]
+}
+
+function stripComments (settings: string): string {
+  return settings.split('\n').filter((line) => !line.trimStart().startsWith('#')).join('\n')
+}
+
+export function replaceSection (originalContent: string, newSection: string, sectionName: string): string {
+  const section = findSection(originalContent, sectionName)
+  if (!section) return originalContent
+  return originalContent.slice(0, section.start) + newSection + originalContent.slice(section.end)
 }

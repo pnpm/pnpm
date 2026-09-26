@@ -36,12 +36,14 @@
     "prepublishOnly": "tsgo --build"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "write-file-atomic": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/os.env.path-extender-posix": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/write-file-atomic": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

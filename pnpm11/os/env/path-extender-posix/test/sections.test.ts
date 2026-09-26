@@ -11,7 +11,7 @@ import {
   replaceSection,
   updateShellConfig,
   wrapSettings,
-} from '../../src/setup/pathExtenderPosix.js'
+} from '../src/path-extender-posix.js'
 
 function opts (overwrite: boolean): AddDirToPosixEnvPathOpts {
   return {
@@ -237,6 +237,28 @@ esac`)
 
       const written = fs.readFileSync(configFile, 'utf8')
       expect(written).toBe(`${newEnvBlock}\n\nexport OTHER=1\n\n${aliasBlock}\n`)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('prioritizes the block that sets proxyVarName when it differs from the section name', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-posix-test-'))
+    try {
+      const configFile = path.join(dir, '.zshrc')
+      const generatedEnvBlock = wrapSettings('tool', 'export MY_HOME=/old\nexport PATH=$MY_HOME:$PATH')
+      const customPathBlock = wrapSettings('tool', 'export PATH=/custom/bin:$PATH')
+      fs.writeFileSync(configFile, `${generatedEnvBlock}\n\n${customPathBlock}\n`)
+
+      const newEnvBlock = wrapSettings('tool', 'export MY_HOME=/new\nexport PATH=$MY_HOME:$PATH')
+      const result = await updateShellConfig(configFile, newEnvBlock, {
+        configSectionName: 'tool',
+        proxyVarName: 'MY_HOME',
+        overwrite: true,
+      })
+
+      expect(result.oldSettings).toBe('export MY_HOME=/old\nexport PATH=$MY_HOME:$PATH')
+      expect(fs.readFileSync(configFile, 'utf8')).toBe(`${newEnvBlock}\n\n${customPathBlock}\n`)
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
