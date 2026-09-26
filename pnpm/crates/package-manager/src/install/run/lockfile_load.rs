@@ -245,18 +245,14 @@ pub(super) fn needs_early_host_detection(
         })
 }
 /// Register the workspace root in the store's project registry, once per
-/// install. Store prune walks the workspace's `node_modules/.pnpm/` to find
-/// every installed package, so one entry per workspace is enough.
-///
-/// Gated on `enableGlobalVirtualStore` because pacquet wires the
-/// prune-by-registry path only under GVS for now; pnpm registers
-/// unconditionally, so once the non-GVS prune path lands the gate should be
-/// dropped.
+/// install, with or without the global virtual store. Store prune walks the
+/// workspace's `node_modules/.pnpm/` to find every installed package, so one
+/// entry per workspace is enough. A frozen store is read-only.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
 /// surfaced as `tracing::warn!` instead.
 pub(super) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
-    if !config.enable_global_virtual_store {
+    if config.frozen_store {
         return;
     }
     // Create the store root before calling `register_project` so its

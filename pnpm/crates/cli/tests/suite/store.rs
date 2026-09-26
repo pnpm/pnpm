@@ -653,3 +653,23 @@ fn store_prune_honors_dlx_cache_max_age() {
         }
     }
 }
+
+/// https://github.com/pnpm/pnpm/issues/6929
+#[test]
+fn install_registers_the_project_in_the_store() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    let projects: Vec<_> = pnpm_store_dir::get_registered_projects(&store_dir)
+        .expect("list registered projects")
+        .iter()
+        .map(|project| canonicalize(project))
+        .collect();
+    assert_eq!(projects, [canonicalize(&workspace)]);
+}
