@@ -35,26 +35,14 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
         return Ok(Vec::new());
     }
     let config = options.config;
-    let store_dir = &config.store_dir;
-    let store_index = StoreIndex::shared_for(store_dir, config.frozen_store);
     let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
+        StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
 
     let (registry_config, auth_headers) =
         registry_download_config(config, &options.http_client).await?;
-    let verified_files_cache = SharedVerifiedFilesCache::default();
 
     let fetching = CrateDownload::new(&options, registry_config.dl, auth_headers);
-    let store = CrateStore {
-        dir: store_dir,
-        index: store_index,
-        index_writer: Arc::clone(&store_index_writer),
-        verified_files_cache,
-        logged_methods: options.logged_methods,
-        import_method: config.package_import_method,
-        verify_integrity: config.verify_store_integrity,
-        strict_pkg_content_check: config.strict_store_pkg_content_check,
-    };
+    let store = CrateStore::new(config, Arc::clone(&store_index_writer), options.logged_methods);
     let slots = stream::iter(options.packages)
         .map(|package| {
             materialize::<Reporter>(MaterializeOptions {
@@ -93,13 +81,19 @@ pub(crate) struct CrateDownload {
 #[derive(Clone)]
 pub(crate) struct CrateStore {
     pub(super) dir: &'static StoreDir,
+    pub(super) fallback_dir: Option<&'static StoreDir>,
     pub(super) index: Option<SharedReadonlyStoreIndex>,
     pub(super) index_writer: Arc<StoreIndexWriter>,
     pub(super) verified_files_cache: SharedVerifiedFilesCache,
-    pub(super) logged_methods: Arc<AtomicU8>,
-    pub(super) import_method: pnpm_config::PackageImportMethod,
+    pub(super) import: CrateImport,
     pub(super) verify_integrity: bool,
     pub(super) strict_pkg_content_check: bool,
+}
+
+#[derive(Clone)]
+pub(crate) struct CrateImport {
+    pub(super) method: pnpm_config::PackageImportMethod,
+    pub(super) logged_methods: Arc<AtomicU8>,
 }
 
 pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
@@ -119,8 +113,8 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         }
         .add(&mut cas_paths, &options.package.checksum)?;
         import_indexed_dir::<Reporter>(
-            &options.store.logged_methods,
-            options.store.import_method,
+            &options.store.import.logged_methods,
+            options.store.import.method,
             &slot_for_import,
             &cas_paths,
             ImportIndexedDirOpts {
@@ -235,6 +229,23 @@ impl CrateDownload {
 }
 
 impl CrateStore {
+    fn new(
+        config: &'static Config,
+        index_writer: Arc<StoreIndexWriter>,
+        logged_methods: Arc<AtomicU8>,
+    ) -> Self {
+        Self {
+            dir: &config.store_dir,
+            fallback_dir: config.fallback_store(),
+            index: StoreIndex::shared_for(&config.store_dir, config.frozen_store),
+            index_writer,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            import: CrateImport { method: config.package_import_method, logged_methods },
+            verify_integrity: config.verify_store_integrity,
+            strict_pkg_content_check: config.strict_store_pkg_content_check,
+        }
+    }
+
     fn archive_context(&self) -> pnpm_tarball::ArchiveStoreContext<'_> {
         pnpm_tarball::ArchiveStoreContext {
             dir: self.dir,
@@ -244,7 +255,7 @@ impl CrateStore {
             strict_pkg_content_check: self.strict_pkg_content_check,
             verified_files_cache: Arc::clone(&self.verified_files_cache),
             prefetched_cas_paths: None,
-            fallback_dir: None,
+            fallback_dir: self.fallback_dir,
         }
     }
 }
