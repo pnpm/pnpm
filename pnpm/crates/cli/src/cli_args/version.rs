@@ -29,11 +29,12 @@ use std::{
 /// Bump the version of a package: `pnpm version <bump|semver>` applies an
 /// npm-style bump to the current package (or, with `-r`, to every selected
 /// workspace package), while the bare `pnpm version -r` applies the pending
-/// change intents.
+/// change intents. `pnpm version --json` reports the current package version.
 #[derive(Debug, Args)]
 pub struct VersionArgs {
     /// A valid semver version (e.g. 1.2.3) or one of: major, minor, patch,
-    /// premajor, preminor, prepatch, prerelease, from-git. Omit it and pass `-r` to
+    /// premajor, preminor, prepatch, prerelease, from-git. Use `none --json`
+    /// to read current versions without a bump. Omit it and pass `-r` to
     /// apply the pending change intents instead.
     pub params: Vec<String>,
     /// Print what the command would do without changing anything.
@@ -138,7 +139,9 @@ impl VersionArgs {
     ) -> miette::Result<()> {
         match self.params.first().map(String::as_str) {
             None if recursive => self.release_from_intents(config).await,
+            None if self.json => current::report_current_versions(config, dir, false),
             None => Err(VersionError::MissingBump.into()),
+            Some("none") if self.json => current::report_current_versions(config, dir, recursive),
             Some(_) => self.npm_style_bump::<Reporter>(config, dir, recursive),
         }
     }
@@ -474,6 +477,8 @@ fn package_version_identity(manifest: &PackageManifest) -> Option<(String, Strin
 mod tests;
 
 mod bump;
+
+mod current;
 
 mod release;
 

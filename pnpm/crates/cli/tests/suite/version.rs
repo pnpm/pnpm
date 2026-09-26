@@ -614,6 +614,78 @@ fn missing_bump_without_recursive_fails() {
 }
 
 #[test]
+fn json_without_a_bump_reports_the_current_version_without_running_hooks() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let manifest = r#"{
+  "name": "test-pkg",
+  "version": "1.2.3",
+  "scripts": {
+    "preversion": "node -e \"require('fs').writeFileSync('hook-ran', 'yes')\""
+  }
+}"#;
+    write_manifest(&workspace, manifest);
+
+    for args in [&["--json"][..], &["--allow-same-version", "--json"][..]] {
+        let output = pacquet_version(&workspace, args);
+        assert!(output.status.success(), "{args:?}: {}", stderr_of(&output));
+        let versions: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("stdout must be JSON");
+        assert_eq!(versions, serde_json::json!({ "test-pkg": "1.2.3" }));
+        assert_eq!(manifest_text(&workspace), manifest);
+        assert!(!workspace.join("hook-ran").exists());
+    }
+    drop(root);
+}
+
+#[test]
+fn recursive_version_none_json_reports_workspace_versions_without_bumping() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    let manifests_before = [&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir));
+
+    let output = pacquet_recursive_version(&workspace, &["-r", "version", "none", "--json"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let versions: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be JSON");
+    assert_eq!(versions, serde_json::json!({ "pkg-a": "1.0.0", "pkg-b": "2.3.0" }));
+    assert_eq!([&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir)), manifests_before);
+    drop(root);
+}
+
+#[test]
+fn recursive_version_none_json_rejects_duplicate_package_names() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (_, pkg_b) = write_two_package_workspace(&workspace);
+    let manifest = r#"{"name":"pkg-a","version":"2.3.0"}"#;
+    write_manifest(&pkg_b, manifest);
+
+    let output = pacquet_recursive_version(&workspace, &["-r", "version", "none", "--json"]);
+
+    assert!(!output.status.success());
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_DUPLICATE_PACKAGE_NAME"), "{stderr}");
+    assert!(stderr.contains("pkg-a"), "{stderr}");
+    assert_eq!(manifest_text(&pkg_b), manifest);
+    drop(root);
+}
+
+#[test]
+fn recursive_version_none_json_resolves_directory_filters_from_the_member() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, _) = write_two_package_workspace(&workspace);
+
+    let output =
+        pacquet_recursive_version(&pkg_a, &["--filter", "./", "-r", "version", "none", "--json"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let versions: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be JSON");
+    assert_eq!(versions, serde_json::json!({ "pkg-a": "1.0.0" }));
+    drop(root);
+}
+
+#[test]
 fn bumps_major_minor_and_patch() {
     for (bump, expected) in [("major", "2.0.0"), ("minor", "1.3.0"), ("patch", "1.2.4")] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
