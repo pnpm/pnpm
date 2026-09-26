@@ -46,11 +46,24 @@ pub(super) fn warn_override_pins_compatible_update<Reporter: self::Reporter>(
     }));
 }
 
+/// Warn that a compatible update cannot move a dependency an override
+/// governs, when the override fixes it to a single version.
+pub(super) fn warn_pinned_override<Reporter: self::Reporter>(
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    overridden: &OverriddenDirect,
+) {
+    if let Some(pinned) = overridden.effective_specifier
+        .as_deref()
+        .filter(|effective| override_pins_one_version(effective))
+    {
+        warn_override_pins_compatible_update::<Reporter>(rewrite_ctx, &overridden.name, pinned);
+    }
+}
+
 /// The rewrite a compatible bump performs on a dependency an override
 /// governs, when it does: the override decides what resolves, so the
-/// declaration is not the update's to move. An override that fixes one
-/// version also leaves the bump nowhere to go, which the user should hear
-/// rather than watch a silent no-op. `None` when no override governs `name`.
+/// declaration is not the update's to move. `None` when no override governs
+/// `name`.
 pub(super) fn override_governed_compatible_rewrite<Reporter: self::Reporter>(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
     scope: &UpdateScope<'_>,
@@ -58,12 +71,7 @@ pub(super) fn override_governed_compatible_rewrite<Reporter: self::Reporter>(
     group: DependencyGroup,
 ) -> Option<MatchedRewrite> {
     let overridden = override_governed(scope, name, group)?;
-    if let Some(pinned) = overridden.effective_specifier
-        .as_deref()
-        .filter(|effective| override_pins_one_version(effective))
-    {
-        warn_override_pins_compatible_update::<Reporter>(rewrite_ctx, name, pinned);
-    }
+    warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
     Some(MatchedRewrite::Target(None))
 }
 
@@ -119,21 +127,22 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     plan: &mut UpdatePlan,
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
     latest_chain: &mut Option<LatestResolverChain>,
-    (name, overridden): (&str, &OverriddenDirect),
+    name: &str,
+    overridden: &OverriddenDirect,
 ) -> Result<MatchedRewrite, UpdateError> {
     let Some(entry) = overridden.bare_override.as_ref() else {
         // A range-scoped or parent-scoped selector governs this edge; it is
         // not the update's to reinterpret, so the pair is left alone.
         return Ok(MatchedRewrite::Target(None));
     };
+    let style = movable_override_style(&entry.value);
     // A `catalog:`-valued override tracks the catalog entry it points at —
     // the catalog update path owns that entry — and a bare value with no
     // recoverable operator (a dist tag, a partial version) tracks a moving
     // target the way a tag-tracking declaration does. Neither is the
     // update's to rewrite.
     if entry.value.starts_with("catalog:")
-        || (movable_override_style(&entry.value).is_none()
-            && !names_another_dependency(&entry.value))
+        || (style.is_none() && !names_another_dependency(&entry.value))
     {
         return Ok(MatchedRewrite::Target(None));
     }
@@ -149,7 +158,7 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     if override_admits(&entry.value, &latest) {
         return Ok(MatchedRewrite::Target(None));
     }
-    if movable_override_style(&entry.value).is_some() {
+    if style.is_some() {
         let next = calc_version_range(
             &latest,
             Some(&entry.value),
@@ -180,17 +189,18 @@ fn override_admits(override_value: &str, version: &Version) -> bool {
 }
 
 /// Whether an override value carries one recoverable range operator an
-/// update can preserve when it moves the entry. A protocol reference
-/// (`npm:`, `catalog:`, `link:`, ...) or a `$` reference names a dependency of
-/// its own that the update must not rewrite; a compound range has no single
-/// shape to keep.
+/// update can preserve when it moves the entry. A value that names a
+/// dependency of its own is not the update's to rewrite, and a compound
+/// range has no single shape to keep.
 fn movable_override_style(value: &str) -> Option<RangeSpecStyle> {
-    if value.contains(':') || value.starts_with('$') {
+    if names_another_dependency(value) {
         return None;
     }
     infer_range_spec_style(value).filter(|style| !matches!(style, RangeSpecStyle::None))
 }
 
+/// Report that an override the update cannot rewrite governs `name`, so the
+/// user must move it in `pnpm-workspace.yaml` by hand.
 fn warn_unmovable_override<Reporter: self::Reporter>(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
     name: &str,

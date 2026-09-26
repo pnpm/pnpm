@@ -5,9 +5,9 @@ use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
     WorkspaceLinkTarget, emit_range_flag_ignored, latest_specifier,
     latest_subtree::widen_drop_targets_to_subtrees,
-    override_governed, override_pins_one_version, record_matched_direct_update,
+    override_governed, record_matched_direct_update,
     selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
-    tag_rewrite, warn_override_pins_compatible_update, workspace_specifier,
+    tag_rewrite, warn_pinned_override, workspace_specifier,
 };
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
 use pnpm_config::Config;
@@ -320,12 +320,7 @@ pub(super) fn name_matched_seed_policy<Reporter: self::Reporter>(
         // bump leaves it alone; an override that fixes one version leaves the
         // bump nowhere to go, which the user should hear about.
         if let Some(overridden) = override_governed(scope, name, *group) {
-            if let Some(pinned) = overridden.effective_specifier
-                .as_deref()
-                .filter(|effective| override_pins_one_version(effective))
-            {
-                warn_override_pins_compatible_update::<Reporter>(rewrite_ctx, name, pinned);
-            }
+            warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
         } else if scope.version.save {
             plan.bump_targets.push((name.clone(), *group, previous.clone()));
         }
