@@ -387,6 +387,9 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
+            store_view: self.store.index
+                .cloned()
+                .map(pnpm_resolving_npm_resolver::OfflineStoreView::new),
         }
     }
 

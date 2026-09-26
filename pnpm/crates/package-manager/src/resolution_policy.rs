@@ -161,6 +161,7 @@ pub fn create_configured_registry_resolver(
             filter_metadata: policy.filter_metadata,
         },
         cache_policy: npm.cache_policy,
+        store_view: None,
     };
     Ok(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]))
 }

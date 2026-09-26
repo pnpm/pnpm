@@ -204,5 +204,6 @@ fn build_named_registry_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_view: None,
     })
 }

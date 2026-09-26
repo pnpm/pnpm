@@ -1,17 +1,19 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use chrono::TimeZone;
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    NamedRegistryResolver, merge_named_registries,
+    ABBREVIATED_META_DIR, NamedRegistryResolver, OfflineStoreView, merge_named_registries,
+    persist_meta_to_mirror,
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
     },
@@ -92,6 +94,7 @@ fn build_resolver(
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
     };
     (resolver, cache_dir)
 }
@@ -637,5 +640,70 @@ async fn resolves_registry_qualified_id() {
             .map(ToString::to_string)
             .as_deref(),
         Some("@acme/private@2.1.0"),
+    );
+}
+
+#[tokio::test]
+async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry.clone());
+    let (mut resolver, tempdir) = build_resolver(user);
+    resolver.cache_policy.offline = true;
+
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+    persist_meta_to_mirror(tempdir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    let store_dir = TempDir::new().expect("tempdir");
+    let index = StoreIndex::open(store_dir.path()).expect("open store index");
+    let integrity = "sha512-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF==";
+    index
+        .set(
+            &store_index_key(integrity, "@acme/private@2.0.0"),
+            &PackageFilesIndex {
+                manifest: Some(serde_json::json!({
+                    "name": "@acme/private",
+                    "version": "2.0.0",
+                })),
+                algo: "sha512".to_string(),
+                files: HashMap::new(),
+                ..Default::default()
+            },
+        )
+        .expect("seed store index");
+    drop(index);
+    let store_view = OfflineStoreView::new(Arc::new(Mutex::new(
+        StoreIndex::open_readonly(store_dir.path()).expect("open store index read-only"),
+    )));
+    resolver.store_view = Some(store_view);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.0.0");
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("@acme/private@2.0.0"),
     );
 }

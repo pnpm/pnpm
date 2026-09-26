@@ -111,6 +111,7 @@ async fn offline_pick_prefers_the_version_whose_tarball_the_store_holds() {
     .await
     .expect("offline pick succeeds");
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert!(result.meta.versions.contains_key("1.1.0"));
 }
 
 #[tokio::test]

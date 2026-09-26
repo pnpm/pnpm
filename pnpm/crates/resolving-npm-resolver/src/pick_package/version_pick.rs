@@ -299,10 +299,10 @@ pub(super) async fn pick_from_meta_offline(
     let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
         return Ok((meta, picked));
     };
-    let (narrowed_meta, narrowed_pick) =
+    let (_narrowed_meta, narrowed_pick) =
         pick_from_meta(picker_opts, spec, narrowed, blocked_versions)?;
     if let Some(adjusted) = narrowed_pick {
-        return Ok((narrowed_meta, Some(adjusted)));
+        return Ok((meta, Some(adjusted)));
     }
     Ok((meta, picked))
 }
