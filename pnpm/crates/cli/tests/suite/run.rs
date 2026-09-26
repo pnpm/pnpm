@@ -277,6 +277,32 @@ fn run_empty_start_script_hits_server_js_guard() {
     drop(root);
 }
 
+/// <https://github.com/pnpm/pnpm/issues/4655>
+#[test]
+fn run_missing_script_hints_at_filter_after_script_name() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_args(["run", "build", "--filter", "@local/b", "--watch"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "a missing script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = stderr
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
+    assert!(
+        stderr.contains(r#""pnpm --filter <selector> run build""#),
+        "should show the filter before the script name:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 /// With `enablePrePostScripts`, `pnpm run <name>` also runs `pre<name>`
 /// and `post<name>`. Driven here through the `PNPM_CONFIG_*` env overlay.
 #[cfg(unix)]
