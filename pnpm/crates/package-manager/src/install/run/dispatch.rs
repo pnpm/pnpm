@@ -323,7 +323,6 @@ pub(super) async fn decide_frozen_path<Reporter: self::Reporter>(
         // gone does.
         let freshness = LockfileFreshnessInputs {
             scope: FreshnessScope {
-                allow_missing_dependency_free_importers: false,
                 allow_unresolved_optional_dependencies: true,
                 prune_stale_importers: false,
                 ..dispatch.freshness.scope
