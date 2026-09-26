@@ -64,7 +64,9 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
         let mut settings = WorkspaceSettings::load_global(&config_dir)
             .map_err(LoadGlobalShimsSettingError::Workspace)?;
         if let Some(settings) = settings.as_mut() {
-            settings.substitute_env_trusted::<Host>();
+            settings
+                .substitute_env_trusted::<Host>()
+                .map_err(LoadGlobalShimsSettingError::Workspace)?;
             apply_state_dir_setting(
                 &mut state_dir,
                 settings.state_dir.as_deref(),
@@ -77,7 +79,7 @@ fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSe
     }
     apply_settings_above_global_config(&mut shims)?;
     let mut env_settings = WorkspaceSettings::from_pnpm_config_env::<Host>();
-    env_settings.substitute_env_trusted::<Host>();
+    let _ = env_settings.substitute_env_trusted::<Host>();
     apply_state_dir_setting(&mut state_dir, env_settings.state_dir.as_deref(), &default_state_dir);
     Ok(TrustedShimSettings { shims, state_dir })
 }

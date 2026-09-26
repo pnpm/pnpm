@@ -212,7 +212,7 @@ namedRegistries:
   work: https://${WORK_HOST}/work/
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_trusted::<EnvWithHost>();
+    settings.substitute_env_trusted::<EnvWithHost>().unwrap();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server.as_deref(), Some("https://internal.example.com/pnpr/"));
@@ -635,7 +635,7 @@ registries:
   https://npm.example.com/: {serverType: artifactory}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     let entries = settings.registries.as_ref().expect("registries present");
     assert_eq!(entries.len(), 1);
     assert!(entries.contains_key("https://npm.example.com/"));

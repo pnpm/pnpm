@@ -162,6 +162,7 @@ mod umask;
 mod undeprecate;
 mod unlink;
 mod unpublish;
+mod unresolved_env_var;
 mod unstar_tests;
 mod update;
 mod update_changeset;

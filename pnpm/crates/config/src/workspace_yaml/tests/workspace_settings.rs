@@ -84,7 +84,7 @@ namedRegistries:
   work: https://${WORK_HOST}/npm/
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithHost>();
+    settings.substitute_env_untrusted::<EnvWithHost>().unwrap();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
@@ -128,7 +128,7 @@ scriptShell: ${SHELL}
 nodeOptions: --require=${HOOK}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithPaths>();
+    settings.substitute_env_untrusted::<EnvWithPaths>().unwrap();
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();
@@ -153,16 +153,16 @@ fn drops_a_workspace_user_agent_with_an_env_placeholder() {
 
     let yaml = "userAgent: agent/${PNPM_TEST_TOKEN}\n";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent, None);
 
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_trusted::<EnvWithToken>();
+    settings.substitute_env_trusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent.as_deref(), Some("agent/super-secret-token"));
 
     let mut settings: WorkspaceSettings =
         serde_saphyr::from_str("userAgent: my-agent/2.0\n").unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 }
 
@@ -185,7 +185,7 @@ cacheDir: 日本語/${CACHE_DIR}
 scriptShell: ./ünicode-shell
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithPaths>();
+    settings.substitute_env_untrusted::<EnvWithPaths>().unwrap();
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();
