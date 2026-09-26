@@ -924,6 +924,13 @@ pub struct Config {
     /// [`Config::side_effects_cache_write`].
     pub side_effects_cache_readonly: bool,
 
+    /// `name[@version]` patterns of packages whose builds bypass the
+    /// side-effects cache: pnpm neither restores them from it nor saves
+    /// them to it, locally or remotely, and gives them a project's own
+    /// global-virtual-store slot. The `sideEffectsCacheExclude` setting,
+    /// for builds whose output depends on the environment they run in.
+    pub side_effects_cache_exclude: Option<Vec<String>>,
+
     /// How many times pacquet retries a failed tarball fetch on transient
     /// errors before giving up. The `fetchRetries` setting (default `2`).
     /// The value is the count of *retries*, so total attempts =

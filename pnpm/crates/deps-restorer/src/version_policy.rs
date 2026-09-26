@@ -1,10 +1,8 @@
-//! Re-export of `expand_package_version_specs` for `build_modules.rs`'s
-//! `allowBuilds` consumer.
-//!
-//! The implementation lives in
-//! [`pnpm_config::version_policy`] so the matcher-based
-//! [`create_package_version_policy`](pnpm_config::version_policy::create_package_version_policy)
-//! sibling — needed by `minimumReleaseAgeExclude` /
-//! `trustPolicyExclude` — can share the same parser.
+//! Re-export of the `pnpm_config::version_policy` parsers for
+//! `build_modules.rs`: `expand_package_version_specs` for `allowBuilds`,
+//! and `create_package_version_policy` for `sideEffectsCacheExclude`.
 
-pub use pnpm_config::version_policy::{VersionPolicyError, expand_package_version_specs};
+pub use pnpm_config::version_policy::{
+    PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
+    expand_package_version_specs,
+};

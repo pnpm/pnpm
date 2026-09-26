@@ -41,6 +41,7 @@ fn from_resolved_reports_every_setting() {
         minimum_release_age_strict: Some(true),
         minimum_release_age_exclude: Some(vec!["is-positive".to_string()]),
         trust_policy_exclude: Some(vec!["is-negative".to_string()]),
+        side_effects_cache_exclude: Some(vec!["java".to_string()]),
         trust_policy_ignore_after: Some(1),
         lockfile_dir: Some(PathBuf::from("/tmp/project")),
         npmrc_auth_file: Some(PathBuf::from("/tmp/auth.ini")),
