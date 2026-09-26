@@ -1,5 +1,4 @@
 const ENV_EXPR = /(?<!\\)(\\*)\$\{([^${}]+)\}/g
-const ENV_VALUE = /([^:-]+)(:?)-(.+)/
 
 /**
  * Replace every `${VAR}` (or `${VAR-default}` / `${VAR:-default}`) placeholder
@@ -60,16 +59,36 @@ function replaceWith (
 }
 
 function getEnvValue (env: NodeJS.ProcessEnv, name: string): string | undefined {
-  const matched = name.match(ENV_VALUE)
-  if (!matched) return env[name]
-  const [, variableName, colon, fallback] = matched
-  // Treat `{ KEY: undefined }` as unset rather than "explicitly empty": the
-  // `NodeJS.ProcessEnv` (= `Record<string, string | undefined>`) signature lets
-  // callers represent an unset variable as a present-but-undefined property,
-  // and `${KEY-default}` must reach the fallback in that case. Using
-  // `hasOwnProperty` would treat the property as set and return `undefined`
-  // instead of `fallback`.
-  const v = env[variableName]
+  const withFallback = parseFallback(name)
+  if (!withFallback) return readEnv(env, name)
+  const { variableName, fallback, fallbackOnEmpty } = withFallback
+  const v = readEnv(env, variableName)
   if (v === undefined) return fallback
-  return !v && colon ? fallback : v
+  return !v && fallbackOnEmpty ? fallback : v
+}
+
+/**
+ * Splits `NAME-fallback` and `NAME:-fallback`. Returns undefined for a bare
+ * name, and for a name or fallback that is empty.
+ */
+function parseFallback (name: string): { variableName: string, fallback: string, fallbackOnEmpty: boolean } | undefined {
+  const dashIndex = name.indexOf('-')
+  if (dashIndex === -1) return undefined
+  const fallback = name.slice(dashIndex + 1)
+  const fallbackOnEmpty = name[dashIndex - 1] === ':'
+  const variableName = name.slice(0, fallbackOnEmpty ? dashIndex - 1 : dashIndex)
+  if (!variableName || variableName.includes(':') || !fallback) return undefined
+  return { variableName, fallback, fallbackOnEmpty }
+}
+
+/**
+ * Only string values count as set. This treats `{ KEY: undefined }` as unset,
+ * which `NodeJS.ProcessEnv` allows callers to pass, and ignores properties
+ * inherited from `Object.prototype`, such as `toString`. Unlike
+ * `Object.hasOwn`, it keeps the case-insensitive lookup that `process.env`
+ * has on Windows.
+ */
+function readEnv (env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const value = env[name]
+  return typeof value === 'string' ? value : undefined
 }
