@@ -74,6 +74,23 @@ test('the hoisted linker does not report an optional dependency it skipped', asy
   expect(summary(output, 'optionalDependencies')).toBeUndefined()
 })
 
+test('repeat install with node-linker=hoisted does not download skipped optional dependencies', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/not-compatible-with-any-os': '*',
+    },
+  })
+
+  expect(summary(runHoisted(['install']))).toBeUndefined()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+
+  const repeatOutput = runHoisted(['install'])
+  expect(repeatOutput).not.toMatch(/Progress: .*downloaded [1-9]\d*/)
+  expect(summary(repeatOutput)).toBeUndefined()
+  expect(summary(repeatOutput, 'optionalDependencies')).toBeUndefined()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+})
+
 test('the hoisted linker reports an optional dependency it stops supporting', async () => {
   const pkg = '@pnpm.e2e/not-compatible-with-any-os'
   prepare({
