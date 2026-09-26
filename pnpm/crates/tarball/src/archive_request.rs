@@ -10,6 +10,7 @@ pub struct CacheHeaders {
     pub cache_control: Option<String>,
     pub age: Option<String>,
     pub date: Option<String>,
+    pub vary: Option<String>,
 }
 
 pub(crate) struct ArchiveResponseMeta {
@@ -78,9 +79,10 @@ fn response_meta(response: &reqwest::Response) -> ArchiveResponseMeta {
         not_modified: response.status() == reqwest::StatusCode::NOT_MODIFIED,
         cache_headers: CacheHeaders {
             etag: header_string(response, reqwest::header::ETAG),
-            cache_control: header_string(response, reqwest::header::CACHE_CONTROL),
+            cache_control: header_list(response, reqwest::header::CACHE_CONTROL),
             age: header_string(response, reqwest::header::AGE),
             date: header_string(response, reqwest::header::DATE),
+            vary: header_list(response, reqwest::header::VARY),
         },
         final_url: response.url().to_string(),
     }
@@ -95,6 +97,17 @@ fn header_string(
         .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
+}
+
+/// Every field of a list-valued header, joined as one comma-separated value.
+fn header_list(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Option<String> {
+    let values: Vec<&str> = response
+        .headers()
+        .get_all(name)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .collect();
+    (!values.is_empty()).then(|| values.join(", "))
 }
 
 async fn check_archive_status(

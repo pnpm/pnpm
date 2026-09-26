@@ -159,6 +159,16 @@ fn initial_age_ms(headers: &CacheHeaders, now_ms: u64) -> u64 {
     age_ms.max(apparent_ms)
 }
 
+/// `Vary: *` means no later request can be served from this response.
+pub(crate) fn varies_on_everything(headers: &CacheHeaders) -> bool {
+    headers.vary
+        .as_deref()
+        .is_some_and(|vary| {
+            vary.split(',')
+                .any(|field| field.trim() == "*")
+        })
+}
+
 pub(crate) fn should_store(cache_control: Option<&str>, etag: Option<&str>) -> bool {
     let directives = CacheControl::parse(cache_control.unwrap_or(""));
     if directives.no_store {

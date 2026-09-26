@@ -280,6 +280,32 @@ async fn archive_requests_accept_not_modified_only_when_sending_a_validator() {
     not_modified.assert_async().await;
 }
 
+#[tokio::test]
+async fn archive_response_meta_joins_repeated_cache_control_fields() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_header("cache-control", "max-age=3600")
+        .with_header("cache-control", "no-store")
+        .with_body("archive")
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let (_guard, _response, meta) = crate::archive_request::request_archive::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        "fixture",
+        &AuthHeaders::default(),
+        0,
+        0,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(meta.cache_headers.cache_control.as_deref(), Some("max-age=3600, no-store"));
+}
+
 impl Container {
     const ALL: [Self; 2] = [Self::TarGz, Self::Zip];
 

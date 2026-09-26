@@ -107,3 +107,13 @@ fn not_modified_renews_freshness_from_its_own_headers() {
     assert_eq!(renewed.freshness(1_000_000 + 29_000), Freshness::Fresh);
     assert_eq!(renewed.freshness(1_000_000 + 30_000), Freshness::Revalidate);
 }
+
+#[test]
+fn vary_star_is_never_reused() {
+    let vary =
+        |value: &str| CacheHeaders { vary: Some(value.to_owned()), ..CacheHeaders::default() };
+    assert!(super::varies_on_everything(&vary("*")));
+    assert!(super::varies_on_everything(&vary("Accept-Encoding, *")));
+    assert!(!super::varies_on_everything(&vary("Accept-Encoding")));
+    assert!(!super::varies_on_everything(&CacheHeaders::default()));
+}

@@ -72,7 +72,10 @@ impl TarballResolver {
             .map_err(|err| Box::new(err) as ResolveError)?;
         match fetched {
             TarballResolutionFetch::NotModified(response) => {
-                if response.final_url != record.final_url {
+                if response.final_url != record.final_url
+                    || http_cache::varies_on_everything(&response.cache_headers)
+                {
+                    http_cache::remove(cache_dir, normalized_bare_specifier);
                     return Ok(None);
                 }
                 let renewed = record.renewed(&response.cache_headers, http_cache::now_ms());
@@ -105,7 +108,9 @@ impl TarballResolver {
             return;
         };
         let tarball = cached_tarball_url(resolved_url, resolved);
-        if !self.may_cache(&tarball, normalized_bare_specifier) {
+        if !self.may_cache(&tarball, normalized_bare_specifier)
+            || http_cache::varies_on_everything(&resolved.cache_headers)
+        {
             http_cache::remove(cache_dir, normalized_bare_specifier);
             return;
         }
