@@ -35,11 +35,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
     unsaved: UnsavedManifests,
     mut prepared: SelectedUpdatePreparation,
 ) -> Result<(), UpdateError> {
-    let update = if update.version.save {
-        write_saved_selected_state(update, &site, &prepared, selected.projects)?
-    } else {
-        update
-    };
+    let update = write_saved_selected_state(update, &site, &prepared, selected.projects)?;
 
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
         targets: std::mem::take(&mut prepared.bump_targets),
@@ -81,11 +77,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
     unsaved: UnsavedManifests,
     mut prepared: UpdatePreparation,
 ) -> Result<(), UpdateError> {
-    let update = if update.version.save {
-        write_saved_single_state(update, &site, &prepared, manifest)?
-    } else {
-        update
-    };
+    let update = write_saved_single_state(update, &site, &prepared, manifest)?;
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {

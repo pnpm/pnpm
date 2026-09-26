@@ -201,10 +201,12 @@ fn overridden_direct(
     direct: &[(String, DependencyGroup, String)],
     catalog_ctx: &mut Option<CatalogCtx>,
 ) -> Result<Vec<OverriddenDirect>, UpdateError> {
-    if update.config.overrides.as_ref().is_none_or(indexmap::IndexMap::is_empty) {
+    let Some(raw_overrides) = update.config.overrides
+        .as_ref()
+        .filter(|overrides| !overrides.is_empty())
+    else {
         return Ok(Vec::new());
-    }
-    let raw_overrides = update.config.overrides.as_ref().expect("overrides checked above");
+    };
     let catalogs = &ensure_catalog_ctx(catalog_ctx, manifest, update.config)?.catalogs;
     let parsed = crate::install::parse_config_overrides(update.config, catalogs)
         .map_err(|error| UpdateError::Install(error.into()))?

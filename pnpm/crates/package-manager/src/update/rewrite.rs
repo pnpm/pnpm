@@ -137,10 +137,7 @@ fn no_save_direct_rewrite<Reporter: self::Reporter>(
     requested: Option<&str>,
 ) -> MatchedRewrite {
     let (name, group, previous) = declared;
-    if let Some(overridden) = scope.overridden_direct
-        .iter()
-        .find(|item| item.name == *name && item.group == group)
-    {
+    if let Some(overridden) = override_governed(scope, name, group) {
         return override_owned_rewrite::<Reporter>(
             rewrite_ctx,
             name,
@@ -383,7 +380,8 @@ async fn latest_direct_rewrite<Reporter: self::Reporter>(
             plan,
             rewrite_ctx,
             latest_chain,
-            (name, overridden),
+            name,
+            overridden,
         )
         .await;
     }

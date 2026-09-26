@@ -8,6 +8,7 @@ use std::{path::Path, sync::Arc};
 /// A loaded `readPackage` hook paired with the log sink its `context.log`
 /// calls are forwarded to.
 pub(super) type ReadPackageHook = (Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn);
+
 pub(super) fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
     config: &Config,

@@ -561,11 +561,11 @@ async function planOverrideMove (
     return undefined
   }
   if (opts.save === false) return undefined
-  // Only values with a shape an update can preserve are looked up together:
-  // a value that names another dependency (`npm:`, `catalog:`, …) has no
-  // version of its own to compare against, and asking for one can fail
-  // resolution, so each of those is asked on its own.
-  const lookupNames = governed.filter((name) => movableOverrideRangeStyle(rawOverrides[name]) != null)
+  // Only bare range values are looked up in one batch: a value that names
+  // another dependency (`npm:`, `link:`, …) has no version of its own, and
+  // asking for one can fail resolution, so each of those is asked on its
+  // own below.
+  const movableNames = governed.filter((name) => movableOverrideRangeStyle(rawOverrides[name]) != null)
   const outdatedOpts = {
     ...opts,
     compatible: false,
@@ -579,47 +579,41 @@ async function planOverrideMove (
     },
     timeout: opts.fetchTimeout,
   } as const
-  const outdatedOfProjects = lookupNames.length === 0 ? [] : await outdatedDepsOfProjects(projects, lookupNames, outdatedOpts)
   const latest = new Map<string, string>()
-  for (const outdated of outdatedOfProjects) {
-    for (const pkg of outdated) {
-      const version = pkg.latestManifest?.version
-      if (version != null && !latest.has(pkg.alias)) {
-        latest.set(pkg.alias, version)
+  if (movableNames.length > 0) {
+    for (const outdated of await outdatedDepsOfProjects(projects, movableNames, outdatedOpts)) {
+      for (const pkg of outdated) {
+        const version = pkg.latestManifest?.version
+        if (version != null && !latest.has(pkg.alias)) {
+          latest.set(pkg.alias, version)
+        }
       }
     }
   }
-  // A value that names another dependency (`npm:`, `link:`, …) has no version
-  // of its own, and asking for one can fail resolution, so each of those is
-  // asked on its own.
-  const referencedNames = governed.filter((name) => {
-    const value = rawOverrides[name]
-    return !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
-  })
-  const referencedLatest = await Promise.all(referencedNames.map(async (name): Promise<[string, string | undefined, boolean]> => {
+  const referencedLatest = new Map<string, string | undefined>()
+  const unresolvable = new Set<string>()
+  await Promise.all(governed.filter((name) => namesAnotherDependency(rawOverrides[name])).map(async (name) => {
     try {
       const [outdated] = await outdatedDepsOfProjects(projects, [name], outdatedOpts)
-      return [name, outdated.find((pkg) => pkg.alias === name)?.latestManifest?.version, false]
+      referencedLatest.set(name, outdated.find((pkg) => pkg.alias === name)?.latestManifest?.version)
     } catch {
-      return [name, undefined, true]
+      unresolvable.add(name)
     }
   }))
-  const unresolvable = new Set(referencedLatest.filter(([, , failed]) => failed).map(([name]) => name))
   const updatedOverrides: Record<string, string> = {}
   for (const name of governed) {
     const value = rawOverrides[name]
-    const namesAnotherDependency = !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
     // A `catalog:`-valued override tracks the catalog entry it points at —
     // the catalog update path owns that entry — and a bare value with no
     // recoverable operator (a dist tag, a partial version) tracks a moving
     // target the way a tag-tracking declaration does. Neither is the
     // update's to rewrite.
-    if (value.startsWith('catalog:') || (!namesAnotherDependency && movableOverrideRangeStyle(value) == null)) continue
+    if (value.startsWith('catalog:') || (!namesAnotherDependency(value) && movableOverrideRangeStyle(value) == null)) continue
     if (unresolvable.has(name)) {
-      globalWarn(`Skipping "${name}": it is controlled by an override ("${name}" => "${value}") that pnpm cannot update automatically. Update the override in pnpm-workspace.yaml to update this dependency.`)
+      warnUnmovableOverride(name, value)
       continue
     }
-    const nextVersion = latest.get(name) ?? referencedLatest.find(([referenced]) => referenced === name)?.[1]
+    const nextVersion = latest.get(name) ?? referencedLatest.get(name)
     if (nextVersion == null) continue // already up to date
     const range = getRangeOfSpecifier(value)
     if (range != null && semver.validRange(range) != null && semver.satisfies(nextVersion, range)) {
@@ -627,13 +621,13 @@ async function planOverrideMove (
       // resolution moves within it and the entry stands.
       continue
     }
-    if (!namesAnotherDependency) {
+    if (namesAnotherDependency(value)) {
+      warnUnmovableOverride(name, value)
+    } else {
       const next = calcVersionRange(nextVersion, { prevSpecifier: value, isUpdate: true })
       if (next !== value) {
         updatedOverrides[name] = next
       }
-    } else {
-      globalWarn(`Skipping "${name}": it is controlled by an override ("${name}" => "${value}") that pnpm cannot update automatically. Update the override in pnpm-workspace.yaml to update this dependency.`)
     }
   }
   if (Object.keys(updatedOverrides).length === 0) return undefined
@@ -641,6 +635,20 @@ async function planOverrideMove (
     overrides: { ...rawOverrides, ...updatedOverrides },
     updatedOverrides,
   }
+}
+
+/**
+ * Whether an override value names a dependency of its own rather than
+ * pinning a version of the one it overrides: a protocol reference (`npm:`,
+ * `link:`, a named registry, ...) or a `$` reference to another dependency's
+ * specifier. A `catalog:` reference is the catalog update path's to move.
+ */
+function namesAnotherDependency (value: string): boolean {
+  return !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
+}
+
+function warnUnmovableOverride (name: string, value: string): void {
+  globalWarn(`Skipping "${name}": it is controlled by an override ("${name}" => "${value}") that pnpm cannot update automatically. Update the override in pnpm-workspace.yaml to update this dependency.`)
 }
 
 /**

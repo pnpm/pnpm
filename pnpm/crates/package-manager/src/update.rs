@@ -26,9 +26,7 @@ mod catalogs;
 use catalogs::CatalogCtx;
 
 mod overrides;
-use overrides::{
-    override_governed, override_pins_one_version, warn_override_pins_compatible_update,
-};
+use overrides::{override_governed, warn_pinned_override};
 
 mod rewrite;
 use rewrite::{MatchedRewriteInputs, record_matched_direct_update};
