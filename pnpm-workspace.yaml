@@ -78,6 +78,10 @@ pipelines:
   rust-dylint: [ci:rust-dylint]
   build-pnpr: [ci:build-pnpr]
 
+registries:
+  https://registry.npmjs.com:
+    scopes: ['@pnpm']
+
 # Every entry names a script the root manifest alone defines. A name a
 # workspace package also defines must not appear here: the entry would drop
 # that task's default `dependsOn: ['^<name>']` ordering, and each project's
@@ -687,3 +691,5 @@ update:
     - write-file-atomic
 
 virtualStoreType: global
+
+autoDedupe: true
