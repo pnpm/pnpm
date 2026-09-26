@@ -702,7 +702,14 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
  */
 async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
   if (process.platform !== 'win32' || !stat.isDirectory()) return false
-  if ((await fs.promises.readdir(dest)).length === 0) return true
+  let entries: string[]
+  try {
+    entries = await fs.promises.readdir(dest)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'EACCES')) return true
+    throw err
+  }
+  if (entries.length === 0) return true
   return (await fs.promises.lstat(dest)).isSymbolicLink()
 }
 

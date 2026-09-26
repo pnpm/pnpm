@@ -22,9 +22,9 @@ pub use relative_path::{join_slash_separated_path, push_slash_separated_path, re
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
 pub use retry::{
-    create_dir_all_with_retry, create_dir_with_retry, metadata_with_retry,
-    remove_dir_all_with_retry, remove_dir_with_retry, remove_file_with_retry, rename_with_retry,
-    symlink_metadata_with_retry,
+    create_dir_all_with_retry, create_dir_with_retry, is_transient_file_lock_error,
+    metadata_with_retry, remove_dir_all_with_retry, remove_dir_with_retry, remove_file_with_retry,
+    rename_with_retry, symlink_metadata_with_retry,
 };
 pub use secure_temp_lock::{
     open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir, secure_user_lock_file_path,

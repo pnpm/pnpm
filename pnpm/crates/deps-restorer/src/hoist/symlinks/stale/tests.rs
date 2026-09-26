@@ -147,3 +147,21 @@ fn rechecks_a_junction_completed_after_its_metadata_was_read() {
     junction::create(&target, &link).unwrap();
     assert!(super::may_be_junction_in_creation(&link, &in_progress));
 }
+
+#[cfg(windows)]
+#[test]
+fn treats_a_directory_its_creator_holds_exclusively_as_a_junction_in_creation() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    let _creator = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(&link)
+        .unwrap();
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
