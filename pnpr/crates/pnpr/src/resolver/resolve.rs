@@ -216,6 +216,7 @@ fn importer_manifest_json(project: &ProjectDeps, rel: &str) -> serde_json::Value
     serde_json::json!({
         "name": project.name.clone().unwrap_or_else(|| importer_manifest_name(rel)),
         "version": project.version.as_deref().unwrap_or("0.0.0"),
+        "publishConfig": project.publish_config,
         "dependencies": project.dependencies,
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,

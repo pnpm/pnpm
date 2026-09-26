@@ -8,7 +8,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{PackageExtension, RegistryDeclaration};
 use pnpm_network::AuthHeadersByScope;
 use pnpr_registry::Ecosystem;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub type DepMap = BTreeMap<String, String>;
 
@@ -68,6 +68,13 @@ pub struct PypiResolveRequest {
     pub requires_python: Option<String>,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectPublishConfig {
+    pub directory: Option<String>,
+    pub link_directory: Option<bool>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveRequestProject {
@@ -79,6 +86,8 @@ pub struct ResolveRequestProject {
     pub name: Option<String>,
     #[serde(default)]
     pub version: Option<String>,
+    #[serde(default)]
+    pub publish_config: Option<ProjectPublishConfig>,
     #[serde(default)]
     pub dependencies: DepMap,
     #[serde(default)]
@@ -250,6 +259,7 @@ pub struct ProjectDeps {
     pub dir: String,
     pub name: Option<String>,
     pub version: Option<String>,
+    pub publish_config: Option<ProjectPublishConfig>,
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
@@ -272,6 +282,7 @@ impl ResolveRequest {
                     dir: project.dir.clone(),
                     name: project.name.clone(),
                     version: project.version.clone(),
+                    publish_config: project.publish_config.clone(),
                     dependencies: project.dependencies.clone(),
                     dev_dependencies: project.dev_dependencies.clone(),
                     optional_dependencies: project.optional_dependencies.clone(),
@@ -283,6 +294,7 @@ impl ResolveRequest {
             dir: root_dir(),
             name: None,
             version: None,
+            publish_config: None,
             dependencies: self.dependencies.clone().unwrap_or_default(),
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
             optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),

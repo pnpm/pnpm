@@ -224,6 +224,7 @@ fn cache_key_projects(request: &ResolveRequest) -> Vec<serde_json::Value> {
                 "dir": project.dir,
                 "name": project.name,
                 "version": project.version,
+                "publishConfig": project.publish_config,
                 "dependencies": project.dependencies,
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,

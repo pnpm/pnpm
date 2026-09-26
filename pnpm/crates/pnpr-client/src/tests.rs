@@ -138,7 +138,7 @@ async fn rejects_a_server_that_omits_or_changes_patch_metadata() {
         if let Some(patched_dependencies) = patched_dependencies {
             lockfile["patchedDependencies"] = patched_dependencies;
         }
-        assert_transform_metadata_rejected(
+        assert_protocol_rejected(
             resolve_projects_options(),
             lockfile,
             "returned patchedDependencies that do not match the request",
@@ -157,13 +157,55 @@ async fn rejects_a_server_that_omits_or_changes_package_extension_metadata() {
         if let Some(package_extensions_checksum) = package_extensions_checksum {
             lockfile["packageExtensionsChecksum"] = json!(package_extensions_checksum);
         }
-        assert_transform_metadata_rejected(
+        assert_protocol_rejected(
             resolve_projects_options(),
             lockfile,
             "returned packageExtensionsChecksum that does not match the request",
         )
         .await;
     }
+}
+
+#[tokio::test]
+async fn rejects_a_server_that_omits_or_changes_a_project_publish_directory() {
+    for publish_directory in [None, Some("build")] {
+        let mut options = resolve_projects_options();
+        options.projects[0].publish_config =
+            Some(crate::PublishConfig { directory: "dist".to_string(), link_directory: None });
+        let mut importer = json!({});
+        if let Some(publish_directory) = publish_directory {
+            importer["publishDirectory"] = json!(publish_directory);
+        }
+        let mut lockfile = matching_transform_lockfile(&options);
+        lockfile["importers"] = json!({ ".": importer });
+        assert_protocol_rejected(options, lockfile, "instead of its publishConfig.directory").await;
+    }
+}
+
+#[tokio::test]
+async fn does_not_check_a_project_the_server_did_not_return() {
+    let mut options = resolve_projects_options();
+    options.projects[0].publish_config =
+        Some(crate::PublishConfig { directory: "dist".to_string(), link_directory: None });
+    // A partial install resolves a subset of the workspace, so a project the
+    // response leaves out carries no importer to compare a publish directory
+    // against, and the merge only takes the importers the server did return.
+    let lockfile = matching_transform_lockfile(&options);
+    let result = resolve_mock_frames(
+        options,
+        vec![json!({ "type": "done", "lockfile": lockfile })],
+        true,
+        |_| {},
+    )
+    .await;
+
+    let Ok(outcome) = result else {
+        panic!("a response that omits the project must not fail the resolve");
+    };
+    assert!(
+        outcome.lockfile.importers.is_empty(),
+        "the resolve must not invent an importer for the omitted project",
+    );
 }
 
 #[tokio::test]
@@ -208,6 +250,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dir: ".".to_string(),
             name: Some("app".to_string()),
             version: Some("1.0.0".to_string()),
+            publish_config: None,
             dependencies: BTreeMap::from([("acme".to_string(), "catalog:".to_string())]),
             dev_dependencies: BTreeMap::new(),
             optional_dependencies: BTreeMap::new(),
@@ -283,7 +326,7 @@ fn package_extensions_checksum(options: &ResolveProjectsOptions) -> String {
         .expect("configured package extensions have a checksum")
 }
 
-async fn assert_transform_metadata_rejected(
+async fn assert_protocol_rejected(
     options: ResolveProjectsOptions,
     lockfile: Value,
     expected_message: &str,

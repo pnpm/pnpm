@@ -102,7 +102,7 @@ use self::{
     protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
         reject_inline_url_auth, reject_invalid_patch_hashes, reject_invalid_registries,
-        reject_off_allowlist_fetches,
+        reject_off_allowlist_fetches, reject_unsafe_publish_directories,
     },
     verdict_cache::VerdictCache,
     wire::{
@@ -484,6 +484,7 @@ fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> 
     reject_invalid_registries(request)
         .or_else(|| reject_invalid_patch_hashes(request))
         .or_else(|| reject_inline_url_auth(request))
+        .or_else(|| reject_unsafe_publish_directories(request))
         .or_else(|| reject_off_allowlist_fetches(request, context))
 }
 

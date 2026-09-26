@@ -38,7 +38,8 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
-    PnprClient, PnprClientError, ResolveProject, ResolveProjectsOptions, VerifyLockfileOptions,
+    PnprClient, PnprClientError, PublishConfig, ResolveProject, ResolveProjectsOptions,
+    VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
 use pnpr_lockfile::{
@@ -51,7 +52,6 @@ use pnpr_request::{
 };
 use pnpr_resolution::{
     DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,
-    resolve_project,
 };
 
 use std::path::PathBuf;

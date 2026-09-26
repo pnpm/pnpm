@@ -1,8 +1,8 @@
 use super::{
-    Catalogs, Context, InstallFamilySelection, IntoDiagnostic, Lockfile, LockfileResolution,
-    PathBuf, PnprLink, PnprSession, ResolveProject, ResolveProjectsOptions, State,
-    discover_workspace_projects, get_catalogs_from_workspace_manifest, prefetch_allowed,
-    resolve_project,
+    Catalogs, Context, DependencyGroup, InstallFamilySelection, IntoDiagnostic, Lockfile,
+    LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig, ResolveProject,
+    ResolveProjectsOptions, State, discover_workspace_projects,
+    get_catalogs_from_workspace_manifest, prefetch_allowed,
 };
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
@@ -149,6 +149,56 @@ pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
         .into_diagnostic()
         .wrap_err("reading catalogs to forward to the pnpr server")?;
     Ok((!catalogs.is_empty()).then_some(catalogs))
+}
+
+fn resolve_project(
+    dir: String,
+    manifest: &pnpm_package_manifest::PackageManifest,
+) -> ResolveProject {
+    ResolveProject {
+        dir,
+        name: manifest
+            .value()
+            .get("name")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
+        version: manifest
+            .value()
+            .get("version")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
+        publish_config: publish_config(manifest),
+        dependencies: manifest
+            .dependencies([DependencyGroup::Prod])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
+        dev_dependencies: manifest
+            .dependencies([DependencyGroup::Dev])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
+        optional_dependencies: manifest
+            .dependencies([DependencyGroup::Optional])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
+        peer_dependencies: manifest
+            .dependencies([DependencyGroup::Peer])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect(),
+    }
+}
+
+/// The manifest's `publishConfig` link target, or `None` when the project only
+/// publishes from its own root. `linkDirectory` is forwarded verbatim; the
+/// server reads an absent flag and `true` as the same instruction.
+fn publish_config(manifest: &pnpm_package_manifest::PackageManifest) -> Option<PublishConfig> {
+    let config = manifest.value().get("publishConfig")?;
+    Some(PublishConfig {
+        directory: config
+            .get("directory")?
+            .as_str()?
+            .to_string(),
+        link_directory: config.get("linkDirectory").and_then(serde_json::Value::as_bool),
+    })
 }
 
 pub(super) fn resolve_projects_for_pnpr(

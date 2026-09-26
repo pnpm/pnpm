@@ -110,6 +110,7 @@ fn handle_resolve_frame(
         Frame::Done { lockfile, stats } => {
             assert_requested_importers(&lockfile, permitted_importers)?;
             assert_transform_metadata(&lockfile, opts)?;
+            assert_publish_directories(&lockfile, opts)?;
             Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
         }
         Frame::Error { message } => Err(PnprClientError::Server(message)),
@@ -179,6 +180,34 @@ fn assert_transform_metadata(
         }
     }
 
+    Ok(())
+}
+
+/// A project that publishes from a subdirectory must come back with that
+/// directory on its importer. The server rebuilds each project's manifest from
+/// the request, so a server that ignored `publishConfig` would have the caller
+/// link the project root — and install other code than a local install does.
+fn assert_publish_directories(
+    lockfile: &Lockfile,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    for project in &opts.projects {
+        let Some(directory) = project.publish_config
+            .as_ref()
+            .map(|publish_config| publish_config.directory.as_str())
+        else {
+            continue;
+        };
+        let Some(importer) = lockfile.importers.get(&project.dir) else {
+            continue;
+        };
+        if importer.publish_directory.as_deref() != Some(directory) {
+            return Err(PnprClientError::Protocol(format!(
+                "/-/pnpr/v0/resolve returned importer {:?} linked at {:?} instead of its publishConfig.directory {directory:?}; the server may not forward project publishConfig",
+                project.dir, importer.publish_directory,
+            )));
+        }
+    }
     Ok(())
 }
 
