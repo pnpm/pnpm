@@ -582,6 +582,7 @@ fn an_install_repairs_stale_patch_hash_dep_paths() {
 
     let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
     rewrite_patch_hash_segments(&workspace, &patch_hash, STALE_PATCH_HASH_SEGMENT);
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
 
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
 

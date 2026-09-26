@@ -66,12 +66,10 @@ pub fn extract_publish_manifest_from_packed(
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let entries = archive.entries().map_err(read_err)?;
-
     let mut manifest_text: Option<String> = None;
     let mut readme: Option<String> = None;
     let mut readme_priority = 0;
-    for entry in entries {
+    for entry in archive.entries().map_err(read_err)? {
         let mut entry = entry.map_err(read_err)?;
         let normalized = normalize_entry_path(&entry.path().map_err(read_err)?);
         let priority = normalized.strip_prefix("package/").map_or(0, readme_file_priority);
