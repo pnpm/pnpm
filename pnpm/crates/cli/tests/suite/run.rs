@@ -779,7 +779,7 @@ mod shell_emulator {
     use command_extra::CommandExtra;
     use pnpm_testing_utils::bin::CommandTempCwd;
     use serde_json::json;
-    use std::{fs, path::Path};
+    use std::{fmt::Write as _, fs, path::Path};
 
     fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
         write_configured_project(workspace, scripts, None, shell_emulator);
@@ -796,7 +796,7 @@ mod shell_emulator {
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
         let mut yaml = format!("shellEmulator: {shell_emulator}\n");
         if let Some(script_shell) = script_shell {
-            yaml.push_str(&format!("scriptShell: '{}'\n", script_shell.display()));
+            let _ = write!(yaml, "scriptShell: '{}'\n", script_shell.display());
         }
         fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
     }
