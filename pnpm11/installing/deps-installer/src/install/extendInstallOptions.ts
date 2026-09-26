@@ -115,6 +115,7 @@ export interface StrictInstallOptions extends RegistryContext {
   includeDirect: IncludedDependencies
   ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
+  ignoreDepScripts: boolean
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
@@ -340,6 +341,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hooks: {},
     ignoreCurrentSpecifiers: false,
     ignoreScripts: false,
+    ignoreDepScripts: opts.ignoreDepScripts ?? false,
     include: {
       dependencies: true,
       devDependencies: true,

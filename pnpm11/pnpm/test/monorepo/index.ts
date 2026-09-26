@@ -2524,3 +2524,70 @@ test('issue 4407: refreshes an injected copy on a repeat install after the sourc
 
   expect(fs.readFileSync('app/node_modules/shared/dist/out.js', 'utf8')).toBe('module.exports = "built"\n')
 })
+
+test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'member\\n\')"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('root\n')
+  expect(fs.existsSync('packages/member/order.txt')).toBe(false)
+})
+
+test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --ignore-scripts is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install', '--ignore-scripts'])
+
+  expect(fs.existsSync('order.txt')).toBe(false)
+})
+

@@ -540,7 +540,7 @@ export async function recursive (
             bin: binDirOf(rootDir, localConfig.modulesDir ?? opts.modulesDir),
             dir: rootDir,
             hooks,
-            ignoreScripts: true,
+            ignoreDepScripts: true,
             rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
