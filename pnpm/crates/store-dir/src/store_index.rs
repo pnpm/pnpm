@@ -40,6 +40,10 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum StoreIndexError {
+    #[display("Store-index writer is unavailable")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITER_UNAVAILABLE))]
+    WriterUnavailable,
+
     #[display("Failed to create directory for index.db at {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_DIR))]
     CreateDir {

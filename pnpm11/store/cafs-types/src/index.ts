@@ -105,6 +105,7 @@ export interface FileWriteResult {
 
 export interface AddToStoreResult {
   filesIndex: FilesIndex
+  hasSymlinks?: boolean
   manifest?: DependencyManifest
 }
 
