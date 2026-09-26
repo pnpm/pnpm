@@ -991,6 +991,161 @@ fn deploy_does_not_run_prepare_scripts() {
     drop((root, mock_instance));
 }
 
+/// A hoisted production deploy leaves the Node.js build downloaded for
+/// `engines.runtime` out of `node_modules`.
+#[test]
+fn hoisted_prod_deploy_omits_engines_runtime_node() {
+    let workspace = RuntimeWorkspace::new();
+    workspace.install();
+    workspace.deploy(&["--config.node-linker=hoisted"], &["--prod"]);
+    assert_runtime_omitted(&workspace.deploy_dir());
+    assert!(
+        workspace
+            .deploy_dir()
+            .join("node_modules/dependency/package.json")
+            .exists(),
+        "production dependencies are still deployed",
+    );
+}
+
+/// Shared-lockfile deploy and the legacy deploy install are separate calls.
+/// Both omit the runtime when the deploy linker is hoisted.
+#[test]
+fn legacy_hoisted_prod_deploy_omits_engines_runtime_node() {
+    let workspace = RuntimeWorkspace::new();
+    workspace.install();
+    workspace.deploy(&["--config.node-linker=hoisted"], &["--legacy", "--prod"]);
+    assert_runtime_omitted(&workspace.deploy_dir());
+    assert!(
+        workspace
+            .deploy_dir()
+            .join("node_modules/dependency/package.json")
+            .exists(),
+        "production dependencies are still deployed",
+    );
+}
+
+/// Isolated deploy still links the runtime package and its bin.
+#[test]
+fn isolated_prod_deploy_links_engines_runtime_node() {
+    let workspace = RuntimeWorkspace::new();
+    workspace.install();
+    workspace.deploy(&[], &["--prod"]);
+    let deploy_dir = workspace.deploy_dir();
+    assert!(
+        deploy_dir.join("node_modules/node/package.json").exists(),
+        "isolated deploy keeps the runtime package",
+    );
+    assert!(
+        deploy_dir.join("node_modules/node/bin/node").exists(),
+        "isolated deploy keeps the runtime bin",
+    );
+    assert!(
+        deploy_dir.join("node_modules/dependency/package.json").exists(),
+        "production dependencies are still deployed",
+    );
+}
+
+fn assert_runtime_omitted(deploy_dir: &Path) {
+    assert!(
+        !deploy_dir.join("node_modules/node").exists(),
+        "the downloaded runtime must not be hoisted into the deploy directory",
+    );
+    assert!(
+        !deploy_dir.join("node_modules/.bin/node").exists(),
+        "the downloaded runtime bin must not be linked into the deploy directory",
+    );
+}
+
+struct RuntimeWorkspace {
+    _root: tempfile::TempDir,
+    _server: mockito::ServerGuard,
+    _mocks: [mockito::Mock; 3],
+    workspace: PathBuf,
+}
+
+impl RuntimeWorkspace {
+    fn new() -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        // An rc build skips release-channel signature checks, so the mock mirror
+        // can serve the archive the source install downloads.
+        let version = "24.0.0-rc.4";
+        let mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+        let workspace = root.path().join("workspace");
+        let app = workspace.join("packages/app");
+        fs::create_dir_all(&app).unwrap();
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "\
+packages:
+  - packages/*
+storeDir: ../store
+cacheDir: ../cache
+enableGlobalVirtualStore: false
+nodeDownloadMirrors:
+  rc: '{}/'
+",
+                server.url(),
+            ),
+        )
+        .unwrap();
+        fs::write(
+            workspace.join("package.json"),
+            r#"{"name":"root","version":"1.0.0","private":true}"#,
+        )
+        .unwrap();
+        let tarball = pnpm_testing_utils::fixtures::minimal_tarball("dependency", "1.0.0");
+        fs::write(app.join("dependency.tgz"), tarball).unwrap();
+        fs::write(
+            app.join("package.json"),
+            format!(
+                r#"{{
+  "name": "app",
+  "version": "1.0.0",
+  "dependencies": {{ "dependency": "file:dependency.tgz" }},
+  "engines": {{
+    "runtime": {{ "name": "node", "version": "{version}", "onFail": "download" }}
+  }}
+}}"#,
+            ),
+        )
+        .unwrap();
+        Self { _root: root, _server: server, _mocks: mocks, workspace }
+    }
+
+    fn install(&self) {
+        Command::cargo_bin("pnpm")
+            .unwrap()
+            .current_dir(&self.workspace)
+            .arg("install")
+            .assert()
+            .success();
+        assert!(
+            self.workspace.join("packages/app/node_modules/node/package.json").exists(),
+            "the source install still downloads the runtime",
+        );
+    }
+
+    fn deploy(&self, global: &[&str], deploy_flags: &[&str]) {
+        let mut args = global.to_vec();
+        args.extend(["--filter", "app", "deploy"]);
+        args.extend(deploy_flags);
+        args.push("deploy");
+        Command::cargo_bin("pnpm")
+            .unwrap()
+            .with_args(args)
+            .current_dir(&self.workspace)
+            .assert()
+            .success();
+    }
+
+    fn deploy_dir(&self) -> PathBuf {
+        self.workspace.join("deploy")
+    }
+}
+
 mod legacy;
 
 mod package_manager;
