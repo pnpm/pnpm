@@ -1,7 +1,9 @@
 pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs};
 
+pub(crate) use allow_build_selectors::split_allow_build_selectors;
 pub(crate) use execution::{AddGroups, add_package, add_packages};
 
+mod allow_build_selectors;
 mod arguments;
 
 use crate::{
@@ -364,9 +366,10 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
+    let allow_build = split_allow_build_selectors(allow_build);
     let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
     let mut allowed_only: Vec<&str> = Vec::new();
-    for pkg in allow_build {
+    for pkg in &allow_build {
         let (name, allowed) = parse_allow_build_selector(pkg);
         if name.is_empty() {
             return Err(AllowBuildError::MissingPackage.into());

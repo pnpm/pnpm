@@ -124,6 +124,31 @@ fn dlx_errors_when_no_command_given() {
     }
 }
 
+/// An empty `--allow-build` item (`--allow-build=esbuild,`) is rejected
+/// before it can reach the dlx cache key or the cache install's build
+/// policy, the same way `add` and `install` reject it.
+#[test]
+fn dlx_and_create_reject_an_empty_allow_build_item() {
+    for argv in [
+        ["dlx", "--allow-build=esbuild,", "cowsay"],
+        ["dlx", "--allow-build=", "cowsay"],
+        ["create", "--allow-build=esbuild,", "vite"],
+    ] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+        let output = pacquet
+            .with_args(argv)
+            .output()
+            .expect("spawn pacquet");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("ARGV: {argv:?}\nSTDERR:\n{stderr}\n");
+        assert!(!output.status.success(), "an empty --allow-build item must fail");
+        assert!(stderr.contains("ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE"));
+
+        drop(root);
+    }
+}
+
 /// `pacquet dlx <package>` resolves the package against the mocked
 /// registry, installs it into the dlx cache under `config.cache_dir`,
 /// and runs its bin in the process cwd. Mirrors pnpm's `dlx` happy
