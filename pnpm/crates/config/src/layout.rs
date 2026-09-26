@@ -442,6 +442,13 @@ impl Config {
         }
         let Ok(cwd) = Sys::current_dir() else { return };
         let Some(branch) = get_current_branch::<GitHost>(&cwd) else {
+            // Candidates serve the plain `gitBranchLockfile` read, whose
+            // branch file the loader tries before the shared one. Merge
+            // mode folds every branch lockfile in regardless of the
+            // branch, so it needs no candidates.
+            if !self.use_git_branch_lockfile || self.merge_git_branch_lockfiles {
+                return;
+            }
             let branches = get_branches_containing_head::<GitHost>(&cwd);
             if branches.is_empty() {
                 return;
