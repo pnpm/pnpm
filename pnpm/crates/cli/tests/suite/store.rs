@@ -673,3 +673,25 @@ fn install_registers_the_project_in_the_store() {
         .collect();
     assert_eq!(projects, [canonicalize(&workspace)]);
 }
+
+#[test]
+fn frozen_store_install_does_not_register_the_project() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    fs::remove_dir_all(store_dir.projects()).expect("clear the project registry");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--frozen-store", "--offline"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("node_modules/is-positive").is_dir());
+    assert!(!store_dir.projects().exists());
+}
