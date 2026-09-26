@@ -365,11 +365,66 @@ fn gvs_build_failure_keeps_the_slot_marked_for_a_rebuild() {
     drop((root, mock_instance));
 }
 
-/// An optional dependency whose build fails is skipped, but its GVS slot
-/// stays for the same reason as [`gvs_build_failure_keeps_the_slot_marked_for_a_rebuild`]:
-/// other projects may link it.
+/// TS: `GVS removes an optional dependency whose build failed from its slot`
+/// (`globalVirtualStore.ts`).
+///
+/// The package directory goes, so the parent's link inside its own shared
+/// slot finds nothing, while the failed slot keeps its lock and links.
 #[test]
-fn gvs_optional_build_failure_keeps_the_slot() {
+fn gvs_removes_an_optional_dependency_whose_build_failed_from_its_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pkg-with-failing-optional-dependency": "1.0.0" }),
+    );
+    set_gvs_workspace_yaml(
+        &workspace,
+        &allow_builds_yaml(&[("@pnpm.e2e/pkg-with-failing-postinstall", true)]),
+    );
+    let failed_version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-failing-postinstall", "1.0.0");
+    let parent_version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-failing-optional-dependency", "1.0.0");
+
+    for _ in 0..2 {
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let failed_slot = sole_hash_dir(&failed_version_dir);
+        assert!(
+            !pkg_in_slot(&failed_slot, "@pnpm.e2e/pkg-with-failing-postinstall").exists(),
+            "the optional dependency whose build failed must be removed from its slot",
+        );
+        let parent_slot = sole_hash_dir(&parent_version_dir);
+        assert!(
+            pkg_in_slot(&parent_slot, "@pnpm.e2e/pkg-with-failing-optional-dependency")
+                .join("package.json")
+                .exists(),
+            "the parent must stay installed",
+        );
+        assert!(
+            !pkg_in_slot(&parent_slot, "@pnpm.e2e/pkg-with-failing-postinstall")
+                .join("package.json")
+                .exists(),
+            "the parent must not resolve the optional dependency whose build failed",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+/// TS: `rebuild keeps a global virtual store slot whose optional build failed`
+/// (`building/commands/test/build/index.ts`).
+///
+/// A rebuild may re-run the scripts of a slot other projects use with a
+/// working build, so its failure keeps the slot.
+#[test]
+fn gvs_rebuild_keeps_the_slot_whose_optional_build_failed() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
@@ -384,16 +439,17 @@ fn gvs_optional_build_failure_keeps_the_slot() {
     );
 
     pacquet(&workspace)
-        .with_arg("install")
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_arg("rebuild")
         .assert()
         .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
     let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/failing-postinstall");
-    assert!(
-        pkg.join("package.json").exists(),
-        "the failed optional build's slot must stay in place",
-    );
+    assert!(pkg.join("package.json").exists(), "a failed rebuild must keep the slot");
 
     drop((root, mock_instance));
 }
