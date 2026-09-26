@@ -18,7 +18,7 @@ pub use intents::{
     CHANGES_DIR, ChangeIntent, IntentBumpType, format_change_intent, parse_change_intent,
     read_change_intents, write_change_intent,
 };
-pub use jsr::{JsrManifestUpdate, jsr_manifest_updates};
+pub use jsr::{JsrManifestUpdate, jsr_manifest_updates, save_with_jsr_manifests};
 pub use ledger::{
     LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
     build_consumption_index, normalize_project_dir, read_ledger,

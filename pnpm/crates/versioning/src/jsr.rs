@@ -15,14 +15,8 @@ const JSR_MANIFEST_BASENAMES: [&str; 2] = ["jsr.json", "jsr.jsonc"];
 #[derive(Debug)]
 pub struct JsrManifestUpdate {
     pub path: PathBuf,
+    original: String,
     contents: String,
-}
-
-impl JsrManifestUpdate {
-    pub fn write(&self) -> Result<(), VersioningError> {
-        pnpm_fs::write_atomic(&self.path, self.contents.as_bytes())
-            .map_err(|source| VersioningError::Write { path: self.path.clone(), source })
-    }
 }
 
 /// The JSR manifests in `pkg_dir` that declare a top-level `version`, each with
@@ -34,25 +28,74 @@ pub fn jsr_manifest_updates(
     let mut updates = Vec::new();
     for basename in JSR_MANIFEST_BASENAMES {
         let path = pkg_dir.join(basename);
-        let mut contents = match fs::read_to_string(&path) {
-            Ok(contents) => contents,
+        let original = match fs::read_to_string(&path) {
+            Ok(original) => original,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(source) => return Err(VersioningError::Read { path, source }),
         };
-        let Some(span) = version_span(&path, &contents)? else {
-            continue;
-        };
-        let literal = serde_json::to_string(new_version).expect("serialize a string");
-        contents.replace_range(span, &literal);
-        updates.push(JsrManifestUpdate { path, contents });
+        if let Some(contents) = rewrite_version(&path, &original, new_version)? {
+            updates.push(JsrManifestUpdate { path, original, contents });
+        }
     }
     Ok(updates)
 }
 
-/// The span of the manifest's top-level `version` string literal, or `None`
-/// when it has no string `version`. `jsr.jsonc` is parsed as JSON5, a
-/// superset of JSONC.
-fn version_span(path: &Path, text: &str) -> Result<Option<Range<usize>>, VersioningError> {
+/// Write `updates`, then run `save_package_manifest`. If either fails, the JSR
+/// manifests already written get their original contents back, so a failed
+/// bump does not leave them at a version `package.json` lacks.
+pub fn save_with_jsr_manifests<Error: From<VersioningError>>(
+    updates: &[JsrManifestUpdate],
+    save_package_manifest: impl FnOnce() -> Result<(), Error>,
+) -> Result<(), Error> {
+    for (written, update) in updates.iter().enumerate() {
+        if let Err(error) = write_file(&update.path, &update.contents) {
+            restore_originals(&updates[..written]);
+            return Err(error.into());
+        }
+    }
+    save_package_manifest().inspect_err(|_| restore_originals(updates))
+}
+
+/// Best effort: the caller reports the error that interrupted the bump.
+fn restore_originals(updates: &[JsrManifestUpdate]) {
+    for update in updates {
+        let _ = write_file(&update.path, &update.original);
+    }
+}
+
+fn write_file(path: &Path, contents: &str) -> Result<(), VersioningError> {
+    pnpm_fs::write_atomic(path, contents.as_bytes())
+        .map_err(|source| VersioningError::Write { path: path.to_path_buf(), source })
+}
+
+/// `text` with its top-level `version` string set to `new_version`, or `None`
+/// when it has no string `version`. The result must parse to the original
+/// manifest with only `version` changed.
+fn rewrite_version(
+    path: &Path,
+    text: &str,
+    new_version: &str,
+) -> Result<Option<String>, VersioningError> {
+    let mut manifest = parse_jsr_manifest(path, text)?;
+    if !manifest.get("version").is_some_and(Value::is_string) {
+        return Ok(None);
+    }
+    let unlocatable = || VersioningError::InvalidJsrManifest {
+        path: path.to_path_buf(),
+        reason: "could not locate its top-level version field".to_string(),
+    };
+    let span = top_level_version_span(text).ok_or_else(unlocatable)?;
+    let mut contents = text.to_string();
+    contents.replace_range(span, &serde_json::to_string(new_version).expect("serialize a string"));
+    manifest["version"] = Value::String(new_version.to_string());
+    if parse_jsr_manifest(path, &contents)? != manifest {
+        return Err(unlocatable());
+    }
+    Ok(Some(contents))
+}
+
+/// `jsr.jsonc` is parsed as JSON5, a superset of JSONC.
+fn parse_jsr_manifest(path: &Path, text: &str) -> Result<Value, VersioningError> {
     let parsed = if path
         .extension()
         .is_some_and(|extension| extension == "jsonc")
@@ -61,15 +104,10 @@ fn version_span(path: &Path, text: &str) -> Result<Option<Range<usize>>, Version
     } else {
         pnpm_package_manifest::parse_manifest(text).map_err(|error| error.to_string())
     };
-    let invalid =
-        |reason: String| VersioningError::InvalidJsrManifest { path: path.to_path_buf(), reason };
-    let manifest = parsed.map_err(invalid)?;
-    if !manifest.get("version").is_some_and(Value::is_string) {
-        return Ok(None);
-    }
-    top_level_version_span(text)
-        .map(Some)
-        .ok_or_else(|| invalid("could not locate its version field".to_string()))
+    parsed.map_err(|reason| VersioningError::InvalidJsrManifest {
+        path: path.to_path_buf(),
+        reason,
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -79,8 +117,8 @@ enum Token {
     Other,
 }
 
-/// The byte span, quotes included, of the root object's `version` string in
-/// `text`, which must already have parsed as a JSONC object.
+/// The byte span, quotes included, of the root object's quoted `version` key's
+/// string value in `text`, which must already have parsed as an object.
 fn top_level_version_span(text: &str) -> Option<Range<usize>> {
     let tokens = tokenize(text);
     let mut depth = 0usize;
@@ -118,7 +156,7 @@ fn tokenize(text: &str) -> Vec<Token> {
             continue;
         }
         let byte = bytes[index];
-        if byte == b'"' {
+        if matches!(byte, b'"' | b'\'') {
             let end = string_end(bytes, index);
             tokens.push(Token::Str(index..end));
             index = end;
@@ -157,8 +195,9 @@ fn comment_end(bytes: &[u8], start: usize) -> Option<usize> {
 
 /// The index past the string literal whose opening quote is at `start`.
 fn string_end(bytes: &[u8], start: usize) -> usize {
+    let quote = bytes[start];
     let mut index = start + 1;
-    while index < bytes.len() && bytes[index] != b'"' {
+    while index < bytes.len() && bytes[index] != quote {
         index += if bytes[index] == b'\\' { 2 } else { 1 };
     }
     (index + 1).min(bytes.len())
