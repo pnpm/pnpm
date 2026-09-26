@@ -223,7 +223,7 @@ pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
 
 /// The command names in `bins_dir`. On Windows the shim and executable
 /// extensions are stripped in any case. A missing directory has none.
-pub(super) fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, LinkBinsError> {
+pub fn existing_commands(bins_dir: &Path) -> Result<HashSet<String>, LinkBinsError> {
     let read_error = |error| LinkBinsError::ReadModulesDir { dir: bins_dir.to_path_buf(), error };
     let entries = match fs::read_dir(bins_dir) {
         Ok(entries) => entries,

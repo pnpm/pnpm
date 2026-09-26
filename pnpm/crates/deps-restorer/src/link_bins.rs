@@ -4,9 +4,10 @@ pub use direct::{
     link_direct_dep_bins_prefetched, link_direct_dep_bins_resolved, link_new_bins_from_locations,
     link_project_bins, link_top_level_bins, resolve_hoisted_bin_deps, shim_link_options,
 };
+pub use scan::existing_commands;
 
 mod scan;
-use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
+use scan::{read_location_bin_sources, read_package, run_with_readdir};
 
 mod direct;
 
