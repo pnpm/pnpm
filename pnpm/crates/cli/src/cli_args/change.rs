@@ -440,6 +440,7 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
                 private: manifest.get("private").and_then(serde_json::Value::as_bool) == Some(true),
+                manifest_path: project.manifest.path().to_path_buf(),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

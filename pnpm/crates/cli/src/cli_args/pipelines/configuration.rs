@@ -1,6 +1,6 @@
 use super::{
-    Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
-    reporter_emit, resolve_bool_override, warn_deprecated_override_version_references,
+    Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, reporter_emit,
+    resolve_bool_override, warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields, warn_unapplied_package_configs,
     warn_unmatched_registry_options,
 };
@@ -63,8 +63,11 @@ fn read_config_root_manifest(
     dir_ref: &Path,
 ) -> miette::Result<(PathBuf, Option<serde_json::Value>)> {
     let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
-    let root_manifest = read_manifest_json(&config_root.join("package.json"))
-        .wrap_err("read package manager policy")?;
+    let root_manifest =
+        pnpm_workspace::try_read_project_manifest(&config_root, cfg.preferred_manifest_format)
+            .map_err(miette::Report::new)
+            .wrap_err("read package manager policy")?
+            .map(|(_, manifest)| manifest.value().clone());
     Ok((config_root, root_manifest))
 }
 
@@ -121,10 +124,11 @@ pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
 pub(super) fn active_manifest_is_standin(
     active_dir: &Path,
     projects: &[pnpm_workspace::Project],
+    config: &Config,
 ) -> miette::Result<bool> {
     let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
     Ok(!active_dir.join("package.json").is_file()
-        && pnpm_workspace::try_read_project_manifest(active_dir)
+        && pnpm_workspace::try_read_project_manifest(active_dir, config.preferred_manifest_format)
             .map_err(miette::Report::new)?
             .is_none()
         && !projects

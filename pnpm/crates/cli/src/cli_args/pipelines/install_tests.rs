@@ -11,8 +11,12 @@ fn includes_the_publish_directory_of_an_undiscovered_workspace_root() {
     )
     .expect("write root package.json");
 
-    let source_dirs =
-        dedicated_injected_source_dirs(&[], std::slice::from_ref(&root)).expect("source dirs");
+    let source_dirs = dedicated_injected_source_dirs(
+        &[],
+        std::slice::from_ref(&root),
+        pnpm_package_manifest::ManifestFormat::default(),
+    )
+    .expect("source dirs");
 
     let expected: HashSet<_> =
         [pnpm_fs::lexical_normalize(&root), pnpm_fs::lexical_normalize(&root.join("dist"))]

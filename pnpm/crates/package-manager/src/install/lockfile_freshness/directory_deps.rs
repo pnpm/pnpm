@@ -4,7 +4,7 @@ use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
 use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, ManifestFormat, PackageManifest};
 use spec::spec_satisfies_snapshot_dep;
 use std::path::Path;
 
@@ -128,11 +128,14 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let mut local_manifest = pnpm_workspace::safe_read_project_manifest_only(dep.dir)
-        .ok()
-        .flatten()
-        .or_else(|| workspace_manifest_for_unbuilt_publish_dir(dep))
-        .ok_or_else(|| dep.outdated())?;
+    // Directory dependencies resolve from their `package.json`, which the
+    // default order selects first.
+    let mut local_manifest =
+        pnpm_workspace::safe_read_project_manifest_only(dep.dir, ManifestFormat::default())
+            .ok()
+            .flatten()
+            .or_else(|| workspace_manifest_for_unbuilt_publish_dir(dep))
+            .ok_or_else(|| dep.outdated())?;
     if let Some(parsed) = check.parsed_overrides {
         crate::VersionsOverrider::new(parsed, check.lockfile_dir)
             .apply(&mut local_manifest, Some(dep.dir));
@@ -155,7 +158,9 @@ fn workspace_manifest_for_unbuilt_publish_dir(
     let mut candidate = dep.dir.parent()?;
     loop {
         if let Some(manifest) =
-            pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
+            pnpm_workspace::safe_read_project_manifest_only(candidate, ManifestFormat::default())
+                .ok()
+                .flatten()
             && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
                 == target
         {

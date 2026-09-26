@@ -1,12 +1,14 @@
 use super::CompletionContext;
-use pnpm_workspace::safe_read_project_manifest_only;
+use pnpm_workspace::{ManifestFormat, safe_read_project_manifest_only};
 
 pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {
     if context.has_positional || context.awaiting_option_value {
         return Ok(Vec::new());
     }
     let directory = context.resolve_project_directory()?;
-    let Some(manifest) = safe_read_project_manifest_only(&directory)? else {
+    // Completion runs without loading config.
+    let Some(manifest) = safe_read_project_manifest_only(&directory, ManifestFormat::default())?
+    else {
         return Ok(Vec::new());
     };
     let mut scripts: Vec<_> = manifest

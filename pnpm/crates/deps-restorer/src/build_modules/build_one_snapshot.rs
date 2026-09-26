@@ -398,6 +398,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
+        manifest_format: pnpm_package_manifest::ManifestFormat::default(),
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: context.directories.lockfile_dir,
             node_execpath: None,

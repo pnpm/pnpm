@@ -56,8 +56,8 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
     }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let (config_root, recursive_sort) =
@@ -68,7 +68,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
             config_dependencies,
             ecosystem_packages,
@@ -201,8 +201,8 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
         });
     }
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
@@ -215,7 +215,7 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
         };
         match reporter {
@@ -235,8 +235,8 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
         return Ok(Box::pin(std::future::ready(Ok(()))));
     }
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
@@ -249,7 +249,7 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
         };
         match reporter {
@@ -294,8 +294,8 @@ fn install_with_config<'a>(
     update_check_policy: UpdateCheckPolicy,
 ) -> miette::Result<CommandFuture<'a, &'static Config>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three
@@ -340,7 +340,7 @@ fn install_with_config<'a>(
                 cfg,
                 config_root,
                 prefix: dir.to_path_buf(),
-                manifest_path: manifest_path.to_path_buf(),
+                manifest_path,
                 recursive_sort,
                 require_lockfile,
                 frozen_lockfile,

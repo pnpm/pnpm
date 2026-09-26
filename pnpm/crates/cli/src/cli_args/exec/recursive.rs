@@ -352,7 +352,7 @@ fn spawn_exec_task(
     context: &ExecTaskContext<'_>,
     root: &Path,
 ) -> Result<std::process::ExitStatus, ExecError> {
-    let dep_path = project_dep_path(root, context.dir, context.output.show_prefix);
+    let dep_path = project_dep_path(root, context);
     let output = project_output(dep_path.as_deref(), context.output.emit);
     spawn_in_dir(
         context.command,

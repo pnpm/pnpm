@@ -1,5 +1,5 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{PNPM_VERSION, PmOnFail};
+use pnpm_config::{ManifestFormat, PNPM_VERSION, PmOnFail};
 use pnpm_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
@@ -69,15 +69,6 @@ pub(crate) fn package_manager_to_sync(
         })
 }
 
-/// The root project's `package.json` as raw JSON, for the config-load
-/// warnings that inspect it before the install path reads the manifest
-/// properly. A manifest that is missing, unreadable, or malformed yields
-/// `None`: a warning has nothing to say about one, and the install path
-/// reports it with far more context.
-pub(crate) fn read_root_manifest_json(root_dir: &Path) -> Option<Value> {
-    read_manifest_json(&root_dir.join("package.json")).ok().flatten()
-}
-
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
@@ -93,11 +84,14 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 /// path reports it with far more context.
 ///
 /// [`pnpm_workspace::try_read_project_manifest`] decides between
-/// `package.json`, `package.json5`, and `package.yaml`, the same way the
-/// install pipeline does, so a pin recorded from the pre-command checks is
-/// the one the install reads.
-pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {
-    pnpm_workspace::try_read_project_manifest(root_dir)
+/// `package.json`, `package.json5`, and `package.yaml` in `manifest_format`'s
+/// precedence order, the same way the install pipeline does, so a pin
+/// recorded from the pre-command checks is the one the install reads.
+pub(crate) fn read_root_manifest(
+    root_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> Option<Value> {
+    pnpm_workspace::try_read_project_manifest(root_dir, manifest_format)
         .ok()
         .flatten()
         .map(|(_, manifest)| manifest.value().clone())

@@ -4,7 +4,7 @@ use super::{
     read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
-use pnpm_package_manifest::PackageManifestError;
+use pnpm_package_manifest::{ManifestFormat, PackageManifestError};
 use pnpm_reporter::{
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
 };
@@ -95,6 +95,7 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -217,6 +218,7 @@ fn lifecycle_events_carry_optional_flag() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -298,6 +300,7 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -353,6 +356,7 @@ fn lifecycle_runs_under_silent_reporter() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -390,6 +394,7 @@ fn missing_manifest_returns_false() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -483,6 +488,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -540,6 +546,7 @@ fn malformed_manifest_propagates_error() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -589,7 +596,7 @@ fn lifecycle_manifest_prefers_package_json_over_package_yaml() {
     fs::write(pkg_root.join("package.yaml"), "scripts:\n  pnpm:devPreinstall: from-yaml\n")
         .expect("write package.yaml");
 
-    let manifest = read_lifecycle_manifest(pkg_root)
+    let manifest = read_lifecycle_manifest(pkg_root, ManifestFormat::default())
         .expect("read lifecycle manifest")
         .expect("manifest exists");
     assert_eq!(manifest["scripts"]["pnpm:devPreinstall"], "from-json");
@@ -603,7 +610,8 @@ fn malformed_package_yaml_reports_the_selected_manifest() {
     fs::write(&package_yaml, "scripts:\n  [not valid yaml\n")
         .expect("write malformed package.yaml");
 
-    let err = read_lifecycle_manifest(pkg_root).expect_err("malformed YAML must fail");
+    let err = read_lifecycle_manifest(pkg_root, ManifestFormat::default())
+        .expect_err("malformed YAML must fail");
     let LifecycleScriptError::ReadManifest {
         path: error_path,
         source: PackageManifestError::ParseYaml { path, .. },
@@ -646,6 +654,7 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
             node_execpath: None,
@@ -760,6 +769,7 @@ fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths = Vec::new();
     let opts = RunPostinstallHooks {
+        manifest_format: ManifestFormat::default(),
         environment: crate::ScriptEnvironment {
             init_cwd: &pkg_root,
             node_execpath: None,

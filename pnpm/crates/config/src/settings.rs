@@ -1,11 +1,11 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
+    InitType, LinkWorkspacePackages, LogLevel, ManifestFormat, NodeLinker, NodePackageMapType,
+    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
+    PythonSettings, RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode,
+    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool,
+    ToolSettings, TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
     default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
     default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
@@ -1624,6 +1624,12 @@ pub struct Config {
     /// accepted); default `false`, matching pnpm.
     pub catalog_prune: bool,
 
+    /// Which manifest a workspace project is read from and written to when
+    /// several coexist in its directory. The `preferredManifestFormat`
+    /// setting; default [`ManifestFormat::Json`], which keeps the
+    /// `package.json`, `package.json5`, `package.yaml` precedence.
+    pub preferred_manifest_format: ManifestFormat,
+
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
@@ -1837,6 +1843,21 @@ impl Config {
             self.virtual_store_dir.clone(),
             self.global_virtual_store_dir.clone(),
         ]
+    }
+
+    /// Workspace project discovery options for `patterns` that skip
+    /// [`Self::managed_directories`] and read each project from the manifest
+    /// [`Self::preferred_manifest_format`] selects.
+    #[must_use]
+    pub fn find_workspace_projects_opts(
+        &self,
+        patterns: Option<Vec<String>>,
+    ) -> pnpm_workspace::FindWorkspaceProjectsOpts {
+        pnpm_workspace::FindWorkspaceProjectsOpts {
+            patterns,
+            ignored_directories: self.managed_directories(),
+            preferred_manifest_format: self.preferred_manifest_format,
+        }
     }
 
     /// Persist the config data until the program terminates.

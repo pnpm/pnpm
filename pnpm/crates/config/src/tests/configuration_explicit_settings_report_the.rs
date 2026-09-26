@@ -605,6 +605,25 @@ pub fn global_config_yaml_keys_it_cannot_set_are_reported() {
     );
 }
 
+/// Which manifest a project uses belongs to the repository, so a
+/// machine-local `preferredManifestFormat` is dropped and reported.
+#[test]
+pub fn global_config_yaml_cannot_set_preferred_manifest_format() {
+    let config_dir = tempdir().expect("config tempdir");
+    let config_file = config_dir.path().join("config.yaml");
+    fs::write(&config_file, "preferredManifestFormat: yaml\n").expect("write global config.yaml");
+
+    let warnings = capture_warnings(|| {
+        let settings = WorkspaceSettings::load_global(config_dir.path())
+            .expect("load global config.yaml")
+            .expect("global config.yaml is present");
+        assert_eq!(settings.preferred_manifest_format, None);
+    });
+
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains(r#""preferredManifestFormat""#), "{warnings:?}");
+}
+
 /// A key no configuration file may set is reported with the route pnpm
 /// offers for it, not with the move-to-workspace advice.
 #[test]

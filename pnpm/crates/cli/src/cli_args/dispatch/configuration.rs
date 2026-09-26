@@ -13,7 +13,6 @@ pub(super) struct RunAnchors {
     /// The canonicalized `--dir`.
     pub(super) dir: PathBuf,
     pub(super) cli_dir: PathBuf,
-    pub(super) manifest_path: PathBuf,
     /// Where a `-g` install loads its config from. A `-g` install is
     /// isolated from the caller's project: pnpm runs it with `cwd` = the
     /// pnpm home dir, so a project `.npmrc` cannot influence the network /
@@ -45,9 +44,8 @@ impl RunAnchors {
         } else {
             std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
         };
-        let manifest_path = pnpm_workspace::project_manifest_path(&dir);
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());
-        Ok(RunAnchors { dir, cli_dir, manifest_path, global_config })
+        Ok(RunAnchors { dir, cli_dir, global_config })
     }
 }
 

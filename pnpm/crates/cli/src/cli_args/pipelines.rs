@@ -13,7 +13,6 @@ use super::{
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
-    package_manager::read_manifest_json,
     prune::PruneArgs,
     recursive::{discover_workspace_projects, filtered_projects_dependencies},
     remove::RemoveArgs,
@@ -151,8 +150,11 @@ impl DedicatedProjects {
     fn new(config: &Config, selection: InstallFamilySelection) -> Self {
         let names = project_names(config, &selection.projects);
         let normalized_root = pnpm_fs::lexical_normalize(&selection.workspace_root);
-        let root_is_project =
-            pnpm_package_manifest::project_manifest_path(&normalized_root).is_file();
+        let root_is_project = pnpm_package_manifest::project_manifest_path(
+            &normalized_root,
+            config.preferred_manifest_format,
+        )
+        .is_file();
         let covers_workspace = selection.projects
             .iter()
             .all(|project| selection.selected_dirs.contains(&project.root_dir))
@@ -206,7 +208,7 @@ pub(crate) fn project_names(
 /// is unset: the name would have nothing to look up.
 fn dedicated_project_name(config: &Config, project_dir: &Path) -> Option<String> {
     config.package_configs.as_ref()?;
-    pnpm_workspace::read_project_name(project_dir)
+    pnpm_workspace::read_project_name(project_dir, config.preferred_manifest_format)
 }
 
 struct DedicatedProjectRuns<'a> {
@@ -414,7 +416,8 @@ fn init_dedicated_project_state(
     let mut project_config = cfg.clone();
     project_config.anchor_dedicated_project(project_dir, project_name);
     let project_config = Config::leak(project_config);
-    let manifest_path = project_dir.join("package.json");
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(project_dir, cfg.preferred_manifest_format);
     match http_client {
         Some(http_client) => {
             let lockfile = State::lazy_lockfile(project_config, &manifest_path, require_lockfile);

@@ -3,7 +3,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
-use pnpm_package_manifest::safe_read_project_manifest_from_dir;
+use pnpm_package_manifest::{ManifestFormat, safe_read_project_manifest_from_dir};
 use pnpm_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
 use std::path::Path;
@@ -39,7 +39,7 @@ pub struct BugsArgs {
 impl BugsArgs {
     pub async fn run<Sys: OpenUrl>(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         if self.packages.is_empty() {
-            let url = get_bugs_url_from_current_project(dir)?;
+            let url = get_bugs_url_from_current_project(dir, config.preferred_manifest_format)?;
             open_url::<Sys>(&url);
         } else {
             let http_client = build_registry_client(config)
@@ -99,8 +99,11 @@ impl BugsArgs {
     }
 }
 
-fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)
+fn get_bugs_url_from_current_project(
+    dir: &Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<String> {
+    let manifest = safe_read_project_manifest_from_dir(dir, manifest_format)
         .wrap_err("read project manifest")?
         .ok_or_else(|| {
             let display_path = dir.display();

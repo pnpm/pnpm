@@ -7,6 +7,7 @@ use super::{
     apply_update_config, derive_config_root, global, installed_project_config,
     resolve_bool_override, warn_about_config_root,
 };
+use pnpm_workspace::project_manifest_path;
 use std::sync::atomic::Ordering;
 
 pub(in super::super) fn deploy<'a>(
@@ -55,8 +56,8 @@ pub(in super::super) fn dedupe<'a>(
     args: DedupeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         args.apply_cli_config(cfg);
@@ -68,7 +69,7 @@ pub(in super::super) fn dedupe<'a>(
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
         };
         match reporter {
@@ -91,14 +92,13 @@ pub(in super::super) fn prune<'a>(
     args: PruneArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
-        let pipeline =
-            PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
+        let pipeline = PrunePipeline { args, cfg, config_root, manifest_path };
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
@@ -162,7 +162,8 @@ pub(in super::super) fn link<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path.to_path_buf();
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
@@ -181,13 +182,13 @@ pub(in super::super) fn unlink<'a>(
     args: UnlinkArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
-        if !args.remove_links(cfg, dir, manifest_path, recursive_sort)? {
+        if !args.remove_links(cfg, dir, &manifest_path, recursive_sort)? {
             return Ok(());
         }
         // Reinstall through the install-family pipeline, exactly as pnpm's
@@ -202,7 +203,7 @@ pub(in super::super) fn unlink<'a>(
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
             require_lockfile: false,
             frozen_lockfile: false,
@@ -228,8 +229,8 @@ pub(in super::super) fn rebuild<'a>(
     command_name: &'static str,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = ctx.reporter();
     if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
     {
@@ -244,7 +245,7 @@ pub(in super::super) fn rebuild<'a>(
             args,
             cfg,
             dir,
-            manifest_path,
+            &manifest_path,
             recursive_sort,
             recursive_no_bail,
             reporter,
@@ -332,10 +333,10 @@ pub(in super::super) fn approve_builds<'a>(
     }
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     macro_rules! run_approve_builds {
         ($reporter:ty, $config:ident) => {
             Box::pin(async move {
+                let manifest_path = &project_manifest_path(dir, $config.preferred_manifest_format);
                 let Some((rebuild_state, build_packages)) =
                     args.prepare::<$reporter>(dir, $config, $config, manifest_path)?
                 else {
@@ -349,7 +350,9 @@ pub(in super::super) fn approve_builds<'a>(
     }
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let config = installed_project_config(config, &manifest_path);
         match effective_reporter.load(Ordering::Relaxed).into() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 run_approve_builds!(DefaultReporter, config).await

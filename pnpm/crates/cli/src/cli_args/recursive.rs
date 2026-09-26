@@ -24,8 +24,8 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
-    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
+    GraphPkg, Project, find_workspace_projects, importer_id_from_root_dir, read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectSelector, filter_workspace_projects,
@@ -223,10 +223,7 @@ pub fn discover_workspace_projects(
     };
     let projects = find_workspace_projects(
         workspace_root,
-        &FindWorkspaceProjectsOpts {
-            patterns: patterns.clone(),
-            ignored_directories: config.managed_directories(),
-        },
+        &config.find_workspace_projects_opts(patterns.clone()),
     )
     .wrap_err("finding workspace projects")?;
     Ok((projects, patterns))

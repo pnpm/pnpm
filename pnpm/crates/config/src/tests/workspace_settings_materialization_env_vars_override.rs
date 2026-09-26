@@ -3,6 +3,7 @@ use super::{
     NodePackageMapType, OsString, Path, PathBuf, TrustPolicy, WorkspaceSettings, assert_eq, fs, io,
     safe_host_var, tempdir, write_file,
 };
+use crate::ManifestFormat;
 
 #[test]
 pub fn materialization_env_vars_override_workspace_yaml() {
@@ -412,6 +413,27 @@ pub fn catalog_prune_overrides_its_former_name() {
     .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(!config.catalog_prune);
+}
+
+#[test]
+pub fn preferred_manifest_format_from_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert_eq!(config.preferred_manifest_format, ManifestFormat::Json);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferredManifestFormat: yaml\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert_eq!(config.preferred_manifest_format, ManifestFormat::Yaml);
+}
+
+#[test]
+pub fn unknown_preferred_manifest_format_is_rejected() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferredManifestFormat: jsonc\n")
+        .expect("write to pnpm-workspace.yaml");
+    let error = Config::new().current::<HostNoHome>(tmp.path()).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("unknown variant `jsonc`"), "{message}");
 }
 
 #[test]

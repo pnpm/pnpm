@@ -1,6 +1,6 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
-    read_root_manifest_json, warn_deprecated_override_version_references,
+    read_root_manifest, warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields,
 };
 use crate::cli_args::yarn_workspaces_field::{
@@ -80,11 +80,12 @@ impl InstallArgs {
         {
             return false;
         }
-        let root_manifest = read_root_manifest_json(&config_root);
+        let root_manifest = read_root_manifest(&config_root, config.preferred_manifest_format);
         if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
             return false;
         }
-        let manifest_path = dir.join("package.json");
+        let manifest_path =
+            pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
         if !manifest_path.is_file() {
             return false;
         }

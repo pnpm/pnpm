@@ -269,10 +269,9 @@ pub(in super::super) fn ignored_builds<'a>(
     ctx: &RunCtx<'a>,
     _args: IgnoredBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = super::super::pipelines::installed_project_config(
-        (ctx.loaders.config)()?,
-        ctx.locations.manifest_path,
-    );
+    let config = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(config);
+    let config = super::super::pipelines::installed_project_config(config, &manifest_path);
     let output = super::super::ignored_builds::render_ignored_builds(config)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))

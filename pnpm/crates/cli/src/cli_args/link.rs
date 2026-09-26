@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
 use pnpm_package_manager::{Install, ProjectMutation};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{DependencyGroup, ManifestFormat, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_text_sanitize::sanitize_inline;
 use pnpm_workspace_manifest_writer::set_overrides;
@@ -175,7 +175,10 @@ fn link_target(
     let target_path = PathBuf::from(path_str);
     let target_dir =
         if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
-    let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
+    // The linked package is a dependency, which `preferredManifestFormat`
+    // does not cover.
+    let target_manifest_path =
+        pnpm_workspace::project_manifest_path(&target_dir, ManifestFormat::default());
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
         .map_err(|error| match error {

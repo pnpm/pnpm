@@ -1,6 +1,6 @@
 use super::{
-    Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
-    lexical_normalize,
+    Arc, Catalogs, HashMap, ManifestFormat, NodeLinker, Path, PathBuf, PnpmfileHooks,
+    WorkspacePackageManifest, lexical_normalize,
 };
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]
@@ -45,6 +45,8 @@ pub struct PackManifestOptions {
     /// Keep `packageManager` and publish-lifecycle scripts in the packed
     /// manifest.
     pub skip_obfuscation: bool,
+    /// Which project manifest is packed when several coexist.
+    pub format: ManifestFormat,
     /// Loaded pnpmfiles whose `beforePacking` hook runs against the
     /// published manifest before the file list is computed, in
     /// application order (config-dependency plugin pnpmfiles first, then

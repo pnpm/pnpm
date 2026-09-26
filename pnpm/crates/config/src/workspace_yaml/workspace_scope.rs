@@ -78,6 +78,10 @@ impl WorkspaceSettings {
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
+        // Which manifest a project is read from is part of the repository's
+        // layout. A machine-local value would make one developer read and
+        // write a different file than their collaborators.
+        self.preferred_manifest_format = None;
     }
 
     pub(super) fn clear_workspace_layout_fields(&mut self) {

@@ -241,7 +241,8 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let mut names = project_names(cfg, &projects);
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
-    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
+    if pnpm_package_manifest::project_manifest_path(workspace_root, cfg.preferred_manifest_format)
+        .is_file()
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
@@ -253,7 +254,8 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    let source_dirs = dedicated_injected_source_dirs(&projects, &project_dirs)?;
+    let source_dirs =
+        dedicated_injected_source_dirs(&projects, &project_dirs, cfg.preferred_manifest_format)?;
     project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
     // One `Config::leak` per project: `State::init` needs a
     // `&'static Config`, and a leaked shared reference can't be
@@ -290,11 +292,12 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
 fn dedicated_injected_source_dirs(
     projects: &[pnpm_workspace::Project],
     other_dirs: &[PathBuf],
+    manifest_format: pnpm_package_manifest::ManifestFormat,
 ) -> miette::Result<std::collections::HashSet<PathBuf>> {
     let other_manifests = other_dirs
         .iter()
         .map(|dir| {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir, manifest_format)
                 .map_err(miette::Report::new)
         })
         .collect::<miette::Result<Vec<_>>>()?;

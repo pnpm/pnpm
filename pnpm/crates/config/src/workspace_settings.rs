@@ -126,7 +126,11 @@ impl Config {
         // var carries a map), so the `$dep-name` values it may hold are
         // resolved here, against the workspace root's manifest.
         if let Some(overrides) = self.overrides.as_mut() {
-            crate::override_version_references::resolve_version_references(overrides, base_dir)?;
+            crate::override_version_references::resolve_version_references(
+                overrides,
+                base_dir,
+                self.preferred_manifest_format,
+            )?;
         }
         Ok(())
     }

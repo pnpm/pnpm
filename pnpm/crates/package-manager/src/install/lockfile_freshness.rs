@@ -88,12 +88,9 @@ async fn workspace_manifests_satisfy(
     let Ok(workspace_manifest) = pnpm_workspace::read_workspace_manifest(workspace_root) else {
         return false;
     };
-    let ignored_directories = check.config.managed_directories();
-    let Ok(workspace_projects) = super::load_workspace_projects(
-        workspace_root,
-        workspace_manifest.as_ref(),
-        &ignored_directories,
-    ) else {
+    let Ok(workspace_projects) =
+        super::load_workspace_projects(workspace_root, workspace_manifest.as_ref(), check.config)
+    else {
         return false;
     };
     let project_manifests =

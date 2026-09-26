@@ -174,7 +174,7 @@ impl DeployArgs {
         dir: &Path,
     ) -> miette::Result<()> {
         let workspace_dir =
-            config.workspace_dir.as_deref().ok_or_else(|| cannot_deploy_error(dir))?;
+            config.workspace_dir.as_deref().ok_or_else(|| cannot_deploy_error(dir, config))?;
         let selected = select_project(config, workspace_dir, dir)?;
         if self.target_dirs.len() != 1 {
             return Err(DeployError::InvalidDeployTarget.into());
@@ -315,8 +315,10 @@ enum SharedDeployOutcome {
     Fallback(String),
 }
 
-fn cannot_deploy_error(dir: &Path) -> miette::Report {
-    let has_deploy_script = PackageManifest::from_path(dir.join("package.json"))
+fn cannot_deploy_error(dir: &Path, config: &Config) -> miette::Report {
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
+    let has_deploy_script = PackageManifest::from_path(manifest_path)
         .is_ok_and(|manifest| manifest.script("deploy", false).is_ok());
     if has_deploy_script {
         DeployError::CannotDeployScript.into()
@@ -353,7 +355,7 @@ fn select_project(
     Ok(SelectedProject {
         project,
         projects_by_path,
-        engine_pin_manifest: read_root_manifest(workspace_dir),
+        engine_pin_manifest: read_root_manifest(workspace_dir, config.preferred_manifest_format),
     })
 }
 

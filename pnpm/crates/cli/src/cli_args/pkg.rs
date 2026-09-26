@@ -241,7 +241,7 @@ fn edit_project_manifest(
     project: &pnpm_workspace::Project,
     edit: impl FnOnce(&mut Value) -> miette::Result<()>,
 ) -> miette::Result<()> {
-    let path = pnpm_workspace::project_manifest_path(&project.root_dir);
+    let path = project.manifest.path().to_path_buf();
     let mut manifest = PackageManifest::from_path(path.clone())
         .wrap_err_with(|| format!("reading {}", path.display()))?;
     edit(manifest.value_mut())?;

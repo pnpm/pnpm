@@ -260,10 +260,9 @@ pub(super) fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePac
     let manifest = pnpm_workspace::read_workspace_manifest(workspace_dir).ok()??;
     let projects = pnpm_workspace::find_workspace_projects(
         workspace_dir,
-        &pnpm_workspace::FindWorkspaceProjectsOpts {
-            patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
-            ignored_directories: config.managed_directories(),
-        },
+        &config.find_workspace_projects_opts(Some(pnpm_workspace::workspace_package_patterns(
+            &manifest,
+        ))),
     )
     .ok()?;
     crate::install::build_workspace_packages_map(Some(&projects))

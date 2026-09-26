@@ -22,6 +22,7 @@ fn find_sorted_names(
                 .collect(),
         ),
         ignored_directories,
+        ..Default::default()
     };
     let mut names: Vec<String> = find_workspace_projects(root, &opts)
         .unwrap()
@@ -195,6 +196,7 @@ fn a_managed_directory_is_never_a_workspace_project_dir() {
     let opts = FindWorkspaceProjectsOpts {
         patterns: Some(vec!["**".to_string()]),
         ignored_directories: vec![PathBuf::from("store")],
+        ..Default::default()
     };
 
     assert!(!is_workspace_project_dir(tmp.path(), &tmp.path().join("store/tool"), &opts).unwrap());

@@ -10,7 +10,7 @@ use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{ManifestFormat, PackageManifest, PackageManifestError};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_versioning::{IntentBumpType, format_change_intent};
 use pnpm_workspace::{
@@ -115,6 +115,7 @@ pub(super) struct UpdateChangesetContext {
     root_dirs: Vec<PathBuf>,
     dep_specs_before: BTreeMap<PathBuf, Option<UpdateDepSpecs>>,
     catalogs_before: Catalogs,
+    manifest_format: ManifestFormat,
 }
 
 impl UpdateChangesetContext {
@@ -137,8 +138,9 @@ impl UpdateChangesetContext {
         let dep_specs_before = root_dirs
             .iter()
             .map(|root_dir| {
-                let manifest = safe_read_project_manifest_only(root_dir)
-                    .map_err(UpdateChangesetError::ReadProject)?;
+                let manifest =
+                    safe_read_project_manifest_only(root_dir, config.preferred_manifest_format)
+                        .map_err(UpdateChangesetError::ReadProject)?;
                 let specs = manifest
                     .as_ref()
                     .map(UpdateDepSpecs::from_manifest)
@@ -150,7 +152,13 @@ impl UpdateChangesetContext {
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
-        Ok(Self { workspace_dir, root_dirs, dep_specs_before, catalogs_before })
+        Ok(Self {
+            workspace_dir,
+            root_dirs,
+            dep_specs_before,
+            catalogs_before,
+            manifest_format: config.preferred_manifest_format,
+        })
     }
 
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
@@ -213,8 +221,8 @@ impl UpdateChangesetContext {
         ignored: &Matcher,
         changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
     ) -> Result<Option<(String, IntentBumpType)>, UpdateChangesetError> {
-        let Some(manifest) =
-            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?
+        let Some(manifest) = safe_read_project_manifest_only(root_dir, self.manifest_format)
+            .map_err(UpdateChangesetError::ReadProject)?
         else {
             return Ok(None);
         };

@@ -19,7 +19,7 @@ use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
-use pnpm_config::Config;
+use pnpm_config::{Config, ManifestFormat};
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
@@ -270,16 +270,7 @@ impl PublishArgs {
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
         workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
     ) -> miette::Result<PackedDirectory> {
-        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
-            .into_diagnostic()
-            .wrap_err("read project manifest")?
-            .ok_or_else(|| {
-                let dir = project_dir.display();
-                miette::miette!(
-                    code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
-                    "No package.json found in {dir}",
-                )
-            })?;
+        let manifest = read_publish_manifest(project_dir, config.preferred_manifest_format)?;
 
         if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
@@ -390,6 +381,23 @@ impl PublishArgs {
     }
 }
 
+/// The publish manifest under `project_dir`, which must have one.
+fn read_publish_manifest(
+    project_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<serde_json::Value> {
+    pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir, manifest_format)
+        .into_diagnostic()
+        .wrap_err("read project manifest")?
+        .ok_or_else(|| {
+            let dir = project_dir.display();
+            miette::miette!(
+                code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
+                "No package.json found in {dir}",
+            )
+        })
+}
+
 /// Run the publish-lifecycle scripts the manifest declares, in order, with
 /// `unsafe_perm` (publish scripts are run explicitly and assumed trusted).
 fn run_publish_scripts<Reporter: self::Reporter>(
@@ -415,6 +423,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     let dep_path = dir.to_string_lossy().into_owned();
     let root_modules_dir = dir.join("node_modules");
     let run_opts = RunPostinstallHooks {
+        manifest_format: config.preferred_manifest_format,
         environment: super::run::script_environment(config, dir, &config.extra_env),
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,

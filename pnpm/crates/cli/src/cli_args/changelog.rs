@@ -54,7 +54,9 @@ pub async fn compose_registry_changelog(
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(None);
     };
-    let Some((name, published, version)) = read_name_version(project_dir) else {
+    let Some((name, published, version)) =
+        read_name_version(project_dir, config.preferred_manifest_format)
+    else {
         return Ok(None);
     };
     let Some(section) = read_pending_changelog(workspace_dir, &name, &version)? else {
@@ -294,9 +296,12 @@ fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
 /// `publishConfig.name`: the workspace — and so the parked section, the
 /// ledger, and every intent — keys on the manifest name, while the registry
 /// only ever sees the published one.
-fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
-    let manifest =
-        pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
+fn read_name_version(
+    project_dir: &Path,
+    manifest_format: pnpm_package_manifest::ManifestFormat,
+) -> Option<(String, String, String)> {
+    let manifest_path = pnpm_package_manifest::project_manifest_path(project_dir, manifest_format);
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path).ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
     let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);

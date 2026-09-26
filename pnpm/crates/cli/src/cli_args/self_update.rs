@@ -223,9 +223,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
 
     let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
 
-    let wanted = super::package_manager::read_manifest_json(&dir.join("package.json"))?
-        .as_ref()
-        .and_then(super::package_manager::wanted_package_manager);
+    let wanted = wanted_project_package_manager(dir, config)?;
 
     if let Some(hint) = crossed_major_hint(config, dir, wanted.as_ref(), &target_version) {
         warn::<Reporter>(&prefix, hint);
@@ -468,6 +466,19 @@ fn range_satisfies(range: &str, version: &str) -> bool {
     }
     let base = format!("{}.{}.{}", parsed.major, parsed.minor, parsed.patch);
     matches!(node_semver::Version::parse(&base), Ok(base) if range.satisfies(&base))
+}
+
+/// The pnpm version the project at `dir` pins, read from the manifest
+/// `preferredManifestFormat` selects.
+fn wanted_project_package_manager(
+    dir: &Path,
+    config: &Config,
+) -> miette::Result<Option<super::package_manager::WantedPackageManager>> {
+    let manifest = pnpm_workspace::try_read_project_manifest(dir, config.preferred_manifest_format)
+        .map_err(miette::Report::new)?;
+    Ok(manifest.and_then(|(_, manifest)| {
+        super::package_manager::wanted_package_manager(manifest.value())
+    }))
 }
 
 #[cfg(test)]

@@ -41,11 +41,7 @@ pub fn check_deps_status_before_run_at(
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
     let manifest_dir = if config.shares_one_lockfile() { workspace_root.as_path() } else { dir };
-    let manifest = match read_gate_manifest(
-        manifest_dir,
-        workspace_dir_opt.is_some(),
-        config.shares_one_lockfile(),
-    ) {
+    let manifest = match read_gate_manifest(manifest_dir, workspace_dir_opt.is_some(), config) {
         GateManifest::Found(manifest) => manifest,
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
@@ -127,10 +123,9 @@ pub(super) fn check_discovered_deps(
     // The sibling projects only belong in the comparison when one
     // lockfile and one state file cover them all; a dedicated-lockfile
     // install records this project alone.
-    let ignored_directories = config.managed_directories();
     let Ok(workspace_projects) = config
         .shares_one_lockfile()
-        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest, config))
         .transpose()
     else {
         return cannot_check_deps();
@@ -172,12 +167,13 @@ pub(super) enum GateManifest {
 pub(super) fn read_gate_manifest(
     manifest_dir: &Path,
     in_workspace: bool,
-    shares_one_lockfile: bool,
+    config: &Config,
 ) -> GateManifest {
-    match pnpm_workspace::read_project_manifest_only(manifest_dir) {
+    match pnpm_workspace::read_project_manifest_only(manifest_dir, config.preferred_manifest_format)
+    {
         Ok(manifest) => GateManifest::Found(Box::new(manifest)),
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-            if !in_workspace || !shares_one_lockfile =>
+            if !in_workspace || !config.shares_one_lockfile() =>
         {
             GateManifest::NoManifest
         }

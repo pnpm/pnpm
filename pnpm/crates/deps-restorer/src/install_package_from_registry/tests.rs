@@ -231,6 +231,7 @@ fn create_config(
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),
         catalog_prune: false,
+        preferred_manifest_format: Default::default(),
         minimum_release_age_exclude_prune: false,
         catalogs: None,
         save_catalog_name: None,
