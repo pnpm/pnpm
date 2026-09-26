@@ -99,17 +99,15 @@ fn fallback_or_cannot_check(
     workspace_root: &Path,
     lockfile_root: &Path,
 ) -> Option<crate::RunDepsStatus> {
-    if installed_modules_match_lockfile(
+    installed_modules_match_lockfile(
         config,
         manifest,
         workspace_manifest,
         workspace_root,
         lockfile_root,
-    ) {
-        Some(crate::RunDepsStatus::UpToDate)
-    } else {
-        cannot_check_deps()
-    }
+    )
+    .then_some(crate::RunDepsStatus::UpToDate)
+    .or_else(cannot_check_deps)
 }
 /// The directory the verify-deps-before-run gate serializes its installs
 /// over: the workspace root, or `dir` outside a workspace. Every gate in one
@@ -242,6 +240,12 @@ fn modules_layout_valid(config: &Config) -> bool {
     crate::install::modules_layout_satisfies_run(&modules, config, config.node_linker)
 }
 
+const ALL_DEPENDENCY_GROUPS: IncludedDependencies = IncludedDependencies {
+    dependencies: true,
+    dev_dependencies: true,
+    optional_dependencies: true,
+};
+
 fn installed_modules_match_lockfile(
     config: &Config,
     manifest: &PackageManifest,
@@ -266,7 +270,7 @@ fn installed_modules_match_lockfile(
     crate::optimistic_repeat_install::materialized_shape_matches(
         &wanted,
         &current,
-        IncludedDependencies::default(),
+        ALL_DEPENDENCY_GROUPS,
         config.peer_edge_options(),
     ) && manifests_match_lockfile(
         config,
@@ -282,13 +286,13 @@ fn virtual_store_dir_for(config: &Config, lockfile_root: &Path) -> std::path::Pa
     if config.explicit_settings.contains_key("virtualStoreDir")
         || config.enable_global_virtual_store
     {
-        return config.effective_virtual_store_dir().to_path_buf();
+        config.effective_virtual_store_dir().to_path_buf()
+    } else if config.virtual_store_dir.starts_with(lockfile_root) {
+        config.virtual_store_dir.clone()
+    } else {
+        let modules = config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        lockfile_root.join(modules).join(".pnpm")
     }
-    if config.virtual_store_dir.starts_with(lockfile_root) {
-        return config.virtual_store_dir.clone();
-    }
-    let modules_name = config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-    lockfile_root.join(modules_name).join(".pnpm")
 }
 
 fn load_projects(
@@ -333,7 +337,7 @@ fn manifests_match_lockfile(
         layout: crate::RepeatInstallLayout {
             node_linker: config.node_linker,
             supported_architectures: config.supported_architectures.as_ref(),
-            included: IncludedDependencies::default(),
+            included: ALL_DEPENDENCY_GROUPS,
         },
         manifest_freshness: crate::ManifestFreshness::Mtime,
     };
