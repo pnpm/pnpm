@@ -48,7 +48,7 @@ fn mixed_codes_escalate_and_render_code_per_entry() {
         rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
         rendered("bravo", "2.0.0", "TRUST_DOWNGRADE", "downgrade"),
     ]);
-    let VerifyError::LockfileResolutionVerification { count, breakdown } = err else {
+    let VerifyError::LockfileResolutionVerification { count, breakdown, .. } = err else {
         panic!("expected LockfileResolutionVerification");
     };
     assert_eq!(count, 2);
@@ -202,4 +202,25 @@ fn structural_violation_hints_do_not_suggest_relaxing_a_policy() {
         assert!(help.contains(r#"run "pnpm clean --lockfile""#), "{code}: {help}");
         assert!(!help.contains("relax the policy"), "{code}: {help}");
     }
+}
+
+#[test]
+fn mixed_batch_with_a_structural_violation_does_not_suggest_relaxing_a_policy() {
+    let err = VerifyError::from_rendered(&[
+        rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
+        rendered("bravo", "2.0.0", "MISSING_TARBALL_INTEGRITY", "no integrity"),
+    ]);
+    assert!(matches!(err, VerifyError::LockfileResolutionVerification { .. }), "got: {err:?}");
+    let help = help_text(&err);
+    assert!(!help.contains("relax the policy"), "got: {help}");
+}
+
+#[test]
+fn mixed_policy_batch_keeps_the_policy_hint() {
+    let err = VerifyError::from_rendered(&[
+        rendered("acme", "1.0.0", "MINIMUM_RELEASE_AGE_VIOLATION", "young"),
+        rendered("bravo", "2.0.0", "TRUST_DOWNGRADE", "downgrade"),
+    ]);
+    let help = help_text(&err);
+    assert!(help.contains("relax the policy that flagged them"), "got: {help}");
 }

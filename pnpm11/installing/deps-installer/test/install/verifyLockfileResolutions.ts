@@ -120,6 +120,24 @@ test('throws a generic code with per-entry codes in the breakdown when violation
   })
 })
 
+test('does not suggest relaxing a policy when a mixed batch includes a structural violation', async () => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'no-integrity@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'is-odd') {
+      return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+    }
+    return { ok: false, code: 'MISSING_TARBALL_INTEGRITY', reason: 'has no "integrity" field' }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    hint: expect.not.stringMatching(/relax the policy/),
+  })
+})
+
 test('lists violations in stable order across multiple failures', async () => {
   const lockfile = makeLockfile({
     'fresh-b@2.0.0': { resolution: tarballResolution('sha512-b') },

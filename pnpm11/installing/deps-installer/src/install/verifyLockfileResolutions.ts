@@ -295,7 +295,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
-      hint: STRUCTURAL_VIOLATION_CODES.has(errorCode)
+      hint: violations.some((v) => STRUCTURAL_VIOLATION_CODES.has(v.code))
         ? 'The lockfile contains entries that pnpm cannot verify, whatever ' +
           'the configured policies. This can mean the lockfile is stale, or ' +
           'that it was tampered with — inspect recent changes to ' +

@@ -94,11 +94,15 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION))]
     LockfileResolutionVerification {
         #[error(not(source))]
         count: usize,
         breakdown: String,
+        /// The structural hint when any entry failed a structural check,
+        /// since relaxing a policy cannot clear that entry.
+        #[help]
+        hint: &'static str,
     },
 
     /// One or more dependency aliases in the lockfile are not valid npm
@@ -169,8 +173,14 @@ impl VerifyError {
         let count = violations.len();
         let breakdown = violation_breakdown(violations, mixed);
 
+        let hint = if distinct_codes.iter().any(|code| is_structural_violation(code)) {
+            STRUCTURAL_HINT
+        } else {
+            HINT
+        };
+
         if mixed {
-            VerifyError::LockfileResolutionVerification { count, breakdown }
+            VerifyError::LockfileResolutionVerification { count, breakdown, hint }
         } else {
             // Safe: distinct_codes has exactly one element.
             let code = *distinct_codes
@@ -193,10 +203,19 @@ impl VerifyError {
                 // Unknown verifier code (future-proofing): fall back
                 // to the generic envelope rather than fabricating a
                 // variant we don't have.
-                _ => VerifyError::LockfileResolutionVerification { count, breakdown },
+                _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
             }
         }
     }
+}
+
+/// Whether no configured policy produces this violation code.
+fn is_structural_violation(code: &str) -> bool {
+    matches!(
+        code,
+        pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY
+            | crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    )
 }
 
 /// Bound the printed list and omit the trailing newline from the error text.
