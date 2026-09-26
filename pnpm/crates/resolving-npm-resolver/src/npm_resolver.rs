@@ -15,6 +15,7 @@
 //! package map; the path-relative forms (`workspace:./foo`,
 //! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
 //! chain claims them.
+pub use release_policy::detect_min_release_age_violation;
 pub use resolution_result::normalize_tarball_url;
 pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 
