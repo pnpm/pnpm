@@ -152,21 +152,26 @@ async function handle(req) {
       pkg.optionalDependencies = pkg.optionalDependencies ?? {};
       pkg.peerDependencies = pkg.peerDependencies ?? {};
       const newPkg = await fn(pkg, context);
-      if (!newPkg) {
+      // `send` carries the result through `JSON.stringify`. Validate the value
+      // as it appears on the wire, so a non-object result or a `toJSON` that
+      // returns one cannot reach the resolver as a manifest object.
+      let manifest;
+      try {
+        manifest = JSON.parse(JSON.stringify(newPkg));
+      } catch {
+        manifest = null;
+      }
+      if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
         throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + pnpmfilePath);
       }
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
-        const v = newPkg[dep];
-        if (v != null && (typeof v !== "object" || Array.isArray(v))) {
-          throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + pnpmfilePath);
-        }
-        for (const [name, range] of Object.entries(v ?? {})) {
-          if (typeof range !== "string") {
-            throw new Error("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property. Hook imported via " + pnpmfilePath);
-          }
-        }
-      }
-      send({ ok: newPkg });
+      // Check the dependency fields on the value the hook returned.
+      // `JSON.stringify` drops an entry whose range is `undefined`, so the
+      // wire value alone would not catch it.
+      validateDependencyFields(newPkg);
+      // Also check the value that `send` actually serializes, in case a
+      // `toJSON` rewrote the dependency fields.
+      validateDependencyFields(manifest);
+      send({ ok: manifest });
     } else if (req.hook === 'beforePacking') {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
@@ -186,4 +191,18 @@ async function handle(req) {
 function describePackage(pkg) {
   if (typeof pkg.name !== "string" || !pkg.name) return "an unnamed package";
   return typeof pkg.version === "string" && pkg.version ? pkg.name + "@" + pkg.version : pkg.name;
+}
+
+function validateDependencyFields(pkg) {
+  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    const v = pkg[dep];
+    if (v != null && (typeof v !== "object" || Array.isArray(v))) {
+      throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + pnpmfilePath);
+    }
+    for (const [name, range] of Object.entries(v ?? {})) {
+      if (typeof range !== "string") {
+        throw new Error("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(pkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property. Hook imported via " + pnpmfilePath);
+      }
+    }
+  }
 }

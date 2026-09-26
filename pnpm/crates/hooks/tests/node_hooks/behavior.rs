@@ -12,6 +12,34 @@ async fn read_package_fails_when_hook_returns_undefined() {
 }
 
 #[tokio::test]
+async fn read_package_fails_when_a_to_json_rewrites_the_dependencies() {
+    let err = read_package_err(
+        "module.exports = { hooks: { readPackage () { return { toJSON: () => ({ dependencies: { foo: 42 } }) } } } }",
+    )
+    .await;
+    eprintln!("err = {err}");
+    assert!(err.contains("readPackage hook returned an invalid range for 'foo'"), "{err}");
+}
+
+#[tokio::test]
+async fn read_package_fails_when_hook_returns_a_non_object() {
+    for source in [
+        "module.exports = { hooks: { readPackage () { return 'a string' } } }",
+        "module.exports = { hooks: { readPackage () { return 42 } } }",
+        "module.exports = { hooks: { readPackage () { return [] } } }",
+        "module.exports = { hooks: { readPackage () { return new Date() } } }",
+        "module.exports = { hooks: { readPackage () { return { toJSON: () => 'invalid' } } } }",
+    ] {
+        let err = read_package_err(source).await;
+        eprintln!("source = {source}, err = {err}");
+        assert!(
+            err.contains("readPackage hook did not return a package manifest object."),
+            "source {source:?} produced {err}",
+        );
+    }
+}
+
+#[tokio::test]
 async fn read_package_fails_with_meaningful_error_on_syntax_error() {
     let err = read_package_err("/boom").await;
     eprintln!("err = {err}");
