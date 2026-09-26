@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.license-scanner",
-  "version": "1101.0.5",
+  "version": "1101.0.6",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

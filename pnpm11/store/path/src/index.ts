@@ -42,6 +42,17 @@ export function getStorePath (
   return path.join(storeBasePath, STORE_VERSION)
 }
 
+/**
+ * The default store location, used when the project can be hard linked from
+ * the pnpm home directory's volume.
+ */
+export function getStorePathInPnpmHome (pnpmHomeDir: string): string {
+  if (!pnpmHomeDir) {
+    throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')
+  }
+  return path.join(pnpmHomeDir, 'store', STORE_VERSION)
+}
+
 async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
   if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })

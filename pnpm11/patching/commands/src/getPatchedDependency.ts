@@ -13,7 +13,14 @@ export type GetPatchedDependencyOptions = {
   lockfileDir: string
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
-export type GetPatchedDependencyResult = ParseWantedDependencyResult & { applyToAll: boolean }
+export type GetPatchedDependencyResult = ParseWantedDependencyResult & {
+  applyToAll: boolean
+  /**
+   * The installed version of the chosen package. It differs from `bareSpecifier`
+   * when the package is git-hosted, in which case `bareSpecifier` is its tarball URL.
+   */
+  version?: string
+}
 
 export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<GetPatchedDependencyResult> {
   const dep = parseWantedDependency(rawDependency)
@@ -29,10 +36,10 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    let version: string
+    let bareSpecifier: string
     let applyToAll: boolean
     try {
-      version = await select({
+      bareSpecifier = await select({
         message: 'Choose which version to patch',
         choices: preferredVersions.map(preferred => ({
           name: preferred.version,
@@ -53,7 +60,8 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     return {
       ...dep,
       applyToAll,
-      bareSpecifier: version,
+      bareSpecifier,
+      version: preferredVersions.find(preferred => (preferred.gitTarballUrl ?? preferred.version) === bareSpecifier)?.version,
     }
   } else {
     const preferred = preferredVersions[0]
@@ -62,12 +70,14 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
         ...dep,
         applyToAll: false,
         bareSpecifier: preferred.gitTarballUrl,
+        version: preferred.version,
       }
     }
     return {
       ...dep,
       applyToAll: !dep.bareSpecifier,
       bareSpecifier: preferred.version,
+      version: preferred.version,
     }
   }
 }

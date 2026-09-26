@@ -102,3 +102,29 @@ fn batch_file_script_shell_allowed_on_posix() {
     let shell = select_shell(Some(path), false).expect("must accept on POSIX");
     assert_eq!(shell.program, path);
 }
+
+#[test]
+fn cmd_exe_script_shell_uses_d_s_c_and_verbatim_args_on_windows() {
+    for path in
+        [r"C:\Windows\System32\cmd.exe", "C:/Windows/System32/CMD.EXE", "cmd.exe", "cmd", "Cmd"]
+    {
+        let shell = select_shell(Some(Path::new(path)), true).expect("select_shell");
+        assert_eq!(
+            shell,
+            SelectedShell {
+                program: Path::new(path).to_path_buf(),
+                args: vec![os("/d"), os("/s"), os("/c")],
+                windows_verbatim_args: true,
+            },
+            "scriptShell={path}",
+        );
+    }
+}
+
+#[test]
+fn script_shell_named_cmd_keeps_minus_c_on_posix() {
+    let path = Path::new("/usr/local/bin/cmd");
+    let shell = select_shell(Some(path), false).expect("select_shell");
+    assert_eq!(shell.args, vec![os("-c")]);
+    assert!(!shell.windows_verbatim_args);
+}

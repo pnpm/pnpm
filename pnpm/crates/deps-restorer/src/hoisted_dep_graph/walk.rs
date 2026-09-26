@@ -234,7 +234,7 @@ pub(super) fn walk_dep(
     };
     let optional = resolved.snapshot.is_some_and(|snapshot| snapshot.optional);
 
-    if installability_skip(state, &resolved.pkg_key, resolved.metadata, optional)? {
+    if installability_skip(state, &resolved.pkg_key, resolved.metadata, resolved.snapshot)? {
         state.result.skipped.insert(reference);
         return Ok(None);
     }

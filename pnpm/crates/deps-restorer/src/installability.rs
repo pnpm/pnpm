@@ -13,6 +13,7 @@
 //! host, since the host arch may have changed since the previous
 //! install wrote `.modules.yaml`.
 
+pub(crate) use patched::snapshot_is_patched;
 pub use platform::{
     InstallabilityHost, any_installability_constraint, any_optional_installability_constraint,
     check_installability, manifest_with_inferred_platform, platform_manifest_from_resolve_result,
@@ -21,13 +22,15 @@ pub use platform::{
 mod reachability;
 use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
+mod patched;
 mod platform;
+use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
 use std::collections::{HashMap, HashSet};
 
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, Prefix, ProjectSnapshot,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, Prefix, ProjectSnapshot,
     SnapshotEntry,
 };
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
@@ -427,13 +430,9 @@ impl SkipScan<'_, '_> {
             (snapshot.optional, !snapshot.optional)
         };
 
-        let warn = cached_check(
-            &mut self.check_cache,
-            &metadata_key,
-            metadata,
-            skip_check_optional,
-            &self.base_options,
-        )?;
+        let defer_engines =
+            self.base_options.engine_strict && snapshot_is_patched(snapshot_key, Some(snapshot));
+        let warn = self.snapshot_warn(&metadata_key, metadata, skip_check_optional, defer_engines)?;
         // Whatever the seed recorded, this pass's verdict replaces it.
         self.skipped.remove_installability(snapshot_key);
         let Some(warn) = warn else { return Ok(()) };
@@ -442,7 +441,26 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required(&metadata_key, metadata, warn, skip_check_optional)
+        self.report_incompatible_required(
+            &metadata_key,
+            metadata,
+            warn,
+            skip_check_optional,
+            defer_engines,
+        )
+    }
+
+    fn snapshot_warn(
+        &mut self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+        optional: bool,
+        defer_engines: bool,
+    ) -> Result<Option<InstallabilityError>, Box<InstallabilityError>> {
+        if defer_engines {
+            return without_published_engines(metadata_key, metadata, optional, &self.base_options);
+        }
+        cached_check(&mut self.check_cache, metadata_key, metadata, optional, &self.base_options)
     }
 
     fn record_skip<Reporter: self::Reporter>(
@@ -471,11 +489,14 @@ impl SkipScan<'_, '_> {
         metadata: &PackageMetadata,
         warn: InstallabilityError,
         skip_check_optional: bool,
+        defer_engines: bool,
     ) -> Result<(), Box<InstallabilityError>> {
         // The required dispatch drops the optional-only
         // platform-from-name inference, so its verdict needs the
         // non-optional check.
-        let warn = if skip_check_optional {
+        let warn = if skip_check_optional && defer_engines {
+            without_published_engines(metadata_key, metadata, false, &self.base_options)?
+        } else if skip_check_optional {
             cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
         } else {
             Some(warn)
@@ -561,6 +582,27 @@ fn add_runtime_skips_from(
 pub fn find_root_runtime_node_version(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
+    root_runtime_node_ver_peer(importers)?.version_semver().map(ToString::to_string)
+}
+
+/// The snapshot of the root project's `node` runtime dependency, the one
+/// [`find_root_runtime_node_version`] reads the version of. A dependency's
+/// own `engines.runtime` pin adds another `node@runtime:` snapshot, which
+/// this never returns.
+#[must_use]
+pub fn find_root_runtime_node_key<'a>(
+    importers: &HashMap<String, ProjectSnapshot>,
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+) -> Option<&'a PackageKey> {
+    let ver_peer = root_runtime_node_ver_peer(importers)?;
+    snapshots
+        .keys()
+        .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
+}
+
+pub(crate) fn root_runtime_node_ver_peer(
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<&PkgVerPeer> {
     importers
         .get(Lockfile::ROOT_IMPORTER_KEY)?
         .dependencies_by_groups([
@@ -570,8 +612,7 @@ pub fn find_root_runtime_node_version(
         ])
         .filter(|(alias, _)| alias.scope.is_none() && alias.bare == "node")
         .filter_map(|(_, spec)| spec.version.ver_peer())
-        .filter(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
-        .find_map(|ver_peer| ver_peer.version_semver().map(ToString::to_string))
+        .find(|ver_peer| ver_peer.prefix() == Prefix::Runtime)
 }
 
 /// `None` = compatible. `Some(err)` = incompatible, with the

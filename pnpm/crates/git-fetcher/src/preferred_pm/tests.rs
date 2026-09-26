@@ -16,6 +16,36 @@ fn detects_pnpm_via_pnpm_lock_yaml() {
 }
 
 #[test]
+fn detects_pnpm_via_pnpm_workspace_yaml_when_it_ships_no_lockfile() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
+}
+
+#[test]
+fn a_shipped_lockfile_still_wins_over_pnpm_workspace_yaml() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    fs::write(dir.path().join("yarn.lock"), "").unwrap();
+    assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Yarn);
+
+    let dir2 = tempdir().unwrap();
+    fs::write(dir2.path().join("pnpm-workspace.yaml"), "packages: []\n").unwrap();
+    fs::write(dir2.path().join("package-lock.json"), "{}").unwrap();
+    assert_eq!(detect_preferred_pm(dir2.path()), PreferredPm::Npm);
+}
+
+#[test]
+fn a_lockfile_less_pnpm_workspace_wants_pnpm_with_no_version_pin() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None),
+        WantedPm { pm: PreferredPm::Pnpm, version_spec: None, pinned: false },
+    );
+}
+
+#[test]
 fn detects_yarn_via_yarn_lock() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("yarn.lock"), "").unwrap();

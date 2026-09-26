@@ -114,6 +114,25 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
     );
 }
 #[test]
+fn full_pkg_id_of_a_custom_resolution_follows_its_integrity() {
+    let key: PackageKey = "dep-a@1.0.0".parse().expect("parse key");
+    let full_pkg_id = |resolution: serde_json::Value| {
+        let metadata: PackageMetadata =
+            serde_json::from_value(serde_json::json!({ "resolution": resolution }))
+                .expect("parse custom package metadata");
+        let packages = HashMap::from([(key.clone(), metadata)]);
+        crate::virtual_store_layout::graph_hash::full_pkg_id_of(&key, Some(&packages))
+    };
+
+    assert_eq!(
+        full_pkg_id(serde_json::json!({ "type": "custom:served", "integrity": "sha512-old" })),
+        "dep-a@1.0.0:sha512-old",
+    );
+    let by_url =
+        |url: &str| full_pkg_id(serde_json::json!({ "type": "custom:served", "url": url }));
+    assert_ne!(by_url("https://example.test/a.tgz"), by_url("https://example.test/b.tgz"));
+}
+#[test]
 fn link_hash_matches_the_shared_typescript_fixture() {
     let fixture: LinkHashParityFixture = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

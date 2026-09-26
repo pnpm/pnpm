@@ -64,6 +64,55 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(infos(), ["Logged in as john"]);
 }
 
+// <https://github.com/pnpm/pnpm/issues/12055>
+#[tokio::test]
+async fn should_log_in_to_an_existing_user_by_sending_the_credentials_as_basic_auth() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
+    reset();
+    reset_login();
+    set_prompt_input(credential_prompts("john", "john@example.com"));
+    set_prompt_password(Box::new(|_| Ok("sécret".to_owned())));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let already_registered = server
+        .mock("PUT", "/-/user/org.couchdb.user:john")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(409)
+        .with_body(json!({"error": "username is already registered"}).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+    let logged_in = server
+        .mock("PUT", "/-/user/org.couchdb.user:john")
+        .match_header("authorization", "Basic am9objpzw6ljcmV0")
+        .with_status(201)
+        .with_body(json!({"ok": true, "token": "existing-user-token"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("classic login succeeds for an existing user");
+
+    already_registered.assert_async().await;
+    logged_in.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+    assert_eq!(
+        written_registry_token(&login_writes(), &format!("{registry}/")),
+        Some("existing-user-token".to_owned()),
+    );
+    assert_eq!(infos(), ["Logged in as john"]);
+}
+
 #[tokio::test]
 async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trailing_slash() {
     web_auth_fake!(FakeHost, RecordingReporter, infos);

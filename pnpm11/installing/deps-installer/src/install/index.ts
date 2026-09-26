@@ -10,7 +10,7 @@ import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalo
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import {
   LAYOUT_VERSION,
@@ -53,7 +53,7 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { extendProjectsWithTargetDirs, getInjectedDeps, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
@@ -82,6 +82,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import {
   allProjectsAreUpToDate,
   catalogResolutionIsStale,
@@ -125,7 +126,7 @@ import { isSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
 import { pathExists } from 'path-exists'
-import { clone, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
+import { clone, equals, isEmpty, map as mapValues, pipeWith, props } from 'ramda'
 import semver from 'semver'
 
 import { isSameSource } from '../isSameSource.js'
@@ -135,6 +136,7 @@ import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersion
 import { checkCustomResolverForceResolve } from './checkCustomResolverForceResolve.js'
 import {
   type BeforeLifecycleScriptsResult,
+  createInstallReadPackageHook,
   extendOptions,
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
@@ -160,6 +162,28 @@ class LockfileConfigMismatchError extends PnpmError {
     super('LOCKFILE_CONFIG_MISMATCH',
       `Cannot proceed with the frozen installation. The current "${outdatedLockfileSettingName!}" configuration doesn't match the value found in the lockfile`, {
         hint: 'Update your lockfile using "pnpm install --no-frozen-lockfile"',
+      })
+  }
+}
+
+class InconsistentPatchHashError extends PnpmError {
+  constructor () {
+    super('INCONSISTENT_PATCH_HASH',
+      'Cannot proceed with the frozen installation. The lockfile records dependency paths whose ' +
+      'patch hashes disagree with its own "patchedDependencies"', {
+        hint: 'The lockfile disagrees with itself, which usually means it was hand-edited or a merge conflict was incorrectly resolved. ' +
+          'Repair your lockfile using "pnpm install --no-frozen-lockfile"',
+      })
+  }
+}
+
+class UncheckablePatchHashError extends PnpmError {
+  constructor () {
+    super('UNCHECKABLE_PATCH_HASH',
+      'Cannot proceed with the frozen installation. The lockfile\'s patch hashes cannot be checked ' +
+      'against its own "patchedDependencies"', {
+        hint: 'The lockfile has a malformed patch hash, or is missing a package version or a usable "patchedDependencies" entry that checking needs. ' +
+          'Repair your lockfile using "pnpm install --no-frozen-lockfile"',
       })
   }
 }
@@ -483,10 +507,6 @@ export async function mutateModules (
     ctx.include = opts.include
   }
 
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
     extraBinPaths: opts.extraBinPaths,
     extendNodePath: opts.extendNodePath,
@@ -597,7 +617,8 @@ export async function mutateModules (
     (
       // Frozen materialization: pacquet reads the existing lockfile and
       // re-applies the resolver-policy gate as it walks it.
-      (ctx.existsNonEmptyWantedLockfile &&
+      (ctx.patchedDepPathsStatus === 'up-to-date' &&
+        ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
       // manifests itself — applying the policy during fresh resolution —
@@ -985,6 +1006,10 @@ export async function mutateModules (
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
+      // A lockfile that disagrees with its own `patchedDependencies`, or that could
+      // not be checked, needs the resolver to rewrite its dependency paths;
+      // composing onto it would carry the stale hashes forward.
+      ctx.patchedDepPathsStatus === 'up-to-date' &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
       // `time` records publish dates for the importers' direct dependencies
@@ -1085,7 +1110,15 @@ export async function mutateModules (
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null
+    // A frozen install cannot re-resolve to settle either case, and each names only what it
+    // established: a suffix shown to disagree, or one that could not be judged at all. A lockfile
+    // whose conflicts were autofixed falls through to resolution instead.
+    if (frozenLockfile && !ctx.lockfileHadConflicts) {
+      if (ctx.patchedDepPathsStatus === 'stale') throw new InconsistentPatchHashError()
+      if (ctx.patchedDepPathsStatus === 'indeterminate') throw new UncheckablePatchHashError()
+    }
     let needsFullResolution = outdatedLockfileSettings ||
+      ctx.patchedDepPathsStatus !== 'up-to-date' ||
       opts.fixLockfile ||
       opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||
@@ -1404,6 +1437,12 @@ export async function mutateModules (
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
           if (wantedDep.bareSpecifier != null && isProjectRelativePath(wantedDep.bareSpecifier)) continue
+          if (
+            wantedDep.prevSpecifier != null &&
+            parseCatalogProtocol(wantedDep.prevSpecifier) != null &&
+            wantedDep.bareSpecifier !== wantedDep.prevSpecifier &&
+            isExplicitDistTagSpecifier(wantedDep.bareSpecifier)
+          ) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
@@ -2207,6 +2246,10 @@ function getPerDepCatalogName (
   return globalSaveCatalogName ?? 'default'
 }
 
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+}
+
 export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
@@ -2341,14 +2384,19 @@ function rootProjectRunsPreinstallEarly (
  * from a manifest it writes `dependencies` into and nothing else.
  * `optionalDependencies` are the exception, because every package in the
  * graph can declare one and dropping the group drops those too, which no
- * importer's manifest shows.
+ * importer's manifest shows. An importer's own `optionalDependencies` drop
+ * with its `dependencies`.
  */
 function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
   if (!include.optionalDependencies) return true
   return projects.some(({ manifest }) =>
-    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.dependencies && (!isEmpty(manifest.dependencies ?? {}) || !isEmpty(manifest.optionalDependencies ?? {}))) ||
     (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
   )
+}
+
+function policyViolationKey ({ code, name, version }: ResolutionPolicyViolation): string {
+  return `${code}:${name}@${version}`
 }
 
 interface InstallFunctionResult {
@@ -2507,18 +2555,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
-  let {
-    dependenciesGraph,
-    dependenciesByProjectId,
-    linkedDependenciesByProjectId,
-    updatedCatalogs,
-    newLockfile,
-    outdatedDependencies,
-    peerDependencyIssuesByProjects,
-    wantedToBeSkippedPackageIds,
-    waitTillAllFetchingsFinish,
-    resolutionPolicyViolations,
-  } = await resolveDependencies(
+  const resolveDependencyGraph = async (
+    catalogs: Catalogs | undefined,
+    parsedOverrides: VersionOverride[],
+    readPackageHook: ReadPackageHook | undefined,
+    handleResolutionPolicyViolations = opts.handleResolutionPolicyViolations
+  ) => resolveDependencies(
     projects,
     {
       allowBuild: opts.allowBuild,
@@ -2526,7 +2568,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
-      catalogs: opts.catalogs,
+      catalogs,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
@@ -2545,9 +2587,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       updateChecksums: opts.updateChecksums,
       ignoreScripts: opts.ignoreScripts,
       hooks: {
-        readPackage: opts.readPackageHook,
+        readPackage: readPackageHook,
       },
-      overrideBareSpecifier: createDependencyOverrider(opts.parsedOverrides, opts.lockfileDir),
+      overrideBareSpecifier: createDependencyOverrider(parsedOverrides, opts.lockfileDir),
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
@@ -2581,9 +2623,62 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
       blockExoticSubdeps: opts.blockExoticSubdeps,
       allProjectIds: Object.values(ctx.projects).map((p) => p.id),
-      handleResolutionPolicyViolations: opts.handleResolutionPolicyViolations,
+      handleResolutionPolicyViolations,
     }
   )
+  let parsedOverrides = opts.parsedOverrides
+  let {
+    dependenciesGraph,
+    dependenciesByProjectId,
+    linkedDependenciesByProjectId,
+    updatedCatalogs,
+    newLockfile,
+    outdatedDependencies,
+    peerDependencyIssuesByProjects,
+    wantedToBeSkippedPackageIds,
+    waitTillAllFetchingsFinish,
+    resolutionPolicyViolations,
+  } = await resolveDependencyGraph(opts.catalogs, parsedOverrides, opts.readPackageHook)
+  // `pnpm update` may bump catalog entries during resolution, while the
+  // overrides that reference a catalog (e.g. `overrides: { foo: 'catalog:' }`)
+  // were resolved against the pre-update catalog when the install options
+  // were extended. When a bump changes such an override, resolve again with
+  // the updated catalog so that the graph applies the override the lockfile
+  // records.
+  if (updatedCatalogs != null && !isEmpty(opts.overrides ?? {})) {
+    const updatedCatalogsConfig = mergeCatalogs(opts.catalogs, updatedCatalogs)
+    const overridesWithUpdatedCatalogs = parseOverrides(opts.overrides!, updatedCatalogsConfig)
+    if (!equals(createOverridesMapFromParsed(overridesWithUpdatedCatalogs), createOverridesMapFromParsed(parsedOverrides))) {
+      parsedOverrides = overridesWithUpdatedCatalogs
+      const waitTillFirstResolutionFetchingsFinish = waitTillAllFetchingsFinish
+      const handledViolations = new Set(resolutionPolicyViolations.map(policyViolationKey))
+      const resolutionWithUpdatedCatalogs = await resolveDependencyGraph(
+        updatedCatalogsConfig,
+        parsedOverrides,
+        createInstallReadPackageHook(opts, parsedOverrides),
+        opts.handleResolutionPolicyViolations && (async (violations) => {
+          const unhandled = violations.filter((violation) => !handledViolations.has(policyViolationKey(violation)))
+          if (unhandled.length > 0) await opts.handleResolutionPolicyViolations!(unhandled)
+        })
+      )
+      ;({
+        dependenciesGraph,
+        dependenciesByProjectId,
+        linkedDependenciesByProjectId,
+        newLockfile,
+        outdatedDependencies,
+        peerDependencyIssuesByProjects,
+        wantedToBeSkippedPackageIds,
+        waitTillAllFetchingsFinish,
+        resolutionPolicyViolations,
+      } = resolutionWithUpdatedCatalogs)
+      waitTillAllFetchingsFinish = async () => {
+        await Promise.all([waitTillFirstResolutionFetchingsFinish(), resolutionWithUpdatedCatalogs.waitTillAllFetchingsFinish()])
+      }
+      updatedCatalogs = mergeCatalogs(updatedCatalogs, resolutionWithUpdatedCatalogs.updatedCatalogs)
+      newLockfile.overrides = createOverridesMapFromParsed(parsedOverrides)
+    }
+  }
   // Only a full resolution walks every manifest through the versions
   // overrider, making the collected declared ranges complete enough for the
   // staleness verdict; partial resolutions must stay silent to avoid false
@@ -2591,7 +2686,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   if (opts.convergeDeclaredRanges != null && (forceFullResolution || opts.dedupe)) {
     await warnOnStaleConvergenceOverrides({
       convergeDeclaredRanges: opts.convergeDeclaredRanges,
-      parsedOverrides: opts.parsedOverrides,
+      parsedOverrides,
       requestPackage: opts.storeController.requestPackage,
       lockfileDir: opts.lockfileDir,
       minimumReleaseAge: opts.minimumReleaseAge,
@@ -2603,7 +2698,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
-          linkedDep.optional && !opts.include.optionalDependencies ||
+          linkedDep.optional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
         )),
       linkedDependenciesByProjectId ?? {}
@@ -2615,11 +2710,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (!dep) {
           include = false
         } else {
-          const isDev = Boolean(manifest.devDependencies?.[dep.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          const isDev = Object.hasOwn(manifest.devDependencies ?? {}, alias)
+          const isOptional = Object.hasOwn(manifest.optionalDependencies ?? {}, alias)
           include = !(
             isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
+            isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
             !isDev && !isOptional && !opts.include.dependencies
           )
         }
@@ -2648,20 +2743,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     prefix: ctx.lockfileDir,
     stage: 'resolution_done',
   })
-
-  // `pnpm update` may bump catalog entries during resolution. Overrides that
-  // reference a catalog (e.g. `overrides: { foo: 'catalog:' }`) were resolved
-  // against the pre-update catalog when the install options were extended, so
-  // re-resolve them against the updated catalog. Done before `afterAllResolved`
-  // so that hook still sees (and can amend) the final overrides. Otherwise
-  // lockfile `overrides` keeps pointing at the old version while `catalogs`
-  // advances, and a later `--frozen-lockfile` install fails with
-  // ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
-    newLockfile.overrides = createOverridesMapFromParsed(
-      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs, updatedCatalogs))
-    )
-  }
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
     ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
@@ -2823,6 +2904,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
+          engineStrict: installabilityUnderForce(opts).engineStrict,
+          engineNodeVersion: opts.nodeVersion,
+          linkedModulesDirs: [
+            ...opts.allProjects.map((project) => pathAbsolute(project.modulesDir ?? opts.modulesDir ?? 'node_modules', project.rootDir)),
+            ctx.hoistedModulesDir,
+          ],
+          skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2832,6 +2920,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraEnv,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
+          nodeVersion: findLockedRootNodeRuntime(newLockfile)?.version,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           rootModulesDir: ctx.virtualStoreDir,
@@ -2862,7 +2951,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
-      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(
+        result.newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
+        dependenciesGraph
+      )
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -2926,7 +3018,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
+    const injectionTargetsByDepPath = getInjectionTargetsByDepPath(newLockfile, dependenciesGraph)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath, opts.lockfileDir)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -2949,12 +3042,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         ) {
           return Promise.resolve()
         }
-        const injectedDeps: Record<string, string[]> = {}
-        for (const project of projectsWithTargetDirs) {
-          if (project.targetDirs.length > 0) {
-            injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
-          }
-        }
+        const injectedDeps = getInjectedDeps(injectionTargetsByDepPath, opts.lockfileDir)
         return writeModulesManifest(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedDependencies: result.newHoistedDependencies,
@@ -3523,17 +3611,16 @@ function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): str
 }
 
 /**
- * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
- * and extend projects with their target directories.
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages.
  * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
  * (which uses the correct hash-based paths when global virtual store is enabled).
  */
-function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
-  projects: T[],
+function getInjectionTargetsByDepPath (
   lockfile: LockfileObject,
   dependenciesGraph: DependenciesGraph
-): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+): Map<string, string[]> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
+
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
       if (resolution?.type === 'directory') {
@@ -3544,7 +3631,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
       }
     }
   }
-  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+  return injectionTargetsByDepPath
 }
 
 /**

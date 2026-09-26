@@ -3,8 +3,18 @@ use super::{
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Read, io, thread,
 };
 use crate::process_tracker::SpawnedChild;
+use std::{
+    sync::{Arc, Mutex, mpsc},
+    time::Duration,
+};
 
 pub(super) const STREAMED_OUTPUT_CHUNK_BYTES: usize = 64 * 1024;
+
+/// How long the output pumps keep reading once the script has exited. A
+/// process the script left running in the background inherits its pipes
+/// and can hold them open for as long as it lives
+/// ([pnpm/pnpm#5730](https://github.com/pnpm/pnpm/issues/5730)).
+pub(super) const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
 
 /// A script whose output is republished as `pnpm:lifecycle` events
 /// rather than written straight to the terminal.
@@ -51,30 +61,29 @@ impl StreamedScript<'_> {
     }
 
     /// Drain `child`'s piped stdout and stderr into one event per line,
-    /// then wait for it. The pumps are joined after the wait, so every
-    /// line is emitted before the caller's [`Self::finished`] — the
-    /// ordering pnpm's reporter renders against.
+    /// then wait for it. The pumps get `OUTPUT_DRAIN_AFTER_EXIT` after
+    /// the child exits to reach the end of its output, so every line the
+    /// child wrote is emitted before the caller's [`Self::finished`] — the
+    /// ordering pnpm's reporter renders against. Whatever reaches the pipes
+    /// later is dropped.
     ///
     /// The child must have been spawned with both streams piped;
     /// whichever is absent is simply not pumped.
     pub fn pump(&self, child: &mut SpawnedChild<'_>) -> io::Result<ExitStatus> {
-        let stdout_handle = child
-            .child_mut()
-            .stdout
-            .take()
-            .map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
-        let stderr_handle = child
-            .child_mut()
-            .stderr
-            .take()
-            .map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
+        let (link, pumps_done) = PumpLink::new();
+        if let Some(stream) = child.child_mut().stdout.take() {
+            self.pump_stream(stream, LifecycleStdio::Stdout, link.clone());
+        }
+        if let Some(stream) = child.child_mut().stderr.take() {
+            self.pump_stream(stream, LifecycleStdio::Stderr, link.clone());
+        }
+        let gate = Arc::clone(&link.open);
+        drop(link);
         let status = child.wait();
-        if let Some(handle) = stdout_handle {
-            let _ = handle.join();
-        }
-        if let Some(handle) = stderr_handle {
-            let _ = handle.join();
-        }
+        // Every pump holds a sender until it stops reading, so the channel
+        // disconnects once both have.
+        let _ = pumps_done.recv_timeout(OUTPUT_DRAIN_AFTER_EXIT);
+        *gate.lock().expect("output gate lock is not poisoned") = false;
         status
     }
 
@@ -110,13 +119,14 @@ impl StreamedScript<'_> {
         &self,
         reader: impl Read + Send + 'static,
         stdio: LifecycleStdio,
+        link: PumpLink,
     ) -> thread::JoinHandle<()> {
         let (dep_path, stage, wd) =
             (self.dep_path.to_string(), self.stage.to_string(), self.wd.to_string());
         let emit = self.emit;
         thread::spawn(move || {
             let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
-            pump_lines(&target, reader, stdio);
+            pump_lines(&target, reader, stdio, &link);
         })
     }
 
@@ -164,25 +174,59 @@ impl StreamedScript<'_> {
     }
 }
 
-/// Read one stream to EOF, emitting a log line per newline or per full chunk.
+/// What a script's output pumps share with the thread waiting for the
+/// script: a sender each pump holds until it stops reading, and the gate
+/// that is open for as long as their lines are still wanted.
+#[derive(Clone)]
+pub(super) struct PumpLink {
+    _running: mpsc::Sender<()>,
+    open: Arc<Mutex<bool>>,
+}
+
+impl PumpLink {
+    /// A link with an open gate, and the receiver that disconnects once
+    /// every clone of the link has been dropped.
+    pub(super) fn new() -> (Self, mpsc::Receiver<()>) {
+        let (running, done) = mpsc::channel();
+        (Self { _running: running, open: Arc::new(Mutex::new(true)) }, done)
+    }
+
+    /// Emit and clear `line` unless the gate has closed, reporting whether
+    /// it was open.
+    fn emit(&self, target: &StreamedScript<'_>, stdio: LifecycleStdio, line: &mut Vec<u8>) -> bool {
+        let open = self.open.lock().expect("output gate lock is not poisoned");
+        if *open {
+            target.emit_bytes_line(stdio, line);
+            line.clear();
+        }
+        *open
+    }
+}
+
+/// Read one stream to EOF, emitting a log line per newline or per full
+/// chunk, until `link`'s gate closes.
 ///
 /// An `EBADF` or `EPIPE` means the child closed the stream. Not fatal — the
 /// caller's `wait` surfaces a non-zero exit code if the child failed over it.
-fn pump_lines(target: &StreamedScript<'_>, reader: impl Read, stdio: LifecycleStdio) {
+fn pump_lines(
+    target: &StreamedScript<'_>,
+    reader: impl Read,
+    stdio: LifecycleStdio,
+    link: &PumpLink,
+) {
     let mut reader = BufReader::new(reader);
     let mut line = Vec::new();
     while let Ok(buffered) = reader.fill_buf() {
         if buffered.is_empty() {
             if !line.is_empty() {
-                target.emit_bytes_line(stdio, &mut line);
+                link.emit(target, stdio, &mut line);
             }
             break;
         }
         let (consumed, line_finished) = take_streamed_chunk(buffered, &mut line);
         reader.consume(consumed);
-        if line_finished {
-            target.emit_bytes_line(stdio, &mut line);
-            line.clear();
+        if line_finished && !link.emit(target, stdio, &mut line) {
+            break;
         }
     }
 }
@@ -203,3 +247,6 @@ fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
         .map_or(buffered.len(), |i| i + 1);
     through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
 }
+
+#[cfg(test)]
+mod tests;

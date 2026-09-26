@@ -1,8 +1,11 @@
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
 import { refToRelative } from '@pnpm/deps.path'
 import type { PackageSnapshots } from '@pnpm/lockfile.fs'
 import type { DepPath, Finder } from '@pnpm/types'
+import normalizePath from 'normalize-path'
 
 import { buildDependencyGraph } from '../lib/buildDependencyGraph.js'
 import { getTree, type MaterializationCache } from '../lib/getTree.js'
@@ -713,6 +716,34 @@ describe('getTree', () => {
           ],
         }),
       ]))
+    })
+
+    test('link to an absolute path, such as a directory on another drive, is listed at that path', () => {
+      const linkedDir = path.resolve('/external-pkg')
+      const importers = {
+        '.': {
+          specifiers: {},
+          dependencies: {
+            'my-link': `link:${normalizePath(linkedDir)}`,
+          },
+        },
+      }
+      const rootNodeId: TreeNodeId = { type: 'importer', importerId: '.' }
+
+      const result = getTreeWithGraph({
+        ...commonMockGetTreeArgs,
+        maxDepth: Infinity,
+        currentPackages: {},
+        wantedPackages: {},
+        importers,
+      }, rootNodeId)
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          alias: 'my-link',
+          path: linkedDir,
+        }),
+      ])
     })
 
     test('link inside workspace resolves to importer and is traversed', () => {

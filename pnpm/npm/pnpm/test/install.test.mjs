@@ -39,6 +39,43 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   }
 })
 
+// A local install writes shims before preinstall rewrites `bin` to `pnpm.exe`.
+// Postinstall has to rebuild those project shims. The global case above does
+// not cover `node_modules/.bin`.
+test('npm installs local Windows shims that name the native executable', (t) => {
+  const { prefix } = installFixtureWithNpm(t, ['--dangerously-allow-all-scripts'], { global: false })
+
+  if (process.platform === 'win32') {
+    const binDir = path.join(prefix, 'node_modules', '.bin')
+    const cmdShim = path.join(binDir, 'pnpm.cmd')
+    assert.match(fs.readFileSync(cmdShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('cmd.exe', ['/d', '/s', '/c', 'call', cmdShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+
+    const powershellShim = path.join(binDir, 'pnpm.ps1')
+    assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+  } else {
+    assert.equal(
+      execFileSync(path.join(prefix, 'node_modules', '.bin', 'pnpm'), ['works'], { encoding: 'utf8' }),
+      'fixture:works\n'
+    )
+  }
+})
+
+// `--location=global` leaves `npm_config_global` unset and sets npm's project
+// prefix to the global prefix, so only `npm_config_location` marks it global.
+test('npm installs global Windows shims that name the native executable with --location=global', (t) => {
+  const { prefix } = installFixtureWithNpm(t, ['--dangerously-allow-all-scripts', '--location=global'], { global: false })
+
+  assert.equal(fs.existsSync(path.join(prefix, 'node_modules', '.bin')), false)
+  if (process.platform === 'win32') {
+    assert.match(fs.readFileSync(path.join(prefix, 'pnpm.cmd'), 'utf8'), /pnpm\.exe/)
+    assert.match(fs.readFileSync(path.join(prefix, 'pnpm.ps1'), 'utf8'), /pnpm\.exe/)
+  } else {
+    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  }
+})
+
 // npm's bin points straight at the placeholder rather than naming an
 // interpreter for it, which is what keeps it working once the native binary
 // takes the same path. Windows has no shell that could run it instead.
@@ -163,21 +200,24 @@ test('an architecture released for both libcs still offers the other as a fallba
 })
 
 /**
- * Install the wrapper fixture globally with npm into a prefix of its own.
+ * Install the wrapper fixture with npm into a prefix of its own, globally by
+ * default or as a project dependency.
  * Throws when npm fails; the temp tree is removed when `t` ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {string[]} npmFlags Extra `npm install` flags, e.g. `--ignore-scripts`.
+ * @param {{ global?: boolean }} [options] Pass `global: false` to install into
+ *   the prefix as a project, whose shims land in `node_modules/.bin`.
  * @returns {{ prefix: string, fixtureDir: string }} The npm prefix the shims
  *   landed in, and the fixture wrapper it was installed from.
  */
-function installFixtureWithNpm (t, npmFlags) {
+function installFixtureWithNpm (t, npmFlags, options = {}) {
   const { tempDir, fixtureDir } = writeFixture(t)
 
   const prefix = path.join(tempDir, 'prefix')
   runNpm([
     'install',
-    '--global',
+    ...(options.global === false ? [] : ['--global']),
     '--install-links=true',
     ...npmFlags,
     '--prefix',
@@ -332,7 +372,10 @@ function writeNativeFixture (destPath) {
     try {
       fs.linkSync(process.execPath, destPath)
     } catch (err) {
-      if (err.code !== 'EXDEV') throw err
+      // EXDEV is a cross-volume link. EPERM is a same-volume link the process
+      // is not allowed to create (for example node.exe under Program Files).
+      // A copy is still a runnable stand-in for the native binary.
+      if (err.code !== 'EXDEV' && err.code !== 'EPERM') throw err
       fs.copyFileSync(process.execPath, destPath)
     }
   } else {

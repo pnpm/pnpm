@@ -3,6 +3,7 @@ use super::{
     Path, PathBuf, Reporter, RuntimePolicy, State, ThrottledClient, dedicated_project_name,
     discover_workspace_projects, ecosystem_install, init_dedicated_project_state,
     prepare_root_config, project_names, prune_after_dedicated_installs, select_install_family,
+    sync_dedicated_injected_deps,
 };
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
@@ -176,6 +177,7 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
                 require_lockfile,
                 http_client: Some(Arc::clone(&http_client)),
                 prune_excludes: !args.materialization.dry_run,
+                sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
             }
             .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
@@ -258,11 +260,11 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     // project count, happens once per CLI invocation, and is
     // reclaimed at process exit — the same lifetime deploy's derived
     // install config has.
-    for project_dir in project_dirs {
+    for project_dir in &project_dirs {
         let state = init_dedicated_project_state(
             cfg,
-            &project_dir,
-            names.get(&project_dir).map(String::as_str),
+            project_dir,
+            names.get(project_dir).map(String::as_str),
             require_lockfile,
             Some(Arc::clone(&http_client)),
         )?;
@@ -270,6 +272,9 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     }
     if !args.materialization.dry_run {
         prune_after_dedicated_installs(cfg)?;
+    }
+    if !(args.lockfile.only || args.materialization.dry_run) {
+        sync_dedicated_injected_deps(cfg, &project_dirs, &names)?;
     }
     Ok(())
 }

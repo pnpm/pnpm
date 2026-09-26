@@ -1,6 +1,8 @@
 use crate::{
     State,
-    cli_args::pipelines::{InstallFamilySelection, project_names, select_workspace_projects},
+    cli_args::pipelines::{
+        InstallFamilySelection, installed_project_config, project_names, select_workspace_projects,
+    },
 };
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -68,6 +70,7 @@ impl RebuildArgs {
             return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
         }
 
+        let cfg = installed_project_config(cfg, &manifest_path);
         let state = State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
         Box::pin(self.run::<Reporter>(state, workspace_selection)).await
     }

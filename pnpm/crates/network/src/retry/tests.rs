@@ -1,16 +1,25 @@
 use std::{
-    sync::atomic::{AtomicU32, Ordering},
+    net::SocketAddr,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
     time::Duration,
 };
 
-use reqwest::StatusCode;
+use reqwest::{
+    StatusCode,
+    dns::{Addrs, Name, Resolve, Resolving},
+};
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
 use crate::{
-    AuthHeaders, PerRegistryTls, ProxyConfig, SecureAuthResponse, ThrottledClient, TlsConfig,
-    nerf_dart,
+    AuthHeaders, GuardedDnsResolver, PerRegistryTls, ProxyConfig, SecureAuthResponse,
+    ThrottledClient, TlsConfig, is_permanent_error, is_public_address, nerf_dart,
+    walk_reqwest_chain,
 };
+use pnpm_testing_utils::untrusted_tls_server::UntrustedTlsServer;
 
 /// `RetryOpts` whose backoff is effectively instant, so retry-loop
 /// tests don't sleep.
@@ -89,6 +98,66 @@ async fn authenticated_metadata_errors_remove_urls_after_retry_exhaustion() {
     for secret in ["password", "token", "secret", "fragment"] {
         assert!(!error.to_string().contains(secret));
     }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/9134>
+#[tokio::test]
+async fn untrusted_certificates_are_not_retried() {
+    let server = UntrustedTlsServer::start();
+    let url = format!("{}/metadata", server.url);
+    let client = ThrottledClient::default();
+
+    let error =
+        crate::send_with_retry(&client, &url, instant_retry_opts(2), |client| client.get(&url))
+            .await
+            .err()
+            .expect("an untrusted certificate must fail the request");
+    assert!(is_permanent_error(&error), "error={error:?}");
+    assert_eq!(server.connections(), 1);
+
+    let error =
+        get_secure_bytes(&client, &url, &AuthHeaders::default(), None, instant_retry_opts(2), 1024)
+            .await
+            .err()
+            .expect("an untrusted certificate must fail the request");
+    assert!(is_permanent_error(&error), "error={error:?}");
+    assert_eq!(server.connections(), 2);
+}
+
+struct CountingResolver(Arc<AtomicU32>);
+
+impl Resolve for CountingResolver {
+    fn resolve(&self, _name: Name) -> Resolving {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async {
+            Ok(Box::new(std::iter::once(SocketAddr::from(([169, 254, 169, 254], 80)))) as Addrs)
+        })
+    }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn addresses_the_dns_guard_refuses_are_not_retried() {
+    let lookups = Arc::new(AtomicU32::new(0));
+    let client = ThrottledClient::new_for_installs_with_guards(
+        |_| true,
+        Arc::new(GuardedDnsResolver::new(
+            Arc::new(CountingResolver(Arc::clone(&lookups))),
+            Arc::new(|_, address| is_public_address(address)),
+        )),
+    );
+    let url = "http://metadata.example/latest/meta-data/";
+
+    let error =
+        crate::send_with_retry(&client, url, instant_retry_opts(2), |client| client.get(url))
+            .await
+            .err()
+            .expect("a refused address must fail the request");
+    assert!(is_permanent_error(&error), "error={error:?}");
+    assert!(walk_reqwest_chain(&error).contains(
+        "metadata.example resolves to 169.254.169.254, which this client is not allowed to connect to",
+    ));
+    assert_eq!(lookups.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

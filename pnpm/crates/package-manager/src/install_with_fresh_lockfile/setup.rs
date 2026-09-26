@@ -57,7 +57,7 @@ impl InstallShape {
                 && partial_selection,
             include_transitive_optional_dependencies: include_transitive_optional_dependencies(
                 install.projects.is_full_install,
-                install.projects.dependency_groups,
+                install.included(),
             ),
         }
     }

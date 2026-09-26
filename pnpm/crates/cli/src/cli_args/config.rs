@@ -425,15 +425,22 @@ fn get_config_file_info<'a>(
     dir: &'a Path,
 ) -> Result<(PathBuf, &'static str), ConfigError> {
     let kebab = naming_cases::to_kebab_case(key);
-    let config_dir = if global { global_config_dir(config)? } else { dir.to_path_buf() };
-    let file_name = if config_types::is_ini_config_key(&kebab) {
-        if global { "auth.ini" } else { ".npmrc" }
-    } else if global {
-        GLOBAL_CONFIG_YAML_FILENAME
-    } else {
-        WORKSPACE_MANIFEST_FILENAME
-    };
-    Ok((config_dir, file_name))
+    if global {
+        let file_name = if config_types::is_ini_config_key(&kebab) {
+            "auth.ini"
+        } else {
+            GLOBAL_CONFIG_YAML_FILENAME
+        };
+        return Ok((global_config_dir(config)?, file_name));
+    }
+    if config_types::is_ini_config_key(&kebab) {
+        return Ok((dir.to_path_buf(), ".npmrc"));
+    }
+    // Unlike `.npmrc`, `pnpm-workspace.yaml` is read only from the workspace
+    // root. Writing one into a sub-package would make that sub-package the
+    // root. See <https://github.com/pnpm/pnpm/issues/13757>.
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+    Ok((workspace_dir.to_path_buf(), WORKSPACE_MANIFEST_FILENAME))
 }
 
 fn global_config_dir(config: &Config) -> Result<PathBuf, ConfigError> {

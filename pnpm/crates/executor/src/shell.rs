@@ -73,6 +73,13 @@ pub fn select_shell(
     }
 
     if let Some(p) = script_shell {
+        if is_windows && is_cmd_exe(p) {
+            return Ok(SelectedShell {
+                program: p.to_path_buf(),
+                args: cmd_exe_args(),
+                windows_verbatim_args: true,
+            });
+        }
         return Ok(SelectedShell {
             program: p.to_path_buf(),
             args: vec![OsString::from("-c")],
@@ -86,7 +93,7 @@ pub fn select_shell(
             .map_or_else(|| PathBuf::from("cmd"), PathBuf::from);
         return Ok(SelectedShell {
             program: comspec,
-            args: vec![OsString::from("/d"), OsString::from("/s"), OsString::from("/c")],
+            args: cmd_exe_args(),
             windows_verbatim_args: true,
         });
     }
@@ -96,6 +103,24 @@ pub fn select_shell(
         args: vec![OsString::from("-c")],
         windows_verbatim_args: false,
     })
+}
+
+fn cmd_exe_args() -> Vec<OsString> {
+    vec![OsString::from("/d"), OsString::from("/s"), OsString::from("/c")]
+}
+
+/// `cmd.exe` does not understand `-c` and takes the first `/c` anywhere on
+/// its command line as its switch, so a script such as
+/// `node install/can-compile` must follow `/d /s /c`. Splits on both
+/// separators so the check does not depend on the host's `Path` parser.
+fn is_cmd_exe(path: &Path) -> bool {
+    let lossy = path.to_string_lossy();
+    let basename = lossy
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    basename == "cmd" || basename == "cmd.exe"
 }
 
 /// `.cmd` / `.bat` suffix check, case-insensitive on the suffix. The

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.fs",
-  "version": "1100.2.8",
+  "version": "1100.2.9",
   "description": "Read/write pnpm-lock.yaml files",
   "keywords": [
     "pnpm",
@@ -43,6 +43,8 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",

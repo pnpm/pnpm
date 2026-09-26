@@ -202,7 +202,7 @@ function pickLinkedDirectDeps (
   const rootDeps = {
     ...(include.devDependencies ? importer.devDependencies : {}),
     ...(include.dependencies ? importer.dependencies : {}),
-    ...(include.optionalDependencies ? importer.optionalDependencies : {}),
+    ...(include.dependencies && include.optionalDependencies ? importer.optionalDependencies : {}),
   }
   const directDeps: Record<string, string> = {}
   for (const alias in rootDeps) {
@@ -250,7 +250,7 @@ async function fetchDeps (
     const pkg = {
       name: pkgName,
       version: pkgVersion,
-      engines: pkgSnapshot.engines,
+      engines: opts.engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
       cpu: pkgSnapshot.cpu,
       os: pkgSnapshot.os,
       libc: pkgSnapshot.libc,

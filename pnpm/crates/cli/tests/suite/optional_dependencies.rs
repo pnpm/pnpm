@@ -98,6 +98,92 @@ fn skip_failing_optional_dependencies() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// TS: `remove an optional dependency whose build failed`
+/// (`optionalDependencies.ts`). Under the isolated linker the direct
+/// dependency's link may remain, so `is_dir` rather than [`is_absent`].
+#[test]
+fn remove_optional_dependency_whose_build_failed() {
+    for node_linker in ["isolated", "hoisted"] {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+        append_workspace_yaml_key(
+            &workspace,
+            "allowBuilds",
+            "{ '@pnpm.e2e/failing-postinstall': true }",
+        );
+
+        pacquet
+            .with_args(["add", "--save-optional", "@pnpm.e2e/failing-postinstall@1.0.0"])
+            .assert()
+            .success();
+
+        assert!(
+            !workspace.join("node_modules/@pnpm.e2e/failing-postinstall").is_dir(),
+            "the optional dependency whose build failed must be removed (nodeLinker={node_linker})",
+        );
+        let lockfile_text =
+            fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read pnpm-lock.yaml");
+        assert!(
+            lockfile_text.contains("'@pnpm.e2e/failing-postinstall'"),
+            "the lockfile must still record the optional dependency:\n{lockfile_text}",
+        );
+
+        drop((root, npmrc_info)); // cleanup
+    }
+}
+
+/// TS: `rebuild removes an optional dependency whose build failed`
+/// (`building/commands/test/build/index.ts`).
+#[test]
+fn rebuild_removes_optional_dependency_whose_build_failed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/failing-postinstall": "1.0.0" },
+        }),
+    );
+    let installed = workspace.join("node_modules/@pnpm.e2e/failing-postinstall");
+
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    assert!(installed.is_dir(), "--ignore-scripts must install the package unbuilt");
+    append_workspace_yaml_key(
+        &workspace,
+        "allowBuilds",
+        "{ '@pnpm.e2e/failing-postinstall': true }",
+    );
+
+    let CommandTempCwd {
+        pacquet: rebuild,
+        root: rebuild_root,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    rebuild
+        .with_current_dir(&workspace)
+        .arg("rebuild")
+        .assert()
+        .success();
+
+    assert!(!installed.is_dir(), "the optional dependency whose build failed must be removed");
+
+    drop((root, npmrc_info, rebuild_root)); // cleanup
+}
+
 /// TS: `skip failing optional peer dependencies` (`optionalDependencies.ts:34`).
 /// The auto-installed optional peer's postinstall fails; the install must
 /// succeed, and the lockfile must record the peer as an optional dependency

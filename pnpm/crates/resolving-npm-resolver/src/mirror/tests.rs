@@ -353,6 +353,16 @@ fn is_unreadable_registry_key_spares_the_hash_an_over_long_registry_collapses_to
     assert!(!super::is_unreadable_registry_key(&key), "key: {key}");
 }
 
+/// No resolvable DNS name is a single 64-octet label, but through a proxy the
+/// host is never resolved locally, so pnpm could have cached one.
+#[test]
+fn is_unreadable_registry_key_spares_a_legacy_host_shaped_like_the_hash() {
+    let host = reqwest::Url::parse(&format!("http://{}/", "ab".repeat(32))).expect("parse");
+    let host = host.host_str().expect("host");
+    assert_eq!(host.len(), 64, "host: {host}");
+    assert!(!super::is_unreadable_registry_key(host), "host: {host}");
+}
+
 /// The sha256 spared above is 64 lowercase hex characters. A legacy host that
 /// merely looks hash-like in length or alphabet is still legacy.
 #[test]

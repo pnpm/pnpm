@@ -34,6 +34,17 @@ pub struct SlotImportSource<'a> {
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub is_mutable: bool,
+    /// Whether the mutable source above was there to read from. `false`
+    /// for an injected workspace dependency whose `publishConfig.directory`
+    /// its own `prepare` script has not (re)built yet — the directory
+    /// fetch tolerates that and comes back with an empty file map. Forcing
+    /// a reimport from that empty map, the way `is_mutable` normally does,
+    /// would overwrite an already-materialized slot with nothing; this
+    /// flag keeps that force conditional on the source actually being
+    /// there. A source directory that exists but is genuinely empty still
+    /// forces, since that reflects a real change. Meaningless (and left
+    /// `true`) when `is_mutable` is `false`.
+    pub source_exists: bool,
     /// Whether an existing slot contains a different immutable artifact
     /// under the same package key and must be replaced.
     pub force: bool,

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1101.3.1",
+  "version": "1101.4.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -65,6 +65,7 @@
     "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/installing.env-installer": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
@@ -81,6 +82,7 @@
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
@@ -115,7 +117,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
-    "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/store.index": "workspace:*",

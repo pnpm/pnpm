@@ -16,6 +16,12 @@ use std::fmt::Write as _;
 /// `NODE_PATH` entry inside that root relative to its own directory, so the
 /// tree keeps working after the root moves. `None`, or any root on Windows,
 /// writes the absolute paths `@zkochan/cmd-shim` writes.
+///
+/// A relative target is spelled from the shim's physical directory, so the
+/// shim still finds it when run through a symlinked package directory, such
+/// as `node_modules/vite/node_modules/.bin`. The relative path is computed
+/// from `shim_path`, which has to lie in that physical directory for the two
+/// to line up.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
@@ -25,33 +31,21 @@ pub fn generate_sh_shim(
     relocatable_root: Option<&Path>,
 ) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
+    let sh_target = relative_target(target_path, shim_path);
+    let absolute = Path::new(&sh_target).is_absolute();
     let mut sh = String::from(SH_SHIM_HEADER);
-    let physical_basedir = is_within_root(relocatable_root, shim_dir, shim_dir);
+    let physical_basedir = !absolute || is_within_root(relocatable_root, shim_dir, shim_dir);
     if physical_basedir {
         sh.push_str(BASEDIR_ABS_PRELUDE);
     }
+    sh.push_str(SH_SHIM_PLATFORM);
     write_sh_node_path(
         &mut sh,
         &sh_node_path_entries(node_path, shim_dir, relocatable_root),
         cfg!(windows),
     );
 
-    let sh_target = relative_target(target_path, shim_path);
-    let absolute = Path::new(&sh_target).is_absolute();
-    let quoted = QuotedTarget {
-        posix: if absolute {
-            format!(r#""{sh_target}""#)
-        } else if physical_basedir {
-            format!(r#""$basedir_abs/{sh_target}""#)
-        } else {
-            format!(r#""$basedir/{sh_target}""#)
-        },
-        windows: if absolute {
-            format!(r#""{sh_target}""#)
-        } else {
-            format!(r#""$basedir_win/{sh_target}""#)
-        },
-    };
+    let quoted = QuotedTarget::new(&sh_target, absolute, physical_basedir);
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
@@ -77,6 +71,25 @@ pub fn generate_sh_shim(
 struct QuotedTarget {
     posix: String,
     windows: String,
+}
+
+impl QuotedTarget {
+    fn new(sh_target: &str, absolute: bool, physical_basedir: bool) -> Self {
+        Self {
+            posix: if absolute {
+                format!(r#""{sh_target}""#)
+            } else if physical_basedir {
+                format!(r#""$basedir_abs/{sh_target}""#)
+            } else {
+                format!(r#""$basedir/{sh_target}""#)
+            },
+            windows: if absolute {
+                format!(r#""{sh_target}""#)
+            } else {
+                format!(r#""$basedir_win/{sh_target}""#)
+            },
+        }
+    }
 }
 
 /// Prepend the shim's own `node_modules` directories to `NODE_PATH`, when the
@@ -166,9 +179,12 @@ fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
         return block;
     }
     let sh_long_prog = format!(r#""$basedir/{prog}""#);
+    // On Cygwin and MSYS, the program on PATH is usually a native Windows
+    // one, such as node.exe. Cygwin doesn't convert POSIX path arguments for
+    // it, so it gets the win32 form of the target.
     writeln!(
         block,
-        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
+        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$msys\" ] && command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target_win} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
     )
     .unwrap();
     block
@@ -219,7 +235,12 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')
 basedir="${basedir%/*}"
-basedir_win="$basedir"
+"#;
+
+/// The rest of the header, after the optional [`BASEDIR_ABS_PRELUDE`]: the
+/// Windows-form `$basedir_win` and the executable suffix for Cygwin, MinGW,
+/// MSYS, and WSL2.
+const SH_SHIM_PLATFORM: &str = r#"basedir_win="$basedir"
 exe=""
 msys=""
 
@@ -325,16 +346,38 @@ pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
     r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
 
 /// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
-/// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+/// Taken verbatim from [`SH_SHIM_PLATFORM`] and pinned the same way as
+/// [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_CYGPATH_LINE: &str = r#"    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
-/// The line the header converts `$basedir` through on WSL2. Pinned the same
-/// way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+/// The line the header converts `$basedir` through on WSL2. Taken verbatim from
+/// [`SH_SHIM_PLATFORM`] and pinned the same way as
+/// [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then"#;
 
 /// The line that keeps `node_modules` entries out of the `PATH` the helpers
 /// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
+
+/// Whether an already-on-disk POSIX shim anchors its target on the shim's
+/// physical directory exactly when `expected`, the shim this version writes,
+/// does, and climbs to it by the same relative path. The target marker names
+/// the absolute target, so it matches a shim without the anchor, and one whose
+/// relative path was computed from a physical directory that has since moved.
+#[must_use]
+pub fn is_sh_shim_basedir_anchor_current(existing: &str, expected: &str) -> bool {
+    existing.contains(BASEDIR_ABS_PRELUDE) == expected.contains(BASEDIR_ABS_PRELUDE)
+        && anchored_target(existing) == anchored_target(expected)
+}
+
+/// The first path the shim spells from `$basedir_abs`: its target, in a shim
+/// without a relocatable `NODE_PATH`.
+fn anchored_target(shim: &str) -> Option<&str> {
+    const QUOTED_BASEDIR_ABS: &str = r#""$basedir_abs/"#;
+    let start = shim.find(QUOTED_BASEDIR_ABS)? + QUOTED_BASEDIR_ABS.len();
+    let len = shim[start..].find('"')?;
+    Some(&shim[start..start + len])
+}
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.

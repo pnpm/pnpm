@@ -190,6 +190,12 @@ test('updateConfig throws an error if it returns undefined', async () => {
   expect(() => hooks.updateConfig![0]!({})).toThrow('The updateConfig hook returned undefined')
 })
 
+test('updateConfig throws an error if it resolves to undefined', async () => {
+  const pnpmfile = path.join(import.meta.dirname, '__fixtures__/updateConfigResolvesUndefined.js')
+  const { hooks } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile] })
+  await expect(hooks.updateConfig![0]!({})).rejects.toThrow('The updateConfig hook returned undefined')
+})
+
 test('requirePnpmfile wraps non-native-Error throws instead of crashing', async () => {
   const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/throwsString.cjs')
   await expect(requirePnpmfile(pnpmfilePath, import.meta.dirname)).rejects.toThrow('this is a string error, not a native Error')

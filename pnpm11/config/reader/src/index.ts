@@ -59,7 +59,7 @@ import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
 
-export { binDirOf } from './binDir.js'
+export { binDirOf, modulesDirOf } from './binDir.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
@@ -107,6 +107,13 @@ export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOpti
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
+  /**
+   * Skip creating the global bin directory and checking that it is on `PATH`.
+   * `pnpm env remove` deletes Node copies pnpm stored for itself and must
+   * run when that directory is absent or not on `PATH`.
+   * Commands that link executables into the global bin still create it and check it.
+   */
+  skipGlobalBinDirCheck?: boolean
   cliOptions: CliOptions
   packageManager: {
     name: string
@@ -471,7 +478,7 @@ export async function getConfig (opts: {
   if (cliOptions['global']) {
     delete pnpmConfig.workspaceDir
     pnpmConfig.bin = pnpmConfig.globalBinDir ?? path.join(pnpmConfig.pnpmHomeDir, 'bin')
-    if (pnpmConfig.bin) {
+    if (pnpmConfig.bin && !opts.skipGlobalBinDirCheck) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
       await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     }
@@ -943,7 +950,6 @@ export async function getConfig (opts: {
   } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
     pnpmConfig.production = false
     pnpmConfig.dev = true
-    pnpmConfig.optional = false
   } else {
     pnpmConfig.production = true
     pnpmConfig.dev = true

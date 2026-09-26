@@ -1,6 +1,13 @@
 use std::{fs, io, path::Path};
 
-/// Copy `source_path` to `target_path`, a path nothing may occupy yet.
+/// Copy `source_path` to `target_path`, a path nothing may occupy yet,
+/// with the permissions the copied file should carry.
+///
+/// The caller supplies the permissions so the target can be created
+/// with the mode it will finish with, not the source's. The store
+/// import tier computes that mode from the CAS `-exec` suffix and the
+/// current umask rather than reading the source's on-disk mode, which
+/// was fixed when the store was populated (pnpm/pnpm#3807).
 ///
 /// The target is created exclusively, so a symlink squatting at the
 /// path is never opened through: `O_EXCL` does not follow one, and the
@@ -13,7 +20,7 @@ use std::{fs, io, path::Path};
 /// with it. A writer that swaps the dirent mid-copy therefore cannot
 /// redirect any of it onto a file elsewhere, the way re-opening
 /// `target_path` by name could. The mode is also supplied at creation,
-/// so a `0o600` source is never briefly world-readable, and asserted
+/// so a `0o600` mode is never briefly world-readable, and asserted
 /// again at the end, because the umask can narrow the creation mode.
 ///
 /// A failure past the creation leaves a partial file, which is
@@ -23,13 +30,13 @@ use std::{fs, io, path::Path};
 pub fn copy_file_exclusive(
     source_path: &Path,
     target_path: &Path,
+    permissions: &fs::Permissions,
     finish: impl FnOnce(&fs::File) -> io::Result<()>,
 ) -> io::Result<()> {
     let mut source = fs::File::open(source_path)?;
-    let permissions = source.metadata()?.permissions();
-    let mut target = create_new_with_permissions(target_path, &permissions)?;
+    let mut target = create_new_with_permissions(target_path, permissions)?;
     io::copy(&mut source, &mut target)
-        .and_then(|_| target.set_permissions(permissions))
+        .and_then(|_| target.set_permissions(permissions.clone()))
         .and_then(|()| finish(&target))
         .inspect_err(|_| {
             if path_still_names(&target, target_path) {
@@ -46,13 +53,20 @@ pub fn copy_file_exclusive(
 /// whatever the target holds, a symlink included, without following
 /// it. A failure removes the temp file; a crash can leave one behind,
 /// under a name nothing else uses.
-pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()> {
+/// Copy `source_path` to `target_path` atomically using `permissions` for the target.
+pub fn copy_file_atomic_with_permissions(
+    source_path: &Path,
+    target_path: &Path,
+    permissions: &fs::Permissions,
+) -> io::Result<()> {
     let dir = target_path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let temp = tempfile::Builder::new()
-        .make_in(dir, |temp_path| copy_file_exclusive(source_path, temp_path, |_| Ok(())))?;
+        .make_in(dir, |temp_path| {
+            copy_file_exclusive(source_path, temp_path, permissions, |_| Ok(()))
+        })?;
     let mut pending = Some(temp.into_temp_path());
     crate::retry::retry_transient_file_locks(|| {
         let temporary = pending.take().expect("temporary path retained after a failed persist");
@@ -63,6 +77,19 @@ pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()
                 error.error
             })
     })
+}
+
+/// Copy `source_path` to `target_path`, so that a reader of the target
+/// sees either what it held before or the whole copy, never a part.
+///
+/// The bytes go into a temp sibling that [`copy_file_exclusive`]
+/// creates, which is then renamed over the target. The rename replaces
+/// whatever the target holds, a symlink included, without following
+/// it. A failure removes the temp file; a crash can leave one behind,
+/// under a name nothing else uses.
+pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()> {
+    let permissions = fs::File::open(source_path)?.metadata()?.permissions();
+    copy_file_atomic_with_permissions(source_path, target_path, &permissions)
 }
 
 /// Whether `path` still names the file `created` refers to.

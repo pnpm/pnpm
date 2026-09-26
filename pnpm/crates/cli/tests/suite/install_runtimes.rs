@@ -389,6 +389,36 @@ fn devengines_runtime_with_download_is_installed() {
 #[cfg(unix)]
 #[test]
 fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
+    assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(false);
+}
+
+/// A slot in the global virtual store has no `node_modules` ancestor inside
+/// the project, so the runtime's `node` cannot be found by walking up from it.
+/// See <https://github.com/pnpm/pnpm/issues/15652>.
+#[cfg(unix)]
+#[test]
+fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts_in_the_global_virtual_store()
+ {
+    assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(true);
+}
+
+/// A filtered install that leaves the root project out still builds
+/// dependencies with the root project's runtime, the one that keys their
+/// slots and side-effects cache entries.
+#[cfg(unix)]
+#[test]
+fn filtered_install_builds_dependencies_with_the_root_runtime() {
+    assert_filtered_install_builds_dependencies_with_the_root_runtime(false);
+}
+
+#[cfg(unix)]
+#[test]
+fn filtered_install_builds_dependencies_with_the_root_runtime_in_the_global_virtual_store() {
+    assert_filtered_install_builds_dependencies_with_the_root_runtime(true);
+}
+
+#[cfg(unix)]
+fn assert_filtered_install_builds_dependencies_with_the_root_runtime(global_virtual_store: bool) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
@@ -396,11 +426,18 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
     let workspace = prepare_workspace(
         &root,
         format!(
-            "nodeDownloadMirrors:\n  rc: '{}/'\nallowBuilds:\n  'dependency@file:dependency': true\n",
+            "packages:\n  - app\nnodeDownloadMirrors:\n  rc: '{}/'\nallowBuilds:\n  'dependency@file:dependency': true\n",
             server.url(),
         )
         .as_str(),
     );
+    if global_virtual_store {
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&workspace_yaml)
+            .unwrap()
+            .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+        fs::write(workspace_yaml, yaml).unwrap();
+    }
     let dependency = workspace.join("dependency");
     fs::create_dir(&dependency).unwrap();
     fs::write(
@@ -416,7 +453,100 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
     fs::write(
         workspace.join("package.json"),
         json!({
-            "dependencies": { "dependency": "file:dependency" },
+            "name": "root",
+            "devEngines": {
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let app = workspace.join("app");
+    fs::create_dir(&app).unwrap();
+    fs::write(
+        app.join("package.json"),
+        json!({ "name": "app", "dependencies": { "dependency": "file:../dependency" } }).to_string(
+        ),
+    )
+    .unwrap();
+    let empty_path = root.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
+
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["install", "--frozen-lockfile", "--filter", "app"])
+        .assert()
+        .success();
+    let lifecycle_marker = app.join("node_modules/dependency/lifecycle-ran");
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+}
+
+#[cfg(unix)]
+fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_virtual_store: bool) {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!(
+            "nodeDownloadMirrors:\n  rc: '{}/'\nallowBuilds:\n  'dependency@file:dependency': true\n",
+            server.url(),
+        )
+        .as_str(),
+    );
+    if global_virtual_store {
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&workspace_yaml)
+            .unwrap()
+            .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
+        fs::write(workspace_yaml, yaml).unwrap();
+    }
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({
+            "name": "dependency",
+            "version": "1.0.0",
+            "scripts": { "install": "node && printf ran > lifecycle-ran" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    // A hoisted package that publishes a `node` bin must not shadow the
+    // runtime whose version keys the slot.
+    let fake_node = workspace.join("fake-node");
+    fs::create_dir(&fake_node).unwrap();
+    fs::write(
+        fake_node.join("package.json"),
+        json!({ "name": "fake-node", "version": "1.0.0", "bin": { "node": "node.sh" } }).to_string(
+        ),
+    )
+    .unwrap();
+    fs::write(fake_node.join("node.sh"), "#!/bin/sh\nprintf ran > fake-node-ran\n").unwrap();
+    let wrapper = workspace.join("wrapper");
+    fs::create_dir(&wrapper).unwrap();
+    fs::write(
+        wrapper.join("package.json"),
+        json!({
+            "name": "wrapper",
+            "version": "1.0.0",
+            "dependencies": { "fake-node": "file:../fake-node" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "dependency": "file:dependency", "wrapper": "file:wrapper" },
             "devEngines": {
                 "runtime": { "name": "node", "version": version, "onFail": "download" },
             },
@@ -435,6 +565,16 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
         .success();
     let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
     assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+    // The hoisted bins are linked after the first build, so build again.
+    fs::remove_file(&lifecycle_marker).unwrap();
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["rebuild", "dependency"])
+        .assert()
+        .success();
+    assert!(lifecycle_marker.exists(), "the rebuild did not run the install script");
+    let fake_node_marker = workspace.join("node_modules/dependency/fake-node-ran");
+    assert!(!fake_node_marker.exists(), "the hoisted `node` bin shadowed the runtime");
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
     command(&workspace)

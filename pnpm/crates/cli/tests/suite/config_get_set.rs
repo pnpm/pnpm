@@ -37,6 +37,37 @@ fn set_writes_the_setting_and_get_reads_it_back() {
     drop(root);
 }
 
+/// Run from a workspace sub-package, `--location=project` writes the
+/// workspace root's `pnpm-workspace.yaml`. A manifest created in the
+/// sub-package would make it the workspace root.
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_with_location_project_from_a_sub_package_writes_the_workspace_root() {
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let sub_package = workspace.join("packages/a");
+    fs::create_dir_all(&sub_package).expect("create sub-package");
+    fs::write(sub_package.join("package.json"), r#"{ "name": "a", "version": "1.0.0" }"#)
+        .expect("write package.json");
+
+    let set = pacquet_in(&sub_package)
+        .with_args(["config", "set", "--location=project", "node-linker", "hoisted"])
+        .output()
+        .expect("run pacquet config set");
+    eprintln!("set stderr={}", String::from_utf8_lossy(&set.stderr));
+    assert!(set.status.success());
+
+    assert!(!sub_package.join("pnpm-workspace.yaml").exists());
+    let root_manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read root manifest");
+    assert!(root_manifest.contains("nodeLinker: hoisted"), "root manifest: {root_manifest}");
+
+    drop(root);
+}
+
 /// `pnpm get <key>` prints one value for a script to capture, so the
 /// report has to be the only thing on stdout.
 #[test]

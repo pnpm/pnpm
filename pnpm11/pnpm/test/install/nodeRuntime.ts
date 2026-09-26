@@ -1,7 +1,8 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -49,6 +50,152 @@ skipOnWindows('downloaded runtime is available to dependency lifecycle scripts w
   fs.rmSync('node_modules', { force: true, recursive: true })
   await execPnpm(['install', '--frozen-lockfile', '--prefer-offline', '--virtual-store-dir=.pnpm'], opts)
   project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
+})
+
+const recordNodeVersion = 'node -e "require(\'fs\').writeFileSync(\'node-version\', process.version)"'
+
+skipOnWindows('dependency builds in the global virtual store run the root project runtime', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: { dep: 'file:dep', wrapper: 'file:wrapper' },
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.19.0',
+            onFail: 'download',
+          },
+        },
+      },
+    },
+    {
+      location: 'dep',
+      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: recordNodeVersion } },
+    },
+    // A hoisted package that publishes a `node` bin must not replace the
+    // runtime whose version keys the slot.
+    {
+      location: 'fake-node',
+      package: { name: 'fake-node', version: '1.0.0', bin: { node: 'node.sh' } },
+    },
+    {
+      location: 'wrapper',
+      package: { name: 'wrapper', version: '1.0.0', dependencies: { 'fake-node': 'file:../fake-node' } },
+    },
+  ])
+  fs.writeFileSync('fake-node/node.sh', '#!/bin/sh\nprintf fake > node-version\n')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { 'dep@file:dep': true },
+    enableGlobalVirtualStore: true,
+    scriptShell: '/bin/sh',
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--prefer-offline'], { env: { PATH: '' } })
+  const nodeVersionFile = path.join(fs.realpathSync('node_modules/dep'), 'node-version')
+  expect(fs.readFileSync(nodeVersionFile, 'utf8')).toBe('v22.19.0')
+
+  // The hoisted bins are in place for any later build. The runtime must win
+  // over both the hoisted `node` bin and the system Node.js.
+  fs.rmSync(nodeVersionFile)
+  await execPnpm(['rebuild', 'dep'])
+  expect(fs.readFileSync(nodeVersionFile, 'utf8')).toBe('v22.19.0')
+})
+
+// A filtered install that leaves the root project out still builds
+// dependencies with the root project's runtime, the one that keys their
+// side-effects cache entries.
+skipOnWindows('a filtered install builds dependencies with the root project runtime', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.19.0',
+            onFail: 'download',
+          },
+        },
+      },
+    },
+    {
+      location: 'app',
+      package: { name: 'app', version: '1.0.0', dependencies: { dep: 'file:../dep' } },
+    },
+    {
+      location: 'dep',
+      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: recordNodeVersion } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { 'dep@file:dep': true },
+    packages: ['app'],
+    scriptShell: '/bin/sh',
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile', '--prefer-offline', '--filter', 'app'], { env: { PATH: '' } })
+  expect(fs.readFileSync('app/node_modules/dep/node-version', 'utf8')).toBe('v22.19.0')
+})
+
+// A dependency's build script in a shared slot sees the workspace root's bins
+// and the privately hoisted bins, as it does with a local virtual store. This
+// is by design, although the slot hash records neither: NODE_PATH already
+// exposes the root and hoisted node_modules to the same scripts, and builds
+// that run a tool they do not declare would fail without them.
+test('dependency build scripts in the global virtual store see the workspace root and hoisted bins', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+        dependencies: { tool: 'file:tool', wrapper: 'file:wrapper', dep: 'file:dep' },
+      },
+    },
+    {
+      location: 'tool',
+      package: { name: 'tool', version: '1.0.0', bin: { 'gvs-root-tool': 'cli.js' } },
+    },
+    {
+      location: 'hoisted-tool',
+      package: { name: 'hoisted-tool', version: '1.0.0', bin: { 'gvs-hoisted-tool': 'cli.js' } },
+    },
+    {
+      location: 'wrapper',
+      package: { name: 'wrapper', version: '1.0.0', dependencies: { 'hoisted-tool': 'file:../hoisted-tool' } },
+    },
+    {
+      location: 'dep',
+      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: '(gvs-root-tool || true) && (gvs-hoisted-tool || true)' } },
+    },
+  ])
+  fs.writeFileSync('tool/cli.js', "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n")
+  fs.writeFileSync('hoisted-tool/cli.js', "#!/usr/bin/env node\nrequire('fs').writeFileSync('hoisted-tool-ran', '')\n")
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { 'dep@file:dep': true },
+    enableGlobalVirtualStore: true,
+  })
+
+  await execPnpm(['install'])
+  const depDir = fs.realpathSync('node_modules/dep')
+  expect(fs.existsSync(path.join(depDir, 'hoisted-tool-ran'))).toBe(true)
+
+  // The first install builds before it links the root's bins, so build again
+  // once they are in place.
+  fs.rmSync(path.join(depDir, 'hoisted-tool-ran'))
+  await execPnpm(['rebuild', 'dep'])
+  expect(fs.existsSync(path.join(depDir, 'root-tool-ran'))).toBe(true)
+  expect(fs.existsSync(path.join(depDir, 'hoisted-tool-ran'))).toBe(true)
 })
 
 test('a devEngines.runtime is never promoted into a catalog under catalogMode=strict', async () => {

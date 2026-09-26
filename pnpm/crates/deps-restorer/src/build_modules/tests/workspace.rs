@@ -78,11 +78,20 @@ fn rebuild_selection_runs_only_selected_scripts() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,

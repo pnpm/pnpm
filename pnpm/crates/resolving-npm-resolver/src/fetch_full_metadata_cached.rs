@@ -99,7 +99,7 @@ pub async fn fetch_full_metadata_cached(
         // dead end.
         cache_bypass: AtomicBool::new(false),
     };
-    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_body_retryable, || attempt.run())
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_transient, || attempt.run())
         .await
 }
 
@@ -212,7 +212,7 @@ impl FetchAttempt<'_> {
                 .as_ref()
                 .and_then(|headers| headers.modified.as_deref()),
             bypass_cache: self.cache_bypass.load(Ordering::Relaxed),
-            http: opts.http,
+            http: opts.http.one_attempt(),
         }
     }
 }

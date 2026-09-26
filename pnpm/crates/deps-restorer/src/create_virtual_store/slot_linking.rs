@@ -123,6 +123,7 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
             SlotLink {
                 source: crate::SlotImportSource {
                     is_mutable: capture.source_is_mutable,
+                    source_exists: capture.source_exists,
                     force: capture.force_import,
                     build_marker: needs_build.then_some(marker_path).flatten(),
                     needs_build,

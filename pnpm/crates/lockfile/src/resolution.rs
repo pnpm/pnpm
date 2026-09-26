@@ -410,6 +410,16 @@ impl LockfileResolution {
         }
     }
 
+    /// The `integrity` field a custom resolver wrote, in whatever form it
+    /// wrote it. [`Self::integrity`] leaves it out because pnpm never
+    /// verifies bytes against it, but it still identifies the bytes the
+    /// custom fetcher serves: a changed value means changed contents.
+    #[must_use]
+    pub fn custom_integrity(&self) -> Option<&serde_json::Value> {
+        let LockfileResolution::Custom(custom) = self else { return None };
+        custom.extra.get("integrity")
+    }
+
     /// [`Self::integrity`] narrowed to an integrity that can actually
     /// check downloaded bytes. An `integrity: ''` entry parses into zero
     /// hashes, which pins nothing — pnpm treats that as no integrity at

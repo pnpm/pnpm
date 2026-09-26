@@ -7,6 +7,7 @@ use super::{
 pub(super) fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {
     if let Some(store_dir) = &overlay.store_dir {
         config.store_dir = StoreDir::new(store_dir.clone());
+        config.store_relocation = None;
     } else if let Some(pnpm_home_dir) = &overlay.pnpm_home_dir
         && !config.explicit_settings.contains_key("storeDir")
     {

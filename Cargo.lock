@@ -5404,6 +5404,7 @@ dependencies = [
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-patching",
  "pnpm-resolving-parse-wanted-dependency",
  "pretty_assertions",
  "rayon",
@@ -5657,6 +5658,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-package-name",
  "pnpm-reporter",
+ "pnpm-text-sanitize",
  "serde",
  "serde_json",
  "tar",
@@ -5782,6 +5784,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",
+ "pnpm-fs",
  "pnpm-yaml-document-sync",
  "pretty_assertions",
  "serde",
@@ -6267,6 +6270,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-reporter",
  "pnpm-store-dir",
+ "pnpm-testing-utils",
  "pretty_assertions",
  "rayon",
  "reqwest",
@@ -6296,6 +6300,7 @@ dependencies = [
  "pnpm-workspace-state",
  "pnpr",
  "pnpr-fixtures",
+ "rustls",
  "same-file",
  "serde_json",
  "ssri",
@@ -6469,7 +6474,7 @@ dependencies = [
 
 [[package]]
 name = "pnpr"
-version = "0.1.0-alpha.12"
+version = "0.1.0-alpha.13"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -6751,6 +6756,7 @@ dependencies = [
  "reqwest",
  "sha2",
  "tracing",
+ "url",
  "wax",
 ]
 

@@ -28,6 +28,9 @@
       "path": "../../../core/types"
     },
     {
+      "path": "../../../fs/graceful-fs"
+    },
+    {
       "path": "../../../fs/symlink-dependency"
     },
     {

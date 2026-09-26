@@ -138,6 +138,7 @@ async fn cold_batch_links_slots_in_parallel() {
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
+        importers: &HashMap::new(),
 
         dir_clone_cache: None,
 
@@ -339,6 +340,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
+        importers: &HashMap::new(),
 
         dir_clone_cache: None,
 

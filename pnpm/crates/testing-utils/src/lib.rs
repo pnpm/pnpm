@@ -10,3 +10,4 @@ pub mod fs;
 pub mod git_repo;
 pub mod known_failure;
 pub mod registry;
+pub mod untrusted_tls_server;

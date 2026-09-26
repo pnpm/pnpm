@@ -137,6 +137,25 @@ fn skips_bundled_types_and_missing_types_packages() {
     }
 }
 
+/// <https://github.com/pnpm/pnpm/issues/15636>
+#[test]
+fn skips_deprecated_types_stubs() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let _package = serve_package(&mut server, "example", &json!({}));
+    let _types = serve_package(
+        &mut server,
+        "@types/example",
+        &json!({"deprecated": "This is a stub types definition. example provides its own type definitions, so you do not need this installed."}),
+    );
+    setup(&workspace, &server.url());
+    add(&workspace, &["example", "--save-types"]).assert().success();
+    let result = manifest(&workspace);
+    assert_eq!(result["dependencies"], json!({"example": "^1.0.0"}));
+    assert_eq!(result["devDependencies"], Value::Null);
+    drop(root);
+}
+
 #[test]
 fn retains_existing_types_and_honors_explicit_type_selectors() {
     for existing in [true, false] {

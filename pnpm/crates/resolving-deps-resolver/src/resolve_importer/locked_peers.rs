@@ -1,4 +1,6 @@
-use super::{Arc, DependencyGroup, HashMap, HashSet, PkgName, TreeCtx};
+use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
+use crate::resolve_peers::split_peer_suffix_segments;
+use pnpm_lockfile::PkgName;
 
 /// The peer versions the prior lockfile locked for the importer, and
 /// their names.
@@ -79,24 +81,51 @@ pub(super) fn all_locked_peer_versions(
 /// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
 /// spells out nothing, so the pairs are recovered from the package's
 /// declared peers and the snapshot edges that resolved them.
+/// Nested suffixes need their own provider's snapshot: the outer
+/// snapshot does not name that provider's aliased peers.
 pub(super) fn locked_peer_versions_for_key(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
-    let metadata = lockfile.packages
-        .as_ref()
-        .and_then(|packages| packages.get(&key.without_peer()));
-    let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
-    if !explicit.is_empty() {
+    let mut versions = Vec::new();
+    let mut pending = vec![(key.clone(), snapshot)];
+    while let Some((key, snapshot)) = pending.pop() {
+        let metadata = lockfile.packages
+            .as_ref()
+            .and_then(|packages| packages.get(&key.without_peer()));
+        let peers = peer_suffix_keys(key.suffix.peer());
+        let mut explicit: Vec<_> = peers
+            .iter()
+            .map(|peer| (peer.name.to_string(), peer.suffix.without_peer().to_string()))
+            .collect();
+        if explicit.is_empty() {
+            if is_hashed_peer_suffix(key.suffix.peer()) {
+                versions.extend(hashed_peer_versions(snapshot, metadata));
+            }
+            continue;
+        }
         if let Some(snapshot) = snapshot {
             restore_aliased_peer_names(snapshot, metadata, &mut explicit);
         }
-        return explicit;
+        versions.extend(explicit);
+        for peer in peers
+            .into_iter()
+            .filter(|peer| !peer.suffix.peer().is_empty())
+        {
+            let nested_snapshot = lockfile.snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&peer));
+            pending.push((peer, nested_snapshot));
+        }
     }
-    if !is_hashed_peer_suffix(key.suffix.peer()) {
-        return explicit;
-    }
+    versions
+}
+
+fn hashed_peer_versions(
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+) -> Vec<(String, String)> {
     let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
@@ -247,7 +276,7 @@ pub(super) fn dependency_edges(
 /// [`create_peer_dep_graph_hash`](fn@pnpm_deps_path::create_peer_dep_graph_hash)
 /// emits once the spelled-out peers exceed
 /// [`ResolvePeersOptions::peers_suffix_max_length`](crate::ResolvePeersOptions::peers_suffix_max_length), rather than
-/// segments [`peer_suffix_versions`] can read.
+/// segments [`peer_suffix_keys`] can read.
 pub(super) fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
     peer_suffix
         .rsplit_once('(')
@@ -257,16 +286,10 @@ pub(super) fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
         })
 }
 
-pub(super) fn peer_suffix_versions(
-    peer_suffix: &str,
-) -> impl Iterator<Item = (String, String)> + '_ {
-    peer_suffix
-        .match_indices('(')
-        .filter_map(|(start, _)| {
-            let segment = peer_suffix[start + 1..]
-                .split(['(', ')'])
-                .next()?;
-            let (name, version) = segment.rsplit_once('@')?;
-            (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
-        })
+fn peer_suffix_keys(peer_suffix: &str) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
+    split_peer_suffix_segments(peer_suffix)
+        .into_iter()
+        .flatten()
+        .filter_map(|segment| segment.parse().ok())
+        .collect()
 }

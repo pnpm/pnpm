@@ -1,7 +1,9 @@
 pub use powershell::generate_pwsh_shim;
 pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
-pub use sh::{generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at};
+pub use sh::{
+    generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
+};
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
 use std::{
@@ -215,7 +217,7 @@ pub fn generate_cmd_shim(
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
 ) -> String {
-    let cmd_target_rel = relative_target_windows(target_path, shim_path);
+    let cmd_target_rel = cmd_escape(&relative_target_windows(target_path, shim_path));
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
         format!(r#""{cmd_target_rel}""#)
     } else {
@@ -224,7 +226,7 @@ pub fn generate_cmd_shim(
 
     let mut cmd = String::from("@SETLOCAL\r\n");
 
-    let cmd_node_path = normalize_node_path_env_var(node_path, cfg!(windows)).win32;
+    let cmd_node_path = cmd_escape(&normalize_node_path_env_var(node_path, cfg!(windows)).win32);
     if !cmd_node_path.is_empty() {
         write!(
             cmd,
@@ -235,6 +237,8 @@ pub fn generate_cmd_shim(
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
+            let prog = cmd_escape(prog);
+            let args = cmd_escape(args);
             let long_prog = format!(r#""%~dp0\{prog}.exe""#);
             writeln!(
                 cmd,
@@ -243,7 +247,7 @@ pub fn generate_cmd_shim(
             .unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
+            let args = runtime_opt.map_or(String::new(), |runtime| cmd_escape(&runtime.args));
             writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }

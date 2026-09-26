@@ -14,6 +14,12 @@ use std::{
 
 pub(super) struct LinkingPaths<'a> {
     pub(super) bins_dir: Cow<'a, Path>,
+    /// [`bins_dir`](Self::bins_dir) with its symlinks resolved, as the POSIX
+    /// shim's `cd -P` resolves them. On Windows it is resolved only when a
+    /// symlink or junction lies on the path, since `canonicalize` also
+    /// resolves a `subst` drive, which the MSYS shell does not.
+    /// [`sh_shim_path`](Self::sh_shim_path) keeps the lexical drive either way.
+    physical_bins_dir: Cow<'a, Path>,
     pub(super) relocatable_root: Option<PathBuf>,
     pub(super) project_node_path: Option<String>,
     pub(super) extra_node_paths: Cow<'a, [String]>,
@@ -26,6 +32,11 @@ impl<'a> LinkingPaths<'a> {
     ) -> Result<Self, LinkBinsError> {
         let mut paths = Self {
             bins_dir: Cow::Borrowed(bins_dir),
+            physical_bins_dir: if cfg!(unix) || has_reparse_point_on_path(bins_dir) {
+                Cow::Owned(resolve(bins_dir)?)
+            } else {
+                Cow::Borrowed(bins_dir)
+            },
             relocatable_root: None,
             project_node_path: project_modules_dir(bins_dir, options)
                 .map(|dir| dir.to_string_lossy().into_owned()),
@@ -38,11 +49,10 @@ impl<'a> LinkingPaths<'a> {
             return Ok(paths);
         };
         let physical_root = resolve(root)?;
-        let physical_bins = resolve(bins_dir)?;
-        if !is_subdir(&physical_root, &physical_bins) {
+        if !is_subdir(&physical_root, &paths.physical_bins_dir) {
             return Ok(paths);
         }
-        paths.bins_dir = Cow::Owned(physical_bins);
+        paths.bins_dir.clone_from(&paths.physical_bins_dir);
         paths.project_node_path =
             paths.project_node_path.map(|entry| resolve_extra(&entry, root, &physical_root));
         paths.extra_node_paths = options.extra_node_paths
@@ -52,6 +62,34 @@ impl<'a> LinkingPaths<'a> {
             .into();
         paths.relocatable_root = Some(physical_root);
         Ok(paths)
+    }
+
+    /// `shim_path`, a shim in [`bins_dir`](Self::bins_dir), as the POSIX shim
+    /// for `target` computes its relative target from it, so that the `..`
+    /// segments climb from the directory the shim resolves at run time. It is
+    /// `shim_path` unless a symlink lies on the way. Then it is in the
+    /// physical bin directory, placed under the lexical ancestor it shares
+    /// with `target` when it lies under that ancestor's physical path.
+    pub(super) fn sh_shim_path<'shim>(
+        &self,
+        target: &Path,
+        shim_path: &'shim Path,
+    ) -> Result<Cow<'shim, Path>, LinkBinsError> {
+        let (Some(name), false) = (shim_path.file_name(), self.physical_bins_dir == self.bins_dir)
+        else {
+            return Ok(Cow::Borrowed(shim_path));
+        };
+        let Some(ancestor) = self.bins_dir
+            .ancestors()
+            .find(|ancestor| target.starts_with(ancestor))
+        else {
+            return Ok(Cow::Owned(self.physical_bins_dir.join(name)));
+        };
+        let physical_ancestor = resolve(ancestor)?;
+        Ok(Cow::Owned(match self.physical_bins_dir.strip_prefix(&physical_ancestor) {
+            Ok(below) => ancestor.join(below).join(name),
+            Err(_) => self.physical_bins_dir.join(name),
+        }))
     }
 
     pub(super) fn target<'target>(
@@ -132,6 +170,26 @@ fn project_modules_dir<'a>(bins_dir: &'a Path, options: &LinkBinsOptions) -> Opt
     (bins_dir.file_name() == Some(OsStr::new(".bin")) && modules_dir.ends_with(name)).then_some(
         modules_dir,
     )
+}
+
+/// Whether a symlink, a junction, or another reparse point lies on `dir`'s
+/// path.
+#[cfg(windows)]
+fn has_reparse_point_on_path(dir: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    dir.ancestors()
+        .any(|ancestor| {
+            std::fs::symlink_metadata(ancestor)
+                .is_ok_and(|metadata| {
+                    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+                })
+        })
+}
+
+#[cfg(not(windows))]
+fn has_reparse_point_on_path(_dir: &Path) -> bool {
+    false
 }
 
 fn resolve(path: &Path) -> Result<PathBuf, LinkBinsError> {

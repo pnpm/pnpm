@@ -265,7 +265,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
+      - uses: garnet-org/action@245ad6be82de3200c205109c8ca7ac816dc692ea # v2.3.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Initialize Rust before dependency installation
@@ -423,7 +423,7 @@ jobs:
             echo "::error::Tag v${VERSION} points at ${tag_commit}, but this run would release commit ${GITHUB_SHA}. Rerun the release workflow from the v${VERSION} tag."
             exit 1
           fi
-      - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
+      - uses: garnet-org/action@245ad6be82de3200c205109c8ca7ac816dc692ea # v2.3.0
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Initialize Rust before dependency installation
@@ -698,6 +698,7 @@ jobs:
           mkdir stage
           mv target/${{ matrix.target }}/release/pnpm stage/pnpm
           tar xzf node-gyp-payload/node-gyp-payload.tar.gz -C stage
+          rm -f stage/dist/node-gyp-bin/node-gyp.cmd
           tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
 
       - name: Attest build provenance
@@ -1217,7 +1218,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@dfae9bf3d6f6c6f20ef4ebb3486c01a51341ff12 # v2.87.18
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
           tool: cross
 

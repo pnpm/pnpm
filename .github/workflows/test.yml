@@ -61,7 +61,7 @@ jobs:
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
-      uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
+      uses: garnet-org/action@245ad6be82de3200c205109c8ca7ac816dc692ea # v2.3.0
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Initialize Rust before dependency installation

@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -24,10 +23,11 @@ import {
 } from '@pnpm/store.cafs'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { packForStorage, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
+import { packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
+import { hashBuffer } from './hashBuffer.js'
 import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
@@ -221,10 +221,10 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
-    const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
+    const calculatedHash = hashBuffer(algorithm, buffer)
     if (calculatedHash !== hexDigest) {
       return {
         status: 'error',
@@ -258,20 +258,28 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     algo: HASH_ALGORITHM,
     files: filesIntegrity,
   }
+  const packedFilesIndex = packToShared(pkgFilesIndex)
+  const indexWrites: IndexWrite[] = [{ key: filesIndexFile, buffer: packedFilesIndex }]
+  if (!integrity) {
+    integrity = calcIntegrity(buffer)
+    if (pkgId) {
+      indexWrites.push({ key: storeIndexKey(integrity, pkgId), buffer: packedFilesIndex })
+    }
+  }
   return {
     status: 'success',
     value: {
       filesMap,
       manifest: bundledManifest,
       requiresBuild,
-      integrity: integrity ?? calcIntegrity(buffer),
+      integrity,
     },
-    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }],
+    indexWrites,
   }
 }
 
 function calcIntegrity (buffer: Buffer): string {
-  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  const calculatedHash = hashBuffer('sha512', buffer)
   return formatIntegrity('sha512', calculatedHash)
 }
 

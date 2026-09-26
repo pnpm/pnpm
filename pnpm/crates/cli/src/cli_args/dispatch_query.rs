@@ -244,38 +244,37 @@ pub(super) fn version<'a>(
     }))
 }
 
-// `pack` prints the tarball summary (or JSON) its handler returns; the
-// reporter type only affects the lifecycle-script output, so it's threaded
-// into `run` and the result printed here, mirroring pnpm's `handler` → CLI
-// print split. `run` is async (it may invoke `beforePacking` pnpmfile
-// hooks), so the work is deferred into the returned future.
 pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
     let reporter = ctx.reporter();
-    async fn run<Reporter: pnpm_reporter::Reporter>(
-        args: PackArgs,
-        dir: &std::path::Path,
-        config: &mut Config,
-        recursive: bool,
-    ) -> miette::Result<String> {
-        let hooks = prepare_config::<Reporter>(config, dir).await?;
-        args.run::<Reporter>(dir, config, recursive, hooks).await
-    }
+    let reporter_flags = ctx.reporter_flags;
     Ok(Box::pin(async move {
+        let hooks = if args.json {
+            prepare_config::<PackJsonReporter>(config, dir).await?
+        } else {
+            apply_update_config(config, dir, reporter).await?
+        };
+        reporter_flags.configure_with(config);
+        let reporter = reporter_flags.resolve_with(config);
+        let print_output = args.json || reporter != ReporterType::Silent;
         let output = if args.json {
-            run::<PackJsonReporter>(args, dir, config, recursive).await?
+            args.run::<PackJsonReporter>(dir, config, recursive, hooks).await?
         } else {
             match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    run::<DefaultReporter>(args, dir, config, recursive).await?
+                    args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
                 }
-                ReporterType::Ndjson => run::<NdjsonReporter>(args, dir, config, recursive).await?,
-                ReporterType::Silent => run::<SilentReporter>(args, dir, config, recursive).await?,
+                ReporterType::Ndjson => {
+                    args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
+                }
+                ReporterType::Silent => {
+                    args.run::<SilentReporter>(dir, config, recursive, hooks).await?
+                }
             }
         };
-        if !output.is_empty() {
+        if print_output && !output.is_empty() {
             println!("{output}");
         }
         Ok(())

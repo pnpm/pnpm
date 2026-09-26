@@ -14,6 +14,7 @@ import { getIntegrity } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -23,6 +24,15 @@ const storeIndexes: StoreIndex[] = []
 afterAll(() => {
   for (const si of storeIndexes) si.close()
 })
+
+const PATCHED_MANIFEST = {
+  dependencies: {
+    // Patched package
+    'is-positive': '1.0.0',
+    // Optionally depends on the patched package
+    '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+  },
+}
 
 test('patch package with exact version', async () => {
   const reporter = jest.fn()
@@ -406,11 +416,98 @@ test('the patched package is updated if the patch is modified', async () => {
   }
   await install(manifest, opts)
 
-  const patchContent = fs.readFileSync(patchPath, 'utf8')
-  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
+  editPatchFile(patchPath)
 
   await install(manifest, opts)
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// edited patch')
+})
+
+test('every patch_hash in the lockfile is updated when the patch file changes', async () => {
+  const project = prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+  const opts = patchedInstallOpts(patchPath)
+
+  await install(PATCHED_MANIFEST, opts)
+
+  const oldHash = await createHexHashFromFile(patchPath)
+  expect(readPatchHashSuffixes()).toStrictEqual([oldHash, oldHash, oldHash])
+
+  editPatchFile(patchPath)
+  await install(PATCHED_MANIFEST, opts)
+
+  const newHash = await createHexHashFromFile(patchPath)
+  expect(newHash).not.toBe(oldHash)
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive@1.0.0': newHash,
+  })
+  expect(readPatchHashSuffixes()).toStrictEqual([newHash, newHash, newHash])
+  expect(lockfile.importers['.'].dependencies!['is-positive'].version).toBe(`1.0.0(patch_hash=${newHash})`)
+  expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${newHash})`]).toBeTruthy()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0'].optionalDependencies!['is-positive'])
+    .toBe(`1.0.0(patch_hash=${newHash})`)
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// edited patch')
+})
+
+test('stale patch_hash depPaths are repaired when the patchedDependencies header is already up to date', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+  const opts = patchedInstallOpts(patchPath)
+
+  await install(PATCHED_MANIFEST, opts)
+  const staleHash = await createHexHashFromFile(patchPath)
+
+  editPatchFile(patchPath)
+  const currentHash = await createHexHashFromFile(patchPath)
+  updatePatchedDependenciesHeaderOnly('is-positive@1.0.0', currentHash)
+  expect(readPatchHashSuffixes()).toStrictEqual([staleHash, staleHash, staleHash])
+
+  // Re-run install to ensure lockfile and node_modules are repaired.
+  await install(PATCHED_MANIFEST, opts)
+
+  expect(readPatchHashSuffixes()).toStrictEqual([currentHash, currentHash, currentHash])
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// edited patch')
+})
+
+test('a lockfile whose patch_hash depPaths disagree with the patchedDependencies header is rejected with frozenLockfile', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+  const opts = patchedInstallOpts(patchPath)
+
+  await install(PATCHED_MANIFEST, opts)
+
+  editPatchFile(patchPath)
+  updatePatchedDependenciesHeaderOnly('is-positive@1.0.0', await createHexHashFromFile(patchPath))
+
+  await expect(
+    install(PATCHED_MANIFEST, { ...opts, frozenLockfile: true })
+  ).rejects.toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INCONSISTENT_PATCH_HASH',
+  }))
+})
+
+test('a lockfile whose dependency paths lack the patch_hash its patch calls for is rejected with frozenLockfile', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+  const opts = patchedInstallOpts(patchPath)
+
+  await install(PATCHED_MANIFEST, opts)
+
+  const hash = await createHexHashFromFile(patchPath)
+  const lockfileText = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+  fs.writeFileSync(WANTED_LOCKFILE, lockfileText.replaceAll(`(patch_hash=${hash})`, ''), 'utf8')
+  expect(readPatchHashSuffixes()).toStrictEqual([])
+
+  await expect(
+    install(PATCHED_MANIFEST, { ...opts, frozenLockfile: true })
+  ).rejects.toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INCONSISTENT_PATCH_HASH',
+  }))
 })
 
 test('patch package when scripts are ignored', async () => {
@@ -828,6 +925,26 @@ test('patch package should fail when the name-only range patch fails to apply', 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
+test('patch package should fail when the patch file is missing', async () => {
+  prepareEmpty()
+  const patchPath = path.resolve('patches/is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': patchPath,
+  }
+  const opts = testDefaults({
+    patchedDependencies,
+  })
+  await expect(install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_NOT_FOUND',
+    message: `Patch file not found: ${patchPath}`,
+  })
+})
+
 test('patch with relative paths resolved against lockfileDir', async () => {
   prepareEmpty()
   // The lockfile and the patches dir live in the parent of the project dir
@@ -863,3 +980,39 @@ test('patch with relative paths resolved against lockfileDir', async () => {
     'is-positive@1.0.0': patchFileHash,
   })
 })
+
+/**
+ * Every package identity hash (`(patch_hash=...)`) in the lockfile, in the order they appear.
+ *
+ * Intentionally not using traversal of the parsed lockfile so that any new `patch_hash` sites are
+ * automatically caught.
+ */
+function readPatchHashSuffixes (): string[] {
+  return fs.readFileSync(WANTED_LOCKFILE, 'utf8')
+    .split('(patch_hash=')
+    .slice(1)
+    .map((afterPrefix) => afterPrefix.slice(0, afterPrefix.indexOf(')')))
+}
+
+/**
+ * Rewrites a hash under `patchedDependencies`, leaving every patched package untouched.
+ */
+function updatePatchedDependenciesHeaderOnly (key: string, currentHash: string): void {
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  lockfile.patchedDependencies![key] = currentHash
+  writeYamlFileSync(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
+}
+
+function patchedInstallOpts (patchPath: string): ReturnType<typeof testDefaults> {
+  return testDefaults({
+    fastUnpack: false,
+    patchedDependencies: {
+      'is-positive@1.0.0': patchPath,
+    },
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+}
+
+function editPatchFile (patchPath: string): void {
+  const patchContent = fs.readFileSync(patchPath, 'utf8')
+  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
+}

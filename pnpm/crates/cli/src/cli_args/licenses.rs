@@ -208,37 +208,53 @@ async fn group_by_license(
 ) -> IndexMap<String, BTreeMap<String, LicenseInfo>> {
     let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> = IndexMap::new();
     for (lockfile_index, (key, kind, name, version)) in dependencies {
-        let pkg_dir = package_dirs[lockfile_index].package_dir(&key, &name);
-        let details = read_license_details(&pkg_dir, &name).await;
-        let path_str = pkg_dir.to_string_lossy().to_string();
-
-        let license_group = results_by_license.entry(details.license.clone()).or_default();
-        let info = license_group
-            .entry(name.clone())
-            .or_insert_with(|| LicenseInfo {
-                name: name.clone(),
-                versions: Vec::new(),
-                paths: Vec::new(),
-                license: details.license,
-                belongs_to: kind,
-                selected_version: version.clone(),
-                author: details.author.clone(),
-                homepage: details.homepage.clone(),
-                description: details.description.clone(),
-            });
-
-        // The newest version of a package supplies the rendered details.
-        if select_newer_version(info, &version, kind) {
-            info.author = details.author;
-            info.homepage = details.homepage;
-            info.description = details.description;
-        }
-        if !info.versions.contains(&version) {
-            info.versions.push(version);
-            info.paths.push(path_str);
+        for pkg_dir in package_dirs[lockfile_index].package_dirs(&key, &name, &version).iter() {
+            record_license(&mut results_by_license, kind, &name, &version, pkg_dir).await;
         }
     }
     results_by_license
+}
+
+async fn record_license(
+    results_by_license: &mut IndexMap<String, BTreeMap<String, LicenseInfo>>,
+    kind: BelongsTo,
+    name: &str,
+    version: &str,
+    pkg_dir: &std::path::Path,
+) {
+    let details = read_license_details(pkg_dir, name).await;
+    let path_str = pkg_dir.to_string_lossy().to_string();
+
+    let license_group = results_by_license.entry(details.license.clone()).or_default();
+    let info = license_group
+        .entry(name.to_owned())
+        .or_insert_with(|| LicenseInfo {
+            name: name.to_owned(),
+            versions: Vec::new(),
+            paths: Vec::new(),
+            license: details.license,
+            belongs_to: kind,
+            selected_version: version.to_owned(),
+            author: details.author.clone(),
+            homepage: details.homepage.clone(),
+            description: details.description.clone(),
+        });
+
+    // The newest version of a package supplies the rendered details.
+    if select_newer_version(info, version, kind) {
+        info.author = details.author;
+        info.homepage = details.homepage;
+        info.description = details.description;
+    }
+    if !info.versions
+        .iter()
+        .any(|existing| existing == version)
+    {
+        info.versions.push(version.to_owned());
+    }
+    if !info.paths.contains(&path_str) {
+        info.paths.push(path_str);
+    }
 }
 
 /// Every collected package, in name order — the table lists packages

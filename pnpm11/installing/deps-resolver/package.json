@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1102.2.2",
+  "version": "1102.2.3",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",

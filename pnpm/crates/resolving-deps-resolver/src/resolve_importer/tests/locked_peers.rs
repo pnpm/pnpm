@@ -108,6 +108,46 @@ fn explicit_peer_suffix_uses_the_dependency_alias() {
     );
 }
 
+#[test]
+fn nested_peer_suffix_uses_its_providers_dependency_alias() {
+    let mut lockfile = peer_context_lockfile(
+        Some(("provider@1.0.0", peer_declaring_metadata(["peer"]))),
+        [
+            (
+                "consumer@1.0.0(provider@1.0.0(alias-provider@2.0.0))",
+                snapshot_with_dependency(
+                    "provider",
+                    plain_dependency("1.0.0(alias-provider@2.0.0)"),
+                ),
+            ),
+            (
+                "provider@1.0.0(alias-provider@2.0.0)",
+                snapshot_with_dependency("peer", alias_dependency("alias-provider@2.0.0")),
+            ),
+        ],
+    );
+    lockfile.importers.insert(
+        "app".to_string(),
+        serde_json::from_value(serde_json::json!({
+            "dependencies": {
+                "consumer": {
+                    "specifier": "1.0.0",
+                    "version": "1.0.0(provider@1.0.0(alias-provider@2.0.0))",
+                },
+            },
+        }))
+        .unwrap(),
+    );
+
+    assert_eq!(
+        importer_locked_peer_versions(Some(&lockfile), "app"),
+        HashMap::from_iter([
+            ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()])),
+        ]),
+    );
+}
+
 /// An ordinary dependency may be aliased onto the very package and
 /// version a peer resolved to; only the suffix can tell them apart, so
 /// the segment keeps the name it spelled.

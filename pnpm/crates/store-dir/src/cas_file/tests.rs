@@ -87,14 +87,14 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
     assert!(path_a.is_file());
 
     // Second write of identical content — same hash, same path —
-    // hits `ensure_file`'s `AlreadyExists` → `verify_or_rewrite`
+    // hits `ensure_cas_file`'s `AlreadyExists` → `verify_or_rewrite`
     // path: the `O_CREAT|O_EXCL` open returns `EEXIST`, then
     // `verify_or_rewrite` byte-compares the existing file against
     // the buffer, finds them equal, and returns `Ok(())` without
-    // writing again. A torn-blob mismatch would route through
-    // `write_atomic` instead, which is covered by
-    // `existing_target_with_wrong_content_is_overwritten_atomically`
-    // over in `crates/fs/src/ensure_file.rs`.
+    // writing again. A torn-blob mismatch would route through the
+    // in-place repair instead, which is covered by
+    // `cas_repair_preserves_inode_and_heals_hard_links` over in
+    // `crates/fs/src/ensure_file.rs`.
     let (path_b, hash_b) = store_dir.write_cas_file(b"hello world", false).unwrap();
     assert_eq!(hash_a, hash_b);
     assert_eq!(path_a, path_b);
@@ -215,6 +215,43 @@ fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
 
     assert_eq!(second_path, file_path);
     assert_eq!(std::fs::read(&file_path).unwrap(), content, "corrupt blob must be healed");
+}
+
+/// The streamed repair of a corrupt blob must keep the inode, so
+/// hard-linked copies in other projects' `node_modules` are healed by
+/// the same write (pnpm/pnpm#3445) — the same guarantee
+/// `ensure_cas_file` gives the buffered writer.
+#[cfg(unix)]
+#[test]
+fn write_cas_file_from_reader_preserves_inode_when_repairing() {
+    use std::os::unix::fs::MetadataExt;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let content = b"authentic cas payload";
+
+    let (file_path, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
+    let linked = dir.path().join("linked_copy");
+    std::fs::hard_link(&file_path, &linked).unwrap();
+    let ino_before = std::fs::metadata(&file_path).unwrap().ino();
+
+    // Editing through the hard link corrupts the store blob in place.
+    std::fs::write(&linked, b"tampered").unwrap();
+
+    let (second_path, _, _) = store_dir
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64))
+        .unwrap();
+
+    assert_eq!(second_path, file_path);
+    assert_eq!(
+        std::fs::metadata(&file_path).unwrap().ino(),
+        ino_before,
+        "inode must survive repair",
+    );
+    assert_eq!(std::fs::read(&linked).unwrap(), content, "hard-linked copy must be healed");
 }
 
 /// A shard-directory failure after the bytes have already streamed

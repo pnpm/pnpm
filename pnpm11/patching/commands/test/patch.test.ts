@@ -800,6 +800,34 @@ describe('patch and commit', () => {
     expect(patchContent).not.toContain('diff --git a/subdir/.DS_Store b/subdir/.DS_Store')
     expect(patchContent).not.toContain('// dummy content')
   })
+
+  test('patch-commit should throw an error if git is not found', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }
+
+    const originalPath = process.env.PATH
+    process.env.PATH = ''
+
+    try {
+      await expect(patchCommit.handler(opts, [patchDir])).rejects.toThrow('Unable to diff directories')
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH
+      } else {
+        process.env.PATH = originalPath
+      }
+    }
+  })
 })
 
 describe('multiple versions', () => {
@@ -1518,6 +1546,15 @@ describe('patch and commit in workspaces', () => {
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('./project-2/node_modules/hi/index.js', 'utf8')).toContain('// test patching')
+
+    // re-patch
+    fs.rmSync(patchDir, { recursive: true })
+    const repatchOutput = await patch.handler({
+      ...defaultPatchOption,
+      patchedDependencies: workspaceManifest!.patchedDependencies,
+    }, ['hi'])
+    const repatchDir = getPatchDirFromPatchOutput(repatchOutput)
+    expect(fs.readFileSync(path.join(repatchDir, 'index.js'), 'utf8')).toContain('// test patching')
   })
 })
 

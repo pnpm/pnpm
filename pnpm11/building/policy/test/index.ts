@@ -1,5 +1,5 @@
 import { expect, it } from '@jest/globals'
-import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
+import { createAllowBuildFunction, isBuildExplicitlyDisallowed, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import type { DepPath } from '@pnpm/types'
 
 function depPath (value: string): DepPath {
@@ -181,4 +181,29 @@ it('isBuildExplicitlyDisallowed() returns false when no policy is set', () => {
 it('isBuildExplicitlyDisallowed() returns false for unparsable depPaths', () => {
   const allowBuild = createAllowBuildFunction({ allowBuilds: { foo: false } })
   expect(isBuildExplicitlyDisallowed(depPath('not-a-valid-dep-path'), allowBuild)).toBe(false)
+})
+
+it('unapprovedIgnoredBuilds() keeps only the recorded builds the policy has no verdict on', () => {
+  const allowBuild = createAllowBuildFunction({
+    allowBuilds: { allowed: true, denied: false },
+  })
+  expect(unapprovedIgnoredBuilds(new Set([
+    depPath('allowed@1.0.0'),
+    depPath('denied@1.0.0'),
+    depPath('undecided@1.0.0'),
+  ]), allowBuild)).toStrictEqual([depPath('undecided@1.0.0')])
+  expect(unapprovedIgnoredBuilds(new Set([
+    depPath('allowed@1.0.0'),
+    depPath('denied@1.0.0'),
+  ]), allowBuild)).toStrictEqual([])
+})
+
+it('unapprovedIgnoredBuilds() treats every recorded build as unapproved without a policy', () => {
+  expect(unapprovedIgnoredBuilds(new Set([depPath('foo@1.0.0')]), undefined)).toStrictEqual([depPath('foo@1.0.0')])
+})
+
+it('unapprovedIgnoredBuilds() reports nothing when nothing was recorded', () => {
+  const allowBuild = createAllowBuildFunction({ allowBuilds: { foo: true } })
+  expect(unapprovedIgnoredBuilds(undefined, allowBuild)).toStrictEqual([])
+  expect(unapprovedIgnoredBuilds(new Set(), allowBuild)).toStrictEqual([])
 })

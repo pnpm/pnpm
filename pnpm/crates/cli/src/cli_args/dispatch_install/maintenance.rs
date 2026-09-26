@@ -4,7 +4,8 @@ use super::{
     DeployArgs, DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs,
     InstallPipeline, LinkArgs, NdjsonReporter, Path, PruneArgs, PrunePipeline, RebuildArgs,
     ReporterType, RunCtx, RuntimeArgs, SilentReporter, UnlinkArgs, apply_install_cli_config,
-    apply_update_config, derive_config_root, global, resolve_bool_override, warn_about_config_root,
+    apply_update_config, derive_config_root, global, installed_project_config,
+    resolve_bool_override, warn_about_config_root,
 };
 use std::sync::atomic::Ordering;
 
@@ -348,7 +349,7 @@ pub(in super::super) fn approve_builds<'a>(
     }
     let effective_reporter = ctx.effective_reporter;
     Ok(Box::pin(async move {
-        let config = config.await?;
+        let config = installed_project_config(config.await?, manifest_path);
         match effective_reporter.load(Ordering::Relaxed).into() {
             ReporterType::Default | ReporterType::AppendOnly => {
                 run_approve_builds!(DefaultReporter, config).await

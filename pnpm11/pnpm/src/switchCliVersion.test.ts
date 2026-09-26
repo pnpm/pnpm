@@ -56,7 +56,7 @@ const installPnpmToStore = jest.fn<(version: string, opts: object) => Promise<{ 
 const isPackageManagerResolved = jest.fn<(envLockfile: EnvLockfile | undefined, pnpmVersion: string, specifier?: string) => boolean>(() => true)
 const readEnvLockfile = jest.fn<(rootDir: string) => Promise<EnvLockfile | null>>(async () => envLockfile)
 const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: object) => Promise<EnvLockfile>>(async () => envLockfile)
-const spawnSync = jest.fn<(command: string, args: string[], options: object) => { status: number }>(() => ({ status: 0 }))
+const spawnPnpm = jest.fn<(pnpmBinPath: string, args: string[]) => Promise<{ status: number | null, signal: NodeJS.Signals | null }>>(async () => ({ status: 0, signal: null }))
 
 // Mutable so a test can pretend the running pnpm is itself a broken release.
 const mockPackageManager = { name: 'pnpm', version: '11.0.0' }
@@ -72,6 +72,7 @@ const actualEnginePmCommands = await import('@pnpm/engine.pm.commands')
 jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
   ...actualEnginePmCommands,
   installPnpmToStore,
+  spawnPnpm,
 }))
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
   isPackageManagerResolved,
@@ -82,9 +83,6 @@ jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
 }))
 jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
   createStoreController,
-}))
-jest.unstable_mockModule('cross-spawn', () => ({
-  default: { sync: spawnSync },
 }))
 
 const { switchCliVersion } = await import('./switchCliVersion.js')
@@ -100,7 +98,8 @@ beforeEach(() => {
   readEnvLockfile.mockResolvedValue(envLockfile)
   resolvePackageManagerIntegrities.mockClear()
   resolvePackageManagerIntegrities.mockResolvedValue(envLockfile)
-  spawnSync.mockClear()
+  spawnPnpm.mockClear()
+  spawnPnpm.mockResolvedValue({ status: 0, signal: null })
 })
 
 test('switchCliVersion does not save the project lockfile when lockfile is disabled (#14728)', async () => {
@@ -153,7 +152,7 @@ test('switchCliVersion resolves nothing when the running pnpm satisfies a pin th
   expect(readEnvLockfile).not.toHaveBeenCalled()
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
   expect(createStoreController).not.toHaveBeenCalled()
-  expect(spawnSync).not.toHaveBeenCalled()
+  expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
 test('switchCliVersion uses trusted package-manager registries instead of project registries', async () => {
@@ -476,7 +475,7 @@ test('switchCliVersion rejects a package-manager lockfile that is still invalid 
   } as unknown as ConfigContext)).rejects.toThrow('integrity-only resolution')
 
   expect(installPnpmToStore).not.toHaveBeenCalled()
-  expect(spawnSync).not.toHaveBeenCalled()
+  expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
 test('refuses to switch to a broken release instead of failing inside the installer', async () => {
@@ -531,9 +530,7 @@ test('still switches to a release that is not broken', async () => {
   }
 
   expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
-  expect(spawnSync).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2), {
-    stdio: 'inherit',
-  })
+  expect(spawnPnpm).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2))
 })
 
 /** The fixture above, re-pointed at `version` — same shape, so it still passes the
@@ -541,3 +538,35 @@ test('still switches to a release that is not broken', async () => {
 function envLockfileFor (version: string): EnvLockfile {
   return JSON.parse(JSON.stringify(envLockfile).replaceAll('9.3.0', version)) as EnvLockfile
 }
+
+// The pnpm the switch runs is awaited, and pnpm ends the way it did. Relaying
+// signals to it (pnpm/pnpm#9948) is covered in @pnpm/engine.pm.commands.
+test('ends with the exit status of the pnpm it switched to', async () => {
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.13.1', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+  spawnPnpm.mockResolvedValue({ status: 7, signal: null })
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    await switchCliVersion(config, context)
+    expect(exit).toHaveBeenCalledWith(7)
+  } finally {
+    exit.mockRestore()
+  }
+})
+
+test('reports a pnpm that cannot be started as a failed version switch', async () => {
+  const config = { rawConfig: {} } as unknown as Config
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { name: 'pnpm', version: '11.13.1', fromDevEngines: true, onFail: 'download' },
+  } as unknown as ConfigContext
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+  spawnPnpm.mockRejectedValue(new Error('spawn ENOENT'))
+
+  await expect(switchCliVersion(config, context)).rejects.toThrow(/Failed to switch pnpm to v11\.13\.1/)
+})

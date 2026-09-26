@@ -1120,3 +1120,238 @@ fn engine_strict_respects_read_package_hook_relaxing_engines() {
 
     drop((root, mock_instance));
 }
+
+/// A `readPackage` hook that leaves a dependency range as anything but a
+/// string produces a malformed manifest, and the worker sends the manifest
+/// back as JSON, which drops the entry. The install has to fail on that
+/// manifest rather than carry on without the dependency
+/// (pnpm/pnpm#15705). The message is the one pnpm 11 prints: it names the
+/// dependency, the field, the package and the pnpmfile. The error code is the
+/// one thing that still differs, because every hook failure here carries
+/// `ERR_PNPM_PNPMFILE_FAIL` where pnpm 11 uses
+/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`.
+#[test]
+fn read_package_rejects_a_non_string_dependency_range() {
+    for (range, described) in [("undefined", "undefined"), ("null", "null"), ("1", "number")] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+                .to_string(),
+        )
+        .expect("write package.json");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            format!(
+                r"module.exports = {{
+  hooks: {{
+    readPackage (pkg) {{
+      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {{
+        pkg.dependencies['@pnpm.e2e/foo'] = {range};
+      }}
+      return pkg;
+    }}
+  }}
+}};
+",
+            ),
+        )
+        .expect("write pnpmfile");
+
+        let output = pacquet_in(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run install");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // The reporter wraps the message to the terminal width, so compare it
+        // with the wrapping taken out.
+        let reported = stderr
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            !output.status.success(),
+            "a range of {range} must fail the install\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(&format!(
+                "readPackage hook returned an invalid range for '@pnpm.e2e/foo' in the 'dependencies' of @pnpm.e2e/pkg-with-1-dep@100.0.0. Expected a string, got {described}."
+            )),
+            "the error names the dependency, the field and the package\nSTDERR:\n{stderr}",
+        );
+        assert!(
+            reported.contains(".pnpmfile.cjs"),
+            "the error names the pnpmfile\nSTDERR:\n{stderr}",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
+/// Deleting the property is how a hook removes a dependency, so an entry the
+/// map no longer carries is not the non-string range the check above rejects.
+#[test]
+fn read_package_accepts_a_deleted_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    readPackage (pkg) {
+      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
+        delete pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'];
+      }
+      return pkg;
+    }
+  }
+};
+",
+    )
+    .expect("write pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("dep-of-pkg-with-1-dep")
+            .exists(),
+        "the deleted dependency is not installed",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn engine_strict_respects_a_patch_that_relaxes_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/for-legacy-node": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(
+        workspace.join("patches").join("for-legacy-node.patch"),
+        "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"*\"
+   }
+ }
+",
+    )
+    .expect("write patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(
+        "\
+engineStrict: true
+patchedDependencies:
+  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
+",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn engine_strict_skips_an_optional_patch_with_incompatible_engines() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "optionalDependencies": { "legacy-node": "npm:@pnpm.e2e/for-legacy-node@1.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(
+        workspace.join("patches").join("for-legacy-node.patch"),
+        "\
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,6 +2,6 @@
+   \"name\": \"@pnpm.e2e/for-legacy-node\",
+   \"version\": \"1.0.0\",
+   \"engines\": {
+-    \"node\": \"0.10\"
++    \"node\": \"99\"
+   }
+ }
+",
+    )
+    .expect("write patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(
+        "\
+engineStrict: true
+virtualStoreDir: node_modules/.store
+patchedDependencies:
+  '@pnpm.e2e/for-legacy-node@1.0.0': patches/for-legacy-node.patch
+",
+    );
+    fs::write(&workspace_yaml, yaml).expect("write workspace yaml");
+
+    let links = [
+        workspace.join("node_modules/legacy-node"),
+        workspace.join("node_modules/@pnpm.e2e/for-legacy-node"),
+        workspace.join("node_modules/.store/node_modules/legacy-node"),
+        workspace.join("node_modules/.store/node_modules/@pnpm.e2e/for-legacy-node"),
+    ];
+    for _ in 0..2 {
+        pacquet_in(&workspace)
+            .with_args(["install", "--engine-strict"])
+            .assert()
+            .success();
+        for link in &links {
+            assert!(
+                fs::symlink_metadata(link).is_err(),
+                "incompatible optional package must not stay linked at {}",
+                link.display(),
+            );
+        }
+    }
+
+    drop((root, mock_instance));
+}

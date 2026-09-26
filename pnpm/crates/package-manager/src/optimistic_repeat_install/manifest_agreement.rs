@@ -6,6 +6,7 @@ use super::{
     current_lockfile::assert_wanted_lockfile_equals_current, file_mtime, modified_at_or_after,
     mtime_ms,
 };
+use pnpm_lockfile::StalenessReason;
 use pnpm_modules_yaml::IncludedDependencies;
 use rayon::prelude::*;
 
@@ -75,6 +76,21 @@ pub(crate) fn modified_manifests_match_lockfile(
     Ok(loaded_current)
 }
 
+/// The reason a failed lockfile settings check reports. The patch-hash
+/// checks compare the lockfile against itself rather than against a setting,
+/// so they are named apart.
+fn settings_drift_reason(error: &crate::install::FreshnessCheckError) -> &'static str {
+    match error {
+        crate::install::FreshnessCheckError::Stale(StalenessReason::InconsistentPatchHashes) => {
+            r#"the lockfile has patch hashes that disagree with its own "patchedDependencies""#
+        }
+        crate::install::FreshnessCheckError::Stale(StalenessReason::UncheckablePatchHashes) => {
+            "the lockfile cannot be checked for stale patch hashes"
+        }
+        _ => "a lockfile setting drifted from the current configuration",
+    }
+}
+
 /// The full content check of the modified projects against the wanted
 /// lockfile, once its settings are known not to have drifted.
 pub(super) fn check_projects_content(
@@ -102,7 +118,7 @@ pub(super) fn check_projects_content(
         },
     ) {
         tracing::debug!(target: "pacquet::install", %error, "repeat-install content check: lockfile settings drift");
-        return Err("a lockfile setting drifted from the current configuration");
+        return Err(settings_drift_reason(&error));
     }
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);

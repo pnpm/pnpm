@@ -1,8 +1,8 @@
 use crate::fast_update_compose::Drift;
 use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
-    SnapshotDepRef,
+    ImporterDepVersion, Lockfile, PackageKey, PatchedDepPathsStatus, ProjectSnapshot,
+    ResolvedDependencyMap, SnapshotDepRef, check_patched_dep_paths, name_version_from_package_key,
 };
 use pnpm_patching::{
     PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
@@ -35,6 +35,12 @@ pub(crate) fn detect_patched_drift(
     lockfile: &Lockfile,
     hashes: Option<&BTreeMap<String, String>>,
 ) -> Drift<PatchedPlan> {
+    // The rekey below reads each path's segment against the lockfile's own
+    // map, so a lockfile whose paths contradict that map, or carry a segment
+    // it cannot read, goes to the resolver whether or not the map drifted.
+    if check_patched_dep_paths(lockfile) != PatchedDepPathsStatus::UpToDate {
+        return Drift::Resolve;
+    }
     let empty = BTreeMap::new();
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
     let current = hashes.unwrap_or(&empty);
@@ -361,8 +367,7 @@ fn applied_patch_keys<'a>(
     };
     let mut applied = BTreeSet::new();
     for key in snapshots.keys() {
-        let (name, version) =
-            pnpm_deps_restorer::name_version_from_package_key(key, lockfile.packages.as_ref());
+        let (name, version) = name_version_from_package_key(key, lockfile.packages.as_ref());
         if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
             applied.insert(info.key.as_str());
         }

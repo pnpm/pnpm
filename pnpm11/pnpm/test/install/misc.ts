@@ -840,6 +840,45 @@ test('install --force refetches a dependency whose store content was modified to
   expect(execPnpmSync(['store', 'status']).status).toBe(0)
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/3445
+test('install --force repairs a modified store file in place, keeping its inode', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  const env = { pnpm_config_package_import_method: 'hardlink' }
+
+  await execPnpm(['install'], { env })
+
+  const installedFile = path.resolve('node_modules/is-positive/index.js')
+  const pristine = fs.readFileSync(installedFile, 'utf8')
+  // A second hard link stands in for another project importing the same
+  // store file; its inode is the store file's inode.
+  const linkedCopy = path.resolve('linked-copy.js')
+  fs.linkSync(installedFile, linkedCopy)
+  const inodeBefore = fs.statSync(linkedCopy).ino
+
+  // Append through the hardlink, which mutates the store's copy as well.
+  fs.appendFileSync(installedFile, '\n// tampered\n')
+  // The store skips verifying a file whose mtime is within 100ms of the last
+  // check, so move it past that window to make the edit observable.
+  const afterTheSkipWindow = new Date(Date.now() + 60_000)
+  fs.utimesSync(installedFile, afterTheSkipWindow, afterTheSkipWindow)
+
+  await execPnpm(['install', '--force'], { env })
+
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe(pristine)
+  // The inode-preserving repair does not hold on Windows GHA runners
+  // (see writeBufferToCafs.test.ts), so the healing of hard-linked
+  // copies is asserted only where the in-place overwrite works.
+  if (!isWindows()) {
+    expect(fs.readFileSync(linkedCopy, 'utf8')).toBe(pristine)
+    // The reinstalled file links to the store file, whose inode must be kept
+    expect(fs.statSync(installedFile).ino).toBe(inodeBefore)
+  }
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/919
 test('install --force reports the frozenStore conflict on a repeat install', async () => {
   prepare({

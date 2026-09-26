@@ -40,7 +40,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   ) return
 
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
-  const store = await createStoreController({ ...config, ...context, ...packageManagerConfig })
+  const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
       envLockfile,

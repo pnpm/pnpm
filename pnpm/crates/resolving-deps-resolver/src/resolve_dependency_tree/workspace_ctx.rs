@@ -219,6 +219,9 @@ pub(crate) struct WorkspacePreferredVersions {
     ///
     /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
+    /// Per importer: the auto-installed peers whose lockfile pin is not
+    /// reused. See `find_stale_peer_pins`.
+    stale_peer_pins: HashMap<String, HashSet<String>>,
 }
 
 #[derive(Default)]
@@ -361,6 +364,19 @@ impl WorkspaceTreeCtx {
     pub(crate) fn with_lockfile_reuse(mut self, reuse: crate::WorkspaceLockfileReuse) -> Self {
         self.reuse = reuse;
         self
+    }
+
+    pub(crate) fn set_stale_peer_pins(
+        &mut self,
+        stale_peer_pins: HashMap<String, HashSet<String>>,
+    ) {
+        self.versions.stale_peer_pins = stale_peer_pins;
+    }
+
+    pub(super) fn is_stale_peer_pin(&self, importer_id: &str, alias: &str) -> bool {
+        self.versions.stale_peer_pins
+            .get(importer_id)
+            .is_some_and(|aliases| aliases.contains(alias))
     }
 
     /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].

@@ -1,4 +1,7 @@
+import path from 'node:path'
+
 import { PnpmError } from '@pnpm/error'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type {
   DependenciesField,
@@ -8,8 +11,8 @@ import type {
   RegistriesByScope,
   SupportedArchitectures,
 } from '@pnpm/types'
-import semver from 'semver'
 
+import { compareVersions } from './compareVersions.js'
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
@@ -33,6 +36,8 @@ export interface LicensePackage {
   description?: string
   repository?: string
   path?: string
+  /** Installed copies retained when several locations share one package version. */
+  paths?: string[]
 }
 
 /**
@@ -67,6 +72,7 @@ function appendDependenciesFromLicenseNode (
       description: dependencyNode.description,
       repository: dependencyNode.repository as string,
       path: dependencyNode.dir,
+      ...(dependencyNode.paths == null ? {} : { paths: dependencyNode.paths }),
     })
   }
 }
@@ -74,6 +80,7 @@ function appendDependenciesFromLicenseNode (
 export async function findDependencyLicenses (opts: {
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
+  dir?: string
   lockfileDir: string
   manifest: ProjectManifest
   storeDir: string
@@ -85,6 +92,8 @@ export async function findDependencyLicenses (opts: {
    * `nodeLinker: hoisted` install, which leaves the virtual store empty.
    */
   hoistedLocations?: Record<string, string[]>
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  shamefullyHoist?: boolean
   registriesByScope: RegistriesByScope
   registriesByPrefix?: Record<string, string>
   wantedLockfile: LockfileObject | null
@@ -99,14 +108,32 @@ export async function findDependencyLicenses (opts: {
     )
   }
 
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const rootModulesDir = path.resolve(opts.lockfileDir, modulesDir)
+  const projectModulesDir = opts.dir ? path.resolve(opts.dir, modulesDir) : rootModulesDir
+  const needsModulesManifest = opts.nodeLinker == null ||
+    (opts.nodeLinker === 'hoisted' ? opts.hoistedLocations == null : opts.shamefullyHoist == null)
+  const modulesManifest = needsModulesManifest
+    ? await readModulesManifest(rootModulesDir) ??
+      (projectModulesDir !== rootModulesDir ? await readModulesManifest(projectModulesDir) : null)
+    : null
+
+  const nodeLinker = opts.nodeLinker ?? modulesManifest?.nodeLinker
+  const shamefullyHoist = opts.shamefullyHoist ??
+    (modulesManifest?.shamefullyHoist === true || Boolean(modulesManifest?.publicHoistPattern?.includes('*')))
+  const hoistedLocations = opts.hoistedLocations ?? (nodeLinker === 'hoisted' ? modulesManifest?.hoistedLocations : undefined)
+
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
-    dir: opts.lockfileDir,
+    dir: opts.dir ?? opts.lockfileDir,
+    lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
-    hoistedLocations: opts.hoistedLocations,
+    hoistedLocations,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     include: opts.include,
+    nodeLinker,
+    shamefullyHoist,
     registriesByScope: opts.registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     includedImporterIds: opts.includedImporterIds,
@@ -114,7 +141,7 @@ export async function findDependencyLicenses (opts: {
     supportedArchitectures: opts.supportedArchitectures,
   })
 
-  // map: name@ver (qualified by named registry, when any) -> LicensePackage
+  // map: name@ver (qualified by named registry, when any) and license -> LicensePackage
   const licensePackages = new Map<string, LicensePackage>()
 
   for (const dependencyName in licenseNodeTree.dependencies) {
@@ -124,13 +151,17 @@ export async function findDependencyLicenses (opts: {
     for (const dependencyNode of dependenciesOfNode) {
       // The registry is part of the identity: the same name and version
       // served by two registries are different artifacts and may carry
-      // different licenses, so they must not collapse onto one entry.
-      const mapKey = dependencyNode.registryName == null
+      // different licenses, so they must not collapse onto one entry. Two
+      // local packages can share a name and version but not their license.
+      const pkgId = dependencyNode.registryName == null
         ? `${dependencyNode.name}@${dependencyNode.version}`
         : `${dependencyNode.name}@${dependencyNode.registryName}:${dependencyNode.version}`
-      const existingVersion = licensePackages.get(mapKey)?.version
-      if (existingVersion === undefined) {
+      const mapKey = `${pkgId}\u0000${dependencyNode.license}`
+      const existing = licensePackages.get(mapKey)
+      if (existing === undefined) {
         licensePackages.set(mapKey, dependencyNode)
+      } else {
+        mergeLicensePackagePaths(existing, dependencyNode)
       }
     }
   }
@@ -138,6 +169,22 @@ export async function findDependencyLicenses (opts: {
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
-    pkg1.name.localeCompare(pkg2.name) || semver.compare(pkg1.version, pkg2.version)
+    pkg1.name.localeCompare(pkg2.name) || compareVersions(pkg1.version, pkg2.version)
   )
+}
+
+/**
+ * Adds the installed locations of `added` to `target`, which describes the
+ * same package version and license, so that every copy stays in the report.
+ * Each side contributes its `paths`, or its `path` when `paths` is unset.
+ * `target.paths` is set to the distinct locations only when there are more
+ * than one; otherwise `target` is left unchanged.
+ */
+export function mergeLicensePackagePaths (target: LicensePackage, added: LicensePackage): void {
+  const paths = [...new Set([...installedPaths(target), ...installedPaths(added)])]
+  if (paths.length > 1) target.paths = paths
+}
+
+function installedPaths (pkg: LicensePackage): string[] {
+  return pkg.paths ?? (pkg.path ? [pkg.path] : [])
 }

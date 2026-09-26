@@ -27,6 +27,9 @@ const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-
 /// release time, so it is frozen and reviewed per pnpm release rather
 /// than resolved on the user's machine at install time.
 ///
+/// When pnpm is launched through a symlink such as `node_modules/.bin/pnpm`,
+/// the payload is also looked for beside the symlink's target.
+///
 /// Returns `None` when the payload is absent, which is the normal case
 /// for a `cargo build` in a checkout. Lifecycle scripts then fall back to
 /// whatever `node-gyp` the environment already provides.
@@ -39,9 +42,21 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
     RESOLVED
         .get_or_init(|| {
             let exe = std::env::current_exe().ok()?;
-            bundled_node_gyp_bin_in(exe.parent()?)
+            bundled_node_gyp_bin_beside(&exe)
         })
         .as_deref()
+}
+
+fn bundled_node_gyp_bin_beside(exe: &Path) -> Option<PathBuf> {
+    // `current_exe` is the path pnpm was launched through on some platforms,
+    // macOS among them. The unresolved path is tried first because
+    // canonicalizing a path on a Windows network drive yields a verbatim
+    // `\\?\UNC` path, which not every program that searches `PATH` accepts.
+    bundled_node_gyp_bin_in(exe.parent()?)
+        .or_else(|| {
+            let exe = dunce::canonicalize(exe).ok()?;
+            bundled_node_gyp_bin_in(exe.parent()?)
+        })
 }
 
 /// The path arithmetic behind [`bundled_node_gyp_bin`], split out so it

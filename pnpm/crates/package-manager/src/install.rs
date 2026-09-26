@@ -39,8 +39,6 @@ use crate::{
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
-use derive_more::{Display, Error};
-use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
@@ -93,6 +91,18 @@ pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> In
         dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
         optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
     }
+}
+
+/// The groups the install reads from each project's own manifest and
+/// importer. A project's `optionalDependencies` install with its
+/// production dependencies, so a run without `Prod` drops them here while
+/// [`included_dependencies`] keeps following the optional dependencies of
+/// the packages it installs.
+pub(super) fn project_dependency_groups(mut groups: Vec<DependencyGroup>) -> Vec<DependencyGroup> {
+    if !groups.contains(&DependencyGroup::Prod) {
+        groups.retain(|group| *group != DependencyGroup::Optional);
+    }
+    groups
 }
 
 mod run;

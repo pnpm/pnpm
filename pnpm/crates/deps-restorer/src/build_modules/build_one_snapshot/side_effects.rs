@@ -105,9 +105,9 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
         cache_key = key,
         "side-effects cache hit; skipping build",
     );
-    if global_slot_carries_overlay(context, snapshot_key, overlay) {
+    let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay) else {
         return Ok(true);
-    }
+    };
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
     context.progress.slot_mutations.store(true, Ordering::Relaxed);
@@ -158,6 +158,31 @@ pub(super) enum OverlayOutcome {
     /// (or skip them when the manifest is gone) and let the install finish
     /// with a broken package.
     Broken(BuildModulesError),
+}
+/// The lock to hold while the overlay is re-imported into the slot, or `None`
+/// when the slot already carries it. Another install may be building the
+/// shared slot, which the forced re-import would overwrite; once that build
+/// finishes, its output is the overlay.
+fn lock_slot_missing_overlay(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    overlay: &HashMap<String, PathBuf>,
+) -> Option<Option<pnpm_fs::DirLock>> {
+    if global_slot_carries_overlay(context, snapshot_key, overlay) {
+        return None;
+    }
+    let lock = context.directories.pkg_roots_by_key
+        .is_none()
+        .then(|| {
+            crate::gvs_slot_lock::lock_global_virtual_store_slot(
+                context.directories.layout,
+                snapshot_key,
+            )
+        });
+    if global_slot_carries_overlay(context, snapshot_key, overlay) {
+        return None;
+    }
+    Some(lock.flatten())
 }
 pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,

@@ -181,14 +181,18 @@ pub(super) fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntr
     maps_equal(current.dependencies.as_ref(), wanted.dependencies.as_ref())
         && maps_equal(current.optional_dependencies.as_ref(), wanted.optional_dependencies.as_ref())
 }
-/// Compare the `integrity` field on two `packages:` entries.
+/// Compare the `integrity` field on two `packages:` entries, including
+/// the one a custom resolution records for its fetcher.
 pub(super) fn integrity_equal(
     current: Option<&PackageMetadata>,
     wanted: Option<&PackageMetadata>,
 ) -> bool {
-    let current_integrity = current.and_then(|meta| meta.resolution.integrity());
-    let wanted_integrity = wanted.and_then(|meta| meta.resolution.integrity());
-    current_integrity == wanted_integrity
+    let current = current.map(|meta| &meta.resolution);
+    let wanted = wanted.map(|meta| &meta.resolution);
+    current.and_then(LockfileResolution::integrity)
+        == wanted.and_then(LockfileResolution::integrity)
+        && current.and_then(LockfileResolution::custom_integrity)
+            == wanted.and_then(LockfileResolution::custom_integrity)
 }
 /// Whether a slot may be served by the macOS directory-clone cache
 /// ([`crate::DirCloneCache`]).

@@ -52,13 +52,14 @@ fn directory_resolution_preserves_internal_directory_symlink() {
     std::fs::write(sub.join("file.txt"), b"sub content").expect("write sub file");
     symlink("sub", package_dir.join("link_sub")).expect("create internal directory symlink");
 
-    let files_map = fetch_directory_resolution(
+    let (files_map, exists) = fetch_directory_resolution(
         &workspace,
         &DirectoryResolution { directory: "packages/dep".to_string() },
         false,
     )
     .expect("directory resolution should succeed");
 
+    assert!(exists, "an existing directory must report exists");
     assert!(
         files_map.contains_key("link_sub"),
         "files_map must include internal directory symlink",

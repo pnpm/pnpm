@@ -64,6 +64,17 @@ struct SourceKey {
 
 impl GitSourceCache {
     pub(crate) fn get(&self, source: &GitSource<'_>) -> SourceResult {
+        self.get_with_config(source, &[])
+    }
+
+    /// [`Self::get`], checking the source out with `git -c` settings
+    /// ([`CheckoutOptions::git_config`]). They choose how git reaches the
+    /// remote, not what it checks out, so they are not part of the key.
+    pub(crate) fn get_with_config(
+        &self,
+        source: &GitSource<'_>,
+        git_config: &[String],
+    ) -> SourceResult {
         let cell = {
             let mut sources = self.sources.lock().expect("git source cache lock poisoned");
             Arc::clone(
@@ -80,6 +91,7 @@ impl GitSourceCache {
                 git_shallow_hosts: source.shallow_hosts,
                 git_bin: source.git_bin,
                 dest: checkout.path(),
+                git_config,
             })
             .map_err(Arc::new)?;
             Ok(Arc::new(CachedSource { checkout, submodules: OnceLock::new() }))

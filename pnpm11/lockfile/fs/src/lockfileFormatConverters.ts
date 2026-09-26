@@ -14,22 +14,22 @@ import type {
 } from '@pnpm/lockfile.types'
 import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type DepPath } from '@pnpm/types'
-import { isEmpty, map as _mapValues, omit, pick, pickBy } from 'ramda'
+import { isEmpty, omit, pick, pickBy } from 'ramda'
 
 export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
-    snapshots[depPath] = pick([
+    setOwnProperty(snapshots, depPath, pick([
       'dependencies',
       'optionalDependencies',
       'transitivePeerDependencies',
       'optional',
       'id',
-    ], pkg)
+    ], pkg))
     const pkgId = removeSuffix(depPath)
-    if (!packages[pkgId]) {
-      packages[pkgId] = pick([
+    if (!Object.hasOwn(packages, pkgId)) {
+      setOwnProperty(packages, pkgId, pick([
         'bundledDependencies',
         'cpu',
         'deprecated',
@@ -42,7 +42,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
         'peerDependenciesMeta',
         'resolution',
         'version',
-      ], pkg)
+      ], pkg))
     }
   }
   const newLockfile = {
@@ -64,7 +64,7 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
 function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   const lockfileToSave = {
     ...lockfile,
-    importers: _mapValues((importer) => {
+    importers: mapValues(lockfile.importers ?? {}, (importer) => {
       const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
       if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
         normalizedImporter.dependenciesMeta = importer.dependenciesMeta
@@ -81,7 +81,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
         normalizedImporter.linkDirectory = false
       }
       return normalizedImporter as LockfileFileProjectSnapshot
-    }, lockfile.importers ?? {}),
+    }),
   }
   if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
     delete lockfileToSave.packages
@@ -140,7 +140,9 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {
     const pkgId = removeSuffix(depPath)
-    const snapshot = Object.assign(pkg, lockfile.packages?.[pkgId])
+    // Spread rather than `Object.assign()`, so a `__proto__` key read from the
+    // lockfile is copied as an own property instead of replacing the prototype.
+    const snapshot = { ...pkg, ...lockfile.packages?.[pkgId] }
     // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
     // pre vercel/turborepo#12825): a peer-variant injected workspace
     // snapshot whose base `packages:` entry was dropped now has a null
@@ -153,8 +155,8 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
         snapshot.resolution = { directory: ref.slice('file:'.length), type: 'directory' }
       }
     }
-    packages[depPath as DepPath] = snapshot
-    enrichGitHostedFlag(packages[depPath as DepPath]?.resolution as TarballResolution | undefined)
+    setOwnProperty(packages, depPath as DepPath, snapshot)
+    enrichGitHostedFlag(snapshot.resolution as TarballResolution | undefined)
   }
   return {
     ...omit(['snapshots'], rest),
@@ -180,7 +182,7 @@ function migratePatchedDependencies (patchedDependencies: Record<string, string 
   if (!patchedDependencies) return undefined
   const result: Record<string, string> = {}
   for (const [key, value] of Object.entries(patchedDependencies)) {
-    result[key] = typeof value === 'string' ? value : value.hash
+    setOwnProperty(result, key, typeof value === 'string' ? value : value.hash)
   }
   return result
 }
@@ -218,13 +220,13 @@ function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnaps
   function moveSpecifiers (from: LockfileFileProjectResolvedDependencies): ResolvedDependencies {
     const resolvedDependencies: ResolvedDependencies = {}
     for (const [depName, { specifier, version }] of Object.entries(from)) {
-      const existingValue = specifiers[depName]
+      const existingValue = Object.hasOwn(specifiers, depName) ? specifiers[depName] : undefined
       if (existingValue != null && existingValue !== specifier) {
         throw new Error(`Project snapshot lists the same dependency more than once with conflicting versions: ${depName}`)
       }
 
-      specifiers[depName] = specifier
-      resolvedDependencies[depName] = version
+      setOwnProperty(specifiers, depName, specifier)
+      setOwnProperty(resolvedDependencies, depName, version)
     }
     return resolvedDependencies
   }
@@ -251,7 +253,18 @@ function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnaps
 function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {
   const result: Record<string, U> = {}
   for (const [key, value] of Object.entries(obj)) {
-    result[key] = mapper(value, key)
+    setOwnProperty(result, key, mapper(value, key))
   }
   return result
+}
+
+// Keys in these records come from the lockfile. A plain assignment of the key
+// `__proto__` would invoke the prototype setter, so that key is defined as an
+// own property instead.
+function setOwnProperty<K extends string, V> (obj: Record<K, V>, key: K, value: V): void {
+  if (key === '__proto__') {
+    Object.defineProperty(obj, key, { value, writable: true, enumerable: true, configurable: true })
+  } else {
+    obj[key] = value
+  }
 }

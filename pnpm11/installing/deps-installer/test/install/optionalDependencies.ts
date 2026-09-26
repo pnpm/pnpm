@@ -36,6 +36,20 @@ test('skip failing optional dependencies', async () => {
   project.has('@pnpm.e2e/pkg-with-failing-optional-dependency/package.json')
 })
 
+test.each(['isolated', 'hoisted'] as const)('remove an optional dependency whose build failed (nodeLinker=%s)', async (nodeLinker) => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/failing-postinstall@1.0.0'], testDefaults({
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+    fastUnpack: false,
+    nodeLinker,
+    targetDependenciesField: 'optionalDependencies',
+  }))
+
+  project.hasNot('@pnpm.e2e/failing-postinstall')
+  project.hasNot('.pnpm/@pnpm.e2e+failing-postinstall@1.0.0/node_modules/@pnpm.e2e/failing-postinstall')
+  expect(project.readLockfile().importers['.'].optionalDependencies).toHaveProperty(['@pnpm.e2e/failing-postinstall'])
+})
+
 test('skip failing optional peer dependencies', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0', '@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0'], testDefaults({ fastUnpack: false }))

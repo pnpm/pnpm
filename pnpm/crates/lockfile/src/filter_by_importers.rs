@@ -40,6 +40,14 @@ impl IncludedDependencies {
     pub fn excludes_a_group(self) -> bool {
         !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
     }
+
+    /// Whether a project's own `optionalDependencies` are included. They
+    /// install with its production dependencies, so `--dev` leaves them
+    /// out while it still installs the optional dependencies of packages.
+    #[must_use]
+    pub fn includes_project_optional_dependencies(self) -> bool {
+        self.dependencies && self.optional_dependencies
+    }
 }
 
 impl Default for IncludedDependencies {
@@ -115,6 +123,23 @@ impl Lockfile {
         }
         Ok(filtered)
     }
+
+    /// Verifies that every dependency reference reachable from an importer
+    /// resolves to an entry in `snapshots`. Returns the first missing key.
+    pub fn verify_importer_snapshot_links(&self) -> Result<(), LockfileMissingDependencyError> {
+        let options = FilterByImportersOptions {
+            include: IncludedDependencies::default(),
+            skipped: HashSet::new(),
+            fail_on_missing_dependencies: true,
+            peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root: false },
+        };
+        let seeds = self.importers
+            .values()
+            .flat_map(importer_keys)
+            .collect();
+        collect_reachable(self, seeds, &options, &PeerSatisfactionEdges::default())?;
+        Ok(())
+    }
 }
 
 /// The snapshot keys a filtered importer's own dependencies resolve to.
@@ -147,7 +172,7 @@ fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) ->
         dev_dependencies: Some(pick(importer.dev_dependencies.as_ref(), include.dev_dependencies)),
         optional_dependencies: Some(pick(
             importer.optional_dependencies.as_ref(),
-            include.optional_dependencies,
+            include.includes_project_optional_dependencies(),
         )),
         dependencies_meta: None,
         publish_directory: None,

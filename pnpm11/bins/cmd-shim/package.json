@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.cmd-shim",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Used in pnpm for command line application support",
   "keywords": [
     "pnpm",

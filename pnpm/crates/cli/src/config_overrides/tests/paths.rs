@@ -435,3 +435,52 @@ fn the_global_dir_override_re_derives_the_global_package_dir() {
         Some(Path::new("/custom/global").join(pnpm_config::GLOBAL_LAYOUT_VERSION)),
     );
 }
+
+#[test]
+fn store_dir_override_matching_the_relocated_default_does_not_warn() {
+    struct FakeHome;
+
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("an absolute store directory does not consult the home directory")
+        }
+    }
+
+    impl EnvVar for FakeHome {
+        fn var(_: &str) -> Option<String> {
+            unreachable!("an absolute store directory does not consult environment variables")
+        }
+    }
+
+    impl GetCurrentDir for FakeHome {
+        fn current_dir() -> std::io::Result<PathBuf> {
+            unreachable!("an absolute store directory does not consult the current directory")
+        }
+    }
+
+    impl LinkProbe for FakeHome {
+        fn can_link_between_dirs(_: &std::path::Path, _: &std::path::Path) -> bool {
+            unreachable!("an explicit store directory does not probe filesystem linkability")
+        }
+    }
+
+    let temp = tempfile::tempdir().expect("create tempdir");
+    let home_store_dir = temp.path().join("home/store");
+    std::fs::create_dir_all(home_store_dir.join(STORE_VERSION)).expect("create home store");
+    let relocated = temp.path().join("volume/.pnpm-store");
+    let mut config = Config {
+        store_dir: relocated.clone().into(),
+        store_relocation: Some(Box::new(pnpm_config::StoreRelocation {
+            home_store_dir: home_store_dir.into(),
+            store_dir: relocated.clone().into(),
+        })),
+        ..Config::default()
+    };
+    assert!(config.bypassed_home_store_warning().is_some());
+
+    apply_store_dir_override::<FakeHome>(&mut config, &relocated, temp.path())
+        .expect("apply an absolute store directory");
+
+    assert_eq!(config.store_dir.root(), relocated.join(STORE_VERSION));
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}

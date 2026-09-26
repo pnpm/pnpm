@@ -2489,3 +2489,101 @@ test('transitive dependencies and bins are accessible with nested publishConfig 
   expect(fs.existsSync('project-2/node_modules/project-1/node_modules/is-positive')).toBe(true)
   expect(fs.existsSync('project-2/node_modules/.bin/project-1-nested-bin')).toBe(true)
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/11225
+test('adding a dependency keeps the version of a peer dependency the project declares', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        peerDependencies: {
+          '@pnpm/y': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        dependencies: {
+          '@pnpm/y': '2.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({ allProjects, autoInstallPeers: true }))
+
+  await mutateModules([
+    {
+      dependencySelectors: ['@pnpm.e2e/has-y-peer@1.0.0'],
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ], testDefaults({ allProjects, autoInstallPeers: true }))
+
+  expect(project.readLockfile().importers['project-1'].dependencies).toStrictEqual({
+    '@pnpm.e2e/has-y-peer': {
+      specifier: '1.0.0',
+      version: '1.0.0(@pnpm/y@1.0.0)',
+    },
+    '@pnpm/y': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
+  })
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/11225
+test('removing a dependency keeps the version of a peer dependency the project declares', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        dependencies: {
+          '@pnpm.e2e/has-y-peer': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        peerDependencies: {
+          '@pnpm/y': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        dependencies: {
+          '@pnpm/y': '2.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({ allProjects, autoInstallPeers: true }))
+
+  await mutateModules([
+    {
+      dependencyNames: ['is-positive'],
+      mutation: 'uninstallSome',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ], testDefaults({ allProjects, autoInstallPeers: true }))
+
+  expect(project.readLockfile().importers['project-1'].dependencies).toStrictEqual({
+    '@pnpm.e2e/has-y-peer': {
+      specifier: '1.0.0',
+      version: '1.0.0(@pnpm/y@1.0.0)',
+    },
+    '@pnpm/y': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
+  })
+})

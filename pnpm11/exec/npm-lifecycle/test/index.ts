@@ -10,6 +10,7 @@ const countTo10 = path.join(fixtures, 'count-to-10')
 const countTo10Manifest = readManifest(countTo10)
 const originalKill = process.kill
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
+const onlyOnWindows = process.platform === 'win32' ? test : test.skip
 
 afterEach(() => {
   process.kill = originalKill
@@ -31,6 +32,22 @@ skipOnWindows('runs scripts from .hooks directory even if no script is present i
   expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~postinstall:', 'stdout', expect.stringContaining('ran hook'))
 })
 
+onlyOnWindows('keeps a /c inside the script when scriptShell is cmd.exe', async () => {
+  const wd = temporaryDirectory()
+  fs.mkdirSync(path.join(wd, 'install'))
+  fs.writeFileSync(path.join(wd, 'install', 'can-compile.js'), 'process.stdout.write("can-compile-ran")')
+  const log = makeLog()
+
+  await lifecycle({ name: 'fake-sharp', version: '1.0.0', scripts: { install: 'node install/can-compile' } }, 'install', wd, {
+    stdio: 'pipe',
+    log,
+    dir: path.join(wd, 'node_modules'),
+    scriptShell: process.env.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe',
+  })
+
+  expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~install:', 'stdout', expect.stringContaining('can-compile-ran'))
+})
+
 test("reports child's output", async () => {
   const log = makeLog()
 
@@ -46,6 +63,28 @@ test("reports child's output", async () => {
   expect(log.verbose).toHaveBeenCalledWith('lifecycle', 'undefined~postinstall:', 'stdout', expect.stringContaining('package.json'))
   expect(log.silly).toHaveBeenCalledWith('lifecycle', 'undefined~postinstall:', 'Returned: code:', 0, ' signal:', null)
 })
+
+// https://github.com/pnpm/pnpm/issues/5730
+test('stops reading output held open by a background process the script started', async () => {
+  const backgroundOutput = path.join(fixtures, 'background-output')
+  const log = makeLog()
+  const started = Date.now()
+
+  await lifecycle(readManifest(backgroundOutput), 'prepare', backgroundOutput, {
+    stdio: 'pipe',
+    log,
+    dir: backgroundOutput,
+  })
+  const elapsed = Date.now() - started
+  await new Promise((resolve) => setTimeout(resolve, 3000 - elapsed))
+  const pidLine = log.verbose.mock.calls.map((call) => String(call[3])).find((line) => line.startsWith('background pid '))
+  process.kill(Number(pidLine?.slice('background pid '.length)))
+
+  expect(elapsed).toBeLessThan(2000)
+  expect(log.verbose.mock.calls.filter((call) => call[2] === 'stdout' || call[2] === 'stderr')).toStrictEqual([
+    ['lifecycle', 'undefined~prepare:', 'stdout', expect.stringMatching(/^background pid \d+$/)],
+  ])
+}, 10_000)
 
 test('runs a script with inherited output', async () => {
   const log = makeLog()

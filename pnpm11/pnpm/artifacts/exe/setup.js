@@ -1,8 +1,14 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
+import { spawnSync } from 'child_process'
 import { familySync } from 'detect-libc'
 import { exePlatformPkgName } from './platform-pkg-name.js'
+
+if (process.env.npm_lifecycle_event === 'postinstall') {
+  relinkNpmWindowsShims()
+  process.exit(0)
+}
 
 // Platform package names use the legacy scheme: `@pnpm/macos-<arch>` (darwin),
 // `@pnpm/win-<arch>` (win32), `@pnpm/linux-<arch>` (glibc), and
@@ -66,9 +72,8 @@ linkSync(bin, path.resolve(ownDir, executable))
 if (platform === 'win32') {
   // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
   // npm's bin shims point to the name from publishConfig.bin, and npm
-  // does NOT re-read package.json after preinstall, so rewriting the bin
-  // entry has no effect on the shims. The file at the original name must
-  // be the real binary so the shim can execute it.
+  // does NOT re-read package.json after preinstall. This original target
+  // remains executable until postinstall regenerates npm's shims.
   linkSync(bin, path.resolve(ownDir, 'pnpm'))
 
   // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
@@ -92,6 +97,63 @@ if (platform === 'win32') {
   pkg.bin.pnpx = 'pnpx.exe'
   pkg.bin.pnx = 'pnx.exe'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
+}
+
+function relinkNpmWindowsShims() {
+  const npmExecPath = process.env.npm_execpath
+  if (
+    process.platform !== 'win32' ||
+    npmExecPath == null ||
+    path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
+  ) return
+
+  const args = [npmExecPath, 'rebuild', '--ignore-scripts']
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
+    args.push('--global')
+    if (process.env.npm_config_prefix) {
+      args.push('--prefix', process.env.npm_config_prefix)
+    }
+  } else {
+    // The script runs inside the installed package, so a project install
+    // names its project explicitly.
+    const projectPrefix = findNpmProjectPrefix()
+    if (projectPrefix == null) return
+    args.push('--prefix', projectPrefix)
+  }
+  args.push('@pnpm/exe')
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
+  if (result.error != null) {
+    console.error(`Could not regenerate the npm shims for @pnpm/exe: ${result.error.message}`)
+    process.exit(1)
+  }
+  if (result.status !== 0) {
+    console.error(`npm could not regenerate the shims for @pnpm/exe (exit code ${result.status}).`)
+    process.exit(1)
+  }
+}
+
+/**
+ * The resolved path of the npm project whose `node_modules` holds this
+ * package. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the package. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
+ */
+function findNpmProjectPrefix() {
+  const prefix = process.env.npm_config_local_prefix
+  if (!prefix) return null
+  let realPrefix
+  let realModulesDir
+  try {
+    realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
+  } catch {
+    return null
+  }
+  // import.meta.dirname is resolved through symlinks.
+  const relative = path.relative(realModulesDir, import.meta.dirname)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) return null
+  return realPrefix
 }
 
 function linkSync(src, dest) {

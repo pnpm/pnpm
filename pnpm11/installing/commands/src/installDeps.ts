@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { buildProjects, PROJECT_INSTALL_STAGES } from '@pnpm/building.after-install'
+import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -14,12 +15,14 @@ import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   type DryRunInstallResult,
+  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { globalInfo, logger } from '@pnpm/logger'
@@ -96,6 +99,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'modulesDir'
 | 'pnprServer'
 | 'remoteSideEffectsCache'
 | 'production'
@@ -198,7 +202,7 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
+} & Partial<Pick<Config, 'dangerouslyAllowAllBuilds' | 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -221,6 +225,7 @@ export async function installDeps (
           prefix: opts.dir,
         })
       }
+      await assertRecordedBuildsAreApproved(opts)
       globalInfo('Already up to date')
       return
     }
@@ -759,4 +764,21 @@ async function restoreWantedLockfileIfMissing (
     logger.debug({ msg: 'Failed to restore pnpm-lock.yaml from the current lockfile', error })
     return false
   }
+}
+
+/**
+ * The optimistic repeat-install short-circuit returns before the build policy
+ * runs, so a package left with an undecided build would never be reported and
+ * `strictDepBuilds` would go unenforced until `node_modules` was cleared.
+ * Fail here the way a materializing install would.
+ */
+async function assertRecordedBuildsAreApproved (opts: InstallDepsOptions): Promise<void> {
+  if (opts.ignoreScripts || opts.lockfileOnly || !opts.strictDepBuilds) return
+  const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
+  const modulesManifest = await readModulesManifest(modulesDir)
+  const unapprovedBuilds = unapprovedIgnoredBuilds(
+    modulesManifest?.ignoredBuilds,
+    createAllowBuildFunction(opts)
+  )
+  if (unapprovedBuilds.length) throw new IgnoredBuildsError(new Set(unapprovedBuilds))
 }

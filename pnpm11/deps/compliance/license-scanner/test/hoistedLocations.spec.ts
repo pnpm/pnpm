@@ -34,7 +34,7 @@ addToStore('peer', 'sha512-peer')
 
 const lockfileDir = path.join(os.tmpdir(), 'project')
 
-async function listedPaths (hoistedLocations: Record<string, string[]>): Promise<Array<[string, string | undefined]>> {
+async function listedPaths (hoistedLocations: Record<string, string[]>, additionalVariant = false): Promise<Array<[string, string | undefined]>> {
   const lockfile: LockfileObject = {
     importers: {
       ['.' as ProjectId]: {
@@ -52,6 +52,15 @@ async function listedPaths (hoistedLocations: Record<string, string[]>): Promise
       ['peer@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer' } },
     },
   }
+  if (additionalVariant) {
+    lockfile.importers['other' as ProjectId] = {
+      dependencies: { alpha: '1.0.0(peer@2.0.0)' },
+      specifiers: { alpha: '1.0.0' },
+    }
+    lockfile.packages!['alpha@1.0.0(peer@2.0.0)' as DepPath] = {
+      resolution: { integrity: 'sha512-alpha' },
+    }
+  }
   const licenses = await findDependencyLicenses({
     lockfileDir,
     manifest: {} as ProjectManifest,
@@ -62,7 +71,7 @@ async function listedPaths (hoistedLocations: Record<string, string[]>): Promise
     storeDir,
     hoistedLocations,
   })
-  return licenses.map(({ name, path }) => [name, path])
+  return licenses.flatMap(({ name, path, paths }) => (paths ?? [path]).map((location): [string, string | undefined] => [name, location]))
 }
 
 test('findDependencyLicenses() reports a peer variant the hoisted linker collapsed at the location it recorded', async () => {
@@ -83,4 +92,66 @@ test('findDependencyLicenses() ignores a hoisted location outside the lockfile d
     ['alpha', path.join(lockfileDir, 'node_modules', '.pnpm', 'alpha@1.0.0_peer@1.0.0', 'node_modules', 'alpha')],
     ['peer', path.join(lockfileDir, 'node_modules', '.pnpm', 'peer@1.0.0', 'node_modules', 'peer')],
   ])
+})
+
+
+test('findDependencyLicenses() keeps all valid copies of a collapsed variant without duplicate paths', async () => {
+  expect(await listedPaths({
+    'alpha@1.0.0(peer@2.0.0)': ['../outside/alpha', 'node_modules/a/node_modules/alpha', 'node_modules/b/node_modules/alias', 'node_modules/a/node_modules/alpha'],
+    'peer@1.0.0': ['node_modules/peer'],
+  })).toStrictEqual([
+    ['alpha', path.join(lockfileDir, 'node_modules/a/node_modules/alpha')],
+    ['alpha', path.join(lockfileDir, 'node_modules/b/node_modules/alias')],
+    ['peer', path.join(lockfileDir, 'node_modules/peer')],
+  ])
+})
+
+
+test('findDependencyLicenses() retains distinct isolated peer installations of one version', async () => {
+  const paths = await listedPaths({}, true)
+  expect(paths.filter(([name]) => name === 'alpha')).toStrictEqual([
+    ['alpha', path.join(lockfileDir, 'node_modules/.pnpm/alpha@1.0.0_peer@1.0.0/node_modules/alpha')],
+    ['alpha', path.join(lockfileDir, 'node_modules/.pnpm/alpha@1.0.0_peer@2.0.0/node_modules/alpha')],
+  ])
+})
+
+test('findDependencyLicenses() treats a recorded public hoist pattern of * as shameful hoisting', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-license-public-hoist-'))
+  try {
+    const modulesDir = path.join(projectDir, 'node_modules')
+    const slotDir = path.join(modulesDir, '.pnpm', 'peer@1.0.0', 'node_modules', 'peer')
+    fs.mkdirSync(slotDir, { recursive: true })
+    fs.symlinkSync(slotDir, path.join(modulesDir, 'peer'), 'junction')
+    fs.writeFileSync(path.join(modulesDir, '.modules.yaml'), JSON.stringify({
+      layoutVersion: 5,
+      nodeLinker: 'isolated',
+      shamefullyHoist: false,
+      publicHoistPattern: ['*'],
+    }))
+    const licenses = await findDependencyLicenses({
+      lockfileDir: projectDir,
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: 'node_modules/.pnpm',
+      virtualStoreDirMaxLength: 120,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      wantedLockfile: {
+        importers: {
+          ['.' as ProjectId]: {
+            dependencies: { peer: '1.0.0' },
+            specifiers: { peer: '1.0.0' },
+          },
+        },
+        lockfileVersion: LOCKFILE_VERSION,
+        packages: {
+          ['peer@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-peer' } },
+        },
+      },
+      storeDir,
+    })
+    expect(licenses.map(({ name, path }) => [name, path])).toStrictEqual([
+      ['peer', path.join(modulesDir, 'peer')],
+    ])
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
 })

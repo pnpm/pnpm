@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.27.1",
+  "version": "11.28.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "preinstall": "node setup.js",
+    "postinstall": "node setup.js",
     "prepare": "node prepare.js",
     "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",

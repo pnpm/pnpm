@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.27.1",
+  "version": "11.28.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -91,6 +91,7 @@
     "@pnpm/cli.parse-cli-args": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.commands": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",

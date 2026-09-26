@@ -65,7 +65,7 @@ use std::{
 /// [`crate::materialization_plan::resolve_engine_name`]), so the slot
 /// hashes agree between the two modes.
 pub enum EngineNameSource {
-    /// Known when the cache is built: a lockfile `node@runtime:` pin or
+    /// Known when the cache is built: the root project's `node@runtime:` pin or
     /// an already-detected host.
     Ready(Option<String>),
     /// A `node --version` probe still in flight (see

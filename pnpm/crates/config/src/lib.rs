@@ -23,6 +23,7 @@ pub use crate::{
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
+    store_path::StoreRelocation,
 };
 pub use pnpm_matcher as matcher;
 pub use setting_types::{

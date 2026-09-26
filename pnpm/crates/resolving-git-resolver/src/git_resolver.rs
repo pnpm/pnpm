@@ -19,6 +19,7 @@ use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
     hosted_git::HostedOpts,
     parse_bare_specifier::{HostedPackageSpec, parse_bare_specifier},
+    pinned_remote::pinned_git_config,
     resolve_ref::{GitCommandRunner, GitResolveRefError, resolve_ref},
 };
 
@@ -140,13 +141,18 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
         let spec = partial.finalize();
-        let mut result = build_resolve_result(
-            spec,
-            self.probe.as_ref(),
-            self.runner.as_ref(),
-            wanted_dependency,
-        )
-        .await?;
+        let auth_headers =
+            self.fetch_context.as_ref().map(|ctx| ctx.auth_headers.as_ref());
+        if let Some(auth_headers) = auth_headers
+            && !auth_headers.allows_fetch(&spec.fetch_spec)
+        {
+            return Err(Box::new(pnpm_tarball::TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(&spec.fetch_spec),
+            }));
+        }
+        let probe = AllowlistedProbe { inner: self.probe.as_ref(), auth_headers };
+        let mut result =
+            build_resolve_result(spec, &probe, self.runner.as_ref(), wanted_dependency).await?;
         self.read_package_metadata(&mut result).await?;
         Ok(Some(result))
     }
@@ -171,6 +177,11 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 }
             }
             LockfileResolution::Git(git) => {
+                let git_config = match ctx.auth_headers.connect_guard() {
+                    Some(guard) => pinned_git_config(&git.repo, guard).await
+                        .map_err(|err| Box::new(err) as ResolveError)?,
+                    None => Vec::new(),
+                };
                 // No archive endpoint to read, so the working tree is
                 // the only source of the name, and there is nothing to
                 // hash — the commit anchors the content.
@@ -181,6 +192,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                     path: git.path.as_deref(),
                     git_shallow_hosts: &ctx.git_shallow_hosts,
                     git_bin: None,
+                    git_config: &git_config,
                 })
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
@@ -208,6 +220,23 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
             return Ok(None);
         }
         Ok(Some(LatestInfo::default()))
+    }
+}
+
+/// A [`GitProbe`] that reports an archive URL the fetch allowlist refuses as
+/// not fetchable, so the resolution falls back to the already-admitted repo
+/// instead of reaching the archive host.
+struct AllowlistedProbe<'a, Probe: ?Sized> {
+    inner: &'a Probe,
+    auth_headers: Option<&'a AuthHeaders>,
+}
+
+impl<Probe: GitProbe + ?Sized> GitProbe for AllowlistedProbe<'_, Probe> {
+    fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
+        if self.auth_headers.is_some_and(|auth_headers| !auth_headers.allows_fetch(url)) {
+            return Box::pin(std::future::ready(false));
+        }
+        self.inner.anonymous_head_ok(url)
     }
 }
 

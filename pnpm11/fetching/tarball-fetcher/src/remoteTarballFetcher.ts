@@ -7,6 +7,7 @@ import { FetchError, FetchTimeoutError, isFetchTimeoutError, redactUrlForDisplay
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
+import { isNonRetryableError } from '@pnpm/network.fetch'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -32,6 +33,7 @@ export type DownloadOptions = {
   retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
+  pkgId?: string
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
 export type DownloadFunction = (url: string, opts: DownloadOptions) => Promise<FetchResult>
@@ -87,7 +89,8 @@ export function createDownloader (
             error.response?.status === 401 ||
             error.response?.status === 403 ||
             error.response?.status === 404 ||
-            error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE'
+            error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
+            isNonRetryableError(error)
           ) {
             reject(error)
             return
@@ -226,6 +229,7 @@ export function createDownloader (
         readManifest: opts.readManifest,
         integrity: opts.integrity,
         filesIndexFile: opts.filesIndexFile,
+        pkgId: opts.pkgId,
         url,
         pkg: opts.pkg,
         appendManifest: opts.appendManifest,

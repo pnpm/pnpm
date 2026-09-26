@@ -250,6 +250,7 @@ impl CliArgs {
         let builtin_replaced_by_script = AtomicBool::new(false);
         let ctx = RunCtx {
             effective_reporter: setup.effective_reporter,
+            reporter_flags: self.reporter_flags(),
             builtin_command_forced,
             builtin_replaced_by_script: &builtin_replaced_by_script,
             locations: CommandLocations::from(anchors),

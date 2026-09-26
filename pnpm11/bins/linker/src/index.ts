@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, isShimForMissingTarget, isShimNodePath, isShimPointingAt } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, getPhysicalShimDir, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -29,7 +29,17 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 // A cmd-shim is a small shell script. Anything larger is a binary and should not be read.
-const CMD_SHIM_MAX_SIZE = 4 * 1024
+// A POSIX shim written on Windows lists NODE_PATH in two forms and can pass 4 KiB.
+const CMD_SHIM_MAX_SIZE = 64 * 1024
+
+/**
+ * The directory holding the `node` executable of the Node.js runtime package
+ * installed at `nodeDir`: `nodeDir` itself on Windows, its `bin` directory
+ * elsewhere.
+ */
+export function nodeRuntimeBinDir (nodeDir: string): string {
+  return IS_WINDOWS ? nodeDir : path.join(nodeDir, 'bin')
+}
 
 export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
@@ -163,15 +173,17 @@ async function _linkBins (
 
   // deduplicate bin names to prevent race conditions (multiple writers for the same file)
   allCmds = deduplicateCommands(allCmds, binsDir)
+  for (const cmd of allCmds) opts.linkedCommandNames?.add(cmd.name)
 
   await fs.mkdir(binsDir, { recursive: true })
+  const physicalBinsDir = await getPhysicalShimDir(binsDir)
 
   // Removals finish before any shim is written: on Windows the siblings of a
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
   const removals = await Promise.allSettled(allCmds.map(async (cmd) => removeBinIfTargetAwaited(cmd, binsDir, opts)))
   const cmdsToLink = allCmds.filter((_, i) => removals[i].status === 'fulfilled' && !removals[i].value)
   if (cmdsToLink.length < allCmds.length) opts.heldBackBinsDirs?.add(binsDir)
-  const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, opts)))
+  const results = await Promise.allSettled(cmdsToLink.map(async cmd => linkBin(cmd, binsDir, { ...opts, physicalBinsDir })))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of [...removals, ...results]) {
@@ -297,7 +309,7 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
     // In a hoisted layout, it may be in one of the parent node_modules directories.
     const nodeDir = path.dirname(require.resolve('node/CHANGELOG.md', { paths: [pkgDir] }))
     if (nodeDir) {
-      nodeExecPath = path.join(nodeDir, IS_WINDOWS ? 'node.exe' : 'bin/node')
+      nodeExecPath = path.join(nodeRuntimeBinDir(nodeDir), IS_WINDOWS ? 'node.exe' : 'node')
     }
   }
   return cmds.map((cmd) => ({
@@ -318,6 +330,8 @@ function runtimeHasNodeDownloaded (runtime: EngineDependency | EngineDependency[
 }
 
 export interface LinkBinOptions {
+  /** The command names selected by this bin-link pass. */
+  linkedCommandNames?: Set<string>
   /**
    * `NODE_PATH` entries after the bin's own dependency directories. An empty
    * list means none. When omitted, an existing shim keeps its `NODE_PATH`.
@@ -343,8 +357,9 @@ export interface LinkBinOptions {
   heldBackBinsDirs?: Set<string>
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions): Promise<void> {
+async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions & { physicalBinsDir: string }): Promise<void> {
   const externalBinPath = path.join(binsDir, cmd.name)
+  const shShimDir = await getShShimDir(cmd.path, externalBinPath, { physicalDir: opts.physicalBinsDir })
   // Not writing a PowerShell shim is not enough to keep one out of the bin
   // directory: an install that did want one leaves it behind, and PowerShell
   // keeps preferring it over the .cmd shim. This runs above the short-circuits
@@ -365,10 +380,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
         (!EXECUTABLE_SHEBANG_SUPPORTED || await canSymlinkExecutable(cmd.path))
     } else if (stat.isFile() && stat.size < CMD_SHIM_MAX_SIZE) {
       const content = await fs.readFile(externalBinPath, 'utf8')
+      const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
+      const storedRelativeTarget = readShRelativeTarget(content)
+      const isRelativeTargetCurrent = path.isAbsolute(expectedRelativeTarget)
+        ? storedRelativeTarget == null
+        : storedRelativeTarget === expectedRelativeTarget
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
+        (!IS_WINDOWS || existsSync(`${externalBinPath}.cmd`)) &&
         (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
+        isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&
+        isRelativeTargetCurrent &&
         (
-          (opts?.extraNodePaths == null && opts?.projectModulesDir == null) ||
+          (opts.extraNodePaths == null && opts.projectModulesDir == null) ||
           isShimNodePath(content, {
             first: opts.projectModulesDir,
             // The shim lists every entry once, at its first position.
@@ -382,7 +405,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // the store, but we won't necessarily have reapplied the executable bit -
     // so apply it here.
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
-      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+      await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
     }
     return
   }
@@ -394,7 +417,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     // control npm's cmd shims, which break when node resolves to node.cmd.
     // npm's cmd shims use `IF EXIST "%~dp0\node.exe"` to find the node binary.
     const isNodeExe = cmd.name === 'node' && cmd.path.toLowerCase().endsWith('.exe')
-    if (existsSync(exePath)) {
+    // A dangling symlink must be removed too, so the check can't follow links.
+    if (await isPathPresent(exePath)) {
       // Skip warning and re-linking when the existing node.exe already matches
       // the target, otherwise every command that re-links node would spam the
       // warning below on warm installs.
@@ -423,10 +447,10 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     return
   }
 
-  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
+  if (opts.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null && await canSymlinkExecutable(cmd.path)) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+      await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
@@ -438,7 +462,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 
   try {
     let nodePath: string[] | undefined
-    if (opts?.extraNodePaths?.length || opts?.projectModulesDir) {
+    if (opts.extraNodePaths?.length || opts.projectModulesDir) {
       nodePath = Array.from(new Set([
         ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
         ...await getBinNodePaths(cmd.path, opts.projectModulesDir),
@@ -449,6 +473,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
+      shShimDir,
     })
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT' || err.code === 'EISDIR') {
@@ -467,7 +492,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await ensureExecutableIfNeeded(cmd.path, 0o755, { allowMissing: true })
+    await ensureExecutableIfNeeded(cmd.path, { allowMissing: true })
   }
 }
 
@@ -585,6 +610,16 @@ async function isBinTargetMissing (target: string): Promise<boolean> {
   return !IS_WINDOWS || path.extname(target) !== '' || isMissing(`${target}${getExeExtension()}`)
 }
 
+async function isPathPresent (file: string): Promise<boolean> {
+  try {
+    await fs.lstat(file)
+    return true
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
 async function isMissing (file: string): Promise<boolean> {
   try {
     await fs.stat(file)
@@ -607,26 +642,28 @@ async function canSymlinkExecutable (file: string): Promise<boolean> {
   }
 }
 
-async function ensureExecutableIfNeeded (file: string, mode: number, opts?: { allowMissing?: boolean }): Promise<void> {
+async function ensureExecutableIfNeeded (file: string, opts?: { allowMissing?: boolean }): Promise<void> {
   const stat = await fs.stat(file).catch((err: any) => { // eslint-disable-line
     if (opts?.allowMissing && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
     throw err
   })
   if (stat == null) return
   if ((stat.mode & 0o111) !== 0o111 || await hasWindowsShebang(file)) {
-    await ensureExecutable(file, mode)
+    await ensureExecutable(file)
   }
 }
 
 // Only installed package files may be repaired. Resolve symlinks before checking
 // because workspace and link: dependencies also appear under node_modules.
-async function ensureExecutable (file: string, mode: number): Promise<void> {
+async function ensureExecutable (file: string): Promise<void> {
   const realFile = await fs.realpath(file)
   if (!path.dirname(realFile).split(path.sep).includes('node_modules')) return
   const stat = await fs.stat(realFile)
   if ((stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))) return
   try {
-    await fixBin(realFile, mode)
+    // Add only the execute bits the target lacks, so a bin imported under a
+    // strict umask keeps the read and write bits that umask gave it (pnpm/pnpm#3807).
+    await fixBin(realFile, (stat.mode & 0o777) | 0o111)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {
       const stat = await fs.stat(realFile).catch(() => undefined)

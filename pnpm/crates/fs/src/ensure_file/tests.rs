@@ -6,7 +6,7 @@ use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use super::{EMFILE, ENFILE, retry_on_fd_pressure};
+use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
 
 #[test]
 fn writes_a_new_file() {
@@ -43,6 +43,76 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
+}
+
+/// Repairing a corrupt CAS blob with `ensure_cas_file` must keep the
+/// inode so hard-linked copies — other projects' `node_modules`
+/// entries importing the same blob — are healed by the same write
+/// (pnpm/pnpm#3445). `ensure_file`'s rename repair would swap the
+/// inode and leave the linked copy corrupt.
+#[cfg(unix)]
+#[test]
+fn cas_repair_preserves_inode_and_heals_hard_links() {
+    use std::os::unix::fs::MetadataExt;
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("cas_entry");
+    ensure_cas_file(&path, b"original", None).unwrap();
+    let linked = tmp.path().join("linked_copy");
+    fs::hard_link(&path, &linked).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
+
+    // Editing through the hard link corrupts the store blob in place,
+    // changing its size (an appended line) — the size-mismatch branch.
+    fs::write(&linked, b"hacked from another project").unwrap();
+
+    ensure_cas_file(&path, b"original", None).expect("in-place repair");
+
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    assert_eq!(fs::read(&linked).unwrap(), b"original", "hard-linked copy must be healed");
+}
+
+/// Same as above through the same-length byte-mismatch branch, where
+/// the size-check short-circuit does not fire.
+#[cfg(unix)]
+#[test]
+fn cas_repair_preserves_inode_for_same_length_corruption() {
+    use std::os::unix::fs::MetadataExt;
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("cas_entry");
+    ensure_cas_file(&path, b"original", None).unwrap();
+    let linked = tmp.path().join("linked_copy");
+    fs::hard_link(&path, &linked).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
+
+    fs::write(&linked, b"tampered").unwrap();
+
+    ensure_cas_file(&path, b"original", None).expect("in-place repair");
+
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    assert_eq!(fs::read(&linked).unwrap(), b"original");
+}
+
+/// A corrupt blob without the owner-write bit refuses the in-place
+/// write open, so the repair falls back to the atomic rename and still
+/// restores the content.
+#[cfg(unix)]
+#[test]
+fn cas_repair_of_write_protected_blob_falls_back_to_rename() {
+    use std::os::unix::fs::PermissionsExt;
+
+    for mode in [0o444, 0o464] {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("cas_entry");
+        ensure_cas_file(&path, b"original", None).unwrap();
+        fs::write(&path, b"tampered").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+
+        ensure_cas_file(&path, b"original", None).expect("repair of a write-protected blob");
+
+        assert_eq!(fs::read(&path).unwrap(), b"original", "mode {mode:o}");
+    }
 }
 
 #[test]

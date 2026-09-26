@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { linkBins } from '@pnpm/bins.linker'
 import { STORE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
@@ -772,6 +773,89 @@ test('self-update by exact older version skips the no-downgrade guard', async ()
   expect(fs.existsSync(globalDir)).toBe(true)
 })
 
+test('self-update does not suggest downgrading a project pin held back by minimumReleaseAge', async () => {
+  // Reproduces pnpm/pnpm#12006: the project pin is the registry's real
+  // `latest`, but that version is younger than minimumReleaseAge, so
+  // resolution falls back to the previous mature release. Suggesting
+  // `pnpm self-update latest` to "downgrade" would rewrite the pin away
+  // from the version the project already selected.
+  const opts = prepare({
+    packageManager: 'pnpm@9.1.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  seedGlobalPnpm(opts, '9.0.0')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.1.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v9.1.0. The latest version that meets minimumReleaseAge is v9.0.0. v9.1.0 on the registry is still within the cutoff. No update performed.')
+  expect(output).not.toMatch(/downgrade/)
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
+})
+
+test('self-update still offers a downgrade when latest is actually older, even with minimumReleaseAge', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@10.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registriesByScope.default, [], {
+      '9.5.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). No update performed. Run "pnpm self-update latest" to downgrade.')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@10.0.0')
+})
+
+test('self-update names the immature registry latest when it is still older than the pin', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@10.0.0',
+  })
+  const now = Date.now()
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registriesByScope.default, ['9.0.0'], {
+      '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.5.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). The latest version that meets minimumReleaseAge is v9.0.0. No update performed. Run "pnpm self-update latest" to downgrade.')
+})
+
 test('self-update refuses to downgrade the project pin when latest is older', async () => {
   const opts = prepare({
     packageManager: 'pnpm@10.0.0',
@@ -1220,6 +1304,28 @@ console.log('9.2.0')`, 'utf8')
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.2.0')
+})
+
+test('self-update replaces the pnpm installed under the other package name', async () => {
+  // https://github.com/pnpm/pnpm/issues/14709
+  const opts = prepare()
+  const exeInstallDir = path.join(opts.globalPkgDir, 'exe-install')
+  fs.mkdirSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe'), { recursive: true })
+  fs.writeFileSync(path.join(exeInstallDir, 'package.json'), '{"dependencies":{"@pnpm/exe":"9.0.0"}}', 'utf8')
+  fs.writeFileSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe/package.json'), '{"name":"@pnpm/exe","version":"9.0.0"}', 'utf8')
+  fs.symlinkSync(exeInstallDir, path.join(opts.globalPkgDir, 'exe-hash'))
+  const toolInstallDir = path.join(opts.globalPkgDir, 'tool-install')
+  fs.mkdirSync(toolInstallDir)
+  fs.writeFileSync(path.join(toolInstallDir, 'package.json'), '{"dependencies":{"typescript":"6.0.0"}}', 'utf8')
+  fs.symlinkSync(toolInstallDir, path.join(opts.globalPkgDir, 'tool-hash'))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler(opts, ['9.1.0'])
+
+  expect(scanGlobalPackages(opts.globalPkgDir).map((group) => group.dependencies).sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]))).toStrictEqual([
+    { pnpm: '9.1.0' },
+    { typescript: '6.0.0' },
+  ])
 })
 
 test('self-update works globally without package.json', async () => {

@@ -8,23 +8,114 @@ use crate::config_deps;
 /// project pinned to a newer pnpm than the registry's `latest`. The env
 /// lockfile lives at the workspace root, not necessarily the command's
 /// `--dir`.
-pub(super) fn project_pin_refusal(
-    config: &Config,
+pub(super) async fn project_pin_refusal(
+    config: &'static Config,
     dir: &Path,
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
     is_implicit_latest: bool,
-) -> Option<String> {
+) -> miette::Result<Option<String>> {
     if !is_implicit_latest || pm.version.as_deref() == Some(target_version) {
-        return None;
+        return Ok(None);
     }
     let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-    let current = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())?;
-    version_lt(target_version, &current).then(|| {
-        format!(
-            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
-        )
-    })
+    let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
+    else {
+        return Ok(None);
+    };
+    if !version_lt(target_version, &current) {
+        return Ok(None);
+    }
+    let registry_latest = registry_latest_ignoring_maturity(config).await?;
+    Ok(Some(implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Project,
+        &current,
+        target_version,
+        registry_latest.as_deref(),
+    )))
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum NoUpgradeKind {
+    Active,
+    Project,
+}
+
+/// The no-upgrade message for implicit `pnpm self-update`.
+///
+/// When `registry_latest` is at least `current`, the pick is older only
+/// because `minimumReleaseAge` held the real `latest` tag back. Do not
+/// suggest a downgrade (pnpm/pnpm#12006).
+pub(super) fn implicit_latest_no_upgrade_message(
+    kind: NoUpgradeKind,
+    current: &str,
+    target: &str,
+    registry_latest: Option<&str>,
+) -> String {
+    match registry_latest {
+        Some(registry_latest) if !version_lt(registry_latest, current) => {
+            age_hold_message(kind, current, target, registry_latest)
+        }
+        Some(registry_latest) if registry_latest != target => {
+            lagging_latest_behind_cutoff_message(kind, current, target, registry_latest)
+        }
+        _ => lagging_latest_message(kind, current, target),
+    }
+}
+
+pub(super) async fn registry_latest_ignoring_maturity(
+    config: &'static Config,
+) -> miette::Result<Option<String>> {
+    if config.resolved_minimum_release_age().is_none() {
+        return Ok(None);
+    }
+    let resolved =
+        Box::pin(config_deps::resolve_engine_version_ignoring_maturity(config, "pnpm", "latest"))
+            .await?;
+    Ok(resolved.map(|resolved| resolved.version))
+}
+
+fn age_hold_message(
+    kind: NoUpgradeKind,
+    current: &str,
+    target: &str,
+    registry_latest: &str,
+) -> String {
+    match kind {
+        NoUpgradeKind::Active => format!(
+            "The currently active pnpm v{current} is newer than the latest version that meets minimumReleaseAge (v{target}). v{registry_latest} on the registry is still within the cutoff. No update performed.",
+        ),
+        NoUpgradeKind::Project => format!(
+            "The current project is set to use pnpm v{current}. The latest version that meets minimumReleaseAge is v{target}. v{registry_latest} on the registry is still within the cutoff. No update performed.",
+        ),
+    }
+}
+
+fn lagging_latest_behind_cutoff_message(
+    kind: NoUpgradeKind,
+    current: &str,
+    target: &str,
+    registry_latest: &str,
+) -> String {
+    match kind {
+        NoUpgradeKind::Active => format!(
+            r#"The currently active pnpm v{current} is newer than the "latest" version on the registry (v{registry_latest}). The latest version that meets minimumReleaseAge is v{target}. No update performed. Run "pnpm self-update latest" to downgrade."#,
+        ),
+        NoUpgradeKind::Project => format!(
+            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{registry_latest}). The latest version that meets minimumReleaseAge is v{target}. No update performed. Run "pnpm self-update latest" to downgrade."#,
+        ),
+    }
+}
+
+fn lagging_latest_message(kind: NoUpgradeKind, current: &str, target: &str) -> String {
+    match kind {
+        NoUpgradeKind::Active => format!(
+            r#"The currently active pnpm v{current} is newer than the "latest" version on the registry (v{target}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        ),
+        NoUpgradeKind::Project => format!(
+            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target}). No update performed. Run "pnpm self-update latest" to downgrade."#,
+        ),
+    }
 }
 
 /// Update the project's `packageManager` / `devEngines.packageManager`

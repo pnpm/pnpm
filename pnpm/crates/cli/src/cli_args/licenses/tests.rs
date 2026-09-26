@@ -1,7 +1,7 @@
 use super::{
     BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
     collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
-    render_package_name, select_newer_version,
+    record_license, render_package_name, select_newer_version,
 };
 use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
 use pnpm_package_is_installable::InstallabilityOptions;
@@ -405,4 +405,34 @@ fn a_dev_dependency_that_satisfies_an_optional_peer_stays_dev() {
             ("peer-c@1.0.0".to_string(), BelongsTo::Dev),
         ],
     );
+}
+
+#[tokio::test]
+async fn license_report_keeps_newest_metadata_and_every_installed_version() {
+    let workspace = TempDir::new().unwrap();
+    let mut groups = indexmap::IndexMap::new();
+    for version in ["1.0.0", "3.0.0", "2.0.0"] {
+        let dir = workspace.path().join(version);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            json!({
+                "name": "alpha",
+                "version": version,
+                "license": "MIT",
+                "author": version,
+                "homepage": format!("https://example.com/{version}"),
+                "description": version,
+            })
+            .to_string(),
+        )
+        .unwrap();
+        record_license(&mut groups, BelongsTo::Prod, "alpha", version, &dir).await;
+    }
+    let info = &groups["MIT"]["alpha"];
+    assert_eq!(info.author.as_deref(), Some("3.0.0"));
+    assert_eq!(info.homepage.as_deref(), Some("https://example.com/3.0.0"));
+    assert_eq!(info.description.as_deref(), Some("3.0.0"));
+    assert_eq!(info.versions, ["1.0.0", "3.0.0", "2.0.0"]);
+    assert_eq!(info.paths.len(), 3);
 }

@@ -76,6 +76,9 @@ pub(super) async fn resolve_aliasless_local(
         lockfile_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::On,
+        // `is_local_filesystem_specifier` above never claims a `workspace:`
+        // spec, so this setting has nothing to apply to here.
+        inject_workspace_packages: false,
     };
     let mut claimed =
         resolve_from_local_scheme(&ctx, &wanted, &opts).await.map_err(AddError::ResolveLocal)?;
@@ -322,7 +325,7 @@ pub(super) fn aliasless_git_resolver(
     let http_client = &inputs.owned.http_client_arc;
     GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(http_client))),
-        Arc::new(RealGitRunner::new()),
+        Arc::new(RealGitRunner::new().with_connect_guard(config.auth_headers.connect_guard())),
     )
     .with_fetch_context(GitFetchContext {
         source_cache: Arc::clone(inputs.git_source_cache),

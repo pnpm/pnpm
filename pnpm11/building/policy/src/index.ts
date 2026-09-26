@@ -1,6 +1,6 @@
 import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
 import * as dp from '@pnpm/deps.path'
-import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
+import type { AllowBuild, AllowBuildContext, DepPath, IgnoredBuilds } from '@pnpm/types'
 
 /**
  * The placeholder value written to `allowBuilds` for a package whose build
@@ -10,6 +10,16 @@ export const UNDECIDED_ALLOW_BUILD = 'set this to true or false'
 
 export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
   return allowBuild?.(depPath) === false
+}
+
+/**
+ * The ignored builds the policy has no verdict on. A recorded build the policy
+ * denies was decided on purpose, and one it allows is waiting for a rebuild, so
+ * only the undecided entries are returned.
+ */
+export function unapprovedIgnoredBuilds (ignoredBuilds: IgnoredBuilds | undefined, allowBuild?: AllowBuild): DepPath[] {
+  if (!ignoredBuilds?.size) return []
+  return Array.from(ignoredBuilds).filter((depPath) => allowBuild?.(depPath) === undefined)
 }
 
 export function createAllowBuildFunction (

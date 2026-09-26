@@ -86,6 +86,16 @@ export interface DirectoryFetcherResult {
   packageImportMethod: 'hardlink'
   manifest?: DependencyManifest
   requiresBuild: boolean
+  /**
+   * Whether the resolution's directory existed to walk. A project whose
+   * packed content is the output of its own `prepare` script (a
+   * `publishConfig.directory` built by `prepare`) has no source directory on
+   * a fresh install, so `false` here comes with an empty `filesMap` that
+   * does not mean the source is genuinely empty. Importers must not treat
+   * that as a reason to force a reimport that would overwrite an
+   * already-materialized copy.
+   */
+  sourceExists: boolean
 }
 
 export type DirectoryFetcher = FetchFunction<DirectoryResolution, DirectoryFetcherOptions, DirectoryFetcherResult>

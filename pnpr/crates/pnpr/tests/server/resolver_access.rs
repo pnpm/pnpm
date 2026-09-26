@@ -1,8 +1,8 @@
 use super::{
-    AuthState, Body, Bytes, Duration, HeaderValue, Infallible, MaxUsers, Ordering, PublicRoute,
-    Request, ServiceExt, StatusCode, TempDir, body_bytes, body_json, config_for,
+    AuthState, Body, Bytes, Duration, HeaderValue, Infallible, IpNetwork, MaxUsers, Ordering,
+    PublicRoute, Request, ServiceExt, StatusCode, TempDir, body_bytes, body_json, config_for,
     drain_resolve_response, git_resolve_request, header, json, router, router_with_auth,
-    spawn_git_probe, stream, verify_lockfile_request,
+    spawn_counting_server, spawn_git_probe, stream, verify_lockfile_request,
 };
 
 #[tokio::test]
@@ -459,4 +459,181 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     assert_eq!(verify.status(), StatusCode::NOT_FOUND);
 
     mock.assert_async().await;
+}
+
+/// Resolve `transitive` as the only dependency of an allowlisted upstream
+/// package, returning how many connections reached the off-allowlist target.
+async fn transitive_dependency_egress(transitive: impl FnOnce(&str) -> String) -> usize {
+    let (probe_url, request_count) = spawn_git_probe().await;
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "carrier",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": {
+            "name": "carrier",
+            "version": "1.0.0",
+            "dependencies": { "inner": transitive(&probe_url) },
+            "dist": {
+                "tarball": format!("{}/carrier/-/carrier-1.0.0.tgz", upstream.url()),
+                "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+            },
+        } },
+    });
+    upstream
+        .mock("GET", "/carrier")
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config_for(&upstream.url(), tmp.path().to_path_buf()), auth);
+    let body = json!({
+        "dependencies": { "carrier": "1.0.0" },
+        "registry": format!("{}/", upstream.url()),
+        "trustLockfile": true,
+        "preferFrozenLockfile": false,
+    });
+    let response = app
+        .oneshot(
+            Request::post("/-/pnpr/v0/resolve")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let body = String::from_utf8_lossy(&body);
+    assert!(body.contains(r#""type":"error""#));
+    assert!(body.contains("is not allowed by this pnpr server"), "{body}");
+    request_count.load(Ordering::SeqCst)
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn resolve_does_not_fetch_an_off_allowlist_transitive_tarball() {
+    let egress =
+        transitive_dependency_egress(|probe| probe.replace("/repo.git", "/inner.tgz")).await;
+    assert_eq!(egress, 0);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn resolve_does_not_fetch_an_off_allowlist_transitive_git_dependency() {
+    let egress = transitive_dependency_egress(|probe| format!("git+{probe}#main")).await;
+    assert_eq!(egress, 0);
+}
+
+/// Resolve a package from the public route `http://{host}:<probe port>/`,
+/// with `allowed_private_networks` exempt from the connect policy, returning
+/// how many connections reached the probe and the resolve's response body.
+async fn allowlisted_registry_egress(
+    host: &str,
+    allowed_private_networks: &[&str],
+) -> (usize, String) {
+    let (origin, request_count) = spawn_counting_server(
+        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    let port = url::Url::parse(&origin)
+        .unwrap()
+        .port()
+        .unwrap();
+    let registry = format!("http://{host}:{port}/");
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(registry.clone()),
+        package: None,
+    });
+    config.routing.route_policy.allowed_private_networks = allowed_private_networks
+        .iter()
+        .map(|network| IpNetwork::parse(network).unwrap())
+        .collect();
+    let body = json!({
+        "dependencies": { "carrier": "1.0.0" },
+        "registry": registry,
+        "trustLockfile": true,
+        "preferFrozenLockfile": false,
+    });
+    let response = router_with_auth(config, auth)
+        .oneshot(
+            Request::post("/-/pnpr/v0/resolve")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+    assert_eq!(status, StatusCode::OK);
+    let body = String::from_utf8_lossy(&body).into_owned();
+    assert!(body.contains(r#""type":"error""#), "{body}");
+    (request_count.load(Ordering::SeqCst), body)
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn resolve_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback() {
+    let (egress, body) = allowlisted_registry_egress("localhost", &[]).await;
+    assert_eq!(egress, 0);
+    assert!(body.contains("which this client is not allowed to connect to"), "{body}");
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn resolve_does_not_connect_to_an_allowlisted_loopback_literal() {
+    let (egress, body) = allowlisted_registry_egress("127.0.0.1", &[]).await;
+    assert_eq!(egress, 0);
+    assert!(body.contains("is not allowed by this pnpr server"), "{body}");
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn resolve_connects_to_an_allowed_private_network() {
+    let (egress, _) = allowlisted_registry_egress("localhost", &["127.0.0.0/8", "::1"]).await;
+    assert!(egress >= 1);
+    let (egress, _) = allowlisted_registry_egress("127.0.0.1", &["127.0.0.0/8"]).await;
+    assert!(egress >= 1);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn git_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback() {
+    let (origin, request_count) = spawn_counting_server(
+        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    let port = url::Url::parse(&origin)
+        .unwrap()
+        .port()
+        .unwrap();
+    let repo_url = format!("http://localhost:{port}/repo.git");
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(format!("http://localhost:{port}/")),
+        package: None,
+    });
+    config.routing.route_policy.allowed_private_networks = Vec::new();
+    let response = router_with_auth(config, auth)
+        .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
+        .await
+        .unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+    let body = String::from_utf8_lossy(&body);
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(request_count.load(Ordering::SeqCst), 0, "{body}");
+    assert!(body.contains("which this client is not allowed to connect to"), "{body}");
 }

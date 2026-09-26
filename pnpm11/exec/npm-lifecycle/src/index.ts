@@ -13,6 +13,7 @@ import uidNumber from 'uid-number'
 import { extendPath } from './extendPath.js'
 import { makePackageManagerEnv } from './makePackageManagerEnv.js'
 import { missingScriptShellError, SCRIPT_SHELL_NOT_FOUND } from './missingScriptShell.js'
+import { selectShell } from './selectShell.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
@@ -351,16 +352,8 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     conf.gid = owner.gid ^ 0
   }
 
-  let sh = 'sh'
-  let shFlag = '-c'
-
-  const customShell = opts.scriptShell
-
-  if (customShell) {
-    sh = customShell
-  } else if (process.platform === 'win32') {
-    sh = process.env.comspec ?? 'cmd'
-    shFlag = '/d /s /c'
+  const { sh, shFlag, windowsVerbatimArguments } = selectShell(opts.scriptShell || undefined, process.platform, process.env.comspec)
+  if (windowsVerbatimArguments) {
     conf.windowsVerbatimArguments = true
   }
 

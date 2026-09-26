@@ -1,6 +1,6 @@
 export { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 export { type GlobalAddOptions, handleGlobalAdd } from './globalAdd.js'
-export { handleGlobalRemove } from './globalRemove.js'
+export { handleGlobalRemove, removeGlobalGroups } from './globalRemove.js'
 export { type GlobalUpdateOptions, handleGlobalUpdate } from './globalUpdate.js'
 export { installGlobalPackages, type InstallGlobalPackagesOptions } from './installGlobalPackages.js'
 export { findGlobalInstallDirs, listGlobalPackages } from './listGlobalPackages.js'

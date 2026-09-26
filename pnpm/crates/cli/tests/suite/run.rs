@@ -389,6 +389,40 @@ fn run_preserves_embedded_quotes_in_script() {
     drop(root);
 }
 
+/// A `scriptShell` pointing at `cmd.exe` gets the same `/d /s /c` and
+/// verbatim script as the default shell. With `-c`, `cmd.exe` would take
+/// the `/c` inside `install/can-compile` as its own switch and try to run
+/// `an-compile` (pnpm/pnpm#7181).
+#[cfg(windows)]
+#[test]
+fn run_with_cmd_exe_script_shell_keeps_slash_c_inside_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "node install/can-compile" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::create_dir(workspace.join("install")).expect("create install dir");
+    fs::write(workspace.join("install/can-compile.js"), "process.stdout.write('can-compile-ran')")
+        .expect("write can-compile.js");
+    let cmd_exe =
+        std::env::var("ComSpec").unwrap_or_else(|_| r"C:\Windows\System32\cmd.exe".into());
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("scriptShell: '{cmd_exe}'\n"))
+        .expect("write pnpm-workspace.yaml");
+
+    let output = pacquet
+        .with_args(["run", "build"])
+        .output()
+        .expect("spawn pacquet run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the script must exit 0, got: {output:?}");
+    assert!(stdout.contains("can-compile-ran"), "stdout: {stdout:?}");
+
+    drop(root);
+}
+
 /// A failing `test` script prints pnpm's stage-specific lifecycle error
 /// (`Test failed. See above for more details.`) rather than the generic
 /// exit-code line, matching reportLifecycleError's `test` special case.

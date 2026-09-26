@@ -124,19 +124,18 @@ pub(crate) fn included_dependency_groups(
     dev: bool,
     include_optional: bool,
 ) -> impl Iterator<Item = DependencyGroup> {
-    // `--prod` wins over `--dev`, and a dev-only install drops optional
-    // dependencies along with the production ones.
-    let (has_prod, has_dev, has_optional) = if prod {
-        (true, false, include_optional)
+    // `--prod` wins over `--dev`.
+    let (has_prod, has_dev) = if prod {
+        (true, false)
     } else if dev {
-        (false, true, false)
+        (false, true)
     } else {
-        (true, true, include_optional)
+        (true, true)
     };
     std::iter::empty()
         .chain(has_prod.then_some(DependencyGroup::Prod))
         .chain(has_dev.then_some(DependencyGroup::Dev))
-        .chain(has_optional.then_some(DependencyGroup::Optional))
+        .chain(include_optional.then_some(DependencyGroup::Optional))
 }
 
 #[derive(Debug, Default, Clone, Args)]

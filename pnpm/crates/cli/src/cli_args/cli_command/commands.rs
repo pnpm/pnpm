@@ -100,7 +100,10 @@ pub enum CliCommand {
     /// built-in command regardless.
     #[clap(name = "rb")]
     Rb(RebuildArgs),
-    /// Create a tarball from a package
+    /// Create a tarball from a package.
+    ///
+    /// Use --silent to suppress the tarball contents and summary.
+    /// With --json, lifecycle output and the final JSON result remain visible.
     Pack(PackArgs),
     /// Publish a package to the registry
     Publish(PublishArgs),

@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import util from 'node:util'
 
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
+import { withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
 import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -604,6 +606,14 @@ async function symlinkHoistedDependency (
   depLocation: string,
   dest: string
 ): Promise<void> {
+  return withFileLockRetryAsync(() => symlinkHoistedDependencyOnce(opts, depLocation, dest))
+}
+
+async function symlinkHoistedDependencyOnce (
+  opts: { virtualStoreDir: string, internalPnpmDir: string },
+  depLocation: string,
+  dest: string
+): Promise<void> {
   try {
     await symlinkDir(depLocation, dest, { overwrite: false })
     linkLogger.debug({ target: dest, link: depLocation })
@@ -613,8 +623,12 @@ async function symlinkHoistedDependency (
   }
   let existingSymlink!: string
   try {
-    existingSymlink = await resolveLinkTarget(dest)
-  } catch {
+    existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return createHoistedDependencyLink(depLocation, dest)
+    }
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',
@@ -629,9 +643,67 @@ async function symlinkHoistedDependency (
     })
     return
   }
-  await fs.promises.unlink(dest)
-  await symlinkDir(depLocation, dest)
+  try {
+    await fs.promises.unlink(dest)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+  }
+  await createHoistedDependencyLink(depLocation, dest)
+}
+
+async function createHoistedDependencyLink (depLocation: string, dest: string): Promise<void> {
+  let retries = 0
+  while (true) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await symlinkDir(depLocation, dest, { overwrite: false })
+      break
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
+      let winningTarget: string
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
+      } catch (readError: unknown) {
+        retries += 1
+        if (util.types.isNativeError(readError) && 'code' in readError) {
+          if (readError.code === 'ENOENT' && retries <= 100) continue
+          if (readError.code === 'EINVAL') {
+            // macOS can report EINVAL when a concurrent unlink interrupts readlink.
+            try {
+              // eslint-disable-next-line no-await-in-loop
+              const stat = await fs.promises.lstat(dest)
+              // eslint-disable-next-line no-await-in-loop
+              if ((stat.isSymbolicLink() || await mayBeJunctionInCreation(dest, stat)) && retries <= 100) {
+                // eslint-disable-next-line no-await-in-loop
+                await delay(1)
+                continue
+              }
+            } catch (statError: unknown) {
+              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
+            }
+          }
+        }
+        throw err
+      }
+      if (path.relative(depLocation, winningTarget) !== '') throw err
+      break
+    }
+  }
   linkLogger.debug({ target: dest, link: depLocation })
+}
+
+/**
+ * A junction is created as an empty directory that gets its reparse point
+ * afterwards, so a concurrent hoist can find an empty plain directory in its
+ * place for a moment. A junction completed after `stat` was read lists its
+ * target's entries, so a non-empty directory is checked again. Always false
+ * off Windows. Rejects if `dest` can no longer be listed or inspected.
+ */
+async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
+  if (process.platform !== 'win32' || !stat.isDirectory()) return false
+  if ((await fs.promises.readdir(dest)).length === 0) return true
+  return (await fs.promises.lstat(dest)).isSymbolicLink()
 }
 
 export function graphWalker<T extends string> (

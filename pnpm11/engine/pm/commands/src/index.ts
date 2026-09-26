@@ -4,4 +4,5 @@ export { type PnpmVersionLookup, prepareResolvePnpmVersion, type ResolvedPnpmVer
 export { type PnpmEngineToVerify, verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './self-updater/verifyPnpmEngineIdentity.js'
 export { setup } from './setup/index.js'
 export { LEGACY_HOME_DIR_SHIM_NAMES } from './setup/setup.js'
+export { spawnPnpm, type SpawnPnpmResult } from './spawnPnpm.js'
 export { withCmd } from './with/index.js'

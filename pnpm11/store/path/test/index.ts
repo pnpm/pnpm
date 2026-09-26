@@ -75,7 +75,7 @@ jest.unstable_mockModule('can-link', () => {
   }
 })
 
-const { getStorePath } = await import('@pnpm/store.path')
+const { getStorePath, getStorePathInPnpmHome } = await import('@pnpm/store.path')
 
 beforeEach(() => {
   canLinkMock.mockClear()
@@ -127,4 +127,12 @@ test('fail when pnpm home directory is not defined', async () => {
     // @ts-expect-error
     pnpmHomeDir: undefined,
   })).toThrow('The pnpm home directory is unknown. Cannot calculate the store directory location.')
+})
+
+test('getStorePathInPnpmHome() returns the versioned store in the pnpm home directory', () => {
+  expect(getStorePathInPnpmHome(PNPM_HOME_DIR)).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+})
+
+test('getStorePathInPnpmHome() fails without a pnpm home directory', () => {
+  expect(() => getStorePathInPnpmHome('')).toThrow('The pnpm home directory is unknown')
 })

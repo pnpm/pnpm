@@ -163,6 +163,9 @@
       "path": "../../worker"
     },
     {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
       "path": "../../workspace/project-manifest-reader"
     },
     {
