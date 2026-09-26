@@ -30,20 +30,6 @@ import { dropIncompletePublishTimes } from './publishTimes.js'
  */
 const ABBREVIATED_META_CONTENT_TYPE = 'application/vnd.npm.install-v1+json'
 
-/**
- * `true` when `Cache-Control` says the metadata document is already stale.
- * A positive `max-age` stays cacheable.
- */
-export function metadataResponseIsUncacheable (cacheControl: string | null): boolean {
-  if (cacheControl == null) return false
-  return cacheControl.split(',').some((directive) => {
-    const trimmed = directive.trim()
-    if (/^no-cache$/i.test(trimmed) || /^no-store$/i.test(trimmed)) return true
-    const match = /^max-age\s*=\s*(\d+)$/i.exec(trimmed)
-    return match?.[1] === '0'
-  })
-}
-
 interface RegistryResponse {
   status: number
   statusText: string
@@ -201,6 +187,18 @@ export async function fetchMetadataFromFromRegistry (
               'cache-control': 'no-cache',
             },
           }) as RegistryResponse
+        } else if (response.status === 304 && hasValidator && metadataResponseIsUncacheable(response.headers.get('cache-control'))) {
+          // A stale intermediary can answer the revalidation of a mirror
+          // written before pnpm recorded the policy. Ask once without
+          // validators; a second 304 still serves the mirror.
+          response = await fetchOpts.fetch(uri, {
+            ...requestOptions,
+            ifNoneMatch: undefined,
+            ifModifiedSince: undefined,
+            headers: {
+              'cache-control': 'no-cache',
+            },
+          }) as RegistryResponse
         }
       } catch (error: any) { // eslint-disable-line
         // Redact credentials embedded in the URL from the cause as well, not
@@ -346,4 +344,17 @@ function toUri (pkgName: string, registry: string): string {
   }
 
   return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
+}
+
+/**
+ * `true` when `Cache-Control` says the metadata document is already stale.
+ * A positive `max-age` stays cacheable.
+ */
+export function metadataResponseIsUncacheable (cacheControl: string | null): boolean {
+  if (cacheControl == null) return false
+  return cacheControl.split(',').some((directive) => {
+    const [name, value] = directive.split('=', 2).map((part) => part.trim().toLowerCase())
+    if (value == null) return name === 'no-cache' || name === 'no-store'
+    return name === 'max-age' && /^\d+$/.test(value) && Number(value) === 0
+  })
 }

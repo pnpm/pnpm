@@ -238,17 +238,6 @@ function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, met
 }
 
 /**
- * Offline and prefer-offline may serve a mirror the registry marked
- * uncacheable. Every other online path has to refetch it.
- */
-function canServeCachedMeta (
-  ctx: { offline?: boolean, preferOffline?: boolean },
-  meta: PackageMeta
-): boolean {
-  return ctx.offline === true || ctx.preferOffline === true || meta.uncacheable !== true
-}
-
-/**
  * The form in which a packument is retained in memory (see {@link clearMeta}
  * for why). Full documents reach even a plain install via optional
  * dependencies (fetched full for `libc`), release-age `time` upgrades, and
@@ -626,7 +615,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText, resultToSave.uncacheable), resultToSave.uncacheable === true)
+            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave), resultToSave.uncacheable === true)
           }
           attemptedReleaseAgeUpgrade = true
           const fullFetchResult = await ctx.fetch(spec.name, {
@@ -656,12 +645,11 @@ export async function pickPackage (
         // describes what is written — see `prepareJsonForDisk`.
         const etagForDisk = resultToSave === fetched ? fetched.etag : undefined
         const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, etagForDisk, undefined, resultToSave.uncacheable)
-          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave.jsonText, resultToSave.uncacheable)
+          ? prepareJsonForDisk(meta, etagForDisk, { uncacheable: resultToSave.uncacheable })
+          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave)
         saveMetaBestEffort(pkgMirror, jsonForDisk, resultToSave.uncacheable === true)
       }
       meta.etag = resultToSave.etag
-      if (resultToSave.uncacheable === true) meta.uncacheable = true
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       return {
@@ -670,6 +658,19 @@ export async function pickPackage (
       }
     }
   })
+}
+
+/**
+ * Offline and prefer-offline may serve a mirror the registry marked
+ * uncacheable. Every other online path has to refetch it. The flag is only
+ * set on packuments read from the mirror: a document fetched during this
+ * install stays reusable for the rest of it.
+ */
+function canServeCachedMeta (
+  ctx: { offline?: boolean, preferOffline?: boolean },
+  meta: PackageMeta
+): boolean {
+  return ctx.offline === true || ctx.preferOffline === true || meta.uncacheable !== true
 }
 
 // When `minimumReleaseAge` is active and we have abbreviated metadata (which
@@ -792,10 +793,9 @@ function persistUpgradedMeta (
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
-  if (upgradedFrom.uncacheable === true) metaForCache.uncacheable = true
   const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom.jsonText, upgradedFrom.uncacheable)
-    : prepareJsonForDisk(metaForCache, undefined, undefined, upgradedFrom.uncacheable)
+    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom)
+    : prepareJsonForDisk(metaForCache, undefined, { uncacheable: upgradedFrom.uncacheable })
   saveMetaBestEffort(pkgMirror, jsonForDisk, upgradedFrom.uncacheable === true)
   return metaForCache
 }
@@ -925,17 +925,22 @@ function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: st
  * slot. `modified` is always written: it comes from the packument's own
  * `time.modified`, which both representations report identically, so the next
  * request is still conditional through `If-Modified-Since`.
+ *
+ * `body.jsonText` is the raw registry body, written as is when given.
+ * `body.uncacheable` records that the response forbade caching, so the next
+ * online lookup refetches instead of revalidating.
  */
-export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string, uncacheable?: boolean): string {
+export function prepareJsonForDisk (
+  meta: PackageMeta,
+  etag: string | undefined,
+  body: { jsonText?: string, uncacheable?: boolean } = {}
+): string {
   const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify(uncacheable === true
-    ? { etag, modified, uncacheable: true }
-    : { etag, modified })
+  const headers = JSON.stringify({ etag, modified, uncacheable: body.uncacheable === true ? true : undefined })
   const bodyMeta = meta.etag == null && meta.uncacheable == null
     ? meta
     : { ...meta, etag: undefined, uncacheable: undefined }
-  const body = jsonText ?? JSON.stringify(bodyMeta)
-  return `${headers}\n${body}`
+  return `${headers}\n${body.jsonText ?? JSON.stringify(bodyMeta)}`
 }
 
 function isMissingTimeError (err: unknown): boolean {

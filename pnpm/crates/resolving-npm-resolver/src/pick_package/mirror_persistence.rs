@@ -119,7 +119,7 @@ pub fn persist_meta_to_mirror(
 ) -> Result<(), MirrorPersistError> {
     let path = get_pkg_mirror_path(cache_dir, meta_dir, registry, &meta.name)
         .map_err(|error| MirrorPersistError::EncodePath { error: error.to_string() })?;
-    save_meta_indexed(&path, meta, meta.etag.as_deref())
+    save_meta_indexed(&path, meta, meta.etag.as_deref(), false)
         .map_err(|error| MirrorPersistError::Write { error: error.to_string() })
 }
 

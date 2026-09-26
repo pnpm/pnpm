@@ -2,7 +2,7 @@ use super::{
     Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
     PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
     PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta, load_meta,
-    parse_packument_timestamp, save_meta_indexed_with_policy, save_meta_ndjson_with_policy,
+    parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
 };
 use crate::fetch_full_metadata::fetch_metadata_document;
 
@@ -198,15 +198,13 @@ pub(super) fn persist_upgraded_to_mirror(
 ) -> Option<Package> {
     let save_result = if filter_metadata {
         match clear_meta(meta) {
-            Ok(meta_for_cache) => {
-                save_meta_ndjson_with_policy(pkg_mirror, &meta_for_cache, None, uncacheable)
-            }
+            Ok(meta_for_cache) => save_meta_ndjson(pkg_mirror, &meta_for_cache, None, uncacheable),
             Err(error) => {
                 return failed_uncacheable_upgrade_persist(pkg_mirror, uncacheable, &error);
             }
         }
     } else {
-        save_meta_indexed_with_policy(pkg_mirror, meta, None, uncacheable)
+        save_meta_indexed(pkg_mirror, meta, None, uncacheable)
     };
     match save_result {
         Ok(()) if !filter_metadata => load_meta(pkg_mirror),

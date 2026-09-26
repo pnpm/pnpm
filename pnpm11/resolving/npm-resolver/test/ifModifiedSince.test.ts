@@ -11,6 +11,7 @@ import type { RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
+import { metadataResponseIsUncacheable } from '../src/fetch.js'
 import {
   fetchAbbreviatedMetadataCached,
   fetchFullMetadataCached,
@@ -305,6 +306,61 @@ test('max-age=0 metadata is refetched without validators', async () => {
   expect(secondResult!.id).toBe('is-positive@9.9.9')
 })
 
+test('metadataResponseIsUncacheable reads max-age numerically and ignores qualified no-cache', () => {
+  expect(metadataResponseIsUncacheable('max-age=0, private, must-revalidate')).toBe(true)
+  expect(metadataResponseIsUncacheable('MAX-AGE = 00')).toBe(true)
+  expect(metadataResponseIsUncacheable('No-Store')).toBe(true)
+  expect(metadataResponseIsUncacheable('public, no-cache')).toBe(true)
+  expect(metadataResponseIsUncacheable('no-cache="set-cookie"')).toBe(false)
+  expect(metadataResponseIsUncacheable('public, max-age=300')).toBe(false)
+  expect(metadataResponseIsUncacheable(null)).toBe(false)
+})
+
+test('an uncacheable 304 to a mirror without the flag is refetched without validators', async () => {
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registriesByScope.default, 'is-positive')
+  await saveMeta(pkgMirror, prepareJsonForDisk(isPositiveMeta, '"old"'))
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { 'if-none-match': '"old"' },
+    })
+    .reply(304, '', { headers: { 'cache-control': 'max-age=0, private, must-revalidate' } })
+  const version = isPositiveMeta.versions['3.1.0']
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, {
+      ...isPositiveMeta,
+      versions: { ...isPositiveMeta.versions, '9.9.9': { ...version, version: '9.9.9' } },
+    }, {
+      headers: {
+        etag: '"new"',
+        'cache-control': 'max-age=0, private, must-revalidate',
+      },
+    })
+
+  const result = await fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registriesByScope.default,
+  })
+
+  expect(result.versions['9.9.9']).toBeDefined()
+  const saved = await retryLoadJsonFile<{ uncacheable?: boolean }>(pkgMirror, (data) => data.uncacheable === true)
+  expect(saved.uncacheable).toBe(true)
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 test('a failed uncacheable metadata write removes the previous mirror', async () => {
   const cacheDir = temporaryDirectory()
   const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registriesByScope.default, 'is-positive')
@@ -348,7 +404,7 @@ test('a failed uncacheable metadata write removes the previous mirror', async ()
   }
 })
 
-test('max-age=0 exact version is not reused from memory or the disk mirror', async () => {
+test('max-age=0 metadata is reused within one install but not from the disk mirror', async () => {
   const cacheDir = temporaryDirectory()
   const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
   registry
@@ -377,26 +433,14 @@ test('max-age=0 exact version is not reused from memory or the disk mirror', asy
     })
     .reply(200, isPositiveMeta, {
       headers: {
-        etag: '"still-stale"',
-        'cache-control': 'max-age=0, private, must-revalidate',
-      },
-    })
-
-  expect((await resolve.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
-
-  const freshProcess = createResolveFromNpm(resolverOptions)
-  registry
-    .intercept({
-      path: '/is-positive',
-      method: 'GET',
-      headers: matchCacheBypassHeaders,
-    })
-    .reply(200, isPositiveMeta, {
-      headers: {
-        etag: '"from-disk"',
+        etag: '"new"',
         'cache-control': 'public, max-age=300',
       },
     })
+  expect((await resolve.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(1)
+
+  const freshProcess = createResolveFromNpm(resolverOptions)
   expect((await freshProcess.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
   getMockAgent().assertNoPendingInterceptors()
 })

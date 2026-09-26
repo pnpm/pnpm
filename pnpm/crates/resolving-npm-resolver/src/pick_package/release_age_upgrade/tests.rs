@@ -27,7 +27,7 @@ fn persist_upgraded_to_mirror_writes_no_etag_to_the_indexed_mirror() {
     let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
     assert_eq!(headers.etag, None);
     assert_eq!(headers.modified.as_deref(), Some(MODIFIED));
-    assert_eq!(headers.uncacheable, None);
+    assert!(!headers.uncacheable);
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn persist_upgraded_to_mirror_records_an_uncacheable_full_response() {
     persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, true);
 
     let headers = load_meta_headers(&pkg_mirror).expect("headers readable");
-    assert_eq!(headers.uncacheable, Some(true));
+    assert!(headers.uncacheable);
     assert_eq!(headers.etag, None);
 }
 
@@ -48,7 +48,7 @@ fn failed_uncacheable_upgrade_persist_removes_the_previous_mirror() {
     let pkg_mirror = dir.path().join("is-positive.jsonl");
     persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false);
     let before = load_meta_headers(&pkg_mirror).expect("seeded headers");
-    assert_eq!(before.uncacheable, None);
+    assert!(!before.uncacheable);
 
     fail_next_mirror_save();
     assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, true).is_none());
@@ -65,7 +65,7 @@ fn failed_cacheable_upgrade_persist_keeps_the_previous_mirror() {
     assert!(persist_upgraded_to_mirror(&pkg_mirror, &upgraded_meta(), false, false).is_none());
 
     let headers = load_meta_headers(&pkg_mirror).expect("previous mirror remains");
-    assert_eq!(headers.uncacheable, None);
+    assert!(!headers.uncacheable);
     assert_eq!(headers.modified.as_deref(), Some(MODIFIED));
 }
 

@@ -277,7 +277,7 @@ async fn pick_lowest_version_picks_min() {
 }
 
 #[tokio::test]
-async fn uncacheable_exact_version_is_refetched_instead_of_served_from_memory_or_disk() {
+async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror() {
     let mut server = mockito::Server::new_async().await;
     let first = server
         .mock("GET", "/acme")
@@ -294,35 +294,41 @@ async fn uncacheable_exact_version_is_refetched_instead_of_served_from_memory_or
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
-    let meta_cache = InMemoryPackageMetaCache::default();
-    let fetch_locker = shared_packument_fetch_locker();
-    let ctx = PickPackageContext {
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
-            ignore_missing_time_field: false,
-        },
-        metadata: crate::MetadataRequestContext {
-            meta_cache: &meta_cache,
-            fetch_locker: &fetch_locker,
-            cache_dir: Some(cache_dir.path()),
-            http: crate::MetadataHttpClient {
-                http_client: &http_client,
-                auth_headers: &auth_headers,
-                retry_opts: RetryOpts::default(),
-            },
-        },
-    };
     let spec = version_spec("acme", "1.0.0");
     let opts = default_opts(&registry);
-    pick_package(&ctx, &spec, &opts).await.expect("first pick");
-    let key = format!("{registry}\x00acme");
-    assert!(meta_cache.get(&key).is_none(), "uncacheable packument must not stay in memory");
+    let pick_in_new_install = async || {
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            cache_policy: crate::MetadataCachePolicy {
+                offline: false,
+                prefer_offline: false,
+                ignore_missing_time_field: false,
+            },
+            metadata: crate::MetadataRequestContext {
+                meta_cache: &meta_cache,
+                fetch_locker: &fetch_locker,
+                cache_dir: Some(cache_dir.path()),
+                http: crate::MetadataHttpClient {
+                    http_client: &http_client,
+                    auth_headers: &auth_headers,
+                    retry_opts: RetryOpts::default(),
+                },
+            },
+        };
+        pick_package(&ctx, &spec, &opts).await.expect("first pick");
+        // The rest of the install reuses the document it fetched itself.
+        pick_package(&ctx, &spec, &opts).await.expect("second pick");
+    };
 
-    let second = server
+    pick_in_new_install().await;
+    first.assert_async().await;
+    first.remove_async().await;
+
+    let refetch = server
         .mock("GET", "/acme")
         .match_header("if-none-match", mockito::Matcher::Missing)
         .match_header("if-modified-since", mockito::Matcher::Missing)
@@ -334,9 +340,8 @@ async fn uncacheable_exact_version_is_refetched_instead_of_served_from_memory_or
         .expect(1)
         .create_async()
         .await;
-    pick_package(&ctx, &spec, &opts).await.expect("refetch");
-    first.assert_async().await;
-    second.assert_async().await;
+    pick_in_new_install().await;
+    refetch.assert_async().await;
 }
 
 #[tokio::test]
@@ -363,13 +368,12 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
         "acme",
     )
     .expect("path");
-    crate::mirror::save_meta_indexed_with_policy(&path, &pkg, Some(r#"W/"old""#), true)
+    crate::mirror::save_meta_indexed(&path, &pkg, Some(r#"W/"old""#), true)
         .expect("seed uncacheable mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
-    meta_cache.set_unverified(format!("{registry}\x00acme"), std::sync::Arc::new(pkg));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
         full_metadata: false,

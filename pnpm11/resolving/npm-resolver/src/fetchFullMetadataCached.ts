@@ -127,7 +127,7 @@ async function fetchMetadataCached (
   // the speedup.
   function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
     if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText, fetched.uncacheable)).catch(() => {
+      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched)).catch(() => {
         return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
       })
     }

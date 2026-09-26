@@ -168,6 +168,13 @@ impl MetadataHttpClient<'_> {
 /// A [`MetadataRequestOptions::bypass_cache`] request has already given up its
 /// validators, so that retry would only repeat itself: its 304 fails straight
 /// away instead.
+///
+/// A 304 to a revalidation whose `Cache-Control` forbids reuse (see
+/// [`metadata_response_is_uncacheable`]) is asked once more without
+/// validators: a stale intermediary can answer that revalidation for a
+/// mirror written before pnpm recorded the policy. If that request is
+/// answered with a 304 too, it is returned as is and the caller serves its
+/// mirror.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {
@@ -179,8 +186,15 @@ pub(crate) async fn send_metadata_request<'a>(
     }
     let validators = Validators::for_request(opts);
     let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
-    if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
+    if response.status() != StatusCode::NOT_MODIFIED {
         return Ok((client, response));
+    }
+    if validators.any() {
+        if !metadata_response_is_uncacheable(response.headers()) {
+            return Ok((client, response));
+        }
+        drop(client);
+        return send_once(opts, &Validators::NONE, true).await;
     }
     drop(client);
     if opts.bypass_cache {
@@ -207,9 +221,11 @@ struct Validators<'a> {
 }
 
 impl<'a> Validators<'a> {
+    const NONE: Validators<'static> = Validators { etag: None, modified: None };
+
     fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
         if opts.bypass_cache {
-            return Validators { etag: None, modified: None };
+            return Validators::NONE;
         }
         Validators {
             etag: opts.etag.filter(|value| !value.is_empty()),

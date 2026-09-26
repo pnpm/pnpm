@@ -101,11 +101,11 @@ pub struct MetaHeaders {
     pub etag: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified: Option<String>,
-    /// `Some(true)` when the registry's `Cache-Control` said this document
-    /// is already stale (`max-age=0`, `no-cache`, or `no-store`). The next
-    /// fetch must not revalidate it with `If-None-Match`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub uncacheable: Option<bool>,
+    /// The registry's `Cache-Control` said this document is already stale
+    /// (`max-age=0`, `no-cache`, or `no-store`). The next online fetch must
+    /// not revalidate it with `If-None-Match` or `If-Modified-Since`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub uncacheable: bool,
 }
 
 /// Error from [`save_meta`]. Surfaced to callers that care about
@@ -262,21 +262,12 @@ pub fn save_meta_indexed(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
-) -> Result<(), SaveMetaError> {
-    save_meta_indexed_with_policy(pkg_mirror, meta, etag, false)
-}
-
-/// Same as [`save_meta_indexed`], recording whether the response forbade caching.
-pub fn save_meta_indexed_with_policy(
-    pkg_mirror: &Path,
-    meta: &Package,
-    etag: Option<&str>,
     uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
-        uncacheable: uncacheable.then_some(true),
+        uncacheable,
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
@@ -319,21 +310,12 @@ pub fn save_meta_ndjson(
     pkg_mirror: &Path,
     meta: &Package,
     etag: Option<&str>,
-) -> Result<(), SaveMetaError> {
-    save_meta_ndjson_with_policy(pkg_mirror, meta, etag, false)
-}
-
-/// Same as [`save_meta_ndjson`], recording whether the response forbade caching.
-pub fn save_meta_ndjson_with_policy(
-    pkg_mirror: &Path,
-    meta: &Package,
-    etag: Option<&str>,
     uncacheable: bool,
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_vec(&MetaHeaders {
         etag: etag.map(str::to_string),
         modified: meta_modified(meta),
-        uncacheable: uncacheable.then_some(true),
+        uncacheable,
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
     let mut body_meta = meta.clone();
@@ -575,18 +557,6 @@ pub async fn load_meta_async(pkg_mirror: Option<&Path>) -> Option<Package> {
 pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHeaders> {
     let pkg_mirror = pkg_mirror?.to_path_buf();
     tokio::task::spawn_blocking(move || load_meta_headers(&pkg_mirror)).await.ok().flatten()
-}
-
-/// `true` when the mirror header says the last response forbade caching.
-#[must_use]
-pub fn mirror_file_is_uncacheable(pkg_mirror: &Path) -> bool {
-    load_meta_headers(pkg_mirror).is_some_and(|headers| meta_headers_are_uncacheable(&headers))
-}
-
-/// `true` when a loaded header line says the response forbade caching.
-#[must_use]
-pub fn meta_headers_are_uncacheable(headers: &MetaHeaders) -> bool {
-    headers.uncacheable == Some(true)
 }
 
 /// Atomic write: serialize to a sibling temp file, then `rename` it

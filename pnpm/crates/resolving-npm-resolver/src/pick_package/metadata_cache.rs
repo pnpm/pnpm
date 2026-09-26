@@ -59,10 +59,6 @@ pub trait PackageMetaCache: Send + Sync {
     /// these entries as verified would silently turn a recoverable
     /// stale-mirror miss into a terminal "no matching version".
     fn set_unverified(&self, key: String, meta: Arc<Package>);
-
-    /// Drop any entry under `key`. An uncacheable refresh must not leave
-    /// the previous verified packument for the next pick to return.
-    fn remove(&self, key: &str);
 }
 
 /// The packument-fetching state one install owns, shared across every
@@ -173,10 +169,6 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
 
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
         self.inner.insert(key, CachedPackument { meta, registry_verified: false });
-    }
-
-    fn remove(&self, key: &str) {
-        self.inner.remove(key);
     }
 }
 

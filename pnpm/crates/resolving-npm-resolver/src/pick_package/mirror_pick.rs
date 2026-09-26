@@ -69,7 +69,10 @@ impl PickState<'_> {
 
     /// `true` when the mirror's header line says the last response forbade caching.
     pub(super) fn mirror_is_uncacheable(&self) -> bool {
-        self.pkg_mirror.as_deref().is_some_and(crate::mirror::mirror_file_is_uncacheable)
+        self.pkg_mirror
+            .as_deref()
+            .and_then(crate::mirror::load_meta_headers)
+            .is_some_and(|headers| headers.uncacheable)
     }
 
     /// The mirror, loaded once and reused by every fast path.
