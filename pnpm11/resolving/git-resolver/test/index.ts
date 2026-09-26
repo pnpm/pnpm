@@ -723,6 +723,19 @@ test('a publickey refusal does not offer a shell command for a host that cannot 
   expect(err.hint).toBeUndefined()
 })
 
+test('a publickey refusal offers no HTTPS rewrite for an SSH user other than git', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'git+ssh://APKAEXAMPLE@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo',
+  }))
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('git-codecommit.us-east-1.amazonaws.com')
+  expect(err.hint).not.toContain('insteadOf')
+  expect(err.hint).not.toContain('APKAEXAMPLE')
+})
+
 test('a publickey refusal redacts a password embedded in the SSH URL', async () => {
   mockGit(async () => {
     throw new Error('Permission denied (publickey)')

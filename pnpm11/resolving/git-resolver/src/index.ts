@@ -257,28 +257,38 @@ If git can only reach ${hostname} over SSH here, substitute the transport locall
  */
 function sshPublicKeyHint (repo: string, detail: string): string | undefined {
   if (!detail.toLowerCase().includes('publickey')) return undefined
-  const rewrite = sshHttpsRewrite(repo)
-  if (rewrite == null) return undefined
-  return `Git refused the SSH key for ${rewrite.hostname} (Permission denied (publickey)).
+  const remote = parseSshRemote(repo)
+  if (remote == null) return undefined
+  const rewrite = remote.insteadOf == null
+    ? ''
+    : ` To reach ${remote.hostname} over HTTPS on this machine, leaving the recorded URL alone:
+
+    git config --global url."https://${remote.hostname}/".insteadOf "${remote.insteadOf}"`
+  return `Git refused the SSH key for ${remote.hostname} (Permission denied (publickey)).
 
 Make sure ssh-agent has a key for that host loaded:
 
     ssh-add -l
 
-If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key. To reach it over HTTPS on this machine only, leaving the recorded URL alone:
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.${rewrite}`
+}
 
-    git config --global url."https://${rewrite.hostname}/".insteadOf "${rewrite.insteadOf}"`
+interface SshRemote {
+  hostname: string
+  /**
+   * `undefined` unless the remote logs in as `git`. The prefix has to repeat
+   * the user to match, and userinfo is never copied into a hint, so a
+   * password or a token used as the user name cannot reach it.
+   */
+  insteadOf?: string
 }
 
 /**
- * The `insteadOf` prefix that matches `repo`, or `undefined` when `repo` is
- * not an SSH reference.
- *
- * The example always uses the user `git` and never copies userinfo out of
- * `repo`, so a password embedded in the URL cannot reach the hint.
+ * `undefined` when `repo` is not an SSH reference or its host is not
+ * {@link isShellSafeHost | shell safe}.
  */
-function sshHttpsRewrite (repo: string): { hostname: string, insteadOf: string } | undefined {
-  const sshUrl = repo.replace(/^git\+/, '')
+function parseSshRemote (repo: string): SshRemote | undefined {
+  const sshUrl = repo.startsWith('git+') ? repo.slice('git+'.length) : repo
   if (sshUrl.startsWith('ssh://')) {
     let url: URL
     try {
@@ -286,13 +296,12 @@ function sshHttpsRewrite (repo: string): { hostname: string, insteadOf: string }
     } catch {
       return undefined
     }
-    if (url.hostname === '') return undefined
     const hostname = redactAndSanitize(url.hostname)
     if (!isShellSafeHost(hostname)) return undefined
     const port = url.port === '' ? '' : `:${url.port}`
     return {
       hostname,
-      insteadOf: `ssh://git@${hostname}${port}/`,
+      insteadOf: url.username === 'git' ? `ssh://git@${hostname}${port}/` : undefined,
     }
   }
   if (repo.includes('://')) return undefined
@@ -301,22 +310,19 @@ function sshHttpsRewrite (repo: string): { hostname: string, insteadOf: string }
   const authority = repo.slice(0, colonPos)
   const atPos = authority.lastIndexOf('@')
   if (atPos === -1) return undefined
-  const rawHostname = authority.slice(atPos + 1)
-  if (rawHostname === '') return undefined
-  const hostname = redactAndSanitize(rawHostname)
+  const hostname = redactAndSanitize(authority.slice(atPos + 1))
   if (!isShellSafeHost(hostname)) return undefined
   return {
     hostname,
-    insteadOf: `git@${hostname}:`,
+    insteadOf: authority.slice(0, atPos) === 'git' ? `git@${hostname}:` : undefined,
   }
 }
 
 /**
  * A host safe to interpolate into the `git config` line of {@link sshPublicKeyHint}.
  *
- * The line is a command a user may paste. `URL` already rejects most
- * metacharacters in an `ssh://` authority; an SCP-style `user@host:path`
- * reference does not, so the host is checked again here.
+ * The line is a command a user may paste, and the host comes from the
+ * specifier.
  */
 function isShellSafeHost (hostname: string): boolean {
   const bracketed = hostname.startsWith('[') && hostname.endsWith(']')

@@ -277,8 +277,8 @@ fn an_ssh_publickey_refusal_explains_ssh_agent_and_a_local_https_rewrite() {
 #[test]
 fn an_ssh_publickey_hint_refuses_a_host_that_could_break_out_of_the_command() {
     let err = GitResolveError::new(
-        "git@evil\";touch /tmp/pwned:repo.git",
-        "git@evil\";touch /tmp/pwned:repo.git",
+        r#"git@evil";touch /tmp/pwned:repo.git"#,
+        r#"git@evil";touch /tmp/pwned:repo.git"#,
         "Permission denied (publickey)",
     );
 
@@ -288,6 +288,24 @@ fn an_ssh_publickey_hint_refuses_a_host_that_could_break_out_of_the_command() {
         .unwrap_or_default();
     assert!(!help.contains("git config"), "{help}");
     assert!(!help.contains("touch"), "{help}");
+}
+
+#[test]
+fn an_ssh_publickey_hint_offers_no_rewrite_for_a_user_other_than_git() {
+    let err = GitResolveError::new(
+        "ssh://APKAEXAMPLE@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "ssh://APKAEXAMPLE@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "Permission denied (publickey)",
+    );
+
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("git-codecommit.us-east-1.amazonaws.com"), "{help}");
+    assert!(!help.contains("insteadOf"), "{help}");
+    assert!(!help.contains("APKAEXAMPLE"), "{help}");
 }
 
 #[test]

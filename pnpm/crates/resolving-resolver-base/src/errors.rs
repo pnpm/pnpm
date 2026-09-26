@@ -327,7 +327,16 @@ fn ssh_publickey_hint(repo: &str, detail: &str) -> Option<String> {
     if !detail.to_ascii_lowercase().contains("publickey") {
         return None;
     }
-    let (hostname, instead_of) = ssh_https_rewrite(repo)?;
+    let SshRemote { hostname, instead_of } = parse_ssh_remote(repo)?;
+    let rewrite = instead_of
+        .map(|instead_of| {
+            format!(
+                r#" To reach {hostname} over HTTPS on this machine, leaving the recorded URL alone:
+
+    git config --global url."https://{hostname}/".insteadOf "{instead_of}""#,
+            )
+        })
+        .unwrap_or_default();
     Some(format!(
         r#"Git refused the SSH key for {hostname} (Permission denied (publickey)).
 
@@ -335,60 +344,63 @@ Make sure ssh-agent has a key for that host loaded:
 
     ssh-add -l
 
-If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key. To reach it over HTTPS on this machine only, leaving the recorded URL alone:
-
-    git config --global url."https://{hostname}/".insteadOf "{instead_of}""#,
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.{rewrite}"#,
     ))
 }
 
-/// The `insteadOf` prefix that matches `repo`, or `None` when `repo` is not
-/// an SSH reference.
-///
-/// The example always uses the user `git` and never copies userinfo out of
-/// `repo`, so a password embedded in the URL cannot reach the hint.
-fn ssh_https_rewrite(repo: &str) -> Option<(String, String)> {
+/// The host of an SSH remote, and the `insteadOf` prefix that matches it.
+struct SshRemote {
+    hostname: String,
+    /// `None` unless the remote logs in as `git`. The prefix has to repeat the
+    /// user to match, and userinfo is never copied into a hint, so a password
+    /// or a token used as the user name cannot reach it.
+    instead_of: Option<String>,
+}
+
+/// `None` when `repo` is not an SSH reference or its host is not
+/// [shell safe](is_shell_safe_host).
+fn parse_ssh_remote(repo: &str) -> Option<SshRemote> {
     let ssh_url = repo.strip_prefix("git+").unwrap_or(repo);
     if let Some(rest) = ssh_url.strip_prefix("ssh://") {
         let authority = rest.split('/').next().unwrap_or(rest);
-        if authority.is_empty() {
-            return None;
-        }
-        let hostport = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        let (userinfo, hostport) = authority
+            .rsplit_once('@')
+            .unwrap_or(("", authority));
         if hostport.is_empty() {
             return None;
         }
         let (hostname, port) = ssh_host_and_port(hostport)?;
-        let port_suffix = if port.is_empty() { String::new() } else { format!(":{port}") };
         // Redact the host before building the prefix. Redacting
         // `ssh://git@host/` afterwards would strip the `git@` it has to match.
         let hostname = redact_and_sanitize(&hostname);
         if !is_shell_safe_host(&hostname) {
             return None;
         }
-        let instead_of = format!("ssh://git@{hostname}{port_suffix}/");
-        return Some((hostname, instead_of));
+        let user = userinfo
+            .split(':')
+            .next()
+            .unwrap_or(userinfo);
+        let port_suffix = if port.is_empty() { String::new() } else { format!(":{port}") };
+        let instead_of = (user == "git").then(|| format!("ssh://git@{hostname}{port_suffix}/"));
+        return Some(SshRemote { hostname, instead_of });
     }
     if repo.contains("://") {
         return None;
     }
     let (authority, _path) = repo.split_once(':')?;
-    let (_user, hostname) = authority.rsplit_once('@')?;
-    if hostname.is_empty() {
-        return None;
-    }
+    let (user, hostname) = authority.rsplit_once('@')?;
     let hostname = redact_and_sanitize(hostname);
     if !is_shell_safe_host(&hostname) {
         return None;
     }
-    let instead_of = format!("git@{hostname}:");
-    Some((hostname, instead_of))
+    let instead_of = (user == "git").then(|| format!("git@{hostname}:"));
+    Some(SshRemote { hostname, instead_of })
 }
 
 /// A host safe to interpolate into the `git config` line of [`ssh_publickey_hint`].
 ///
-/// That line is a command a user may paste. An `ssh://` authority is parsed
-/// as a URL, which rejects most metacharacters; an SCP-style `user@host:path`
-/// reference is not, so the host is checked again here.
+/// That line is a command a user may paste, and the host comes from the
+/// specifier.
 fn is_shell_safe_host(hostname: &str) -> bool {
     let bracketed = hostname.starts_with('[') && hostname.ends_with(']');
     let body = if bracketed { &hostname[1..hostname.len() - 1] } else { hostname };
