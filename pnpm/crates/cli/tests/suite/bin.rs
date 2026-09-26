@@ -292,3 +292,37 @@ fn bin_matches_pnpm_from_a_workspace_subdir() {
 
     drop(root);
 }
+
+/// Regression test for
+/// [pnpm/pnpm#5283](https://github.com/pnpm/pnpm/issues/5283): Windows leaves
+/// `%PNPM_HOME%\bin` in the user `Path` verbatim when `PNPM_HOME` is a
+/// `REG_EXPAND_SZ` user variable, so the error names that entry rather than
+/// suggesting `pnpm setup`.
+#[cfg(windows)]
+#[test]
+fn bin_global_names_an_unexpanded_path_entry() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("LOCALAPPDATA", root.path().join("local-app-data"))
+        .with_env("APPDATA", root.path().join("app-data"))
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", r"%PNPM_HOME%\bin")
+        .with_args(["bin", "-g"])
+        .output()
+        .expect("run pacquet bin -g");
+    dbg!(&output);
+    assert!(!output.status.success(), "pacquet bin -g should fail when the dir is not on PATH");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH"), "{stderr}");
+    assert!(
+        stderr.contains(r#"PATH contains "%PNPM_HOME%\bin", which was not expanded."#),
+        "stderr should name the unexpanded entry: {stderr}",
+    );
+
+    drop(root);
+}
