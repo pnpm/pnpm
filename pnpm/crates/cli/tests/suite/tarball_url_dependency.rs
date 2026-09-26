@@ -764,3 +764,104 @@ fn redirect_pkg_to(server: &mut mockito::Server, target: &str) -> Vec<mockito::M
         })
         .collect()
 }
+
+/// A response that varies on `User-Agent` may differ for another install,
+/// so a lockfile-less reinstall asks the origin again.
+#[test]
+fn response_varying_on_user_agent_is_not_reused() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}lockfile: false\n")).expect("disable the lockfile");
+
+    let mut tarball_server = mockito::Server::new();
+    let head = tarball_server
+        .mock("HEAD", "/pkg.tgz")
+        .with_status(200)
+        .expect(2)
+        .create();
+    let get = tarball_server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_header("etag", r#""pkg""#)
+        .with_header("cache-control", "max-age=31536000")
+        .with_header("vary", "User-Agent")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(2)
+        .create();
+    let tarball_url = format!("{}/pkg.tgz", tarball_server.url());
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    for _ in 0..2 {
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    }
+    head.assert();
+    get.assert();
+
+    drop((root, mock_instance, tarball_server));
+}
+
+/// A `304` that introduces `Vary: User-Agent` does not renew the stale
+/// record. The reinstall downloads the tarball unconditionally instead.
+#[test]
+fn not_modified_varying_on_user_agent_downloads_again() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}lockfile: false\n")).expect("disable the lockfile");
+
+    let mut tarball_server = mockito::Server::new();
+    let head = tarball_server
+        .mock("HEAD", "/pkg.tgz")
+        .with_status(200)
+        .expect(2)
+        .create();
+    let get = tarball_server
+        .mock("GET", "/pkg.tgz")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", r#""pkg""#)
+        .with_header("cache-control", "max-age=31536000")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .expect(2)
+        .create();
+    let not_modified = tarball_server
+        .mock("GET", "/pkg.tgz")
+        .match_header("if-none-match", r#""pkg""#)
+        .with_status(304)
+        .with_header("vary", "User-Agent")
+        .expect(1)
+        .create();
+    let tarball_url = format!("{}/pkg.tgz", tarball_server.url());
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    expire_tarball_resolution_cache(&cache_dir);
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    head.assert();
+    get.assert();
+    not_modified.assert();
+
+    drop((root, mock_instance, cache_dir, tarball_server));
+}
