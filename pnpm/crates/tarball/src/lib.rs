@@ -11,7 +11,7 @@ pub(crate) use extract::{
     tar_entry_payload,
 };
 pub use fetch_for_resolution::{
-    FetchTarballForResolution, ResolvedTarball, TarballResolutionFetch,
+    FetchTarballForResolution, NotModifiedResponse, ResolvedTarball, TarballResolutionFetch,
 };
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;

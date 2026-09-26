@@ -26,7 +26,9 @@ impl TarballResolver {
         };
         let now = http_cache::now_ms();
         let freshness = record.freshness(now);
-        if freshness == Freshness::Unusable || !self.may_cache(&record.tarball) {
+        if freshness == Freshness::Unusable
+            || !self.may_cache(&record.tarball, normalized_bare_specifier)
+        {
             http_cache::remove(cache_dir, normalized_bare_specifier);
             return Ok(None);
         }
@@ -69,8 +71,12 @@ impl TarballResolver {
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
         match fetched {
-            TarballResolutionFetch::NotModified(headers) => {
-                http_cache::store(cache_dir, &record.renewed(&headers, http_cache::now_ms()));
+            TarballResolutionFetch::NotModified(response) => {
+                if response.final_url != record.final_url {
+                    return Ok(None);
+                }
+                let renewed = record.renewed(&response.cache_headers, http_cache::now_ms());
+                http_cache::store(cache_dir, &renewed);
                 Ok(Some(reused))
             }
             TarballResolutionFetch::Resolved(resolved) => {
@@ -99,7 +105,7 @@ impl TarballResolver {
             return;
         };
         let tarball = cached_tarball_url(resolved_url, resolved);
-        if !self.may_cache(&tarball) {
+        if !self.may_cache(&tarball, normalized_bare_specifier) {
             http_cache::remove(cache_dir, normalized_bare_specifier);
             return;
         }
@@ -108,6 +114,7 @@ impl TarballResolver {
             &TarballResolutionRecord::from_response(
                 normalized_bare_specifier.to_owned(),
                 tarball,
+                resolved.final_url.clone(),
                 resolved.integrity.to_string(),
                 &resolved.cache_headers,
                 http_cache::now_ms(),
@@ -119,7 +126,7 @@ impl TarballResolver {
     /// cached for it.
     fn http_cache_dir(&self, url: &str) -> Option<&Path> {
         let ctx = self.fetch_context.as_ref()?;
-        if !self.may_cache(url) {
+        if !self.may_cache(url, url) {
             return None;
         }
         ctx.cache_dir.as_deref()
@@ -128,11 +135,16 @@ impl TarballResolver {
     /// A response fetched with credentials is never reused without asking
     /// the origin, so revoking the credentials takes effect on the next
     /// install. This covers the requested URL and an immutable redirect
-    /// target alike.
-    fn may_cache(&self, url: &str) -> bool {
+    /// target alike. The lookup takes the same package ID as the archive
+    /// request, so both see the same credentials.
+    fn may_cache(&self, url: &str, package_id: &str) -> bool {
         self.fetch_context
             .as_ref()
-            .is_some_and(|ctx| ctx.auth_headers.for_url(url).is_none())
+            .is_some_and(|ctx| {
+                ctx.auth_headers
+                    .for_url_with_package(url, Some(package_id))
+                    .is_none()
+            })
     }
 
     async fn reuse_resolution(

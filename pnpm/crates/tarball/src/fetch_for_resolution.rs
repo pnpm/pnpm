@@ -35,7 +35,15 @@ pub struct ResolvedTarball {
 /// A resolve-time fetch that may be satisfied by `304 Not Modified`.
 pub enum TarballResolutionFetch {
     Resolved(ResolvedTarball),
-    NotModified(CacheHeaders),
+    NotModified(NotModifiedResponse),
+}
+
+/// A `304 Not Modified` answer to a conditional archive request.
+#[derive(Debug)]
+pub struct NotModifiedResponse {
+    pub cache_headers: CacheHeaders,
+    /// The URL that answered, after redirects.
+    pub final_url: String,
 }
 
 /// Download a remote tarball during *resolution*, settle its sha512
@@ -121,7 +129,7 @@ impl ExtractedWithValidators {
 
 enum FetchedBody {
     Extracted(ExtractedWithValidators),
-    NotModified(CacheHeaders),
+    NotModified(NotModifiedResponse),
 }
 
 impl FetchTarballForResolution<'_> {
@@ -249,9 +257,7 @@ impl FetchTarballForResolution<'_> {
         if_none_match: Option<&str>,
     ) -> Result<TarballResolutionFetch, TarballError> {
         match self.fetch_extracted::<Reporter>(if_none_match).await? {
-            FetchedBody::NotModified(cache_headers) => {
-                Ok(TarballResolutionFetch::NotModified(cache_headers))
-            }
+            FetchedBody::NotModified(response) => Ok(TarballResolutionFetch::NotModified(response)),
             FetchedBody::Extracted(extracted) => {
                 if let Some(mem_cache) = mem_cache {
                     insert_available_if_vacant(
@@ -297,7 +303,12 @@ impl FetchTarballForResolution<'_> {
         )
         .await?;
         match fetched {
-            AttemptedFetch::NotModified(meta) => Ok(FetchedBody::NotModified(meta.cache_headers)),
+            AttemptedFetch::NotModified(meta) => {
+                Ok(FetchedBody::NotModified(NotModifiedResponse {
+                    cache_headers: meta.cache_headers,
+                    final_url: meta.final_url,
+                }))
+            }
             AttemptedFetch::Extracted(extracted) => {
                 self.process_extracted(*extracted).await.map(FetchedBody::Extracted)
             }

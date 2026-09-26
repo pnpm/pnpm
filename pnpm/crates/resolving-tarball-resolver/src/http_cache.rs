@@ -19,6 +19,9 @@ pub(crate) const TARBALL_RESOLUTION_CACHE_DIR: &str = "v11/tarball-resolutions";
 pub(crate) struct TarballResolutionRecord {
     pub url: String,
     pub tarball: String,
+    /// The URL that served the archive, after redirects. A `304` from a
+    /// different URL does not vouch for this archive.
+    pub final_url: String,
     pub integrity: String,
     pub etag: Option<String>,
     pub cache_control: Option<String>,
@@ -53,6 +56,7 @@ impl TarballResolutionRecord {
     pub(crate) fn from_response(
         url: String,
         tarball: String,
+        final_url: String,
         integrity: String,
         headers: &CacheHeaders,
         now_ms: u64,
@@ -60,6 +64,7 @@ impl TarballResolutionRecord {
         Self {
             url,
             tarball,
+            final_url,
             integrity,
             etag: headers.etag.clone(),
             cache_control: headers.cache_control.clone(),
@@ -91,6 +96,7 @@ impl TarballResolutionRecord {
         Self {
             url: self.url.clone(),
             tarball: self.tarball.clone(),
+            final_url: self.final_url.clone(),
             integrity: self.integrity.clone(),
             etag: headers.etag.clone().or_else(|| self.etag.clone()),
             cache_control: headers.cache_control
@@ -185,6 +191,7 @@ pub(crate) fn store(cache_dir: &Path, record: &TarballResolutionRecord) {
     let body = serde_json::json!({
         "url": record.url,
         "tarball": record.tarball,
+        "finalUrl": record.final_url,
         "integrity": record.integrity,
         "etag": record.etag,
         "cacheControl": record.cache_control,
@@ -216,6 +223,7 @@ fn parse_record(text: &str) -> Option<TarballResolutionRecord> {
     Some(TarballResolutionRecord {
         url: string("url")?,
         tarball: string("tarball")?,
+        final_url: string("finalUrl")?,
         integrity: string("integrity")?,
         etag: string("etag"),
         cache_control: string("cacheControl"),

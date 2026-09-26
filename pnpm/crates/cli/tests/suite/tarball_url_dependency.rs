@@ -669,3 +669,98 @@ fn expire_tarball_resolution_cache(cache_dir: &Path) {
     record["fetchedAt"] = serde_json::json!(0);
     fs::write(entry.path(), record.to_string()).expect("expire tarball resolution record");
 }
+
+/// A `304` only vouches for the archive of the URL that answered. When a
+/// mutable redirect now points somewhere else, the stale record is not
+/// renewed from that `304`, and the new target is downloaded in full.
+#[test]
+fn not_modified_from_a_different_redirect_target_downloads_again() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, format!("{yaml}lockfile: false\n")).expect("disable the lockfile");
+
+    let etag = r#""same-etag""#;
+    let mut tarball_server = mockito::Server::new();
+    let first_redirect = redirect_pkg_to(&mut tarball_server, "/v1.tgz");
+    let v1 = tarball_server
+        .mock("GET", "/v1.tgz")
+        .with_status(200)
+        .with_header("etag", etag)
+        .with_header("cache-control", "max-age=0")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let v1_head = tarball_server
+        .mock("HEAD", "/v1.tgz")
+        .with_status(200)
+        .create();
+    let tarball_url = format!("{}/pkg.tgz", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    for mock in first_redirect
+        .into_iter()
+        .chain([v1, v1_head])
+    {
+        mock.remove();
+    }
+
+    let second_redirect = redirect_pkg_to(&mut tarball_server, "/v2.tgz");
+    let v2_not_modified = tarball_server
+        .mock("GET", "/v2.tgz")
+        .match_header("if-none-match", etag)
+        .with_status(304)
+        .with_header("etag", etag)
+        .expect(1)
+        .create();
+    let v2 = tarball_server
+        .mock("GET", "/v2.tgz")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("etag", etag)
+        .with_header("cache-control", "max-age=0")
+        .with_body(minimal_tarball("pkg-from-tarball", "2.0.0"))
+        .expect(1)
+        .create();
+    let v2_head = tarball_server
+        .mock("HEAD", "/v2.tgz")
+        .with_status(200)
+        .create();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    v2_not_modified.assert();
+    v2.assert();
+
+    let manifest = fs::read_to_string(workspace.join("node_modules/pkg-from-tarball/package.json"))
+        .expect("read installed manifest");
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+    assert_eq!(manifest["version"], "2.0.0");
+
+    drop((root, mock_instance, second_redirect, v2_head, tarball_server));
+}
+
+fn redirect_pkg_to(server: &mut mockito::Server, target: &str) -> Vec<mockito::Mock> {
+    ["HEAD", "GET"]
+        .into_iter()
+        .map(|method| {
+            server
+                .mock(method, "/pkg.tgz")
+                .with_status(302)
+                .with_header("location", target)
+                .create()
+        })
+        .collect()
+}

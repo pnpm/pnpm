@@ -6,6 +6,7 @@ fn record(cache_control: &str, fetched_at: u64) -> TarballResolutionRecord {
     TarballResolutionRecord::from_response(
         "https://example.com/pkg.tgz".to_owned(),
         "https://example.com/pkg.tgz".to_owned(),
+        "https://example.com/pkg.tgz".to_owned(),
         "sha512-abc".to_owned(),
         &CacheHeaders {
             etag: Some(r#""pkg""#.to_owned()),
@@ -64,6 +65,7 @@ fn age_header_counts_toward_freshness() {
     let record = TarballResolutionRecord::from_response(
         "https://example.com/pkg.tgz".to_owned(),
         "https://example.com/pkg.tgz".to_owned(),
+        "https://example.com/pkg.tgz".to_owned(),
         "sha512-abc".to_owned(),
         &headers,
         1_000,
@@ -83,6 +85,7 @@ fn date_header_counts_toward_freshness() {
         ..CacheHeaders::default()
     };
     let record = TarballResolutionRecord::from_response(
+        "https://example.com/pkg.tgz".to_owned(),
         "https://example.com/pkg.tgz".to_owned(),
         "https://example.com/pkg.tgz".to_owned(),
         "sha512-abc".to_owned(),
