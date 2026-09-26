@@ -155,7 +155,7 @@ pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
 mod tests;
 
 /// The pnpmfiles an install runs, as configured. Every entry point that loads
-/// hooks or asks whether any exist reads the same pair of settings.
+/// hooks or asks whether any exist reads the same settings.
 #[must_use]
 pub fn pnpmfile_selection(
     config: &pnpm_config::Config,
@@ -163,5 +163,8 @@ pub fn pnpmfile_selection(
     pnpm_hooks::finder::PnpmfileSelection {
         configured: config.pnpmfile.as_deref(),
         global: config.global_pnpmfile.as_deref(),
+        config_dependencies: config.config_dependencies
+            .as_ref()
+            .map(|dependencies| dependencies as &dyn pnpm_hooks::finder::ConfigDependencyNames),
     }
 }
