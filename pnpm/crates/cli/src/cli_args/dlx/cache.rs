@@ -362,7 +362,7 @@ fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[S
     }
 }
 
-pub(super) fn configure_cache_install(
+pub(crate) fn configure_cache_install(
     config: &mut Config,
     prepare_dir: &Path,
     pkgs: &[String],

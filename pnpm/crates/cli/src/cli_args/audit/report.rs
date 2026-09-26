@@ -28,6 +28,16 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
     NoLockfileAfterUpdate,
 
+    #[display(
+        "--fix, --interactive, --ignore, and --ignore-unfixable change a project and cannot be used when auditing packages by name"
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_PACKAGES_WITH_PROJECT_OPTION))]
+    ProjectOptionWithPackages,
+
+    #[display("{name} is named more than once. Audit each version in a separate command")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_DUPLICATE_PACKAGE))]
+    DuplicatePackage { name: String },
+
     #[display("Unknown audit subcommand: {subcommand}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND))]
     UnknownSubcommand { subcommand: String },
