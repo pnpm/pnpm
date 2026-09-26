@@ -182,7 +182,7 @@ impl RunCommand for GitSaysFeatureAndMain {
         assert_eq!(program, "git");
         assert_eq!(
             args,
-            ["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"]
+            ["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"],
         );
         Ok(CommandOutput {
             success: true,
@@ -219,7 +219,7 @@ fn lists_the_local_branches_containing_head_sorted() {
 #[test]
 fn a_failed_branch_listing_is_empty() {
     assert!(
-        get_branches_containing_head::<GitFailsForEachRef>(std::path::Path::new(".")).is_empty()
+        get_branches_containing_head::<GitFailsForEachRef>(std::path::Path::new(".")).is_empty(),
     );
 }
 
