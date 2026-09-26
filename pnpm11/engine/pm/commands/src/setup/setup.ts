@@ -160,6 +160,9 @@ function createAliasScripts (targetDir: string): void {
  * just installed: a pnpm shim and, on Windows, its pnpm.cmd twin. The bin linker
  * writes a bare pnpm.exe only for the `node` bin name, so each form has exactly
  * one sibling to name.
+ *
+ * On Windows this also writes the `.cmd` form and removes a `.ps1` form of the same
+ * name, so PowerShell runs the `.cmd`.
  */
 function createShellScript (targetDir: string, name: string, subcommand: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
