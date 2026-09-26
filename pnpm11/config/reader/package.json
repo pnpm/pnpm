@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/config.env-replace": "catalog:",
+    "@pnpm/config.env-replace": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/constants": "workspace:*",
