@@ -331,6 +331,26 @@ fn a_host_named_publickey_is_not_a_key_refusal() {
 }
 
 #[test]
+fn an_ssh_publickey_hint_keeps_brackets_around_an_ipv6_host() {
+    let err = GitResolveError::new(
+        "ssh://git@[2001:db8::1]:2222/foo/bar.git",
+        "ssh://git@[2001:db8::1]:2222/foo/bar.git",
+        "Permission denied (publickey)",
+    );
+
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."https://[2001:db8::1]/".insteadOf "ssh://git@[2001:db8::1]:2222/""#
+        ),
+        "{help}",
+    );
+}
+
+#[test]
 fn an_ssh_publickey_hint_redacts_a_password_and_keeps_the_ssh_port() {
     let err = GitResolveError::new(
         "ssh://git:s3cr3t-t0ken@git.example.com:2222/foo/bar.git",

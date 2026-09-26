@@ -712,6 +712,16 @@ test('an unreachable SSH remote that is not a key refusal carries no auth hint',
   expect(err.hint).toBeUndefined()
 })
 
+test('a publickey refusal keeps brackets around an IPv6 host', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git@[2001:db8::1]:2222/foo/bar.git',
+  }))
+  expect(err.hint).toContain('git config --global url."https://[2001:db8::1]/".insteadOf "ssh://git@[2001:db8::1]:2222/"')
+})
+
 test('a connection failure to a host named publickey carries no auth hint', async () => {
   mockGit(async () => {
     throw new Error('ssh: connect to host publickey.example.com port 22: Connection refused')
