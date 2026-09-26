@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, path::Path, sync::Mutex, time::Duration};
 
-use pacquet_network::{RetryOpts, ThrottledClient, nerf_dart};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
+use pnpm_network::{RetryOpts, ThrottledClient, nerf_dart};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
 use tempfile::TempDir;
 
 use super::{
@@ -13,14 +13,18 @@ fn no_retry() -> RetryOpts {
     RetryOpts { retries: 0, factor: 1, min_timeout: Duration::ZERO, max_timeout: Duration::ZERO }
 }
 
-/// A `127.0.0.1:<port>` address guaranteed to refuse connections: bind an
-/// ephemeral port, then drop the listener so the OS frees it. Deterministic
-/// across environments, unlike assuming a fixed low port is closed.
+/// A `0.0.0.0:<port>` address whose connect fails at once: bind an ephemeral
+/// loopback port, then drop the listener so the OS frees it. Linux and macOS
+/// refuse it like loopback; Windows rejects `0.0.0.0` without sending a
+/// packet, where a refused loopback port takes 2 s to fail.
 fn refused_local_addr() -> String {
     let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind ephemeral port");
-    let addr = listener.local_addr().expect("read local addr");
+    let port = listener
+        .local_addr()
+        .expect("read local addr")
+        .port();
     drop(listener);
-    addr.to_string()
+    format!("0.0.0.0:{port}")
 }
 
 /// A throwaway HTTP client. Every test fakes [`RevokeToken`], so the
@@ -31,7 +35,10 @@ fn unused_client() -> ThrottledClient {
 }
 
 fn auth_config(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-    pairs.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect()
+    pairs
+        .iter()
+        .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+        .collect()
 }
 
 /// Declare a per-test [`Reporter`] fake recording every `pnpm` log line
@@ -45,7 +52,10 @@ macro_rules! recording_reporter {
         impl Reporter for $reporter {
             fn emit(event: &LogEvent) {
                 if let LogEvent::Pnpm(PnpmLog { level, message, .. }) = event {
-                    $buffer.lock().unwrap().push((*level, message.clone()));
+                    $buffer
+                        .lock()
+                        .unwrap()
+                        .push((*level, message.clone()));
                 }
             }
         }
@@ -294,7 +304,7 @@ async fn removes_token_locally_when_fetch_errors() {
 }
 
 #[tokio::test]
-async fn warns_when_token_is_not_in_auth_ini() {
+async fn warns_when_the_token_is_in_no_file_pnpm_owns() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -318,10 +328,10 @@ async fn warns_when_token_is_not_in_auth_ini() {
     .unwrap();
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
-    assert!(WRITES.lock().unwrap().is_empty(), "auth.ini must not be written");
+    assert!(WRITES.lock().unwrap().is_empty(), "no file pnpm owns must be written");
     let warnings = warns(&EVENTS);
     let warning = warnings.first().expect("a warning was emitted");
-    let expected_path = Path::new("/config").join("auth.ini");
+    let expected_path = Path::new("/config").join("config.yaml");
     assert!(warning.contains(&format!("was not found in {}", expected_path.display())));
     assert!(warning.contains("The token was revoked on the registry but must be removed manually"));
 }
@@ -362,7 +372,7 @@ async fn throws_when_registry_call_fails_and_token_not_in_auth_ini() {
 }
 
 #[tokio::test]
-async fn warns_when_auth_ini_does_not_exist() {
+async fn warns_when_neither_file_exists() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -387,7 +397,7 @@ async fn warns_when_auth_ini_does_not_exist() {
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
     let warnings = warns(&EVENTS);
-    let expected_path = Path::new("/nonexistent/config").join("auth.ini");
+    let expected_path = Path::new("/nonexistent/config").join("config.yaml");
     assert!(warnings[0].contains(&format!("was not found in {}", expected_path.display())));
 }
 
@@ -415,8 +425,8 @@ async fn propagates_non_not_found_read_errors() {
     .await
     .unwrap_err();
 
-    let LogoutError::ReadAuthIni { error, .. } = &err else {
-        panic!("expected ReadAuthIni, got {err:?}");
+    let LogoutError::ReadConfigYaml { error, .. } = &err else {
+        panic!("expected ReadConfigYaml, got {err:?}");
     };
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
@@ -597,8 +607,11 @@ async fn propagates_auth_ini_write_errors() {
 async fn host_revokes_and_removes_token() {
     const TOKEN: &str = "secret-token";
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("DELETE", "/-/user/token/secret-token").with_status(200).create_async().await;
+    let mock = server
+        .mock("DELETE", "/-/user/token/secret-token")
+        .with_status(200)
+        .create_async()
+        .await;
     let registry = server.url();
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
@@ -635,8 +648,11 @@ async fn host_revokes_and_removes_token() {
 async fn host_removes_token_locally_when_registry_rejects() {
     const TOKEN: &str = "old-token";
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("DELETE", "/-/user/token/old-token").with_status(404).create_async().await;
+    let mock = server
+        .mock("DELETE", "/-/user/token/old-token")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = server.url();
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
@@ -696,122 +712,15 @@ async fn host_removes_token_locally_when_registry_unreachable() {
     assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
 }
 
-#[test]
-fn revoke_log_url_drops_the_token_segment() {
-    assert_eq!(
-        revoke_log_url("https://registry.npmjs.org/-/user/token/secret%2Ftoken"),
-        "https://registry.npmjs.org/-/user/token",
-    );
-    // A URL with no `/` is returned unchanged rather than panicking.
-    assert_eq!(revoke_log_url("token-only"), "token-only");
-}
-
-// The registry URL is attacker-influenced (a repo-controlled `.npmrc` or
-// `--registry`): inline `user:pass@` credentials and terminal escape
-// sequences must never reach stdout, warnings, or error messages.
-#[tokio::test]
-async fn not_logged_in_error_redacts_and_sanitizes_the_registry() {
-    recording_reporter!(Rep, EVENTS);
-    sys_fake!(
-        Sys,
-        writes = WRITES,
-        revokes = REVOKES,
-        read = { unreachable!() },
-        revoke = unreachable!(),
-    );
-    let auth = auth_config(&[]);
-    let err = logout::<Sys, Rep>(
-        &unused_client(),
-        LogoutOptions {
-            registry: Some("https://user:s3cret@npm.example.com/\u{7}"),
-            auth_config: &auth,
-            config_dir: Path::new("/mock/config"),
-            retry: no_retry(),
-            prefix: "/mock",
-        },
-    )
-    .await
-    .unwrap_err();
-
-    let message = err.to_string();
-    assert!(!message.contains("s3cret"), "credentials must be redacted: {message:?}");
-    assert!(!message.contains('\u{7}'), "control characters must be stripped: {message:?}");
-    assert!(message.contains("npm.example.com"), "host should remain: {message:?}");
-}
-
-#[tokio::test]
-async fn success_message_and_warning_redact_the_registry() {
-    recording_reporter!(Rep, EVENTS);
-    sys_fake!(
-        Sys,
-        writes = WRITES,
-        revokes = REVOKES,
-        read = { Ok(String::new()) },
-        revoke = RevokeOutcome::Revoked,
-    );
-    // `nerf_dart` drops the userinfo and query, so the token key is the same as
-    // for a credential-free registry. The escape sequence sits in the query so
-    // it survives credential redaction and must be removed by sanitization.
-    let auth = auth_config(&[("//npm.example.com/:_authToken", "tok")]);
-    let result = logout::<Sys, Rep>(
-        &unused_client(),
-        LogoutOptions {
-            registry: Some("https://user:s3cret@npm.example.com/?e=\u{1b}[31m"),
-            auth_config: &auth,
-            config_dir: Path::new("/config"),
-            retry: no_retry(),
-            prefix: "/mock",
-        },
-    )
-    .await
-    .unwrap();
-
-    for output in [&result, &warns(&EVENTS).remove(0)] {
-        assert!(output.contains("https://npm.example.com/"), "host should remain: {output:?}");
-        assert!(!output.contains("s3cret"), "credentials must be redacted: {output:?}");
-        assert!(!output.contains('\u{1b}'), "control characters must be stripped: {output:?}");
-    }
-}
-
-// Regression for the token leaking into retry logs: the revoke URL carries
-// the token in its path, and `send_with_retry` logs the URL it routes on
-// plus the `reqwest` error (which echoes the request URL). A retryable
-// failure must not write the token to the logs.
-#[tokio::test]
-async fn retry_logs_do_not_leak_the_token() {
-    const TOKEN: &str = "SUPERSECRETTOKEN";
-    // A closed local port refuses the connection at once, so the single retry
-    // fires a warn log.
-    let revoke_url = format!("http://{}/-/user/token/{TOKEN}", refused_local_addr());
-    let retry = RetryOpts {
-        retries: 1,
-        factor: 1,
-        min_timeout: Duration::ZERO,
-        max_timeout: Duration::ZERO,
-    };
-
-    let buffer = std::sync::Arc::new(Mutex::new(Vec::<u8>::new()));
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(CaptureWriter(std::sync::Arc::clone(&buffer)))
-        .with_max_level(tracing::Level::WARN)
-        .finish();
-    let outcome = {
-        let _guard = tracing::subscriber::set_default(subscriber);
-        Host::revoke(&ThrottledClient::new_for_installs(), &revoke_url, TOKEN, retry).await
-    };
-
-    assert_eq!(outcome, RevokeOutcome::Unreachable);
-    let logs = String::from_utf8(buffer.lock().unwrap().clone()).expect("logs are UTF-8");
-    assert!(logs.contains("retrying"), "a retry warn should have been logged: {logs:?}");
-    assert!(!logs.contains(TOKEN), "the token must not appear in retry logs: {logs:?}");
-}
-
 #[derive(Clone)]
 struct CaptureWriter(std::sync::Arc<Mutex<Vec<u8>>>);
 
 impl io::Write for CaptureWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
+        self.0
+            .lock()
+            .unwrap()
+            .extend_from_slice(buf);
         Ok(buf.len())
     }
 
@@ -827,3 +736,72 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for CaptureWriter {
         self.clone()
     }
 }
+
+/// A `config.yaml` that cannot be read must not strand the copy of the token
+/// in `auth.ini`: the two files are independent, and a credential pnpm would
+/// still send is worse than a logout that reports trouble. Uses a hand-rolled
+/// fake rather than `sys_fake!` because it is the only test whose two files
+/// answer differently.
+#[tokio::test]
+async fn a_broken_config_yaml_still_lets_the_legacy_token_go() {
+    static WRITES: Mutex<Vec<(std::path::PathBuf, String)>> = Mutex::new(Vec::new());
+    WRITES.lock().unwrap().clear();
+    struct Sys;
+    impl FsReadToString for Sys {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            if path
+                .file_name()
+                .is_some_and(|name| name == "config.yaml")
+            {
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"));
+            }
+            Ok("//registry.npmjs.org/:_authToken=stale-token\nother=value\n".to_string())
+        }
+    }
+    impl FsWrite for Sys {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            let text = String::from_utf8(bytes.to_vec()).expect("written auth.ini is UTF-8");
+            WRITES
+                .lock()
+                .unwrap()
+                .push((path.to_path_buf(), text));
+            Ok(())
+        }
+    }
+    impl RevokeToken for Sys {
+        async fn revoke(
+            _client: &ThrottledClient,
+            _url: &str,
+            _token: &str,
+            _retry: RetryOpts,
+        ) -> RevokeOutcome {
+            RevokeOutcome::Revoked
+        }
+    }
+
+    let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "stale-token")]);
+    let err = logout::<Sys, SilentReporter>(
+        &unused_client(),
+        LogoutOptions {
+            registry: None,
+            auth_config: &auth,
+            config_dir: Path::new("/broken/config"),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, LogoutError::ReadConfigYaml { .. }),
+        "the unreadable config must still be reported, got {err:?}",
+    );
+    let writes = WRITES.lock().unwrap().clone();
+    let (path, text) = writes.first().expect("auth.ini must still be rewritten");
+    assert_eq!(path, &Path::new("/broken/config").join("auth.ini"));
+    assert!(!text.contains("stale-token"), "the legacy token must be gone: {text:?}");
+    assert!(text.contains("other=value"), "the rest of auth.ini must survive: {text:?}");
+}
+
+mod redaction;

@@ -8,11 +8,11 @@ import { PnpmError } from '@pnpm/error'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import crossSpawn from 'cross-spawn'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { installPnpmToStore } from '../self-updater/installPnpm.js'
+import { spawnPnpm } from '../spawnPnpm.js'
 
 export const commandNames = ['with']
 
@@ -69,7 +69,7 @@ export async function handler (
     // registry and writes the resolved exact version to the envLockfile.
     const envLockfile = await resolvePackageManagerIntegrities(spec, {
       rootDir: opts.pnpmHomeDir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       storeController: store.ctrl,
       storeDir: store.dir,
     })
@@ -81,7 +81,7 @@ export async function handler (
       envLockfile,
       storeController: store.ctrl,
       storeDir: store.dir,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       packageManager: { name: packageManager.name, version: packageManager.version },
       // Network settings so the engine identity check can reach the canonical
@@ -117,11 +117,7 @@ export async function handler (
   }
 
   const pnpmBinPath = path.join(binDir, 'pnpm')
-  const { status, signal, error } = crossSpawn.sync(pnpmBinPath, args, {
-    stdio: 'inherit',
-    env: spawnEnv,
-  })
-  if (error) throw error
+  const { status, signal } = await spawnPnpm(pnpmBinPath, args, { env: spawnEnv })
   if (signal) {
     // Best-effort: try to terminate with the same signal the child received.
     // If the signal is handled or ignored, fall back to a non-zero exit code

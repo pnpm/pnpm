@@ -7,7 +7,7 @@ import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
@@ -21,6 +21,7 @@ export {
   type PackageMapOptions,
   type PackageMapPackage,
   type PackageMapType,
+  removePackageMap,
   writePackageMap,
   writePackageMapFromDependenciesGraph,
 } from './packageMap.js'
@@ -32,7 +33,7 @@ export async function writePnpFile (
     lockfileDir: string
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
-    registries: Registries
+    registriesByScope: RegistriesByScope
   }
 ): Promise<void> {
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
@@ -54,7 +55,7 @@ export function lockfileToPackageRegistry (
     lockfileDir: string
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
-    registries: Registries
+    registriesByScope: RegistriesByScope
   }
 ): PackageRegistry {
   const packageRegistry = new Map()
@@ -86,7 +87,7 @@ export function lockfileToPackageRegistry (
               ...((importer.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, importer.optionalDependencies, importerId) : []),
               ...((importer.devDependencies != null) ? toPackageDependenciesMap(lockfile, importer.devDependencies, importerId) : []),
             ]),
-            packageLocation: `./${importerId}`,
+            packageLocation: `./${importerId}/`,
           },
         ],
       ])
@@ -140,7 +141,7 @@ function toPackageDependenciesMap (
 ): Array<[string, string | [string, string]]> {
   return Object.entries(deps).map(([depAlias, ref]) => {
     if (importerId && ref.startsWith('link:')) {
-      return [depAlias, path.join(importerId, ref.slice(5))]
+      return [depAlias, normalizePath(path.join(importerId, ref.slice(5)))]
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]

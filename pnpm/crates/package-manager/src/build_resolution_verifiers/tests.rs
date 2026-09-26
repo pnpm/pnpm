@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, PkgName, TarballResolution};
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, PkgName, TarballResolution};
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
 use ssri::Integrity;
 use tempfile::TempDir;
 
@@ -17,10 +17,16 @@ const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 #[test]
 fn reserved_named_registry_is_an_error_not_a_panic() {
     let mut config = Config::default();
-    config.named_registries.insert("workspace".to_string(), "https://npm.example/".to_string());
+    config.registries_by_prefix.insert("workspace".to_string(), "https://npm.example/".to_string());
 
-    let result =
-        build_resolution_verifiers(&config, Arc::new(ThrottledClient::default()), None, None, None);
+    let result = build_resolution_verifiers(
+        &config,
+        Arc::new(ThrottledClient::default()),
+        None,
+        None,
+        None,
+        None,
+    );
 
     assert!(
         matches!(result, Err(BuildVerifiersError::InvalidNamedRegistries { .. })),
@@ -33,7 +39,12 @@ fn reserved_named_registry_is_an_error_not_a_panic() {
 async fn offline_config_threads_to_resolution_verifier() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let no_network = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let no_network = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
 
     let cache_dir = TempDir::new().expect("tempdir");
     let config = Config {
@@ -43,20 +54,29 @@ async fn offline_config_threads_to_resolution_verifier() {
         ..Default::default()
     };
 
-    let verifiers =
-        build_resolution_verifiers(&config, Arc::new(ThrottledClient::default()), None, None, None)
-            .expect("build verifiers");
+    let verifiers = build_resolution_verifiers(
+        &config,
+        Arc::new(ThrottledClient::default()),
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect("build verifiers");
     let name: PkgName = "acme".parse().expect("parse name");
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{registry}acme/-/acme-1.0.0.tgz"),
         integrity: Some(FAKE_INTEGRITY.parse::<Integrity>().expect("parse integrity")),
+        revision: None,
         git_hosted: None,
         path: None,
     });
 
-    let result = verifiers[0]
-        .verify(&resolution, VerifyCtx { name: &name, version: "1.0.0", registry_name: None })
-        .await;
+    let result = verifiers[0].verify(
+        &resolution,
+        VerifyCtx { name: &name, version: "1.0.0", registry_name: None },
+    )
+    .await;
 
     let ResolutionVerification::FetchFailed { message } = result else {
         panic!("expected offline metadata failure, got {result:?}");

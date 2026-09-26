@@ -61,6 +61,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/parse-overrides"
     },
     {
@@ -103,10 +106,16 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {
       "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
     },
     {
       "path": "../../hooks/read-package-hook"
@@ -158,6 +167,12 @@
     },
     {
       "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../resolving/local-resolver"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

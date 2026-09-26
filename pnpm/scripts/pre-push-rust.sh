@@ -9,9 +9,9 @@ yellow() { printf '\033[0;33m%s\033[0m\n' "$*" >&2; }
 failed=0
 
 if command -v cargo >/dev/null 2>&1; then
-    yellow '▸ cargo fmt --all -- --check'
-    if ! cargo fmt --all -- --check; then
-        red '✗ cargo fmt found unformatted Rust files — run `cargo fmt --all` (or `just fmt`) and commit.'
+    yellow '▸ node pnpm/scripts/rustfmt.mjs --all -- --check'
+    if ! node pnpm/scripts/rustfmt.mjs --all -- --check; then
+        red '✗ Rust formatting check failed — run `just fmt` and commit.'
         failed=1
     fi
 
@@ -21,20 +21,31 @@ if command -v cargo >/dev/null 2>&1; then
     # and surfaces for the first time in CI.
     yellow '▸ cargo clippy --all-targets --workspace -- -D warnings'
     if ! cargo clippy --all-targets --workspace -- -D warnings; then
-        red '✗ cargo clippy reported lints — fix the findings (or `just lint`) and commit.'
+        red '✗ cargo clippy reported lints — `just fix` applies the ones it can, then commit.'
         failed=1
     fi
 
-    yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features'
-    if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --quiet; then
+    # `--document-private-items` is what the "Rust CI / Doc" job passes.
+    # Nearly every item in these crates is private or `pub(super)`, and
+    # rustdoc only resolves the doc links of the items it documents — so
+    # without the flag a link to a renamed or deleted private item passes
+    # here and fails there.
+    yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --document-private-items'
+    if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --document-private-items --quiet; then
         red '✗ cargo doc reported warnings — fix the rustdoc diagnostics and commit.'
         failed=1
     fi
 
     if command -v cargo-dylint >/dev/null 2>&1; then
         yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
-        if ! RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace; then
-            red '✗ cargo dylint reported lints — fix the findings (or `just dylint`) and commit.'
+        # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
+        # ...) to hooks. When dylint builds a driver for a new toolchain it
+        # runs `git checkout` in its own clone of rust-clippy, and an inherited
+        # GIT_DIR makes that checkout read this repository instead and fail
+        # (https://github.com/trailofbits/dylint/issues/2105).
+        # shellcheck disable=SC2046
+        if ! (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace); then
+            red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
             failed=1
         fi
     else

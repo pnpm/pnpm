@@ -11,6 +11,36 @@ import { applyPatch, DIR, type DirDiff } from '../src/DirPatcher.js'
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
+const originalCopyFile = fs.promises.copyFile
+
+test('waits for child removal before recursively removing its parent', async () => {
+  const targetDir = path.resolve('target')
+  const child = path.join(targetDir, 'removed', 'child')
+  const parent = path.join(targetDir, 'removed')
+  const completed: string[] = []
+  let removingChild = false
+  fs.promises.rm = jest.fn<typeof fs.promises.rm>(async targetPath => {
+    const target = String(targetPath)
+    if (target === parent && removingChild) {
+      throw Object.assign(new Error('overlapping recursive removal'), { code: 'EPERM' })
+    }
+    removingChild = target === child
+    await Promise.resolve()
+    completed.push(target)
+    removingChild = false
+  })
+
+  await applyPatch({
+    added: [],
+    modified: [],
+    removed: [
+      { path: path.join('removed', 'child'), oldValue: DIR },
+      { path: 'removed', oldValue: DIR },
+    ],
+  }, path.resolve('source'), targetDir)
+
+  expect(completed).toStrictEqual([child, parent])
+})
 
 function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
   const rm = jest.fn(fs.promises.rm) as jest.Mock
@@ -27,6 +57,7 @@ function restoreAllMocks (): void {
   fs.promises.rm = originalRm
   fs.promises.mkdir = originalMkdir
   fs.promises.link = originalLink
+  fs.promises.copyFile = originalCopyFile
 }
 
 afterEach(restoreAllMocks)
@@ -45,7 +76,10 @@ function createHardlink (existingPath: string, newPath: string): void {
   fs.linkSync(existingPath, newPath)
 }
 
-const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
+const fileId = (filePath: string): string => {
+  const stats = fs.lstatSync(filePath)
+  return `${stats.dev}:${stats.ino}`
+}
 
 test('applies a patch on a directory', async () => {
   prepareEmpty()
@@ -111,7 +145,7 @@ test('applies a patch on a directory', async () => {
         path: 'files-to-add/a',
         newValue: DIR,
       },
-      ...filesToAdd.map(path => ({ path, newValue: inodeNumber(`source/${path}`) })),
+      ...filesToAdd.map(path => ({ path, newValue: fileId(`source/${path}`) })),
     ],
     removed: [
       {
@@ -122,13 +156,13 @@ test('applies a patch on a directory', async () => {
         path: 'files-to-remove/a',
         oldValue: DIR,
       } as const,
-      ...filesToRemove.map(path => ({ path, oldValue: inodeNumber(`target/${path}`) })),
+      ...filesToRemove.map(path => ({ path, oldValue: fileId(`target/${path}`) })),
     ].reverse(),
     modified: [
       ...filesToModify.map(path => ({
         path,
-        oldValue: inodeNumber(`target/${path}`),
-        newValue: inodeNumber(`source/${path}`),
+        oldValue: fileId(`target/${path}`),
+        newValue: fileId(`source/${path}`),
       })),
     ],
   }
@@ -139,11 +173,11 @@ test('applies a patch on a directory', async () => {
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   ).not.toStrictEqual(
     filesToModify
       .map(suffix => `source/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   const fsMethods = mockFsPromises()
@@ -156,11 +190,11 @@ test('applies a patch on a directory', async () => {
   expect(
     filesToModify
       .map(suffix => `target/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   ).toStrictEqual(
     filesToModify
       .map(suffix => `source/${suffix}`)
-      .map(inodeNumber)
+      .map(fileId)
   )
 
   // does not touch filesToKeep
@@ -199,4 +233,54 @@ test('applies a patch on a directory', async () => {
 
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add'), expect.anything())
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add/a'), expect.anything())
+})
+
+test('falls back to copy when link fails with EXDEV', async () => {
+  prepareEmpty()
+
+  createFile('source/file.txt', 'hello world')
+  createDir('target')
+
+  fs.promises.link = jest.fn<typeof fs.promises.link>(async () => {
+    throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+  })
+
+  await applyPatch({
+    added: [
+      { path: 'file.txt', newValue: 'source/file.txt' },
+    ],
+    removed: [],
+    modified: [],
+  }, path.resolve('source'), path.resolve('target'))
+
+  expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
+  expect(fs.readdirSync('target')).toStrictEqual(['file.txt'])
+})
+
+// Creating a file symlink needs extra privileges on Windows.
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('does not copy through a symlink that occupies the target when link fails with EXDEV', async () => {
+  prepareEmpty()
+
+  createFile('source/file.txt', 'hello world')
+  createFile('victim.txt', 'untouched')
+  createDir('target')
+  fs.symlinkSync(path.resolve('victim.txt'), path.resolve('target/file.txt'))
+
+  fs.promises.link = jest.fn<typeof fs.promises.link>(async () => {
+    throw Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' })
+  })
+
+  await applyPatch({
+    added: [
+      { path: 'file.txt', newValue: 'source/file.txt' },
+    ],
+    removed: [],
+    modified: [],
+  }, path.resolve('source'), path.resolve('target'))
+
+  expect(fs.readFileSync('victim.txt', 'utf8')).toBe('untouched')
+  expect(fs.lstatSync('target/file.txt').isSymbolicLink()).toBe(false)
+  expect(fs.readFileSync('target/file.txt', 'utf8')).toBe('hello world')
 })

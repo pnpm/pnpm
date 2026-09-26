@@ -5,8 +5,8 @@
 //! any global state.
 
 use crate::{
-    SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,
-    check_platform,
+    ArchitectureAxes, SupportedArchitectures, UnsupportedPlatformError, WantedPlatform,
+    WantedPlatformRef, check_platform,
 };
 
 const PACKAGE_ID: &str = "registry.npmjs.org/foo/1.0.0";
@@ -16,7 +16,12 @@ const FAKE_MUSL: &str = "musl";
 
 fn wanted(os: Option<&[&str]>, cpu: Option<&[&str]>, libc: Option<&[&str]>) -> WantedPlatform {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
     WantedPlatform { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
 }
@@ -49,9 +54,18 @@ fn supported(
     libc: Option<&[&str]>,
 ) -> SupportedArchitectures {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
-    SupportedArchitectures { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
+    SupportedArchitectures::Axes(ArchitectureAxes {
+        os: vec_opt(os),
+        cpu: vec_opt(cpu),
+        libc: vec_opt(libc),
+    })
 }
 
 #[test]

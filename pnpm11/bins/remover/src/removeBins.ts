@@ -12,7 +12,7 @@ import isWindows from 'is-windows'
 
 async function removeOnWin (cmd: string): Promise<void> {
   removalLogger.debug(cmd)
-  await Promise.all([
+  const results = await Promise.allSettled([
     rimraf(cmd),
     rimraf(`${cmd}.ps1`),
     rimraf(`${cmd}${CMD_EXTENSION}`),
@@ -21,6 +21,11 @@ async function removeOnWin (cmd: string): Promise<void> {
     // otherwise a stale `node.exe` survives on PATH after uninstall.
     rimraf(`${cmd}.exe`),
   ])
+  const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) {
+    throw new AggregateError(errors, `Failed to remove Windows bin shims for ${cmd}`)
+  }
 }
 
 async function removeOnNonWin (p: string): Promise<void> {

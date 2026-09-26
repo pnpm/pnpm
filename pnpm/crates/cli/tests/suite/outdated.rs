@@ -1,12 +1,17 @@
+use crate::_utils::{
+    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_ignore_dependencies, set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const DEPRECATED: &str = "@pnpm.e2e/deprecated";
+const BRAVO_DEP: &str = "@pnpm.e2e/bravo-dep";
 
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -91,7 +96,11 @@ fn outdated_compatible_ignores_out_of_range_releases() {
 
     // Default run is outdated (101.0.0 latest)...
     assert_eq!(
-        pacquet(&workspace, ["outdated"]).output().unwrap().status.code(),
+        pacquet(&workspace, ["outdated"])
+            .output()
+            .unwrap()
+            .status
+            .code(),
         Some(1),
         "default outdated should flag the out-of-range 101.0.0",
     );
@@ -143,6 +152,33 @@ fn outdated_up_to_date_exits_zero() {
     assert_eq!(output.status.code(), Some(0), "up-to-date deps should exit 0");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains(DEP), "no outdated dep should be reported: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/14004>: `outdated` must offer
+/// mature releases without offering newer versions blocked by `minimumReleaseAge`.
+#[test]
+fn outdated_respects_minimum_release_age() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.0" }}"#));
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "the mature release should be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(BRAVO_DEP), "report should include the package: {stdout}");
+    assert!(stdout.contains("1.0.1"), "report should offer the mature release: {stdout}");
+    assert!(!stdout.contains("1.1.0"), "report should omit the immature release: {stdout}");
+
+    write_manifest(&workspace, &format!(r#"{{ "{BRAVO_DEP}": "1.0.1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(0), "immature releases should not be offered");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains(BRAVO_DEP), "report should omit immature releases: {stdout}");
 
     drop((root, anchor));
 }
@@ -291,6 +327,64 @@ fn outdated_recursive_aggregates_workspace_dependents() {
 }
 
 #[test]
+fn outdated_recursive_json_preserves_distinct_entries_for_same_package() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+
+    let app_a = workspace.join("packages/app-a");
+    fs::create_dir_all(&app_a).expect("create app-a");
+    fs::write(
+        app_a.join("package.json"),
+        format!(
+            r#"{{ "name": "app-a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-a package.json");
+
+    let app_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&app_b).expect("create app-b");
+    fs::write(
+        app_b.join("package.json"),
+        format!(
+            r#"{{ "name": "app-b", "version": "1.0.0", "devDependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-b package.json");
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated", "--recursive", "--format", "json"])
+        .output()
+        .expect("run recursive outdated");
+
+    assert_eq!(output.status.code(), Some(1));
+    let value: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("recursive outdated should emit valid JSON");
+
+    let prod_key = format!("{DEP}@100.1.0");
+    let dev_key = format!("{DEP}@100.1.0 (dev)");
+
+    assert!(value.get(&prod_key).is_some(), "expected prod key {prod_key} in {value}");
+    assert!(value.get(&dev_key).is_some(), "expected dev key {dev_key} in {value}");
+
+    assert_eq!(value[&prod_key]["dependencyType"], "dependencies");
+    assert_eq!(value[&dev_key]["dependencyType"], "devDependencies");
+
+    let prod_dependents =
+        value[&prod_key]["dependentPackages"].as_array().expect("prod dependents");
+    assert_eq!(prod_dependents.len(), 1);
+    assert_eq!(prod_dependents[0]["name"], "app-a");
+
+    let dev_dependents = value[&dev_key]["dependentPackages"].as_array().expect("dev dependents");
+    assert_eq!(dev_dependents.len(), 1);
+    assert_eq!(dev_dependents[0]["name"], "app-b");
+
+    drop((root, anchor));
+}
+
+#[test]
 fn outdated_recursive_reads_dedicated_project_lockfiles() {
     let (root, workspace, anchor) = setup();
     fs::write(
@@ -378,10 +472,9 @@ fn outdated_list_format() {
     drop((root, anchor));
 }
 
-/// `--long` adds the deprecation reason to the report. Ports pnpm's
-/// "--long with only deprecated packages".
+/// Ports pnpm's "--long with only deprecated packages".
 #[test]
-fn outdated_long_shows_deprecation_details() {
+fn outdated_long_shows_deprecation_and_homepage_details() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEPRECATED}": "1.0.0" }}"#));
@@ -395,6 +488,7 @@ fn outdated_long_shows_deprecation_details() {
         stdout.contains("This package is deprecated"),
         "--long should print the deprecation reason: {stdout}",
     );
+    assert!(stdout.contains("https://foo.bar/qar"), "--long should print the homepage: {stdout}");
 
     drop((root, anchor));
 }
@@ -412,6 +506,81 @@ fn outdated_npm_alias_reports_real_name() {
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(FOO), "report should use the real package name: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A `catalog:` dependency is checked against the specifier the catalog
+/// holds, so an npm-aliased catalog entry is reported under the real
+/// registry name instead of failing on the alias key.
+#[test]
+fn outdated_catalog_npm_alias_reports_real_name() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ positive: 'npm:{FOO}@^1.0.0' }}"));
+    write_manifest(&workspace, r#"{ "positive": "catalog:" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(FOO), "report should use the catalog entry's package name: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// `--compatible` compares against the range the catalog entry holds.
+#[test]
+fn outdated_compatible_uses_the_catalog_range() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    // Widening the catalog range without reinstalling leaves the lockfile
+    // pinned at 100.0.0 while 100.1.0 is now in range.
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    fs::write(&workspace_yaml, yaml.replace("'100.0.0'", "'^100.0.0'"))
+        .expect("widen the catalog range");
+
+    let output =
+        pacquet(&workspace, ["outdated", "--compatible"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "the in-range 100.1.0 should be reported");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("100.1.0"), "report should show the in-range version: {stdout}");
+
+    drop((root, anchor));
+}
+
+/// A dependency left on `catalog:` after its catalog entry is gone
+/// fails with pnpm's catalog error, not with whatever the registry
+/// answers for the bare dependency key.
+#[test]
+fn outdated_catalog_entry_missing_is_a_catalog_error() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '^100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    let without_catalog = yaml
+        .lines()
+        .filter(|line| !line.starts_with("catalog:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(&workspace_yaml, without_catalog).expect("drop the catalog entry");
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "the run should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "missing catalog entry should be reported as such: {stderr}",
+    );
 
     drop((root, anchor));
 }
@@ -440,6 +609,166 @@ fn outdated_prod_dev_filtering() {
     let dev_out = String::from_utf8_lossy(&dev.stdout);
     assert!(dev_out.contains(FOO), "--dev includes the dev dep: {dev_out}");
     assert!(!dev_out.contains(DEP), "--dev excludes the prod dep: {dev_out}");
+
+    drop((root, anchor));
+}
+
+/// Ports `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies
+/// in outdated command`.
+#[test]
+fn outdated_leaves_out_ignored_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    set_ignore_dependencies(&workspace, &[FOO]);
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+
+    assert_eq!(output.status.code(), Some(1), "the unignored dependency is still outdated");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the unignored package: {stdout}");
+    assert!(!stdout.contains(FOO), "report should leave out the ignored package: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_fails_when_package_not_in_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "test-outdated", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }}, "devDependencies": {{ "{FOO}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    for args in [
+        vec!["outdated", "not-a-dep"],
+        vec!["outdated", DEP, "not-a-dep"],
+        vec!["outdated", "--prod", FOO],
+        vec!["outdated", "--dev", DEP],
+    ] {
+        let output = pacquet(&workspace, &args).output().expect("run pacquet outdated");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{args:?} must fail: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+            "{args:?} must report ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+        );
+        assert!(
+            stderr.contains("None of the specified packages were found in the dependencies."),
+            "{args:?} must report single-project message: {stderr}",
+        );
+    }
+
+    let compound = pacquet(&workspace, ["outdated", "!not-a-dep", DEP])
+        .output()
+        .expect("run pacquet outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
+
+    let excluded_only = pacquet(&workspace, ["outdated", &format!("!{DEP}"), &format!("!{FOO}")])
+        .output()
+        .expect("run pacquet outdated with only excluded pattern");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run pacquet outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
+
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
+    let no_lockfile = pacquet(&workspace, ["outdated", "not-a-dep"])
+        .output()
+        .expect("run pacquet outdated without lockfile");
+    let stderr = String::from_utf8_lossy(&no_lockfile.stderr);
+    assert!(!no_lockfile.status.success());
+    assert!(
+        stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+        "must fail with ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES before checking lockfile: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_recursive_validates_workspace_dependencies() {
+    let (root, workspace, anchor) = setup();
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    write_manifest(&workspace, "{}");
+    let pkg_a = workspace.join("packages/app-a");
+    let pkg_b = workspace.join("packages/app-b");
+    fs::create_dir_all(&pkg_a).expect("create app-a");
+    fs::create_dir_all(&pkg_b).expect("create app-b");
+    fs::write(
+        pkg_a.join("package.json"),
+        format!(
+            r#"{{ "name": "app-a", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-a package.json");
+    fs::write(
+        pkg_b.join("package.json"),
+        format!(
+            r#"{{ "name": "app-b", "version": "1.0.0", "devDependencies": {{ "{FOO}": "^1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write app-b package.json");
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let spread = pacquet(&workspace, ["outdated", "-r", DEP, FOO])
+        .output()
+        .expect("run recursive outdated across projects");
+    assert_eq!(spread.status.code(), Some(1));
+
+    for args in [
+        vec!["outdated", "-r", "not-a-dep"],
+        vec!["outdated", "-r", DEP, "not-a-dep"],
+        vec!["outdated", "-r", "--prod", FOO],
+        vec!["--filter", "app-a", "outdated", "-r", FOO],
+    ] {
+        let output = pacquet(&workspace, &args).output().expect("run recursive outdated");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{args:?} must fail: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"),
+            "{args:?} must report ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES: {stderr}",
+        );
+        assert!(
+            stderr.contains(
+                "None of the specified packages were found in the dependencies of any of"
+            ),
+            "{args:?} must report workspace message: {stderr}",
+        );
+    }
+
+    let empty_filter =
+        pacquet(&workspace, ["--filter", "absent-project", "outdated", "-r", "not-a-dep"])
+            .output()
+            .expect("run recursive outdated with empty filter");
+    assert!(empty_filter.status.success(), "empty filter selection should exit 0");
+
+    let compound = pacquet(&workspace, ["outdated", "-r", "!not-a-dep", DEP])
+        .output()
+        .expect("run recursive outdated with compound pattern");
+    assert_eq!(compound.status.code(), Some(1));
+
+    let excluded_only =
+        pacquet(&workspace, ["outdated", "-r", &format!("!{DEP}"), &format!("!{FOO}")])
+            .output()
+            .expect("run recursive outdated with only excluded patterns");
+    assert_eq!(excluded_only.status.code(), Some(0));
+
+    let cancelled = pacquet(&workspace, ["outdated", "-r", DEP, &format!("!{DEP}")])
+        .output()
+        .expect("run recursive outdated with cancelled pattern");
+    assert_eq!(cancelled.status.code(), Some(0));
 
     drop((root, anchor));
 }

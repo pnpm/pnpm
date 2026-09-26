@@ -1,6 +1,6 @@
 //! Semver questions the audit asks of advisory ranges.
 
-use super::{Range, Version};
+use super::{Range, RangeSpecStyle, Version};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };
@@ -12,9 +12,12 @@ pub(crate) fn satisfies_including_prerelease(version: &Version, range: &Range) -
     if version.satisfies(range) {
         return true;
     }
-    range.to_string().split("||").any(|comparators| {
-        comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
-    })
+    range
+        .to_string()
+        .split("||")
+        .any(|comparators| {
+            comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
+        })
 }
 
 pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
@@ -33,12 +36,12 @@ pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
 }
 
 pub(crate) fn comparator_operator_and_version(comparator: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<"] {
+    for operator in [">=", "<=", ">", "<", "=", "^", "~"] {
         if let Some(version) = comparator.strip_prefix(operator) {
-            return (operator, version);
+            return (operator, version.trim());
         }
     }
-    ("", comparator)
+    ("", comparator.trim())
 }
 
 pub(crate) fn infer_patched_versions(vulnerable_range: &str) -> Option<String> {
@@ -73,14 +76,91 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
     matches!(operator, "<" | "<=").then_some((operator, last))
 }
 
-/// The minimum patched version with a caret, mirroring pnpm's
-/// `caretRangeForPatched`: `^X.Y.Z` keeps the resolver within the same major
-/// the user pinned to, where a bare `>=X.Y.Z` could silently promote a dep to
-/// a later breaking major. `patched` is always pacquet's inferred `>=V` form,
-/// so its minimum is the version after `>=`.
-pub(crate) fn caret_range_for_patched(patched: &str) -> String {
+/// The minimum patched version saved with the operator of `style`, mirroring
+/// pnpm's `patchedRangeForStyle`: `^X.Y.Z` (the default) keeps the resolver
+/// within the same major the user pinned to, where a bare `>=X.Y.Z` could
+/// silently promote a dep to a later breaking major. `patched` is always
+/// pacquet's inferred `>=V` form, so its minimum is the version after `>=`.
+pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
         .and_then(|version| version.trim().parse::<Version>().ok())
-        .map_or_else(|| patched.to_string(), |version| format!("^{version}"))
+        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
+}
+
+/// [`patched_range_for_style`] at pnpm's default caret style.
+pub(crate) fn caret_range_for_patched(patched: &str) -> String {
+    patched_range_for_style(patched, RangeSpecStyle::Major)
+}
+
+pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
+    let Ok(dom_range) = dom.trim().parse::<Range>() else { return false };
+    let sub = sub.trim();
+    if sub.is_empty() || !sub_prereleases_admitted_by_dom(sub, dom) {
+        return false;
+    }
+    sub.split("||")
+        .all(|sub_part| {
+            let Ok(sub_range) = sub_part.trim().parse::<Range>() else { return false };
+            dom_range.allows_all(&sub_range)
+        })
+}
+
+fn sub_prereleases_admitted_by_dom(sub: &str, dom: &str) -> bool {
+    for comparator in extract_comparators(sub) {
+        let (_, version_str) = comparator_operator_and_version(&comparator);
+        let Ok(version) = version_str.parse::<Version>() else { continue };
+        if version.is_prerelease()
+            && !has_matching_prerelease_tuple(dom, version.major, version.minor, version.patch)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn has_matching_prerelease_tuple(dom: &str, major: u64, minor: u64, patch: u64) -> bool {
+    extract_comparators(dom)
+        .into_iter()
+        .any(|comparator| {
+            let (_, version_str) = comparator_operator_and_version(&comparator);
+            version_str
+                .parse::<Version>()
+                .is_ok_and(|version| {
+                    version.is_prerelease()
+                        && version.major == major
+                        && version.minor == minor
+                        && version.patch == patch
+                })
+        })
+}
+
+fn extract_comparators(range_str: &str) -> Vec<String> {
+    let mut comparators = Vec::new();
+    for part in range_str.split("||") {
+        let tokens: Vec<&str> = part.split_whitespace().collect();
+        let mut index = 0;
+        while index < tokens.len() {
+            let token = tokens[index];
+            if matches!(token, ">=" | "<=" | ">" | "<" | "=" | "^" | "~")
+                && index + 1 < tokens.len()
+            {
+                comparators.push(format!("{}{}", token, tokens[index + 1]));
+                index += 2;
+            } else {
+                comparators.push(token.to_string());
+                index += 1;
+            }
+        }
+    }
+    comparators
+}
+
+pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {
+    range_str
+        .trim()
+        .parse::<Range>()
+        .ok()
+        .and_then(|r| r.min_version())
+        .or_else(|| range_str.trim().parse::<Version>().ok())
 }

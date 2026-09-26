@@ -1,14 +1,21 @@
+pub(crate) use configuration::{
+    apply_install_cli_config, derive_config_root, warn_about_config_root,
+};
+pub(crate) use install::InstallPipeline;
+pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
+pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
+pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
+
+use selection::{InstallFamily, select_install_family, select_install_family_plan};
+
 use super::{
     add::AddArgs,
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
-    package_manager::{PackageManagerToSync, package_manager_to_sync, read_manifest_json},
+    package_manager::read_manifest_json,
     prune::PruneArgs,
-    recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
-    },
+    recursive::{discover_workspace_projects, filtered_projects_dependencies},
     remove::RemoveArgs,
     update::UpdateArgs,
     update_changeset::UpdateChangesetContext,
@@ -16,28 +23,62 @@ use super::{
 use crate::{
     State,
     cli_args::{
+        config_warnings::{warn_unapplied_package_configs, warn_unmatched_registry_options},
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
     },
-    config_deps,
+    config_deps, ecosystem_add, ecosystem_install,
+    package_specifier::EcosystemPackageSpecifier,
+    state::check_root_project_engine,
 };
+use indexmap::IndexMap;
+
+use install::init_shared_state;
+
 use miette::Context;
-use pacquet_config::Config;
-use pacquet_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+
+use pnpm_config::{Config, Host};
+use pnpm_injected_deps_syncer::sync_injected_deps_of_modules_dir;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manager::{PathNode, graph_sequencer};
+use pnpm_reporter::Reporter;
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 pub(crate) struct InstallFamilySelection {
     pub(crate) workspace_root: PathBuf,
-    pub(crate) projects: Vec<pacquet_workspace::Project>,
-    pub(crate) ordered_groups: Vec<Vec<PathBuf>>,
+    pub(crate) projects: Vec<pnpm_workspace::Project>,
+    pub(crate) project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
+    pub(crate) install_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
+    /// `Some` when the plan already ran the install's cycle search over
+    /// the same graph the install would rebuild (the unnarrowed case);
+    /// empty means the projects are orderable. `None` — the install
+    /// searches itself.
+    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
+}
+
+impl InstallFamilySelection {
+    pub(crate) fn selected_projects(&mut self) -> pnpm_package_manager::SelectedProjects<'_> {
+        pnpm_package_manager::SelectedProjects {
+            projects: &mut self.projects,
+            project_dependencies: &self.project_dependencies,
+            ordered_dirs: &self.ordered_dirs,
+            selected_dirs: self.selected_dirs.as_ref(),
+            install_dirs: self.install_dirs.as_ref(),
+            active_manifest_is_standin: self.active_manifest_is_standin,
+        }
+    }
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -54,748 +95,374 @@ pub(crate) enum InstallFamilyPlan {
     /// Recursive / filtered with one lockfile per project
     /// (`sharedWorkspaceLockfile: false`): the selected project directories,
     /// each installed independently against its own `pnpm-lock.yaml`,
-    /// `node_modules`, and virtual store. Mirrors pnpm's per-project loop in
-    /// its recursive dispatch. The order is not topological — each project
-    /// resolves in isolation — so the dirs are sorted for a deterministic run
-    /// order, matching pnpm's alphabetical `Object.keys(...).sort()`.
-    PerProject(Vec<PathBuf>),
+    /// `node_modules`, and virtual store. Dependency-ready projects run under
+    /// the workspace-concurrency limit.
+    PerProject(DedicatedProjects),
 }
 
-fn select_install_family_plan<Reporter: self::Reporter>(
-    cfg: &Config,
-    prefix: &Path,
-    manifest_path: &Path,
-    recursive_sort: bool,
-    auto_exclude_root: bool,
-) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) =
-        select_workspace_projects(cfg, prefix, manifest_path, recursive_sort, auto_exclude_root)?
-    else {
-        return Ok(InstallFamilyPlan::Single);
-    };
-    // Report what the `--filter` / `-r` selection resolved to, so the user
-    // can confirm it before the install acts on it. Emitted once here for
-    // every plan shape below — a `PerProject` plan installs each selected
-    // project separately, and those child installs must not each report
-    // the workspace again. The unnarrowed install reports its own scope
-    // from inside the installer, where the workspace walk it already does
-    // supplies the count.
-    Reporter::emit(&LogEvent::Scope(ScopeLog {
-        level: LogLevel::Debug,
-        selected: selection.selected_dirs.len(),
-        total: Some(selection.projects.len()),
-        workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
-    }));
-    if !cfg.shared_workspace_lockfile {
-        let mut project_dirs: Vec<PathBuf> = selection.selected_dirs.iter().cloned().collect();
-        project_dirs.sort();
-        return Ok(InstallFamilyPlan::PerProject(project_dirs));
-    }
-    Ok(InstallFamilyPlan::Shared(Box::new(selection)))
+#[derive(Clone, Copy)]
+enum RuntimePolicy {
+    Always,
+    Config(bool),
 }
 
-pub(crate) fn select_workspace_projects(
-    cfg: &Config,
-    prefix: &Path,
-    manifest_path: &Path,
-    recursive_sort: bool,
-    auto_exclude_root: bool,
-) -> miette::Result<Option<InstallFamilySelection>> {
-    if !cfg.recursive {
-        return Ok(None);
-    }
-
-    let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
-    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root)?;
-    if let Some(runtime_on_fail) = cfg.runtime_on_fail {
-        for project in &mut projects {
-            pacquet_package_manifest::apply_runtime_on_fail_override(
-                project.manifest.value_mut(),
-                runtime_on_fail.as_str(),
-            );
+impl RuntimePolicy {
+    fn use_manifest(self, config: &Config) -> bool {
+        match self {
+            Self::Always => true,
+            Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
         }
     }
-    let (ordered_groups, ordered_dirs, selected_dirs) = {
-        let selection = select_recursive_projects(
-            &projects,
-            cfg,
-            prefix,
-            if auto_exclude_root {
-                AutoExcludeRoot::Enabled { workspace_patterns: workspace_patterns.as_deref() }
-            } else {
-                AutoExcludeRoot::Disabled
-            },
-        )?;
-        let ordered_groups = if recursive_sort {
-            sort_filtered_projects(
-                &selection.selected,
-                selection.full_graph(),
-                selection.prod_all.as_ref(),
-                &selection.prod_only_selected,
-            )
-        } else {
-            vec![selection.selected.keys().cloned().collect()]
-        };
-        let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
-        let selected_dirs = Arc::new(selection.selected.keys().cloned().collect());
-        (ordered_groups, ordered_dirs, selected_dirs)
-    };
-
-    let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-    let normalized_active_dir = pacquet_fs::lexical_normalize(active_dir);
-    let active_manifest_is_standin = !active_dir.join("package.json").is_file()
-        && pacquet_workspace::try_read_project_manifest(active_dir)
-            .map_err(miette::Report::new)?
-            .is_none()
-        && !projects.iter().any(|project| {
-            pacquet_fs::lexical_normalize(&project.root_dir) == normalized_active_dir
-        });
-
-    Ok(Some(InstallFamilySelection {
-        workspace_root,
-        projects,
-        ordered_groups,
-        ordered_dirs,
-        selected_dirs,
-        active_manifest_is_standin,
-    }))
 }
 
-/// Build the project-anchored `State` for one project of a
-/// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
-/// output paths under `project_dir` via [`anchor_dedicated_project_config`],
-/// and initialize the state. The clone is leaked because [`State::init`] needs
-/// a `&'static Config`; see [`run_dedicated_lockfile_workspace_install`] for
-/// why the bounded leak is acceptable.
-fn init_dedicated_project_state(
-    cfg: &Config,
-    project_dir: &Path,
+async fn prepare_root_config<Reporter>(
+    (manifest_path, config, config_root): (&Path, &mut Config, &Path),
+    (frozen_lockfile, runtime_policy): (bool, RuntimePolicy),
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter,
+{
+    if !config_deps::may_update_config(config, config_root) {
+        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    }
+    config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
+    check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    Ok(())
+}
+
+/// The projects of a `sharedWorkspaceLockfile: false` workspace that a
+/// recursive / filtered command installs one by one.
+pub(crate) struct DedicatedProjects {
+    /// Which project must finish before which, keyed by project dir.
+    dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    /// The name each project is addressed by in `packageConfigs`, taken
+    /// from the manifests the selection already parsed. Empty when the
+    /// setting is unset, which is the only thing the names feed.
+    names: HashMap<PathBuf, String>,
+    /// Whether the selection is every workspace project, so that the run
+    /// leaves no project's lockfile behind its manifest.
+    covers_workspace: bool,
+}
+
+impl DedicatedProjects {
+    fn new(config: &Config, selection: InstallFamilySelection) -> Self {
+        let names = project_names(config, &selection.projects);
+        let normalized_root = pnpm_fs::lexical_normalize(&selection.workspace_root);
+        let root_is_project =
+            pnpm_package_manifest::project_manifest_path(&normalized_root).is_file();
+        let covers_workspace = selection.projects
+            .iter()
+            .all(|project| selection.selected_dirs.contains(&project.root_dir))
+            && (!root_is_project
+                || selection.selected_dirs
+                    .iter()
+                    .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root));
+        DedicatedProjects { dependencies: selection.project_dependencies, names, covers_workspace }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dependencies.is_empty()
+    }
+}
+
+/// The declared name of every project that declares one, keyed by its
+/// directory. Empty when `packageConfigs` is unset: addressing a project
+/// by name is the only thing the map feeds.
+pub(crate) fn project_names(
+    config: &Config,
+    projects: &[pnpm_workspace::Project],
+) -> HashMap<PathBuf, String> {
+    if config.package_configs.is_none() {
+        return HashMap::new();
+    }
+    projects
+        .iter()
+        .filter_map(|project| {
+            let name = project.manifest
+                .value()
+                .get("name")?
+                .as_str()?;
+            Some((project.root_dir.clone(), name.to_string()))
+        })
+        .collect()
+}
+
+/// The name `packageConfigs` addresses the project at `project_dir` by,
+/// for a caller with no parsed manifest in hand. `None` when the setting
+/// is unset: the name would have nothing to look up.
+fn dedicated_project_name(config: &Config, project_dir: &Path) -> Option<String> {
+    config.package_configs.as_ref()?;
+    pnpm_workspace::read_project_name(project_dir)
+}
+
+struct DedicatedProjectRuns<'a> {
+    config: &'a Config,
+    projects: DedicatedProjects,
     require_lockfile: bool,
-) -> miette::Result<State> {
-    let mut project_config = cfg.clone();
-    anchor_dedicated_project_config(&mut project_config, project_dir);
-    let project_config = Config::leak(project_config);
-    State::init(project_dir.join("package.json"), project_config, require_lockfile)
-        .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))
+    http_client: Option<Arc<ThrottledClient>>,
+    /// Whether the command may write the workspace manifest, so that the
+    /// exclude-list prune each project's install skipped runs once all of
+    /// them succeeded and they cover the workspace. See
+    /// [`prune_after_dedicated_installs`].
+    prune_excludes: bool,
+    /// Whether the command installs the projects' dependencies, so that
+    /// their injected copies are synced once all of them ran. See
+    /// [`sync_dedicated_injected_deps`].
+    sync_injected_deps: bool,
 }
 
-/// The reporter-generic body of `pacquet install`: it threads one `Reporter`
-/// type through config-dependency sync, the `updateConfig` hooks, and the
-/// install itself. Lifting it out of the dispatch keeps the three
-/// `ReporterType` arms to a single line each.
-pub(crate) struct InstallPipeline {
-    pub(crate) args: InstallArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) prefix: PathBuf,
-    pub(crate) manifest_path: PathBuf,
-    pub(crate) recursive_sort: bool,
-    pub(crate) require_lockfile: bool,
-    pub(crate) frozen_lockfile: bool,
-}
-
-impl InstallPipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let InstallPipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-            require_lockfile,
-            frozen_lockfile,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                frozen_lockfile,
-                false,
-            )
-            .await?;
+impl DedicatedProjectRuns<'_> {
+    async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
+    where
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send,
+    {
+        self.run_projects(run).await?;
+        if self.prune_excludes && self.projects.covers_workspace {
+            prune_after_dedicated_installs(self.config)?;
         }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
-            false,
-        )?;
-        match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                let cfg: &Config = cfg;
-                for project_dir in project_dirs {
-                    let state = init_dedicated_project_state(cfg, &project_dir, require_lockfile)?;
-                    Box::pin(args.clone().run::<Reporter>(state)).await?;
-                }
-                Ok(())
-            }
-            InstallFamilyPlan::Shared(selection) => {
-                if selection.selected_dirs.is_empty() {
-                    return Ok(());
-                }
-                let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await
-            }
-            InstallFamilyPlan::Single => {
-                if !cfg.shared_workspace_lockfile
-                    && let Some(workspace_dir) = cfg.workspace_dir.clone()
-                {
-                    let cfg: &'static Config = cfg;
-                    return run_dedicated_lockfile_workspace_install::<Reporter>(
-                        &args,
-                        cfg,
-                        &workspace_dir,
-                        require_lockfile,
-                    )
-                    .await;
-                }
-                let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await
-            }
-        }
-    }
-}
-
-pub(crate) struct AddPipeline {
-    pub(crate) args: AddArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) prefix: PathBuf,
-    pub(crate) manifest_path: PathBuf,
-    pub(crate) recursive_sort: bool,
-    /// [`AddArgs::parse_config_dependencies`]'s output, parsed by the dispatch
-    /// before this pipeline scaffolds a manifest. `Some` exactly when
-    /// `--config` was passed.
-    pub(crate) config_dependencies: Option<BTreeMap<String, String>>,
-}
-
-impl AddPipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let AddPipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-            config_dependencies,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        // `--config` targets the workspace's configuration dependencies, not
-        // any project's manifest, so it bypasses project selection entirely.
-        let plan = if config_dependencies.is_some() {
-            InstallFamilyPlan::Single
-        } else {
-            select_install_family_plan::<Reporter>(
-                cfg,
-                &prefix,
-                &manifest_path,
-                recursive_sort,
-                true,
-            )?
-        };
-        match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                // Dedicated per-project lockfiles: add the packages to each
-                // selected project independently.
-                let cfg: &Config = cfg;
-                for project_dir in project_dirs {
-                    let state = init_dedicated_project_state(cfg, &project_dir, false)?;
-                    Box::pin(args.clone().run::<Reporter>(state, None)).await?;
-                }
-                Ok(())
-            }
-            InstallFamilyPlan::Shared(selection) => {
-                if selection.selected_dirs.is_empty() {
-                    return Ok(());
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await
-            }
-            InstallFamilyPlan::Single => {
-                // Dedicated per-project lockfiles: `add` mutates only the
-                // active project, whose outputs anchor at the project dir.
-                // `--config` targets the workspace's configuration
-                // dependencies, which stay workspace-anchored.
-                if config_dependencies.is_none()
-                    && !cfg.shared_workspace_lockfile
-                    && cfg.workspace_dir.is_some()
-                {
-                    let manifest_dir = manifest_path
-                        .parent()
-                        .expect("manifest path always has a parent dir")
-                        .to_path_buf();
-                    anchor_dedicated_project_config(cfg, &manifest_dir);
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state, config_dependencies)).await
-            }
-        }
-    }
-}
-
-pub(crate) struct UpdatePipeline {
-    pub(crate) args: UpdateArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) prefix: PathBuf,
-    pub(crate) manifest_path: PathBuf,
-    pub(crate) recursive_sort: bool,
-}
-
-impl UpdatePipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let UpdatePipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
-            false,
-        )?;
-        // An empty selection has nothing to update, and — like the shared
-        // path — must not generate a changeset.
-        match &plan {
-            InstallFamilyPlan::PerProject(project_dirs) if project_dirs.is_empty() => {
-                return Ok(());
-            }
-            InstallFamilyPlan::Shared(selection) if selection.selected_dirs.is_empty() => {
-                return Ok(());
-            }
-            _ => {}
-        }
-        // Dedicated per-project lockfiles: the non-recursive command
-        // mutates only the active project, whose outputs anchor at the
-        // project dir.
-        if matches!(plan, InstallFamilyPlan::Single)
-            && !cfg.shared_workspace_lockfile
-            && cfg.workspace_dir.is_some()
-        {
-            let manifest_dir = manifest_path
-                .parent()
-                .expect("manifest path always has a parent dir")
-                .to_path_buf();
-            anchor_dedicated_project_config(cfg, &manifest_dir);
-        }
-        let generate_changeset = if args.changeset {
-            true
-        } else if args.no_changeset {
-            false
-        } else {
-            cfg.update_config.changeset.unwrap_or(false)
-        };
-        let changeset_context = generate_changeset
-            .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
-            .transpose()?;
-        match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                let cfg: &Config = cfg;
-                for project_dir in project_dirs {
-                    let state = init_dedicated_project_state(cfg, &project_dir, false)?;
-                    Box::pin(args.clone().run::<Reporter>(state)).await?;
-                }
-            }
-            InstallFamilyPlan::Shared(selection) => {
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await?;
-            }
-            InstallFamilyPlan::Single => {
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await?;
-            }
-        }
-        if let Some(changeset_context) = changeset_context {
-            changeset_context.generate::<Reporter>()?;
+        if self.sync_injected_deps {
+            let project_dirs: Vec<PathBuf> = self.projects.dependencies
+                .keys()
+                .cloned()
+                .collect();
+            sync_dedicated_injected_deps(self.config, &project_dirs, &self.projects.names)?;
         }
         Ok(())
     }
-}
 
-pub(crate) struct RemovePipeline {
-    pub(crate) args: RemoveArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) prefix: PathBuf,
-    pub(crate) manifest_path: PathBuf,
-    pub(crate) recursive_sort: bool,
-}
-
-impl RemovePipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let RemovePipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let plan = select_install_family_plan::<Reporter>(
-            cfg,
-            &prefix,
-            &manifest_path,
-            recursive_sort,
-            false,
-        )?;
-        match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                // Dedicated per-project lockfiles: remove the packages from
-                // each selected project independently.
-                let cfg: &Config = cfg;
-                for project_dir in project_dirs {
-                    let state = init_dedicated_project_state(cfg, &project_dir, false)?;
-                    Box::pin(args.clone().run::<Reporter>(state)).await?;
-                }
-                Ok(())
-            }
-            InstallFamilyPlan::Shared(selection) => {
-                if selection.selected_dirs.is_empty() {
-                    return Ok(());
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run_selected::<Reporter>(state, *selection)).await
-            }
-            InstallFamilyPlan::Single => {
-                // Dedicated per-project lockfiles: the non-recursive command
-                // mutates only the active project, whose outputs anchor at the
-                // project dir.
-                if !cfg.shared_workspace_lockfile && cfg.workspace_dir.is_some() {
-                    let manifest_dir = manifest_path
-                        .parent()
-                        .expect("manifest path always has a parent dir")
-                        .to_path_buf();
-                    anchor_dedicated_project_config(cfg, &manifest_dir);
-                }
-                let cfg: &'static Config = cfg;
-                let state =
-                    State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(args.run::<Reporter>(state)).await
-            }
-        }
-    }
-}
-
-pub(crate) struct DeployPipeline {
-    pub(crate) args: DeployArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-}
-
-impl DeployPipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        dir_ref: &Path,
-    ) -> miette::Result<()> {
-        let DeployPipeline { args, cfg, config_root, package_manager_to_sync } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let cfg: &'static Config = cfg;
-        Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
-    }
-}
-
-/// Re-anchor the per-project output paths for dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false`): `node_modules` and the
-/// virtual store live under the project, mirroring pnpm, which resolves
-/// them against `lockfileDir` — the project dir in dedicated mode. An
-/// explicit `virtualStoreDir` setting re-resolves against the project
-/// (its raw value is recovered from [`Config::explicit_settings`]);
-/// the default stays `<modules_dir>/.pnpm`. Global-virtual-store
-/// installs keep their store-anchored `virtual_store_dir`.
-pub(crate) fn anchor_dedicated_project_config(config: &mut Config, project_dir: &Path) {
-    // Both re-anchored paths resolve the *raw* setting (recovered from
-    // [`Config::explicit_settings`]) against the project dir, so a
-    // multi-component or absolute value keeps its full shape —
-    // `Path::join` keeps an absolute setting absolute.
-    config.modules_dir =
-        match config.explicit_settings.get("modulesDir").and_then(serde_json::Value::as_str) {
-            Some(raw) => project_dir.join(raw),
-            None => project_dir.join("node_modules"),
-        };
-    if !config.enable_global_virtual_store {
-        config.virtual_store_dir = match config
-            .explicit_settings
-            .get("virtualStoreDir")
-            .and_then(serde_json::Value::as_str)
-        {
-            Some(raw) => project_dir.join(raw),
-            None => config.modules_dir.join(".pnpm"),
-        };
-    }
-}
-
-/// `sharedWorkspaceLockfile: false` workspace install: one independent
-/// single-project install per workspace project — each gets its own
-/// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
-/// pnpm's dedicated-lockfile per-project loop in its recursive
-/// dispatch. The workspace root participates when it has a manifest,
-/// matching the project set a shared-lockfile workspace install covers.
-async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'static>(
-    args: &super::install::InstallArgs,
-    cfg: &Config,
-    workspace_root: &Path,
-    require_lockfile: bool,
-) -> miette::Result<()> {
-    let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
-    let normalized_root = pacquet_fs::lexical_normalize(workspace_root);
-    let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
-    if workspace_root.join("package.json").is_file()
-        && !projects
-            .iter()
-            .any(|project| pacquet_fs::lexical_normalize(&project.root_dir) == normalized_root)
+    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
+    where
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send,
     {
-        project_dirs.push(workspace_root.to_path_buf());
+        let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
+        let config = self.config;
+        let require_lockfile = self.require_lockfile;
+        let http_client = &self.http_client;
+        let names = &self.projects.names;
+        let run = &run;
+        let run_node = |project_dir: PathBuf| {
+            let first_error = &first_error;
+            let http_client = http_client.as_ref().map(Arc::clone);
+            async move {
+                let result = match init_dedicated_project_state(
+                    config,
+                    &project_dir,
+                    names.get(&project_dir).map(String::as_str),
+                    require_lockfile,
+                    http_client,
+                ) {
+                    Ok(state) => run(state).await,
+                    Err(error) => Err(error),
+                };
+                record_dedicated_result(first_error, result)
+            }
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &self.projects.dependencies,
+            &ScheduleGraphAsyncOptions::new(
+                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
+                self.config.bail,
+                &run_node,
+                &on_node_skipped,
+            )
+            .continue_on_failure(!self.config.bail),
+        )
+        .await;
+        first_error
+            .into_inner()
+            .expect("dedicated install error lock is not poisoned")
+            .map_or(Ok(()), Err)
     }
-    project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
-    // One `Config::leak` per project: `State::init` needs a
-    // `&'static Config`, and a leaked shared reference can't be
-    // reclaimed for the next iteration. The leak is bounded by the
-    // project count, happens once per CLI invocation, and is
-    // reclaimed at process exit — the same lifetime deploy's derived
-    // install config has.
+}
+
+/// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
+/// of a `sharedWorkspaceLockfile: false` workspace. Each project's install
+/// skips it because its own lockfile cannot prove what a sibling resolves,
+/// so it runs once here, after a run that installed every project. A
+/// filtered run skips it: an unselected project's lockfile may lag behind
+/// its manifest.
+fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(());
+    };
+    pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
+        .wrap_err("prune the workspace manifest")
+}
+
+/// With a shared lockfile, an injected workspace project is synced into its
+/// copies after its own lifecycle scripts run. With a lockfile per project,
+/// every project is installed on its own, so the copies that `project_dirs`
+/// hold of each other are synced once all of them ran their scripts.
+fn sync_dedicated_injected_deps(
+    config: &Config,
+    project_dirs: &[PathBuf],
+    names: &HashMap<PathBuf, String>,
+) -> miette::Result<()> {
+    if config.ignore_scripts || config.virtual_store_only {
+        return Ok(());
+    }
+    let source_dirs: HashSet<PathBuf> = project_dirs
+        .iter()
+        .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
+        .collect();
     for project_dir in project_dirs {
-        let state = init_dedicated_project_state(cfg, &project_dir, require_lockfile)?;
-        Box::pin(args.clone().run::<Reporter>(state)).await?;
+        let modules_dir =
+            config.project_modules_dir(project_dir, names.get(project_dir).map(String::as_str));
+        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, &source_dirs)?;
     }
     Ok(())
 }
 
-/// Shared workspace-root and package-manager policy derivation used by the
-/// install, dedupe, and prune dispatch paths.
-pub(crate) fn derive_config_root_and_package_manager_to_sync(
+/// The selection in build order. Sequenced over borrowed paths: cloning a
+/// workspace-scale edge map just to sort it cost more than the sort.
+fn sequence_project_dependencies(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+) -> Vec<PathBuf> {
+    graph_sequencer(
+        &project_dependencies
+            .iter()
+            .map(|(key, value)| {
+                (
+                    PathNode(key.as_path()),
+                    value
+                        .iter()
+                        .map(|dir| PathNode(dir))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect(),
+        &project_dependencies
+            .keys()
+            .map(|dir| PathNode(dir))
+            .collect::<Vec<_>>(),
+    )
+    .order
+    .into_iter()
+    .map(|node| node.0.to_path_buf())
+    .collect()
+}
+
+/// The edges the sequencer orders the selection by. Without `--sort`
+/// there are none, and the projects run in directory order.
+fn project_dependencies(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    recursive_sort: bool,
+) -> IndexMap<PathBuf, Vec<PathBuf>> {
+    if recursive_sort {
+        return filtered_projects_dependencies(
+            &selection.selected,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
+    }
+    let mut dirs = selection.selected
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    dirs.sort();
+    dirs.into_iter()
+        .map(|dir| (dir, Vec::new()))
+        .collect()
+}
+
+/// Build the project-anchored `State` for one project of a
+/// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
+/// output paths and per-project settings under `project_dir` via
+/// [`Config::anchor_dedicated_project`], and initialize the state. The
+/// clone is leaked because [`State::init`] needs a `&'static Config`; see
+/// [`run_dedicated_lockfile_workspace_install`](install::run_dedicated_lockfile_workspace_install) for why the bounded leak
+/// is acceptable.
+fn init_dedicated_project_state(
     cfg: &Config,
-    dir_ref: &Path,
-    reporter: ReporterType,
-) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
-    let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
-    let root_manifest = read_manifest_json(&config_root.join("package.json"))
-        .wrap_err("read package manager policy")?;
-    // pnpm warns from config-reading, so the notice lands ahead of any
-    // install output. This is the install family's earliest point that
-    // knows the root manifest's directory.
-    warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
-    warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
-    let package_manager_to_sync = root_manifest
-        .as_ref()
-        .and_then(|manifest| package_manager_to_sync(manifest, &config_root, cfg.pm_on_fail));
-    Ok((config_root, package_manager_to_sync))
-}
-
-pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
-    cfg.offline = resolve_bool_override(args.offline, args.no_offline, cfg.offline);
-    cfg.prefer_offline =
-        resolve_bool_override(args.prefer_offline, args.no_prefer_offline, cfg.prefer_offline);
-    cfg.frozen_store =
-        resolve_bool_override(args.frozen_store, args.no_frozen_store, cfg.frozen_store);
-    cfg.ignore_scripts =
-        resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
-    cfg.force = args.force || cfg.force;
-    if let Some(network_concurrency) = args.network_concurrency {
-        cfg.network_concurrency = network_concurrency;
-    }
-    if let Some(fetch_timeout) = args.fetch_timeout {
-        cfg.fetch_timeout = fetch_timeout;
-    }
-    if let Some(user_agent) = args.user_agent.clone() {
-        cfg.user_agent = user_agent;
-    }
-    if let Some(pnpr_server) = args.pnpr_server.clone() {
-        cfg.pnpr_server = Some(pnpr_server);
-    }
-}
-
-/// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
-/// (when `--check`), runs config-dependency installation and `updateConfig`
-/// hooks, then dispatches to the install pipeline. The snapshot wraps the
-/// entire pipeline so any lockfile write made by config-deps is also covered
-/// by the check gate.
-pub(crate) struct DedupePipeline {
-    pub(crate) args: DedupeArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) manifest_path: PathBuf,
-}
-
-impl DedupePipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
-            self;
-
-        let lockfile_path = config_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
-
-        // Snapshot before any config-dep writes so --check detects lockfile
-        // changes made by config-dependency syncing as well.
-        let existing =
-            if args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
-        let guard =
-            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
-
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
+    project_dir: &Path,
+    project_name: Option<&str>,
+    require_lockfile: bool,
+    http_client: Option<Arc<ThrottledClient>>,
+) -> miette::Result<State> {
+    let mut project_config = cfg.clone();
+    project_config.anchor_dedicated_project(project_dir, project_name);
+    let project_config = Config::leak(project_config);
+    let manifest_path = project_dir.join("package.json");
+    match http_client {
+        Some(http_client) => {
+            let lockfile = State::lazy_lockfile(project_config, &manifest_path, require_lockfile);
+            State::init_with_lockfile_and_http_client(
+                manifest_path,
+                project_config,
+                lockfile,
+                http_client,
             )
-            .await?;
         }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        let cfg: &'static Config = cfg;
-        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path)).await
+        None => State::init(manifest_path, project_config, require_lockfile),
+    }
+    .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))
+}
+
+pub(in crate::cli_args) fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
+    let manifest_dir = manifest_path
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
+    let name = dedicated_project_name(cfg, &manifest_dir);
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+}
+
+/// The config through which a command finds the installed packages of the
+/// active project. In a workspace whose projects keep their own lockfiles,
+/// those are in the active project's modules directory, not the workspace
+/// root's.
+pub(in crate::cli_args) fn installed_project_config(
+    config: &'static Config,
+    manifest_path: &Path,
+) -> &'static Config {
+    if !keeps_project_lockfiles(config) {
+        return config;
+    }
+    let mut config = config.clone();
+    anchor_active_project(&mut config, manifest_path);
+    Config::leak(config)
+}
+
+pub(in crate::cli_args) fn keeps_project_lockfiles(config: &Config) -> bool {
+    !config.shares_one_lockfile() && config.workspace_dir.is_some()
+}
+
+fn record_dedicated_result(
+    first_error: &std::sync::Mutex<Option<miette::Report>>,
+    result: miette::Result<()>,
+) -> TaskCompletion {
+    match result {
+        Ok(()) => TaskCompletion::Passed,
+        Err(error) => {
+            first_error
+                .lock()
+                .expect("dedicated install error lock is not poisoned")
+                .get_or_insert(error);
+            TaskCompletion::Failed
+        }
     }
 }
 
-/// The reporter-generic body of `pacquet prune`: runs config-deps and
-/// `updateConfig` hooks first, then applies prune-specific config
-/// overrides (`modules_cache_max_age`, `ignore_scripts`) on the
-/// post-hook config, and finally dispatches to the install pipeline.
-/// The overrides must come after hooks because `updateConfig` can
-/// mutate `Config` fields (including `modules_dir` /
-/// `virtual_store_dir`), and the CLI `--ignore-scripts` flag must win
-/// over any hook-set value.
-pub(crate) struct PrunePipeline {
-    pub(crate) args: PruneArgs,
-    pub(crate) cfg: &'static mut Config,
-    pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
-    pub(crate) manifest_path: PathBuf,
+fn precomputed_workspace_cycles(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    cfg: &Config,
+    precompute_workspace_cycles: bool,
+) -> Option<Vec<Vec<PathBuf>>> {
+    (precompute_workspace_cycles && selection.all.is_none() && !cfg.ignore_workspace_cycles).then(
+        || pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default(),
+    )
 }
 
-impl PrunePipeline {
-    pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } = self;
+mod install;
+mod nested_workspace_manifests;
+mod selection;
 
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        // Validate path containment AFTER hooks: updateConfig can mutate
-        // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
-        // so the check must use the final (post-hook) config values.
-        // The install pipeline's prune_target_within_modules also validates
-        // VSD containment, but only at sweep time; this earlier check
-        // catches a misconfigured modules_dir itself (e.g. an absolute
-        // path outside the workspace) before any destructive work begins.
-        //
-        // `config_root` is `cfg.workspace_dir` when present, or the
-        // canonicalized `--dir` otherwise — a meaningful containment
-        // boundary in both cases.
-        if !cfg.modules_dir.starts_with(&config_root) {
-            let modules_dir = cfg.modules_dir.display();
-            let cr = config_root.display();
-            return Err(miette::miette!(
-                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({cr})",
-            ));
-        }
-        // Apply prune-specific overrides after hooks so that:
-        // - `modules_cache_max_age = 0` forces the virtual-store sweep
-        //   on the final (post-hook) config paths.
-        // - `--ignore-scripts` from the CLI wins over any value the
-        //   hooks set via `WorkspaceSettings::apply_to`.
-        cfg.modules_cache_max_age = 0;
-        cfg.ignore_scripts =
-            resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
-        let cfg: &'static Config = cfg;
-        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        Box::pin(args.run::<Reporter>(state)).await
-    }
-}
+mod mutation;
+
+mod maintenance;
+
+mod configuration;

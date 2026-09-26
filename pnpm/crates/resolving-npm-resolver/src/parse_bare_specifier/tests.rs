@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use pacquet_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
+use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
     parse_bare_specifier::{
@@ -8,7 +8,7 @@ use crate::{
         parse_jsr_specifier_to_registry_package_spec,
         parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package_from_meta::RegistryPackageSpecType,
+    pick_package_from_meta::{RegistryPackageSpecType, RegistryRevisionSelector},
 };
 
 const DEFAULT_TAG: &str = "latest";
@@ -20,6 +20,50 @@ fn version_selector_classified_as_version() {
     assert_eq!(spec.name, "foo");
     assert_eq!(spec.fetch_spec, "1.0.0");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+}
+
+#[test]
+fn version_selector_drops_build_metadata() {
+    // pnpm/pnpm#14096: `@parcel/codeframe` is published as
+    // `2.0.0-canary.1718`, but dependents declare it as
+    // `2.0.0-canary.1718+d8408010f`.
+    for (selector, expected) in
+        [("1.0.0+build1", "1.0.0"), ("1.0.0-canary.1+build1", "1.0.0-canary.1")]
+    {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
+        assert_eq!(spec.fetch_spec, expected, "for {selector:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Version, "for {selector:?}");
+    }
+}
+
+#[test]
+fn version_selector_extracts_registry_revision() {
+    for (selector, revision) in [("1.0.0+r0", 0), ("1.0.0+r42", 42)] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(spec.fetch_spec, "1.0.0");
+        assert_eq!(spec.revision, Some(RegistryRevisionSelector::Valid(revision)));
+    }
+}
+
+#[test]
+fn unrelated_build_metadata_is_not_a_registry_revision() {
+    for selector in ["1.0.0+build1", "1.0.0+r1.extra", "1.0.0+rx"] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(spec.revision, None, "for {selector:?}");
+    }
+}
+
+#[test]
+fn noncanonical_registry_revision_is_retained_as_invalid() {
+    for selector in ["1.0.0+r01", "1.0.0+r9007199254740992"] {
+        let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
+        assert_eq!(
+            spec.revision,
+            Some(RegistryRevisionSelector::Invalid(selector.to_string())),
+            "for {selector:?}",
+        );
+    }
 }
 
 #[test]
@@ -195,6 +239,35 @@ fn workspace_protocol_specifier_declines() {
     assert!(parse_bare_specifier("workspace:*", Some("foo"), DEFAULT_TAG, REGISTRY).is_none());
 }
 
+/// pnpm/pnpm#14817: a lenient range parse drops the protocol-prefixed
+/// member of these unions and keeps the rest, so the npm resolver would
+/// claim a `runtime:` union for the registry package of the same name.
+#[test]
+fn protocol_prefixed_range_union_declines() {
+    for specifier in [
+        "runtime:^22.18.0 || ^24.0.0",
+        "runtime:^22||^24",
+        "runtime:>=22.18.0 <25",
+        "runtime:rc/^23.0.0 || ^24.0.0",
+        "gh:^1.0.0 || ^2.0.0",
+        "jsr:^1.0.0 || ^2.0.0",
+        "foo/bar#semver:^1.0.0 || ^2.0.0",
+    ] {
+        let spec = parse_bare_specifier(specifier, Some("node"), DEFAULT_TAG, REGISTRY);
+        assert!(spec.is_none(), "expected None for {specifier:?}, got {spec:?}");
+    }
+}
+
+/// Merged peer ranges are joined with `||`, so a protocol in a later member
+/// must not hide the npm members before it.
+#[test]
+fn range_union_with_a_later_protocol_member_keeps_its_npm_members() {
+    assert!(
+        parse_bare_specifier("^1.0.0 || workspace:^2.0.0", Some("foo"), DEFAULT_TAG, REGISTRY)
+            .is_some(),
+    );
+}
+
 #[test]
 fn npm_prefix_without_alias_uses_bare_as_name_and_falls_back_to_default_tag() {
     // The parser doesn't validate the name; downstream consumers
@@ -268,7 +341,10 @@ fn gh_aliases() -> HashSet<String> {
 }
 
 fn aliases(names: &[&str]) -> HashSet<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 #[test]

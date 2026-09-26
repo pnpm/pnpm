@@ -1,17 +1,17 @@
-use std::{borrow::Cow, collections::HashMap, time::Duration};
-
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
-use pacquet_package_manifest::{PackageManifest, PackageManifestError};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pacquet_resolving_npm_resolver::{
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network_web_auth::OpenUrlAndWait;
+use pnpm_package_manifest::{PackageManifest, safe_read_project_manifest_from_dir};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
     pick_registry_for_package,
 };
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use std::{borrow::Cow, collections::HashMap};
 
 /// Opens the URL of the package's repository in a browser.
 #[derive(Debug, Args)]
@@ -21,7 +21,7 @@ pub struct RepoArgs {
 }
 
 impl RepoArgs {
-    pub async fn run<Rep: Reporter>(
+    pub async fn run<Sys: OpenUrlAndWait, Rep: Reporter>(
         self,
         config: &Config,
         dir: &std::path::Path,
@@ -32,24 +32,16 @@ impl RepoArgs {
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .into_diagnostic()
         .wrap_err("create the network client for repo")?;
+        let registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
 
-        let registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
-
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let urls = if self.packages.is_empty() {
             vec![get_repo_url_from_current_project(dir)?]
@@ -64,20 +56,24 @@ impl RepoArgs {
             urls
         };
         for url in urls {
-            match open_url(&url) {
-                Ok(()) => {}
-                Err(e) => {
-                    let redacted = redact_url(&url);
-                    Rep::emit(&LogEvent::Pnpm(PnpmLog {
-                        level: LogLevel::Warn,
-                        message: format!("Could not open browser: {e}"),
-                        prefix: prefix.clone(),
-                    }));
-                    println!("{redacted}");
-                }
-            }
+            open_repo_url::<Sys, Rep>(&url, &prefix);
         }
         Ok(())
+    }
+}
+
+fn open_repo_url<Sys: OpenUrlAndWait, Rep: Reporter>(url: &str, prefix: &str) {
+    match Sys::open_url_and_wait(url) {
+        Ok(()) => {}
+        Err(e) => {
+            let redacted = redact_url(url);
+            Rep::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!("Could not open browser: {e}"),
+                prefix: prefix.to_string(),
+            }));
+            println!("{redacted}");
+        }
     }
 }
 
@@ -96,14 +92,8 @@ pub enum RepoError {
 }
 
 fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
-    let manifest_path = dir.join("package.json");
-    let manifest = PackageManifest::from_path(manifest_path).map_err(|err| -> miette::Report {
-        match &err {
-            PackageManifestError::NoImporterManifestFound(_) => RepoError::NoRepoUrlLocal.into(),
-            _ => err.into(),
-        }
-    })?;
-    let repository = manifest.value().get("repository");
+    let manifest = safe_read_project_manifest_from_dir(dir)?.ok_or(RepoError::NoRepoUrlLocal)?;
+    let repository = manifest.get("repository");
     pick_repo_url(repository).ok_or_else(|| RepoError::NoRepoUrlLocal.into())
 }
 
@@ -116,7 +106,7 @@ async fn get_repo_url_from_registry(
 ) -> miette::Result<String> {
     let parsed = parse_wanted_dependency(raw_spec);
     let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-    let bare = parsed.bare_specifier.as_deref().unwrap_or(name);
+    let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let (resolved_name, range) = PackageManifest::resolve_registry_dependency(name, bare);
 
     let registry = pick_registry_for_package(registries, resolved_name, Some(bare));
@@ -125,12 +115,14 @@ async fn get_repo_url_from_registry(
         resolved_name,
         &FetchFullMetadataOptions {
             registry: &registry,
-            http_client,
-            auth_headers: &config.auth_headers,
             full_metadata: true,
             etag: None,
             modified: None,
-            retry_opts: *retry_opts,
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: *retry_opts,
+            },
         },
     )
     .await
@@ -151,9 +143,9 @@ async fn get_repo_url_from_registry(
 }
 
 fn select_package_version(
-    package: &pacquet_registry::Package,
+    package: &pnpm_registry::Package,
     range: &str,
-) -> Option<std::sync::Arc<pacquet_registry::PackageVersion>> {
+) -> Option<std::sync::Arc<pnpm_registry::PackageVersion>> {
     if range.is_empty() || range == "latest" {
         return package.latest();
     }
@@ -169,7 +161,10 @@ fn pick_repo_url(repository: Option<&serde_json::Value>) -> Option<String> {
         serde_json::Value::String(url) => (url.clone(), None),
         serde_json::Value::Object(map) => {
             let url = map.get("url")?.as_str()?.to_string();
-            let directory = map.get("directory").and_then(|value| value.as_str()).map(String::from);
+            let directory = map
+                .get("directory")
+                .and_then(|value| value.as_str())
+                .map(String::from);
             (url, directory)
         }
         _ => return None,
@@ -202,24 +197,32 @@ fn repository_to_web_url(raw_url: &str, directory: Option<&str>) -> Option<Strin
     parsed.set_fragment(None);
     parsed.set_query(None);
 
-    let mut url = parsed.to_string();
-    if url.ends_with('/') {
-        url.pop();
+    let mut base_url = parsed.to_string();
+    if base_url.ends_with('/') {
+        base_url.pop();
     }
-    if url.ends_with(".git") {
-        url.truncate(url.len() - 4);
+    if base_url.ends_with(".git") {
+        base_url.truncate(base_url.len() - 4);
     }
+    Some(browse_url(base_url, directory, fragment.as_deref(), "HEAD"))
+}
 
-    let base_url = url;
-
-    Some(if let Some(dir) = directory {
-        let branch = fragment.as_deref().unwrap_or("HEAD");
-        format!("{base_url}/tree/{branch}/{}", dir.trim_start_matches('/'))
-    } else if let Some(branch) = fragment {
-        format!("{base_url}/tree/{branch}")
-    } else {
-        base_url
-    })
+/// The URL a browser opens: the repository itself, or the directory /
+/// branch within it that the manifest names.
+fn browse_url(
+    base_url: String,
+    directory: Option<&str>,
+    fragment: Option<&str>,
+    default_branch: &str,
+) -> String {
+    if let Some(dir) = directory {
+        let branch = fragment.unwrap_or(default_branch);
+        return format!("{base_url}/tree/{branch}/{}", dir.trim_start_matches('/'));
+    }
+    match fragment {
+        Some(branch) => format!("{base_url}/tree/{branch}"),
+        None => base_url,
+    }
 }
 
 struct HostedRepo {
@@ -228,8 +231,11 @@ struct HostedRepo {
 }
 
 fn try_hosted_shorthand(raw_url: &str, directory: Option<&str>) -> Option<String> {
-    let cleaned =
-        raw_url.strip_prefix("git+").unwrap_or(raw_url).strip_prefix("git://").unwrap_or(raw_url);
+    let cleaned = raw_url
+        .strip_prefix("git+")
+        .unwrap_or(raw_url)
+        .strip_prefix("git://")
+        .unwrap_or(raw_url);
 
     let (hosted, path) = if let Some(rest) = cleaned.strip_prefix("github:") {
         (HostedRepo { base_url: "https://github.com".to_string(), default_branch: "master" }, rest)
@@ -245,7 +251,11 @@ fn try_hosted_shorthand(raw_url: &str, directory: Option<&str>) -> Option<String
     };
 
     let fragment = try_extract_fragment(raw_url);
-    let path_clean = path.split(&['#', '?'][..]).next().unwrap_or(path).trim_end_matches('/');
+    let path_clean = path
+        .split(&['#', '?'][..])
+        .next()
+        .unwrap_or(path)
+        .trim_end_matches('/');
     let path_no_git = path_clean.trim_end_matches(".git");
     let parts: Vec<&str> = path_no_git.split('/').collect();
     if parts.len() < 2 {
@@ -285,56 +295,32 @@ fn try_user_repo_shorthand(raw_url: &str, directory: Option<&str>) -> Option<Str
     }
 
     let fragment = try_extract_fragment(raw_url);
-    let path_clean = cleaned.split(&['#', '?'][..]).next().unwrap_or(cleaned).trim_end_matches('/');
-
-    if !path_clean.contains('/') {
-        return None;
-    }
-
-    let parts: Vec<&str> = path_clean.split('/').collect();
-    if parts.len() < 2 {
-        return None;
-    }
-
-    let user = parts[0];
-    let repo = parts[1].trim_end_matches(".git");
-
+    let path_clean = cleaned
+        .split(&['#', '?'][..])
+        .next()
+        .unwrap_or(cleaned)
+        .trim_end_matches('/');
+    let (user, repo) = path_clean.split_once('/')?;
+    let repo = repo
+        .split('/')
+        .next()
+        .unwrap_or(repo)
+        .trim_end_matches(".git");
+    // A dotted first segment is a host, not a GitHub user, so the whole
+    // reference is a URL rather than the `user/repo` shorthand.
     if user.contains('.') {
         return try_hosted_url(raw_url, directory);
     }
-
-    let browse_path = format!("https://github.com/{user}/{repo}");
-
-    Some(if let Some(dir) = directory {
-        let branch = fragment.as_deref().unwrap_or("master");
-        format!("{browse_path}/tree/{branch}/{}", dir.trim_start_matches('/'))
-    } else if let Some(branch) = fragment {
-        format!("{browse_path}/tree/{branch}")
-    } else {
-        browse_path
-    })
+    Some(browse_url(
+        format!("https://github.com/{user}/{repo}"),
+        directory,
+        fragment.as_deref(),
+        "master",
+    ))
 }
 
 fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
-    let input = raw_url.strip_prefix("git+").unwrap_or(raw_url);
-
-    let (parsed, fragment) = if let Some(rest) = input.strip_prefix("git@") {
-        // SCP-style SSH: git@<host>:<owner>/<repo>(.git)?(#branch)?
-        let (scp_host, scp_path) = rest.split_once(':')?;
-        let path_only = scp_path.split(&['#', '?'][..]).next().unwrap_or(scp_path);
-        let parsed = url::Url::parse(&format!("https://{scp_host}/{path_only}")).ok()?;
-        let frag = try_extract_fragment(raw_url);
-        (parsed, frag)
-    } else {
-        let normalized = if let Some(rest) = input.strip_prefix("git://") {
-            Cow::Owned(format!("https://{rest}"))
-        } else {
-            Cow::Borrowed(input)
-        };
-        let frag = try_extract_fragment(raw_url);
-        let parsed = url::Url::parse(&normalized).ok()?;
-        (parsed, frag)
-    };
+    let (parsed, fragment) = parse_hosted_input(raw_url)?;
 
     let host = parsed.host_str()?;
 
@@ -346,7 +332,10 @@ fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
     };
 
     let path_clean = parsed.path().trim_end_matches('/');
-    let repo_path = path_clean.strip_prefix('/').unwrap_or(path_clean).trim_end_matches(".git");
+    let repo_path = path_clean
+        .strip_prefix('/')
+        .unwrap_or(path_clean)
+        .trim_end_matches(".git");
 
     let browse_path = format!("{base_url}/{repo_path}");
 
@@ -360,13 +349,41 @@ fn try_hosted_url(raw_url: &str, directory: Option<&str>) -> Option<String> {
     })
 }
 
+/// The repository as an `https://<host>/<path>` URL plus its `#branch`
+/// fragment, from the `git+`, SCP-style SSH or `git://` spelling.
+fn parse_hosted_input(raw_url: &str) -> Option<(url::Url, Option<String>)> {
+    let input = raw_url.strip_prefix("git+").unwrap_or(raw_url);
+    if let Some(rest) = input.strip_prefix("git@") {
+        // SCP-style SSH: git@<host>:<owner>/<repo>(.git)?(#branch)?
+        let (scp_host, scp_path) = rest.split_once(':')?;
+        let path_only = scp_path
+            .split(&['#', '?'][..])
+            .next()
+            .unwrap_or(scp_path);
+        let parsed = url::Url::parse(&format!("https://{scp_host}/{path_only}")).ok()?;
+        return Some((parsed, try_extract_fragment(raw_url)));
+    }
+    let normalized = if let Some(rest) = input.strip_prefix("git://") {
+        Cow::Owned(format!("https://{rest}"))
+    } else {
+        Cow::Borrowed(input)
+    };
+    let frag = try_extract_fragment(raw_url);
+    let parsed = url::Url::parse(&normalized).ok()?;
+    Some((parsed, frag))
+}
+
 fn build_hosted_browse_url(
     base_url: &str,
     path: &str,
     default_branch: &str,
     directory: Option<&str>,
 ) -> Option<String> {
-    let path_clean = path.split(&['#', '?'][..]).next().unwrap_or(path).trim_end_matches('/');
+    let path_clean = path
+        .split(&['#', '?'][..])
+        .next()
+        .unwrap_or(path)
+        .trim_end_matches('/');
     let path_no_git = path_clean.trim_end_matches(".git");
     let parts: Vec<&str> = path_no_git.split('/').collect();
     if parts.len() < 2 {
@@ -392,53 +409,18 @@ fn try_extract_fragment(raw_url: &str) -> Option<String> {
     if fragment.is_empty() { None } else { Some(fragment.to_string()) }
 }
 
-fn open_url(url: &str) -> std::io::Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        let status = std::process::Command::new("xdg-open").arg(url).status()?;
-        if status.success() { Ok(()) } else { Err(std::io::Error::other("xdg-open failed")) }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let status = std::process::Command::new("open").arg(url).status()?;
-        if status.success() { Ok(()) } else { Err(std::io::Error::other("open failed")) }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-
-        let url_wide: Vec<u16> = OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
-
-        let result = unsafe {
-            windows_sys::Win32::UI::Shell::ShellExecuteW(
-                std::ptr::null_mut(),
-                std::ptr::null(),
-                url_wide.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-            )
-        };
-        if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"))
-    }
-}
-
 fn redact_url(url: &str) -> String {
-    url::Url::parse(url).map_or_else(
-        |_| url.to_string(),
-        |mut parsed_url| {
-            let _ = parsed_url.set_username("");
-            let _ = parsed_url.set_password(None);
-            parsed_url.set_query(None);
-            parsed_url.set_fragment(None);
-            parsed_url.to_string()
-        },
-    )
+    url::Url::parse(url)
+        .map_or_else(
+            |_| url.to_string(),
+            |mut parsed_url| {
+                let _ = parsed_url.set_username("");
+                let _ = parsed_url.set_password(None);
+                parsed_url.set_query(None);
+                parsed_url.set_fragment(None);
+                parsed_url.to_string()
+            },
+        )
 }
 
 #[cfg(test)]

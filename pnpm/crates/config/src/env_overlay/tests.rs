@@ -1,9 +1,10 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
-    NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    api::EnvVar,
+    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
 };
 use pretty_assertions::assert_eq;
+use std::path::Path;
 
 #[test]
 fn bool_env_var_only_accepts_lowercase_true_false() {
@@ -15,6 +16,87 @@ fn bool_env_var_only_accepts_lowercase_true_false() {
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvBadBool>();
     assert_eq!(settings.enable_global_virtual_store, None);
+}
+
+#[test]
+fn materialization_settings_read_from_the_environment() {
+    struct EnvMaterialization;
+    impl EnvVar for EnvMaterialization {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_VIRTUAL_STORE_ONLY" => Some("true".to_owned()),
+                "PNPM_CONFIG_ENABLE_MODULES_DIR" => Some("false".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvMaterialization>();
+    assert_eq!(settings.virtual_store_only, Some(true));
+    assert_eq!(settings.enable_modules_dir, Some(false));
+}
+
+#[test]
+fn allow_unused_patches_reads_from_the_environment() {
+    struct EnvAllowUnusedPatches;
+    impl EnvVar for EnvAllowUnusedPatches {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_ALLOW_UNUSED_PATCHES").then(|| "true".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvAllowUnusedPatches>();
+    assert_eq!(settings.allow_unused_patches, Some(true));
+}
+
+#[test]
+fn parity_settings_read_from_the_environment() {
+    struct EnvParity;
+    impl EnvVar for EnvParity {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_BAIL"
+                | "PNPM_CONFIG_OPTIONAL"
+                | "PNPM_CONFIG_PACKAGE_LOCK"
+                | "PNPM_CONFIG_RECURSIVE_INSTALL"
+                | "PNPM_CONFIG_SORT" => Some("false".to_owned()),
+                "PNPM_CONFIG_EMBED_README"
+                | "PNPM_CONFIG_IGNORE_WORKSPACE_ROOT_CHECK"
+                | "PNPM_CONFIG_PENDING"
+                | "PNPM_CONFIG_REVERSE"
+                | "PNPM_CONFIG_SHELL_EMULATOR"
+                | "PNPM_CONFIG_SKIP_MANIFEST_OBFUSCATION"
+                | "PNPM_CONFIG_USE_BETA_CLI" => Some("true".to_owned()),
+                "PNPM_CONFIG_COLOR" => Some("always".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvParity>();
+    assert_eq!(settings.bail, Some(false));
+    assert_eq!(settings.color, Some(ColorMode::Always));
+    assert_eq!(settings.embed_readme, Some(true));
+    assert_eq!(settings.ignore_workspace_root_check, Some(true));
+    assert_eq!(settings.optional, Some(false));
+    assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.pending, Some(true));
+    assert_eq!(settings.recursive_install, Some(false));
+    assert_eq!(settings.reverse, Some(true));
+    assert_eq!(settings.shell_emulator, Some(true));
+    assert_eq!(settings.skip_manifest_obfuscation, Some(true));
+    assert_eq!(settings.sort, Some(false));
+    assert_eq!(settings.use_beta_cli, Some(true));
+}
+
+#[test]
+fn progress_reads_from_the_environment() {
+    struct EnvProgress;
+    impl EnvVar for EnvProgress {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PROGRESS").then(|| "false".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvProgress>();
+    assert_eq!(settings.progress, Some(false));
 }
 
 /// An exported-but-empty `PNPM_CONFIG_STORE_DIR=` shouldn't clobber
@@ -134,6 +216,8 @@ fn network_settings_parse_from_env() {
             match name {
                 "PNPM_CONFIG_NETWORK_CONCURRENCY" => Some("12".to_owned()),
                 "PNPM_CONFIG_FETCH_TIMEOUT" => Some("90000".to_owned()),
+                "PNPM_CONFIG_FETCH_WARN_TIMEOUT_MS" => Some("15000".to_owned()),
+                "PNPM_CONFIG_FETCH_MIN_SPEED_KI_BPS" => Some("75".to_owned()),
                 "PNPM_CONFIG_USER_AGENT" => Some("custom-ua/1.0".to_owned()),
                 _ => None,
             }
@@ -142,6 +226,8 @@ fn network_settings_parse_from_env() {
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvNetwork>();
     assert_eq!(settings.network_concurrency, Some(12));
     assert_eq!(settings.fetch_timeout, Some(90_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(15_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(75));
     assert_eq!(settings.user_agent.as_deref(), Some("custom-ua/1.0"));
 }
 
@@ -181,4 +267,96 @@ fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);
     assert_eq!(parse_tri_array("not-json"), None);
+}
+
+#[test]
+fn virtual_store_type_env_var_parses_its_two_values() {
+    macro_rules! env_with_virtual_store_type {
+        ($name:ident, $value:expr) => {
+            struct $name;
+            impl EnvVar for $name {
+                fn var(name: &str) -> Option<String> {
+                    (name == "PNPM_CONFIG_VIRTUAL_STORE_TYPE").then(|| $value.to_owned())
+                }
+            }
+        };
+    }
+
+    env_with_virtual_store_type!(EnvGlobal, "global");
+    env_with_virtual_store_type!(EnvProject, "project");
+    env_with_virtual_store_type!(EnvNonsense, "shared");
+
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvGlobal>().virtual_store_type,
+        Some(VirtualStoreType::Global),
+    );
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvProject>().virtual_store_type,
+        Some(VirtualStoreType::Project),
+    );
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None);
+}
+
+/// The environment can only spell the boolean, so it reaches the same
+/// shorthand arm a yaml layer's boolean does: the object form's gates give way
+/// to it and the remote tier it says nothing about survives.
+#[test]
+fn a_side_effects_cache_env_var_replaces_the_object_form() {
+    struct EnvSideEffectsCacheOff;
+    impl EnvVar for EnvSideEffectsCacheOff {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SIDE_EFFECTS_CACHE").then(|| "false".to_owned())
+        }
+    }
+    let declared: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: true
+  remote:
+    org: acme
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    declared.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::from_pnpm_config_env::<EnvSideEffectsCacheOff>()
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
+}
+
+#[test]
+fn tag_version_prefix_reads_from_the_environment() {
+    struct EnvPrefix;
+    impl EnvVar for EnvPrefix {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG_VERSION_PREFIX").then(|| "release-".to_owned())
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPrefix>();
+    assert_eq!(settings.tag_version_prefix.as_deref(), Some("release-"));
+
+    struct EnvEmptyPrefix;
+    impl EnvVar for EnvEmptyPrefix {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG_VERSION_PREFIX").then(String::new)
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmptyPrefix>();
+    assert_eq!(settings.tag_version_prefix.as_deref(), Some(""));
+}
+
+#[test]
+fn publish_wait_timeout_reads_from_environment() {
+    struct Env;
+    impl EnvVar for Env {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT").then(|| "600000".to_owned())
+        }
+    }
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<Env>().publish_wait_timeout, Some(600000));
 }

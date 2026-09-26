@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1100.7.4",
+  "version": "1101.0.6",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",
@@ -56,6 +56,7 @@
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",

@@ -12,19 +12,20 @@
 //! there is no source to feed the hook. See the `create` module for the
 //! gap note.
 
+pub use create::{
+    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    read_readme_file,
+};
+pub use replace::{
+    CannotResolveReason, CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError,
+    WorkspacePackageManifest, replace_workspace_protocol,
+    replace_workspace_protocol_peer_dependency,
+};
+pub use transform::TransformError;
+
 mod create;
 mod replace;
 mod transform;
 
 #[cfg(test)]
 mod tests;
-
-pub use create::{
-    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
-    read_readme_file,
-};
-pub use replace::{
-    CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError, replace_workspace_protocol,
-    replace_workspace_protocol_peer_dependency,
-};
-pub use transform::TransformError;

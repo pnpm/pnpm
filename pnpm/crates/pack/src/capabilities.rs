@@ -2,7 +2,7 @@
 //! [`Host`] provider for the tarball-materialization filesystem
 //! effects. Mirrors the seam documented at
 //! <https://github.com/pnpm/pacquet/pull/332#issuecomment-4345054524>
-//! and used by `pacquet-cmd-shim`:
+//! and used by `pnpm-cmd-shim`:
 //!
 //! 1. One trait per capability.
 //! 2. Functions bind only what they consume (compose bounds on one `Sys`).
@@ -10,8 +10,9 @@
 //! 4. Production callers turbofish [`Host`] explicitly.
 //!
 //! The seam covers only the final "write the tarball to disk" phase of
-//! [`crate::api`] — reading each packed file's bytes, measuring its
-//! size, creating the destination directory, and writing the archive.
+//! [`crate::api`] — reading each packed file's bytes, inspecting file
+//! executability, measuring its size, creating the destination directory,
+//! and writing the archive.
 //! Manifest reading, the packlist walk, and bin resolution stay on real
 //! `std::fs` because real fixtures (a `tempfile::TempDir`) reach every
 //! branch they have; the write phase is where a portable
@@ -26,6 +27,15 @@ use std::{
 /// bytes for each non-manifest tar entry.
 pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
+}
+
+/// Query whether a source file is marked executable on disk.
+///
+/// Returns `Ok(true)` if the file is executable, `Ok(false)` if the file is
+/// not executable or missing (`io::ErrorKind::NotFound`), and `Err` if inspecting
+/// file metadata fails with any other error.
+pub trait FsIsExecutable {
+    fn is_executable(path: &Path) -> io::Result<bool>;
 }
 
 /// Return a file's size in bytes (`std::fs::metadata(path)?.len()`),
@@ -63,9 +73,31 @@ impl FsReadFile for Host {
     }
 }
 
+impl FsIsExecutable for Host {
+    fn is_executable(path: &Path) -> io::Result<bool> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            match std::fs::metadata(path) {
+                Ok(metadata) => {
+                    Ok(pnpm_fs::file_mode::is_executable(metadata.permissions().mode()))
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+                Err(error) => Err(error),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            Ok(false)
+        }
+    }
+}
+
 impl FsFileLen for Host {
     fn file_len(path: &Path) -> io::Result<u64> {
-        std::fs::metadata(path).map(|metadata| metadata.len())
+        std::fs::symlink_metadata(path)
+            .map(|metadata| if metadata.file_type().is_symlink() { 0 } else { metadata.len() })
     }
 }
 
@@ -82,7 +114,7 @@ impl FsAtomicWrite for Host {
     /// it — so a repo-controlled symlink can't redirect the write to
     /// clobber an arbitrary file — and a crash never leaves a partial
     /// `.tgz` behind. Mirrors the `write-file-atomic` pattern
-    /// `pacquet-package-manifest` uses for `package.json`.
+    /// `pnpm-package-manifest` uses for `package.json`.
     fn atomic_write(
         dest: &Path,
         write_body: &mut dyn FnMut(&mut dyn Write) -> io::Result<()>,
@@ -106,7 +138,8 @@ impl FsAtomicWrite for Host {
                 .ok()
                 .filter(std::fs::Metadata::is_file)
                 .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
-            tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+            tmp.as_file()
+                .set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
         tmp.as_file().sync_all()?;
         tmp.persist(dest).map_err(|error| error.error)?;

@@ -8,8 +8,11 @@
 //! (`include_only_package_files`, `resolve_symlinks`, path containment)
 //! are per-fetch values in pacquet's install dispatch.
 
-use crate::{error::DirectoryFetcherError, walker};
-use pacquet_package_manifest::{pkg_requires_build, safe_read_package_json_from_dir};
+use crate::{
+    error::DirectoryFetcherError,
+    walker::{self, Symlinks},
+};
+use pnpm_package_manifest::{pkg_requires_build, safe_read_package_json_from_dir};
 use std::{collections::HashMap, path::PathBuf};
 
 /// One directory-fetch request. The `directory` is the absolute
@@ -22,12 +25,16 @@ use std::{collections::HashMap, path::PathBuf};
 ///   (`.npmignore` / `files` field / always-include filters).
 /// - `resolve_symlinks = true` → follow symlinks via `realpath` (used
 ///   when `resolveSymlinksInInjectedDirs` is on).
+/// - `preserve_symlinks = true` → list a symlink by its own path, a
+///   directory link included, for a caller that recreates it. Ignored
+///   under `resolve_symlinks`.
 /// - `allow_path_escape = false` → reject files whose real path leaves
-///   `directory`.
+///   the real path of `directory`.
 pub struct DirectoryFetcher {
     pub directory: PathBuf,
     pub include_only_package_files: bool,
     pub resolve_symlinks: bool,
+    pub preserve_symlinks: bool,
     pub allow_path_escape: bool,
 }
 
@@ -48,17 +55,15 @@ pub struct DirectoryFetchOutput {
 
 impl DirectoryFetcher {
     pub fn run(&self) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
-        if !self.allow_path_escape {
-            walker::reject_linked_confined_root(&self.directory)?;
-        }
+        let symlinks = self.symlinks();
         let files_map = if self.include_only_package_files {
             let mut files_map = walker::walk_package_files(&self.directory)?;
             if !self.allow_path_escape {
-                walker::resolve_paths_in_directory(&self.directory, &mut files_map)?;
+                walker::resolve_paths_in_directory(&self.directory, &mut files_map, symlinks)?;
             }
             files_map
         } else {
-            walker::walk_all_files(&self.directory, self.resolve_symlinks, self.allow_path_escape)?
+            walker::walk_all_files(&self.directory, symlinks, self.allow_path_escape)?
         };
         let manifest = safe_read_package_json_from_dir(&self.directory)
             .map_err(DirectoryFetcherError::ReadManifest)?;
@@ -72,6 +77,16 @@ impl DirectoryFetcher {
         // Revisit when a real package surfaces it.
         let requires_build = pkg_requires_build(&self.directory);
         Ok(DirectoryFetchOutput { files_map, manifest, requires_build })
+    }
+
+    fn symlinks(&self) -> Symlinks {
+        if self.resolve_symlinks {
+            Symlinks::Resolve
+        } else if self.preserve_symlinks {
+            Symlinks::Preserve
+        } else {
+            Symlinks::Keep
+        }
     }
 }
 

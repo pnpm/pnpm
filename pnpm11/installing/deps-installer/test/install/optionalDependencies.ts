@@ -36,6 +36,20 @@ test('skip failing optional dependencies', async () => {
   project.has('@pnpm.e2e/pkg-with-failing-optional-dependency/package.json')
 })
 
+test.each(['isolated', 'hoisted'] as const)('remove an optional dependency whose build failed (nodeLinker=%s)', async (nodeLinker) => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/failing-postinstall@1.0.0'], testDefaults({
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+    fastUnpack: false,
+    nodeLinker,
+    targetDependenciesField: 'optionalDependencies',
+  }))
+
+  project.hasNot('@pnpm.e2e/failing-postinstall')
+  project.hasNot('.pnpm/@pnpm.e2e+failing-postinstall@1.0.0/node_modules/@pnpm.e2e/failing-postinstall')
+  expect(project.readLockfile().importers['.'].optionalDependencies).toHaveProperty(['@pnpm.e2e/failing-postinstall'])
+})
+
 test('skip failing optional peer dependencies', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-failing-optional-dependency@1.0.0', '@pnpm.e2e/pkg-with-failing-optional-peer@1.0.0'], testDefaults({ fastUnpack: false }))
@@ -159,7 +173,7 @@ test('skip optional dependencies whose names declare unsupported platforms when 
         '@pnpm.e2e/has-many-optional-deps': '1.0.0',
       },
     }, testDefaults({
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     }))
   } finally {
@@ -259,7 +273,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
     // stale packuments even though the lockfile already pins the versions.
     await expect(install(manifest, testDefaults({
       dedupe: true,
-      registries: { default: registryProxy },
+      registriesByScope: { default: registryProxy },
     }))).rejects.toMatchObject({
       code: expect.stringMatching(/^ERR_PNPM_NO_(MATCHING_VERSION|VERSIONS)$/),
       hint: expect.stringContaining('the lockfile contains a resolution for it'),
@@ -381,6 +395,26 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
   project.has('@pnpm.e2e/not-compatible-with-any-os')
   project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+})
+
+test('skip optional dependency that does not support the current OS when forcing under forceIgnoresPlatform: false', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  await install({
+    optionalDependencies: {
+      '@pnpm.e2e/not-compatible-with-any-os': '*',
+    },
+  }, testDefaults({ force: true, forceIgnoresPlatform: false, reporter }, {}, {}, { force: true, forceIgnoresPlatform: false }))
+
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  expect(modulesInfo.skipped.sort()).toStrictEqual(['@pnpm.e2e/dep-of-optional-pkg@1.0.0', '@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    package: expect.objectContaining({ id: '@pnpm.e2e/not-compatible-with-any-os@1.0.0' }),
+    reason: 'unsupported_platform',
+  }))
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2636
@@ -512,6 +546,25 @@ test('optional subdependency is skipped', async () => {
     const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual([])
   }
+})
+
+test('forced headless install skips the incompatible optional subdependency under forceIgnoresPlatform: false', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional', '@pnpm.e2e/dep-of-optional-pkg'], testDefaults({ reporter }))
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ force: true, forceIgnoresPlatform: false, frozenLockfile: true, reporter }))
+
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+pkg-with-optional@1.0.0')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeFalsy()
+  const modulesInfo = readYamlFileSync<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  expect(modulesInfo.skipped).toStrictEqual(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2663

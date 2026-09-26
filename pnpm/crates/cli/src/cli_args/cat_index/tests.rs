@@ -1,7 +1,6 @@
-use pacquet_lockfile::ResolvedDependencySpec;
-use serde_json::json;
-
 use super::{MAX_JSON_SORT_DEPTH, request_matches_dependency, sort_deep_keys};
+use pnpm_lockfile::ResolvedDependencySpec;
+use serde_json::json;
 
 #[test]
 fn request_does_not_reuse_lockfile_entry_for_different_exact_version() {
@@ -65,5 +64,10 @@ fn sort_deep_keys_sorts_nested_objects_deterministically() {
 }
 
 fn object_keys(value: &serde_json::Value) -> Vec<&str> {
-    value.as_object().expect("value is an object").keys().map(String::as_str).collect()
+    value
+        .as_object()
+        .expect("value is an object")
+        .keys()
+        .map(String::as_str)
+        .collect()
 }

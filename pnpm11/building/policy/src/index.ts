@@ -1,9 +1,25 @@
 import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
 import * as dp from '@pnpm/deps.path'
-import type { AllowBuild, AllowBuildContext, DepPath } from '@pnpm/types'
+import type { AllowBuild, AllowBuildContext, DepPath, IgnoredBuilds } from '@pnpm/types'
+
+/**
+ * The placeholder value written to `allowBuilds` for a package whose build
+ * was ignored and still awaits an explicit `true`/`false` decision.
+ */
+export const UNDECIDED_ALLOW_BUILD = 'set this to true or false'
 
 export function isBuildExplicitlyDisallowed (depPath: DepPath, allowBuild?: AllowBuild): boolean {
   return allowBuild?.(depPath) === false
+}
+
+/**
+ * The ignored builds the policy has no verdict on. A recorded build the policy
+ * denies was decided on purpose, and one it allows is waiting for a rebuild, so
+ * only the undecided entries are returned.
+ */
+export function unapprovedIgnoredBuilds (ignoredBuilds: IgnoredBuilds | undefined, allowBuild?: AllowBuild): DepPath[] {
+  if (!ignoredBuilds?.size) return []
+  return Array.from(ignoredBuilds).filter((depPath) => allowBuild?.(depPath) === undefined)
 }
 
 export function createAllowBuildFunction (
@@ -96,6 +112,33 @@ export function allowBuildKeyFromIgnoredBuild (depPath: DepPath): string {
   const parsed = dp.parse(pkgIdWithPatchHash)
   if (parsed.nonSemverVersion != null || parsed.name == null) return pkgIdWithPatchHash
   return parsed.name
+}
+
+/**
+ * The package name an `allowBuilds` key identifies — the key itself for a
+ * bare name, the name half of a `name@version` dep-path key — or
+ * `undefined` for keys carrying no single package name (hashless git-repo
+ * keys, malformed shapes). Cleanup may only drop an entry whose package
+ * this proves absent from a resolved-name index.
+ */
+export function packageNameFromAllowBuildKey (key: string): string | undefined {
+  if (isGitRepoAllowBuildKey(key)) return undefined
+  const name = key.indexOf('@', 1) === -1 ? key : dp.parse(key).name
+  if (!name || name.includes(':')) return undefined
+  return name
+}
+
+/**
+ * The package an `--allow-build` value or an `approve-builds` argument names,
+ * and whether it is allowed to build: a leading `!` denies the build.
+ *
+ * A selector that is empty or only `!` yields an empty name. Callers reject
+ * that rather than persist an empty `allowBuilds` key.
+ */
+export function parseAllowBuildSelector (selector: string): { name: string, allowed: boolean } {
+  return selector.startsWith('!')
+    ? { name: selector.slice(1), allowed: false }
+    : { name: selector, allowed: true }
 }
 
 function addAllowBuildRule (

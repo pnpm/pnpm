@@ -6,14 +6,13 @@ import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import { getCurrentBranch, isGitRepo, isHeadDetached, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
-import { temporaryDirectory } from 'tempy'
 
 import { extractPublishManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
 import { optionsWithOtpEnv } from './otpEnv.js'
@@ -188,7 +187,7 @@ export async function publish (
     }
     const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
-    if (currentBranch === null) {
+    if (currentBranch === null && !(opts.ci && await isHeadDetached())) {
       throw new PnpmError(
         'GIT_UNKNOWN_BRANCH',
         `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
@@ -197,7 +196,7 @@ export async function publish (
         }
       )
     }
-    if (!branches.includes(currentBranch)) {
+    if (currentBranch !== null && !branches.includes(currentBranch)) {
       let isConfirmed: boolean
       try {
         isConfirmed = await confirm({
@@ -217,7 +216,7 @@ export async function publish (
         })
       }
     }
-    if (!(await isRemoteHistoryClean())) {
+    if (currentBranch !== null && !(await isRemoteHistoryClean())) {
       throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
         hint: GIT_CHECKS_HINT,
       })
@@ -275,6 +274,8 @@ export async function publish (
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const packDestination = temporaryDirectory()
   let publishedManifest: ExportedManifest | undefined
   let publishSummary: PublishSummary | undefined

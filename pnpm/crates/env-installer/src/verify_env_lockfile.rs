@@ -3,8 +3,8 @@
 //! before the lockfile is written.
 
 use crate::ConfigDepError;
-use pacquet_lockfile::{EnvLockfile, PackageKey};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_package_name::is_valid_old_npm_package_name;
 use std::path::Path;
 
 /// Persist an env lockfile only after verifying it, so no code path can write
@@ -32,8 +32,7 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
         let Ok(key) = format!("{name}@{}", spec.version).parse::<PackageKey>() else {
             continue;
         };
-        let Some(optionals) = env_lockfile
-            .snapshots
+        let Some(optionals) = env_lockfile.snapshots
             .get(&key)
             .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
         else {
@@ -44,11 +43,25 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
         for (subdep_name, dep_ref) in optionals {
             let subdep_name = subdep_name.to_string();
             assert_valid_name(&subdep_name, &description)?;
-            let version = dep_ref.ver_peer().map(ToString::to_string).unwrap_or_default();
+            let version = dep_ref
+                .ver_peer()
+                .map(ToString::to_string)
+                .unwrap_or_default();
             assert_valid_version(&subdep_name, &version)?;
         }
     }
     Ok(())
+}
+
+/// The env lockfile is verified before it is written, but a migrated config
+/// dependency is resolved against the registry first, so its name and version
+/// are checked here, before they reach the resolver.
+pub(crate) fn assert_valid_migrated_config_dep(
+    name: &str,
+    version: &str,
+) -> Result<(), ConfigDepError> {
+    assert_valid_name(name, "The configDependencies in pnpm-workspace.yaml")?;
+    assert_valid_version(name, version)
 }
 
 fn assert_valid_name(name: &str, description: &str) -> Result<(), ConfigDepError> {

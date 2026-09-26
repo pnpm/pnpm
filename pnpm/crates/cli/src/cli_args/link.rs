@@ -3,11 +3,12 @@ use clap::Args;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::{Install, ProjectMutation, UpdateSeedPolicy};
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::Reporter;
-use pacquet_workspace_manifest_writer::set_overrides;
+use pnpm_config::Config;
+use pnpm_package_manager::{Install, ProjectMutation};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_text_sanitize::sanitize_inline;
+use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -49,17 +50,24 @@ fn is_filespec(input: &str) -> bool {
 
 fn link_spec(base: &Path, target: &Path) -> String {
     let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
-    format!("link:{}", rel.display().to_string().replace('\\', "/"))
+    format!(
+        "link:{}",
+        rel.display()
+            .to_string()
+            .replace('\\', "/"),
+    )
 }
 
 fn already_declared(manifest: &PackageManifest, name: &str) -> bool {
-    DEPENDENCY_FIELDS.iter().any(|field| {
-        manifest
-            .value()
-            .get(field)
-            .and_then(serde_json::Value::as_object)
-            .is_some_and(|deps| deps.contains_key(name))
-    })
+    DEPENDENCY_FIELDS
+        .iter()
+        .any(|field| {
+            manifest
+                .value()
+                .get(field)
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|deps| deps.contains_key(name))
+        })
 }
 
 impl LinkArgs {
@@ -68,13 +76,7 @@ impl LinkArgs {
         config: &'static mut Config,
         manifest_path: PathBuf,
     ) -> miette::Result<()> {
-        if self.package_paths.is_empty() {
-            return Err(LinkError::NoParams.into());
-        }
-
-        if let Some(name) = self.package_paths.iter().find(|path| !is_filespec(path)) {
-            return Err(LinkError::LinkByName { name: name.clone() }.into());
-        }
+        self.validate_package_paths()?;
 
         let manifest_dir = manifest_path
             .parent()
@@ -88,21 +90,7 @@ impl LinkArgs {
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
-            let target_path = PathBuf::from(path_str);
-            let target_dir = if target_path.is_absolute() {
-                target_path.clone()
-            } else {
-                manifest_dir.join(&target_path)
-            };
-
-            let target_manifest_path = target_dir.join("package.json");
-            let dir_display = target_dir.display();
-            let target_manifest = PackageManifest::from_path(target_manifest_path)
-                .map_err(|_| miette::miette!("No package.json found in {}", dir_display))?;
-            let package_name = target_manifest.value()["name"]
-                .as_str()
-                .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
-                .to_string();
+            let (target_dir, package_name, target_manifest) = link_target(&manifest_dir, path_str)?;
 
             if !already_declared(&manifest, &package_name) {
                 manifest
@@ -113,66 +101,130 @@ impl LinkArgs {
                     )
                     .wrap_err("adding linked dependency to package.json")?;
             }
-            new_overrides.insert(package_name, link_spec(&root_dir, &target_dir));
+            new_overrides.insert(package_name.clone(), link_spec(&root_dir, &target_dir));
+            check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
         }
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
 
-        set_overrides(&root_dir, new_overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-            .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
+        set_overrides(
+            &root_dir,
+            new_overrides
+                .iter()
+                .map(|(selector, specifier)| (selector.as_str(), specifier.as_str())),
+        )
+        .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
 
-        let overrides = config.overrides.get_or_insert_with(IndexMap::new);
-        for (selector, specifier) in &new_overrides {
-            overrides.insert(selector.clone(), specifier.clone());
-        }
+        config.overrides
+            .get_or_insert_with(IndexMap::new)
+            .extend(
+                new_overrides
+                    .iter()
+                    .map(|(selector, specifier)| (selector.clone(), specifier.clone())),
+            );
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
-        let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
+        install_linked::<Reporter>(&state).await
+    }
 
-        Install {
-            tarball_mem_cache: Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-            package_provider: config.package_provider.clone(),
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
+    fn validate_package_paths(&self) -> miette::Result<()> {
+        if self.package_paths.is_empty() {
+            return Err(LinkError::NoParams.into());
         }
-        .run::<Reporter>()
-        .await
-        .wrap_err("linking dependencies")
+
+        if let Some(name) = self.package_paths
+            .iter()
+            .find(|path| !is_filespec(path))
+        {
+            return Err(LinkError::LinkByName { name: name.clone() }.into());
+        }
+
+        Ok(())
+    }
+}
+
+/// Install with the linked dependencies' overrides in place.
+async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> miette::Result<()> {
+    let lockfile_path = state.lockfile_path();
+    {
+        let mut base_install = Install::new(
+            Arc::clone(&state.tarball_mem_cache),
+            &state.resolved_packages,
+            (&state.http_client, Arc::clone(&state.http_client)),
+            state.config,
+            &state.manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
+        );
+        base_install.lockfile_policy.prefer_frozen = Some(false);
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.execution.installs_only = false;
+        base_install.context.lockfile_path = Some(&lockfile_path);
+        base_install
+    }
+    .run::<Reporter>()
+    .await
+    .wrap_err("linking dependencies")
+}
+
+/// The linked package's directory, the name it is declared under, and its manifest.
+fn link_target(
+    manifest_dir: &Path,
+    path_str: &str,
+) -> miette::Result<(PathBuf, String, PackageManifest)> {
+    let target_path = PathBuf::from(path_str);
+    let target_dir =
+        if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
+    let target_manifest_path = pnpm_workspace::project_manifest_path(&target_dir);
+    let dir_display = target_dir.display();
+    let target_manifest = PackageManifest::from_path(target_manifest_path)
+        .map_err(|error| match error {
+            pnpm_package_manifest::PackageManifestError::NoImporterManifestFound(_) => {
+                miette::miette!("No package.json found in {}", dir_display)
+            }
+            error => miette::Report::new(error),
+        })?;
+    let package_name = target_manifest.value()["name"]
+        .as_str()
+        .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
+        .to_string();
+    Ok((target_dir, package_name, target_manifest))
+}
+
+fn sanitize_warning_text(text: &str) -> String {
+    let stripped = console::strip_ansi_codes(text);
+    sanitize_inline(&stripped).into_owned()
+}
+
+fn check_peer_deps<Reporter: self::Reporter>(
+    package_name: &str,
+    target_manifest: &PackageManifest,
+    prefix: &Path,
+) {
+    if let Some(peer_deps_map) = target_manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        && !peer_deps_map.is_empty()
+    {
+        let sanitized_pkg_name = sanitize_warning_text(package_name);
+        let peer_deps = peer_deps_map
+            .iter()
+            .map(|(key, value)| {
+                let sanitized_key = sanitize_warning_text(key);
+                let val_str = value.as_str().map_or_else(|| value.to_string(), ToString::to_string);
+                let sanitized_val = sanitize_warning_text(&val_str);
+                format!("  - {sanitized_key}@{sanitized_val}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                "The package {sanitized_pkg_name}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n{peer_deps}\n\nThe linked in dependency will not resolve the peer dependencies from the target node_modules.\nThis might cause issues in your project. To resolve this, you may use the \"file:\" protocol to reference the local dependency.",
+            ),
+            prefix: prefix.display().to_string(),
+        }));
     }
 }

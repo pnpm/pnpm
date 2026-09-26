@@ -1,7 +1,8 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, test } from '@jest/globals'
+import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { pack } from '@pnpm/releasing.commands'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -47,6 +48,39 @@ test('pack: package with package.yaml', async () => {
   expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
+test('pack: package with package.yaml respects files field', async () => {
+  prepare({
+    name: 'test-publish-package-yaml-files',
+    version: '0.0.0',
+    files: ['dist'],
+  }, { manifestFormat: 'YAML' })
+
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'console.log(1)', 'utf8')
+  fs.writeFileSync('index.ts', 'console.log(1)', 'utf8')
+  fs.writeFileSync('tsconfig.json', '{}', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'test-publish-package-yaml-files-0.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  expect(names.sort()).toStrictEqual([
+    'package/dist/index.js',
+    'package/package.json',
+  ])
+})
+
 test('pack: package with package.json5', async () => {
   prepare({
     name: 'test-publish-package.json5',
@@ -65,6 +99,39 @@ test('pack: package with package.json5', async () => {
   expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
+test('pack: package with package.json5 respects files field', async () => {
+  prepare({
+    name: 'test-publish-package-json5-files',
+    version: '0.0.0',
+    files: ['dist'],
+  }, { manifestFormat: 'JSON5' })
+
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'console.log(1)', 'utf8')
+  fs.writeFileSync('index.ts', 'console.log(1)', 'utf8')
+  fs.writeFileSync('tsconfig.json', '{}', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'test-publish-package-json5-files-0.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  expect(names.sort()).toStrictEqual([
+    'package/dist/index.js',
+    'package/package.json',
+  ])
+})
+
 test('pack a package with scoped name', async () => {
   prepare({
     name: '@pnpm/test-scope',
@@ -79,6 +146,42 @@ test('pack a package with scoped name', async () => {
   })
 
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
+})
+
+test.each([
+  ['JSON5', 'none'],
+  ['JSON5', 'ignore'],
+  ['JSON5', 'files'],
+  ['YAML', 'none'],
+  ['YAML', 'ignore'],
+  ['YAML', 'files'],
+] as const)('pack: normalizes one %s manifest with %s filtering', async (manifestFormat, filtering) => {
+  prepare({
+    name: 'alternative-manifest',
+    version: '1.0.0',
+    ...(filtering === 'files' ? { files: ['dist'] } : {}),
+  }, { manifestFormat })
+  fs.mkdirSync('dist')
+  fs.writeFileSync('dist/index.js', 'module.exports = 1')
+  if (manifestFormat === 'JSON5') {
+    fs.writeFileSync('package.yaml', 'name: wrong\nversion: 9.0.0\n')
+  }
+  if (filtering === 'ignore') {
+    fs.writeFileSync('.npmignore', 'package.json5\npackage.yaml\n')
+  }
+  await pack.handler({ ...DEFAULT_OPTS, argv: { original: [] }, dir: process.cwd(), extraBinPaths: [] })
+  const entries: string[] = []
+  await tar.t({ file: 'alternative-manifest-1.0.0.tgz', onReadEntry: entry => {
+    entries.push(entry.path)
+  } })
+  expect(entries.filter(entry => entry === 'package/package.json')).toHaveLength(1)
+  expect(entries).not.toContain('package/package.json5')
+  expect(entries).not.toContain('package/package.yaml')
+  fs.mkdirSync('unpacked')
+  await tar.x({ file: 'alternative-manifest-1.0.0.tgz', cwd: 'unpacked' })
+  expect(JSON.parse(fs.readFileSync('unpacked/package/package.json', 'utf8'))).toMatchObject({
+    name: 'alternative-manifest', version: '1.0.0',
+  })
 })
 
 test('pack: with dry-run', async () => {
@@ -190,23 +293,177 @@ test('pack: bundles transitive dependencies of bundled dependencies (hoisted)', 
   expect(fs.existsSync('package/node_modules/nested/index.js')).toBeTruthy()
 })
 
-test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
-  prepare({
+test.each([false, true])('pack: bundles workspace dependencies with the isolated linker (publish directory: %s)', async (publishDirectory) => {
+  const manifest = {
     name: 'bundled-deps-without-node-linker-hoisted',
+    version: '0.0.0',
+    bundledDependencies: ['bundled-dep'],
+  }
+  preparePackages([
+    { ...manifest, publishConfig: publishDirectory ? { directory: 'dist' } : undefined },
+    { name: 'bundled-dep', version: '1.0.0' },
+  ])
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+  fs.writeFileSync('bundled-dep/index.js', 'module.exports = 42', 'utf8')
+  process.chdir(manifest.name)
+  fs.mkdirSync('node_modules')
+  fs.symlinkSync(path.join(workspaceDir, 'bundled-dep'), 'node_modules/bundled-dep', 'junction')
+  if (publishDirectory) {
+    fs.mkdirSync('dist')
+    fs.writeFileSync('dist/package.json', JSON.stringify(manifest), 'utf8')
+  }
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    workspaceDir,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'bundled-deps-without-node-linker-hoisted-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/bundled-dep/index.js', 'utf8')).toBe('module.exports = 42')
+})
+
+test.each([false, true])('pack: does not bundle ancestor dependencies beyond its resolution root (workspace: %s)', async (workspace) => {
+  const dir = tempDir()
+  const workspaceDir = workspace ? path.join(dir, 'workspace') : undefined
+  const appDir = path.join(workspaceDir ?? dir, 'app')
+  prepare({
+    name: 'app',
+    version: '1.0.0',
+    bundledDependencies: ['outside-direct', 'outside-link', '../../../outside', 'inside'],
+  }, { tempDir: appDir })
+  const modulesDir = path.join(appDir, 'node_modules')
+  fs.mkdirSync(path.join(modulesDir, 'inside'), { recursive: true })
+  fs.writeFileSync(path.join(modulesDir, 'inside/package.json'), JSON.stringify({
+    name: 'inside',
+    version: '1.0.0',
+    dependencies: { 'outside-transitive': '1.0.0' },
+  }))
+  for (const name of ['outside-direct', 'outside-transitive']) {
+    const dependencyDir = path.join(dir, 'node_modules', name)
+    fs.mkdirSync(dependencyDir, { recursive: true })
+    fs.writeFileSync(path.join(dependencyDir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+    fs.writeFileSync(path.join(dependencyDir, 'index.js'), 'outside the resolution root')
+  }
+  fs.symlinkSync(path.join(dir, 'node_modules', 'outside-direct'), path.join(modulesDir, 'outside-link'), 'junction')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    workspaceDir,
+    argv: { original: [] },
+    dir: appDir,
+    extraBinPaths: [],
+  })
+
+  const files: string[] = []
+  await tar.t({ file: 'app-1.0.0.tgz', onReadEntry: entry => {
+    files.push(entry.path)
+  } })
+  expect(files).toContain('package/node_modules/inside/package.json')
+  expect(files.some(file => file.includes('outside-'))).toBe(false)
+})
+
+test('pack: bundles dependencies of an isolated bundled dependency', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    dependencies: { top: '1.0.0' },
+    bundledDependencies: ['top'],
+  })
+  linkIsolated('nested', '1.0.0', {}, { linkFromProject: false })
+  linkIsolated('top', '1.0.0', { nested: '1.0.0' })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/top/index.js', 'utf8')).toBe('top@1.0.0')
+  expect(fs.readFileSync('package/node_modules/nested/index.js', 'utf8')).toBe('nested@1.0.0')
+  expect(fs.existsSync('package/node_modules/.pnpm')).toBe(false)
+})
+
+test('pack: nests an isolated transitive bundle under a conflicting root dependency', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    dependencies: { nested: '2.0.0', top: '1.0.0' },
+    bundledDependencies: ['top'],
+  })
+  linkIsolated('nested', '1.0.0', {}, { linkFromProject: false })
+  linkIsolated('nested', '2.0.0')
+  linkIsolated('top', '1.0.0', { nested: '1.0.0' })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/top/node_modules/nested/index.js', 'utf8')).toBe('nested@1.0.0')
+  expect(fs.existsSync('package/node_modules/nested')).toBe(false)
+})
+
+test('pack: bundles a dependency from the publish directory node_modules', async () => {
+  prepare({
+    name: 'app',
+    version: '0.0.0',
+    publishConfig: { directory: 'dist' },
+  })
+  const manifest = { name: 'app', version: '0.0.0', bundledDependencies: ['dep'] }
+  fs.mkdirSync('dist/node_modules/dep', { recursive: true })
+  fs.writeFileSync('dist/package.json', JSON.stringify(manifest), 'utf8')
+  for (const dir of ['dist/node_modules/dep', 'node_modules/dep']) {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'dep', version: '1.0.0' }), 'utf8')
+    fs.writeFileSync(path.join(dir, 'index.js'), `from ${dir}`, 'utf8')
+  }
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'app-0.0.0.tgz' })
+  expect(fs.readFileSync('package/node_modules/dep/index.js', 'utf8')).toBe('from dist/node_modules/dep')
+})
+
+test('pack rejects bundled dependencies with the PnP linker', async () => {
+  prepare({
+    name: 'bundled-deps-with-pnp-linker',
     version: '0.0.0',
     bundledDependencies: [],
   })
 
   await expect(pack.handler({
     ...DEFAULT_OPTS,
-    nodeLinker: 'isolated',
+    nodeLinker: 'pnp',
     argv: { original: [] },
     dir: process.cwd(),
     extraBinPaths: [],
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
-    message: 'bundledDependencies does not work with "nodeLinker: isolated"',
-    hint: 'Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete bundledDependencies from the root package.json to resolve this error',
+    message: 'bundledDependencies does not work with "nodeLinker: pnp"',
+    hint: 'Set "nodeLinker: isolated" or "nodeLinker: hoisted" in pnpm-workspace.yaml or delete bundledDependencies from the root package.json to resolve this error',
   })
 })
 
@@ -571,6 +828,93 @@ test('pack: package-level .npmignore disables workspace root gitignore', async (
   expect(fs.existsSync('package/LICENSE')).toBeFalsy()
 })
 
+test('pack: writes tarball entries in npm-packlist compression order', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+
+  process.chdir('project')
+  fs.writeFileSync('zzz.txt', 'z\n', 'utf8')
+  fs.mkdirSync('dir')
+  fs.writeFileSync('dir/x.js', 'x\n', 'utf8')
+  fs.writeFileSync('B.txt', 'B\n', 'utf8')
+  fs.writeFileSync('a.txt', 'a\n', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    workspaceDir,
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'project-1.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  // The workspace LICENSE joins the pack after the packlist walk, so it
+  // covers the entries added last. This is not byte order, which would put
+  // `B.txt` before `a.txt` and `LICENSE` before `dir/`.
+  expect(names).toStrictEqual([
+    'package/LICENSE',
+    'package/dir/x.js',
+    'package/package.json',
+    'package/a.txt',
+    'package/B.txt',
+    'package/zzz.txt',
+  ])
+})
+
+test('pack: keeps same-named files from different directories adjacent', async () => {
+  prepare({
+    name: 'templates',
+    version: '1.0.0',
+  })
+
+  fs.mkdirSync('template-a')
+  fs.mkdirSync('template-b')
+  fs.writeFileSync('template-a/hero.png', 'png-bytes', 'utf8')
+  fs.writeFileSync('template-b/hero.png', 'png-bytes', 'utf8')
+  fs.writeFileSync('template-a/index.html', '<html>a</html>\n', 'utf8')
+  fs.writeFileSync('template-b/index.html', '<html>b</html>\n', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'templates-1.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  // The adjacency a path order would break up: it would interleave each
+  // template directory's files instead of grouping the copies of a name.
+  expect(names).toStrictEqual([
+    'package/template-a/index.html',
+    'package/template-b/index.html',
+    'package/package.json',
+    'package/template-a/hero.png',
+    'package/template-b/hero.png',
+  ])
+})
+
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
 ;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {
@@ -597,6 +941,66 @@ const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
   {
     const stat = fs.statSync(path.resolve('package/index.js'))
     expect(modeIsExecutable(stat.mode)).toBeFalsy()
+  }
+})
+
+;(process.platform === 'win32' ? test.skip : test)('pack: preserves file executable permissions for files not in bin', async () => {
+  prepare({
+    name: 'test-exec-permissions',
+    version: '1.0.0',
+    files: ['scripts/run.sh', 'index.js'],
+  })
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('scripts/run.sh', '#!/bin/sh\necho hi\n')
+  fs.chmodSync('scripts/run.sh', 0o755)
+  fs.writeFileSync('index.js', 'module.exports = 1\n')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  await tar.x({ file: 'test-exec-permissions-1.0.0.tgz' })
+
+  const scriptStat = fs.statSync(path.resolve('package/scripts/run.sh'))
+  expect(modeIsExecutable(scriptStat.mode)).toBeTruthy()
+
+  const jsStat = fs.statSync(path.resolve('package/index.js'))
+  expect(modeIsExecutable(jsStat.mode)).toBeFalsy()
+})
+
+test('pack: propagates unexpected filesystem errors when inspecting source file permissions', async () => {
+  prepare({
+    name: 'test-exec-error',
+    version: '1.0.0',
+    files: ['scripts/run.sh'],
+  })
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('scripts/run.sh', '#!/bin/sh\necho hi\n')
+
+  const originalStatSync = fs.statSync
+  const statSyncSpy = jest.spyOn(fs, 'statSync').mockImplementation(((file: fs.PathLike, options?: Parameters<typeof originalStatSync>[1]) => {
+    if (String(file).includes('run.sh')) {
+      const err = new Error('Permission denied') as NodeJS.ErrnoException
+      err.code = 'EACCES'
+      throw err
+    }
+    return originalStatSync(file, options as never)
+  }) as never)
+
+  try {
+    await expect(pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })).rejects.toThrow('Permission denied')
+  } finally {
+    statSyncSpy.mockRestore()
   }
 })
 
@@ -1050,6 +1454,78 @@ test('pack: recursive pack and display in json format', async () => {
   }
 })
 
+test('pack: recursive projects that share an output path do not pack concurrently', async () => {
+  const dir = tempDir()
+  const eventsFile = path.join(dir, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      prepack: `node -e "const fs=require('fs');const [p,name]=process.argv.slice(1);fs.appendFileSync(p,name+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,200);fs.appendFileSync(p,name+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages(pkgs, { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'artifact.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events).toHaveLength(4)
+  for (let index = 0; index < events.length; index += 2) {
+    const project = events[index].replace(/:start$/, '')
+    expect(events[index + 1]).toBe(`${project}:end`)
+  }
+  expect(fs.existsSync(path.join(dir, 'artifact.tgz'))).toBeTruthy()
+})
+
+test('pack: recursive results stay in dependency order when projects finish out of order', async () => {
+  const dir = tempDir()
+  const pkgs = [
+    { name: 'project-1', delay: 250 },
+    { name: 'project-2', delay: 10 },
+  ].map(({ name, delay }) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      prepack: `node -e "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,${delay})"`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages(pkgs, { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    json: true,
+    out: '%s.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const names = (JSON.parse(output) as PackResultJson[])
+    .map(({ name }) => name)
+    .filter((name) => name.startsWith('project-'))
+  expect(names).toStrictEqual(['project-1', 'project-2'])
+})
+
 test('pack: recursive pack with filter', async () => {
   const dir = tempDir()
 
@@ -1123,3 +1599,191 @@ test('pack: recursive pack with filter', async () => {
   expect(output).not.toContain('package: is-positive')
   expect(output).not.toContain('package: i-am-private')
 })
+
+test('pack: bin with CRLF shebang is rejected', async () => {
+  prepare({
+    name: 'test-bin-crlf',
+    version: '1.0.0',
+    bin: {
+      'test-bin': 'bin/foo.js',
+    },
+  })
+  fs.mkdirSync('bin')
+  fs.writeFileSync('bin/foo.js', '#!/usr/bin/env node\r\nconsole.log(1)\n')
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BIN_CRLF',
+    message: 'The bin file "bin/foo.js" has a shebang line ending with CRLF (\\r\\n).',
+    hint: 'CRLF line endings on the shebang line break execution on Unix systems (/usr/bin/env: \'node\\r\': No such file or directory). Convert line endings of "bin/foo.js" to LF (\\n).',
+  })
+})
+
+test('pack: bin with BOM and CRLF shebang is rejected', async () => {
+  prepare({
+    name: 'test-bin-bom-crlf',
+    version: '1.0.0',
+    bin: 'bin/foo.js',
+  })
+  fs.mkdirSync('bin')
+  fs.writeFileSync('bin/foo.js', '\uFEFF#!/usr/bin/env node\r\nconsole.log(1)\n')
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BIN_CRLF',
+    message: 'The bin file "bin/foo.js" has a shebang line ending with CRLF (\\r\\n).',
+  })
+})
+
+test('pack: bin with LF shebang and CRLF body is accepted', async () => {
+  prepare({
+    name: 'test-bin-lf-crlf-body',
+    version: '1.0.0',
+    bin: {
+      'test-bin': 'bin/foo.js',
+    },
+  })
+  fs.mkdirSync('bin')
+  fs.writeFileSync('bin/foo.js', '#!/usr/bin/env node\nconsole.log(1)\r\n')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(fs.existsSync('test-bin-lf-crlf-body-1.0.0.tgz')).toBeTruthy()
+})
+
+test('pack: bin without shebang is accepted', async () => {
+  prepare({
+    name: 'test-bin-no-shebang',
+    version: '1.0.0',
+    bin: {
+      'test-bin': 'bin/foo.js',
+    },
+  })
+  fs.mkdirSync('bin')
+  fs.writeFileSync('bin/foo.js', 'console.log(1)\r\n')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(fs.existsSync('test-bin-no-shebang-1.0.0.tgz')).toBeTruthy()
+})
+
+test('pack: excluded executable file with CRLF shebang is accepted', async () => {
+  prepare({
+    name: 'test-excluded-bin-crlf',
+    version: '1.0.0',
+    files: ['index.js'],
+    publishConfig: {
+      executableFiles: ['ignored-bin.js'],
+    },
+  })
+  fs.writeFileSync('index.js', 'console.log(1)\n')
+  fs.writeFileSync('ignored-bin.js', '#!/usr/bin/env node\r\nconsole.log(1)\n')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(fs.existsSync('test-excluded-bin-crlf-1.0.0.tgz')).toBeTruthy()
+})
+
+// Lays out name@version the way the isolated linker does: the package in its
+// own .pnpm slot, each dependency linked next to it, and name linked from the
+// project's node_modules.
+function linkIsolated (name: string, version: string, dependencies: Record<string, string> = {}, opts?: { linkFromProject: boolean }): void {
+  const slot = path.resolve(`node_modules/.pnpm/${name}@${version}/node_modules`)
+  const packageDir = path.join(slot, name)
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, version, dependencies }), 'utf8')
+  fs.writeFileSync(path.join(packageDir, 'index.js'), `${name}@${version}`, 'utf8')
+  for (const [dependency, dependencyVersion] of Object.entries(dependencies)) {
+    fs.symlinkSync(path.resolve(`node_modules/.pnpm/${dependency}@${dependencyVersion}/node_modules/${dependency}`), path.join(slot, dependency), 'junction')
+  }
+  if (opts?.linkFromProject !== false) {
+    fs.symlinkSync(packageDir, path.resolve('node_modules', name), 'junction')
+  }
+}
+
+// cspell:ignore onentry linkpath
+test('pack: preserves internal symlinks in package tarball and excludes external symlinks', async () => {
+  prepare({
+    name: 'test-pack-symlinks',
+    version: '1.0.0',
+    files: ['real-file.txt', 'symlink-file.txt', 'sub', 'symlink-dir', 'symlink-outside', 'symlink-absolute', 'symlink-reentering'],
+  })
+
+  fs.writeFileSync('real-file.txt', 'hello from real file')
+  fs.mkdirSync('sub')
+  fs.writeFileSync(path.join('sub', 'nested.txt'), 'nested content')
+  fs.symlinkSync('real-file.txt', 'symlink-file.txt', 'file')
+  fs.symlinkSync('sub', 'symlink-dir', 'dir')
+  fs.symlinkSync('nested.txt', path.join('sub', 'nested-link.txt'), 'file')
+  fs.symlinkSync(path.resolve('real-file.txt'), 'symlink-absolute', 'file')
+  fs.symlinkSync(path.join('..', path.basename(process.cwd()), 'real-file.txt'), 'symlink-reentering', 'file')
+
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'))
+  try {
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret')
+    fs.symlinkSync(path.join(outsideDir, 'secret.txt'), 'symlink-outside')
+
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+
+    const tarballName = 'test-pack-symlinks-1.0.0.tgz'
+    expect(fs.existsSync(tarballName)).toBe(true)
+
+    const entries: Array<{ name: string, type: string, linkname?: string }> = []
+    await tar.t({
+      file: tarballName,
+      onentry: (entry) => {
+        entries.push({
+          name: entry.path,
+          type: entry.type,
+          linkname: (entry as unknown as { linkpath?: string }).linkpath,
+        })
+      },
+    })
+
+    const fileLinkEntry = entries.find((e) => e.name === 'package/symlink-file.txt')
+    expect(fileLinkEntry).toBeDefined()
+    expect(fileLinkEntry?.type).toBe('SymbolicLink')
+    expect(fileLinkEntry?.linkname).toBe('real-file.txt')
+
+    const dirLinkEntry = entries.find((e) => e.name === 'package/symlink-dir')
+    expect(dirLinkEntry).toBeDefined()
+    expect(dirLinkEntry?.type).toBe('SymbolicLink')
+    expect(dirLinkEntry?.linkname).toBe('sub')
+
+    expect(entries.find((e) => e.name === 'package/sub/nested-link.txt')).toMatchObject({ type: 'SymbolicLink', linkname: 'nested.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-absolute')).toMatchObject({ type: 'SymbolicLink', linkname: 'real-file.txt' })
+    expect(entries.find((e) => e.name === 'package/symlink-outside')).toBeUndefined()
+    expect(entries.find((e) => e.name === 'package/symlink-reentering')).toBeUndefined()
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true })
+  }
+})
+

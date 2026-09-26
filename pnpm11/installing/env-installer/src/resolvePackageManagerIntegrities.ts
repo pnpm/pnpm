@@ -1,9 +1,10 @@
-import { parseRegistryQualifiedVersion } from '@pnpm/deps.path'
+import { parseRegistryQualifiedVersion, refToRelative, removeSuffix } from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
-import type { DepPath, ProjectId, Registries } from '@pnpm/types'
+import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
@@ -16,7 +17,7 @@ const PNPM_EXE_INTRODUCED = '6.17.1'
 
 export interface ResolvePackageManagerIntegritiesOpts {
   envLockfile?: EnvLockfile
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootDir: string
   storeController: StoreController
   storeDir: string
@@ -27,12 +28,62 @@ export interface ResolvePackageManagerIntegritiesOpts {
    * resolved pnpm integrity info. Defaults to true.
    */
   save?: boolean
+  /**
+   * The specifier to record for each entry, when it differs from the version
+   * being resolved. A range pin names no exact version, so its entries resolve
+   * to a concrete version while still recording the range the project asked
+   * for. Defaults to the resolved spec, which is what an exact pin wants.
+   */
+  specifier?: string
+  /**
+   * Refuse to record entries that are missing or out of date, failing the
+   * command instead. Only meaningful together with `save`: an in-memory
+   * resolution changes no lockfile, so nothing can fall out of sync with it.
+   */
+  frozenLockfile?: boolean
 }
 
 /**
  * Checks if the wanted pnpm version integrities are already fully resolved in the env lockfile.
+ *
+ * `specifier` is what the project asked for, which a range pin records
+ * alongside the version it resolved to. Pass it to also require that the entry
+ * records the pin the project asks for now: one written under a pin that has
+ * since changed still has to be rewritten, even though its version stands.
+ * Omit it to accept the entry on its version alone.
+ *
+ * A package this pnpm does not install the wanted version from is accepted
+ * beside the ones it does, when it pins that same version and the lockfile
+ * carries the records to install it from. See {@link pinsWantedPackageManager}
+ * for why such an entry is left alone.
  */
 export function isPackageManagerResolved (
+  envLockfile: EnvLockfile | undefined,
+  pnpmVersion: string,
+  specifier?: string
+): boolean {
+  if (!envLockfile) return false
+
+  const pmDeps = envLockfile.importers['.'].packageManagerDependencies
+  if (pmDeps == null) return false
+  const wantedDeps = packageManagerDeps(pnpmVersion)
+  return wantedDeps.every((name) => pmDeps[name] != null) &&
+    Object.entries(pmDeps).every(([name, dep]) =>
+      dep.version === pnpmVersion &&
+      (specifier == null || dep.specifier === specifier) &&
+      isRecordedForInstall(envLockfile, name, dep.version)
+    )
+}
+
+/**
+ * Whether the env lockfile pins the package manager the manifest asks for,
+ * even when it records more packages than this pnpm installs it from.
+ *
+ * Every entry must pin the wanted version and have package and snapshot
+ * records. Compatible additional entries are retained to keep commands from
+ * repeatedly rewriting `pnpm-lock.yaml`.
+ */
+export function pinsWantedPackageManager (
   envLockfile: EnvLockfile | undefined,
   pnpmVersion: string
 ): boolean {
@@ -40,9 +91,18 @@ export function isPackageManagerResolved (
 
   const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
-  const wantedDeps = packageManagerDeps(pnpmVersion)
-  return Object.keys(pmDeps).length === wantedDeps.length &&
-    wantedDeps.every((name) => pmDeps[name]?.version === pnpmVersion)
+  return packageManagerDeps(pnpmVersion).every((name) => pmDeps[name] != null) &&
+    Object.entries(pmDeps).every(([name, dep]) =>
+      dep.version === pnpmVersion && isRecordedForInstall(envLockfile, name, dep.version)
+    )
+}
+
+/** Whether the lockfile carries the records the bootstrap installs `name@version` from. */
+function isRecordedForInstall (envLockfile: EnvLockfile, name: string, version: string): boolean {
+  const depPath = refToRelative(version, name)
+  return depPath != null &&
+    envLockfile.packages[removeSuffix(depPath)] != null &&
+    envLockfile.snapshots[depPath] != null
 }
 
 /**
@@ -70,7 +130,8 @@ function packageManagerDeps (pnpmVersion: string): readonly string[] {
  * resolveManifestDependencies. When `opts.save` is true (the default) the
  * results are written to the `packageManagerDependencies` section of
  * `pnpm-lock.yaml`; when false, resolution happens purely in memory and the
- * returned `EnvLockfile` is never persisted to disk.
+ * returned `EnvLockfile` is never persisted to disk. Under
+ * `opts.frozenLockfile` a write the lockfile still needs is an error instead.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
@@ -79,8 +140,17 @@ export async function resolvePackageManagerIntegrities (
   const save = opts.save ?? true
   const envLockfile = opts.envLockfile ?? (save ? await readEnvLockfile(opts.rootDir) : undefined) ?? createEnvLockfile()
 
-  if (isPackageManagerResolved(envLockfile, pnpmVersion)) {
+  // A frozen lockfile is not rewritten to refresh a stale specifier: refusing
+  // the entry over one would fail the install rather than update it.
+  if (isPackageManagerResolved(envLockfile, pnpmVersion, opts.frozenLockfile ? undefined : opts.specifier)) {
     return envLockfile
+  }
+
+  if (save && opts.frozenLockfile) {
+    if (pinsWantedPackageManager(envLockfile, pnpmVersion)) {
+      return envLockfile
+    }
+    throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
 
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
@@ -155,12 +225,12 @@ async function resolveWantedPnpmPackages (
 ): Promise<LockfileObject> {
   const resolveOpts = {
     dir: opts.rootDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
   }
   if (semver.valid(spec) != null) {
-    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, spec) }, resolveOpts)
+    return resolveManifestDependencies({ dependencies: wantedDependencies(spec, opts.specifier ?? spec) }, resolveOpts)
   }
   const lockfile = await resolveManifestDependencies({ dependencies: { pnpm: spec } }, resolveOpts)
   const ref = lockfile.importers['.' as ProjectId]?.dependencies?.['pnpm']

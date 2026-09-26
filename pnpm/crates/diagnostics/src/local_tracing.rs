@@ -26,7 +26,12 @@ pub fn enable_tracing_by_env() {
     } else {
         tracing_subscriber::registry()
             .with(layer)
-            .with(fmt::layer().pretty().with_file(true).with_span_events(FmtSpan::CLOSE))
+            .with(
+                fmt::layer()
+                    .pretty()
+                    .with_file(true)
+                    .with_span_events(FmtSpan::CLOSE),
+            )
             .try_init()
     };
     // A subscriber installed earlier in the process keeps precedence.
@@ -43,10 +48,14 @@ fn common_layer(
     if let Ok(default_level) = Level::from_str(trace_var) {
         Some(
             tracing_subscriber::filter::Targets::new()
-                .with_target("pacquet_tarball", default_level)
+                .with_target("pnpm_tarball", default_level)
                 .boxed(),
         )
     } else {
-        EnvFilter::builder().with_regex(true).parse(trace_var).ok().map(Layer::boxed)
+        EnvFilter::builder()
+            .with_regex(true)
+            .parse(trace_var)
+            .ok()
+            .map(Layer::boxed)
     }
 }

@@ -1,9 +1,9 @@
 use super::{importer_manifest_name, sanitized_importer_dir};
 use crate::resolver::protocol::ResolveRequest;
-use pacquet_config::{Config, LinkWorkspacePackages};
-use pacquet_lockfile::{ImporterDepVersion, Lockfile, PkgName};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_store_dir::StoreDir;
+use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_store_dir::StoreDir;
 use std::sync::Arc;
 
 #[test]
@@ -138,7 +138,10 @@ async fn workspace_without_root_project_has_no_synthetic_root_importer() {
     .await;
 
     assert_eq!(
-        lockfile.importers.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>(),
+        lockfile.importers
+            .keys()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>(),
         std::collections::BTreeSet::from(["packages/app", "packages/lib"]),
     );
 }
@@ -313,8 +316,7 @@ async fn try_resolve_json_with(
 }
 
 fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expected_target: &str) {
-    let dependencies = lockfile
-        .importers
+    let dependencies = lockfile.importers
         .get(importer)
         .expect("importer exists")
         .dependencies

@@ -17,6 +17,12 @@ export interface TarballExtractMessage {
   storeDir: string
   integrity?: string
   filesIndexFile: string
+  /**
+   * When `integrity` is not provided, the row is also written under
+   * `storeIndexKey(computedIntegrity, pkgId)`. That is the key a later lookup
+   * uses once the computed integrity is recorded in the lockfile.
+   */
+  pkgId?: string
   readManifest?: boolean
   pkg?: PkgNameVersion
   appendManifest?: DependencyManifest
@@ -62,6 +68,7 @@ export interface AddDirToStoreMessage {
   appendManifest?: DependencyManifest
   files?: string[]
   includeNodeModules?: boolean
+  requiresPrepare?: boolean
 }
 
 export interface ReadPkgFromCafsMessage {

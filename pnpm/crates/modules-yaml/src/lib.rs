@@ -1,21 +1,25 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Read and write pnpm's `node_modules/.modules.yaml` manifest.
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
 //! `modules_dir` is the path of a `node_modules` directory. The on-disk
-//! format is JSON (which YAML accepts), so reads use a YAML parser and
-//! writes emit [`serde_json::to_string_pretty`] output to match pnpm exactly.
+//! format is JSON: writes emit [`serde_json::to_string_pretty`] output to
+//! match pnpm exactly, and reads parse JSON first, falling back to a YAML
+//! parser for manifests written by old pnpm versions.
 
+pub use capabilities::{Clock, FsCreateDirAll, FsReadToString, FsWrite, Host};
 use derive_more::{Display, Error, From, Into};
 use indexmap::{IndexMap, IndexSet};
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_fs::lexical_normalize;
 use pipe_trait::Pipe;
-use serde::{Deserialize, Serialize};
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_fs::lexical_normalize;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     collections::BTreeMap,
-    fs, io, iter,
+    io, iter,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 /// Filename of the modules manifest inside `node_modules/`.
@@ -27,65 +31,7 @@ pub const MODULES_FILENAME: &str = ".modules.yaml";
 /// Default value for the `virtualStoreDirMaxLength` field.
 pub const DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH: u64 = 120;
 
-/// Capability trait: read a file's contents into a [`String`].
-///
-/// One trait per filesystem capability so each function declares only what
-/// it actually uses, and so test fakes only implement the methods that
-/// will be exercised. Pattern follows the per-capability typeclass style
-/// rather than `parallel-disk-usage`'s lumped `FsApi` at
-/// <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L29-L35>.
-pub trait FsReadToString {
-    fn read_to_string(path: &Path) -> io::Result<String>;
-}
-
-/// Capability trait: create a directory and any missing parents.
-pub trait FsCreateDirAll {
-    fn create_dir_all(path: &Path) -> io::Result<()>;
-}
-
-/// Capability trait: write bytes to a file, replacing existing contents.
-pub trait FsWrite {
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()>;
-}
-
-/// Capability trait: read the current wall-clock time as a [`SystemTime`].
-///
-/// Decoupled from [`SystemTime::now`] so tests can fake the clock and
-/// assert deterministic `prunedAt` values.
-pub trait Clock {
-    fn now() -> SystemTime;
-}
-
-/// Production implementation, backed by [`std::fs`] and [`SystemTime::now`].
-pub struct Host;
-
-impl FsReadToString for Host {
-    #[inline]
-    fn read_to_string(path: &Path) -> io::Result<String> {
-        fs::read_to_string(path)
-    }
-}
-
-impl FsCreateDirAll for Host {
-    #[inline]
-    fn create_dir_all(path: &Path) -> io::Result<()> {
-        fs::create_dir_all(path)
-    }
-}
-
-impl FsWrite for Host {
-    #[inline]
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
-        fs::write(path, contents)
-    }
-}
-
-impl Clock for Host {
-    #[inline]
-    fn now() -> SystemTime {
-        SystemTime::now()
-    }
-}
+mod capabilities;
 
 /// Newtype wrapper around a dependency-path string.
 ///
@@ -127,6 +73,13 @@ impl DepPath {
 /// the read path then fills in the modern shape from the legacy fields.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct Modules {
     /// Legacy: the v5-era flat alias map, kept for read-side
     /// compatibility. Replaced by [`Self::hoisted_dependencies`].
@@ -147,7 +100,11 @@ pub struct Modules {
     #[serde(default)]
     pub included: IncludedDependencies,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_layout_version",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub layout_version: Option<LayoutVersion>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -164,12 +121,6 @@ pub struct Modules {
 
     #[serde(default)]
     pub pruned_at: String,
-
-    // TODO: the strict manifest shape that the write path takes tightens
-    // this to a required `Registries`. Revisit when the install-pipeline
-    // port supplies a producer that always populates `default`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
 
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
     /// Replaced by [`Self::public_hoist_pattern`].
@@ -226,12 +177,19 @@ pub struct Modules {
 /// amounts of memory.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct ModulesLayout {
     #[serde(default)]
     pub hoist_pattern: Option<Vec<String>>,
     #[serde(default)]
     pub included: IncludedDependencies,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_layout_version")]
     pub layout_version: Option<LayoutVersion>,
     #[serde(default)]
     pub node_linker: Option<NodeLinker>,
@@ -243,8 +201,6 @@ pub struct ModulesLayout {
     pub ignored_builds: Option<IndexSet<DepPath>>,
     #[serde(default)]
     pub pruned_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub registries: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
     /// Legacy: the v5-era flag used to mean "hoist everything publicly."
@@ -280,6 +236,14 @@ pub struct IncludedDependencies {
     pub optional_dependencies: bool,
 }
 
+impl IncludedDependencies {
+    /// Whether at least one dependency group is left out.
+    #[must_use]
+    pub fn excludes_a_group(self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
+}
+
 /// Linker variant the install pipeline used. The string variants match
 /// pnpm's runtime values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -292,12 +256,13 @@ pub enum NodeLinker {
 
 /// Pinned identifier for the `node_modules` layout pacquet emits.
 ///
-/// The unit type carries no data: its existence is the value. It serializes
-/// as the integer `5` and deserializes only when the on-disk value is
-/// exactly `5`. Any other version causes a deserialization error, the
-/// breaking-change reaction to a missing or mismatched `layoutVersion`.
-/// Wrapping this in [`Option`] on [`Modules`] distinguishes "missing"
-/// (legacy, breaking change) from "present and matching".
+/// The unit type carries no data: its existence is the value. It
+/// serializes as the integer `5` and converts from `u32` only when the
+/// on-disk value is exactly `5`. On [`Modules`] and [`ModulesLayout`] it
+/// is wrapped in an [`Option`] whose `None` means "not the layout this
+/// build emits" — a missing field and an unsupported version read alike,
+/// so an old layout rebuilds `node_modules` instead of making the whole
+/// manifest unreadable.
 ///
 /// The `#[serde(try_from = "u32", into = "u32")]` proxy lets us reuse
 /// serde's number deserializer, while the [`TryFrom`] impl owns the
@@ -328,6 +293,28 @@ impl TryFrom<u32> for LayoutVersion {
             Err(UnsupportedLayoutVersionError { found: value })
         }
     }
+}
+
+/// Read `layoutVersion`, reporting any number that is not the version
+/// this build supports as `None` — the same "layout predates this pnpm"
+/// signal a missing field carries, which the caller reacts to by
+/// rebuilding `node_modules`. Rejecting it at parse time instead would
+/// make the whole manifest unreadable, and an unreadable manifest fails
+/// the install. pnpm reads any number here too and defers the decision to
+/// its own compatibility check.
+///
+/// The number is read as `f64` because that is the one JSON numeric type,
+/// so `5` and `5.0` are the same version to pnpm and must be here too.
+fn deserialize_layout_version<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<LayoutVersion>, Deser::Error>
+where
+    Deser: serde::Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?
+        .filter(|found| found.fract() == 0.0)
+        .and_then(|found| u32::try_from(found as i64).ok())
+        .and_then(|found| LayoutVersion::try_from(found).ok()))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`
@@ -390,6 +377,20 @@ pub enum WriteModulesError {
     WriteFile { path: PathBuf, source: io::Error },
 }
 
+/// Parse the manifest as JSON first (the format every current pnpm writes),
+/// falling back to the YAML parser for manifests written by old pnpm
+/// versions. JSON parsing also accepts object keys longer than YAML's
+/// 1,024-character simple-key limit, which long dependency paths can exceed.
+fn deserialize_modules<Manifest>(content: &str) -> Result<Manifest, serde_saphyr::Error>
+where
+    Manifest: DeserializeOwned,
+{
+    match serde_json::from_str(content) {
+        Ok(manifest) => Ok(manifest),
+        Err(_) => serde_saphyr::from_str(content),
+    }
+}
+
 /// Read `<modules_dir>/.modules.yaml` and return the normalized manifest.
 ///
 /// Returns `Ok(None)` when the file does not exist or contains a YAML
@@ -411,9 +412,11 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<Modules> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+    let parsed: Option<Modules> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
     apply_legacy_shamefully_hoist(&mut manifest);
@@ -443,13 +446,23 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<ModulesLayout> =
-        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
-            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+    let parsed: Option<ModulesLayout> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 
-    // Normalize legacy shamefully_hoist to public_hoist_pattern.
+    normalize_modules_layout::<Sys>(&mut manifest, modules_dir);
+    Ok(Some(manifest))
+}
+
+/// Fill in what a stored layout leaves to its reader: the legacy
+/// `shamefully_hoist` flag becomes a public-hoist pattern, the virtual store
+/// directory is resolved against the modules directory, and the prune stamp
+/// and length cap take their defaults.
+fn normalize_modules_layout<Sys: Clock>(manifest: &mut ModulesLayout, modules_dir: &Path) {
     if let Some(shamefully_hoist) = manifest.shamefully_hoist
         && manifest.public_hoist_pattern.is_none()
     {
@@ -471,7 +484,6 @@ where
     if manifest.virtual_store_dir_max_length == 0 {
         manifest.virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
     }
-    Ok(Some(manifest))
 }
 
 /// Write `manifest` to `<modules_dir>/.modules.yaml`, creating `modules_dir`
@@ -502,10 +514,11 @@ where
     }
     let serialized =
         serde_json::to_string_pretty(&manifest).map_err(WriteModulesError::SerializeJson)?;
-    Sys::create_dir_all(modules_dir).map_err(|source| WriteModulesError::CreateDir {
-        path: modules_dir.to_path_buf(),
-        source,
-    })?;
+    Sys::create_dir_all(modules_dir)
+        .map_err(|source| WriteModulesError::CreateDir {
+            path: modules_dir.to_path_buf(),
+            source,
+        })?;
     let manifest_path = modules_dir.join(MODULES_FILENAME);
     Sys::write(&manifest_path, serialized.as_bytes())
         .map_err(|source| WriteModulesError::WriteFile { path: manifest_path, source })
@@ -567,7 +580,11 @@ fn apply_legacy_shamefully_hoist(manifest: &mut Modules) {
         manifest.hoisted_dependencies = aliases_by_path
             .iter()
             .map(|(dep_path, alias_names)| {
-                let entry = alias_names.iter().cloned().zip(iter::repeat(kind)).collect();
+                let entry = alias_names
+                    .iter()
+                    .cloned()
+                    .zip(iter::repeat(kind))
+                    .collect();
                 (dep_path.clone().into(), entry)
             })
             .collect();

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.fs",
-  "version": "1100.2.1",
+  "version": "1100.2.9",
   "description": "Read/write pnpm-lock.yaml files",
   "keywords": [
     "pnpm",
@@ -37,11 +37,14 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",
@@ -49,6 +52,7 @@
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
+    "signal-exit": "catalog:",
     "strip-bom": "catalog:",
     "write-file-atomic": "catalog:"
   },

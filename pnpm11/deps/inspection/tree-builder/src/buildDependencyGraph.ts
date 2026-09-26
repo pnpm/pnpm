@@ -1,9 +1,10 @@
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { isPeerSatisfactionEdge, type PeerSatisfactionEdges } from '@pnpm/lockfile.peer-edges'
 
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
-interface DependencyEdge {
+export interface DependencyEdge {
   alias: string
   ref: string
   target?: {
@@ -34,6 +35,8 @@ export function buildDependencyGraph (
     }
     lockfileDir: string
     onlyProjects?: boolean
+    /** Edges left out of the graph, from `getPeerSatisfactionEdgesToSkip`. */
+    peerSatisfactionEdges?: PeerSatisfactionEdges
   }
 ): DependencyGraph {
   const graph: DependencyGraph = { nodes: new Map() }
@@ -83,20 +86,21 @@ export function buildDependencyGraph (
           ? rawRef
           : (rawRef as { version?: string } | null)?.version
         if (ref == null) continue
+        if (nodeId.type === 'package' && isPeerSatisfactionEdge(opts.peerSatisfactionEdges, nodeId.depPath, alias)) continue
         const targetNodeId = getTreeNodeChildId({
           parentId: nodeId,
           dep: { alias, ref },
           lockfileDir: opts.lockfileDir,
           importers: opts.importers,
         })
-        // When onlyProjects is true, only follow edges to workspace importers
-        if (opts.onlyProjects && targetNodeId?.type !== 'importer') {
-          continue
-        }
         const target = targetNodeId != null
           ? { id: serializeTreeNodeId(targetNodeId), nodeId: targetNodeId }
           : undefined
-        edges.push({ alias, ref, target })
+        const edge = { alias, ref, target }
+        if (opts.onlyProjects && !isProjectEdge(nodeId, edge)) {
+          continue
+        }
+        edges.push(edge)
 
         if (target && !visited.has(target.id)) {
           queue.push(target.nodeId)
@@ -108,6 +112,18 @@ export function buildDependencyGraph (
   }
 
   return graph
+}
+
+/**
+ * Whether an edge may lead to a project. Besides the importers of the lockfile,
+ * this includes a project's `link:` dependency on a directory outside the
+ * lockfile: with a dedicated lockfile per project, every other workspace
+ * project is such a directory. `buildDependenciesTree` keeps those only when
+ * the directory is a workspace project.
+ */
+export function isProjectEdge (parentId: TreeNodeId, edge: DependencyEdge): boolean {
+  if (edge.target != null) return edge.target.nodeId.type === 'importer'
+  return parentId.type === 'importer' && edge.ref.startsWith('link:')
 }
 
 function getSnapshot (

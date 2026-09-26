@@ -123,3 +123,35 @@ test('config delete on pnpm-specific key set', async () => {
 
   expect(fs.readdirSync(configDir)).not.toContain('config.yaml')
 })
+
+test('config delete on a project key when the project has no pnpm-workspace.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler(createConfigCommandOpts({
+    dir: tmp,
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['delete', 'virtual-store-dir'])
+
+  expect(fs.readdirSync(tmp)).not.toContain('pnpm-workspace.yaml')
+})
+
+test('config delete on a global key when there is no config.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler(createConfigCommandOpts({
+    dir: tmp,
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['delete', 'store-dir'])
+
+  expect(fs.readdirSync(configDir)).not.toContain('config.yaml')
+})

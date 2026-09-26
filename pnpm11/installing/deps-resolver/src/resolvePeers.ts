@@ -952,7 +952,7 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
   if (parentPkg == null) return false
 
   const conflictingPeers = new Set<string>()
-  for (const peerName of Object.keys(parentPkg.peerDependencies)) {
+  for (const peerName of Object.keys(parentPkg.peerDependencies ?? {})) {
     if (!ctx.allPeerDepNames.has(peerName)) continue
     const inheritedPeer = inheritedContext[peerName]
     const currentPeer = parentPkgs[peerName]
@@ -963,14 +963,48 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
   }
   if (conflictingPeers.size === 0) return false
 
-  for (const childNodeId of Object.values(children)) {
-    const childPeerDependencies = (ctx.dependenciesTree.get(childNodeId)?.resolvedPackage as T | undefined)?.peerDependencies
-    if (childPeerDependencies == null || childPeerDependencies[parentPkg.name] == null) continue
-    for (const peerName of conflictingPeers) {
-      if (childPeerDependencies[peerName] != null) return true
+  // The consumer that closes the diamond may be any descendant that inherits
+  // this node's provider, not only a direct child. The children of a node
+  // depend only on its package, so each package's children are expanded once.
+  // A package is marked only when it inherits the provider: cycle pruning can
+  // drop its copy of the provider from one occurrence but not another.
+  // See https://github.com/pnpm/pnpm/issues/12098
+  const visited = new Set<PkgIdWithPatchHash>()
+  const pending = Object.values(children)
+  let childNodeId: NodeId | undefined
+  while ((childNodeId = pending.pop()) != null) {
+    const childNode = ctx.dependenciesTree.get(childNodeId)
+    if (childNode == null) continue
+    const childPkg = childNode.resolvedPackage as T
+    if (visited.has(childPkg.pkgIdWithPatchHash)) continue
+    const childPeerDependencies = childPkg.peerDependencies
+    if (childPeerDependencies?.[parentPkg.name] != null) {
+      for (const peerName of conflictingPeers) {
+        if (childPeerDependencies[peerName] != null) return true
+      }
     }
+    if (typeof childNode.children === 'function') {
+      childNode.children = childNode.children()
+    }
+    // A descendant that has its own copy of the package provides it to its
+    // subtree, so the inherited one doesn't reach any deeper.
+    if (childrenProvidePkg(ctx.dependenciesTree, childNode.children, parentPkg.name)) continue
+    visited.add(childPkg.pkgIdWithPatchHash)
+    pending.push(...Object.values(childNode.children))
   }
   return false
+}
+
+// An aliased child provides peers under its real package name too, as it does
+// in toPkgByName.
+function childrenProvidePkg<T extends PartialResolvedPackage> (
+  dependenciesTree: DependenciesTree<T>,
+  children: ChildrenMap,
+  pkgName: string
+): boolean {
+  return Object.entries(children).some(([alias, nodeId]) =>
+    alias === pkgName || dependenciesTree.get(nodeId)?.resolvedPackage.name === pkgName
+  )
 }
 
 function parentPeerDiffers<T extends PartialResolvedPackage> (

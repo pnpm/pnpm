@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pacquet_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
 
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -39,6 +39,13 @@ pub struct ResolvedRegistry {
 }
 
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI
@@ -72,6 +79,8 @@ pub struct ResolvedConfig {
     pub fetch_retry_mintimeout: u32,
     pub fetch_retry_maxtimeout: u32,
     pub fetch_timeout: u32,
+    pub fetch_warn_timeout_ms: u32,
+    pub fetch_min_speed_ki_bps: u32,
     /// The explicitly configured user agent, when the cascade set one.
     /// The engine's own computed default is omitted — an embedder that
     /// passes nothing back to `install` gets that same default.
@@ -105,43 +114,37 @@ pub fn read_config(options: ReadConfigOptions) -> napi::Result<ResolvedConfig> {
     Ok(project_config(config))
 }
 
-fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
+fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
     // `to_by_scope` maps `nerf-darted uri -> scope -> header`, carrying
     // only static credentials (a `tokenHelper` has no header until run).
     let by_scope = config.auth_headers.to_by_scope();
     let auth_header_by_uri: HashMap<String, String> = by_scope
         .iter()
         .filter_map(|(uri, by_scope)| {
-            by_scope.get(DEFAULT_REGISTRY_SCOPE).map(|header| (uri.clone(), header.clone()))
+            by_scope
+                .get(DEFAULT_REGISTRY_SCOPE)
+                .map(|header| (uri.clone(), header.clone()))
         })
         .collect();
 
-    // The default registry lives in `config.registry`; the `registries`
-    // map carries it only when something set a `default` key explicitly.
-    let default_entry = (!config.registries.contains_key("default"))
-        .then(|| ("default".to_string(), config.registry.clone()));
-    let registries = default_entry
-        .iter()
-        .map(|(name, url)| (name, url))
-        .chain(config.registries.iter())
-        .map(|(name, url)| {
-            let uri = nerf_dart(url);
-            let scoped = by_scope.get(&uri);
-            // A scope registry prefers its scope-keyed credential; both
-            // registry kinds fall back to the registry-wide (`@`) one.
-            let auth_header = scoped
-                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
-                .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
-                .cloned();
-            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
-        })
-        .collect();
+    let registries = resolved_registries(config, &by_scope);
 
-    let no_proxy = config.proxy.no_proxy.as_ref().map(|setting| match setting {
-        NoProxySetting::Bypass => serde_json::Value::Bool(true),
-        NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
-    });
+    let no_proxy = config.proxy.no_proxy
+        .as_ref()
+        .map(|setting| match setting {
+            NoProxySetting::Bypass => serde_json::Value::Bool(true),
+            NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
+        });
 
+    resolved_config_values(config, registries, auth_header_by_uri, no_proxy)
+}
+
+fn resolved_config_values(
+    config: &pnpm_config::Config,
+    registries: Vec<ResolvedRegistry>,
+    auth_header_by_uri: HashMap<String, String>,
+    no_proxy: Option<serde_json::Value>,
+) -> ResolvedConfig {
     ResolvedConfig {
         registries,
         auth_header_by_uri,
@@ -153,13 +156,12 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         key: config.tls.key.clone(),
         strict_ssl: config.tls.strict_ssl,
         store_dir: std::path::PathBuf::from(config.store_dir.clone()).display().to_string(),
-        cache_dir: config.cache_dir.display().to_string(),
-        virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
-            .unwrap_or(u32::MAX),
+        cache_dir: display_path(&config.cache_dir),
+        virtual_store_dir_max_length: bounded_u32(config.virtual_store_dir_max_length),
         enable_global_virtual_store: config.enable_global_virtual_store,
-        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
-        virtual_store_dir: config.virtual_store_dir.display().to_string(),
-        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
+        global_virtual_store_dir: display_path(&config.global_virtual_store_dir),
+        virtual_store_dir: display_path(&config.virtual_store_dir),
+        effective_virtual_store_dir: display_path(config.effective_virtual_store_dir()),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
         max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
@@ -167,31 +169,71 @@ fn project_config(config: &pacquet_config::Config) -> ResolvedConfig {
         fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
         fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
         fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
-        user_agent: config
-            .explicit_settings
-            .contains_key("userAgent")
-            .then(|| config.user_agent.clone()),
+        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
+        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
+        user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
         package_import_method: import_method_name(config.package_import_method).to_string(),
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         shamefully_hoist: config.shamefully_hoist,
-        pnpm_home_dir: pacquet_config::default_pnpm_home_dir::<pacquet_config::Host>()
+        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
             .map(|dir| dir.display().to_string()),
-        explicit_settings: config.explicit_settings.keys().cloned().collect(),
+        explicit_settings: config.explicit_settings
+            .keys()
+            .cloned()
+            .collect(),
     }
 }
 
-fn import_method_name(method: pacquet_config::PackageImportMethod) -> &'static str {
+fn bounded_u32(value: u64) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+fn display_path(path: impl AsRef<std::path::Path>) -> String {
+    path.as_ref().display().to_string()
+}
+
+/// Embedders supply their own user agent unless configuration explicitly overrides it.
+fn explicit_user_agent(config: &pnpm_config::Config) -> Option<String> {
+    config.explicit_settings.contains_key("userAgent").then(|| config.user_agent.clone())
+}
+
+fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {
     match method {
-        pacquet_config::PackageImportMethod::Auto => "auto",
-        pacquet_config::PackageImportMethod::Hardlink => "hardlink",
-        pacquet_config::PackageImportMethod::Copy => "copy",
-        pacquet_config::PackageImportMethod::Clone => "clone",
-        pacquet_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
+        pnpm_config::PackageImportMethod::Auto => "auto",
+        pnpm_config::PackageImportMethod::Hardlink => "hardlink",
+        pnpm_config::PackageImportMethod::Copy => "copy",
+        pnpm_config::PackageImportMethod::Clone => "clone",
+        pnpm_config::PackageImportMethod::CloneOrCopy => "clone-or-copy",
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+/// The default registry lives in `config.registry`; the `registries` map
+/// carries it only when something set a `default` key explicitly.
+fn resolved_registries(
+    config: &pnpm_config::Config,
+    by_scope: &AuthHeadersByScope,
+) -> Vec<ResolvedRegistry> {
+    let default_entry = (!config.registries_by_scope.contains_key("default")).then(|| {
+        ("default".to_string(), config.registry.clone())
+    });
+    default_entry
+        .iter()
+        .map(|(name, url)| (name, url))
+        .chain(config.registries_by_scope.iter())
+        .map(|(name, url)| {
+            let scoped = by_scope.get(&nerf_dart(url));
+            // A scope registry prefers its scope-keyed credential; both
+            // registry kinds fall back to the registry-wide (`@`) one.
+            let auth_header = scoped
+                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
+                .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
+                .cloned();
+            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
+        })
+        .collect()
+}

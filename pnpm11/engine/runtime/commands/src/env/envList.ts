@@ -1,4 +1,5 @@
 import { getNodeMirror, parseNodeSpecifier, resolveNodeVersions } from '@pnpm/engine.runtime.node-resolver'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 
 import type { NvmNodeCommandOptions } from './node.js'
@@ -13,5 +14,8 @@ async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: st
   const fetch = createFetchFromRegistry(opts)
   const { releaseChannel, versionSpecifier } = versionSpec ? parseNodeSpecifier(versionSpec) : { releaseChannel: 'release', versionSpecifier: '' }
   const nodeMirrorBaseUrl = getNodeMirror(opts.nodeDownloadMirrors, releaseChannel)
-  return resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
+  return resolveNodeVersions(fetch, versionSpecifier, {
+    nodeMirrorBaseUrl,
+    getAuthHeader: createGetAuthHeaderByURI(opts.configByUri),
+  })
 }

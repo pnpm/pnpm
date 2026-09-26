@@ -1,14 +1,17 @@
 use crate::{
     State,
-    cli_args::{add::add_package, global::handle_global_add},
+    cli_args::{
+        add::{AddRequest, add_package},
+        global::handle_global_add,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_package_manifest::{DependencyGroup, is_runtime_alias};
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
+use pnpm_config::{Config, GlobalShims};
+use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::path::Path;
 
 /// Manage runtimes.
@@ -67,6 +70,7 @@ pub enum RuntimeError {
 
 #[derive(Debug)]
 struct RuntimeSetRequest {
+    runtime_name: String,
     package_name: String,
     dependency_group: DependencyGroup,
 }
@@ -77,6 +81,12 @@ impl RuntimeArgs {
     /// `pnpm add <name>@runtime:<version>` in the project directory.
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
+        let config = state.config;
+        let prefix = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path has a parent")
+            .to_path_buf();
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -86,7 +96,19 @@ impl RuntimeArgs {
             None,
             [request.dependency_group],
         )
-        .await
+        .await?;
+        if let Some(message) = runtime_shim_hint(
+            config,
+            &request.runtime_name,
+            &crate::shim_dispatch::global_shims_setting(),
+        ) {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message,
+                prefix: prefix.to_string_lossy().into_owned(),
+            }));
+        }
+        Ok(())
     }
 
     /// `pnpm runtime set <name> <version> -g`: install the runtime into the
@@ -102,9 +124,10 @@ impl RuntimeArgs {
         dir: &Path,
     ) -> miette::Result<()> {
         let request = self.set_request()?;
+        let global_request = AddRequest::from(request.package_name.as_str());
         Box::pin(handle_global_add::<Reporter>(
             config,
-            std::slice::from_ref(&request.package_name),
+            std::slice::from_ref(&global_request),
             RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // `pnpm runtime` installs a runtime, not user packages; it has
@@ -122,8 +145,7 @@ impl RuntimeArgs {
         if subcommand != "set" {
             return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
         }
-        let runtime_name = self
-            .params
+        let runtime_name = self.params
             .get(1)
             .map(|name| name.trim())
             .filter(|name| !name.is_empty())
@@ -150,10 +172,35 @@ impl RuntimeArgs {
             DependencyGroup::Prod
         };
         Ok(RuntimeSetRequest {
+            runtime_name: runtime_name.to_string(),
             package_name: format!("{runtime_name}@runtime:{version_spec}"),
             dependency_group,
         })
     }
+}
+
+fn runtime_shim_hint(
+    config: &Config,
+    runtime_name: &str,
+    global_shims: &GlobalShims,
+) -> Option<String> {
+    if !global_shims.is_enabled(runtime_name)
+        || project_aware_runtime_shim_exists(config, runtime_name)
+    {
+        return None;
+    }
+    let setup = if config.global_bin.is_none() { r#"run "pnpm setup", then "# } else { "" };
+    Some(format!(
+        r#"To make the bare "{runtime_name}" command project-aware, {setup}run "pnpm shim add {runtime_name}"."#,
+    ))
+}
+
+fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> bool {
+    let Some(bin_dir) = config.global_bin.as_deref() else {
+        return false;
+    };
+    crate::shim_dispatch::native_shim_is_installed(bin_dir, runtime_name)
+        || crate::shim_dispatch::is_legacy_context_aware_shim(&bin_dir.join(runtime_name))
 }
 
 #[cfg(test)]

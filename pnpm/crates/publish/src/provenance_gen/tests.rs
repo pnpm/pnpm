@@ -9,7 +9,7 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -203,8 +203,9 @@ async fn fetch_sigstore_token_uses_github_request_token() {
         })
     });
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gh-sigstore-token");
 }
 
@@ -231,8 +232,9 @@ async fn fetch_sigstore_token_reads_gitlab_env_token() {
         }
     }
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gl-sigstore-token");
 }
 
@@ -258,8 +260,9 @@ async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::GitLabMissingToken));
 }
 
@@ -401,7 +404,7 @@ async fn generate_provenance_surfaces_a_signer_failure() {
 }
 
 /// A zero-delay policy so the retry tests don't sleep.
-const INSTANT_RETRIES: pacquet_network::RetryOpts = pacquet_network::RetryOpts {
+const INSTANT_RETRIES: pnpm_network::RetryOpts = pnpm_network::RetryOpts {
     retries: 2,
     factor: 2,
     min_timeout: Duration::ZERO,
@@ -410,8 +413,7 @@ const INSTANT_RETRIES: pacquet_network::RetryOpts = pacquet_network::RetryOpts {
 
 #[tokio::test]
 async fn with_sign_deadline_times_out_a_hung_attempt() {
-    let err = with_sign_deadline(Duration::ZERO, std::future::pending())
-        .await
+    let err = with_sign_deadline(Duration::ZERO, std::future::pending()).await
         .expect_err("a hung exchange hits the deadline");
     assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
@@ -479,7 +481,8 @@ async fn fetch_sigstore_token_rejects_unsupported_provider() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
 }

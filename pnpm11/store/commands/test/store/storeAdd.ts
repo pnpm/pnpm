@@ -19,7 +19,7 @@ test('pnpm store add express@4.16.3', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+    registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
     storeDir,
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -40,7 +40,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registries: {
+    registriesByScope: {
       '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
       default: 'https://registry.npmjs.org/',
     },
@@ -67,7 +67,7 @@ test('should fail if some packages can not be added', async () => {
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
-      registries: {
+      registriesByScope: {
         '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
         default: 'https://registry.npmjs.org/',
       },

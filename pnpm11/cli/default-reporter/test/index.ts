@@ -66,7 +66,6 @@ test('prints summary (of current package only)', async () => {
     prefix,
   })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -204,7 +203,7 @@ test('prints summary (of current package only)', async () => {
 
   const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
   expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
-        `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
+        `${formatWarn(`${DEPRECATED} bar@2.0.0`)}${EOL}${EOL}` +
         `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
@@ -382,7 +381,6 @@ test('does not print deprecation message when log level is set to error', async 
     },
   })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -881,7 +879,6 @@ test('prints added/removed stats and warnings during recursive installation', as
   statsLogger.debug({ added: 5, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     pkgName: 'bar',
@@ -896,7 +893,6 @@ test('prints added/removed stats and warnings during recursive installation', as
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
   // cspell:enable
   deprecationLogger.debug({
-    deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     pkgName: 'foo',
@@ -1086,6 +1082,33 @@ test('prints skipped optional dependency info message', async () => {
 
   const output = await firstValueFrom(output$)
   expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+})
+
+test('prints info about an optional dependency that could not be resolved', async () => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as ReporterPnpmConfig,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  skippedOptionalDependencyLogger.debug({
+    package: {
+      bareSpecifier: '^30000.0.0',
+      name: 'foo',
+      version: '^30000.0.0',
+    },
+    parents: [],
+    prefix,
+    reason: 'resolution_failure',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$)
+  expect(output).toBe('info: foo@^30000.0.0 is an optional dependency that could not be resolved. Excluding it from installation.')
 })
 
 test('logLevel=default', async () => {

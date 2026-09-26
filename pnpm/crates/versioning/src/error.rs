@@ -116,6 +116,9 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
     MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
 
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED))]
+    InvariantsViolated { message: String },
+
     #[display("Failed to read {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
     Read { path: PathBuf, source: std::io::Error },
@@ -128,7 +131,6 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_REMOVE_ERROR))]
     Remove { path: PathBuf, source: std::io::Error },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
-    Manifest(pacquet_package_manifest::PackageManifestError),
+    Manifest(pnpm_package_manifest::PackageManifestError),
 }

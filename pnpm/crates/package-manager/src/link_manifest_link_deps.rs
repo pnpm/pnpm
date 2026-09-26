@@ -5,55 +5,37 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::ProjectSnapshot;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_lockfile::ProjectSnapshot;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
-/// Symlink each project's lockfile-excluded `link:`-spec dependencies
-/// into its `node_modules/`, sourced from the in-memory project
-/// manifests.
-///
-/// `excludeLinksFromLockfile` strips non-`workspace:` `link:` direct
-/// deps from the lockfile importers, so the lockfile-driven
-/// [`crate::SymlinkDirectDependencies`] pass never sees them. pnpm
-/// v11's `linkDirectDeps` worked from the projects' own manifests and
-/// materialized them regardless of the lockfile shape; without this
-/// pass a project whose runtime is provided through `link:` specs —
-/// Bit's capsule installs link the running binary's `@teambit/*`
-/// aspects this way, and its `nmSelfReferences` adds a `link:.`
-/// self-reference — ends up with those entries silently missing.
-///
-/// An alias the project's lockfile importer *does* carry is skipped
-/// entirely: the lockfile pass owns it, including its
-/// `dedupeDirectDeps` decision (re-linking it here would undo a
-/// dedupe). Only aliases absent from the importer snapshot — the
-/// excluded links — are filled in from the manifest.
-///
-/// Idempotent: an existing symlink at the alias path is force-replaced
-/// (matching v11's re-link semantics), and `force_symlink_dir` creates
-/// missing parent directories on demand. Specs that don't start with
-/// `link:` are ignored — everything else is the lockfile passes' job.
-pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
+/// Symlink direct dependencies omitted from the lockfile importer because
+/// `excludeLinksFromLockfile` is enabled. Importer-owned aliases are left to
+/// the lockfile materialization passes so their dedupe decisions are preserved.
+pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     workspace_root: &Path,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
+    workspace_packages: Option<&WorkspacePackages>,
+    included: IncludedDependencies,
     modules_dir_name: &std::ffi::OsStr,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
-    // The name must be a single normal path component. The install
-    // call site derives it from `config.modules_dir.file_name()`,
-    // which by construction never yields `.`, `..`, or a separator —
-    // but this helper is public, and joined below it decides where
-    // symlinks (which force-replace squatters) land, so it enforces
-    // the contract itself rather than trusting every caller.
-    let valid_name = matches!(
-        Path::new(modules_dir_name).components().collect::<Vec<_>>().as_slice(),
-        [std::path::Component::Normal(_)],
-    );
+    // The name must be a relative path of normal components, which
+    // `Config::modules_dir_name` guarantees — but this helper is public,
+    // and joined below it decides where symlinks (which force-replace
+    // squatters) land, so it enforces the contract itself rather than
+    // trusting every caller.
+    let mut components = Path::new(modules_dir_name).components().peekable();
+    let valid_name = components.peek().is_some()
+        && components.all(|component| matches!(component, std::path::Component::Normal(_)));
     if !valid_name {
         return Err(LinkManifestLinkDepsError::InvalidModulesDirName {
             modules_dir_name: modules_dir_name.to_string_lossy().into_owned(),
@@ -61,100 +43,247 @@ pub fn link_manifest_link_deps<Reporter: pacquet_reporter::Reporter>(
     }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
-            importers
-                .get(&pacquet_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+            importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
-        // The per-project modules dir honors a `modulesDir` override
-        // the same way `SymlinkDirectDependencies` does — the caller
-        // passes `config.modules_dir`'s basename, so a
-        // `modulesDir: custom_modules` config doesn't grow a stray
-        // `node_modules/` next to the intended tree.
         let modules_dir = project_dir.join(modules_dir_name);
-        // Aliases this pass placed (created or already-correct), for
-        // the bin-linking sweep below.
-        let mut linked_aliases: Vec<String> = Vec::new();
-        // Per-group iteration (instead of one flattened
-        // `manifest.dependencies([...])` pass) so the `pnpm:root added`
-        // event below carries the dependency's real group.
-        for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
-            for (alias, spec) in manifest.dependencies([group]) {
-                let Some(target) = spec.strip_prefix("link:") else {
-                    continue;
-                };
-                if importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
-                    continue;
-                }
-                // The alias is a raw `package.json` object key — an
-                // unvalidated string. Route the join through the same
-                // package-name validity check the lockfile-driven
-                // passes apply, so a crafted alias (`../.git`, an
-                // absolute path, a backslash) cannot escape
-                // `node_modules/`.
-                let symlink_path = safe_join_modules_dir(&modules_dir, alias)
-                    .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
-                let target_path = resolve_link_target(project_dir, target);
-                let outcome =
-                    symlink_package(&target_path, &symlink_path, false).map_err(|source| {
-                        LinkManifestLinkDepsError::Symlink { alias: alias.to_string(), source }
-                    })?;
+        let project = ProjectLinks {
+            project_dir,
+            modules_dir: &modules_dir,
+            importer_snapshot,
+            workspace_packages,
+            included,
+            link_options,
+        };
+        link_project_manifest_deps::<Reporter>(&project, manifest)?;
+    }
+    Ok(())
+}
+
+pub(crate) struct PruneManifestLinkDeps<'a> {
+    pub(crate) workspace_root: &'a Path,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) importers: Option<&'a HashMap<String, ProjectSnapshot>>,
+    pub(crate) workspace_packages: Option<&'a WorkspacePackages>,
+    pub(crate) previously_included: IncludedDependencies,
+    pub(crate) new_included: IncludedDependencies,
+    pub(crate) modules_dir_name: &'a std::ffi::OsStr,
+    pub(crate) prunable_importer_ids: Option<&'a HashSet<String>>,
+}
+
+pub(crate) fn prune_manifest_link_deps(
+    options: &PruneManifestLinkDeps<'_>,
+) -> Result<(), pnpm_deps_restorer::PruneDirectDepsError> {
+    let old_groups = pnpm_deps_restorer::selected_groups(options.previously_included);
+    let new_groups = pnpm_deps_restorer::selected_groups(options.new_included);
+    for (project_dir, manifest) in options.project_manifests {
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(options.workspace_root, project_dir);
+        if options.prunable_importer_ids.is_some_and(|ids| !ids.contains(&importer_id)) {
+            continue;
+        }
+        let importer_snapshot = options.importers.and_then(|importers| importers.get(&importer_id));
+        prune_project_manifest_link_deps(
+            options,
+            project_dir,
+            manifest,
+            importer_snapshot,
+            &old_groups,
+            &new_groups,
+        )?;
+    }
+    Ok(())
+}
+
+fn prune_project_manifest_link_deps(
+    options: &PruneManifestLinkDeps<'_>,
+    project_dir: &Path,
+    manifest: &PackageManifest,
+    importer_snapshot: Option<&ProjectSnapshot>,
+    old_groups: &[DependencyGroup],
+    new_groups: &[DependencyGroup],
+) -> Result<(), pnpm_deps_restorer::PruneDirectDepsError> {
+    let new_names: HashSet<&str> = manifest
+        .dependencies(new_groups.iter().copied())
+        .map(|(alias, _)| alias)
+        .collect();
+    let modules_dir = project_dir.join(options.modules_dir_name);
+    let Some(modules_dir) =
+        pnpm_deps_restorer::confined_modules_dir(&modules_dir, options.workspace_root)
+    else {
+        return Ok(());
+    };
+    for (alias, spec) in manifest.dependencies(old_groups.iter().copied()) {
+        if new_names.contains(alias) {
+            continue;
+        }
+        if let Some(snapshot) = importer_snapshot
+            && (snapshot_has_alias(snapshot, alias)
+                || manifest_link_target(project_dir, options.workspace_packages, alias, spec)
+                    .is_none())
+        {
+            continue;
+        }
+        pnpm_deps_restorer::remove_direct_dep_link(&modules_dir, alias)?;
+    }
+    Ok(())
+}
+
+/// One project's lockfile-excluded linked dependencies and where they are placed.
+struct ProjectLinks<'a> {
+    project_dir: &'a Path,
+    modules_dir: &'a Path,
+    importer_snapshot: Option<&'a ProjectSnapshot>,
+    workspace_packages: Option<&'a WorkspacePackages>,
+    included: IncludedDependencies,
+    link_options: &'a LinkBinsOptions,
+}
+
+fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
+    project: &ProjectLinks<'_>,
+    manifest: &PackageManifest,
+) -> Result<(), LinkManifestLinkDepsError> {
+    // Aliases this pass placed (created or already-correct), for
+    // the bin-linking sweep below.
+    let mut linked_aliases: Vec<String> = Vec::new();
+    // Per-group iteration (instead of one flattened
+    // `manifest.dependencies([...])` pass) so the `pnpm:root added`
+    // event below carries the dependency's real group.
+    for (included, group) in [
+        (project.included.dependencies, DependencyGroup::Prod),
+        (project.included.dev_dependencies, DependencyGroup::Dev),
+        (project.included.optional_dependencies, DependencyGroup::Optional),
+    ] {
+        if !included {
+            continue;
+        }
+        for (alias, spec) in manifest.dependencies([group]) {
+            if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
                 // Bins are (re-)linked for reused symlinks too — the
                 // `.bin` entry may be missing even when the package
                 // link itself is already correct.
                 linked_aliases.push(alias.to_string());
-                if outcome.reused {
-                    continue;
-                }
-                // `pnpm:root added`: mirror the lockfile-driven pass's
-                // per-dependency emit so manifest-linked deps show up
-                // in the `+N` summary and NDJSON output like
-                // pnpm v11's `linkDirectDeps` reported them.
-                Reporter::emit(&LogEvent::Root(RootLog {
-                    level: LogLevel::Debug,
-                    message: RootMessage::Added {
-                        prefix: project_dir.display().to_string(),
-                        added: AddedRoot {
-                            name: alias.to_string(),
-                            real_name: alias.to_string(),
-                            version: Some(spec.to_string()),
-                            dependency_type: Some(match group {
-                                DependencyGroup::Prod => DependencyType::Prod,
-                                DependencyGroup::Dev => DependencyType::Dev,
-                                DependencyGroup::Optional => DependencyType::Optional,
-                                // The group list above is peer-free.
-                                DependencyGroup::Peer => {
-                                    unreachable!("peers are not iterated by this pass")
-                                }
-                            }),
-                            id: None,
-                            latest: None,
-                            linked_from: None,
-                        },
-                    },
-                }));
             }
         }
-        // Link the placed deps' declared bins into
-        // `<modules_dir>/.bin`, matching v11's `linkDirectDeps` which
-        // bin-linked every direct dep including `link:` ones. The
-        // helper reads each manifest through the symlink and skips
-        // targets without a `package.json` (Bit's manifest-less
-        // component links), so a bin-less link is a no-op.
-        if !linked_aliases.is_empty() {
-            crate::link_direct_dep_bins(&modules_dir, &linked_aliases, extra_node_paths)
-                .map_err(LinkManifestLinkDepsError::LinkBins)?;
-        }
+    }
+    // Link the placed deps' declared bins into
+    // `<modules_dir>/.bin`, matching v11's `linkDirectDeps` which
+    // bin-linked every direct dep including `link:` ones. The
+    // helper reads each manifest through the symlink and skips
+    // targets without a `package.json` (Bit's manifest-less
+    // component links), so a bin-less link is a no-op.
+    if !linked_aliases.is_empty() {
+        crate::link_direct_dep_bins(project.modules_dir, &linked_aliases, project.link_options)
+            .map_err(LinkManifestLinkDepsError::LinkBins)?;
     }
     Ok(())
+}
+
+/// Place one manifest-linked dependency, answering whether it now owns a slot
+/// in the project's `node_modules`.
+fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
+    project: &ProjectLinks<'_>,
+    group: DependencyGroup,
+    alias: &str,
+    spec: &str,
+) -> Result<bool, LinkManifestLinkDepsError> {
+    if project.importer_snapshot.is_some_and(|snapshot| snapshot_has_alias(snapshot, alias)) {
+        return Ok(false);
+    }
+    let Some(target_path) =
+        manifest_link_target(project.project_dir, project.workspace_packages, alias, spec)
+    else {
+        return Ok(false);
+    };
+    // The alias is a raw `package.json` object key — an
+    // unvalidated string. Route the join through the same
+    // package-name validity check the lockfile-driven
+    // passes apply, so a crafted alias (`../.git`, an
+    // absolute path, a backslash) cannot escape
+    // `node_modules/`.
+    let symlink_path = safe_join_modules_dir(project.modules_dir, alias)
+        .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
+    let outcome = symlink_package(&target_path, &symlink_path)
+        .map_err(|source| LinkManifestLinkDepsError::Symlink {
+            alias: alias.to_string(),
+            source,
+        })?;
+    if !outcome.reused {
+        // `pnpm:root added`: mirror the lockfile-driven pass's
+        // per-dependency emit so manifest-linked deps show up
+        // in the `+N` summary and NDJSON output like
+        // pnpm v11's `linkDirectDeps` reported them.
+        Reporter::emit(&LogEvent::Root(RootLog {
+            level: LogLevel::Debug,
+            message: RootMessage::Added {
+                prefix: project.project_dir.display().to_string(),
+                added: AddedRoot {
+                    name: alias.to_string(),
+                    real_name: alias.to_string(),
+                    version: Some(spec.to_string()),
+                    dependency_type: Some(dependency_type_of(group)),
+                    id: None,
+                    latest: None,
+                    linked_from: None,
+                },
+            },
+        }));
+    }
+    Ok(true)
+}
+
+fn manifest_link_target(
+    project_dir: &Path,
+    workspace_packages: Option<&WorkspacePackages>,
+    alias: &str,
+    spec: &str,
+) -> Option<PathBuf> {
+    if let Some(target) = spec.strip_prefix("link:") {
+        return Some(resolve_link_target(project_dir, target));
+    }
+    workspace_link_target(workspace_packages?, alias, spec)
+}
+
+pub(crate) fn workspace_link_target(
+    workspace_packages: &WorkspacePackages,
+    alias: &str,
+    spec: &str,
+) -> Option<PathBuf> {
+    let parsed = pnpm_resolving_npm_resolver::parse_bare_specifier(
+        spec,
+        Some(alias),
+        "latest",
+        "https://registry.npmjs.org/",
+    )?;
+    if parsed.revision.is_some() {
+        return None;
+    }
+    let versions = workspace_packages.get(&parsed.name)?;
+    let version =
+        pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
+    versions.get(&version).map(pnpm_resolving_npm_resolver::resolve_workspace_package_dir)
+}
+
+fn dependency_type_of(group: DependencyGroup) -> DependencyType {
+    match group {
+        DependencyGroup::Prod => DependencyType::Prod,
+        DependencyGroup::Dev => DependencyType::Dev,
+        DependencyGroup::Optional => DependencyType::Optional,
+        // The group list this pass iterates is peer-free.
+        DependencyGroup::Peer => unreachable!("peers are not iterated by this pass"),
+    }
 }
 
 /// `true` when the importer snapshot resolves `alias` in any of the
 /// non-peer dependency groups — i.e. the lockfile knows the dep and
 /// the lockfile-driven passes own its materialization.
-fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
+pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
         .filter_map(|group| snapshot.get_map_by_group(group))
-        .any(|deps| deps.keys().any(|name| name.to_string() == alias))
+        .any(|deps| {
+            deps.keys()
+                .any(|name| name.to_string() == alias)
+        })
 }
 
 /// Resolve a `link:` payload against the project directory. An
@@ -186,9 +315,8 @@ pub enum LinkManifestLinkDepsError {
     #[diagnostic(transparent)]
     InvalidAlias(#[error(source)] InvalidDependencyAliasError),
 
-    /// Creating one `link:` dep's symlink failed (permission denied,
-    /// a real directory squatting the alias path, disk full, ...).
-    #[display("Failed to link manifest `link:` dependency {alias:?}: {source}")]
+    /// Creating one manifest-linked dependency's symlink failed.
+    #[display("Failed to link manifest-linked dependency {alias:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_LINK_MANIFEST_LINK_DEP_FAILED))]
     Symlink {
         alias: String,
@@ -198,7 +326,7 @@ pub enum LinkManifestLinkDepsError {
 
     /// Linking the placed deps' bins into `<modules_dir>/.bin` failed.
     #[diagnostic(transparent)]
-    LinkBins(#[error(source)] pacquet_cmd_shim::LinkBinsError),
+    LinkBins(#[error(source)] pnpm_cmd_shim::LinkBinsError),
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
-import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/resolving.npm-resolver'
-import type { WorkspacePackages, WorkspacePackagesByVersion } from '@pnpm/resolving.resolver-base'
+import { parseBareSpecifier, pickMatchingLocalVersionOrNull } from '@pnpm/resolving.npm-resolver'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
 import type { WantedDependency } from './getNonDevWantedDependencies.js'
@@ -14,23 +14,10 @@ export function wantedDepIsLocallyAvailable (
 ): boolean {
   const spec = parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
   if ((spec == null) || !workspacePackages.has(spec.name)) return false
-  return pickMatchingLocalVersionOrNull(workspacePackages.get(spec.name)!, spec) !== null
+  const matchingVersions = workspacePackages.get(spec.name)!
+  if (spec.type === 'tag') {
+    return semver.maxSatisfying(Array.from(matchingVersions.keys()), '*') !== null
+  }
+  return pickMatchingLocalVersionOrNull(matchingVersions, spec) !== null
 }
 
-// TODO: move this function to separate package or import from @pnpm/resolving.npm-resolver
-function pickMatchingLocalVersionOrNull (
-  versions: WorkspacePackagesByVersion,
-  spec: RegistryPackageSpec
-): string | null {
-  const localVersions = Array.from(versions.keys())
-  switch (spec.type) {
-    case 'tag':
-      return semver.maxSatisfying(localVersions, '*')
-    case 'version':
-      return versions.has(spec.fetchSpec) ? spec.fetchSpec : null
-    case 'range':
-      return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
-    default:
-      return null
-  }
-}

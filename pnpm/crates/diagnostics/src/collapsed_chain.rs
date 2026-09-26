@@ -148,7 +148,9 @@ impl fmt::Debug for Collapsed<'_> {
 
 impl Error for Collapsed<'_> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.causes.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.causes
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 
@@ -190,7 +192,9 @@ impl fmt::Display for Cause {
 
 impl Error for Cause {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.next.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.next
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 

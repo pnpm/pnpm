@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 
 use crate::{
     capabilities::{EnterKeyListener, OpenUrl, StdinIsTty},

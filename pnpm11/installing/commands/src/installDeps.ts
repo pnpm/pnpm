@@ -1,6 +1,7 @@
 import path from 'node:path'
 
-import { buildProjects } from '@pnpm/building.after-install'
+import { buildProjects, PROJECT_INSTALL_STAGES } from '@pnpm/building.after-install'
+import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { CommandHandler } from '@pnpm/cli.command'
@@ -9,28 +10,32 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { checkDepsStatus } from '@pnpm/deps.status'
+import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   type DryRunInstallResult,
+  IgnoredBuildsError,
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/installing.deps-installer'
+import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import { globalInfo, globalWarn, logger } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { applyRuntimeOnFailOverride, filterDependenciesByType } from '@pnpm/pkg-manifest.utils'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
-import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
+import type { PreferredVersions, ResolutionPolicyViolation, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type {
   IncludedDependencies,
   PackageVulnerabilityAudit,
   Project,
+  ProjectManifest,
   ProjectRootDir,
   ProjectsGraph,
   VulnerabilitySeverity,
@@ -39,7 +44,7 @@ import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
-import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { type ProjectsList, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getSaveType } from './getSaveType.js'
@@ -48,16 +53,18 @@ import { setupPolicyHandlers } from './policyHandlers.js'
 import {
   type CommandFullName,
   createMatcher,
+  failOnVersionsOfIndirectUpdateSpecs,
   makeIgnorePatterns,
   matchDependencies,
-  parseUpdateParam,
   recursive,
   type RecursiveOptions,
   type UpdateDepsMatcher,
 } from './recursive.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 import { makeRunPacquet } from './runPacquet.js'
 import { toWorkspaceSpecs } from './updateWorkspaceDependencies.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
+import { warnAboutNestedWorkspaceManifests } from './warnAboutNestedWorkspaceManifests.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -70,7 +77,9 @@ export type InstallDepsOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
-| 'cleanupUnusedCatalogs'
+| 'catalogPrune'
+| 'minimumReleaseAgeExcludePrune'
+| 'trustPolicyExcludePrune'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
@@ -79,6 +88,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'forceIgnoresPlatform'
 | 'global'
 | 'globalPnpmfile'
 | 'ignoreCurrentSpecifiers'
@@ -86,12 +96,15 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
+| 'lockfile'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'modulesDir'
 | 'pnprServer'
+| 'remoteSideEffectsCache'
 | 'production'
 | 'preferWorkspacePackages'
-| 'registries'
+| 'registriesByScope'
 | 'runtime'
 | 'runtimeOnFail'
 | 'save'
@@ -105,8 +118,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
+| 'sideEffectsCacheRead'
+| 'sideEffectsCacheWrite'
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
@@ -141,10 +154,14 @@ export type InstallDepsOptions = Pick<Config,
     remain?: string[]
   }
   allowNew?: boolean
+  deploy?: boolean
+  /** See {@link RecursiveOptions.excludeWorkspaceRootProject}. */
+  excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
+  peer?: boolean
   latest?: boolean
   /**
    * If specified, the installation will only be performed for comparison of the
@@ -158,6 +175,7 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
+  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
@@ -165,8 +183,15 @@ export type InstallDepsOptions = Pick<Config,
   recursive?: boolean
   dedupe?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   pruneLockfileImporters?: boolean
+  /**
+   * Set to `false` for an install whose projects are not the workspace's own,
+   * such as the legacy `pnpm deploy`. The workspace state file then keeps
+   * describing the workspace's last install.
+   */
+  saveWorkspaceState?: boolean
   rebuildHandler?: CommandHandler
   pnpmfile: string[]
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
@@ -177,25 +202,30 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
+} & Partial<Pick<Config, 'dangerouslyAllowAllBuilds' | 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<DryRunInstallResult | undefined> {
-  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+  if (!opts.update && !opts.dedupe && !opts.force && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
       treatLocalFileDepsAsOutdated: true,
     })
-    if (upToDate && await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)) {
+    if (
+      upToDate &&
+      await findDanglingDirectDependencyLink(opts) == null &&
+      await restoreWantedLockfileIfMissing(wantedLockfileToRestore, opts)
+    ) {
       if (opts.hooks?.customResolvers?.some(r => r.shouldRefreshResolution)) {
         logger.warn({
           message: 'shouldRefreshResolution hooks were skipped because optimisticRepeatInstall is enabled.',
           prefix: opts.dir,
         })
       }
+      await assertRecordedBuildsAreApproved(opts)
       globalInfo('Already up to date')
       return
     }
@@ -245,13 +275,14 @@ export async function installDeps (
     })
     ? declaredPacquetConfigDepName
     : undefined
-  const runPacquet = pacquetConfigDepName != null
+  const runPacquet = pacquetConfigDepName != null && !opts.deploy
     ? makeRunPacquet({
       lockfileDir: opts.lockfileDir ?? opts.dir,
       packageName: pacquetConfigDepName,
       argv: { original: opts.argv.original, remain: opts.argv.remain ?? [] },
       isInstallCommand: opts.isInstallCommand === true,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      forceIgnoresPlatform: opts.forceIgnoresPlatform !== false,
     })
     : undefined
   const includeDirect = opts.includeDirect ?? {
@@ -274,7 +305,7 @@ export async function installDeps (
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
-      if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
+      if (!opts.ignoreWorkspaceCycles && sequencedGraph.cycles.some((cycle) => cycle.length > 1)) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
@@ -288,8 +319,10 @@ export async function installDeps (
           prefix: opts.workspaceDir,
         })
       }
+      await warnAboutNestedWorkspaceManifests(opts.workspaceDir, Object.keys(selectedProjectsGraph))
 
       const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
+        catalogs: opts.catalogs,
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
@@ -342,8 +375,8 @@ export async function installDeps (
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
-    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
-    sideEffectsCacheWrite: opts.sideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
     skipRuntimes: opts.runtime === false,
     storeController: store.ctrl,
     storeDir: store.dir,
@@ -389,7 +422,13 @@ export async function installDeps (
       // Don't update package.json in this case, and limit updates to only matching dependencies
       updatePackageManifest = false
       updateMatching = (pkgName: string) => updateMatch!(pkgName) != null
-      warnAboutIgnoredVersionsOfIndirectUpdateSpecs(updateSpecs)
+    }
+    // At `--depth 0` an indirect dependency is never traversed, so a selector
+    // that names one is simply out of scope rather than a version pnpm has
+    // nowhere to record. `--latest` rejects every versioned selector on its
+    // own, direct or not, and has to report that first.
+    if (!opts.latest && (opts.depth ?? Infinity) > 0) {
+      failOnVersionsOfIndirectUpdateSpecs(updateSpecs, [manifest], includeDirect)
     }
   }
 
@@ -402,6 +441,7 @@ export async function installDeps (
       include: includeDirect,
       workspacePackages,
       userNamedDeps,
+      fromInteractiveUpdate: opts.interactiveUpdate,
     })
   }
   if (params?.length) {
@@ -412,30 +452,67 @@ export async function installDeps (
       manifest,
       mutation: 'installSome' as const,
       peer: opts.savePeer,
+      peerAliases: opts.peer === true
+        ? new Set(params
+          .map((selector) => parseWantedDependency(selector).alias)
+          .filter((alias): alias is string => alias != null && Object.hasOwn(manifest.peerDependencies ?? {}, alias)))
+        : undefined,
       rangeSpecStyle: getRangeSpecStyle(opts),
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
-    if (opts.save !== false && !opts.dryRun) {
-      // Only pick entries when we'll actually persist. Otherwise the
-      // info log would claim we added entries the workspace manifest
-      // never saw, and the next install would re-prompt or fail
-      // verification.
-      const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      await Promise.all([
-        writeProjectManifest(updatedProject.manifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-          updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-          allProjects: opts.allProjects,
-          ...policyUpdates,
-        }),
-      ])
+    let manifestsSaved = false
+    const saveManifests = async ({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    }: {
+      updatedProject?: { manifest: ProjectManifest }
+      updatedCatalogs?: Catalogs
+      newLockfile?: LockfileObject
+      resolutionPolicyViolations?: ResolutionPolicyViolation[]
+    }) => {
+      if (manifestsSaved) return
+      manifestsSaved = true
+      if (opts.save !== false && !opts.dryRun && updatedProject) {
+        // Only pick entries when we'll actually persist. Otherwise the
+        // info log would claim we added entries the workspace manifest
+        // never saw, and the next install would re-prompt or fail
+        // verification.
+        const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+        await Promise.all([
+          writeProjectManifest(updatedProject.manifest),
+          updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+            updatedCatalogs,
+            catalogPrune: opts.catalogPrune,
+            resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+            minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+            trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
+            allProjects: opts.allProjects,
+            ...policyUpdates,
+          }),
+        ])
+      }
     }
-    if (!opts.lockfileOnly) {
+    const { updatedCatalogs, updatedProject, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, {
+      ...installOpts,
+      beforeLifecycleScripts: async (res) => saveManifests({
+        updatedProject: res.updatedProjects[0],
+        updatedCatalogs: res.updatedCatalogs,
+        newLockfile: res.newLockfile,
+        resolutionPolicyViolations: res.resolutionPolicyViolations,
+      }),
+    })
+    await saveManifests({
+      updatedProject,
+      updatedCatalogs,
+      newLockfile,
+      resolutionPolicyViolations,
+    })
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
-        allProjects,
+        allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedProject.manifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
@@ -447,7 +524,7 @@ export async function installDeps (
     return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
+  const { updatedCatalogs, updatedManifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -463,7 +540,10 @@ export async function installDeps (
         writeProjectManifest(updatedManifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
-          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          catalogPrune: opts.catalogPrune,
+          resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+          minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+          trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
           allProjects,
           ...policyUpdates,
         }),
@@ -486,6 +566,7 @@ export async function installDeps (
         parentDir: dir,
       },
     ], {
+      catalogs: opts.catalogs,
       workspaceDir: opts.workspaceDir,
     })
     await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {
@@ -512,12 +593,13 @@ export async function installDeps (
         storeController: store.ctrl,
         storeDir: store.dir,
         skipIfHasSideEffectsCache: true,
+        ...(userNamedDeps ? { stages: PROJECT_INSTALL_STAGES } : {}),
       }
     )
   } else {
-    if (!opts.lockfileOnly) {
+    if (shouldSaveWorkspaceState(opts)) {
       await updateWorkspaceState({
-        allProjects,
+        allProjects: projectsToRecordInWorkspaceState(allProjects, opts, updatedManifest),
         settings: withUpdatedCatalogs(opts, updatedCatalogs),
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfiles: opts.pnpmfile,
@@ -529,6 +611,23 @@ export async function installDeps (
   return dryRunResult
 }
 
+/**
+ * A single-project install has no workspace projects, so it records the
+ * project itself. `checkDepsStatus` compares that path with the current one to
+ * notice a project that was moved or renamed together with its
+ * `node_modules`, whose links may point at the old location.
+ */
+function projectsToRecordInWorkspaceState (
+  allProjects: Project[],
+  opts: Pick<InstallDepsOptions, 'dir' | 'lockfileDir' | 'workspaceDir'>,
+  manifest: ProjectManifest
+): ProjectsList {
+  if (allProjects.length > 0 || opts.workspaceDir != null) return allProjects
+  const rootDir = opts.lockfileDir ?? opts.dir
+  if (path.relative(rootDir, opts.dir) !== '') return allProjects
+  return [{ rootDir: rootDir as ProjectRootDir, manifest }]
+}
+
 function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
@@ -538,12 +637,12 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (!opts.lockfileOnly) {
+  if (shouldSaveWorkspaceState(opts)) {
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
@@ -554,6 +653,10 @@ async function recursiveInstallThenUpdateWorkspaceState (
     })
   }
   return recursiveResult.dryRunResult
+}
+
+function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly' | 'saveWorkspaceState'>): boolean {
+  return !opts.lockfileOnly && opts.saveWorkspaceState !== false
 }
 
 /**
@@ -589,25 +692,6 @@ function getVulnerabilityPenalty (severity: VulnerabilitySeverity): number {
     case 'critical': return -4000
       // Treat unrecognized severity as the lowest severity
     default: return -1100
-  }
-}
-
-/**
- * `pnpm update <dep>@<version>` where `<dep>` matches only transitive
- * dependencies has no manifest entry to write the version into, and an
- * update resolves the target the same way a fresh install would — which a
- * command-line version cannot influence. Tell the user the version part is
- * ignored, and that an override is the mechanism that does pin a
- * transitive dependency. The recommended override is scoped to the
- * dependents' declared range so it cannot violate any consumer's range;
- * the range itself is not known at this layer (it lives in the dependents'
- * manifests), hence the placeholder.
- */
-function warnAboutIgnoredVersionsOfIndirectUpdateSpecs (updateSpecs: string[]): void {
-  for (const spec of updateSpecs) {
-    const { pattern, versionSpec } = parseUpdateParam(spec)
-    if (versionSpec == null) continue
-    globalWarn(`"${pattern}" is not a direct dependency, so the requested version "${versionSpec}" is ignored — "${pattern}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: { "${pattern}@<declared range>": "${versionSpec}" }`)
   }
 }
 
@@ -680,4 +764,21 @@ async function restoreWantedLockfileIfMissing (
     logger.debug({ msg: 'Failed to restore pnpm-lock.yaml from the current lockfile', error })
     return false
   }
+}
+
+/**
+ * The optimistic repeat-install short-circuit returns before the build policy
+ * runs, so a package left with an undecided build would never be reported and
+ * `strictDepBuilds` would go unenforced until `node_modules` was cleared.
+ * Fail here the way a materializing install would.
+ */
+async function assertRecordedBuildsAreApproved (opts: InstallDepsOptions): Promise<void> {
+  if (opts.ignoreScripts || opts.lockfileOnly || !opts.strictDepBuilds) return
+  const modulesDir = path.resolve(opts.lockfileDir ?? opts.dir, opts.modulesDir ?? 'node_modules')
+  const modulesManifest = await readModulesManifest(modulesDir)
+  const unapprovedBuilds = unapprovedIgnoredBuilds(
+    modulesManifest?.ignoredBuilds,
+    createAllowBuildFunction(opts)
+  )
+  if (unapprovedBuilds.length) throw new IgnoredBuildsError(new Set(unapprovedBuilds))
 }

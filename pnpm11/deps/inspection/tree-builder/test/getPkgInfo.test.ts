@@ -12,7 +12,7 @@ test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
     wantedPackages: {},
     depTypes: {},
     skipped: new Set<string>(),
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     virtualStoreDirMaxLength: 120,

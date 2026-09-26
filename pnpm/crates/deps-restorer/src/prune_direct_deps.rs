@@ -14,12 +14,12 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
-use pacquet_config::Config;
-use pacquet_fs::{read_symlink_dir, remove_symlink_dir};
-use pacquet_lockfile::Lockfile;
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_package_manifest::{DependencyGroup, parse_manifest_bytes};
+use pnpm_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
+use pnpm_config::Config;
+use pnpm_fs::{read_symlink_dir, remove_symlink_dir};
+use pnpm_lockfile::Lockfile;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
     ffi::OsStr,
@@ -74,7 +74,7 @@ pub enum PruneDirectDepsError {
 /// install leaves every other importer's links untouched because it never
 /// re-materialized them.
 ///
-/// Unrelated to [`crate::SymlinkDirectDependencies::trusted_importer_ids`],
+/// Unrelated to [`crate::DirectLinkPolicy::trusted_importer_ids`],
 /// which names importers allowed to *skip* ID validation. This set never
 /// widens what may be deleted — every removal still passes the same
 /// validation and containment checks.
@@ -122,16 +122,14 @@ pub fn prune_direct_deps_excluded_by_groups(
     // Same per-importer `modulesDir` suffix peeling as
     // [`crate::SymlinkDirectDependencies`], so removal targets exactly
     // where the linker writes.
-    let modules_dir_name: &OsStr =
-        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name: &OsStr = config.modules_dir_name();
 
     for (importer_id, snapshot) in &current_lockfile.importers {
-        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id)) {
-            continue;
-        }
         // A malformed importer key is rejected with a typed error by
         // the symlink pass; never *delete* based on one.
-        if validate_importer_id(importer_id).is_err() {
+        if prunable_importer_ids.is_some_and(|importer_ids| !importer_ids.contains(importer_id))
+            || validate_importer_id(importer_id).is_err()
+        {
             continue;
         }
         // Same canonical containment check as the purge: delete only
@@ -142,18 +140,30 @@ pub fn prune_direct_deps_excluded_by_groups(
         let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
             continue;
         };
-        let new_names: HashSet<String> =
-            direct_dep_names_for_importer(snapshot, new_groups.iter().copied(), &skipped, false)
-                .into_iter()
-                .collect();
-        for name in
-            direct_dep_names_for_importer(snapshot, old_groups.iter().copied(), &skipped, false)
-        {
-            if new_names.contains(&name) {
-                continue;
-            }
-            remove_direct_dep_link(&modules_dir, &name)?;
+        prune_importer_links(&modules_dir, snapshot, &old_groups, &new_groups, &skipped)?;
+    }
+    Ok(())
+}
+
+/// Remove the links of every name the old groups declared that the new
+/// groups no longer do.
+fn prune_importer_links(
+    modules_dir: &Path,
+    snapshot: &pnpm_lockfile::ProjectSnapshot,
+    old_groups: &[DependencyGroup],
+    new_groups: &[DependencyGroup],
+    skipped: &SkippedSnapshots,
+) -> Result<(), PruneDirectDepsError> {
+    let new_names: HashSet<String> =
+        direct_dep_names_for_importer(snapshot, new_groups.iter().copied(), skipped, false)
+            .into_iter()
+            .collect();
+    for name in direct_dep_names_for_importer(snapshot, old_groups.iter().copied(), skipped, false)
+    {
+        if new_names.contains(&name) {
+            continue;
         }
+        remove_direct_dep_link(modules_dir, &name)?;
     }
     Ok(())
 }
@@ -183,7 +193,7 @@ pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option
 /// directory). Removals must not reach *through* a redirected
 /// intermediate component (`@scope/`, `.bin/`); the containment check
 /// above only vouches for the modules dir itself.
-fn is_real_dir(path: &Path) -> bool {
+pub(crate) fn is_real_dir(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir())
         && read_symlink_dir(path).is_err()
 }
@@ -228,12 +238,15 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
     }
 }
 
-/// Remove the shims the package behind `link` declares from
+/// Remove the shims the package at `pkg_dir` declares from
 /// `<modules_dir>/.bin`. A missing or unparsable `package.json` (a
 /// dangling link, a broken package) yields no bins to remove — the same
 /// best-effort read as pnpm's `removeBins`.
-fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDepsError> {
-    let manifest_path = link.join("package.json");
+pub(crate) fn remove_dep_bins(
+    modules_dir: &Path,
+    pkg_dir: &Path,
+) -> Result<(), PruneDirectDepsError> {
+    let manifest_path = pkg_dir.join("package.json");
     let bytes = match fs::read(&manifest_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -252,7 +265,7 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
     if !is_real_dir(&bins_dir) {
         return Ok(());
     }
-    for command in get_bins_from_package_manifest::<Host>(&manifest, link) {
+    for command in get_bins_from_package_manifest::<Host>(&manifest, pkg_dir) {
         let shim_path = bins_dir.join(&command.name);
         remove_bin(&shim_path)
             .map_err(|error| PruneDirectDepsError::RemoveBin { path: shim_path, error })?;

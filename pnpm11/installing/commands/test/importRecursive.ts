@@ -1,9 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { importCommand } from '@pnpm/installing.commands'
+import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -33,7 +35,7 @@ const DEFAULT_OPTS = {
   proxy: undefined,
   pnpmHomeDir: '',
   configByUri: {},
-  registries: { default: REGISTRY },
+  registriesByScope: { default: REGISTRY },
   registry: REGISTRY,
   rootProjectManifestDir: '',
   storeDir: path.join(TMP, 'store'),
@@ -115,4 +117,40 @@ test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   // node_modules is not created
   project.hasNot('is-positive')
   project.hasNot('is-negative')
+})
+
+test('import keeps the root project on the version pinned by yarn.lock when another project allows a newer one', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' },
+  }))
+  fs.writeFileSync('yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.0":
+  version "1.0.0"
+`)
+  fs.mkdirSync('packages/foo', { recursive: true })
+  fs.writeFileSync('packages/foo/package.json', JSON.stringify({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.1' },
+  }))
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjectsGraph,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dir: process.cwd(),
+  }, [])
+
+  const { importers } = assertProject(process.cwd()).readLockfile()
+  expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
+  expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.1.0')
 })

@@ -9,78 +9,66 @@
 //! still allowing the existing `&StoreDir` / `&AllowBuildPolicy` borrows
 //! to flow through without an extra owned-data copy.
 
+#[cfg(test)]
+pub(crate) mod tests;
+
+pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
+pub(crate) use remote::should_use_shallow;
+pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
+
+mod bundles;
+mod remote;
+mod revision;
+
+use remote::download_commit;
+
 use crate::{
+    GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
-    prepare_package::{
-        AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
-    },
+    prepare_package::{AllowBuildRef, PreparePackageOptions, prepare_package, safe_join_path},
+    protocols::{read_protocol_policies, submodule_protocols},
 };
-use pacquet_executor::ScriptsPrependNodePath;
-use pacquet_fs_packlist::packlist;
-use pacquet_package_manifest::safe_read_package_json_from_dir;
-use pacquet_reporter::Reporter;
-use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
+use pnpm_fs_packlist::packlist;
+use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_package_manifest::{safe_read_package_json_from_dir, safe_read_project_manifest_from_dir};
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndexWriter};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 /// One-shot fetcher for a single git resolution. Holds borrows for the
 /// duration of the call only.
 pub struct GitFetcher<'a> {
-    pub repo: &'a str,
-    pub commit: &'a str,
-    /// `path` field from the resolution. `None` packs the repo root.
-    pub path: Option<&'a str>,
-    /// Hosts that opt into `git init` + `git fetch --depth 1` instead
-    /// of a full clone. Mirrors `Config::git_shallow_hosts`.
-    pub git_shallow_hosts: &'a [String],
+    pub scripts: crate::PrepareScriptOptions<'a>,
+    pub source: crate::GitSource<'a>,
+    pub store: crate::GitStoreContext<'a>,
     /// Closure routes through [`crate::prepare_package()`]'s
     /// `allow_build`. The caller (typically the install dispatcher) is
     /// responsible for plumbing whatever policy structure it has into
     /// this closure shape.
     pub allow_build: AllowBuildRef<'a>,
-    pub ignore_scripts: bool,
-    pub unsafe_perm: bool,
-    pub user_agent: Option<&'a str>,
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    pub script_shell: Option<&'a Path>,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    pub store_dir: &'a StoreDir,
     /// Used in log lines, and as the resolution id
     /// [`crate::prepare_package()`] synthesizes its gated dep path from.
     /// Matches the `package_id` the rest of the install dispatcher uses
     /// — for a git dep, the bare `git+…#<commit>` id.
     pub package_id: &'a str,
+    /// Name of the package this resolution belongs to, used to say which
+    /// dependency a transport failure came from. Unlike
+    /// [`Self::package_id`], which for a git dep is the bare
+    /// `git+…#<commit>` id and carries no name.
+    pub package_name: &'a str,
     pub requester: &'a str,
-    /// Install-scoped store-index writer. When provided, the fetcher
-    /// queues a `PackageFilesIndex` row at [`Self::files_index_file`]
-    /// after import so a future install's warm prefetch finds the
-    /// snapshot in `index.db` and skips the clone/checkout/prepare/
-    /// packlist re-run. Passing `None` (e.g., from tests) silently
-    /// skips the write — the install is still correct, just slower
-    /// on the next run.
-    pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Cache key the row lands at — for git resolutions this is always
-    /// the git-hosted store-index-key form (`pkg_id\t{built|not-built}`).
-    /// The dispatcher computes it once and threads it in.
-    pub files_index_file: &'a str,
-    /// Override for the `git` binary path. Production callers leave
-    /// this `None` and the fetcher resolves `git` through `PATH`.
-    /// Tests use it to inject a shim binary at an absolute path, so
-    /// the test can observe the fetcher's argv without mutating
-    /// process-global state.
-    pub git_bin: Option<&'a Path>,
 }
 
 /// Output of [`GitFetcher::run`]. Mirrors the shape of
-/// `DownloadTarballToStore::run_without_mem_cache`'s return so the
+/// `IngestTarballToStore::run_without_mem_cache`'s return so the
 /// caller can hand it straight into `CreateVirtualDirBySnapshot`.
 #[derive(Debug)]
 pub struct GitFetchOutput {
@@ -88,7 +76,7 @@ pub struct GitFetchOutput {
     /// of host platform.
     pub cas_paths: HashMap<String, PathBuf>,
     /// `shouldBeBuilt` from `prepare_package`. The caller routes this
-    /// into the `built` dimension of [`pacquet_store_dir::pick_store_index_key`].
+    /// into the `built` dimension of [`pnpm_store_dir::pick_store_index_key`].
     pub built: bool,
 }
 
@@ -104,46 +92,17 @@ impl GitFetcher<'_> {
     fn run_sync<Reporter: self::Reporter>(self) -> Result<GitFetchOutput, GitFetcherError> {
         let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
         let temp_location = temp.path();
-        checkout_commit(&CheckoutOptions {
-            repo: self.repo,
-            commit: self.commit,
-            git_shallow_hosts: self.git_shallow_hosts,
-            git_bin: self.git_bin,
-            dest: temp_location,
-        })?;
+        self.copy_source(temp_location)?;
 
-        // `extra_env` is a borrow rather than `Option<&HashMap>`.
-        // Bind an empty map to a local so the borrow has the same lifetime
-        // as `prepare_opts` itself — relying on `&HashMap::new()`'s
-        // temporary-lifetime extension here would work today but is
-        // brittle to future expression-reshape edits in this block.
-        let empty_env: HashMap<String, String> = HashMap::new();
-        let prepare_opts = PreparePackageOptions {
-            allow_build: Box::new(|dep_path| (self.allow_build)(dep_path)),
-            pkg_resolution_id: self.package_id,
-            ignore_scripts: self.ignore_scripts,
-            unsafe_perm: self.unsafe_perm,
-            user_agent: self.user_agent,
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.script_shell,
-            node_execpath: self.node_execpath,
-            npm_execpath: self.npm_execpath,
-            extra_bin_paths: &[],
-            extra_env: &empty_env,
-        };
-        let PreparedPackage { pkg_dir, should_be_built } =
-            match prepare_package::<Reporter>(&prepare_opts, temp_location, self.path) {
-                Ok(p) => p,
-                Err(err) => {
-                    return Err(wrap_prepare_error(self.repo, err));
-                }
-            };
-        if self.ignore_scripts && should_be_built {
+        let prepared =
+            prepare_package::<Reporter>(&self.prepare_options(), temp_location, self.source.path)
+                .map_err(|err| wrap_prepare_error(self.source.repo, err))?;
+        if prepared.ignored_build {
             tracing::warn!(
                 target: "pacquet::git_fetcher",
-                repo = %self.repo,
+                repo = %self.source.repo,
                 "the git-hosted package fetched from {} has to be built but the build scripts were ignored",
-                self.repo,
+                self.source.repo,
             );
         }
 
@@ -158,32 +117,169 @@ impl GitFetcher<'_> {
             return Err(GitFetcherError::Io(err));
         }
 
-        let manifest = safe_read_package_json_from_dir(&pkg_dir)
-            .unwrap_or(None)
-            .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
-        let files = packlist(&pkg_dir, &manifest).map_err(GitFetcherError::Packlist)?;
-
+        let files = packlist_of(&prepared.pkg_dir)?;
         let ImportedFiles { cas_paths, files_index } =
-            import_into_cas(self.store_dir, &pkg_dir, &files)?;
+            import_into_cas(self.store.dir, &prepared.pkg_dir, &files)?;
 
         // Queue a `PackageFilesIndex` row so a future install's warm
         // prefetch finds the snapshot in `index.db` and skips the
         // clone+checkout+prepare+packlist re-run.
-        if let Some(writer) = self.store_index_writer {
-            writer.queue(
-                self.files_index_file.to_string(),
-                PackageFilesIndex {
-                    manifest: None,
-                    requires_build: Some(should_be_built),
-                    algo: "sha512".to_string(),
-                    files: files_index,
-                    side_effects: None,
-                },
-            );
-        }
+        let files_index_file = prepared.store_index_key(
+            self.store.files_index_file,
+            self.package_id,
+            self.scripts.ignore,
+        );
+        queue_files_index(
+            self.store.index_writer,
+            &files_index_file,
+            files_index,
+            prepared.should_be_built,
+        );
 
-        Ok(GitFetchOutput { cas_paths, built: should_be_built })
+        Ok(GitFetchOutput { cas_paths, built: prepared.should_be_built })
     }
+    fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
+        let source = self.source.cache
+            .get(&self.source)
+            .map_err(|err| {
+                name_fetch_failure(
+                    self.source.repo,
+                    self.package_name,
+                    GitFetcherError::SharedSource(err),
+                )
+            })?;
+        source
+            .ensure_submodules(self.source.git_bin)
+            .map_err(|err| {
+                name_fetch_failure(
+                    self.source.repo,
+                    self.package_name,
+                    GitFetcherError::SharedSource(err),
+                )
+            })?;
+        pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
+
+        Ok(())
+    }
+}
+
+impl<'a> GitFetcher<'a> {
+    fn prepare_options(&self) -> PreparePackageOptions<'a> {
+        let allow_build = self.allow_build;
+        PreparePackageOptions {
+            scripts: self.scripts,
+            allow_build: Box::new(move |dep_path| allow_build(dep_path)),
+            pkg_resolution_id: self.package_id,
+
+            extra_bin_paths: &[],
+            extra_env: &NO_EXTRA_ENV,
+        }
+    }
+}
+
+/// Git-hosted packages build with no extra environment.
+pub(crate) static NO_EXTRA_ENV: LazyLock<HashMap<String, String>> = LazyLock::new(HashMap::new);
+
+/// The files the package would publish, per its manifest (a missing
+/// manifest counts as empty; an unreadable or invalid one is an error).
+pub(crate) fn packlist_of(pkg_dir: &Path) -> Result<Vec<String>, GitFetcherError> {
+    let manifest = safe_read_project_manifest_from_dir(pkg_dir)
+        .map_err(GitFetcherError::ReadManifest)?
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+    packlist(pkg_dir, &manifest).map_err(GitFetcherError::Packlist)
+}
+
+/// Queue a `PackageFilesIndex` row so a future install's warm prefetch
+/// finds the snapshot in `index.db` and skips the fetch and prepare re-run.
+pub(crate) fn queue_files_index(
+    writer: Option<&Arc<StoreIndexWriter>>,
+    files_index_file: &str,
+    files: HashMap<String, CafsFileInfo>,
+    should_be_built: bool,
+) {
+    if let Some(writer) = writer {
+        writer.queue(
+            files_index_file.to_string(),
+            PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(should_be_built),
+                requires_prepare: Some(should_be_built),
+                algo: "sha512".to_string(),
+                files,
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        );
+    }
+}
+
+/// Restate a failure of the transport-touching part of
+/// [`checkout_commit`] as [`GitFetcherError::Fetch`] — or, when the
+/// lockfile pins an SSH remote, [`GitFetcherError::FetchOverSsh`], which
+/// carries the remediation help.
+///
+/// Only `init` / `remote` / `clone` / `fetch` are restated. A failing
+/// `checkout` or `rev-parse` says nothing about reaching the remote, and
+/// its own error already describes it.
+fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFetcherError {
+    let cause = match &err {
+        GitFetcherError::SharedSource(source) => source.as_ref(),
+        other => other,
+    };
+    let GitFetcherError::GitExec {
+        operation: "init" | "remote" | "clone" | "fetch" | "submodule",
+        stderr,
+        ..
+    } = cause
+    else {
+        return err;
+    };
+    // Every value is untrusted: a lockfile URL can carry `user:pass@`
+    // credentials, and git echoes it back through stderr. Only the values are
+    // sanitized — `redact_and_sanitize` strips control characters, which would
+    // collapse the deliberately multi-line help.
+    let host = ssh_repo_host(repo).map(redact_and_sanitize);
+    let (package, repo, stderr) = (
+        redact_and_sanitize(package),
+        redact_and_sanitize(repo),
+        redact_and_sanitize_multiline(stderr.trim()),
+    );
+    match host {
+        Some(host) => GitFetcherError::FetchOverSsh { package, repo, host, stderr },
+        None => GitFetcherError::Fetch { package, repo, stderr },
+    }
+}
+
+/// The host an SSH git reference points at, or `None` if `repo` is not one.
+///
+/// Covers the URL form (`[git+]ssh://[user@]host[:port]/path`) and the
+/// scp-style shorthand (`[user@]host:path`) that carries no scheme. The
+/// `user@` is mandatory in the shorthand, which is what keeps a Windows
+/// drive path (`C:\repo`) from being read as a host.
+///
+/// An IPv6 literal keeps its brackets, matching what `URL.hostname` hands
+/// the TypeScript CLI for the same reference.
+fn ssh_repo_host(repo: &str) -> Option<&str> {
+    if let Some(rest) = repo
+        .strip_prefix("ssh://")
+        .or_else(|| repo.strip_prefix("git+ssh://"))
+    {
+        let authority = rest.split('/').next().unwrap_or(rest);
+        let host = authority.rsplit_once('@').map_or(authority, |(_user, host)| host);
+        // A bracketed IPv6 literal is full of colons, so the port has to be
+        // looked for after the closing bracket rather than at the first colon.
+        let host = match host.split_once(']') {
+            Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
+            _ => host.split_once(':').map_or(host, |(host, _port)| host),
+        };
+        return (!host.is_empty()).then_some(host);
+    }
+    if repo.contains("://") {
+        return None;
+    }
+    let (authority, _path) = repo.split_once(':')?;
+    let (_user, host) = authority.rsplit_once('@')?;
+    (!host.is_empty()).then_some(host)
 }
 
 /// Wrap `PreparePackageError` to convey the "Failed to prepare
@@ -208,12 +304,14 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
 pub struct CheckoutOptions<'a> {
     pub repo: &'a str,
     pub commit: &'a str,
-    /// See [`GitFetcher::git_shallow_hosts`].
+    /// See [`crate::GitSource::shallow_hosts`].
     pub git_shallow_hosts: &'a [String],
-    /// See [`GitFetcher::git_bin`].
+    /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
     /// Existing, empty directory to check the repo out into.
     pub dest: &'a Path,
+    /// `git -c` settings for the commands that reach the remote.
+    pub git_config: &'a [String],
 }
 
 /// Materialize `repo` at `commit` into `dest`, verifying that the
@@ -223,7 +321,7 @@ pub struct CheckoutOptions<'a> {
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
 pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions { repo, commit, git_shallow_hosts, git_bin, dest } = opts;
+    let &CheckoutOptions { repo, commit, git_bin, dest, .. } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -235,16 +333,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     }
 
     let git_bin = git_bin.unwrap_or_else(|| Path::new("git"));
-    // `--` keeps the repository positional out of git's option parser,
-    // belt and braces with the `is_safe_repo_arg` check above.
-    if should_use_shallow(repo, git_shallow_hosts) {
-        exec_git_with(git_bin, &["init"], Some(dest))?;
-        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
-        exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
-    } else {
-        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
-    }
-
+    download_commit(opts, git_bin)?;
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
     let received = exec_git_with(git_bin, &["rev-parse", "HEAD"], Some(dest))?;
     let received_trimmed = received.trim();
@@ -257,26 +346,44 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     Ok(())
 }
 
+/// Initialize recursive submodules at their committed gitlinks. Only supported
+/// transports may run, including after Git URL rewrites.
+pub fn checkout_submodules(dest: &Path) -> Result<(), GitFetcherError> {
+    checkout_submodules_with(Path::new("git"), dest)
+}
+
+pub(crate) fn checkout_submodules_with(git_bin: &Path, dest: &Path) -> Result<(), GitFetcherError> {
+    exec_git_with(
+        git_bin,
+        &["submodule", "update", "--init", "--recursive", "--checkout"],
+        Some(dest),
+    )?;
+    Ok(())
+}
+
 /// Inputs for [`read_git_manifest`].
 pub struct GitManifestQuery<'a> {
+    pub source_cache: &'a GitSourceCache,
     pub repo: &'a str,
     pub commit: &'a str,
     /// `path` field from the resolution — the directory within the repo
     /// holding the package (`#path:/packages/foo`). `None` reads the
     /// repo root.
     pub path: Option<&'a str>,
-    /// See [`GitFetcher::git_shallow_hosts`].
+    /// See [`crate::GitSource::shallow_hosts`].
     pub git_shallow_hosts: &'a [String],
-    /// See [`GitFetcher::git_bin`].
+    /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
+    /// See [`CheckoutOptions::git_config`].
+    pub git_config: &'a [String],
 }
 
 /// Read the `package.json` of the package a `Git` resolution points at.
 ///
 /// A git dep's specifier names a repo, not a package, so its name is
 /// only readable from a working tree. Unlike a git *host*, a plain repo
-/// serves no archive endpoint, so a throwaway checkout is the cheapest
-/// way to read it.
+/// serves no archive endpoint. The install-scoped source cache supplies the
+/// verified checkout without running package scripts.
 ///
 /// `None` when the package directory has no `package.json` — the caller
 /// degrades rather than failing.
@@ -287,20 +394,25 @@ pub async fn read_git_manifest(
     query: GitManifestQuery<'_>,
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
-        let temp = tempfile::tempdir().map_err(GitFetcherError::Io)?;
-        checkout_commit(&CheckoutOptions {
-            repo: query.repo,
-            commit: query.commit,
-            git_shallow_hosts: query.git_shallow_hosts,
-            git_bin: query.git_bin,
-            dest: temp.path(),
-        })?;
+        let source = query.source_cache
+            .get_with_config(
+                &GitSource {
+                    cache: query.source_cache,
+                    path: query.path,
+                    repo: query.repo,
+                    commit: query.commit,
+                    shallow_hosts: query.git_shallow_hosts,
+                    git_bin: query.git_bin,
+                },
+                query.git_config,
+            )
+            .map_err(GitFetcherError::SharedSource)?;
         // Same guarded join the install pass uses: the sub-path is
         // repo-rooted, and a `path` that climbs out of the checkout
         // must not reach `safe_read_package_json_from_dir`, which would
         // happily read an arbitrary `package.json` off the host and
         // stamp its name onto this dep.
-        let pkg_dir = safe_join_path(temp.path(), query.path).map_err(GitFetcherError::Prepare)?;
+        let pkg_dir = safe_join_path(source.path(), query.path).map_err(GitFetcherError::Prepare)?;
         safe_read_package_json_from_dir(&pkg_dir).map_err(GitFetcherError::ReadManifest)
     })
 }
@@ -319,36 +431,6 @@ fn is_safe_repo_arg(repo: &str) -> bool {
     !repo.is_empty() && !repo.starts_with('-') && !repo.contains('\0')
 }
 
-/// True iff `repo` parses to a host that pacquet should clone via the
-/// shallow `init` + `fetch --depth 1` path.
-fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
-    if allowed_hosts.is_empty() {
-        return false;
-    }
-    let Some(host) = extract_host(repo) else { return false };
-    allowed_hosts.iter().any(|allowed| allowed == host)
-}
-
-/// Pluck the host portion out of a git URL. Handles the three forms
-/// git resolution produces: `https://host/path/...`,
-/// `git+ssh://user@host/path/...`, and `git://host/path/...`. Falls
-/// through to `None` for `file://` paths and SSH-style
-/// `user@host:path/...` (those don't appear in `git_shallow_hosts`
-/// defaults and a future PR can flesh them out if needed).
-fn extract_host(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))
-        .or_else(|| url.strip_prefix("git://"))
-        .or_else(|| url.strip_prefix("git+ssh://"))
-        .or_else(|| url.strip_prefix("git+https://"))?;
-    let authority_end = rest.find('/').unwrap_or(rest.len());
-    let authority = &rest[..authority_end];
-    let host = authority.rsplit('@').next().unwrap_or(authority);
-    let host = host.split(':').next().unwrap_or(host);
-    if host.is_empty() { None } else { Some(host) }
-}
-
 /// On Windows, prepend `-c core.longpaths=true` to every git
 /// invocation so paths beyond 260 characters don't break checkout.
 fn prefix_git_args() -> &'static [&'static str] {
@@ -362,28 +444,81 @@ fn prefix_git_args() -> &'static [&'static str] {
     }
 }
 
-/// `exec_git` with an explicit binary path. The fetcher uses this so
-/// a test-injected shim (via [`GitFetcher::git_bin`]) is resolved at
-/// the call site instead of through `PATH`, keeping the shim's
-/// observability scope to one fetcher instance rather than the whole
-/// process env.
-fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
-    let prefix = prefix_git_args();
+pub(crate) fn prepare_git_cmd(
+    bin: &Path,
+    config: &[String],
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<Command, GitFetcherError> {
     let mut cmd = Command::new(bin);
-    for arg in prefix {
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ] {
+        cmd.env_remove(name);
+    }
+    for arg in prefix_git_args() {
         cmd.arg(arg);
     }
+    for setting in config {
+        cmd.arg("-c").arg(setting);
+    }
     cmd.args(args);
+    if reaches_remote(args) {
+        pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, cwd);
+    }
+    if args.first() == Some(&"clone") {
+        let protocols = crate::protocols::read_allowed_git_protocols_with(
+            bin,
+            cwd.unwrap_or_else(|| Path::new(".")),
+        )?;
+        cmd.env("GIT_ALLOW_PROTOCOL", protocols);
+    }
+    if args.first() == Some(&"submodule") {
+        let inherited = env::var_os("GIT_ALLOW_PROTOCOL");
+        let policies = read_protocol_policies(bin, cwd)?;
+        cmd.env("GIT_ALLOW_PROTOCOL", submodule_protocols(inherited.as_deref(), &policies));
+    }
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
-    let output = cmd.output().map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            GitFetcherError::GitNotFound
-        } else {
-            GitFetcherError::Io(err)
-        }
-    })?;
+    Ok(cmd)
+}
+
+/// `exec_git` with an explicit binary path. The fetcher uses this so
+/// a test-injected shim (via [`crate::GitSource::git_bin`]) is resolved at
+/// the call site instead of through `PATH`, keeping the shim's
+/// observability scope to one fetcher instance rather than the whole
+/// process env.
+pub(crate) fn exec_git_with(
+    bin: &Path,
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<String, GitFetcherError> {
+    exec_git_with_config(bin, &[], args, cwd)
+}
+
+/// [`exec_git_with`] with `git -c` settings ahead of the subcommand.
+pub(crate) fn exec_git_with_config(
+    bin: &Path,
+    config: &[String],
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<String, GitFetcherError> {
+    let mut cmd = prepare_git_cmd(bin, config, args, cwd)?;
+    let output = cmd
+        .output()
+        .map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                GitFetcherError::GitNotFound
+            } else {
+                GitFetcherError::Io(err)
+            }
+        })?;
     if !output.status.success() {
         let operation = static_operation_label(args);
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -392,11 +527,18 @@ fn exec_git_with(bin: &Path, args: &[&str], cwd: Option<&Path>) -> Result<String
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Return a `'static` label for the git subcommand. Used in error
-/// messages. `init` / `clone` / `fetch` / `checkout` / `rev-parse` /
-/// `remote` are the only ones the fetcher invokes.
+/// Whether the git invocation can contact a remote, and so may be asked for
+/// credentials or an ssh passphrase.
+fn reaches_remote(args: &[&str]) -> bool {
+    matches!(args.first(), Some(&"clone" | &"fetch" | &"submodule"))
+}
+
 fn static_operation_label(args: &[&str]) -> &'static str {
-    let first = args.iter().find(|arg| !arg.starts_with('-')).copied().unwrap_or("git");
+    let first = args
+        .iter()
+        .find(|arg| !arg.starts_with('-'))
+        .copied()
+        .unwrap_or("git");
     match first {
         "init" => "init",
         "clone" => "clone",
@@ -404,6 +546,8 @@ fn static_operation_label(args: &[&str]) -> &'static str {
         "fetch" => "fetch",
         "checkout" => "checkout",
         "rev-parse" => "rev-parse",
+        "submodule" => "submodule",
+        "config" => "config",
         _ => "git",
     }
 }
@@ -411,6 +555,3 @@ fn static_operation_label(args: &[&str]) -> &'static str {
 // `import_into_cas`, `is_file_executable`, and `map_write_cas` live in
 // [`crate::cas_io`] so [`crate::GitHostedTarballFetcher`] can reuse
 // them for the prepare-and-rewrite pass on git-hosted tarballs.
-
-#[cfg(test)]
-mod tests;

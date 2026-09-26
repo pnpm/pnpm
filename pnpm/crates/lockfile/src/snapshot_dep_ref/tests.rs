@@ -47,14 +47,18 @@ fn parse_alias_with_peer_suffix() {
 #[test]
 fn resolve_plain_uses_alias_key_as_target_name() {
     let dep: SnapshotDepRef = "5.1.2".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width")).expect("plain resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width"))
+        .expect("plain resolves");
     assert_eq!(resolved.to_string(), "string-width@5.1.2");
 }
 
 #[test]
 fn resolve_alias_uses_alias_target_name_not_key() {
     let dep: SnapshotDepRef = "string-width@4.2.3".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width-cjs")).expect("alias resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width-cjs"))
+        .expect("alias resolves");
     assert_eq!(resolved.to_string(), "string-width@4.2.3");
 }
 

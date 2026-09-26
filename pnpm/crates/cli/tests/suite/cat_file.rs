@@ -1,11 +1,15 @@
 use assert_cmd::prelude::*;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 #[test]
 fn cat_file_works() {
-    let CommandTempCwd { mut pacquet, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     let store_dir = npmrc_info.store_dir;
     let files_dir = store_dir.join("v11").join("files");
@@ -20,15 +24,23 @@ fn cat_file_works() {
     let file_path = cafs_dir.join(&hex[2..]);
     fs::write(&file_path, content).unwrap();
 
-    let output = pacquet.arg("cat-file").arg(format!("sha512-{base64_hash}")).assert().success();
+    let output = pacquet
+        .arg("cat-file")
+        .arg(format!("sha512-{base64_hash}"))
+        .assert()
+        .success();
 
     assert_eq!(String::from_utf8(output.get_output().stdout.clone()).unwrap(), "hello world");
 }
 
 #[test]
 fn cat_file_works_with_binary() {
-    let CommandTempCwd { mut pacquet, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     let store_dir = npmrc_info.store_dir;
     let files_dir = store_dir.join("v11").join("files");
@@ -43,7 +55,11 @@ fn cat_file_works_with_binary() {
     let file_path = cafs_dir.join(&hex[2..]);
     fs::write(&file_path, binary_content).unwrap();
 
-    let output = pacquet.arg("cat-file").arg(format!("sha512-{base64_hash}")).assert().success();
+    let output = pacquet
+        .arg("cat-file")
+        .arg(format!("sha512-{base64_hash}"))
+        .assert()
+        .success();
 
     assert_eq!(output.get_output().stdout, binary_content);
 }
@@ -61,7 +77,11 @@ fn should_fail_on_missing_hash() {
 fn should_fail_on_invalid_hash_format() {
     let CommandTempCwd { mut pacquet, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let output = pacquet.arg("cat-file").arg("invalidhashformatwithoutdash").assert().failure();
+    let output = pacquet
+        .arg("cat-file")
+        .arg("invalidhashformatwithoutdash")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
 
     assert!(stderr.contains("Invalid hash format"));
@@ -71,7 +91,11 @@ fn should_fail_on_invalid_hash_format() {
 fn should_fail_on_invalid_base64() {
     let CommandTempCwd { mut pacquet, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let output = pacquet.arg("cat-file").arg("sha512-InvalidBase64!!!").assert().failure();
+    let output = pacquet
+        .arg("cat-file")
+        .arg("sha512-InvalidBase64!!!")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("Failed to decode base64 hash"));
 }
@@ -82,7 +106,11 @@ fn should_prevent_path_traversal() {
         CommandTempCwd::init().add_mocked_registry();
     // A crafted base64 payload that decodes to bytes resembling a path traversal like "../../etc/passwd".
     // "Li4vLi4vZXRjL3Bhc3N3ZA==" is base64 for "../../etc/passwd"
-    let output = pacquet.arg("cat-file").arg("sha512-Li4vLi4vZXRjL3Bhc3N3ZA==").assert().failure();
+    let output = pacquet
+        .arg("cat-file")
+        .arg("sha512-Li4vLi4vZXRjL3Bhc3N3ZA==")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     // It should fail to find the file (or decode as invalid depending on length), but it must NOT escape the store.
     assert!(stderr.contains("File not found in store"));

@@ -258,6 +258,29 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   })
 })
 
+// Peer dependency issues are a byproduct of resolution: whatever ran a
+// resolution reports them, and an install that skipped one reports
+// nothing. That is why `pnpm dedupe` — which always re-resolves — can
+// fail a tree `pnpm install` just accepted, and why `pnpm peers check`
+// exists to inspect a lockfile nobody re-resolved. Deliberate, tracked
+// as https://github.com/pnpm/pnpm/issues/14098.
+test('an install on an up-to-date lockfile does not recheck peer dependencies', async () => {
+  prepareEmpty()
+
+  const manifest = {
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+    },
+  }
+  await install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
+
+  await install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: true }))
+
+  await expect(
+    install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: true, dedupe: true }))
+  ).rejects.toThrow('Unmet peer dependencies')
+})
+
 test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
   const projects = preparePackages([
     {
@@ -1685,6 +1708,53 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
+test('deduplicate a package whose dependency peers back on it and has an optional peer', async () => {
+  // The fixtures carry the shape from https://github.com/pnpm/pnpm/issues/11834,
+  // which the manifests below do not show: @pnpm.e2e/circular-peer-host depends
+  // on @pnpm.e2e/circular-peer-plugin, which peers back on its own parent and
+  // declares @pnpm.e2e/peer-c as an optional peer through peerDependenciesMeta
+  // alone. Only project-1 supplies peer-c, and auto-install-peers is off so
+  // dedupePeerDependents alone has to collapse the variants. pacquet's
+  // counterpart is `a_circular_peers_optional_peer_is_shared_by_every_importer`
+  // in pnpm/crates/cli/tests/suite/workspace_install.rs.
+  const manifest1 = {
+    name: 'project-1',
+    dependencies: {
+      '@pnpm.e2e/circular-peer-host': '1.0.0',
+      '@pnpm.e2e/peer-c': '2.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+    dependencies: {
+      '@pnpm.e2e/circular-peer-host': '1.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: manifest1 },
+    { location: 'project-2', package: manifest2 },
+  ])
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    { buildIndex: 0, manifest: manifest1, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: manifest2, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(importers, testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
+  const deduped = '1.0.0(@pnpm.e2e/peer-c@2.0.0)'
+  expect(Object.keys(lockfile.snapshots ?? {}).filter((depPath) => depPath.startsWith('@pnpm.e2e/circular-peer-host@')))
+    .toStrictEqual([`@pnpm.e2e/circular-peer-host@${deduped}`])
+  const dependent = (importerId: string): string =>
+    lockfile.importers![importerId].dependencies!['@pnpm.e2e/circular-peer-host'].version
+  expect(dependent('project-1')).toBe(deduped)
+  expect(dependent('project-2')).toBe(deduped)
+})
+
 test('an optional peer declared by a workspace project is not added to its own importer, when auto-install-peers is off', async () => {
   // Regression test for https://github.com/pnpm/pnpm/issues/13325
   // project-1 declares @pnpm.e2e/peer-c only as an optional peer, and a sibling
@@ -2581,4 +2651,24 @@ test('adding unrelated dep does not churn transitivePeerDependencies', async () 
   for (const [key, snapshot] of Object.entries(allSnapshotsBefore)) {
     expect(lockfileAfter.snapshots[key]).toStrictEqual(snapshot)
   }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8912
+test.each([true, false])('an optional peer that is also a regular dependency is installed as the dependency, with autoInstallPeers=%s', async (autoInstallPeers) => {
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'],
+    testDefaults({ autoInstallPeers })
+  )
+
+  const snapshotKey = '@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'
+  expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+has-optional-peer-also-in-deps@1.0.0/node_modules/@pnpm.e2e/bravo-dep'))).toBeTruthy()
+
+  await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ autoInstallPeers }))
+
+  expect(project.readLockfile().snapshots[snapshotKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.0.0' })
 })

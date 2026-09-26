@@ -1,6 +1,9 @@
+import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import {
   removalLogger,
   reportPackageImported,
@@ -10,13 +13,14 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { logger } from '@pnpm/logger'
+import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { difference, isEmpty } from 'ramda'
@@ -33,13 +37,29 @@ export async function linkHoistedModules (
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
+    /**
+     * Hold back the missing-target bins of every `.bin` directory, since a
+     * dependency's scripts may run with them on PATH. See
+     * `holdBackMissingTargets` in `@pnpm/bins.linker`. The caller links the
+     * projects' `.bin` directories and the returned nested ones again after
+     * the builds.
+     */
+    holdBackMissingBins: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    pnprServer?: string
+    configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
-): Promise<void> {
+): Promise<string[]> {
   // TODO: remove nested node modules first
   const dirsToRemove = difference(
     Object.keys(prevGraph),
@@ -52,15 +72,21 @@ export async function linkHoistedModules (
   // We should avoid removing unnecessary directories while simultaneously adding new ones.
   // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
   await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
-  // Resolve the project's pinned runtime Node version once, before
-  // the recursive walk. The graph is keyed by install directory in
-  // this module, so scanning `Object.keys(graph)` would miss every
-  // `node@runtime:<version>` entry — pull the depPath off each
-  // node instead. Threading it down via `opts` also avoids a
-  // re-scan at every recursion level.
-  const nodeVersion = findRuntimeNodeVersion(
-    Object.values(graph).map((node) => node.depPath)
-  )
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: graph,
+    depsStateCache: opts.depsStateCache,
+    ignoreScripts: opts.ignoreScripts,
+    nodeVersion: opts.nodeVersion,
+    pnprServer: opts.pnprServer,
+    settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    storeController,
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
+  const heldBackBinsDirs = new Set<string>()
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -72,15 +98,24 @@ export async function linkHoistedModules (
         }
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
-          nodeVersion,
+          holdBackMissingTargets: opts.holdBackMissingBins,
+          nestedHeldBackBinsDirs: heldBackBinsDirs,
+          nodeVersion: opts.nodeVersion,
+          restorer,
           warn,
         })
       })
   )
+  return Array.from(heldBackBinsDirs)
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
+  try {
+    await removeOrphanBins(dir)
+  } catch (error: unknown) {
+    logger.debug({ error, message: `Failed to remove the bins of the orphan package at "${dir}"` })
+  }
   try {
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
@@ -94,6 +129,25 @@ async function tryRemoveDir (dir: string): Promise<void> {
   }
 }
 
+export async function removeOrphanBins (pkgDir: string): Promise<void> {
+  const binsDir = path.join(getModulesDir(pkgDir), '.bin')
+  let binsDirStats: fs.Stats
+  try {
+    binsDirStats = await fs.promises.lstat(binsDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  // Unlinking through a symlinked `.bin` would delete files outside the install root.
+  if (!binsDirStats.isDirectory()) return
+  await removeBinsOfDependency(pkgDir, { binsDir })
+}
+
+function getModulesDir (pkgDir: string): string {
+  const parentDir = path.dirname(pkgDir)
+  return path.basename(parentDir).startsWith('@') ? path.dirname(parentDir) : parentDir
+}
+
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
@@ -104,10 +158,16 @@ async function linkAllPkgsInOrder (
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
+    holdBackMissingTargets?: boolean
+    /** Whether `parentDir` is a package directory rather than a project root. */
+    isNested?: boolean
+    /** Receives each nested `.bin` directory that held back a bin. */
+    nestedHeldBackBinsDirs: Set<string>
     ignoreScripts: boolean
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    restorer?: RemoteSideEffectsRestorer<string>
     supportedArchitectures?: SupportedArchitectures
     /**
      * Resolved `engines.runtime` Node version, computed once by
@@ -133,15 +193,27 @@ async function linkAllPkgsInOrder (
         }
 
         depNode.requiresBuild = filesResponse.requiresBuild
-        let sideEffectsCacheKey: string | undefined
-        if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
+        let sideEffectsCacheKey = await opts.restorer?.restore({
+          graphKey: dir,
+          depPath: depNode.depPath,
+          files: filesResponse,
+          filesIndexFile: depNode.filesIndexFile,
+          name: depNode.name,
+          patchFileHash: depNode.patch?.hash,
+          resolution: depNode.resolution,
+          version: depNode.version,
+        })
+        if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
-            sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
+              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,
             })
+            if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+              sideEffectsCacheKey = localCacheKey
+            }
           }
         }
         // Limiting the concurrency here fixes an out of memory error.
@@ -166,13 +238,15 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
-      return linkAllPkgsInOrder(storeController, graph, deps, dir, opts)
+      return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
     })
   )
   const modulesDir = path.join(parentDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    heldBackBinsDirs: opts.isNested ? opts.nestedHeldBackBinsDirs : undefined,
+    holdBackMissingTargets: opts.holdBackMissingTargets,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })

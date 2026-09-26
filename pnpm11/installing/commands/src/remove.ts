@@ -20,6 +20,7 @@ import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
+import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -66,6 +67,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'shared-workspace-lockfile',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
+    'unsafe-perm',
     'virtual-store-dir',
   ], allTypes)
 }
@@ -107,6 +113,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--save-prod',
             shortAlias: '-P',
           },
+          {
+            description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
+            name: '--trust-lockfile',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -114,7 +124,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
       FILTERING,
     ],
     url: docsUrl('remove'),
-    usages: ['pnpm remove <pkg>[@<version>]...'],
+    usages: ['pnpm remove <pkg>...'],
   })
 }
 
@@ -139,14 +149,17 @@ export async function handler (
   | 'lockfileDir'
   | 'optional'
   | 'production'
-  | 'registries'
+  | 'registriesByScope'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
   | 'workspaceDir'
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
-  | 'cleanupUnusedCatalogs'
+  | 'lockfile'
+  | 'catalogPrune'
+  | 'minimumReleaseAgeExcludePrune'
+  | 'trustPolicyExcludePrune'
   | 'trustLockfile'
   > & Pick<ConfigContext,
   | 'allProjects'
@@ -177,6 +190,30 @@ export async function handler (
   }
   const store = await createStoreController(opts)
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
+    if (Object.keys(opts.selectedProjectsGraph).length === 0) return
+    const targetDependenciesField = getSaveType(opts)
+    const availableDependenciesSet = new Set<string>()
+    for (const project of opts.allProjects) {
+      if (opts.selectedProjectsGraph[project.rootDir as ProjectRootDir]) {
+        const deps = Object.keys(
+          targetDependenciesField === undefined
+            ? getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: true })
+            : project.manifest[targetDependenciesField] ?? {}
+        )
+        for (const dep of deps) {
+          availableDependenciesSet.add(dep)
+        }
+      }
+    }
+    const availableDependencies = Array.from(availableDependenciesSet).sort()
+    const nonMatchedDependencies = without(availableDependencies, params)
+    if (nonMatchedDependencies.length !== 0) {
+      throw new RemoveMissingDepsError({
+        availableDependencies,
+        nonMatchedDependencies,
+        targetDependenciesField,
+      })
+    }
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,
@@ -251,7 +288,10 @@ export async function handler (
     }
   }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+    catalogPrune: opts.catalogPrune,
+    resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, mutationResult.newLockfile),
+    minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
+    trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects: updatedProjects,
   })
 }

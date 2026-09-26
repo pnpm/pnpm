@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import { promises as fs } from 'node:fs'
+import { promises as fs, rmSync } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
+import { onExit } from 'signal-exit'
 import writeFileAtomic from 'write-file-atomic'
 
 import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
@@ -106,7 +108,7 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
  * `rename` never resolves the final path component, so a symlink swapped in
  * after {@link ensureLockfileIsNotSymlink} cannot redirect the write.
  */
-async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
+export async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
   const targetStat = await fs.lstat(lockfilePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return undefined
@@ -116,6 +118,22 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     path.dirname(lockfilePath),
     `.${path.basename(lockfilePath)}.${process.pid}.${randomUUID()}.tmp`
   )
+  // A SIGINT/SIGTERM kills the process without unwinding this async
+  // function, so the `finally` below never runs for it. Remove the
+  // unpublished temp file from an exit callback, the way
+  // `write-file-atomic` cleans up after itself.
+  const removeTempFileOnExit = onExit(() => {
+    try {
+      rmSync(tempPath, { force: true })
+    } catch (error: unknown) {
+      // An error escaping the callback would turn the signal's exit into an
+      // uncaught exception and block the remaining exit callbacks.
+      logger.warn({
+        message: `Failed to remove the temporary lockfile at ${tempPath} while exiting: ${(error as Error).message}`,
+        prefix: path.dirname(lockfilePath),
+      })
+    }
+  })
   let tempFile: FileHandle | undefined
   try {
     tempFile = await fs.open(tempPath, 'wx', targetStat?.mode)
@@ -134,10 +152,16 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     // itself and never resolves it, so a swap after this check cannot redirect
     // the write through a symlink.
     await ensureLockfileIsNotSymlink(lockfilePath)
-    await fs.rename(tempPath, lockfilePath)
+    // Windows fails the rename while another process holds the lockfile open
+    // without delete sharing, which editors, indexers, and antivirus do briefly.
+    await renameFileWithRetryAsync(tempPath, lockfilePath)
   } finally {
     await tempFile?.close().catch(() => {})
     await fs.rm(tempPath, { force: true }).catch(() => {})
+    // Unregister after the removal: a signal arriving between the two
+    // finds nothing to delete, while the reverse order would leave the
+    // temp file behind.
+    removeTempFileOnExit()
   }
 }
 

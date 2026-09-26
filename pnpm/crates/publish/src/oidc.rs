@@ -7,11 +7,15 @@
 //! instead of a live registry. CI-provider detection is a plain `EnvVar` read
 //! ([`is_github_actions`], [`is_gitlab`]).
 
+pub use auth_token::{AuthTokenError, fetch_auth_token};
+pub use id_token::{GetIdTokenError, IdTokenError, get_id_token};
+pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_provenance};
+
 mod auth_token;
 mod id_token;
 mod provenance;
 
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 use url::Url;
 
@@ -19,10 +23,6 @@ use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
     global_log::global_info,
 };
-
-pub use auth_token::{AuthTokenError, fetch_auth_token};
-pub use id_token::{GetIdTokenError, IdTokenError, get_id_token};
-pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_provenance};
 
 /// Read an environment variable, treating an empty value as unset.
 pub(crate) fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {

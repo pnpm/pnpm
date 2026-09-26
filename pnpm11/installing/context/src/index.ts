@@ -7,7 +7,7 @@ import type {
   Modules,
 } from '@pnpm/installing.modules-yaml'
 import { readProjectsContext } from '@pnpm/installing.read-projects-context'
-import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { LockfileObject, PatchedDepPathsStatus } from '@pnpm/lockfile.fs'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import { registerProject } from '@pnpm/store.controller'
 import type {
@@ -19,10 +19,11 @@ import type {
   ProjectRootDir,
   ProjectRootDirRealPath,
   ReadPackageHook,
-  Registries,
+  RegistriesByScope,
 } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
 import { clone } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
 
 import { readLockfiles } from './readLockfiles.js'
 
@@ -40,6 +41,8 @@ export interface PnpmContext {
   /** Affected by existing modules directory, if it exists. */
   extraNodePaths: string[]
   lockfileHadConflicts: boolean
+  /** Whether the lockfile's `(patch_hash=...)` dependency paths agree with its `patchedDependencies`. */
+  patchedDepPathsStatus: PatchedDepPathsStatus
   hoistedDependencies: HoistedDependencies
   /** Required included dependencies or dependencies currently included by the modules directory. */
   include: IncludedDependencies
@@ -67,7 +70,7 @@ export interface PnpmContext {
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   workspacePackages: WorkspacePackages
-  registries: Registries
+  registriesByScope: RegistriesByScope
 }
 
 export interface ProjectOptions {
@@ -101,7 +104,7 @@ export interface GetContextOptions {
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   readPackageHook?: ReadPackageHook
   include?: IncludedDependencies
-  registries: Registries
+  registriesByScope: RegistriesByScope
   storeDir: string
   useLockfile: boolean
   useGitBranchLockfile?: boolean
@@ -121,7 +124,9 @@ export async function getContext (
 ): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
+  const virtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(importersContext.rootModulesDir, '.pnpm')
+    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
 
   if (!opts.frozenStore) {
     await fs.mkdir(opts.storeDir, { recursive: true })
@@ -173,7 +178,7 @@ export async function getContext (
     projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: opts.publicHoistPattern,
     currentPublicHoistPattern: importersContext.currentPublicHoistPattern,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
@@ -189,7 +194,7 @@ export async function getContext (
       frozenLockfile: opts.frozenLockfile === true,
       lockfileDir: opts.lockfileDir,
       projects: importersContext.projects,
-      registry: opts.registries.default,
+      registry: opts.registriesByScope.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
@@ -214,6 +219,8 @@ export interface PnpmSingleContext {
   extraBinPaths: string[]
   extraNodePaths: string[]
   lockfileHadConflicts: boolean
+  /** Whether the lockfile's `(patch_hash=...)` dependency paths agree with its `patchedDependencies`. */
+  patchedDepPathsStatus: PatchedDepPathsStatus
   hoistedDependencies: HoistedDependencies
   hoistedModulesDir: string
   hoistPattern: string[] | undefined
@@ -226,7 +233,7 @@ export interface PnpmSingleContext {
   modulesFile: Modules | null
   pendingBuilds: string[]
   publicHoistPattern: string[] | undefined
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootModulesDir: string
   lockfileDir: string
   virtualStoreDir: string
@@ -256,7 +263,7 @@ export async function getContextForSingleImporter (
     readPackageHook?: ReadPackageHook
     include?: IncludedDependencies
     dir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     storeDir: string
     useLockfile: boolean
     useGitBranchLockfile?: boolean
@@ -275,7 +282,6 @@ export async function getContextForSingleImporter (
     include,
     modules,
     pendingBuilds,
-    registries,
     skipped,
     rootModulesDir,
   } = await readProjectsContext(
@@ -295,7 +301,9 @@ export async function getContextForSingleImporter (
   const importer = projects[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
+  const virtualStoreDir = opts.virtualStoreDir == null
+    ? path.join(rootModulesDir, '.pnpm')
+    : await realpathMissing(pathAbsolute(opts.virtualStoreDir, opts.lockfileDir))
 
   if (!opts.frozenStore) {
     await fs.mkdir(storeDir, { recursive: true })
@@ -314,6 +322,7 @@ export async function getContextForSingleImporter (
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
+  const hookedManifest = await opts.readPackageHook?.(manifest) ?? manifest
   const ctx: PnpmSingleContext = {
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({
@@ -328,16 +337,13 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: await opts.readPackageHook?.(manifest) ?? manifest,
+    manifest: hookedManifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
     prefix: opts.dir,
     publicHoistPattern: opts.publicHoistPattern,
-    registries: {
-      ...opts.registries,
-      ...registries,
-    },
+    registriesByScope: opts.registriesByScope,
     rootModulesDir,
     skipped,
     storeDir,
@@ -350,8 +356,8 @@ export async function getContextForSingleImporter (
       force: opts.force,
       frozenLockfile: false,
       lockfileDir: opts.lockfileDir,
-      projects: [{ id: importerId, rootDir: opts.dir as ProjectRootDir }],
-      registry: opts.registries.default,
+      projects: [{ id: importerId, manifest: hookedManifest, rootDir: opts.dir as ProjectRootDir }],
+      registry: opts.registriesByScope.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,

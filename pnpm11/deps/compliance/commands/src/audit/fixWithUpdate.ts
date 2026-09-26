@@ -15,6 +15,7 @@ import semver from 'semver'
 import type { AuditOptions } from './audit.js'
 import { createMinimumReleaseAgeExcludes } from './fix.js'
 import { lockfileToPackages } from './lockfileToPackages.js'
+import { createPublishTimesFetcher } from './publishTimes.js'
 
 interface ExtendedPackageVulnerability {
   vulnerability: PackageVulnerability
@@ -92,7 +93,12 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   // Add minimum patched versions to minimumReleaseAgeExclude so the resolver
   // can install them even when minimumReleaseAge would otherwise block them.
-  const addedAgeExcludes = opts.minimumReleaseAge ? createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories)) : []
+  const addedAgeExcludes = opts.minimumReleaseAge
+    ? await createMinimumReleaseAgeExcludes(Object.values(auditReport.advisories), {
+      getPublishTimes: opts.getPublishTimes ?? createPublishTimesFetcher(opts),
+      minimumReleaseAge: opts.minimumReleaseAge,
+    })
+    : []
   const updateOpts = { ...opts } as Record<string, unknown>
   if (addedAgeExcludes.length > 0) {
     const existing = (updateOpts.minimumReleaseAgeExclude as string[] | undefined) ?? []
@@ -107,6 +113,10 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
 
   await update.handler({
     ...updateOpts as FixWithUpdateOptions,
+    // The audit command already ran its own prompt to select which
+    // vulnerabilities to fix. Forwarding `--interactive` would open the update
+    // command's dependency picker on top of that selection.
+    interactive: false,
     packageVulnerabilityAudit,
   }, [])
 
@@ -115,7 +125,7 @@ export async function fixWithUpdate (auditReport: AuditReport, opts: FixWithUpda
   if (lockfile == null) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found after update: Cannot report fixed vulnerabilities`)
   }
-  const updatedPackages = lockfileToPackages(lockfile, { include: opts.include })
+  const updatedPackages = lockfileToPackages(lockfile, opts)
 
   const fixed: number[] = []
   const remaining: number[] = []

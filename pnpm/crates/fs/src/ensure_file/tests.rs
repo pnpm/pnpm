@@ -1,12 +1,12 @@
 use super::{
-    EnsureFileError, ensure_file, file_equals_bytes, is_transient_rename_error, rename_with_retry,
-    temp_path_for,
+    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes, strip_dash_suffix,
+    temp_path_in,
 };
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use super::{EMFILE, ENFILE, retry_on_fd_pressure};
+use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
 
 #[test]
 fn writes_a_new_file() {
@@ -38,9 +38,81 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
     ensure_file(&path, b"fresh", None).expect("torn blob should be rewritten");
 
     assert_eq!(fs::read(&path).unwrap(), b"fresh");
-    let siblings: Vec<_> =
-        fs::read_dir(tmp.path()).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+    let siblings: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
+}
+
+/// Repairing a corrupt CAS blob with `ensure_cas_file` must keep the
+/// inode so hard-linked copies — other projects' `node_modules`
+/// entries importing the same blob — are healed by the same write
+/// (pnpm/pnpm#3445). `ensure_file`'s rename repair would swap the
+/// inode and leave the linked copy corrupt.
+#[cfg(unix)]
+#[test]
+fn cas_repair_preserves_inode_and_heals_hard_links() {
+    use std::os::unix::fs::MetadataExt;
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("cas_entry");
+    ensure_cas_file(&path, b"original", None).unwrap();
+    let linked = tmp.path().join("linked_copy");
+    fs::hard_link(&path, &linked).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
+
+    // Editing through the hard link corrupts the store blob in place,
+    // changing its size (an appended line) — the size-mismatch branch.
+    fs::write(&linked, b"hacked from another project").unwrap();
+
+    ensure_cas_file(&path, b"original", None).expect("in-place repair");
+
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    assert_eq!(fs::read(&linked).unwrap(), b"original", "hard-linked copy must be healed");
+}
+
+/// Same as above through the same-length byte-mismatch branch, where
+/// the size-check short-circuit does not fire.
+#[cfg(unix)]
+#[test]
+fn cas_repair_preserves_inode_for_same_length_corruption() {
+    use std::os::unix::fs::MetadataExt;
+
+    let tmp = tempdir().unwrap();
+    let path = tmp.path().join("cas_entry");
+    ensure_cas_file(&path, b"original", None).unwrap();
+    let linked = tmp.path().join("linked_copy");
+    fs::hard_link(&path, &linked).unwrap();
+    let ino_before = fs::metadata(&path).unwrap().ino();
+
+    fs::write(&linked, b"tampered").unwrap();
+
+    ensure_cas_file(&path, b"original", None).expect("in-place repair");
+
+    assert_eq!(fs::metadata(&path).unwrap().ino(), ino_before, "inode must survive repair");
+    assert_eq!(fs::read(&linked).unwrap(), b"original");
+}
+
+/// A corrupt blob without the owner-write bit refuses the in-place
+/// write open, so the repair falls back to the atomic rename and still
+/// restores the content.
+#[cfg(unix)]
+#[test]
+fn cas_repair_of_write_protected_blob_falls_back_to_rename() {
+    use std::os::unix::fs::PermissionsExt;
+
+    for mode in [0o444, 0o464] {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("cas_entry");
+        ensure_cas_file(&path, b"original", None).unwrap();
+        fs::write(&path, b"tampered").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
+
+        ensure_cas_file(&path, b"original", None).expect("repair of a write-protected blob");
+
+        assert_eq!(fs::read(&path).unwrap(), b"original", "mode {mode:o}");
+    }
 }
 
 #[test]
@@ -79,73 +151,56 @@ fn unix_mode_is_applied_on_new_files() {
 
     ensure_file(&path, b"#!/bin/sh\n", Some(0o755)).expect("mode-honouring write");
 
-    let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o700;
+    let mode = fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o700;
     assert_eq!(mode, 0o700, "owner rwx bits of 0o755 must survive any reasonable umask");
 }
 
 #[test]
 fn temp_path_strips_exec_suffix() {
-    let store_path = Path::new("/tmp/store/v11/files/ab/cdef-exec");
-    let tmp = temp_path_for(store_path);
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let shard_dir = Path::new("/tmp/store/v11/files/ab");
+    let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef-exec"));
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdefx"), "got {name}");
 }
 
 #[test]
 fn temp_path_passes_plain_basename_through() {
-    let store_path = Path::new("/tmp/store/v11/files/ab/cdef");
-    let tmp = temp_path_for(store_path);
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let shard_dir = Path::new("/tmp/store/v11/files/ab");
+    let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef"));
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdef"), "got {name}");
     assert_ne!(name, "cdef", "must include pid + counter suffix");
 }
 
-/// Windows AV / indexer interference surfaces as
-/// `PermissionDenied` or `ResourceBusy` and must trigger the
-/// retry loop there. On non-Windows those codes are essentially
-/// always permanent (permission / mount-point issues), so the
-/// classifier must return `false` to avoid pathologically
-/// spinning for 60 s on a misconfigured store dir. Any other
-/// kind must propagate immediately on every platform.
+/// The exclusive temp helper hands back an open handle inside the
+/// requested directory; distinct calls never collide.
 #[test]
-fn transient_rename_error_classifier() {
-    let permission_denied = io::Error::from(io::ErrorKind::PermissionDenied);
-    let resource_busy = io::Error::from(io::ErrorKind::ResourceBusy);
+fn create_exclusive_temp_file_yields_distinct_open_files() {
+    use std::io::Write;
 
-    #[cfg(windows)]
-    {
-        assert!(is_transient_rename_error(&permission_denied));
-        assert!(is_transient_rename_error(&resource_busy));
-    }
-    #[cfg(not(windows))]
-    {
-        assert!(
-            !is_transient_rename_error(&permission_denied),
-            "Unix PermissionDenied is permanent, must not retry",
-        );
-        assert!(
-            !is_transient_rename_error(&resource_busy),
-            "Unix ResourceBusy is effectively permanent, must not retry",
-        );
-    }
+    let tmp = tempdir().unwrap();
+    let (path_a, mut file_a) =
+        create_exclusive_temp_file(tmp.path(), "stream", None).expect("first temp file");
+    let (path_b, _file_b) =
+        create_exclusive_temp_file(tmp.path(), "stream", None).expect("second temp file");
 
-    // Non-transient kinds must never trigger the retry loop on
-    // any platform — a regression classifying e.g. `NotFound` as
-    // transient would spin for 60 s on a legitimately missing
-    // source.
-    for kind in [
-        io::ErrorKind::NotFound,
-        io::ErrorKind::AlreadyExists,
-        io::ErrorKind::InvalidInput,
-        io::ErrorKind::InvalidData,
-        io::ErrorKind::Unsupported,
-        io::ErrorKind::Other,
-    ] {
-        assert!(
-            !is_transient_rename_error(&io::Error::from(kind)),
-            "{kind:?} must not be classified as transient",
-        );
-    }
+    assert_ne!(path_a, path_b);
+    assert_eq!(path_a.parent().unwrap(), tmp.path());
+    file_a.write_all(b"payload").expect("write through the returned handle");
+    drop(file_a);
+    assert_eq!(fs::read(&path_a).unwrap(), b"payload");
 }
 
 /// A symlink at the target path — which on Unix returns `EEXIST`
@@ -191,25 +246,6 @@ fn dangling_symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
     assert_eq!(fs::read(&cas_path).unwrap(), b"fresh");
 }
 
-/// Happy-path rename (no transient errors) moves the payload
-/// atomically and removes the source. Correctness only — we
-/// deliberately don't assert a wall-clock bound because rename
-/// latency on loaded CI / slow filesystems can exceed any
-/// reasonable timing threshold without the retry path actually
-/// being taken.
-#[test]
-fn rename_with_retry_succeeds_when_no_error() {
-    let tmp = tempdir().unwrap();
-    let src = tmp.path().join("src");
-    let dst = tmp.path().join("dst");
-    fs::write(&src, b"payload").unwrap();
-
-    rename_with_retry(&src, &dst).expect("rename should succeed");
-
-    assert_eq!(fs::read(&dst).unwrap(), b"payload");
-    assert!(!src.exists(), "source should be gone after rename");
-}
-
 #[test]
 fn file_equals_bytes_classifies_match_mismatch_and_length_mismatch() {
     let tmp = tempdir().unwrap();
@@ -241,7 +277,9 @@ fn file_equals_bytes_handles_multi_chunk_files() {
     let path = tmp.path().join("big");
 
     // 20 KB: at least three 8 KB chunks.
-    let content: Vec<u8> = (0..20_000).map(|index| (index % 251) as u8).collect();
+    let content: Vec<u8> = (0..20_000)
+        .map(|index| (index % 251) as u8)
+        .collect();
     fs::write(&path, &content).unwrap();
 
     assert!(file_equals_bytes(&path, &content).unwrap());

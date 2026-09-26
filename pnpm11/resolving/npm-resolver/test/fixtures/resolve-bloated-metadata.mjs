@@ -49,7 +49,7 @@ const registry = `http://127.0.0.1:${server.address().port}/`
 const cacheDir = mkdtempSync(path.join(os.tmpdir(), 'pnpm-memory-bounded-'))
 const { resolveFromNpm } = createNpmResolver(createFetchFromRegistry({}), () => undefined, {
   cacheDir,
-  registries: { default: registry },
+  registriesByScope: { default: registry },
 })
 
 // Sequential on purpose, so the heap cap measures what is retained across

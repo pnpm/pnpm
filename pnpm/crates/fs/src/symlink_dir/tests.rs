@@ -8,7 +8,9 @@
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
-use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+use super::{
+    ForceSymlinkOutcome, TriedOnce, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir,
+};
 #[cfg(windows)]
 use super::{is_reparse_point, relative_target_for};
 use std::fs;
@@ -18,8 +20,14 @@ use tempfile::tempdir;
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("packages").join("pkg-a");
-    let link = root.path().join("node_modules").join("pkg-a");
+    let target = root
+        .path()
+        .join("packages")
+        .join("pkg-a");
+    let link = root
+        .path()
+        .join("node_modules")
+        .join("pkg-a");
     fs::create_dir_all(&target).expect("create target dir");
     fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
 
@@ -32,6 +40,50 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
         "symlink contents must be the relative path from link parent to target",
     );
     assert!(link.exists(), "symlink must resolve to an existing directory");
+}
+
+#[test]
+fn force_absolute_symlink_dir_keeps_the_target_as_given() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("env");
+    let link = root
+        .path()
+        .join("project")
+        .join(".venv");
+    fs::create_dir_all(&target).expect("create target dir");
+    fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
+
+    force_absolute_symlink_dir(&target, &link).expect("first link");
+    let outcome = force_absolute_symlink_dir(&target, &link).expect("second link");
+    assert!(outcome.reused, "an up-to-date absolute link is reused");
+
+    let contents = read_symlink_dir(&link).expect("read the link");
+    eprintln!("contents: {}", contents.display());
+    assert!(contents.is_absolute(), "link contents must be the target as given");
+    assert_eq!(
+        dunce::canonicalize(&contents).unwrap(),
+        dunce::canonicalize(&target).unwrap(),
+        "link contents must resolve to the target",
+    );
+}
+
+#[test]
+fn force_symlink_dir_resolves_parent_components_in_link_and_target() {
+    let root = tempdir().expect("create temp dir");
+    let workspace = root.path().join("apps/desktop");
+    fs::create_dir_all(&workspace).unwrap();
+    let target = root.path().join("libs/b");
+    let link = workspace.join("../../libs/a/node_modules/b");
+    fs::create_dir_all(&target).unwrap();
+
+    force_symlink_dir(&target, &link).unwrap();
+
+    assert_eq!(fs::canonicalize(&link).unwrap(), fs::canonicalize(&target).unwrap());
+    #[cfg(unix)]
+    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new("../../b"));
+    let outcome = force_symlink_dir(&workspace.join("../../libs/b"), &link).unwrap();
+    eprintln!("reuse outcome: {outcome:?}");
+    assert!(outcome.reused);
 }
 
 #[test]
@@ -71,8 +123,9 @@ fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
     let link = root.path().join("link");
     fs::create_dir_all(&target).expect("create target");
 
-    let outcome = super::force_symlink_inner(&target, &link, false, create_then_warn)
-        .expect("completed link should be reused");
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), create_then_warn)
+            .expect("completed link should be reused");
 
     assert!(outcome.reused);
     assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
@@ -123,10 +176,83 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
 }
 
 #[test]
+fn force_symlink_dir_replaces_a_stale_ignored_occupant() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    let ignored_path = root.path().join(".ignored_link");
+    fs::create_dir_all(&target).expect("create target");
+    fs::create_dir_all(link.join("nested")).expect("seed occupant dir");
+    fs::write(link.join("nested/file"), b"fresh occupant").expect("seed occupant file");
+    fs::create_dir_all(ignored_path.join("nested")).expect("seed stale ignored dir");
+    fs::write(ignored_path.join("nested/file"), b"stale occupant").expect("seed stale file");
+
+    let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
+    assert!(!outcome.reused);
+
+    let resolved_link = fs::canonicalize(&link).expect("canonicalize the new symlink");
+    let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
+    assert_eq!(resolved_link, resolved_target);
+    assert_eq!(
+        fs::read(ignored_path.join("nested/file")).expect("read displaced occupant"),
+        b"fresh occupant",
+        "the displaced occupant must replace the stale `.ignored_` tree",
+    );
+}
+
+#[test]
+fn remove_occupant_clears_files_directories_and_missing_paths() {
+    let root = tempdir().expect("create temp dir");
+    let file = root.path().join("file");
+    let dir = root.path().join("dir");
+    fs::write(&file, b"occupant").expect("seed file");
+    fs::create_dir_all(dir.join("nested")).expect("seed dir");
+    fs::write(dir.join("nested/file"), b"occupant").expect("seed nested file");
+
+    super::replace::remove_occupant(&file).expect("remove file occupant");
+    super::replace::remove_occupant(&dir).expect("remove dir occupant");
+    super::replace::remove_occupant(&root.path().join("missing"))
+        .expect("missing path is not an error");
+
+    for path in [&file, &dir] {
+        let error = fs::symlink_metadata(path).expect_err("occupant should be gone");
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{path:?}");
+    }
+}
+
+#[test]
+fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
+    use std::io::{Error, ErrorKind};
+
+    for kind in
+        [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
+    {
+        assert!(
+            super::replace::rename_error_allows_destination_removal(&Error::from(kind)),
+            "{kind:?}",
+        );
+    }
+    assert_eq!(
+        super::replace::rename_error_allows_destination_removal(&Error::from(
+            ErrorKind::ResourceBusy
+        )),
+        crate::retry::file_locks_are_transient(),
+    );
+    assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
+        ErrorKind::NotFound
+    )));
+}
+
+#[test]
 fn force_symlink_dir_creates_missing_parent_directories() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
-    let link = root.path().join("deeply").join("nested").join("modules").join("link");
+    let link = root
+        .path()
+        .join("deeply")
+        .join("nested")
+        .join("modules")
+        .join("link");
     fs::create_dir_all(&target).expect("create target");
     assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call");
 
@@ -157,13 +283,19 @@ fn windows_scoped_alias_path_gets_native_separators() {
     let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
         .join("@scope/name");
     assert!(
-        mixed.as_os_str().to_string_lossy().contains('/'),
+        mixed
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
     );
 
     let native = to_native_separators(&mixed);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -181,7 +313,10 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
         std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -210,14 +345,23 @@ fn windows_native_path_is_borrowed_unchanged() {
 #[test]
 fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    let target = root
+        .path()
+        .join("store")
+        .join("dep")
+        .join("node_modules")
+        .join("dep");
     fs::create_dir_all(&target).expect("create target dir");
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
     // point (with the directory attribute) but its target is now missing —
     // the state a cache restore leaves behind.
-    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let node_modules = root
+        .path()
+        .join("store")
+        .join("consumer")
+        .join("node_modules");
     let junction_target = root.path().join("gone");
     fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
     fs::create_dir_all(&junction_target).expect("create junction target");
@@ -241,22 +385,24 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     fs::create_dir_all(&target).expect("create target");
 
     for iteration in 0..10 {
-        let link = root.path().join(format!("link-{iteration}"));
+        let link = root
+            .path()
+            .join(format!("link-{iteration}"));
         let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..32)
-                .map(|_| {
-                    scope.spawn(|| {
-                        barrier.wait();
-                        super::force_symlink_inner(
-                            &target,
-                            &link,
-                            false,
-                            super::windows::create_junction,
-                        )
-                    })
-                })
-                .collect();
+            let worker = || {
+                barrier.wait();
+                super::force_symlink_inner(
+                    &target,
+                    &link,
+                    TriedOnce::default(),
+                    super::windows::create_junction,
+                )
+            };
+            let mut handles = Vec::with_capacity(32);
+            for _ in 0..32 {
+                handles.push(scope.spawn(worker));
+            }
             handles
                 .into_iter()
                 .map(|handle| handle.join().expect("junction worker panicked"))
@@ -268,7 +414,10 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
             .map(|result| result.expect("concurrent junction creation must succeed"))
             .collect();
         assert_eq!(
-            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            outcomes
+                .iter()
+                .filter(|outcome| !outcome.reused)
+                .count(),
             1,
             "one worker must create the junction and every other worker must reuse it",
         );
@@ -290,7 +439,7 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     fs::create_dir(&staging).expect("create staged junction stand-in");
 
     let rename_error = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
-    let error = super::windows::discard_staging_after_rename(&staging, &link, rename_error);
+    let error = super::windows::discard_staging_after_commit(&staging, &link, rename_error);
 
     assert_ne!(
         error.kind(),
@@ -298,6 +447,48 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
         "a genuine rename failure with no destination must not look like a reusable link",
     );
     assert!(!staging.exists(), "the staged junction must be cleaned up");
+}
+
+/// An editor or dev server holding a file under a directory installed by
+/// another package manager keeps that directory from being moved aside.
+#[cfg(windows)]
+#[test]
+fn windows_locked_occupant_error_names_the_directory() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+    fs::create_dir_all(&link).expect("create occupant dir");
+    let held_file = link.join("index.d.ts");
+    fs::write(&held_file, "").expect("seed occupant file");
+    // Permit normal reads and writes, but omit FILE_SHARE_DELETE.
+    let _handle = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(&held_file)
+        .expect("hold the occupant file");
+
+    let started = std::time::Instant::now();
+    let error = force_symlink_dir(&target, &link).expect_err("a held occupant cannot be moved");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(
+        message.contains(&format!(r#""{}""#, link.display())),
+        "the error must name the directory: {message}",
+    );
+    assert!(message.contains("in use by another process"), "the error must say why: {message}");
+    let os_error = std::error::Error::source(&error)
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert!(
+        matches!(os_error, Some(5 | 32 | 33)),
+        "the rename error must stay the source: {os_error:?}",
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "took {:?}", started.elapsed());
+    assert!(held_file.is_file(), "the occupant must stay in place");
 }
 
 #[cfg(windows)]
@@ -340,8 +531,16 @@ fn windows_privilege_not_held_falls_back_to_junctions() {
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("node_modules").join("@scope").join("name");
-    let modules = root.path().join("app").join("node_modules");
+    let target = root
+        .path()
+        .join("store")
+        .join("node_modules")
+        .join("@scope")
+        .join("name");
+    let modules = root
+        .path()
+        .join("app")
+        .join("node_modules");
     let link = modules.join("@scope/name");
     fs::create_dir_all(&target).expect("create target dir");
 
@@ -385,8 +584,18 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
 #[test]
 fn force_symlink_dir_reuses_relative_link_across_parents() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("b@2").join("node_modules").join("b");
-    let link = root.path().join("store").join("a@1").join("node_modules").join("b");
+    let target = root
+        .path()
+        .join("store")
+        .join("b@2")
+        .join("node_modules")
+        .join("b");
+    let link = root
+        .path()
+        .join("store")
+        .join("a@1")
+        .join("node_modules")
+        .join("b");
     fs::create_dir_all(&target).expect("create target dir");
 
     let first = force_symlink_dir(&target, &link).expect("first call");
@@ -406,4 +615,61 @@ fn force_symlink_dir_reuses_relative_link_across_parents() {
         ForceSymlinkOutcome { reused: true, warning: None },
         "an up-to-date relative link must be reused, not rewritten",
     );
+}
+
+/// The race behind the Windows failures of the concurrent global-virtual-store
+/// install suite: the create loses to another installer, and by the time this
+/// one looks, that installer's link is gone again. The conflict `initial_err`
+/// reports no longer exists, so the create is worth reissuing.
+#[test]
+fn force_symlink_inner_reissues_a_create_whose_conflict_has_gone() {
+    fn conflict_once_then_create(
+        target: &std::path::Path,
+        link: &std::path::Path,
+    ) -> std::io::Result<()> {
+        thread_local! {
+            static CONFLICTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        if !CONFLICTED.with(|conflicted| conflicted.replace(true)) {
+            return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+        }
+        super::symlink_dir(target, link)
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), conflict_once_then_create)
+            .expect("a conflict that is gone must not fail the link");
+
+    eprintln!("outcome: {outcome:?}");
+    assert!(!outcome.reused, "the retry created the link, so it is not a reuse");
+    eprintln!("link {} -> target {}", link.display(), target.display());
+    assert_eq!(
+        fs::canonicalize(&link).expect("canonicalize the link"),
+        fs::canonicalize(&target).expect("canonicalize the target"),
+        "the link must resolve to the target",
+    );
+}
+
+/// The reissue is spent once. A create that keeps reporting a conflict over a
+/// path holding nothing has to surface that, not recurse forever.
+#[test]
+fn force_symlink_inner_surfaces_a_conflict_that_never_materializes() {
+    fn always_conflicts(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let error = super::force_symlink_inner(&target, &link, TriedOnce::default(), always_conflicts)
+        .expect_err("a conflict that never resolves must surface");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
 }

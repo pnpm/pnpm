@@ -749,6 +749,193 @@ test('override narrows auto-installed peer dep range on subsequent install', asy
   }
 })
 
+test('a removal override keeps an optional peer from being supplied by a sibling workspace package', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        devDependencies: { '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+    overrides: {
+      '@pnpm.e2e/peer-a': '1.0.0',
+      '@pnpm.e2e/abc-optional-peers>@pnpm.e2e/peer-c': '-',
+    },
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version).toBe('1.0.0(@pnpm.e2e/peer-a@1.0.0)')
+  expect(lockfile.importers.project2.devDependencies?.['@pnpm.e2e/peer-c']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
+    '@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)',
+    '@pnpm.e2e/peer-a@1.0.0',
+    '@pnpm.e2e/peer-c@1.0.0',
+  ])
+})
+
+function installOptionalPeerUserNextToSibling (opts: {
+  projectDeps: Record<string, string>
+  rootDeps?: Record<string, string>
+  siblingDeps?: Record<string, string>
+  additionalProjects?: Array<{ name: string, dependencies: Record<string, string> }>
+}) {
+  const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/has-optional-y-v2-peer-user': '1.0.0',
+          ...opts.projectDeps,
+        },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        version: '1.0.0',
+        dependencies: opts.siblingDeps ?? {
+          '@pnpm.e2e/y-v2-peer-user': '1.0.0',
+          '@pnpm/y': '2.0.0',
+        },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  if (opts.additionalProjects != null) {
+    for (const project of opts.additionalProjects) {
+      allProjects.push({
+        buildIndex: 0,
+        manifest: {
+          name: project.name,
+          version: '1.0.0',
+          dependencies: project.dependencies,
+        },
+        rootDir: path.resolve(project.name) as ProjectRootDir,
+      })
+    }
+  }
+  if (opts.rootDeps != null) {
+    allProjects.push({
+      buildIndex: 0,
+      manifest: { name: 'root', version: '1.0.0', dependencies: opts.rootDeps },
+      rootDir: process.cwd() as ProjectRootDir,
+    })
+  }
+  return mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+  }))
+}
+
+// https://github.com/pnpm/pnpm/issues/13989
+test('an optional peer is not supplied by a sibling workspace package whose own peers the project provides at a rejected version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '1.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is not supplied by a sibling workspace package when the project aliases a conflicting peer', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: { 'my-y': 'npm:@pnpm/y@1.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is supplied when an alias precedes its canonical package resolving to an accepted version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {
+      'my-y': 'npm:@pnpm/y@1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
+    .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
+test('an optional peer is supplied when a canonical package precedes its alias resolving to an accepted version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {
+      '@pnpm/y': '2.0.0',
+      'my-y': 'npm:@pnpm/y@1.0.0',
+    },
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
+    .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
+test('an optional peer is not supplied by a sibling workspace package whose own peers the workspace root provides at a rejected version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: {}, rootDeps: { '@pnpm/y': '1.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is not supplied when the workspace root hoists an incompatible peer in the same wave', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({
+    projectDeps: {},
+    rootDeps: { '@pnpm.e2e/has-optional-y-v1': '1.0.0' },
+    additionalProjects: [
+      { name: 'project3', dependencies: { '@pnpm/y': '1.0.0' } },
+    ],
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is supplied by a sibling workspace package whose own peers the project provides at an accepted version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '2.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version)
+    .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
+})
+
+test('an optional peer is not supplied from the lockfile by a package whose own peers the project provides at a rejected version', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '2.0.0' } })
+  await installOptionalPeerUserNextToSibling({ projectDeps: { '@pnpm/y': '1.0.0' }, siblingDeps: { '@pnpm/y': '2.0.0' } })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
 test('a locked optional peer version is not rewritten when a sibling workspace package declares a lower version', async () => {
   // Regression test for https://github.com/pnpm/pnpm/pull/12075
   // The optional peer is locked at the higher 1.0.1. A sibling workspace
@@ -826,4 +1013,152 @@ test('a root dependency does not override the peers provided inside a self-conta
   }
   // The root keeps its own explicitly declared version.
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
+})
+
+test('a package entry keeps the declared peerDependencies ranges when the graph is re-resolved with minimumReleaseAge', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+  const project = prepareEmpty()
+  // pkg-with-events-and-peers declares `@pnpm.e2e/peer-c` as `*`, while
+  // abc-optional-peers declares the same peer as `^1.0.0`. Both peers are
+  // auto-installed, so each entry must still record the range its own manifest
+  // declares, not a version synthesized from the other declarer.
+  const manifest = (fooVersion: string): PackageManifest => ({
+    name: 'root',
+    version: '0.0.0',
+    dependencies: {
+      '@pnpm.e2e/abc-optional-peers': '1.0.0',
+      '@pnpm.e2e/foo': fooVersion,
+      '@pnpm.e2e/pkg-with-events-and-peers': '1.0.0',
+    },
+  })
+  const opts = () => testDefaults({ autoInstallPeers: true, minimumReleaseAge: 1440 })
+  await install(manifest('100.0.0'), opts())
+
+  const declaredPeerRanges = () => {
+    const { packages } = project.readLockfile()
+    return {
+      abcOptionalPeers: packages['@pnpm.e2e/abc-optional-peers@1.0.0'].peerDependencies,
+      pkgWithEventsAndPeers: packages['@pnpm.e2e/pkg-with-events-and-peers@1.0.0'].peerDependencies,
+    }
+  }
+  const expectedPeerRanges = {
+    abcOptionalPeers: {
+      '@pnpm.e2e/peer-a': '^1.0.0',
+      '@pnpm.e2e/peer-b': '^1.0.0',
+      '@pnpm.e2e/peer-c': '^1.0.0',
+    },
+    pkgWithEventsAndPeers: {
+      '@pnpm.e2e/peer-c': '*',
+    },
+  }
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+
+  // Bumping an unrelated dependency re-resolves the graph against the lockfile
+  // written above.
+  await install(manifest('100.1.0'), opts())
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+})
+
+test.each([false, true])('auto installs transitive peers shared at different depths (reverse importers: %s)', async (reverse) => {
+  const manifests: PackageManifest[] = [
+    { name: 'app-a', version: '1.0.0', dependencies: { parent: 'file:../parent', 'is-positive': '1.0.0' } },
+    { name: 'app-b', version: '1.0.0', dependencies: { grandparent: 'file:../grandparent' } },
+  ]
+  preparePackages([
+    ...manifests.map((manifest) => ({ location: manifest.name!, package: manifest })),
+    { location: 'parent', package: { name: 'parent', version: '1.0.0', dependencies: { child: 'file:../child' } } },
+    { location: 'grandparent', package: { name: 'grandparent', version: '1.0.0', dependencies: { parent: 'file:../parent' } } },
+    { location: 'child', package: { name: 'child', version: '1.0.0', peerDependencies: { 'is-positive': '1.0.0' } } },
+  ])
+  const allProjects = manifests.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name!) as ProjectRootDir,
+  }))
+  if (reverse) allProjects.reverse()
+  const mutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+  const opts = testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+    strictPeerDependencies: true,
+    resolvePeersFromWorkspaceRoot: false,
+  })
+  await mutateModules(mutations, opts)
+  const project = assertProject(process.cwd())
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((key) => key.startsWith('child@'))).toStrictEqual([
+    'child@file:child(is-positive@1.0.0)',
+  ])
+  expect(lockfile.importers['app-b'].dependencies?.grandparent.version).toBe('file:grandparent(is-positive@1.0.0)')
+  await mutateModules(mutations, { ...opts, frozenLockfile: true })
+  expect(project.readLockfile()).toStrictEqual(lockfile)
+})
+
+// https://github.com/pnpm/pnpm/issues/14928
+test('an update that names another package keeps the version of a peer dependency the project installs automatically', async () => {
+  const project = prepareEmpty()
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+        peerDependencies: { '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        dependencies: { '@pnpm.e2e/peer-c': '1.0.1' },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  const opts = testDefaults({ allProjects, autoInstallPeers: true })
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), opts)
+  expect(project.readLockfile().importers.project1.dependencies?.['@pnpm.e2e/peer-c']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({
+    dependencySelectors: [],
+    mutation: 'installSome',
+    rootDir,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/peer-a',
+  })), { ...opts, depth: Infinity })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/peer-c']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers'].version).toContain('(@pnpm.e2e/peer-c@1.0.0)')
+})
+
+// https://github.com/pnpm/pnpm/issues/10486
+const updatePeerC = { depth: Infinity, update: true, updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/peer-c' }
+test.each([
+  { name: 'an update that names the peer', deps: [], opts: updatePeerC, peerC: '1.0.1' },
+  { name: 'a depth-limited update that names the peer', deps: [], opts: { ...updatePeerC, depth: 100 }, peerC: '1.0.1' },
+  { name: 'an update that names the peer, while a regular dependency pins it,', deps: ['@pnpm.e2e/abc-regular-deps@1.0.0'], opts: updatePeerC, peerC: '1.0.0' },
+  { name: 'an update that names another package', deps: [], opts: { ...updatePeerC, updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/foo' }, peerC: '1.0.0' },
+  { name: 'an install', deps: [], opts: {}, peerC: '1.0.0' },
+])('$name moves an automatically installed transitive peer dependency to $peerC', async ({ deps, opts, peerC }) => {
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-ab@1.0.0', ...deps], testDefaults({ autoInstallPeers: true }))
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+
+  await install(manifest, testDefaults({ autoInstallPeers: true, ...opts }))
+
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
+    `@pnpm.e2e/peer-c@${peerC}`,
+  ])
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/abc-parent-with-ab'].version).toBe(`1.0.0(@pnpm.e2e/peer-c@${peerC})`)
 })

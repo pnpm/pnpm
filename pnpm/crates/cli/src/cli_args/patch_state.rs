@@ -1,12 +1,12 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::PackageKey;
+use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    env, fs,
-    io::{self, Write},
+    env, fs, io,
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -86,6 +86,14 @@ pub(crate) fn read_edit_dir_state(
         .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
     let key = edit_dir_key(edit_dir)?;
     Ok(state.get(&key).cloned())
+}
+
+pub(crate) fn read_all_edit_dir_states(
+    modules_dir: &Path,
+) -> Result<BTreeMap<String, EditDirState>, StateFileError> {
+    let path = checked_state_file_path_for_read(modules_dir)?;
+    let Some(text) = read_state_file_text(&path)? else { return Ok(BTreeMap::new()) };
+    serde_json::from_str(&text).map_err(|source| StateFileError::Parse { path, source })
 }
 
 pub(crate) fn write_edit_dir_state(

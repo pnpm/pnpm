@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { depPathToFilename } from '@pnpm/deps.path'
 import {
   addDependenciesToPackage,
@@ -326,6 +327,35 @@ test('re-adding a git repo with a different tag', async () => {
       },
     }
   )
+})
+
+// https://github.com/pnpm/pnpm/issues/13338
+test('a git-hosted tarball reused from the store keeps its integrity in a fresh lockfile', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+    .times(2)
+  const manifest = { dependencies: { 'is-negative': 'github:kevva/is-negative#1.0.0' } }
+  const coldStoreOpts = testDefaults({ lockfileOnly: true })
+  await install(manifest, coldStoreOpts)
+  const coldStorePackages = project.readLockfile().packages
+
+  fs.rmSync(WANTED_LOCKFILE)
+  await install(manifest, testDefaults({ lockfileOnly: true, storeDir: coldStoreOpts.storeDir }))
+
+  expect(coldStorePackages).toStrictEqual({
+    'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
+      resolution: {
+        tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
+        integrity: expect.stringMatching(/^sha512-/),
+        gitHosted: true,
+      },
+      version: '1.0.0',
+      engines: { node: '>=0.10.0' },
+    },
+  })
+  expect(project.readLockfile().packages).toStrictEqual(coldStorePackages)
 })
 
 test('should not update when adding unrelated dependency', async () => {

@@ -6,12 +6,15 @@
 //! `--frozen-lockfile --lockfile-only` combination still validates the
 //! on-disk lockfile against the manifest and fails when it is stale.
 
-use crate::_utils;
 pub use _utils::append_workspace_yaml_key;
+
+mod local_overrides;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::minimal_tarball,
     fs::get_all_files,
@@ -33,7 +36,9 @@ fn cas_blobs(store_dir: &Path) -> Vec<String> {
     get_all_files(store_dir)
         .into_iter()
         .filter(|path| {
-            Path::new(path).components().any(|component| component.as_os_str() == "files")
+            Path::new(path)
+                .components()
+                .any(|component| component.as_os_str() == "files")
         })
         .collect()
 }
@@ -45,8 +50,13 @@ fn cas_blobs(store_dir: &Path) -> Vec<String> {
 /// properties.
 #[test]
 fn writes_lockfile_without_downloading_or_linking() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -61,7 +71,10 @@ fn writes_lockfile_without_downloading_or_linking() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -89,7 +102,10 @@ fn writes_lockfile_without_downloading_or_linking() {
     );
 
     // Repeat run: still resolve-and-write only, nothing materialized.
-    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     assert!(
         !workspace.join("node_modules").exists(),
         "node_modules must stay absent on a repeat --lockfile-only run",
@@ -101,7 +117,10 @@ fn writes_lockfile_without_downloading_or_linking() {
 
     // A subsequent ordinary install materializes from the lockfile the
     // --lockfile-only run produced, proving it left a usable state.
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0").exists(),
         "a normal install after --lockfile-only must materialize the virtual store",
@@ -117,8 +136,13 @@ fn writes_lockfile_without_downloading_or_linking() {
 /// the quoted name are what CI logs show.
 #[test]
 fn frozen_lockfile_only_rejects_a_drifted_setting() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -127,7 +151,10 @@ fn frozen_lockfile_only_rejects_a_drifted_setting() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     append_workspace_yaml_key(&workspace, "autoInstallPeers", false);
 
@@ -159,8 +186,13 @@ fn frozen_lockfile_only_rejects_a_drifted_setting() {
 /// fails when the manifest has drifted, never rewriting the lockfile.
 #[test]
 fn frozen_lockfile_only_rejects_a_stale_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -170,7 +202,10 @@ fn frozen_lockfile_only_rejects_a_stale_lockfile() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     // Drift the manifest away from the locked specifier.
     fs::write(
@@ -207,8 +242,13 @@ fn frozen_lockfile_only_rejects_a_stale_lockfile() {
 /// (`preferFrozenLockfile`) repeat run covered above.
 #[test]
 fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -218,7 +258,10 @@ fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
     .expect("write package.json");
 
     // Seed an up-to-date lockfile with a plain lockfile-only run.
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "the seeding run must write pnpm-lock.yaml");
 
@@ -252,8 +295,13 @@ fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
 /// flag produces is the lockfile, which `lockfile: false` disables.
 #[test]
 fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -270,8 +318,10 @@ fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
     yaml.push_str("lockfile: false\n");
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 
-    let output =
-        pacquet.with_args(["install", "--lockfile-only"]).output().expect("spawn pacquet install");
+    let output = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("spawn pacquet install");
 
     assert!(
         !output.status.success(),
@@ -296,8 +346,13 @@ fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
 /// lockfile to include it — all without materializing `node_modules`.
 #[test]
 fn lockfile_only_updates_importers_when_a_project_is_added() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -326,7 +381,10 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     )
     .expect("write project-1 package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -394,8 +452,10 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
             },
         },
     });
-    let packument_mock =
-        registry.mock("GET", "/unpinned").with_body(packument.to_string()).create();
+    let packument_mock = registry
+        .mock("GET", "/unpinned")
+        .with_body(packument.to_string())
+        .create();
     let tarball_mock = registry
         .mock("GET", tarball_path)
         .with_body(minimal_tarball("unpinned", "1.0.0"))
@@ -408,7 +468,10 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
     )
     .expect("write package.json");
 
-    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(
@@ -422,11 +485,70 @@ fn computes_the_integrity_of_an_unpinned_tarball() {
     packument_mock.assert();
     tarball_mock.assert();
 
-    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(
         workspace.join("node_modules/unpinned/package.json").exists(),
         "the frozen install must materialize the unpinned dependency",
     );
+
+    drop(root);
+}
+
+/// A registry that advertises a tarball URL with an explicit default port
+/// (e.g. `:443` for HTTPS or `:80` for HTTP) must have the default port
+/// stripped before saving the tarball URL to the lockfile.
+#[test]
+fn strips_default_ports_from_registry_tarball_urls_in_lockfile() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let packument = serde_json::json!({
+        "name": "default-port-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2020-01-15T12:00:00.000Z",
+        "time": { "1.0.0": "2020-01-10T08:30:00.000Z" },
+        "versions": {
+            "1.0.0": {
+                "name": "default-port-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry.npmjs.org:443/default-port-pkg/-/default-port-pkg-1.0.0.tgz",
+                },
+            },
+        },
+    });
+    let packument_mock = registry
+        .mock("GET", "/default-port-pkg")
+        .with_body(packument.to_string())
+        .create();
+    write_registry_workspace(&workspace, &registry.url());
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "default-port-pkg": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        !lockfile.contains(":443"),
+        "the lockfile must not contain the default port :443:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains(
+            "https://registry.npmjs.org/default-port-pkg/-/default-port-pkg-1.0.0.tgz"
+        ),
+        "the lockfile must record the normalized tarball URL without default port:\n{lockfile}",
+    );
+    packument_mock.assert();
 
     drop(root);
 }

@@ -40,8 +40,21 @@
 //! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
-//! - [`get_registry_name`] — `host[:port]` with `:` → `+` (a
-//!   filesystem-safe encoding).
+//! - [`get_registry_name`] — a registry URL's host, port and path as
+//!   one filesystem-safe directory name, and [`decode_registry_name`]
+//!   to read it back.
+//! - [`is_unreadable_registry_key`] — whether a directory name in the
+//!   mirror root predates the current key shape, so nothing can read it.
+
+pub use registry_key::{
+    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
+    is_unreadable_registry_key,
+};
+
+mod read_records;
+use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
+
+mod registry_key;
 
 use std::{
     collections::HashMap,
@@ -57,8 +70,9 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::MetadataCacheScope;
-use pacquet_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
+use pnpm_network::{MetadataCacheScope, redact_and_sanitize, redact_url_for_display};
+use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -106,7 +120,6 @@ pub enum SaveMetaError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Encode(#[error(source)] EncodeMetaError),
     #[display("Failed to rename mirror temp {temp:?} → {target:?}: {error}")]
@@ -171,59 +184,10 @@ pub fn get_pkg_mirror_path(
 ) -> Result<PathBuf, EncodeRegistryError> {
     let registry_name = get_registry_name(registry)?;
     let encoded_name = encode_pkg_name(pkg_name);
-    Ok(cache_dir.join(meta_dir).join(registry_name).join(format!("{encoded_name}.jsonl")))
-}
-
-/// Failure parsing a registry URL into a filesystem-safe slug.
-/// Real-world registries always carry a host; this only triggers on
-/// malformed config.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum EncodeRegistryError {
-    #[display("Failed to parse registry URL {url:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_PARSE_REGISTRY))]
-    ParseUrl {
-        #[error(not(source))]
-        url: String,
-        error: String,
-    },
-    #[display("Registry URL {url:?} has no host")]
-    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_MIRROR_MISSING_HOST))]
-    MissingHost {
-        #[error(not(source))]
-        url: String,
-    },
-}
-
-/// `host[:port]` form of a registry URL with `:` rewritten to `+` so
-/// the result is filesystem-safe. Only an explicit port participates;
-/// the implicit-default port stays out of the slug so a registry served
-/// on its scheme default hashes consistently across configs.
-pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
-    let parsed = reqwest::Url::parse(registry).map_err(|error| EncodeRegistryError::ParseUrl {
-        url: registry.to_string(),
-        error: error.to_string(),
-    })?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| EncodeRegistryError::MissingHost { url: registry.to_string() })?;
-    Ok(match parsed.port() {
-        Some(port) => format!("{host}+{port}"),
-        None => host.to_string(),
-    })
-}
-
-/// Filesystem-safe form of a package name. A mixed-case name gets a
-/// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
-/// default) can't collide it with a lowercase sibling.
-#[must_use]
-pub fn encode_pkg_name(pkg_name: &str) -> String {
-    let lowered = pkg_name.to_lowercase();
-    if pkg_name == lowered {
-        return pkg_name.to_string();
-    }
-    let digest = Sha256::digest(pkg_name.as_bytes());
-    format!("{pkg_name}_{digest:x}")
+    Ok(cache_dir
+        .join(meta_dir)
+        .join(registry_name)
+        .join(format!("{encoded_name}.jsonl")))
 }
 
 /// Magic + format version. The trailing space separates it from the
@@ -338,28 +302,6 @@ pub fn save_meta_ndjson(
 /// Strip full packuments down to the fields pnpm keeps when
 /// `filterMetadata` is enabled.
 pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
-    const VERSION_KEYS: &[&str] = &[
-        "name",
-        "version",
-        "bin",
-        "directories",
-        "devDependencies",
-        "optionalDependencies",
-        "dependencies",
-        "peerDependencies",
-        "dist",
-        "engines",
-        "peerDependenciesMeta",
-        "cpu",
-        "os",
-        "libc",
-        "deprecated",
-        "bundleDependencies",
-        "bundledDependencies",
-        "hasInstallScript",
-        "_npmUser",
-    ];
-
     let mut versions = Map::new();
     for (version, json) in meta.versions.fragments() {
         let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
@@ -389,20 +331,21 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
         pkg.insert("modified".to_string(), Value::String(modified.clone()));
     }
 
-    let mut cleared: Package =
-        serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
+    let mut cleared: Package = serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
     cleared.etag.clone_from(&meta.etag);
     Ok(cleared)
 }
 
 fn meta_modified(meta: &Package) -> Option<String> {
-    meta.modified.clone().or_else(|| {
-        meta.time
-            .as_ref()
-            .and_then(|time| time.get("modified"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    })
+    meta.modified
+        .clone()
+        .or_else(|| {
+            meta.time
+                .as_ref()
+                .and_then(|time| time.get("modified"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
 }
 
 /// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
@@ -431,18 +374,20 @@ fn raise_open_file_limit_once() {
                 return;
             }
             let request = libc::rlimit { rlim_cur: target, rlim_max: limit.rlim_max };
-            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) != 0 {
-                // macOS rejects soft limits above `kern.maxfilesperproc`
-                // even when the hard limit reads unlimited; 10240 is
-                // the historically safe `OPEN_MAX` ceiling there.
-                #[cfg(target_os = "macos")]
-                {
-                    let fallback = limit.rlim_max.min(10240);
-                    if fallback > limit.rlim_cur {
-                        let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
-                        let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request);
-                    }
-                }
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) == 0 {
+                return;
+            }
+            // macOS rejects soft limits above `kern.maxfilesperproc`
+            // even when the hard limit reads unlimited; 10240 is
+            // the historically safe `OPEN_MAX` ceiling there. No other
+            // platform has a second ceiling worth retrying under.
+            if !cfg!(target_os = "macos") {
+                return;
+            }
+            let fallback = limit.rlim_max.min(10240);
+            if fallback > limit.rlim_cur {
+                let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
+                let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request);
             }
         }
     });
@@ -467,16 +412,11 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     // Magic + two decimal lengths fit well inside this; the headers
     // record is ~100 bytes of etag + timestamp.
     let mut buf = [0u8; 1024];
-    let mut filled = 0usize;
-    while filled < buf.len() {
-        let n = file.read(&mut buf[filled..]).ok()?;
-        if n == 0 {
-            break;
-        }
-        filled += n;
-    }
+    let filled = fill_probe(file, &mut buf)?;
     let chunk = &buf[..filled];
-    let newline = chunk.iter().position(|&byte| byte == b'\n')?;
+    let newline = chunk
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
     let Some((headers_len, _)) = parse_mirror_magic(line) else {
         return serde_json::from_str(line).ok();
@@ -485,18 +425,39 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         return None;
     }
     let headers_start = newline + 1;
-    let headers_end = headers_start.checked_add(headers_len)?;
-    let headers_json: std::borrow::Cow<'_, [u8]> = if headers_end <= chunk.len() {
-        std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end])
-    } else {
-        // Headers record larger than the probe buffer — read the rest.
-        let mut rest = vec![0u8; headers_end - chunk.len()];
-        file.read_exact(&mut rest).ok()?;
-        let mut whole = chunk[headers_start..].to_vec();
-        whole.extend_from_slice(&rest);
-        std::borrow::Cow::Owned(whole)
-    };
+    let headers_json =
+        read_headers_json(file, chunk, headers_start, headers_start.checked_add(headers_len)?)?;
     serde_json::from_slice(&headers_json).ok()
+}
+
+/// Fill `buf` from `file` until it is full or the file ends.
+fn fill_probe(file: &mut File, buf: &mut [u8]) -> Option<usize> {
+    let mut filled = 0usize;
+    while filled < buf.len() {
+        let n = file.read(&mut buf[filled..]).ok()?;
+        if n == 0 {
+            break;
+        }
+        filled += n;
+    }
+    Some(filled)
+}
+
+/// The headers record, read past the probe buffer when it is larger.
+fn read_headers_json<'c>(
+    file: &mut File,
+    chunk: &'c [u8],
+    headers_start: usize,
+    headers_end: usize,
+) -> Option<std::borrow::Cow<'c, [u8]>> {
+    if headers_end <= chunk.len() {
+        return Some(std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end]));
+    }
+    let mut rest = vec![0u8; headers_end - chunk.len()];
+    file.read_exact(&mut rest).ok()?;
+    let mut whole = chunk[headers_start..].to_vec();
+    whole.extend_from_slice(&rest);
+    Some(std::borrow::Cow::Owned(whole))
 }
 
 /// Read just the first line (headers JSON) of a mirror file. The
@@ -529,157 +490,6 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 #[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     load_meta_with_hold_cap(pkg_mirror, held_mirror_file_cap())
-}
-
-fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package> {
-    raise_open_file_limit_once();
-    let mut file = File::open(pkg_mirror).ok()?;
-    // The magic line plus the two length fields fit well inside this.
-    let mut prefix = [0u8; 256];
-    let mut filled = 0usize;
-    while filled < prefix.len() {
-        let read = file.read(&mut prefix[filled..]).ok()?;
-        if read == 0 {
-            break;
-        }
-        filled += read;
-    }
-    let prefix = &prefix[..filled];
-    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
-    let line = std::str::from_utf8(&prefix[..newline]).ok()?;
-    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
-        // Legacy NDJSON mirror — the whole body is the packument.
-        let contents = fs::read(pkg_mirror).ok()?;
-        let newline = contents.iter().position(|&byte| byte == b'\n')?;
-        let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
-        let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
-        meta.etag = headers.etag;
-        meta.modified = meta.modified.or(headers.modified);
-        return Some(meta);
-    };
-    // Bound each declared length, then require the whole header +
-    // index region to fit inside the actual file before allocating a
-    // buffer for it.
-    if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {
-        return None;
-    }
-    let headers_start = newline + 1;
-    let index_start = headers_start.checked_add(headers_len)?;
-    let fragment_base = index_start.checked_add(index_len)?;
-    let file_size = file.metadata().ok()?.len();
-    if u64::try_from(fragment_base).ok()? > file_size {
-        return None;
-    }
-    // Read the rest of the headers + index records; the file's
-    // fragment section is only buffered on the held-handle fallback
-    // below.
-    let mut records = vec![0u8; fragment_base.checked_sub(filled.min(fragment_base))?];
-    file.read_exact(&mut records).ok()?;
-    let mut prefixed = Vec::with_capacity(fragment_base);
-    prefixed.extend_from_slice(&prefix[..filled.min(fragment_base)]);
-    prefixed.extend_from_slice(&records);
-    let headers: MetaHeaders =
-        serde_json::from_slice(prefixed.get(headers_start..index_start)?).ok()?;
-    let index: MirrorIndex =
-        serde_json::from_slice(prefixed.get(index_start..fragment_base)?).ok()?;
-
-    // Rebase the relative spans and reject any that fall outside the
-    // file — a truncated or hand-edited mirror reads as a miss rather
-    // than handing out garbage fragments later.
-    let mut spans = Vec::with_capacity(index.versions.len());
-    for (version, offset, len) in index.versions {
-        // A span past the fragment bound reads as an absent version
-        // (the same contract as an undecodable fragment) rather than
-        // rejecting the whole document: the bound exists to stop a
-        // corrupt index from driving huge hydration allocations, and
-        // the writer never persists such fragments.
-        if len > MAX_FRAGMENT_LEN {
-            continue;
-        }
-        let absolute = (fragment_base as u64).checked_add(offset)?;
-        if absolute.checked_add(u64::from(len))? > file_size {
-            return None;
-        }
-        spans.push((version, absolute, len));
-    }
-
-    let versions = match MirrorFile::try_hold(file, hold_cap) {
-        Ok(held) => PackageVersions::from_file_spans(&held, spans),
-        // Held-handle budget exhausted (an unusually low descriptor
-        // limit, or an install consulting more packuments than the
-        // cap): buffer this mirror's fragments and close the file, so
-        // a full cache can never make `File::open` fail elsewhere and
-        // turn present mirrors into cache misses.
-        Err(file) => {
-            // Each validated span is read with its own positioned read
-            // and the file closed afterwards: reading the contiguous
-            // fragment region would let a corrupt index's sparse gaps
-            // inflate the buffer far past the real fragment bytes. The
-            // budget bounds the total even against an index whose spans
-            // overlap or repeat.
-            const MAX_EAGER_FRAGMENT_TOTAL: u64 = 1 << 30;
-            let mut budget = MAX_EAGER_FRAGMENT_TOTAL;
-            let mut raw_fragments = Vec::with_capacity(spans.len());
-            for (version, absolute, len) in spans {
-                budget = budget.checked_sub(u64::from(len))?;
-                let mut bytes = vec![0u8; len as usize];
-                if pacquet_registry::read_exact_at(&file, &mut bytes, absolute).is_err() {
-                    continue;
-                }
-                let Ok(json) = String::from_utf8(bytes) else { continue };
-                let Ok(raw) = serde_json::from_str::<Box<serde_json::value::RawValue>>(&json)
-                else {
-                    continue;
-                };
-                raw_fragments.push((version, raw));
-            }
-            PackageVersions::from_raw_fragments(raw_fragments)
-        }
-    };
-
-    Some(Package {
-        name: index.name,
-        dist_tags: index.dist_tags,
-        versions,
-        time: index.time,
-        modified: headers.modified,
-        etag: headers.etag,
-        homepage: index.homepage,
-        mutex: Arc::default(),
-        release_age_upgrade_checked: false,
-        derived: DerivedPackuments::default(),
-    })
-}
-
-/// How many mirror files [`load_meta`] may keep open at once. Sized
-/// from the post-raise soft descriptor limit with headroom for the
-/// rest of the install (sockets, tarball extraction, store writes);
-/// loads beyond the cap buffer their fragments instead of holding a
-/// handle.
-fn held_mirror_file_cap() -> usize {
-    static CAP: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *CAP.get_or_init(|| {
-        raise_open_file_limit_once();
-        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).min(1 << 19))
-    })
-}
-
-#[cfg(unix)]
-fn soft_open_file_limit() -> Option<usize> {
-    let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
-    // SAFETY: plain libc call; `limit` is a properly initialised
-    // out-parameter and the pointer does not outlive the call.
-    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } != 0 {
-        return None;
-    }
-    usize::try_from(limit.rlim_cur).ok()
-}
-
-/// Windows has no `RLIMIT_NOFILE`; the per-process handle capacity is
-/// far above the cap's upper clamp.
-#[cfg(not(unix))]
-fn soft_open_file_limit() -> Option<usize> {
-    None
 }
 
 /// Async sibling of [`load_meta`]. The body is a blocking
@@ -737,12 +547,13 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
         file.write_all(contents)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
-    fs::rename(&temp, pkg_mirror).map_err(|error| {
-        // Best-effort cleanup so a stale temp doesn't accumulate on
-        // a rename failure (e.g. cross-device move on an unusual mount).
-        let _ = fs::remove_file(&temp);
-        SaveMetaError::Rename { temp, target: pkg_mirror.to_path_buf(), error }
-    })?;
+    fs::rename(&temp, pkg_mirror)
+        .map_err(|error| {
+            // Best-effort cleanup so a stale temp doesn't accumulate on
+            // a rename failure (e.g. cross-device move on an unusual mount).
+            let _ = fs::remove_file(&temp);
+            SaveMetaError::Rename { temp, target: pkg_mirror.to_path_buf(), error }
+        })?;
     Ok(())
 }
 
@@ -765,3 +576,25 @@ fn temp_sibling_path(target: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+const VERSION_KEYS: &[&str] = &[
+    "name",
+    "version",
+    "bin",
+    "directories",
+    "devDependencies",
+    "optionalDependencies",
+    "dependencies",
+    "peerDependencies",
+    "dist",
+    "engines",
+    "peerDependenciesMeta",
+    "cpu",
+    "os",
+    "libc",
+    "deprecated",
+    "bundleDependencies",
+    "bundledDependencies",
+    "hasInstallScript",
+    "_npmUser",
+];

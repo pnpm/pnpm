@@ -1,24 +1,19 @@
-import path from 'node:path'
-
+import { resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { sync as execSync } from 'execa'
 
 export interface RunPnpmCliOptions {
   cwd: string
+  loglevel?: string
   reporter?: string
 }
 
-export function runPnpmCli (command: string[], { cwd, reporter }: RunPnpmCliOptions): void {
-  const execOpts = {
+export function runPnpmCli (command: string[], { cwd, loglevel, reporter }: RunPnpmCliOptions): void {
+  const cliCommand = [...command]
+  if (reporter) cliCommand.push(`--reporter=${reporter}`)
+  if (loglevel) cliCommand.push(`--loglevel=${loglevel}`)
+  const [executable, ...selfArgs] = resolvePnpmSelfCommand()
+  execSync(executable, [...selfArgs, ...cliCommand], {
     cwd,
-    stdio: 'inherit' as const,
-  }
-  const cliCommand = reporter ? [...command, `--reporter=${reporter}`] : command
-  const execFileName = path.basename(process.execPath).toLowerCase()
-  if (execFileName === 'pnpm' || execFileName === 'pnpm.exe') {
-    execSync(process.execPath, cliCommand, execOpts)
-  } else if (path.basename(process.argv[1]) === 'pnpm.mjs') {
-    execSync(process.execPath, [process.argv[1], ...cliCommand], execOpts)
-  } else {
-    execSync('pnpm', cliCommand, execOpts)
-  }
+    stdio: 'inherit',
+  })
 }

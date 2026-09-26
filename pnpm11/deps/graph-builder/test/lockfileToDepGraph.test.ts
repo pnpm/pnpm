@@ -32,9 +32,9 @@ function craftedLockfile (name: string): LockfileObject {
   } as unknown as LockfileObject
 }
 
-// `force: true` skips the installability check so the walk reaches the name
-// sink directly; the store controller throws if touched, proving the name is
-// rejected before any fetch or filesystem work.
+// `includeIncompatiblePackages: true` skips the installability check so the
+// walk reaches the name sink directly; the store controller throws if touched,
+// proving the name is rejected before any fetch or filesystem work.
 function graphOpts (lockfileDir: string): LockfileToDepGraphOptions {
   const unreachable = (name: string) => () => {
     throw new Error(`${name} must not be reached for a rejected package name`)
@@ -43,13 +43,14 @@ function graphOpts (lockfileDir: string): LockfileToDepGraphOptions {
     autoInstallPeers: false,
     engineStrict: false,
     force: true,
+    includeIncompatiblePackages: true,
     importerIds: ['.'],
     include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     ignoreScripts: false,
     lockfileDir,
     nodeVersion: process.version,
     pnpmVersion: '0.0.0',
-    registries: { default: 'http://localhost/' },
+    registriesByScope: { default: 'http://localhost/' },
     requiredDepPaths: new Set(),
     sideEffectsCacheRead: false,
     skipped: new Set(),

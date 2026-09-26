@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { depPathToFilename, refToRelative } from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { logger } from '@pnpm/logger'
 import type { DepPath } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
@@ -53,6 +54,29 @@ export interface PackageMapGraphNode {
   depPath: DepPath
   dir: string
   name: string
+}
+
+/**
+ * Delete a `.package-map.json` an earlier install wrote.
+ *
+ * An install that does not write the map must not leave the previous one
+ * behind: the map is handed to Node by existence, so one left over from a run
+ * with `nodeExperimentalPackageMap` on would be used again the moment the
+ * setting came back on, describing a dependency set that has since changed.
+ *
+ * Best-effort and never rejects: an absent map is the wanted state, and any
+ * other failure is logged at debug level rather than failing an install over a
+ * file nothing is going to read. `remove_package_map` in pacquet makes the
+ * same promise and logs the same way, so both stacks leave an install in the
+ * same state, and leave the same trace, when the removal cannot happen.
+ */
+export async function removePackageMap (rootModulesDir: string): Promise<void> {
+  const packageMapPath = path.join(rootModulesDir, PACKAGE_MAP_FILENAME)
+  try {
+    await fs.rm(packageMapPath, { force: true })
+  } catch (error: unknown) {
+    logger.debug({ msg: `Failed to remove ${packageMapPath}`, error })
+  }
 }
 
 export async function writePackageMap (

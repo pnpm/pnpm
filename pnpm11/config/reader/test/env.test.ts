@@ -86,6 +86,37 @@ test('parseEnvVars works with arrays', () => {
   })
 })
 
+test('parseEnvVars works with objects', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(Object), {
+    HOME: '/home/fake-user',
+    PATH: '/bin:/usr/bin:/usr/local/bin:/home/fake-user/.bin:/home/fake-user/share/local/bin',
+    pnpm_config_valid_object: '{"release": "https://mirror.example.com/release/"}',
+    pnpm_config_empty_object: '{}',
+    pnpm_config_not_json: 'not an object',
+    pnpm_config_json_array: '["an", "array"]',
+    pnpm_config_json_null: 'null',
+    pnpm_config_json_number: '1',
+    pnpm_config_json_boolean: 'true',
+    pnpm_config_json_string: '"text"',
+    pnpm_config_number_member: '{"release": 42}',
+    pnpm_config_null_member: '{"release": null}',
+    pnpm_config_array_member: '{"release": ["https://mirror.example.com/release/"]}',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    validObject: { release: 'https://mirror.example.com/release/' },
+    emptyObject: {},
+    notJson: undefined,
+    jsonArray: undefined,
+    jsonNull: undefined,
+    jsonNumber: undefined,
+    jsonBoolean: undefined,
+    jsonString: undefined,
+    numberMember: undefined,
+    nullMember: undefined,
+    arrayMember: undefined,
+  })
+})
+
 test('parseEnvVars works with paths', () => {
   expect(pairsToObject(parseEnvVars(alwaysSchema(path), {
     HOME: '/home/fake-user',

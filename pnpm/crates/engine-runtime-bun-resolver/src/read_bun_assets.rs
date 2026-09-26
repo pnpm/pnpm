@@ -11,12 +11,12 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_crypto_shasums_file::{FetchShasumsFileError, fetch_shasums_file};
-use pacquet_lockfile::{
+use pnpm_crypto_shasums_file::{FetchShasumsFileError, ShasumsFileItem, fetch_shasums_file};
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget,
 };
-use pacquet_network::ThrottledClient;
+use pnpm_network::ThrottledClient;
 use ssri::Integrity;
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -37,47 +37,62 @@ pub enum ReadBunAssetsError {
 /// Fetch and decode the Bun-release SHASUMS file for `version`.
 pub async fn read_bun_assets(
     http_client: &ThrottledClient,
+    mirror: Option<&str>,
     version: &str,
 ) -> Result<Vec<PlatformAssetResolution>, ReadBunAssetsError> {
-    let integrities_url =
-        format!("https://github.com/oven-sh/bun/releases/download/bun-v{version}/SHASUMS256.txt");
-    let items = fetch_shasums_file(http_client, &integrities_url)
-        .await
+    let release = release_base(mirror, version);
+    let integrities_url = format!("{release}/SHASUMS256.txt");
+    let items = fetch_shasums_file(http_client, &integrities_url).await
         .map_err(ReadBunAssetsError::FetchShasumsFile)?;
 
     let mut variants = Vec::new();
     for item in items {
         let Some(parsed) = parse_asset_name(&item.file_name) else { continue };
-        let integrity: Integrity =
-            item.integrity.parse().map_err(|error| ReadBunAssetsError::Integrity {
-                integrity: item.integrity.clone(),
-                file_name: item.file_name.clone(),
-                error: Arc::new(error),
-            })?;
-        let url = format!(
-            "https://github.com/oven-sh/bun/releases/download/bun-v{version}/{file_name}",
-            file_name = item.file_name,
-        );
-        let prefix = item.file_name.strip_suffix(".zip").map(str::to_string);
-        let binary = BinaryResolution {
-            url,
-            integrity,
-            bin: BinarySpec::Single(bun_bin_path(&parsed.platform).to_string()),
-            archive: BinaryArchive::Zip,
-            prefix,
-        };
-        let target = PlatformAssetTarget {
-            os: parsed.platform,
-            cpu: parsed.arch,
-            libc: parsed.musl.then(|| "musl".to_string()),
-        };
-        variants.push(PlatformAssetResolution {
-            resolution: LockfileResolution::Binary(binary),
-            targets: vec![target],
-        });
+        variants.push(asset_resolution(&release, &item, parsed)?);
     }
     variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
     Ok(variants)
+}
+
+/// Where one release's files are, under the mirror `tools.bun.mirror`
+/// names or under Bun's own releases otherwise. Both lay a release out
+/// the same way, so only the host above it differs.
+fn release_base(mirror: Option<&str>, version: &str) -> String {
+    let base = mirror.map_or("https://github.com/oven-sh/bun/releases/download", |mirror| {
+        mirror.trim_end_matches('/')
+    });
+    format!("{base}/bun-v{version}")
+}
+
+/// The download one `SHASUMS256.txt` entry describes.
+fn asset_resolution(
+    release: &str,
+    item: &ShasumsFileItem,
+    parsed: BunAssetName,
+) -> Result<PlatformAssetResolution, ReadBunAssetsError> {
+    let integrity: Integrity = item.integrity
+        .parse()
+        .map_err(|error| ReadBunAssetsError::Integrity {
+            integrity: item.integrity.clone(),
+            file_name: item.file_name.clone(),
+            error: Arc::new(error),
+        })?;
+    let binary = BinaryResolution {
+        url: format!("{release}/{file_name}", file_name = item.file_name),
+        integrity,
+        bin: BinarySpec::Single(bun_bin_path(&parsed.platform).to_string()),
+        archive: BinaryArchive::Zip,
+        prefix: item.file_name.strip_suffix(".zip").map(str::to_string),
+    };
+    let target = PlatformAssetTarget {
+        os: parsed.platform,
+        cpu: parsed.arch,
+        libc: parsed.musl.then(|| "musl".to_string()),
+    };
+    Ok(PlatformAssetResolution {
+        resolution: LockfileResolution::Binary(binary),
+        targets: vec![target],
+    })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {

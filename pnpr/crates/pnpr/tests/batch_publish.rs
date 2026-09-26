@@ -2,11 +2,14 @@
 //! publish endpoint `pnpm publish --batch` talks to. Static-mode (no
 //! upstream) to keep the tests hermetic.
 
+use crate::npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::{publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
@@ -19,8 +22,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -57,39 +60,16 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
         "type": "user",
         "roles": [],
     });
-    let response = app.oneshot(put_json(&path, &body)).await.unwrap();
+    let response = app
+        .oneshot(put_json(&path, &body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    payload["token"].as_str().expect("token in response").to_string()
-}
-
-fn publish_doc(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let basename = name.rsplit('/').next().unwrap_or(name);
-    let filename = format!("{basename}-{version}.tgz");
-    json!({
-        "_id": name,
-        "name": name,
-        "description": "test",
-        "dist-tags": { "latest": version },
-        "versions": {
-            version: {
-                "name": name,
-                "version": version,
-                "dist": {
-                    "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": sha1_hex(tarball),
-                    "integrity": sri_sha512(tarball),
-                }
-            }
-        },
-        "_attachments": {
-            filename: {
-                "content_type": "application/octet-stream",
-                "data": BASE64.encode(tarball),
-                "length": tarball.len()
-            }
-        }
-    })
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 #[tokio::test]
@@ -128,14 +108,21 @@ async fn batch_publish_writes_every_package_in_one_request() {
         assert_eq!(packument["dist-tags"]["latest"], version);
         assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
-        let on_disk_tarball =
-            std::fs::read(storage.join(name).join(format!("{name}-{version}.tgz")))
-                .expect("tarball written");
+        let on_disk_tarball = std::fs::read(
+            storage
+                .join(name)
+                .join(format!("{name}-{version}.tgz")),
+        )
+        .expect("tarball written");
         assert_eq!(on_disk_tarball, bytes);
 
         let served = app
             .clone()
-            .oneshot(Request::get(format!("/{name}")).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get(format!("/{name}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(served.status(), StatusCode::OK);
@@ -195,7 +182,11 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     // client submitted.
     let packument_response = app
         .clone()
-        .oneshot(Request::get("/@scope/wire-form").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/@scope/wire-form")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
@@ -207,7 +198,9 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
 
     let served = app
         .oneshot(
-            Request::get("/@scope/wire-form/-/wire-form-1.0.0.tgz").body(Body::empty()).unwrap(),
+            Request::get("/@scope/wire-form/-/wire-form-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -222,7 +215,10 @@ async fn anonymous_batch_publish_is_rejected() {
     let app = router(static_config(storage.clone()));
 
     let body = json!({ "packages": [publish_doc("anon-batch", "1.0.0", b"bytes")] });
-    let response = app.oneshot(put_json("/-/pnpm/v1/publish", &body)).await.unwrap();
+    let response = app
+        .oneshot(put_json("/-/pnpm/v1/publish", &body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert!(!storage.join("anon-batch").exists());
 }
@@ -242,24 +238,33 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     bad["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
 
     let body = json!({ "packages": [good, bad] });
-    let response =
-        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+    let response = app
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("EINTEGRITY"), "error should carry EINTEGRITY: {body_text}");
 
     for name in ["rollback-good", "rollback-bad"] {
         let pkg_dir = storage.join(name);
-        if pkg_dir.exists() {
-            let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
-                .unwrap()
-                .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
-                .collect();
-            assert!(
-                entries.is_empty(),
-                "expected no artifacts for {name} after rejected batch, found: {entries:?}",
-            );
+        if !pkg_dir.exists() {
+            continue;
         }
+        let entries: Vec<String> = std::fs::read_dir(&pkg_dir)
+            .unwrap()
+            .map(|entry| {
+                entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect();
+        assert!(
+            entries.is_empty(),
+            "expected no artifacts for {name} after rejected batch, found: {entries:?}",
+        );
     }
 }
 
@@ -276,8 +281,10 @@ async fn batch_publish_rejects_duplicate_package_names() {
             publish_doc("dupe-pkg", "2.0.0", b"v2"),
         ],
     });
-    let response =
-        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+    let response = app
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("duplicate package"), "got: {body_text}");
@@ -307,8 +314,10 @@ async fn batch_publish_rejects_entries_without_a_name() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
     let body = json!({ "packages": [{ "versions": {} }] });
-    let response =
-        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+    let response = app
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -330,8 +339,10 @@ async fn batch_publish_merges_with_previously_published_versions() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let second = json!({ "packages": [publish_doc("merge-pkg", "2.0.0", b"v2")] });
-    let response =
-        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &second, &token)).await.unwrap();
+    let response = app
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &second, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let packument: Value =
@@ -340,27 +351,4 @@ async fn batch_publish_merges_with_previously_published_versions() {
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0");
     assert_eq!(packument["dist-tags"]["latest"], "2.0.0");
-}
-
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-/// Compute the 40-char hex SHA-1 the way npm clients send it in the
-/// legacy `dist.shasum` field.
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_base64 = &integrity.hashes[0].digest;
-    let digest_bytes = BASE64.decode(digest_base64).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }

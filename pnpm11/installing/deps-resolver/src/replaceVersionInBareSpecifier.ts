@@ -11,6 +11,8 @@ export function replaceVersionInBareSpecifier (
   let prefix: string | undefined
   if (bareSpecifier.startsWith('npm:')) {
     prefix = 'npm:'
+  } else if (bareSpecifier.startsWith('jsr:')) {
+    prefix = 'jsr:'
   } else {
     for (const candidate of namedRegistryPrefixes) {
       if (bareSpecifier.startsWith(candidate)) {

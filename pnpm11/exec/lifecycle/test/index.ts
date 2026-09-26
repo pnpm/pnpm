@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -22,6 +23,21 @@ const skipOnWindows = isWindows() ? test.skip : test
 
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
+
+skipOnWindows('makeProjectNodePathOption() puts the custom modules directory of a project with symlinked executables first on NODE_PATH', async () => {
+  const project = { modulesDir: '/project/vendor', rootDir: '/project' }
+  const opts = { preferSymlinkedExecutables: true, extraEnv: { NODE_PATH: '/project/vendor/.pnpm/node_modules' } }
+
+  expect(await makeProjectNodePathOption(project, opts)).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/project/vendor/.pnpm/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extraEnv: { NODE_PATH: `/store/links/node_modules${path.delimiter}/project/vendor` } })).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/store/links/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extendNodePath: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption(project, { ...opts, preferSymlinkedExecutables: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption({ ...project, modulesDir: '/project/node_modules' }, opts)).toStrictEqual({})
+})
 
 test('makeNodeRequireOption() preserves existing NODE_OPTIONS', () => {
   expect(makeNodeRequireOption('/project/.pnp.cjs', {
@@ -142,6 +158,36 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+test('runLifecycleHook() preserves literal arguments with the shell emulator', async () => {
+  const pkgRoot = f.find('escape-args')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  await fs.promises.rm(path.join(pkgRoot, 'output.json'), { force: true })
+  const args = [
+    'C:\\Program Files\\tool\\',
+    '',
+    '\'it\'\'s\'',
+    'a"b',
+    '$PNPM_QUOTING_TEST',
+    '$(echo expanded)',
+    'a;b',
+    '*',
+    'line\nbreak',
+    '中文',
+  ]
+  await runLifecycleHook('echo', pkg, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    shellEmulator: true,
+    extraEnv: { PNPM_QUOTING_TEST: 'expanded' },
+    args,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(args)
+})
+
 test('runLifecycleHook() passes newline correctly', async () => {
   const pkgRoot = f.find('escape-newline')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
@@ -210,6 +256,18 @@ test('runLifecycleHook() should throw an error while missing script start or fil
   ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
 })
 
+test('gypfile: false does not trigger node-gyp rebuild', async () => {
+  const ranAScript = await runPostinstallHooks({
+    depPath: '/gyp-with-gypfile-false/1.0.0',
+    optional: false,
+    pkgRoot: f.find('gyp-with-gypfile-false'),
+    rootModulesDir,
+    unsafePerm: true,
+  })
+
+  expect(ranAScript).toBe(false)
+})
+
 test('preinstall script does not trigger node-gyp rebuild', async () => {
   const pkgRoot = f.find('gyp-with-preinstall')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
@@ -243,10 +301,15 @@ skipOnWindows('runLifecycleHooksConcurrently() should check binding.gyp', async 
     ],
   }), 'utf8')
 
-  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }], 5, {
-    storeController: {} as StoreController,
-    optional: false,
-    unsafePerm: true,
+  await runLifecycleHooksConcurrently({
+    childConcurrency: 5,
+    importers: [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }],
+    opts: {
+      storeController: {} as StoreController,
+      optional: false,
+      unsafePerm: true,
+    },
+    stages: ['install'],
   })
 
   expect(fs.existsSync(path.join(projectDir, 'foo'))).toBeTruthy()

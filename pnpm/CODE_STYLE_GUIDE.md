@@ -40,6 +40,44 @@ The act of cloning or creating an owned data from another owned/borrowed data.
 
 ## Guides
 
+### Function length
+
+Keep production function bodies within 40 lines of code. Extract helpers around distinct responsibilities and reuse existing helpers where possible. `perfectionist::overly_long_function` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Tests are exempt, so a test can keep its setup, action, and assertions together.
+
+### Nesting depth
+
+Keep function and method bodies within three levels of nesting, including tests. Prefer guard clauses, match guards, and helpers named for a distinct responsibility. `perfectionist::excessive_nesting` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
+
+### Condition complexity
+
+Keep `if`, `while`, and match-guard conditions within five `&&` or `||` operators, including tests. `perfectionist::overly_complex_condition` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+A longer condition is two predicates the author did not name. Name the whole condition, extract a helper for the group of clauses that names a concept, or split the leading clauses into a guard clause. Keep a helper call inside the short-circuit chain rather than binding its result above the condition, so the clauses after it stay unevaluated until the condition reaches them, and keep a `while` condition's work on every iteration.
+
+### Method chains
+
+Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.
+
+`perfectionist::overly_long_method_chain` enforces this through [`dylint.toml`](../dylint.toml). When a chain exceeds the limit, name an intermediate value or extract a helper for a distinct operation.
+
+### File length
+
+Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.
+
+`perfectionist::overly_long_file` enforces the 400-line production limit across the Rust workspace through [`dylint.toml`](../dylint.toml). Test files are exempt from the rule, so their 800-line limit is on you to keep.
+
+### Struct fields
+
+Keep structs within eight fields, including test structs. `perfectionist::too_many_struct_fields` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Group fields by a shared responsibility and reuse existing types. Pass a group directly to helpers that need it, or put its behavior on the group. Avoid repeating the group name in its fields: prefer `store.dir` and `package.integrity`.
+
+A struct that must match a fixed external configuration, serialized document, or binding interface may use a scoped `#[expect(perfectionist::too_many_struct_fields, reason = "...")]`, gated with `cfg_attr(dylint_lib = "perfectionist", ...)`. Name the format or interface in the reason. Internal runtime state and options should be refactored.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.
@@ -61,7 +99,7 @@ pub use install_package_from_registry::InstallPackageFromRegistry;
 
 ### Import Organization
 
-Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
+Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by the [pinned formatter](../CONTRIBUTING.md#rust-formatting); the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
 ```rust
 use crate::{
@@ -211,6 +249,14 @@ fn node_bin_dir(workspace: &Path) -> PathBuf {
 let a = node_bin_dir(&my_path_buf);
 let b = node_bin_dir(my_path_ref);
 ```
+
+### Getters return the borrowed form
+
+A getter — an inherent `&self` method named for the field it reads, or one named `get_*` — returns the [borrowed] form of that field: `&str` for a `String`, `&Path` for a `PathBuf`, `&[T]` for a `Vec<T>`, `Option<&T>` for an `Option<T>`.
+
+A getter that copies decides for every caller that they wanted an owned value, and most did not: they compare, print, or pass it on. The borrowed form serves every caller and leaves the one that needs ownership to copy at the call site, where the reader can see it. Where every call site would copy the borrow straight back, name the method `to_*` instead, the prefix for a conversion that costs something.
+
+`perfectionist::cloning_getter` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml). An `Rc` or `Arc` field is exempt, since cloning one bumps a refcount rather than copying what it points at.
 
 ### Trait Bounds
 
@@ -813,7 +859,7 @@ Verify the test catches a regression: temporarily comment out the emit, run the 
 
 - **Don't reformat the wire messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
 - **Don't invent new channels.** The channel set is shared; it expands only when both stacks add a channel together.
-- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pacquet-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
+- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pnpm-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
 - **Don't emit at lower granularity, either.** Skipping events the consumer expects (`fetched` after a download succeeds, `imported` after `create_cas_files` Ok) breaks pnpm's reporter counters.
 
 #### Worked example: `pnpm:summary` in `Install::run`

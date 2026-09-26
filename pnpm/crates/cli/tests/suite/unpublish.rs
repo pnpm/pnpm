@@ -6,8 +6,8 @@
 //! no-versions / no-matching-versions errors, the `--force` protection for a
 //! full unpublish (also when a range matches every version), the partial
 //! unpublish `PUT` (versions removed, dist-tags re-pointed, `latest`
-//! reassigned), tolerated tarball-delete 404s, and the 405/401 registry
-//! answers.
+//! reassigned), tolerated tarball-delete 404s, the 405/401 registry
+//! answers, and the OTP challenge handling a 2FA-enforced account needs.
 //!
 //! The registry is a `mockito` server; an empty `--npmrc-auth-file` keeps the
 //! developer's real `~/.npmrc` from influencing the test.
@@ -15,7 +15,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
@@ -91,7 +91,10 @@ fn fails_when_package_is_not_found() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let get_mock = server.mock("GET", "/nonexistent-package-99999").with_status(404).create();
+    let get_mock = server
+        .mock("GET", "/nonexistent-package-99999")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output =
@@ -161,7 +164,10 @@ fn refuses_a_full_unpublish_without_force() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").expect(0).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .expect(0)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg"]);
@@ -207,8 +213,11 @@ fn force_unpublishes_the_entire_package() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock =
-        server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
@@ -281,8 +290,11 @@ fn a_tarball_delete_404_is_tolerated() {
         .with_body(two_version_packument(&server.url()))
         .expect_at_least(2)
         .create();
-    let put_mock =
-        server.mock("PUT", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let put_mock = server
+        .mock("PUT", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     // Some registries clean tarballs up on the packument update themselves.
     let tarball_delete_mock = server
         .mock("DELETE", "/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc")
@@ -309,7 +321,10 @@ fn a_405_on_a_full_unpublish_reports_unpublish_forbidden() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(405).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(405)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
@@ -335,6 +350,8 @@ fn an_unauthorized_delete_reports_unauthorized() {
         .create();
     let delete_mock = server
         .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .match_header("npm-auth-type", "web")
+        .match_header("npm-otp", Matcher::Missing)
         .with_status(401)
         .with_body(r#"{"error":"unauthorized"}"#)
         .create();
@@ -348,6 +365,114 @@ fn an_unauthorized_delete_reports_unauthorized() {
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
     assert!(stderr.contains("You must be logged in to unpublish packages"), "{stderr}");
+    drop((root, server));
+}
+
+/// A 2FA-enforced account gets a 401 carrying `authUrl` / `doneUrl`; that is
+/// an OTP challenge, not a missing login. The spawned binary has no TTY, so
+/// the flow stops at the non-interactive error instead of prompting.
+#[test]
+fn a_web_auth_challenge_without_a_terminal_reports_otp_non_interactive() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let get_mock = server
+        .mock("GET", "/test-pkg")
+        .with_status(200)
+        .with_body(two_version_packument(&server.url()))
+        .create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .match_header("npm-auth-type", "web")
+        .with_status(401)
+        .with_body(
+            json!({
+                "error": "one-time pass required",
+                "authUrl": "https://auth.example/login",
+                "doneUrl": "https://auth.example/done",
+            })
+            .to_string(),
+        )
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
+
+    get_mock.assert();
+    delete_mock.assert();
+    assert!(!output.status.success(), "an unanswered challenge must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "{stderr}");
+    assert!(!stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
+    drop((root, server));
+}
+
+/// The classic `one-time pass` wording on the packument `PUT` of a partial
+/// unpublish is an OTP challenge too.
+#[test]
+fn a_classic_otp_challenge_without_a_terminal_reports_otp_non_interactive() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let get_mock = server
+        .mock("GET", "/test-pkg")
+        .with_status(200)
+        .with_body(two_version_packument(&server.url()))
+        .create();
+    let put_mock = server
+        .mock("PUT", "/test-pkg/-rev/3-abc")
+        .match_header("npm-auth-type", "web")
+        .with_status(401)
+        .with_body(r#"{"error":"You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA."}"#)
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg@0.0.1"]);
+
+    get_mock.assert();
+    put_mock.assert();
+    assert!(!output.status.success(), "an unanswered challenge must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "{stderr}");
+    assert!(!stderr.contains("ERR_PNPM_UNAUTHORIZED"), "{stderr}");
+    drop((root, server));
+}
+
+/// `--otp` sends the code up front under the legacy auth type, so a classic
+/// 2FA setup needs no prompt.
+#[test]
+fn the_otp_flag_sends_the_code_under_the_legacy_auth_type() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let get_mock = server
+        .mock("GET", "/test-pkg")
+        .with_status(200)
+        .with_body(two_version_packument(&server.url()))
+        .create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .match_header("npm-auth-type", "legacy")
+        .match_header("npm-otp", "123456")
+        .with_status(200)
+        .with_body("{}")
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    let output = run_unpublish(
+        &workspace,
+        &auth_file,
+        Some(&registry),
+        &["test-pkg", "--force", "--otp", "123456"],
+    );
+
+    get_mock.assert();
+    delete_mock.assert();
+    assert!(output.status.success(), "stderr: {}", stderr_of(&output));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Successfully unpublished all 2 version(s) of test-pkg\n",
+    );
     drop((root, server));
 }
 

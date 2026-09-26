@@ -1,11 +1,11 @@
 use super::prune_direct_deps_excluded_by_groups;
-use pacquet_config::Config;
-use pacquet_lockfile::{
+use pnpm_config::Config;
+use pnpm_lockfile::{
     ComVer, Lockfile, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
-use pacquet_modules_yaml::IncludedDependencies;
-use pacquet_testing_utils::fs::is_symlink_or_junction;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -28,6 +28,8 @@ fn lockfile_with_root_importer(snapshot: ProjectSnapshot) -> Lockfile {
         importers,
         packages: None,
         snapshots: None,
+        time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -49,7 +51,10 @@ fn dep_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
             name.parse().expect("parse pkg name"),
             ResolvedDependencySpec {
                 specifier: format!("^{version}"),
-                version: version.parse::<pacquet_lockfile::PkgVerPeer>().unwrap().into(),
+                version: version
+                    .parse::<pnpm_lockfile::PkgVerPeer>()
+                    .unwrap()
+                    .into(),
             },
         );
     }
@@ -61,8 +66,11 @@ fn dep_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
 /// declaring `bin` when given) and a `node_modules/<name>` symlink
 /// pointing at it. The target must exist for Windows junctions.
 fn link_dep(modules_dir: &Path, name: &str, bin: Option<&str>) {
-    let target =
-        modules_dir.join(".pacquet").join(name.replace('/', "+")).join("node_modules").join(name);
+    let target = modules_dir
+        .join(".pacquet")
+        .join(name.replace('/', "+"))
+        .join("node_modules")
+        .join(name);
     fs::create_dir_all(&target).expect("create symlink target");
     let manifest = match bin {
         Some(bin_name) => {
@@ -74,7 +82,7 @@ fn link_dep(modules_dir: &Path, name: &str, bin: Option<&str>) {
     fs::write(target.join("package.json"), manifest).expect("write package.json");
     let link = modules_dir.join(name);
     fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
-    pacquet_fs::symlink_dir(&target, &link).expect("create direct-dep symlink");
+    pnpm_fs::symlink_dir(&target, &link).expect("create direct-dep symlink");
 }
 
 /// A full → `--prod` switch must remove exactly the dev dep's symlink
@@ -124,7 +132,12 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     )
     .expect("prune should succeed");
 
-    assert!(modules_dir.join("@scope/dev-dep").symlink_metadata().is_err());
+    assert!(
+        modules_dir
+            .join("@scope/dev-dep")
+            .symlink_metadata()
+            .is_err(),
+    );
     assert!(!bins_dir.join("devtool").exists());
     assert!(is_symlink_or_junction(&modules_dir.join("keep-me")).unwrap());
     assert!(bins_dir.join("unrelated-tool").exists());
@@ -149,7 +162,7 @@ fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     fs::create_dir_all(&outside_bins).unwrap();
     fs::write(outside_bins.join("devtool"), b"#!/bin/sh\n").unwrap();
     let modules_dir = workspace_root.join("node_modules");
-    pacquet_fs::symlink_dir(&outside, &modules_dir).unwrap();
+    pnpm_fs::symlink_dir(&outside, &modules_dir).unwrap();
 
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
@@ -194,7 +207,7 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     link_dep(&modules_dir, "dev-dep", Some("devtool"));
     fs::create_dir_all(&outside_bins).unwrap();
     fs::write(outside_bins.join("devtool"), b"#!/bin/sh\n").unwrap();
-    pacquet_fs::symlink_dir(&outside_bins, &modules_dir.join(".bin")).unwrap();
+    pnpm_fs::symlink_dir(&outside_bins, &modules_dir.join(".bin")).unwrap();
 
     let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
         dev_dependencies: Some(dep_map(&[("dev-dep", "1.0.0")])),
@@ -212,7 +225,12 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     .expect("prune should succeed");
 
     assert!(outside_bins.join("devtool").exists());
-    assert!(modules_dir.join("dev-dep").symlink_metadata().is_err());
+    assert!(
+        modules_dir
+            .join("dev-dep")
+            .symlink_metadata()
+            .is_err(),
+    );
 }
 
 /// A scoped alias whose `@scope/` component is a symlink must not be
@@ -234,8 +252,8 @@ fn refuses_to_unlink_through_a_symlinked_scope_dir() {
     fs::create_dir_all(&outside_scope).unwrap();
     let target = workspace_root.join("some-target");
     fs::create_dir_all(&target).unwrap();
-    pacquet_fs::symlink_dir(&target, &outside_scope.join("dev-dep")).unwrap();
-    pacquet_fs::symlink_dir(&outside_scope, &modules_dir.join("@scope")).unwrap();
+    pnpm_fs::symlink_dir(&target, &outside_scope.join("dev-dep")).unwrap();
+    pnpm_fs::symlink_dir(&outside_scope, &modules_dir.join("@scope")).unwrap();
 
     let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
         dev_dependencies: Some(dep_map(&[("@scope/dev-dep", "1.0.0")])),
@@ -333,6 +351,11 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
     )
     .expect("prune should succeed");
 
-    assert!(selected_modules.join("selected-dev").symlink_metadata().is_err());
+    assert!(
+        selected_modules
+            .join("selected-dev")
+            .symlink_metadata()
+            .is_err(),
+    );
     assert!(is_symlink_or_junction(&unselected_modules.join("unselected-dev")).unwrap());
 }

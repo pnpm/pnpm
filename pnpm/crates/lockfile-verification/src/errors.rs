@@ -23,6 +23,9 @@ segments or a reserved name such as `.bin` or `.pnpm` could make an install writ
 intended directory or overwrite pnpm-owned layout. This usually means the lockfile was tampered \
 with — inspect recent changes to pnpm-lock.yaml before trusting it.";
 
+const MISSING_DEPENDENCY_HINT: &str = "This issue is probably caused by a badly resolved merge conflict.\n\
+To fix the lockfile, run 'pnpm install --fix-lockfile'.";
+
 /// One verifier rejection rendered for the error breakdown.
 /// Internal-only data shape — the runner builds these from
 /// `ResolutionPolicyViolation` after sorting.
@@ -62,7 +65,6 @@ pub enum VerifyError {
     /// already explains the auth situation — rather than a tampering-style
     /// mismatch or a lockfile-policy batch. The message is credential-redacted
     /// at the verifier before it reaches here.
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
     RegistryMetaFetchFailed {
         #[error(not(source))]
@@ -103,6 +105,14 @@ pub enum VerifyError {
         count: usize,
         breakdown: String,
     },
+
+    /// Dependency reachable from an importer that is missing from lockfile snapshots.
+    #[display("Broken lockfile: no entry for '{dep_path}' in pnpm-lock.yaml")]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY), help("{MISSING_DEPENDENCY_HINT}"))]
+    MissingDependency {
+        #[error(not(source))]
+        dep_path: String,
+    },
 }
 
 impl VerifyError {
@@ -132,6 +142,12 @@ impl VerifyError {
         VerifyError::InvalidDependencyAlias { count, breakdown }
     }
 
+    /// Constructs [`VerifyError::MissingDependency`].
+    #[must_use]
+    pub fn missing_dependency(dep_path: &str) -> Self {
+        VerifyError::MissingDependency { dep_path: dep_path.to_string() }
+    }
+
     /// Build the appropriate variant from a list of rendered
     /// violations. The list is **already sorted** by `name@version`
     /// (the runner sorts before calling). Empty input is a logic
@@ -139,57 +155,30 @@ impl VerifyError {
     #[must_use]
     pub fn from_rendered(violations: &[RenderedViolation]) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
-        let distinct_codes: std::collections::BTreeSet<&str> =
-            violations.iter().map(|violation| violation.code).collect();
+        let distinct_codes: std::collections::BTreeSet<&str> = violations
+            .iter()
+            .map(|violation| violation.code)
+            .collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
-        let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
-        let omitted = count.saturating_sub(visible_count);
-
-        let mut breakdown = String::new();
-        for violation in violations.iter().take(visible_count) {
-            if mixed {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} [{code}] {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    code = violation.code,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            } else {
-                writeln!(
-                    breakdown,
-                    "  {name}@{version} {reason}",
-                    name = violation.name,
-                    version = violation.version,
-                    reason = violation.reason,
-                )
-                .unwrap();
-            }
-        }
-        if omitted > 0 {
-            write!(breakdown, "  …and {omitted} more").unwrap();
-        } else if breakdown.ends_with('\n') {
-            // Drop the final newline so the formatted error doesn't
-            // carry trailing whitespace into log lines.
-            breakdown.pop();
-        }
+        let breakdown = violation_breakdown(violations, mixed);
 
         if mixed {
             VerifyError::LockfileResolutionVerification { count, breakdown }
         } else {
             // Safe: distinct_codes has exactly one element.
-            let code = *distinct_codes.iter().next().expect("at least one code");
+            let code = *distinct_codes
+                .iter()
+                .next()
+                .expect("at least one code");
             match code {
-                pacquet_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
+                pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
                     VerifyError::MinimumReleaseAgeViolation { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
+                pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
+                pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
                     VerifyError::MissingTarballIntegrity { count, breakdown }
                 }
                 crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
@@ -204,17 +193,56 @@ impl VerifyError {
     }
 }
 
+/// Bound the printed list and omit the trailing newline from the error text.
+fn violation_breakdown(violations: &[RenderedViolation], mixed: bool) -> String {
+    let count = violations.len();
+    let visible_count = count.min(MAX_VIOLATIONS_TO_PRINT);
+    let omitted = count.saturating_sub(visible_count);
+
+    let mut breakdown = String::new();
+    for violation in violations.iter().take(visible_count) {
+        if mixed {
+            writeln!(
+                breakdown,
+                "  {name}@{version} [{code}] {reason}",
+                name = violation.name,
+                version = violation.version,
+                code = violation.code,
+                reason = violation.reason,
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                breakdown,
+                "  {name}@{version} {reason}",
+                name = violation.name,
+                version = violation.version,
+                reason = violation.reason,
+            )
+            .unwrap();
+        }
+    }
+    if omitted > 0 {
+        write!(breakdown, "  …and {omitted} more").unwrap();
+    } else if breakdown.ends_with('\n') {
+        // Drop the final newline so the formatted error doesn't
+        // carry trailing whitespace into log lines.
+        breakdown.pop();
+    }
+    breakdown
+}
+
 /// Aliases the violation codes the npm verifier defines, so this
 /// crate doesn't take a runtime dependency on
-/// `pacquet-resolving-npm-resolver` just to compare two `&'static str`
+/// `pnpm-resolving-npm-resolver` just to compare two `&'static str`
 /// constants. Keep the values byte-identical to the canonical
 /// definitions over there.
-mod pacquet_resolving_npm_resolver_violation_codes {
-    /// Matches `pacquet_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
+mod pnpm_resolving_npm_resolver_violation_codes {
+    /// Matches `pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE`.
     pub const MINIMUM_RELEASE_AGE_VIOLATION: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
-    /// Matches `pacquet_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
+    /// Matches `pnpm_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
-    /// Matches `pacquet_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
+    /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
     pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
 }
 

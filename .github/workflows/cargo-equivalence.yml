@@ -1,0 +1,58 @@
+name: Cargo Equivalence
+
+# Resolves a corpus of Cargo workspaces with both `cargo` and pnpm, against
+# the live crates.io index, and compares what each one locked. pnpm v12
+# resolves Cargo dependencies itself, so it is a second implementation of
+# cargo's resolver and has to produce the versions cargo produces. Runs on a
+# daily cron rather than per-PR: it reads the live index, so an upstream yank
+# or release can change a result without anything in this repo changing. A
+# red run is investigated, not treated as a merge blocker.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-equivalence:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    name: Cargo Equivalence
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Bound the blast radius: a hung resolve can't pin a runner indefinitely.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
+      - name: Build pnpm and the harness
+        run: cargo build --release --bin pnpm --bin cargo-equivalence
+
+      - name: Compare pnpm's Cargo resolution against cargo's
+        run: |
+          ./target/release/cargo-equivalence \
+            --pnpm "$PWD/target/release/pnpm" \
+            --work-dir "$RUNNER_TEMP/cargo-equivalence-work"
+
+      - name: Upload the lockfiles that differed
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-equivalence-lockfiles
+          path: ${{ runner.temp }}/cargo-equivalence-work/**/Cargo.lock
+          retention-days: 7
+          if-no-files-found: ignore

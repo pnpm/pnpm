@@ -89,10 +89,10 @@ fn global_flag_negation_propagates_into_subcommands() {
     // generated `--no-recursive` must be global too so it parses under a
     // subcommand and resolves the flag off (the `is_global_set()` branch).
     let off = parse(&["pnpm", "install", "--no-recursive"]).expect("--no-recursive should parse");
-    assert!(!off.recursive);
+    assert!(!off.workspace.recursive);
     let on = parse(&["pnpm", "install", "--recursive"]).expect("--recursive should parse");
-    assert!(on.recursive);
+    assert!(on.workspace.recursive);
     let toggled = parse(&["pnpm", "install", "--recursive", "--no-recursive"])
         .expect("both flags together should parse");
-    assert!(!toggled.recursive);
+    assert!(!toggled.workspace.recursive);
 }

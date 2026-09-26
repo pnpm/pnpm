@@ -2,7 +2,21 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+function extractRuntimeNodeVersion (snapshotKey: string): string | undefined {
+  const prefix = 'node@runtime:'
+  if (!snapshotKey.startsWith(prefix)) return undefined
+  const versionWithPeers = snapshotKey.slice(prefix.length)
+  const parenAt = versionWithPeers.indexOf('(')
+  return parenAt === -1 ? versionWithPeers : versionWithPeers.slice(0, parenAt)
+}
+
+function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string | undefined {
+  for (const key of snapshotKeys) {
+    const version = extractRuntimeNodeVersion(key)
+    if (version != null) return version
+  }
+  return undefined
+}
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import type { DepPath } from '@pnpm/types'
@@ -130,12 +144,12 @@ export async function materializeThroughPackageProvider (
       throw new PnpmError('PACKAGE_PROVIDER_RESULT_INVALID', `The package provider skipped ${depPath}, which is not an optional dependency`)
     }
     skippedKeys.add(key!)
-    delete depGraph[key!] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+    delete depGraph[key!]
   }
   for (const node of Object.values(depGraph)) {
     if (skippedKeys.size > 0) {
       for (const [alias, childKey] of Object.entries(node.children)) {
-        if (skippedKeys.has(childKey)) delete node.children[alias] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+        if (skippedKeys.has(childKey)) delete node.children[alias]
       }
     }
     const providedDir = paths[node.depPath]

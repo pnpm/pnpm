@@ -2,7 +2,7 @@ import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import type { IgnoredBuilds, IncludedDependencies, ProjectRootDir } from '@pnpm/types'
+import type { IgnoredBuilds, IncludedDependencies, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 export interface ResolutionPolicyViolation {
   name: string
@@ -14,6 +14,12 @@ export interface ResolutionPolicyViolation {
 export interface InstallGlobalPackagesResult {
   ignoredBuilds: IgnoredBuilds | undefined
   resolutionPolicyViolations: ResolutionPolicyViolation[]
+  /**
+   * The version each direct dependency resolved to. Empty when the installer
+   * reported no lockfile, which it only does for a mutation that resolved
+   * nothing.
+   */
+  resolvedVersions: Record<string, string>
 }
 
 export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptions {
@@ -26,7 +32,7 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   include: IncludedDependencies
   includeDirect?: IncludedDependencies
   omitSummaryLog?: boolean
-  rootProjectManifest?: unknown
+  rootProjectManifest?: ProjectManifest
   rootProjectManifestDir?: string
   saveDev?: boolean
   saveExact?: boolean
@@ -44,10 +50,8 @@ export async function installGlobalPackages (
   params: string[]
 ): Promise<InstallGlobalPackagesResult> {
   const store = await createStoreController(opts)
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
-  if (manifest == null) {
-    manifest = {}
-  }
+  const { manifest: manifestFromDisk, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
+  const manifest = opts.rootProjectManifest ?? manifestFromDisk ?? {}
   const installOpts = {
     ...opts,
     allowBuilds: { ...opts.allowBuilds },
@@ -55,7 +59,7 @@ export async function installGlobalPackages (
     storeDir: store.dir,
   }
   const rangeSpecStyle = getRangeSpecStyle(opts)
-  const { updatedProject, ignoredBuilds, resolutionPolicyViolations } = await mutateModulesInSingleProject(
+  const { updatedProject, ignoredBuilds, resolutionPolicyViolations, newLockfile } = await mutateModulesInSingleProject(
     {
       allowNew: true,
       binsDir: opts.bin,
@@ -70,5 +74,24 @@ export async function installGlobalPackages (
     installOpts
   )
   await writeProjectManifest(updatedProject.manifest)
-  return { ignoredBuilds, resolutionPolicyViolations }
+  return {
+    ignoredBuilds,
+    resolutionPolicyViolations,
+    resolvedVersions: resolvedDirectVersions(newLockfile?.importers['.' as ProjectId]?.dependencies),
+  }
+}
+
+/**
+ * The version behind each direct dependency of a lockfile importer. A resolution
+ * carries the peers it was made for as a `(peer@version)` suffix; only the
+ * version in front of it identifies the release.
+ */
+function resolvedDirectVersions (
+  dependencies: Record<string, string> | undefined
+): Record<string, string> {
+  const versions: Record<string, string> = {}
+  for (const [alias, resolution] of Object.entries(dependencies ?? {})) {
+    versions[alias] = resolution.split('(')[0]
+  }
+  return versions
 }

@@ -1,8 +1,12 @@
+import util from 'node:util'
+
 import { PnpmError } from '@pnpm/error'
+import { filterPkgMetadataVersions } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
+import { warnMissingTimeFieldOnce } from './pickPackage.js'
 import { assertMetaHasTime } from './pickPackageFromMeta.js'
 
 type TrustEvidence = 'provenance' | 'trustedPublisher' | 'stagedPublish'
@@ -13,12 +17,81 @@ const TRUST_RANK = {
   provenance: 1,
 } as const satisfies Record<TrustEvidence, number>
 
+export type TrustCheckOptions = NonNullable<Parameters<typeof failIfTrustDowngraded>[2]>
+
+/**
+ * Upper bound on trust downgrades set aside for one pick. Each one re-runs the
+ * picker over the packument, so the cap bounds the work a hostile packument
+ * can force. It matches the Rust resolver's re-pick cap.
+ */
+const TRUST_REPICK_LIMIT = 1000
+
+export interface TrustedPick {
+  pickedPackage: PackageInRegistry
+  /** Candidates set aside as trust downgrades before `pickedPackage`, in the order they were picked. */
+  rejectedVersions: string[]
+}
+
+/**
+ * Returns `pickedPackage` when it passes {@link failIfTrustDowngraded}.
+ * Otherwise sets it aside and asks `repick` for the next candidate from the
+ * packument without it, the way `minimumReleaseAge` narrows the candidates,
+ * until one passes. Throws the first downgrade when no candidate is left or
+ * {@link TRUST_REPICK_LIMIT} candidates were set aside.
+ *
+ * Every version is checked against the full packument: setting a version
+ * aside never removes the history that another version is compared with.
+ */
+export function pickWithoutTrustDowngrade (
+  meta: PackageMeta,
+  pickedPackage: PackageInRegistry,
+  opts: {
+    repick: (meta: PackageMeta) => PackageInRegistry | null
+    trustCheck: TrustCheckOptions
+  }
+): TrustedPick {
+  const rejectedVersions = new Set<string>()
+  let firstDowngrade: unknown
+  let candidate: PackageInRegistry | null = pickedPackage
+  while (candidate != null && !rejectedVersions.has(candidate.version)) {
+    try {
+      failIfTrustDowngraded(meta, candidate.version, opts.trustCheck)
+      return { pickedPackage: candidate, rejectedVersions: [...rejectedVersions] }
+    } catch (err: unknown) {
+      if (!isTrustDowngradeError(err)) throw err
+      firstDowngrade ??= err
+      rejectedVersions.add(candidate.version)
+      if (rejectedVersions.size >= TRUST_REPICK_LIMIT) break
+    }
+    candidate = opts.repick(filterPkgMetadataVersions(meta, (version) => !rejectedVersions.has(version)))
+  }
+  throw firstDowngrade
+}
+
+function isTrustDowngradeError (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE'
+}
+
 export function failIfTrustDowngraded (
   meta: PackageMeta,
   version: string,
   opts?: {
     trustPolicyExclude?: PackageVersionPolicy
     trustPolicyIgnoreAfter?: number
+    /**
+     * The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares that
+     * the registry cannot date its releases. The downgrade check orders
+     * history by publish date, so a packument with no `time` map leaves it
+     * nothing to order and the check is skipped with a warning rather than
+     * aborting the install.
+     *
+     * Scoped to the whole map being absent, which `dropIncompletePublishTimes`
+     * makes the only shape a registry that dates some of its versions can
+     * reach here in. A packument that dates every version it lists is instead
+     * saying it does not have this one, so that shape keeps failing closed
+     * however this flag is set.
+     */
+    ignoreMissingTimeField?: boolean
   }
 ): void {
   if (opts?.trustPolicyExclude) {
@@ -31,6 +104,10 @@ export function failIfTrustDowngraded (
     }
   }
 
+  if (meta.time == null && opts?.ignoreMissingTimeField) {
+    warnMissingTimeFieldOnce(meta.name, 'trustPolicy')
+    return
+  }
   assertMetaHasTime(meta)
 
   const versionPublishedAt = meta.time[version]

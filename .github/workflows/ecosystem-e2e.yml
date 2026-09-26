@@ -35,11 +35,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install pnpm
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
-
       - name: Setup Rust toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
 
       - name: Build pnpm and the harness
         run: cargo build --release --bin pnpm --bin ecosystem-e2e
@@ -86,7 +86,7 @@ jobs:
         # The runner image's system Node is older than the bundle's floor
         # (`node:sqlite` needs >= 22.13). Installs the `devEngines.runtime`
         # pin, which the harness passes to every subprocess through PATH.
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
           install: false
 

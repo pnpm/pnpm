@@ -37,11 +37,12 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::{
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fixtures::minimal_tarball,
+    fs::bump_mtime,
 };
-use std::{fs, path::Path, process::Command, thread::sleep, time::Duration};
+use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -59,7 +60,9 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
         let trimmed = line.trim().trim_end_matches(':');
         trimmed == package_key || trimmed.trim_matches('"') == package_key
     };
-    let mut lines = lockfile.lines().skip_while(|line| !is_header(line));
+    let mut lines = lockfile
+        .lines()
+        .skip_while(|line| !is_header(line));
     let header = lines.next()?;
     let header_indent = header.len() - header.trim_start().len();
 
@@ -80,11 +83,15 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
         // it) so a tarball URL/path containing the substring can't masquerade
         // as the field and hide a genuinely missing `integrity`.
         .find_map(|line| {
-            let key_at = line.match_indices("integrity:").find(|(idx, _)| {
-                matches!(line[..*idx].chars().next_back(), None | Some(' ' | '{' | ','))
-            })?;
+            let key_at = line
+                .match_indices("integrity:")
+                .find(|(idx, _)| {
+                    matches!(line[..*idx].chars().next_back(), None | Some(' ' | '{' | ','))
+                })?;
             let rest = line[key_at.0 + "integrity:".len()..].trim_start();
-            let end = rest.find([',', '}']).unwrap_or(rest.len());
+            let end = rest
+                .find([',', '}'])
+                .unwrap_or(rest.len());
             Some(rest[..end].trim().to_string())
         })
 }
@@ -120,20 +127,20 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         serde_json::json!({ "dependencies": { "is-positive": tarball } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    let integrity = package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
-        panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
-    });
+    let integrity = package_integrity(&lockfile, &package_key)
+        .unwrap_or_else(|| {
+            panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
+        });
 
     // Install an unrelated package. This rewrites the lockfile while the
     // tarball dependency is re-resolved — the exact
     // <https://github.com/pnpm/pnpm/issues/12001> trigger.
-    // Ensure the manifest mtime is observably newer than the first
-    // install's workspace-state validation timestamp; otherwise the
-    // optimistic repeat-install shortcut can legitimately skip resolution.
-    sleep(Duration::from_millis(20));
     fs::write(
         &manifest_path,
         serde_json::json!({
@@ -142,7 +149,11 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         .to_string(),
     )
     .expect("rewrite package.json with an unrelated dependency");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    bump_mtime(&manifest_path);
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -158,7 +169,10 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     // The frozen install is the symptom
     // <https://github.com/pnpm/pnpm/issues/12001> reports: it fails
     // closed when the tarball entry has lost its integrity.
-    pacquet_at(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -191,9 +205,15 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
     let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
     let tarball = minimal_tarball("pkg-from-tarball", "1.0.0");
     let mut tarball_server = mockito::Server::new();
-    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
-    let get_mock =
-        tarball_server.mock("GET", tarball_path).with_status(200).with_body(tarball).create();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .create();
+    let get_mock = tarball_server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(tarball)
+        .create();
     // A host distinct from the configured registry, so the URL is treated
     // as a remote (non-registry) tarball and claimed by the TarballResolver.
     let tarball_url = format!("{}{tarball_path}", tarball_server.url());
@@ -206,12 +226,16 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
         serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
-        panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
-    });
+    package_integrity(&lockfile, &package_key)
+        .unwrap_or_else(|| {
+            panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
+        });
 
     // Tear the tarball server down. Any re-fetch attempt now fails.
     drop((head_mock, get_mock, tarball_server));
@@ -219,7 +243,10 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
     // `pacquet update` re-resolves the tarball dependency. With the server
     // gone it can only succeed by reusing the warm store entry rather than
     // re-downloading.
-    pacquet_at(&workspace).with_arg("update").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -252,7 +279,10 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
 
     let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
     let mut tarball_server = mockito::Server::new();
-    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
         .with_status(200)
@@ -268,12 +298,16 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
         serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    let integrity = package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
-        panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
-    });
+    let integrity = package_integrity(&lockfile, &package_key)
+        .unwrap_or_else(|| {
+            panic!("the fresh install must record an integrity for the tarball dep:\n{lockfile}")
+        });
     let stripped = lockfile.replace(&format!("integrity: {integrity}, "), "");
     assert!(
         package_integrity(&stripped, &package_key).is_none(),
@@ -286,7 +320,11 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
     // frozen install below has to fail *before* fetching: the mocks still
     // answer, and answering is what the assertion catches.
     drop((head_mock, get_mock));
-    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).expect(0).create();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .expect(0)
+        .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
         .with_status(200)
@@ -303,7 +341,10 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     // miette wraps the rendered message to the terminal width, so the
     // sentences are matched against a single-spaced rendering.
-    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    let unwrapped = stderr
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     assert!(
         unwrapped.contains("ERR_PNPM_MISSING_TARBALL_INTEGRITY")
             && unwrapped.contains("1 lockfile entries failed verification")
@@ -330,12 +371,15 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
 fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let tarball_path = "/pkg-from-tarball-1.0.0.tgz";
     let mut tarball_server = mockito::Server::new();
-    let head_mock = tarball_server.mock("HEAD", tarball_path).with_status(200).create();
+    let head_mock = tarball_server
+        .mock("HEAD", tarball_path)
+        .with_status(200)
+        .create();
     let get_mock = tarball_server
         .mock("GET", tarball_path)
         .with_status(200)
@@ -348,14 +392,19 @@ fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
         serde_json::json!({ "dependencies": { "pkg-from-tarball": &tarball_url } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
-    let keys = pacquet_store_dir::StoreIndex::open_readonly_in(&store_dir)
+    let keys = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir)
         .expect("open the store index")
         .keys()
         .expect("read the store index keys");
-    let rows: Vec<&String> =
-        keys.iter().filter(|key| key.contains("pkg-from-tarball")).collect::<Vec<_>>();
+    let rows: Vec<&String> = keys
+        .iter()
+        .filter(|key| key.contains("pkg-from-tarball"))
+        .collect::<Vec<_>>();
     assert_eq!(rows.len(), 1, "one tarball dependency must occupy one store-index row: {keys:?}");
     assert!(
         rows[0].ends_with(&format!("\t{tarball_url}")),
@@ -409,7 +458,10 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
         serde_json::json!({ "dependencies": { "pkg-from-tarball": &requested_url } }).to_string(),
     )
     .expect("write package.json");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
     assert!(
@@ -417,16 +469,59 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
         "the lockfile must record the post-redirect URL:\n{lockfile}",
     );
     let package_key = format!("pkg-from-tarball@{requested_url}");
-    package_integrity(&lockfile, &package_key).unwrap_or_else(|| {
-        panic!("the entry must be keyed by the requested URL and carry an integrity:\n{lockfile}")
-    });
+    package_integrity(&lockfile, &package_key)
+        .unwrap_or_else(|| {
+            panic!(
+                "the entry must be keyed by the requested URL and carry an integrity:\n{lockfile}",
+            )
+        });
 
     drop((redirect_mock, head_mock, get_mock, tarball_server));
 
-    pacquet_at(&workspace).with_arg("update").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("update")
+        .assert()
+        .success();
 
     let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
     assert_eq!(after, lockfile, "a warm re-resolve must not rewrite the entry");
+
+    drop((root, mock_instance));
+}
+
+/// A remote tarball URL ends in `.tgz` like a local tarball does, but has no
+/// file to compare with its recorded integrity, so it must not send a repeat
+/// install down the fresh-resolve path.
+#[test]
+fn repeat_install_of_a_remote_tarball_reuses_the_lockfile() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let tarball = format!(
+        "{}is-positive/-/is-positive-1.0.0.tgz",
+        mock_instance.url().replace("127.0.0.1", "localhost"),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": tarball } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    let assert = pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.contains("Lockfile is up to date, resolution step is skipped"),
+        "the repeat install must reuse the lockfile:\n{stdout}",
+    );
 
     drop((root, mock_instance));
 }

@@ -23,11 +23,16 @@ fn compatible() {
 
 #[test]
 fn incompatible() {
-    let error = "6.0".parse::<ComVer>().unwrap().pipe(LockfileVersion::<9>::try_from).unwrap_err();
+    let error = "6.0"
+        .parse::<ComVer>()
+        .unwrap()
+        .pipe(LockfileVersion::<9>::try_from)
+        .unwrap_err();
     dbg!(&error);
     assert_eq!(
         error.to_string(),
-        "The lockfileVersion of 6.0 is incompatible with the supported formats",
+        "The lockfileVersion of 6.0 is incompatible with this version of pnpm, \
+         which supports lockfileVersion 9.x",
     );
     assert!(matches!(
         error,

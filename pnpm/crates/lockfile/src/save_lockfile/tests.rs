@@ -1,8 +1,12 @@
 use super::SaveLockfileError;
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
+use std::path::Path;
 use tempfile::tempdir;
 use text_block_macros::text_block;
+
+#[cfg(windows)]
+mod windows;
 
 /// A compact v9 lockfile fixture exercising the `importers` root entry, the
 /// `packages` metadata map (registry resolution + engines + hasBin), and
@@ -104,6 +108,52 @@ fn save_reproduces_pnpm_authored_bytes() {
 }
 
 #[test]
+fn time_survives_a_save_round_trip() {
+    let lockfile: Lockfile = serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{DIRECT_TIME}"))
+        .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+#[test]
+fn time_is_pruned_to_the_importers_direct_dependencies() {
+    const TIME_WITH_TRANSITIVE: &str = text_block! {
+        ""
+        "time:"
+        "  object-assign@4.1.1: '2016-06-08T00:00:00.000Z'"
+        "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+        "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+        "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+    };
+
+    let lockfile: Lockfile =
+        serde_saphyr::from_str(&format!("{LOCKFILE_YAML}\n{TIME_WITH_TRANSITIVE}"))
+            .expect("parse fixture lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join("pnpm-lock.yaml");
+    lockfile.save_to_path(&path).expect("save lockfile");
+
+    let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
+    assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
+}
+
+/// The `time:` section of [`LOCKFILE_YAML`] once pruned: one entry per
+/// direct dependency, with `react-dom`'s peer suffix stripped.
+const DIRECT_TIME: &str = text_block! {
+    ""
+    "time:"
+    "  react-dom@17.0.2: '2021-03-22T15:00:00.000Z'"
+    "  react@17.0.2: '2021-03-22T14:00:00.000Z'"
+    "  typescript@5.1.6: '2023-06-27T18:00:00.000Z'"
+};
+
+#[test]
 fn workspace_lockfile_with_link_dep_round_trips() {
     const WORKSPACE_YAML: &str = text_block! {
         "lockfileVersion: '9.0'"
@@ -145,8 +195,7 @@ fn workspace_lockfile_with_link_dep_round_trips() {
     assert_eq!(original.importers.len(), 2);
 
     let web = original.importers.get("packages/web").expect("web importer present");
-    let shared_dep = web
-        .dependencies
+    let shared_dep = web.dependencies
         .as_ref()
         .unwrap()
         .iter()
@@ -229,6 +278,8 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -265,6 +316,8 @@ fn peers_suffix_max_length_serialized_when_set() {
         importers: std::collections::HashMap::default(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: crate::LockfileExtra::default(),
     };
 
     let tmp = tempdir().expect("create tempdir");
@@ -288,7 +341,10 @@ fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
 
     // Attempt to write under a non-existent directory; fs::write returns NotFound.
     let tmp = tempdir().expect("create tempdir");
-    let bad_path = tmp.path().join("missing-dir").join("pnpm-lock.yaml");
+    let bad_path = tmp
+        .path()
+        .join("missing-dir")
+        .join("pnpm-lock.yaml");
     let err = empty_lockfile.save_to_path(&bad_path).expect_err("should fail");
     assert!(
         matches!(err, SaveLockfileError::WriteFile(_)),
@@ -301,7 +357,10 @@ fn write_current_round_trips_through_read_current() {
     let original: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     original.save_current_to_virtual_store_dir(&virtual_store_dir).expect("write current lockfile");
 
@@ -318,7 +377,10 @@ fn write_current_round_trips_through_read_current() {
 #[test]
 fn read_current_returns_none_when_file_missing() {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("missing file should not error");
@@ -328,7 +390,10 @@ fn read_current_returns_none_when_file_missing() {
 #[test]
 fn write_current_deletes_file_when_lockfile_is_empty() {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
     let lock_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
 
@@ -350,7 +415,10 @@ fn write_current_deletes_file_when_lockfile_is_empty() {
 #[test]
 fn write_current_is_a_noop_for_empty_lockfile_with_no_existing_file() {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let empty: Lockfile =
         serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse empty lockfile");
@@ -385,7 +453,10 @@ fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
 #[test]
 fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
     // Pre-seed `lock.yaml` as a directory rather than a file.
     // `fs::remove_file` rejects this with `IsADirectory` on Unix.
@@ -409,7 +480,10 @@ fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
 #[test]
 fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     std::fs::create_dir_all(&virtual_store_dir).unwrap();
     // Plant a *non-empty* directory at the target. `rename` over
     // it must fail on every supported platform.
@@ -444,11 +518,17 @@ fn save_leaves_an_unchanged_lockfile_untouched() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path).unwrap();
-    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
 
     lockfile.save_to_path(&path).unwrap();
 
-    let mtime_after = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_after = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
     assert_eq!(mtime_before, mtime_after, "an unchanged lockfile must not be rewritten");
 }
 
@@ -460,12 +540,21 @@ fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
     lockfile.save_to_path(&path).unwrap();
     let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, &crlf_content).unwrap();
-    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
 
     lockfile.save_to_path(&path).unwrap();
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
-    assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime_before);
+    assert_eq!(
+        std::fs::metadata(&path)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        mtime_before,
+    );
 }
 
 #[test]
@@ -477,11 +566,17 @@ fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
     let main_doc = std::fs::read_to_string(&path).unwrap();
     let env_doc = "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n";
     std::fs::write(&path, format!("{env_doc}{main_doc}")).unwrap();
-    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
 
     lockfile.save_to_path(&path).unwrap();
 
-    let mtime_after = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_after = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
     assert_eq!(mtime_before, mtime_after, "re-prepending the same env document must not rewrite");
 }
 
@@ -498,7 +593,12 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     let error = lockfile.save_to_path(&path).expect_err("a symlinked lockfile must not be written");
 
     assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
-    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(
         std::fs::read_to_string(&victim).unwrap(),
         "victim content",
@@ -514,15 +614,29 @@ fn save_accepts_symlinked_lockfile_when_nothing_changes() {
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&staged).unwrap();
     let target_before = std::fs::read(&staged).unwrap();
-    let mtime_before = std::fs::metadata(&staged).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&staged)
+        .unwrap()
+        .modified()
+        .unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&staged, &path).unwrap();
 
     lockfile.save_to_path(&path).expect("an unchanged lockfile must not trip the symlink guard");
 
-    assert!(std::fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(std::fs::read(&staged).unwrap(), target_before);
-    assert_eq!(std::fs::metadata(&staged).unwrap().modified().unwrap(), mtime_before);
+    assert_eq!(
+        std::fs::metadata(&staged)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        mtime_before,
+    );
 }
 
 #[cfg(unix)]
@@ -534,7 +648,10 @@ fn save_accepts_unchanged_crlf_symlinked_lockfile() {
     lockfile.save_to_path(&staged).unwrap();
     let crlf_content = std::fs::read_to_string(&staged).unwrap().replace('\n', "\r\n");
     std::fs::write(&staged, &crlf_content).unwrap();
-    let mtime_before = std::fs::metadata(&staged).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&staged)
+        .unwrap()
+        .modified()
+        .unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&staged, &path).unwrap();
 
@@ -543,7 +660,13 @@ fn save_accepts_unchanged_crlf_symlinked_lockfile() {
         .expect("an unchanged CRLF lockfile must not trip the symlink guard");
 
     assert_eq!(std::fs::read_to_string(&staged).unwrap(), crlf_content);
-    assert_eq!(std::fs::metadata(&staged).unwrap().modified().unwrap(), mtime_before);
+    assert_eq!(
+        std::fs::metadata(&staged)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        mtime_before,
+    );
 }
 
 #[cfg(unix)]
@@ -562,7 +685,11 @@ fn save_preserves_the_lockfile_permission_mode() {
     lockfile.packages = None;
     lockfile.save_to_path(&path).unwrap();
 
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o640, "an atomic replace must carry the target's mode across");
 }
 
@@ -580,4 +707,151 @@ fn save_leaves_no_temp_file_behind() {
         .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
         .collect();
     assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");
+}
+
+/// A tool that drives pnpm programmatically records its own state in a
+/// top-level block beside pnpm's; a load/save round trip must not delete
+/// it. The block is emitted after every key pnpm defines.
+#[test]
+fn foreign_top_level_keys_survive_a_round_trip() {
+    let source = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 3.0.1\n        version: 3.0.1\n\nbit:\n  depsRequiringBuild:\n    - esbuild@0.25.0\n";
+
+    let lockfile = Lockfile::parse(source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+
+    assert_eq!(
+        lockfile.extra.get("bit"),
+        Some(&serde_json::json!({ "depsRequiringBuild": ["esbuild@0.25.0"] })),
+    );
+
+    let saved = lockfile.to_yaml_string().expect("serialize lockfile");
+    assert!(saved.contains("bit:"), "saved: {saved}");
+    assert!(saved.contains("esbuild@0.25.0"), "saved: {saved}");
+    let importers_at = saved.find("importers:").expect("importers survive the round trip");
+    let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
+    assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
+}
+
+/// The parallel map lowering `serialize_yaml::to_string` uses for
+/// workspace-scale maps must render byte-identically to the plain
+/// serial lowering (which still runs when no stash is active, as in
+/// the direct `serde_json::to_value` below).
+#[test]
+fn parallel_map_lowering_matches_serial_lowering() {
+    use std::fmt::Write as _;
+    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  packages/pkg-{index:03}:\n    dependencies:\n      '@scope/dep-{index:03}':\n        specifier: workspace:*\n        version: link:../dep-{index:03}",
+        )
+        .expect("write to a string");
+    }
+    yaml.push_str("snapshots:\n");
+    for index in 0..200 {
+        writeln!(yaml, "  'pkg-{index:03}@1.0.{index}': {{}}").expect("write to a string");
+    }
+    yaml.push_str("packages:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  'pkg-{index:03}@1.0.{index}':\n    resolution: {{integrity: sha512-{index:A>88}}}",
+        )
+        .expect("write to a string");
+    }
+    // A marker-shaped decoy planted as ordinary lockfile data: it must
+    // come out exactly as it went in, and be the only marker-prefixed
+    // string in the output.
+    let decoy = "\u{f8ff}pacquet-lowered-map:12345:0";
+    writeln!(
+        yaml,
+        "  'decoy@1.0.0':\n    resolution: {{integrity: sha512-{:A>88}}}\n    version: '{decoy}'",
+        0,
+    )
+    .expect("write to a string");
+    let lockfile = Lockfile::parse(&yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the synthetic lockfile")
+        .expect("non-empty lockfile");
+
+    let lowered_before =
+        crate::serialize_yaml::PARALLEL_LOWERINGS.load(std::sync::atomic::Ordering::Relaxed);
+    let via_to_string = lockfile.to_yaml_string().expect("serialize via to_string");
+    let lowered =
+        crate::serialize_yaml::PARALLEL_LOWERINGS.load(std::sync::atomic::Ordering::Relaxed)
+            - lowered_before;
+    let mut plain = serde_json::to_value(&lockfile).expect("serialize serially");
+    crate::prune_time(&mut plain);
+    let via_serial = crate::yaml_emit::to_string(plain);
+
+    assert_eq!(via_to_string, via_serial);
+    assert!(
+        lowered >= 3,
+        "importers, packages, and snapshots must all take the parallel lowering, got {lowered}",
+    );
+    assert_eq!(
+        via_to_string.matches('\u{f8ff}').count(),
+        via_to_string.matches(decoy).count(),
+        "every marker-prefixed character must belong to a planted decoy",
+    );
+    assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
+}
+
+/// The interrupt cleanup must see the temp file a lockfile save stages
+/// ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Running
+/// the cleanup mid-write stands in for the signal, whose delivery
+/// `pnpm-fs`'s own cross-process test covers: the unlinked temp file then
+/// fails the rename that would have published it.
+///
+/// A save that publishes before the cleanup runs lost the race rather than
+/// proving anything, so it is retried. Without the registration every save
+/// publishes and the test fails.
+#[cfg(unix)]
+#[test]
+fn interrupt_cleanup_unlinks_the_staged_lockfile() {
+    const ATTEMPTS: usize = 10;
+    for _ in 0..ATTEMPTS {
+        let dir = tempdir().expect("create tempdir");
+        let target = dir.path().join(Lockfile::FILE_NAME);
+        let writer = std::thread::spawn({
+            let target = target.clone();
+            move || super::write_atomic(&target, &vec![b'x'; 64 * 1024 * 1024])
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !has_staged_temp_file(dir.path()) && !writer.is_finished() {
+            assert!(std::time::Instant::now() < deadline, "the save staged no temp file in 30s");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        pnpm_fs::remove_pending_temp_files();
+
+        let result = writer.join().expect("join the writer");
+        if result.is_ok() {
+            continue;
+        }
+        assert!(
+            matches!(result, Err(SaveLockfileError::RenameFile { .. })),
+            "the cleanup should have unlinked the staged temp file, got: {result:?}",
+        );
+        assert!(!target.exists(), "nothing should have been published");
+        assert!(!has_staged_temp_file(dir.path()), "the temp file should be gone");
+        return;
+    }
+    panic!("every one of {ATTEMPTS} saves published despite the cleanup running mid-write");
+}
+
+#[cfg(unix)]
+fn has_staged_temp_file(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .expect("list the project directory")
+        .filter_map(Result::ok)
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+                && entry
+                    .metadata()
+                    .is_ok_and(|metadata| metadata.len() > 0)
+        })
 }

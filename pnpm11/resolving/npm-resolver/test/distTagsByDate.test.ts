@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
@@ -62,7 +62,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff',
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
@@ -70,7 +70,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff',
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 
@@ -122,7 +122,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
@@ -130,7 +130,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 
@@ -181,7 +181,7 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
   // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
@@ -189,7 +189,7 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 
@@ -246,7 +246,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
   // Cutoff before 3.2.0 and 3.0.0-alpha.2, so latest must be remapped to 3.0.0-alpha.1 (the highest prerelease version within the cutoff)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
@@ -254,7 +254,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 
@@ -282,7 +282,7 @@ test('keep dist-tag if original version is within the date cutoff', async () => 
 
   const cutoff = new Date('2020-02-01T00:00:00.000Z')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: `/${name}`, method: 'GET' })
     .reply(200, meta)
 
@@ -290,7 +290,7 @@ test('keep dist-tag if original version is within the date cutoff', async () => 
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 

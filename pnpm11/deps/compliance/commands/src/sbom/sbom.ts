@@ -9,8 +9,10 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import {
+  authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
+  repositoryFromField,
   resolveWorkspaceDeps,
   type SbomComponentType,
   type SbomFormat,
@@ -20,6 +22,7 @@ import {
 } from '@pnpm/deps.compliance.sbom'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -42,11 +45,13 @@ export type SbomCommandOptions = {
   | 'dev'
   | 'dir'
   | 'lockfileDir'
-  | 'registries'
-  | 'namedRegistries'
+  | 'registriesByScope'
+  | 'registriesByPrefix'
   | 'optional'
   | 'production'
+  | 'resolvePeersFromWorkspaceRoot'
   | 'storeDir'
+  | 'supportedArchitectures'
   | 'virtualStoreDir'
   | 'modulesDir'
   | 'pnpmHomeDir'
@@ -416,6 +421,23 @@ async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedCont
   return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId, excludePeerNamesByImporter }
 }
 
+/**
+ * A selected project the lockfile has no importer for means the lockfile is
+ * out of date — pnpm writes an entry for every project, `{}` for one with no
+ * dependencies. Walking the rest would answer with an SBOM that under-reports
+ * the selection's dependencies, so the run fails instead.
+ */
+function assertImportersAreInLockfile (lockfile: LockfileObject, importerIds: ProjectId[] | undefined): void {
+  if (importerIds == null) return
+  const missing = importerIds.filter((importerId) => lockfile.importers[importerId] == null)
+  if (missing.length === 0) return
+  throw new PnpmError(
+    'SBOM_MISSING_IMPORTERS',
+    `${WANTED_LOCKFILE} has no entry for the selected project${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}.`,
+    { hint: 'Run "pnpm install" to update it.' }
+  )
+}
+
 async function generateSbomForProject (
   opts: SbomCommandOptions,
   serialOpts: SerializeOptions,
@@ -446,23 +468,21 @@ async function generateSbomForProject (
 
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
+  const declaresLicense = 'license' in manifest || 'licenses' in manifest
   const rootLicense = singleProject
-    ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
+    ? (await resolveRootLicense(manifest, projectDir) ?? (declaresLicense ? undefined : cachedRootLicense))
     : cachedRootLicense
-  const rootAuthor = extractAuthor(manifest)
-    ?? (singleProject ? extractAuthor(rootManifest) : undefined)
-  const rootRepository = extractRepository(manifest)
-    ?? (singleProject ? extractRepository(rootManifest) : undefined)
-  const rootDescription = manifest.description
-    ?? (singleProject ? rootManifest.description : undefined)
-  const rootBugsUrl = bugsUrlFromField(manifest.bugs)
-    ?? (singleProject ? bugsUrlFromField(rootManifest.bugs) : undefined)
+  const rootAuthor = authorNameFromField(rootComponentField(manifest, rootManifest, 'author'))
+  const rootRepository = repositoryFromField(rootComponentField(manifest, rootManifest, 'repository'))
+  const rootDescription = rootComponentField(manifest, rootManifest, 'description')
+  const rootBugsUrl = bugsUrlFromField(rootComponentField(manifest, rootManifest, 'bugs'))
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
       .map((p) => getLockfileImporterId(lockfileDir, p))
     : undefined
+  assertImportersAreInLockfile(lockfile, includedImporterIds)
 
   const resolvedWorkspaceDeps = opts.lockfileOnly
     ? undefined
@@ -490,10 +510,12 @@ async function generateSbomForProject (
     rootBugsUrl,
     sbomType: serialOpts.sbomType,
     include,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     lockfileDir,
     includedImporterIds,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -558,6 +580,24 @@ function validateSbomSpecVersion (value: string | undefined, format: SbomFormat)
   return normalized
 }
 
+/**
+ * The value the SBOM's root component publishes for one manifest field. A
+ * `--filter` that narrows the run to a single project inherits the workspace
+ * root manifest's value for a field that project omits entirely.
+ *
+ * A field the project declares stays the project's own even when the value
+ * names nobody: blank, `null`, or a form no SBOM can publish. The workspace
+ * root's author, repository, or issue tracker would attribute the package to
+ * the wrong party.
+ */
+function rootComponentField<FieldName extends keyof ProjectManifest> (
+  manifest: ProjectManifest,
+  rootManifest: ProjectManifest,
+  field: FieldName
+): ProjectManifest[FieldName] {
+  return field in manifest ? manifest[field] : rootManifest[field]
+}
+
 async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFromDir>[0]['manifest'], dir: string): Promise<string | undefined> {
   // Skip the on-disk LICENSE probing when the manifest already declares a usable
   // SPDX license; resolveLicenseFromDir would return the same value after the scan.
@@ -569,16 +609,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
     return info.name
   }
   return undefined
-}
-
-function extractAuthor (manifest: { author?: string | { name?: string } }): string | undefined {
-  if (typeof manifest.author === 'string') return manifest.author
-  return manifest.author?.name
-}
-
-function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
-  if (typeof manifest.repository === 'string') return manifest.repository
-  return manifest.repository?.url
 }
 
 const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
@@ -607,8 +637,8 @@ async function buildWorkspacePackagesMap (
         version: manifest.version ?? '0.0.0',
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
-        author: extractAuthor(manifest),
-        repository: extractRepository(manifest),
+        author: authorNameFromField(manifest.author),
+        repository: repositoryFromField(manifest.repository),
       }]
     }))
   )

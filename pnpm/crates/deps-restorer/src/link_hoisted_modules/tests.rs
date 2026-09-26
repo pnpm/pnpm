@@ -4,16 +4,19 @@ use super::{
     CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
 };
 use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
-use pacquet_config::PackageImportMethod;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
-use pacquet_modules_yaml::DepPath;
-use pacquet_reporter::SilentReporter;
+use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_config::PackageImportMethod;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_modules_yaml::DepPath;
+use pnpm_reporter::{
+    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
+};
 use pretty_assertions::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Arc, Mutex, atomic::AtomicU8},
 };
 
 fn sample_resolution() -> LockfileResolution {
@@ -23,23 +26,34 @@ fn sample_resolution() -> LockfileResolution {
 /// Build a minimal graph node at `dir`. The walker would do
 /// this through `lockfile_to_hoisted_dep_graph`; tests build it
 /// directly so the linker can be exercised without a lockfile.
-fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> DependenciesGraphNode {
-    let modules = dir.parent().expect("dir has parent").to_path_buf();
+pub(super) fn make_node(
+    alias: &str,
+    dep_path: &str,
+    pkg_id: &str,
+    dir: PathBuf,
+) -> DependenciesGraphNode {
+    let modules = dir
+        .parent()
+        .expect("dir has parent")
+        .to_path_buf();
     DependenciesGraphNode {
+        package: crate::HoistedPackageMetadata {
+            dep_path: DepPath::from(dep_path.to_string()),
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_id),
+            name: alias.to_string(),
+            version: "1.0.0".to_string(),
+            has_bin: false,
+            has_bundled_dependencies: false,
+            patch: None,
+            resolution: sample_resolution(),
+        },
         alias: Some(alias.to_string()),
-        dep_path: DepPath::from(dep_path.to_string()),
-        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_id),
         dir,
         modules,
-        children: BTreeMap::new(),
-        name: alias.to_string(),
-        version: "1.0.0".to_string(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
-        has_bin: false,
-        has_bundled_dependencies: false,
-        patch: None,
-        resolution: sample_resolution(),
+        present: false,
+        children: BTreeMap::new(),
     }
 }
 
@@ -68,13 +82,13 @@ fn plant_package(
     cas_root: &Path,
     pkg_id: &str,
     files: &[(&str, &[u8])],
-) -> HashMap<String, PathBuf> {
+) -> Arc<HashMap<String, PathBuf>> {
     let mut combined = HashMap::new();
     for (rel, contents) in files {
         let single = plant_cas_file(cas_root, pkg_id, rel, contents);
         combined.extend(single);
     }
-    combined
+    Arc::new(combined)
 }
 
 /// `(rel_path, contents)` describing one file to plant for a
@@ -121,18 +135,27 @@ fn import_pass_creates_package_directory() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
-    let installed = lockfile_dir.join("node_modules").join("a").join("package").join("index.js");
+    let installed = lockfile_dir
+        .join("node_modules")
+        .join("a")
+        .join("package")
+        .join("index.js");
     assert!(installed.exists(), "imported file at {installed:?}");
     assert_eq!(fs::read(&installed).unwrap(), b"module.exports = 1;");
 }
@@ -164,19 +187,31 @@ fn orphan_directory_is_removed() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
     assert!(!orphan_dir.exists(), "orphan rimraf'd: {orphan_dir:?}");
-    assert!(modules.join("a").join("package").join("index.js").exists(), "a is imported");
+    assert!(
+        modules
+            .join("a")
+            .join("package")
+            .join("index.js")
+            .exists(),
+        "a is imported",
+    );
 }
 
 #[test]
@@ -218,19 +253,36 @@ fn nested_hierarchy_materializes_inner_node_modules() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
-    assert!(outer_dir.join("package").join("outer.js").exists(), "outer imported");
-    assert!(inner_dir.join("package").join("inner.js").exists(), "nested inner imported");
+    assert!(
+        outer_dir
+            .join("package")
+            .join("outer.js")
+            .exists(),
+        "outer imported",
+    );
+    assert!(
+        inner_dir
+            .join("package")
+            .join("inner.js")
+            .exists(),
+        "nested inner imported",
+    );
 }
 
 #[test]
@@ -252,13 +304,18 @@ fn missing_cas_for_required_dep_errors() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("required dep needs CAS");
@@ -291,13 +348,18 @@ fn missing_cas_for_optional_dep_skips_silently() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("optional skips silently");
@@ -319,18 +381,30 @@ fn no_prev_graph_skips_orphan_pass() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds without prev_graph");
 
-    assert!(lockfile_dir.join("node_modules").join("a").join("package").join("index.js").exists());
+    assert!(
+        lockfile_dir
+            .join("node_modules")
+            .join("a")
+            .join("package")
+            .join("index.js")
+            .exists(),
+    );
 }
 
 /// Orphan removal tolerates errors silently — matches upstream's
@@ -360,13 +434,18 @@ fn orphan_already_removed_is_tolerated() {
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: Some(&prev_graph),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("phantom orphan tolerated");
@@ -391,13 +470,18 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let cas_paths = CasPathsByPkgId::new();
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
         graph: &graph,
         prev_graph: None,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &logged,
-        requester: lockfile_dir.to_str().expect("requester"),
+
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("inconsistency surfaces");
@@ -407,4 +491,155 @@ fn hierarchy_entry_missing_from_graph_errors() {
         }
         other => panic!("expected MissingGraphNode, got {other:?}"),
     }
+}
+
+/// One `pnpm:progress imported` per imported node — the event the
+/// default reporter counts as `added`, and the only source of that
+/// counter under `nodeLinker: hoisted`.
+#[test]
+fn import_pass_emits_one_imported_event_per_node() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[
+            ("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"module.exports = 1;")]),
+            ("b", "b@1.0.0", "b@1.0.0", &[("package/index.js", b"module.exports = 2;")]),
+        ],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    };
+    EVENTS.lock().unwrap().clear();
+    link_hoisted_modules::<RecordingReporter>(&opts).expect("linker succeeds");
+
+    let captured = EVENTS.lock().unwrap();
+    let mut imported: Vec<(WireImportMethod, String, String)> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Progress(log) => match &log.message {
+                ProgressMessage::Imported { method, requester, to } => {
+                    Some((*method, requester.clone(), to.clone()))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    imported.sort_by(|left, right| left.2.cmp(&right.2));
+
+    let modules = lockfile_dir.join("node_modules");
+    let requester = lockfile_dir
+        .to_str()
+        .expect("requester")
+        .to_string();
+    assert_eq!(
+        imported,
+        vec![
+            (
+                WireImportMethod::Hardlink,
+                requester.clone(),
+                modules
+                    .join("a")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            (
+                WireImportMethod::Hardlink,
+                requester,
+                modules
+                    .join("b")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ],
+    );
+}
+
+/// A bundled dependency's bin whose target is missing is held back like a
+/// graph package's bin, and its directory is returned for the post-build
+/// relink.
+#[test]
+fn bundled_bin_with_missing_target_is_held_back() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let outer_dir = lockfile_dir.join("node_modules").join("outer");
+
+    let mut outer = make_node("outer", "outer@1.0.0", "outer@1.0.0", outer_dir.clone());
+    outer.package.has_bundled_dependencies = true;
+    let mut graph = DependenciesGraph::new();
+    graph.insert(outer_dir.clone(), outer);
+    let mut children = BTreeMap::new();
+    children.insert(outer_dir.clone(), DepHierarchy::default());
+    let mut hierarchy = BTreeMap::new();
+    hierarchy.insert(lockfile_dir.clone(), DepHierarchy(children));
+    let mut cas_paths = CasPathsByPkgId::new();
+    cas_paths.insert(
+        PkgIdWithPatchHash::from("outer@1.0.0"),
+        plant_package(
+            &cas_root,
+            "outer@1.0.0",
+            &[
+                ("package.json", br#"{"name":"outer","version":"1.0.0"}"#),
+                (
+                    "node_modules/tool/package.json",
+                    br#"{"name":"tool","version":"1.0.0","bin":{"tool":"cli.js"}}"#,
+                ),
+            ],
+        ),
+    );
+
+    let logged = AtomicU8::new(0);
+    let held_back = link_hoisted_modules::<SilentReporter>(&LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Auto,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    })
+    .expect("linker succeeds");
+
+    let bundled_modules = outer_dir.join("node_modules");
+    let held_back: Vec<_> = held_back
+        .iter()
+        .map(|dir| (dir.modules_dir.clone(), dir.dep_names.clone()))
+        .collect();
+    assert_eq!(held_back, vec![(bundled_modules.clone(), vec!["tool".to_string()])]);
+    assert!(!bundled_modules.join(".bin/tool").exists(), "the missing bin is held back");
 }

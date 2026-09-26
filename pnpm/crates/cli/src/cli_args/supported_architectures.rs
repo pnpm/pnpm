@@ -1,5 +1,5 @@
 use clap::Args;
-use pacquet_package_is_installable::SupportedArchitectures;
+use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
 
 /// Filters which platforms' optional dependencies are installed, via the
 /// `--cpu`, `--os`, and `--libc` flags. Each flag may be repeated
@@ -27,6 +27,10 @@ impl SupportedArchitecturesArgs {
     /// Apply the CLI overrides to a config-derived `SupportedArchitectures`
     /// value, returning the merged result. Returns `None` only when both
     /// the existing config value and every CLI axis are empty.
+    ///
+    /// The flags name axes, so they produce the axis form. A
+    /// configuration that names platforms one by one is replaced by what
+    /// the flags name rather than filtered down to it.
     pub fn apply_to(
         &self,
         existing: Option<SupportedArchitectures>,
@@ -34,17 +38,20 @@ impl SupportedArchitecturesArgs {
         if self.cpu.is_empty() && self.os.is_empty() && self.libc.is_empty() {
             return existing;
         }
-        let mut out = existing.unwrap_or_default();
+        let mut axes = match existing {
+            Some(SupportedArchitectures::Axes(axes)) => axes,
+            _ => ArchitectureAxes::default(),
+        };
         if !self.cpu.is_empty() {
-            out.cpu = Some(self.cpu.clone());
+            axes.cpu = Some(self.cpu.clone());
         }
         if !self.os.is_empty() {
-            out.os = Some(self.os.clone());
+            axes.os = Some(self.os.clone());
         }
         if !self.libc.is_empty() {
-            out.libc = Some(self.libc.clone());
+            axes.libc = Some(self.libc.clone());
         }
-        Some(out)
+        Some(SupportedArchitectures::Axes(axes))
     }
 }
 

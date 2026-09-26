@@ -13,15 +13,15 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
-let registries: Record<string, string>
+let registriesByScope: Record<string, string>
 
 beforeAll(async () => {
   const { config } = await getConfig({ cliOptions: {}, packageManager: { name: '', version: '' } })
-  registries = config.registries
-  registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
+  registriesByScope = config.registriesByScope
+  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
 })
 
-const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registriesByScope })
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
@@ -332,10 +332,12 @@ test('dlx creates cache and store prune cleans cache', async () => {
   ]
 
   // The git-hosted artifact has an untrusted package identity, so it has to
-  // be approved by its depPath; the registry shx is approved by name.
+  // be approved by its depPath. Approve both resolution shapes because the
+  // resolver falls back to a git clone when the GitHub visibility probe fails.
   const allowBuilds = [
     '--allow-build=shx',
     '--allow-build=shx@https://codeload.github.com/shelljs/shx/tar.gz/61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
+    '--allow-build=shx@git+https://github.com/shelljs/shx.git#61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
   ]
 
   /* eslint-disable no-await-in-loop */

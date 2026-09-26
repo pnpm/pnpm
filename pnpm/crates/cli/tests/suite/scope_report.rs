@@ -3,7 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet(workspace: &Path) -> Command {
@@ -53,7 +53,10 @@ fn default_workspace() -> CommandTempCwd<AddMockedRegistry> {
 /// before anything is emitted, so on macOS the reported prefix resolves
 /// `/var` to `/private/var` while the `TempDir` path does not.
 fn reported_prefix(workspace: &Path) -> String {
-    dunce::canonicalize(workspace).expect("canonicalize workspace").to_string_lossy().into_owned()
+    dunce::canonicalize(workspace)
+        .expect("canonicalize workspace")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// The `pnpm:scope` records in an NDJSON run, decoded.
@@ -99,7 +102,10 @@ fn a_filtered_install_reports_how_much_of_the_workspace_it_selected() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } = default_workspace();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let printed = output_of(pacquet(&workspace).with_args(["install", "--filter", "pkg-*"]));
     assert!(printed.contains("Scope: 2 of 3 workspace projects"), "output:\n{printed}");
 
@@ -114,7 +120,10 @@ fn a_single_project_selection_and_a_non_reporting_command_stay_silent() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } = default_workspace();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let printed = output_of(pacquet(&workspace).with_args(["install", "--filter", "pkg-a"]));
     assert!(!printed.contains("Scope:"), "one selected project: {printed}");
@@ -145,7 +154,10 @@ fn a_recursive_run_reports_the_scope_it_selected() {
         )
         .expect("write member package.json");
     }
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     // The workspace root is auto-excluded from a recursive `run`, so two
     // of the three projects are selected.
@@ -171,14 +183,14 @@ fn a_dedicated_lockfile_install_reports_its_scope_once() {
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     yaml.push_str("sharedWorkspaceLockfile: false\n");
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
-    let printed = output_of(pacquet(&workspace).with_args([
-        "install",
-        "--filter",
-        "pkg-*",
-        "--reporter=ndjson",
-    ]));
+    let printed = output_of(
+        pacquet(&workspace).with_args(["install", "--filter", "pkg-*", "--reporter=ndjson"]),
+    );
     let scopes = scope_records(&printed);
     assert_eq!(scopes.len(), 1, "exactly one scope record: {printed}");
     assert_eq!(scopes[0]["level"], "debug");
@@ -198,12 +210,13 @@ fn a_partial_install_reports_the_single_project_shape() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } = default_workspace();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet(&workspace).with_arg("install").assert().success();
-    let printed = output_of(pacquet(&workspace).with_args([
-        "add",
-        "@pnpm.e2e/hello-world-js-bin",
-        "--reporter=ndjson",
-    ]));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let printed = output_of(
+        pacquet(&workspace).with_args(["add", "@pnpm.e2e/hello-world-js-bin", "--reporter=ndjson"]),
+    );
 
     let scopes = scope_records(&printed);
     assert_eq!(scopes.len(), 1, "exactly one scope record: {printed}");

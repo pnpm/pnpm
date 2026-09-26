@@ -1,4 +1,4 @@
-use super::run::RunArgs;
+use super::{reporter::ReporterType, run::RunArgs};
 use clap::Args;
 
 /// The arguments of a command that stands for one named script —
@@ -23,12 +23,17 @@ impl ScriptShortcutArgs {
         RunArgs {
             script: RunArgs::script(script_name, self.args),
             if_present,
-            resume_from: None,
-            report_summary: false,
-            no_bail: false,
-            sort: true,
-            parallel: false,
             sequential: false,
+            dry_run: false,
+            json: false,
+            workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+                resume_from: None,
+                report_summary: false,
+                no_bail: false,
+                sort: true,
+                reverse: false,
+                parallel: false,
+            },
         }
     }
 
@@ -37,10 +42,10 @@ impl ScriptShortcutArgs {
         script_name: &str,
         if_present: bool,
         dir: &std::path::Path,
-        config: &pacquet_config::Config,
-        silent: bool,
+        config: &pnpm_config::Config,
+        reporter: ReporterType,
     ) -> miette::Result<()> {
-        self.into_run_args(script_name, if_present).run(dir, config, silent)
+        self.into_run_args(script_name, if_present).run(dir, config, reporter)
     }
 }
 

@@ -4,9 +4,10 @@ import os from 'node:os'
 import path from 'node:path'
 import util from 'node:util'
 
-import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { types as allTypes } from '@pnpm/config.reader'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -73,13 +74,12 @@ export interface CheckResult {
   durationMs?: number
 }
 
-export interface DoctorCommandOptions {
+export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>, Pick<Config, 'registriesByScope'> {
   dir: string
   cacheDir: string
   pnpmHomeDir: string
   globalBinDir?: string
   storeDir?: string
-  registries?: Record<string, string>
   offline?: boolean
   json?: boolean
   benchmark?: boolean
@@ -90,10 +90,8 @@ export interface DoctorCommandOptions {
   pnpmCommand?: string[]
 }
 
-const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
-
 export async function handler (opts: DoctorCommandOptions): Promise<{ output: string, exitCode: number }> {
-  const pnpmCommand = opts.pnpmCommand ?? resolveSelfCommand()
+  const pnpmCommand = opts.pnpmCommand ?? resolvePnpmSelfCommand()
 
   const checks: CheckResult[] = [
     checkVersions(),
@@ -226,19 +224,10 @@ async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResu
   if (opts.offline) {
     return { title, status: 'pass', detail: 'skipped (--offline)' }
   }
-  const registry = opts.registries?.default ?? DEFAULT_REGISTRY
-  const pingUrl = new URL('./-/ping?write=true', registry.endsWith('/') ? registry : `${registry}/`)
+  const registry = opts.registriesByScope.default
   const started = Date.now()
   try {
-    const response = await fetch(pingUrl, { signal: AbortSignal.timeout(15_000) })
-    if (!response.ok) {
-      return {
-        title,
-        status: 'fail',
-        detail: `${registry} responded ${response.status} ${response.statusText}`.trimEnd(),
-        fix: 'Check your registry, proxy, and auth configuration.',
-      }
-    }
+    await ping.handler({ ...opts, registry, timeout: 15_000 })
     return { title, status: 'pass', detail: `${registry} (${Date.now() - started}ms)` }
   } catch (err: unknown) {
     return {
@@ -344,18 +333,6 @@ function statusMark (status: CheckStatus): string {
     case 'warn': return chalk.yellow('‼')
     case 'fail': return chalk.red('✗')
   }
-}
-
-/**
- * Re-invoke the pnpm that is running now: `node <entry>` for the bundled
- * package, or the executable itself for the `@pnpm/exe` single-file build,
- * whose `process.argv[1]` is the binary rather than a script.
- */
-function resolveSelfCommand (): string[] {
-  if (detectIfCurrentPkgIsExecutable()) return [process.execPath]
-  const entry = process.argv[1]
-  if (!entry) return [process.execPath]
-  return [process.execPath, entry]
 }
 
 async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, hardlink: boolean, symlink: boolean }> {

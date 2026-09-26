@@ -1,5 +1,5 @@
 use crate::{PkgName, ResolvedDependencyMap, ResolvedDependencySpec};
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -37,6 +37,9 @@ pub struct ProjectSnapshot {
     pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
+    /// `Some(false)` when workspace links must ignore [`Self::publish_directory`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_directory: Option<bool>,
 }
 
 impl ProjectSnapshot {
@@ -56,7 +59,10 @@ impl ProjectSnapshot {
         &self,
         groups: impl IntoIterator<Item = DependencyGroup>,
     ) -> impl Iterator<Item = (&'_ PkgName, &'_ ResolvedDependencySpec)> {
-        groups.into_iter().filter_map(|group| self.get_map_by_group(group)).flatten()
+        groups
+            .into_iter()
+            .filter_map(|group| self.get_map_by_group(group))
+            .flatten()
     }
 }
 

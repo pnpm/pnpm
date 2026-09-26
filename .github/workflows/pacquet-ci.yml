@@ -30,6 +30,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
+      changesets: ${{ steps.filter.outputs.changesets }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -41,7 +43,7 @@ jobs:
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && github.event_name != 'pull_request'
         with:
           persist-credentials: false
 
@@ -49,8 +51,32 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
+            # The Markdown the rust filter excludes, so the spell check still
+            # runs when only that Markdown changes.
+            docs:
+              - 'pnpm/*.md'
+              - 'pnpm/plans/*.md'
+              - 'pnpm/scripts/*.md'
+              - 'pnpm/crates/*/*.md'
+              - 'pnpm/tasks/*/*.md'
+              - 'pnpr/*.md'
+              - 'pnpr/crates/*/*.md'
+              - 'pnpr/docker/*.md'
+              - 'pnpr/client/*.md'
             rust:
+              # Documentation only. Markdown under pnpr/.fixtures ships inside
+              # registry fixtures, so it stays in.
+              - '!pnpm/*.md'
+              - '!pnpm/plans/*.md'
+              - '!pnpm/scripts/*.md'
+              - '!pnpm/crates/*/*.md'
+              - '!pnpm/tasks/*/*.md'
+              - '!pnpr/*.md'
+              - '!pnpr/crates/*/*.md'
+              - '!pnpr/docker/*.md'
+              - '!pnpr/client/*.md'
               - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
@@ -66,10 +92,33 @@ jobs:
               - '.typos.toml'
               - 'justfile'
               - '.cargo/**'
+              - '.config/nextest.toml'
+              - 'fixtures/**'
+              - 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/**'
+              - 'pnpm11/deps/compliance/commands/test/sbom/fixtures/**'
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
+              - '.github/actions/install-crates/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
+            changesets:
+              - '.changeset/**'
+
+  change-check:
+    name: Rust CI / Change Check
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.rust == 'true' || needs.changes.outputs.changesets == 'true') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+      - name: Validate changeset files
+        run: pnpm change check
 
   test:
     name: Rust CI / Test / ${{ matrix.os_label }}
@@ -89,12 +138,17 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      RUST_TEST_SHARED_BUILD: ${{ matrix.shared_test_build }}
+      # Main only restores compiler cache entries that main wrote.
+      SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Windows builds pacquet's and pnpr's tests once (see justfile).
           - os: blacksmith-8vcpu-windows-2025
             os_label: windows
+            shared_test_build: '1'
           - os: blacksmith-8vcpu-ubuntu-2404
             os_label: ubuntu
           - os: blacksmith-12vcpu-macos-latest
@@ -123,12 +177,12 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
           install: false
 
@@ -149,17 +203,66 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
           tool: just
 
+      # `pnpm pipeline` installs before it runs anything, but the install has to
+      # happen here: the test steps are wrapped in a timing wrapper whose result
+      # feeds Bencher, and a dependency install inside one would report registry
+      # latency as test duration. This step unsets the same variables the test
+      # steps do so both installs resolve the same store, leaving the pipeline's
+      # frozen install a no-op.
       - name: Install dependencies
-        run: just install
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+
+          just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sccache@0.17.0
+
+      # rust-cache restores the dependencies' artifacts but prunes the crates
+      # under pnpm/ and pnpr/ (see .github/actions/rustup). sccache keys each
+      # compiler call by its inputs, so those crates still hit when unchanged.
+      # On Windows a warm sccache build was no faster than a plain one and a
+      # cold one was slower, so it stays off there.
+      - name: Use sccache
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          {
+            echo "SCCACHE_DAY=$(date -u +%Y-%m-%d)"
+            echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
+            echo "SCCACHE_CACHE_SIZE=2G"
+            echo "SCCACHE_IDLE_TIMEOUT=0"
+            echo "RUSTC_WRAPPER=sccache"
+            echo "CARGO_INCREMENTAL=0"
+          } >> "$GITHUB_ENV"
+
+      # One cache entry per scope and day: a later run on the same day finds
+      # the key taken and skips the upload, which keeps the repository's
+      # cache quota for other entries.
+      - name: Restore sccache
+        if: runner.os != 'Windows'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+          restore-keys: |
+            sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
+            sccache-test-v1-${{ runner.os }}-main-
+        timeout-minutes: 2
+        continue-on-error: true
+
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
+        with:
+          python-version: '3.13'
 
       - name: Test pacquet
         shell: bash
@@ -172,7 +275,15 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pacquet-tests-all.json \
-            -- just test-pacquet
+            -- pnpm pipeline rust-test --include-workspace-root --full --no-cache
+
+      - name: Test N-API boundary
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --locked -p pnpm-napi
+          cp target/debug/libpnpm_napi.so "$RUNNER_TEMP/pnpm-napi.node"
+          PNPM_NAPI_BINARY="$RUNNER_TEMP/pnpm-napi.node" \
+            node --test pnpm/npm/napi/test/*.test.mjs
 
       - name: Test pnpr
         shell: bash
@@ -185,7 +296,21 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pnpr-tests-all.json \
-            -- just test-pnpr
+            -- pnpm pipeline pnpr-test --include-workspace-root --full --no-cache
+
+      - name: Stop sccache
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
+        shell: bash
+        run: sccache --stop-server || true
+
+      - name: Save sccache
+        if: ${{ !cancelled() && github.event_name != 'merge_group' && runner.os != 'Windows' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-test-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+        timeout-minutes: 3
+        continue-on-error: true
 
       - name: Stage Bencher test durations
         env:
@@ -223,15 +348,21 @@ jobs:
           retention-days: 14
 
   clippy:
-    name: Rust CI / Clippy
+    name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
-    # Clippy lints the same source on every platform, so one OS is
-    # enough — running the full `--all-targets` workspace lint across the
-    # whole test matrix just triples the cost. Mirrors the single-OS doc,
-    # format, and dylint jobs. (Platform-gated `#[cfg]` blocks are still
-    # type-checked per-OS by the test job's build.)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
+    # job only type-checks it, so Windows gets its own Clippy row. macOS does
+    # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-4vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -241,17 +372,23 @@ jobs:
       # of debug artifacts in target/; drop the preinstalled toolchains
       # this job never uses (~25 GB) so the linker doesn't hit ENOSPC.
       - name: Free up runner disk space
+        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           clippy: true
 
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
 
   doc:
     name: Rust CI / Doc
@@ -264,26 +401,98 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           docs: true
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
 
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: cargo doc --no-deps --workspace --document-private-items
+        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+
+  npm-wrapper:
+    name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
+    needs: changes
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # All three, because the wrapper places and spawns a native executable
+          # and runs a shebang-less bin, and those are where the platforms
+          # differ. Windows runs neither, so those tests skip themselves there;
+          # macOS reaches them through a BSD `sh`, `readlink`, and `dirname`.
+          - os: blacksmith-4vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize Rust before dependency installation
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # package carries in its dist/ payload and the tests stand in for. The
+      # filter does not narrow the Cargo half of the install, which is why the
+      # step above provisions Rust.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter pacquet
+
+      # bash on both platforms: the shell has to expand the glob, because
+      # `--test` only takes patterns itself on Node.js >=22.
+      - name: Test
+        shell: bash
+        working-directory: pnpm/npm/pnpm/test
+        run: node --test *.test.mjs
+
+      # The oldest Node.js line the package claims in `engines`, at its latest
+      # release rather than its first — the line is what a user can still be on,
+      # and an exact floor would pin a long-superseded patch nobody runs.
+      # Corepack ships with newer Node.js than this, but the entry point pulls in
+      # get-pnpm, whose own engines floor is higher, so what the wrapper promises
+      # has to be a version it is actually run on.
+      - name: Test on the oldest supported Node.js line
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # Installed into a scratch project, so the repo's own manifests are
+          # not rewritten by asking for a runtime.
+          mkdir -p "$RUNNER_TEMP/oldest-node"
+          cd "$RUNNER_TEMP/oldest-node"
+          echo '{"name":"oldest-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 18
+          ./node_modules/.bin/node --version
+          ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
 
   typos:
     name: Rust CI / Spell Check
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.docs == 'true') }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f # v1.49.0
+      - uses: crate-ci/typos@512fc24f32f44ab01972217aaaf3dc86ec234d53 # v1.50.2
         with:
           files: pnpm pnpr
 
@@ -306,14 +515,29 @@ jobs:
               - 'Cargo.lock'
               - 'deny.toml'
 
+      # `pnpm pipeline` installs before it runs anything, and that install
+      # runs `cargo`. Provision the pinned toolchain first so it does not race
+      # `cargo deny` over a rustup download.
+      - name: Initialize Rust before dependency installation
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: $/.github/actions/rustup
+        with:
+          restore-cache: false
+
+      - name: Install pnpm
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@9983c65e42da123ff25d1f78505eb6de315aa172 # v2.87.20
         with:
           tool: cargo-deny
 
       - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        run: cargo deny check
+        run: pnpm pipeline rust-deny --include-workspace-root --full --no-cache
 
   format:
     name: Rust CI / Format
@@ -326,19 +550,41 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
-          fmt: true
           restore-cache: false
 
-      - run: cargo fmt --all -- --check
-
       - name: Install Taplo CLI
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           packages: taplo-cli@0.8.1
 
-      - run: taplo format --check
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      - name: Cache the pinned formatter
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/pnpm/rustfmt
+            ~/.rustup/toolchains/nightly-*
+            ~/.rustup/update-hashes/nightly-*
+          key: rustfmt-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm/scripts/rustfmt.json') }}
+
+      - name: Test the Rust helper scripts
+        run: node --test pnpm/scripts/*.test.mjs
+
+      - name: Check Rust and TOML formatting
+        run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
+
+      # `pnpm pipeline` installs before it runs the check above, and that
+      # install rewrites the pnpm-managed Cargo source block from `Cargo.lock`.
+      # A diff means the committed block no longer describes the pinned crates,
+      # which every `cargo` command in this repository resolves through.
+      - name: Check the pnpm-managed Cargo source block is current
+        run: git diff --exit-code .cargo/config.toml
 
   dylint:
     name: Rust CI / Dylint
@@ -359,26 +605,13 @@ jobs:
       # Two caches with disjoint scopes:
       #
       #   1. Workspace cache — `~/.cargo`, `~/.dylint_drivers`, and the
-      #      workspace `target/` directory minus `target/dylint`. Keyed
-      #      loosely on `Cargo.lock` with a `rust-toolchain.toml`-only
-      #      fallback so a lockfile-only change still benefits from a
-      #      warm registry and a warm workspace build cache. The
-      #      `!target/dylint` negation excludes the lint library from
-      #      this snapshot so it cannot leak across `dylint.toml`
-      #      changes.
+      #      workspace debug/release artifacts. Cache the build directories
+      #      explicitly: archiving their parent `target/` recursively also
+      #      captures `target/dylint`, even with a glob exclusion.
       #
-      #   2. Dylint-library cache — `target/dylint`, where cargo-dylint
-      #      builds `libperfectionist.so`. Keyed strictly on
-      #      `dylint.toml` with no looser restore-keys, so a hit
-      #      guarantees the cached `.so` was built against the
-      #      in-tree config. On a miss cargo-dylint rebuilds the
-      #      library from scratch.
-      #
-      # Splitting the caches this way removes the need for a separate
-      # "invalidate stale dylint artifacts" step: the workspace cache
-      # never holds a `target/dylint` snapshot to invalidate, and the
-      # dylint-library cache can never be restored from a mismatched
-      # `dylint.toml`.
+      #   2. Dylint-library cache — `target/dylint`, keyed strictly on
+      #      `dylint.toml` with no looser restore-keys. Only this cache may
+      #      restore the lint library, so a pin change rebuilds it.
       - name: Cache workspace artifacts
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         timeout-minutes: 2
@@ -387,12 +620,12 @@ jobs:
           path: |
             ~/.cargo
             ~/.dylint_drivers
-            target
-            !target/dylint
-          key: ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+            target/debug
+            target/release
+          key: ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
-            ${{ github.job }}-workspace-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
+            ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+            ${{ github.job }}-workspace-v2-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Cache dylint lint library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -403,7 +636,7 @@ jobs:
           key: ${{ github.job }}-dylint-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('dylint.toml') }}
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           # Disable Swatinem/rust-cache: it strips `target/` aggressively
           # before saving, which would wipe the `target/dylint`
@@ -412,15 +645,17 @@ jobs:
           restore-cache: false
 
       - name: Install cargo-dylint and dylint-link
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
-          # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
-          # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)
-          # fail at driver bootstrap with `failed to read
-          # /home/runner/work/dylint/dylint/driver/Cargo.toml`, the
-          # path baked in by dylint's own CI checkout. Downstream
-          # runners don't have that workspace so the step aborts.
-          packages: cargo-dylint@6.0.0 dylint-link@6.0.0
+          # Keep in step with the `dylint_linting` version the pinned
+          # perfectionist revision builds against: cargo-dylint refuses
+          # a library built by a newer one.
+          packages: cargo-dylint@6.0.4 dylint-link@6.0.4
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
 
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
@@ -430,7 +665,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: cargo dylint --all -- --all-targets --workspace
+        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does
@@ -445,7 +680,9 @@ jobs:
     if: ${{ always() }}
     needs:
       - changes
+      - change-check
       - test
+      - npm-wrapper
       - clippy
       - doc
       - typos

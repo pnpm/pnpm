@@ -4,14 +4,17 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{fs, path::Path};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` (name + version) per name under its own subdirectory.
 fn write_workspace(workspace: &Path, names: &[&str]) {
-    let packages = names.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = names
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n{}\n", packages.join("\n")),
@@ -26,6 +29,47 @@ fn write_workspace(workspace: &Path, names: &[&str]) {
         )
         .expect("write package.json");
     }
+}
+
+#[test]
+fn recursive_pack_silent_suppresses_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_args(["-r", "pack", "--silent"])
+        .assert()
+        .success()
+        .stdout("")
+        .stderr("");
+
+    for name in ["project-1", "project-2"] {
+        let manifest = read_manifest_from_tarball(&workspace.join(format!("{name}-1.0.0.tgz")));
+        assert_eq!(manifest["name"], name);
+    }
+    drop(root);
+}
+
+#[test]
+fn recursive_pack_silent_preserves_json_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    let assertion = pacquet
+        .with_args(["-r", "pack", "--silent", "--json"])
+        .assert()
+        .success()
+        .stderr("");
+    let results: Vec<serde_json::Value> =
+        serde_json::from_slice(&assertion.get_output().stdout).expect("parse pack JSON");
+    dbg!(&results);
+    assert_eq!(results.len(), 2);
+    for result in results {
+        let tarball = result["filename"].as_str().expect("packed filename");
+        let manifest = read_manifest_from_tarball(&workspace.join(tarball));
+        assert_eq!(manifest["name"], result["name"]);
+    }
+    drop(root);
 }
 
 /// `pacquet -r --filter <name> pack` packs only the `--filter`-selected
@@ -51,7 +95,8 @@ fn recursive_pack_filter_packs_only_selected_project() {
     assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
-            !out.join(format!("{name}-1.0.0.tgz")).exists(),
+            !out.join(format!("{name}-1.0.0.tgz"))
+                .exists(),
             "{name} is not selected by --filter and must not be packed",
         );
     }
@@ -82,7 +127,8 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
     assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
-            !out.join(format!("{name}-1.0.0.tgz")).exists(),
+            !out.join(format!("{name}-1.0.0.tgz"))
+                .exists(),
             "a bare --filter (no -r) should still scope the pack to the selection",
         );
     }
@@ -130,7 +176,11 @@ fn recursive_pack_includes_workspace_root() {
         "pack is not in the auto-exclusion set, so the workspace root must be packed",
     );
     for name in ["project-1", "project-2"] {
-        assert!(out.join(format!("{name}-1.0.0.tgz")).exists(), "{name} should be packed");
+        assert!(
+            out.join(format!("{name}-1.0.0.tgz"))
+                .exists(),
+            "{name} should be packed",
+        );
     }
 
     drop(root);

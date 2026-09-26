@@ -5,47 +5,37 @@
 //! upstream-canonical diagnostic code in stderr.
 //!
 //! Doesn't try to exercise every branch — the unit tests in
-//! `pacquet-lockfile-verification` and `pacquet-resolving-npm-resolver`
+//! `pnpm-lockfile-verification` and `pnpm-resolving-npm-resolver`
 //! already do that. This file pins the user-visible contract: the
 //! gate runs from the CLI, the install fails when policy is
 //! tripped, and the error envelope carries the upstream code so
 //! `pnpm errors` documentation routes to the right entry.
 
-use crate::_utils;
 pub use _utils::*;
 
+use crate::_utils;
+
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{fs, path::Path};
 
-/// `minimumReleaseAge` set to 100 years rejects every version the
-/// mocked registry has ever served. The install fails before any
-/// tarball is fetched; stderr names the
-/// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` code so log consumers
-/// and `pnpm errors` URL routing both work.
-#[test]
-fn install_fails_under_huge_minimum_release_age() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
-    let manifest_path = workspace.join("package.json");
+/// A project whose only dependency every policy rejects. The mocked
+/// registry's packument times are real-world (years old), so a
+/// `minimumReleaseAge` of 100 years catches every version regardless of
+/// when the mock was populated, and the verification gate fires on any
+/// lockfile naming one. The hand-rolled v9 lockfile pins that package
+/// with a placeholder integrity: the gate rejects the entry before the
+/// tarball is verified, and an install that skips the gate fails
+/// downstream on the tarball check instead.
+fn write_policy_rejected_project(workspace: &Path) {
     let package_json = serde_json::json!({
         "dependencies": {
             "@pnpm.e2e/hello-world-js-bin": "1.0.0",
         },
     });
-    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-
-    // The mocked registry's packument times are real-world (years
-    // old), so a `minimumReleaseAge` set in the millions of minutes
-    // catches every version regardless of when the mock was
-    // populated.
-    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
-
-    // Hand-rolled minimal v9 lockfile pinning the same package the
-    // manifest above declares. The placeholder integrity is fine:
-    // the gate rejects the entry before the tarball is verified.
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    set_minimum_release_age(workspace, 60 * 24 * 365 * 100);
     let lockfile = "lockfileVersion: '9.0'\n\
         importers:\n  \
           .:\n    \
@@ -59,6 +49,25 @@ fn install_fails_under_huge_minimum_release_age() {
         snapshots:\n  \
           '@pnpm.e2e/hello-world-js-bin@1.0.0': {}\n";
     fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
+}
+
+/// `minimumReleaseAge` set to 100 years rejects every version the
+/// mocked registry has ever served. The install fails before any
+/// tarball is fetched; stderr names the
+/// `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` code so log consumers
+/// and `pnpm errors` URL routing both work.
+#[test]
+fn install_fails_under_huge_minimum_release_age() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_policy_rejected_project(&workspace);
 
     let output = pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -90,19 +99,28 @@ fn install_fails_under_huge_minimum_release_age() {
 /// TS: `minimumReleaseAge falls back to immature version when no mature
 /// version satisfies the range (non-strict mode)` (`minimumReleaseAge.ts:68`).
 /// A 100-year cutoff makes every `@pnpm.e2e/bravo-dep` version immature.
-/// Non-strict mode (pacquet's default) must fall back to the *lowest*
-/// version matching the `1.0` range — normal resolution would pick the
-/// highest, `1.0.1` — and complete the install instead of aborting.
+/// Non-strict mode must fall back to the *lowest* version matching the `1.0`
+/// range — normal resolution would pick the highest, `1.0.1` — and complete
+/// the install instead of aborting. An explicit cutoff turns strict mode on
+/// by default, so reaching non-strict mode takes an explicit opt-out.
 #[test]
 fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", false);
 
-    let output =
-        pacquet.with_args(["add", "@pnpm.e2e/bravo-dep@1.0"]).output().expect("spawn pacquet add");
+    let output = pacquet
+        .with_args(["add", "@pnpm.e2e/bravo-dep@1.0"])
+        .output()
+        .expect("spawn pacquet add");
     assert!(
         output.status.success(),
         "non-strict mode must proceed with the immature fallback (stderr: {})",
@@ -122,7 +140,9 @@ fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let snapshots = lockfile.snapshots.as_ref().expect("lockfile has snapshots");
     assert!(
-        snapshots.keys().any(|key| key.to_string() == "@pnpm.e2e/bravo-dep@1.0.0"),
+        snapshots
+            .keys()
+            .any(|key| key.to_string() == "@pnpm.e2e/bravo-dep@1.0.0"),
         "the lockfile must resolve the lowest matching version",
     );
 
@@ -139,38 +159,19 @@ fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
 /// comment above the assertion below.
 #[test]
 fn trust_lockfile_skips_verification() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let manifest_path = workspace.join("package.json");
-    let package_json = serde_json::json!({
-        "dependencies": {
-            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
-        },
-    });
-    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-
-    // Same provocation as the gated test above: 100 years of
-    // minimumReleaseAge rejects every version the mocked registry
-    // serves. `trustLockfile: true` is the opt-out that makes the
-    // install ignore the gate entirely.
-    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    write_policy_rejected_project(&workspace);
+    append_workspace_yaml_key(&workspace, "fetchRetryMintimeout", 1);
+    append_workspace_yaml_key(&workspace, "fetchRetryMaxtimeout", 1);
     append_workspace_yaml_key(&workspace, "trustLockfile", true);
-
-    let lockfile = "lockfileVersion: '9.0'\n\
-        importers:\n  \
-          .:\n    \
-            dependencies:\n      \
-              '@pnpm.e2e/hello-world-js-bin':\n        \
-                specifier: 1.0.0\n        \
-                version: 1.0.0\n\
-        packages:\n  \
-          '@pnpm.e2e/hello-world-js-bin@1.0.0':\n    \
-            resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}\n\
-        snapshots:\n  \
-          '@pnpm.e2e/hello-world-js-bin@1.0.0': {}\n";
-    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
 
     let output = pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -205,33 +206,18 @@ fn trust_lockfile_skips_verification() {
 /// install success); see the inline comment above the assertion.
 #[test]
 fn trust_lockfile_cli_flag_skips_verification() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let manifest_path = workspace.join("package.json");
-    let package_json = serde_json::json!({
-        "dependencies": {
-            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
-        },
-    });
-    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
-
-    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
-
-    let lockfile = "lockfileVersion: '9.0'\n\
-        importers:\n  \
-          .:\n    \
-            dependencies:\n      \
-              '@pnpm.e2e/hello-world-js-bin':\n        \
-                specifier: 1.0.0\n        \
-                version: 1.0.0\n\
-        packages:\n  \
-          '@pnpm.e2e/hello-world-js-bin@1.0.0':\n    \
-            resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}\n\
-        snapshots:\n  \
-          '@pnpm.e2e/hello-world-js-bin@1.0.0': {}\n";
-    fs::write(workspace.join("pnpm-lock.yaml"), lockfile).expect("write lockfile");
+    write_policy_rejected_project(&workspace);
+    append_workspace_yaml_key(&workspace, "fetchRetryMintimeout", 1);
+    append_workspace_yaml_key(&workspace, "fetchRetryMaxtimeout", 1);
 
     let output = pacquet
         .with_args(["install", "--frozen-lockfile", "--trust-lockfile"])
@@ -251,6 +237,129 @@ fn trust_lockfile_cli_flag_skips_verification() {
     drop((root, mock_instance));
 }
 
+/// `remove` declares clap flags for `--trust-lockfile` and `--no-trust-lockfile`.
+/// The lockfile is verified after the removal is applied to it, so the
+/// provocation keeps a second rejected entry that survives the removal:
+/// without the flag the gate fires on that entry and the manifest is left
+/// alone, with the flag the removal completes.
+#[test]
+fn remove_honors_the_bare_trust_lockfile_flag() {
+    let CommandTempCwd {
+        pacquet: initial_install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    let output = initial_install
+        .with_args(["install", "--ignore-scripts"])
+        .output()
+        .expect("spawn pacquet install");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo"])
+        .output()
+        .expect("spawn pacquet remove");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
+        "remove must verify the lockfile it leaves behind; got:\n{stderr}",
+    );
+    assert_eq!(
+        read_manifest(&workspace),
+        package_json,
+        "a rejected removal must not touch the manifest",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo", "--trust-lockfile"])
+        .output()
+        .expect("spawn pacquet remove");
+    assert!(
+        output.status.success(),
+        "--trust-lockfile must skip the verification gate; got:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(
+        read_manifest(&workspace),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" } }),
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn remove_honors_no_trust_lockfile_flag_overriding_workspace_config() {
+    let CommandTempCwd {
+        pacquet: initial_install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let package_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/foo": "100.0.0",
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    let output = initial_install
+        .with_args(["install", "--ignore-scripts"])
+        .output()
+        .expect("spawn pacquet install");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "trustLockfile", true);
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo", "--no-trust-lockfile"])
+        .output()
+        .expect("spawn pacquet remove");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION"),
+        "--no-trust-lockfile must override trustLockfile: true; got:\n{stderr}",
+    );
+    assert_eq!(
+        read_manifest(&workspace),
+        package_json,
+        "a rejected removal must not touch the manifest",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/foo"])
+        .output()
+        .expect("spawn pacquet remove");
+    assert!(
+        output.status.success(),
+        "without --no-trust-lockfile, trustLockfile: true allows removal; got:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, mock_instance));
+}
+
+fn read_manifest(workspace: &Path) -> serde_json::Value {
+    serde_json::from_str(
+        &fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json")
+}
+
 /// Regression test for the crafted-lockfile path-traversal advisory
 /// (GHSA-2rx9-3g3h-c2jv). A dependency name/alias that isn't a valid npm
 /// package name — here a `../../escaped-link` snapshot key — would be
@@ -264,8 +373,13 @@ fn trust_lockfile_cli_flag_skips_verification() {
 /// materialized.
 #[test]
 fn trust_lockfile_still_rejects_traversal_dependency_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // A legit direct dependency keeps the frozen-lockfile freshness

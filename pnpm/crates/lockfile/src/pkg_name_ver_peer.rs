@@ -1,5 +1,4 @@
 use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgNameSuffix, PkgVerPeer};
-use pacquet_crypto_hash::shorten_virtual_store_name;
 
 /// Syntax: `{name}@{version}({peers})`
 ///
@@ -18,23 +17,13 @@ impl PkgNameVerPeer {
     /// path stays within filesystem limits.
     ///
     /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-    /// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
+    /// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
     /// — referenced by name rather than as an intra-doc link because
-    /// `pacquet-lockfile` deliberately does not depend on
-    /// `pacquet-modules-yaml`).
+    /// `pnpm-lockfile` deliberately does not depend on
+    /// `pnpm-modules-yaml`).
     #[must_use]
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
-        let escape_for_fs = |character: char| {
-            matches!(character, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
-        };
-        let mut filename = self.to_string().replace(escape_for_fs, "+");
-        if filename.contains('(') {
-            if filename.ends_with(')') {
-                filename.pop();
-            }
-            filename = filename.replace(")(", "_").replace(['(', ')'], "_");
-        }
-        shorten_virtual_store_name(filename, max_length)
+        pnpm_deps_path::dep_path_to_filename(&self.to_string(), max_length)
     }
 
     /// Return a new [`PkgNameVerPeer`] with the peer-dependency suffix stripped.
@@ -49,8 +38,8 @@ impl PkgNameVerPeer {
     /// The package id pnpm addresses this package by outside the
     /// lockfile: the store-index row key (`store_index_key` /
     /// `git_hosted_store_index_key` — referenced as plain text because
-    /// `pacquet-lockfile` deliberately does not depend on
-    /// `pacquet-store-dir`), the `packageId` of a `pnpm:progress`
+    /// `pnpm-lockfile` deliberately does not depend on
+    /// `pnpm-store-dir`), the `packageId` of a `pnpm:progress`
     /// event, and the resolution id the git fetchers build their
     /// `allowBuild` dep path from.
     ///
@@ -66,7 +55,7 @@ impl PkgNameVerPeer {
         // `try_get_package_id` borrows a prefix of its input unless it
         // drops the `name@` prefix, so truncating reuses this allocation
         // rather than cloning the slice into a second one.
-        let pkg_id_len = match pacquet_deps_path::try_get_package_id(&rendered) {
+        let pkg_id_len = match pnpm_deps_path::try_get_package_id(&rendered) {
             std::borrow::Cow::Borrowed(pkg_id) => pkg_id.len(),
             std::borrow::Cow::Owned(pkg_id) => return pkg_id,
         };

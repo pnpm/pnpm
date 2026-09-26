@@ -1,8 +1,9 @@
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import type { LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import type { ImportIndexedPackageAsync } from '@pnpm/store.controller-types'
 import type { BaseManifest, BeforePackingHook, ReadPackageHook } from '@pnpm/types'
 import { pathAbsolute } from 'path-absolute'
@@ -19,6 +20,7 @@ type Cook<T extends (...args: any[]) => any> = (
 
 interface PnpmfileEntry {
   path: string
+  fallbackPath?: string
   includeInChecksum: boolean
   optional?: boolean
 }
@@ -43,6 +45,13 @@ export interface CookedHooks {
   customResolvers?: CustomResolver[]
   customFetchers?: CustomFetcher[]
   calculatePnpmfileChecksum?: () => Promise<string>
+  /**
+   * Whether a `readPackage` hook came from a pnpmfile the checksum does not
+   * cover (the global pnpmfile) — its drift is invisible to
+   * `pnpmfileChecksum` comparisons, so nothing downstream may treat the
+   * checksum as proof the hooks are unchanged.
+   */
+  untrackedPnpmfileReadPackageHook?: boolean
 }
 
 export interface RequireHooksResult {
@@ -66,30 +75,6 @@ export async function requireHooks (
       includeInChecksum: false,
     })
   }
-  const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
-  if (opts.tryLoadDefaultPnpmfile) {
-    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
-    const mjsPath = pathAbsolute('.pnpmfile.mjs', prefix)
-    const mjsResult = await requirePnpmfile(mjsPath, prefix)
-    if (mjsResult != null) {
-      loadedFiles.push(mjsPath)
-      entries.push({
-        file: mjsPath,
-        includeInChecksum: true,
-        hooks: mjsResult.pnpmfileModule?.hooks,
-        finders: mjsResult.pnpmfileModule?.finders,
-        resolvers: mjsResult.pnpmfileModule?.resolvers,
-        fetchers: mjsResult.pnpmfileModule?.fetchers,
-      })
-    } else {
-      pnpmfiles.push({
-        path: '.pnpmfile.cjs',
-        includeInChecksum: true,
-        optional: true,
-      })
-    }
-  }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
       pnpmfiles.push({
@@ -98,11 +83,30 @@ export async function requireHooks (
       })
     }
   }
-  await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
-    const file = pathAbsolute(path, prefix)
-    if (!loadedFiles.includes(file)) {
-      loadedFiles.push(file)
-      const requirePnpmfileResult = await requirePnpmfile(file, prefix)
+  // The default pnpmfile goes after the listed ones, which include the
+  // pnpmfiles of config dependency plugins, so that its hooks run last and can
+  // extend or override what the plugins set.
+  if (opts.tryLoadDefaultPnpmfile) {
+    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
+    pnpmfiles.push({
+      path: '.pnpmfile.mjs',
+      fallbackPath: '.pnpmfile.cjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+  }
+  const entries: PnpmfileEntryLoaded[] = []
+  // Must stay sequential: loading in parallel registers .mjs pnpmfiles in import
+  // completion order, not in the order listed above.
+  for (const { path, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
+    for (const candidate of fallbackPath == null ? [path] : [path, fallbackPath]) {
+      const file = pathAbsolute(candidate, prefix)
+      const loadedEntry = entries.find((entry) => entry.file === file)
+      if (loadedEntry != null) {
+        loadedEntry.includeInChecksum ||= includeInChecksum
+        break
+      }
+      const requirePnpmfileResult = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop
       if (requirePnpmfileResult != null) {
         entries.push({
           file,
@@ -112,11 +116,13 @@ export async function requireHooks (
           resolvers: requirePnpmfileResult.pnpmfileModule?.resolvers,
           fetchers: requirePnpmfileResult.pnpmfileModule?.fetchers,
         })
-      } else if (!optional) {
+        break
+      }
+      if (candidate === (fallbackPath ?? path) && !optional) {
         throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
       }
     }
-  }))
+  }
 
   const mergedFinders: Finders = {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
@@ -128,6 +134,11 @@ export async function requireHooks (
     updateConfig: [],
   }
 
+  if (entries.some((entry) => !entry.includeInChecksum)) {
+    cookedHooks.untrackedPnpmfileReadPackageHook = entries.some(
+      (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
+    )
+  }
   // calculate combined checksum for all included files
   if (entries.some((entry) => entry.hooks != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {
@@ -193,10 +204,7 @@ export async function requireHooks (
       const updateConfig = fileHooks.updateConfig
       cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const updated = updateConfig(config)
-        if (updated == null) {
-          throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
-        }
-        return updated
+        return updated instanceof Promise ? updated.then(assertConfigIsDefined) : assertConfigIsDefined(updated)
       })
     }
 
@@ -216,6 +224,10 @@ export async function requireHooks (
       }
       importProvider = file
       cookedHooks.importPackage = fileHooks.importPackage
+      globalWarn(
+        `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
+        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
+      )
     }
   }
 
@@ -260,4 +272,11 @@ function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger
       hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     },
   }
+}
+
+function assertConfigIsDefined<T> (config: T): T {
+  if (config == null) {
+    throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
+  }
+  return config
 }

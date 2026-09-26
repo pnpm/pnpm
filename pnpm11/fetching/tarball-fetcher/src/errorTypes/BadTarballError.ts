@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 
 export class BadTarballError extends PnpmError {
   public expectedSize: number
@@ -11,7 +11,7 @@ export class BadTarballError extends PnpmError {
       tarballUrl: string
     }
   ) {
-    const message = `Actual size (${opts.receivedSize}) of tarball (${opts.tarballUrl}) did not match the one specified in 'Content-Length' header (${opts.expectedSize})`
+    const message = `Actual size (${opts.receivedSize}) of tarball (${redactUrlForDisplay(opts.tarballUrl)}) did not match the one specified in 'Content-Length' header (${opts.expectedSize})`
     super('BAD_TARBALL_SIZE', message, {
       attempts: opts?.attempts,
     })

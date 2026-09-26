@@ -56,8 +56,7 @@ pub fn get_patch_info<'a>(
         return Ok(group.all.as_ref());
     };
 
-    let satisfied: Vec<&'a crate::types::PatchGroupRangeItem> = group
-        .range
+    let satisfied: Vec<&'a crate::types::PatchGroupRangeItem> = group.range
         .iter()
         .filter(|item| match Range::parse(&item.version) {
             Ok(range) => range.satisfies(&parsed_version),
@@ -69,7 +68,10 @@ pub fn get_patch_info<'a>(
         return Err(PatchKeyConflictError {
             pkg_name: pkg_name.to_string(),
             pkg_version: pkg_version.to_string(),
-            satisfied_versions: satisfied.iter().map(|item| item.version.clone()).collect(),
+            satisfied_versions: satisfied
+                .iter()
+                .map(|item| item.version.clone())
+                .collect(),
         });
     }
     if let [only] = satisfied.as_slice() {

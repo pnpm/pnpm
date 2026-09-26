@@ -4,8 +4,8 @@ use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, redact_and_sanitize, send_with_retry};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient, redact_and_sanitize, send_with_retry};
 use serde_json::Value;
 use std::time::Instant;
 
@@ -104,9 +104,12 @@ async fn fetch_ping(
         .into());
     }
 
-    let body = response.text().await.map_err(|error| PingError::Unreachable {
-        message: redact_and_sanitize(&error.to_string()),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|error| PingError::Unreachable {
+            message: redact_and_sanitize(&error.to_string()),
+        })?;
     let time = start.elapsed().as_millis();
     drop(client);
     Ok((time, body))

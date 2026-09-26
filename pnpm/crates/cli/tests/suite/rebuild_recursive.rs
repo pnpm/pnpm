@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path, process::Command};
 
 fn write_project(workspace: &Path, relative_dir: &str, name: &str) {
@@ -34,7 +34,10 @@ fn filtered_rebuild_only_runs_selected_project(shared_workspace_lockfile: bool) 
     write_project(&workspace, "packages/app-a", "app-a");
     write_project(&workspace, "packages/app-b", "app-b");
 
-    pacquet.with_args(["install", "--ignore-scripts", "--reporter=silent"]).assert().success();
+    pacquet
+        .with_args(["install", "--ignore-scripts", "--reporter=silent"])
+        .assert()
+        .success();
     let selected_marker = workspace.join("packages/app-a/rebuilt.txt");
     let unselected_marker = workspace.join("packages/app-b/rebuilt.txt");
     assert!(!selected_marker.exists());
@@ -64,7 +67,7 @@ fn filtered_rebuild_selects_projects_with_dedicated_lockfiles() {
 }
 
 #[test]
-fn dedicated_recursive_rebuild_no_bail_continues_topological_chunks() {
+fn dedicated_recursive_rebuild_no_bail_runs_dependents_after_failures() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -101,7 +104,10 @@ fn dedicated_recursive_rebuild_no_bail_continues_topological_chunks() {
     )
     .expect("write app-b manifest");
 
-    pacquet.with_args(["install", "--ignore-scripts", "--reporter=silent"]).assert().success();
+    pacquet
+        .with_args(["install", "--ignore-scripts", "--reporter=silent"])
+        .assert()
+        .success();
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
@@ -112,7 +118,7 @@ fn dedicated_recursive_rebuild_no_bail_continues_topological_chunks() {
     assert!(!output.status.success(), "the failed project should fail the command");
     assert!(
         app_b.join("rebuilt.txt").exists(),
-        "--no-bail should continue to the dependent project's topological chunk: {output:?}",
+        "--no-bail should continue to the dependent project after its dependency fails: {output:?}",
     );
 
     drop(root);

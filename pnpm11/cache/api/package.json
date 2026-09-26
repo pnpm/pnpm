@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.api",
-  "version": "1100.0.37",
+  "version": "1100.0.45",
   "description": "API for controlling the cache",
   "keywords": [
     "pnpm",
@@ -36,7 +36,6 @@
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "encode-registry": "catalog:",
     "tinyglobby": "catalog:"
   },
   "peerDependencies": {

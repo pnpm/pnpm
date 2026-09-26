@@ -56,11 +56,12 @@ impl ParentPkgAliases {
 
 /// The `dependencies` entries of `manifest` that its own
 /// `peerDependencies` shadow, and that the peer edge therefore supplies
-/// instead. Under `auto_install_peers` every shadowed name is dropped
-/// (the peer is auto-installed at the importer, so it always resolves);
-/// otherwise only the names already resolvable from
-/// `parent_pkg_aliases`, since dropping a peer nothing in scope
-/// provides would leave it unsatisfied.
+/// instead. Under `auto_install_peers` every non-optional shadowed name
+/// is dropped (the peer is auto-installed at the importer, so it always
+/// resolves). Otherwise, and for optional peers, which are never
+/// auto-installed, only the names already resolvable from
+/// `parent_pkg_aliases` are dropped, since dropping a peer nothing in
+/// scope provides would leave it unsatisfied.
 pub(crate) fn peer_shadowed_dependencies(
     manifest: Option<&Value>,
     parent_pkg_aliases: &ParentPkgAliases,
@@ -71,9 +72,19 @@ pub(crate) fn peer_shadowed_dependencies(
     let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
         return HashSet::default();
     };
+    let peers_meta = object("peerDependenciesMeta");
+    let is_optional_peer = |name: &str| {
+        peers_meta
+            .and_then(|meta| meta.get(name))
+            .and_then(|entry| entry.get("optional"))
+            .and_then(Value::as_bool)
+            == Some(true)
+    };
     deps.keys()
         .filter(|name| peers.contains_key(*name))
-        .filter(|name| auto_install_peers || parent_pkg_aliases.contains(name))
+        .filter(|name| {
+            (auto_install_peers && !is_optional_peer(name)) || parent_pkg_aliases.contains(name)
+        })
         .cloned()
         .collect()
 }

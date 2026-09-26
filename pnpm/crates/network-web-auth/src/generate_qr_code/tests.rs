@@ -39,7 +39,9 @@ fn renders_a_thin_one_module_border() {
     let qr = generate_qr_code("https://example.com").expect("encode a short URL");
     let lines: Vec<&str> = qr.lines().collect();
     assert!(
-        lines[0].chars().all(|glyph| glyph == '\u{2584}'),
+        lines[0]
+            .chars()
+            .all(|glyph| glyph == '\u{2584}'),
         "the top border should be one ▄ row, got {:?}",
         lines[0],
     );

@@ -1,7 +1,11 @@
+use crate::_utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_store_dir::STORE_VERSION;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_store_dir::STORE_VERSION;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{fs, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -18,13 +22,20 @@ const OPTIONAL_DEP: &str = "@pnpm.e2e/qar";
 
 fn virtual_dep(workspace: &Path, name: &str) -> std::path::PathBuf {
     let slot = format!("{}@100.0.0", name.replace('/', "+"));
-    workspace.join("node_modules/.pnpm").join(slot).join("node_modules").join(name)
+    workspace
+        .join("node_modules/.pnpm")
+        .join(slot)
+        .join("node_modules")
+        .join(name)
 }
 
 fn assert_no_importer_links(workspace: &Path) {
     for name in [PROD_DEP, DEV_DEP, OPTIONAL_DEP] {
         assert!(
-            !workspace.join("node_modules").join(name).exists(),
+            !workspace
+                .join("node_modules")
+                .join(name)
+                .exists(),
             "fetch must not create an importer link for {name}",
         );
     }
@@ -45,14 +56,22 @@ fn write_manifest_and_lockfile(workspace: &Path) {
     )
     .expect("write package.json");
 
-    pacquet_at(workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_at(workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     assert!(workspace.join("pnpm-lock.yaml").exists(), "lockfile must exist after --lockfile-only");
 }
 
 #[test]
 fn fetch_requires_existing_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -64,7 +83,10 @@ fn fetch_requires_existing_lockfile() {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_arg("fetch").output().expect("spawn pacquet fetch");
+    let output = pacquet
+        .with_arg("fetch")
+        .output()
+        .expect("spawn pacquet fetch");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "fetch without lockfile must fail (stderr: {stderr})");
     assert!(
@@ -83,7 +105,10 @@ fn fetch_populates_every_group_by_default() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
     assert!(store_dir.join(STORE_VERSION).exists(), "fetch must populate the store");
     assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
@@ -91,9 +116,9 @@ fn fetch_populates_every_group_by_default() {
     assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
     assert_no_importer_links(&workspace);
     assert_eq!(
-        pacquet_modules_yaml::read_modules_manifest::<pacquet_modules_yaml::Host>(
-            &workspace.join("node_modules"),
-        )
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules"
+        ),)
         .expect("read .modules.yaml")
         .expect("fetch must write .modules.yaml")
         .virtual_store_only,
@@ -111,7 +136,10 @@ fn fetch_prod_keeps_optional_drops_dev() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_args(["fetch", "--prod"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["fetch", "--prod"])
+        .assert()
+        .success();
 
     assert!(
         virtual_dep(&workspace, PROD_DEP).exists(),
@@ -135,7 +163,10 @@ fn fetch_dev_drops_prod_and_optional() {
 
     write_manifest_and_lockfile(&workspace);
 
-    pacquet_at(&workspace).with_args(["fetch", "--dev"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["fetch", "--dev"])
+        .assert()
+        .success();
 
     assert!(virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --dev` must fetch dev deps");
     assert!(
@@ -164,12 +195,18 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
         .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
     fs::write(&yaml_path, yaml).expect("enable the global virtual store");
 
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
     let gvs_root = store_dir.join(STORE_VERSION).join("links");
     assert!(gvs_root.is_dir(), "fetch must populate the global virtual store");
     assert!(
-        gvs_root.join(PROD_DEP).join("100.0.0").is_dir(),
+        gvs_root
+            .join(PROD_DEP)
+            .join("100.0.0")
+            .is_dir(),
         "the production dependency must have a GVS version directory",
     );
     assert_no_importer_links(&workspace);
@@ -199,7 +236,10 @@ fn fetch_under_pnp_does_not_write_the_loader() {
     fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
 
     write_manifest_and_lockfile(&workspace);
-    pacquet_at(&workspace).with_arg("fetch").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
 
     assert!(store_dir.join(STORE_VERSION).exists(), "fetch must still populate the store");
     assert!(
@@ -208,4 +248,193 @@ fn fetch_under_pnp_does_not_write_the_loader() {
     );
 
     drop((root, mock_instance, store_dir));
+}
+
+/// A dependency's lifecycle script resolves a sibling dependency's bin
+/// through the per-slot `node_modules/.bin` the virtual store carries.
+/// `fetch` runs those scripts, so it has to write those links even
+/// though it materializes nothing importer-facing
+/// ([pnpm/pnpm#14174](https://github.com/pnpm/pnpm/issues/14174)).
+///
+/// `@pnpm.e2e/pre-and-postinstall-scripts-example`'s postinstall opens
+/// with `hello-world-js-bin`, the bin of its own dependency, and only
+/// then writes its marker file.
+#[test]
+fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
+    const BUILT_DEP: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_manifest = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_manifest).expect("read pnpm-workspace.yaml");
+    let yaml = format!("{yaml}allowBuilds:\n  '{BUILT_DEP}': true\n");
+    fs::write(&workspace_manifest, yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { BUILT_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // The Docker "fetcher stage" shape the report used: the lockfile and
+    // the workspace manifest, with no project manifest to import from.
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
+
+    let pkg_dir = workspace
+        .join("node_modules/.pnpm")
+        .join(format!("{}@1.0.0", BUILT_DEP.replace('/', "+")))
+        .join("node_modules")
+        .join(BUILT_DEP);
+    assert!(
+        pkg_dir.join("node_modules/.bin/hello-world-js-bin").exists(),
+        "fetch must link the built package's dependency bins next to it",
+    );
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the postinstall script must have run to completion",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is
+/// missing` ([pnpm/pnpm#5268](https://github.com/pnpm/pnpm/issues/5268)).
+#[test]
+fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
+    const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
+    const PATCH: &str = include_str!(
+        "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
+    );
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/console-log.patch"), PATCH).expect("write patch file");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        format!("\n  '{PATCHED_DEP}': patches/console-log.patch"),
+    );
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { PATCHED_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("patches")).expect("remove patches dir");
+
+    let output = pacquet_at(&workspace)
+        .with_arg("fetch")
+        .output()
+        .expect("run pnpm fetch");
+
+    assert!(!output.status.success(), "fetch must fail without the patch file");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, splitting the temp path.
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
+    assert!(unwrapped.contains("console-log.patch"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+/// An env document pinning pnpm 99.0.0, recorded as the bare `pnpm` package
+/// without the platform packages its binary comes from.
+const LOCKED_PNPM_ENV_DOCUMENT: &str = r"---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 99.0.0
+        version: 99.0.0
+
+packages:
+
+  pnpm@99.0.0:
+    resolution: {integrity: sha512-QVocwll0cx51RVwUaDcb50xapft2IbUNQFbSIkUWCfEUEvI/1gLmFp8eBgRmZB95hZfhvpYaEGiINqZ7FlaUmQ==}
+
+snapshots:
+
+  pnpm@99.0.0: {}
+---
+";
+
+/// The lockfile-only directory `pnpm fetch` runs in: the lockfile carries
+/// the env document pinning pnpm, and there is no project manifest.
+fn write_lockfile_pinning_pnpm(workspace: &Path) {
+    write_manifest_and_lockfile(workspace);
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    fs::write(&lockfile_path, format!("{LOCKED_PNPM_ENV_DOCUMENT}{lockfile}"))
+        .expect("write pnpm-lock.yaml");
+}
+
+/// The offline install that follows `pnpm fetch` switches to the pnpm the
+/// lockfile pins, so fetch installs that pnpm into the store as well
+/// (pnpm/pnpm#11808). The pin here names no platform binary, so the install
+/// stops at the identity check, before anything is downloaded.
+#[test]
+fn fetch_installs_the_pnpm_the_lockfile_pins() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_lockfile_pinning_pnpm(&workspace);
+
+    let output = pacquet_at(&workspace)
+        .without_ambient_pnpm_config()
+        .with_arg("fetch")
+        .output()
+        .expect("run pnpm fetch");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "fetch must try to install the pinned pnpm:\n{stderr}");
+    assert!(stderr.contains("fetch pnpm v99.0.0, which the lockfile pins"), "{stderr}");
+    assert!(stderr.contains("ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE"), "{stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn fetch_leaves_the_pinned_pnpm_alone_when_version_switching_is_off() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_lockfile_pinning_pnpm(&workspace);
+
+    pacquet_at(&workspace)
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false")
+        .with_arg("fetch")
+        .assert()
+        .success();
+    assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
+
+    drop((root, mock_instance));
 }

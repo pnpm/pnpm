@@ -10,7 +10,7 @@
 
 use crate::{
     InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest, SkipReason,
-    WantedEngine, package_is_installable,
+    WantedEngine, WantedPlatformRef, package_is_installable, platform_is_supported_with_inference,
 };
 
 fn host_linux_x64() -> InstallabilityOptions<'static> {
@@ -113,4 +113,42 @@ fn platform_is_evaluated_before_engine() {
         }
         other => panic!("expected SkipOptional(UnsupportedPlatform), got {other:?}"),
     }
+}
+
+#[test]
+fn inference_fills_an_axis_the_lockfile_row_omits() {
+    // A row that records only `os` still resolves its cpu from the name, so a
+    // binding built for another architecture is ruled out.
+    let declared = WantedPlatformRef { os: Some(&["linux".to_string()]), cpu: None, libc: None };
+    assert!(!platform_is_supported_with_inference(
+        "@scope/binding-linux-arm64",
+        declared,
+        &host_linux_x64(),
+    ));
+    assert!(platform_is_supported_with_inference(
+        "@scope/binding-linux-x64",
+        declared,
+        &host_linux_x64(),
+    ));
+}
+
+#[test]
+fn declared_axes_are_taken_over_the_name() {
+    // The name says arm64, the row says x64. The row wins.
+    let declared = WantedPlatformRef {
+        os: Some(&["linux".to_string()]),
+        cpu: Some(&["x64".to_string()]),
+        libc: Some(&["glibc".to_string()]),
+    };
+    assert!(platform_is_supported_with_inference(
+        "@scope/binding-linux-arm64",
+        declared,
+        &host_linux_x64(),
+    ));
+}
+
+#[test]
+fn a_row_without_platform_metadata_is_supported_everywhere() {
+    let declared = WantedPlatformRef { os: None, cpu: None, libc: None };
+    assert!(platform_is_supported_with_inference("is-positive", declared, &host_linux_x64()));
 }

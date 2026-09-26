@@ -24,7 +24,8 @@ fn read_elf_interpreter(file: &mut (impl Read + Seek)) -> Option<String> {
     if table_size > MAX_PROGRAM_HEADERS_SIZE {
         return None;
     }
-    file.seek(SeekFrom::Start(layout.phoff)).ok()?;
+    file.seek(SeekFrom::Start(layout.phoff))
+        .ok()?;
     let mut program_headers = vec![0_u8; table_size];
     file.read_exact(&mut program_headers).ok()?;
     let (offset, size) = interpreter_location(&program_headers, layout.phentsize)?;
@@ -84,7 +85,7 @@ fn interpreter_location(program_headers: &[u8], phentsize: usize) -> Option<(u64
 }
 
 fn decode_interpreter(bytes: &[u8]) -> Option<&str> {
-    let interpreter = core::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
+    let interpreter = std::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
     (!interpreter.is_empty()).then_some(interpreter)
 }
 

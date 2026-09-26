@@ -17,6 +17,10 @@ import {
   checkPkgFilesIntegrity,
   type Integrity,
   type PackageFilesIndex,
+  takeVerifiedFileIntegrity,
+  type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
 import {
@@ -26,12 +30,13 @@ import {
   modeIsExecutable,
 } from './getFilePathInCafs.js'
 import { normalizeBundledManifest } from './normalizeBundledManifest.js'
+import { parseJsonBufferSync } from './parseJson.js'
 import { writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
 
 export { type BundledManifest } from '@pnpm/types'
-export { normalizeBundledManifest }
+export { normalizeBundledManifest, parseJsonBufferSync }
 
 export {
   buildFileMapsFromIndex,
@@ -46,6 +51,10 @@ export {
   type PackageFilesIndex,
   type SideEffects,
   type SideEffectsDiff,
+  takeVerifiedFileIntegrity,
+  type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 }
 

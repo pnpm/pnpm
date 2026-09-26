@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.tarball-fetcher",
-  "version": "1102.0.13",
+  "version": "1102.1.4",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
     "pnpm",
@@ -40,11 +40,11 @@
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lodash.throttle": "catalog:",
-    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "peerDependencies": {
@@ -55,7 +55,6 @@
     "@jest/globals": "catalog:",
     "@pnpm/fetching.tarball-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/network.fetch": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.create-cafs-store": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",

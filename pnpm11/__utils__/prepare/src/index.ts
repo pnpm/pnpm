@@ -1,5 +1,7 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import { tempDir } from '@pnpm/prepare-temp-dir'
@@ -80,4 +82,57 @@ export function prepareEmpty (): Project {
   process.chdir(pkgTmpPath)
 
   return assertProject(pkgTmpPath)
+}
+
+/**
+ * Kill a process started with `detached: true` together with everything it
+ * started, whatever state a failed test left them in. Only a group that is
+ * gone already is silently accepted.
+ */
+export function killProcessGroup (pid: number): void {
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch (err: unknown) {
+    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH')) {
+      throw err
+    }
+  }
+}
+
+/**
+ * Whether the process `pid` is gone before `timeout` milliseconds pass. A
+ * process that has just died still counts until it is reaped.
+ */
+export async function endsWithin (pid: number, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (!isRunning(pid)) return true
+    await new Promise<void>((resolve) => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop
+  }
+  return false
+}
+
+/**
+ * A process the kernel no longer knows is gone, and so is one that has exited
+ * and only waits to be reaped; one that refuses the probe is still there.
+ */
+function isRunning (pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ESRCH') return false
+    throw err
+  }
+  return !isZombie(pid)
+}
+
+/**
+ * Whether `pid` has exited and waits for a parent to reap it, as an orphan
+ * does until init takes it over.
+ */
+function isZombie (pid: number): boolean {
+  if (process.platform === 'win32') return false
+  const { error, stdout } = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' })
+  if (error) throw error
+  return stdout.trimStart().startsWith('Z')
 }

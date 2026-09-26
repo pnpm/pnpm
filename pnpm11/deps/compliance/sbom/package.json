@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.sbom",
-  "version": "1100.4.0",
+  "version": "1101.0.5",
   "description": "Generate SBOM from pnpm lockfile",
   "keywords": [
     "pnpm",
@@ -36,6 +36,7 @@
   "dependencies": {
     "@cyclonedx/cyclonedx-library": "catalog:",
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.compliance.license-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -48,7 +49,9 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/store.pkg-finder": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "hosted-git-info": "catalog:",
     "p-limit": "catalog:",
+    "spdx-expression-parse": "catalog:",
     "ssri": "catalog:"
   },
   "peerDependencies": {
@@ -59,6 +62,8 @@
     "@pnpm/deps.compliance.sbom": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@types/hosted-git-info": "catalog:",
+    "@types/spdx-expression-parse": "catalog:",
     "@types/ssri": "catalog:"
   },
   "engines": {

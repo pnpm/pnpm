@@ -1,11 +1,11 @@
-use pacquet_config::HoistingLimits;
-use pacquet_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
-use pacquet_real_hoist::percent_encode_path;
+use pnpm_config::HoistingLimits;
+use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_real_hoist::percent_encode_path;
 use std::collections::{BTreeSet, HashMap};
 
 /// Translate the user-facing [`HoistingLimits`] mode into the
 /// `@yarnpkg/nm` hoister's per-locator border map (the shape
-/// [`pacquet_real_hoist::HoistOpts::hoisting_limits`] consumes). A
+/// [`pnpm_real_hoist::HoistOpts::hoisting_limits`] consumes). A
 /// name in a locator's set is a hoisting border: that node's
 /// dependencies are not hoisted above it.
 ///
@@ -17,8 +17,8 @@ use std::collections::{BTreeSet, HashMap};
 pub fn get_hoisting_limits(
     importers: &HashMap<String, ProjectSnapshot>,
     mode: HoistingLimits,
-) -> pacquet_real_hoist::HoistingLimits {
-    let mut limits = pacquet_real_hoist::HoistingLimits::new();
+) -> pnpm_real_hoist::HoistingLimits {
+    let mut limits = pnpm_real_hoist::HoistingLimits::new();
     if matches!(mode, HoistingLimits::None) {
         return limits;
     }
@@ -26,14 +26,12 @@ pub fn get_hoisting_limits(
     // The root border accumulates the root's own direct deps plus
     // every (encoded) non-root importer id, regardless of iteration
     // order — `BTreeSet` makes the result deterministic even though
-    // `importers` is a `HashMap`. Only stored under `.@` when a root
-    // importer is present, matching upstream.
+    // `importers` is a `HashMap`. Always stored under `.@` to provide
+    // the synthetic root node's hoisting boundary, matching upstream.
     let mut root_border: BTreeSet<String> = BTreeSet::new();
-    let mut root_present = false;
 
     for (importer_id, importer) in importers {
         if importer_id == Lockfile::ROOT_IMPORTER_KEY {
-            root_present = true;
             collect_direct_dep_names(importer, &mut root_border);
             continue;
         }
@@ -51,9 +49,7 @@ pub fn get_hoisting_limits(
         );
     }
 
-    if root_present {
-        limits.insert(format!("{}@", Lockfile::ROOT_IMPORTER_KEY), root_border);
-    }
+    limits.insert(format!("{}@", Lockfile::ROOT_IMPORTER_KEY), root_border);
 
     limits
 }

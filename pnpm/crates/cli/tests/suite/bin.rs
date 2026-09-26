@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -18,31 +18,52 @@ fn canonicalize(path: &Path) -> PathBuf {
 #[test]
 fn bin_prints_the_local_node_modules_bin_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+        .expect("write package.json");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
 }
 
+/// Regression test for
+/// [pnpm/pnpm#3604](https://github.com/pnpm/pnpm/issues/3604): an install
+/// links the executables into the configured modules directory, so `bin` has
+/// to print that directory.
 #[test]
-fn bin_ignores_a_custom_modules_dir() {
-    // pnpm hardcodes the `.bin` leaf, so a custom modules-dir is ignored.
+fn bin_prints_a_custom_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
         .expect("write pnpm-workspace.yaml");
 
-    let output = pacquet.with_args(["bin"]).output().expect("run pacquet bin");
+    let output = pacquet
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin");
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    let expected =
-        format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("custom_nm")
+            .join(".bin")
+            .display(),
+    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
@@ -154,15 +175,82 @@ fn bin_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
     drop(root);
 }
 
-/// Differential parity: from a workspace subdirectory pnpm's `bin` prints the
-/// cwd's `node_modules/.bin` (its `config.dir` is the cwd, not the workspace
-/// root). pacquet must match byte-for-byte. Windows-skipped because it spawns
-/// the external `pnpm` shim (see the `ignore` reason).
+/// Regression test for
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622): the path
+/// printed under the subdirectory does not exist, so tools spawning
+/// executables out of it failed with `ENOENT`.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "spawns the external `pnpm` shim (`pnpm.cmd`); std::process::Command can't resolve it via PATHEXT"
-)]
+fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+        .expect("write package.json");
+    let subdir = workspace.join("src/utils");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&subdir)
+        .with_args(["bin"])
+        .output()
+        .expect("run pacquet bin in the subdir");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet bin should succeed in the subdir");
+
+    let expected = format!(
+        "{}\n",
+        canonicalize(&workspace)
+            .join("node_modules")
+            .join(".bin")
+            .display(),
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+
+    drop(root);
+}
+
+/// A Cargo or Python package installs no `node_modules`, so the walk that
+/// `bin` resolves through carries on to the npm project around it. The
+/// wider walk `pnpm add crate:...` needs stops there instead, which
+/// `prefix.rs` covers.
+#[test]
+fn bin_walks_past_an_ecosystem_manifest() {
+    for (manifest, contents) in [
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+            .expect("write package.json");
+        let member = workspace.join("member");
+        fs::create_dir(&member).expect("create the member dir");
+        fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
+
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&member)
+            .with_args(["bin"])
+            .output()
+            .expect("run pacquet bin in the member");
+        dbg!(&output);
+        assert!(output.status.success(), "pacquet bin should succeed in the {manifest} member");
+
+        let expected = format!(
+            "{}\n",
+            canonicalize(&workspace)
+                .join("node_modules")
+                .join(".bin")
+                .display(),
+        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
+
+        drop(root);
+    }
+}
+
+/// Differential parity from a workspace member, whose own `package.json`
+/// makes it the local prefix `bin` prints for. pacquet must match pnpm
+/// byte-for-byte.
+#[test]
 fn bin_matches_pnpm_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 

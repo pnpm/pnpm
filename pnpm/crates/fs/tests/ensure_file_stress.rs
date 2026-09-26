@@ -1,4 +1,4 @@
-//! Cross-process stress tests for [`pacquet_fs::ensure_file`].
+//! Cross-process stress tests for [`pnpm_fs::ensure_file`].
 //!
 //! Covers three multi-process scenarios:
 //!
@@ -13,7 +13,7 @@
 //!    fast path inside `verify_or_rewrite` kicks in and the
 //!    overwrite-via-rename heals the store.
 //!
-//! Pacquet's [`cas_write_lock`](pacquet_fs::ensure_file) is
+//! Pacquet's [`cas_write_lock`](pnpm_fs::ensure_file) is
 //! process-local (a static array of [`std::sync::Mutex<()>`] stripes
 //! keyed by hashed path), so the cross-process safety contract lives
 //! entirely in the kernel-level `O_CREAT | O_EXCL` + atomic-rename
@@ -64,11 +64,14 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
             })
         })
         .collect();
-    handles.into_iter().map(|handle| handle.join().expect("worker thread")).collect()
+    handles
+        .into_iter()
+        .map(|handle| handle.join().expect("worker thread"))
+        .collect()
 }
 
 /// Sha-512-hex the byte slice, the same digest format
-/// [`pacquet_fs::ensure_file`] would use for CAS naming.
+/// [`pnpm_fs::ensure_file`] would use for CAS naming.
 fn sha512_hex(content: &[u8]) -> String {
     let digest = Sha512::digest(content);
     format!("{digest:x}")
@@ -82,7 +85,9 @@ fn multi_process_concurrent_writes_converge_on_correct_content() {
     let content_path = tmp.path().join("content.bin");
     let target_path = tmp.path().join("target.bin");
 
-    let content: Vec<u8> = (0..CONTENT_SIZE).map(|i| (i % 256) as u8).collect();
+    let content: Vec<u8> = (0..CONTENT_SIZE)
+        .map(|i| (i % 256) as u8)
+        .collect();
     fs::write(&content_path, &content).expect("write content fixture");
     let expected_digest = sha512_hex(&content);
 
@@ -111,7 +116,9 @@ fn multi_process_recovery_from_pre_seeded_corrupt_file() {
     let content_path = tmp.path().join("content.bin");
     let target_path = tmp.path().join("target.bin");
 
-    let content: Vec<u8> = (0..CONTENT_SIZE).map(|i| ((i * 7) % 256) as u8).collect();
+    let content: Vec<u8> = (0..CONTENT_SIZE)
+        .map(|i| ((i * 7) % 256) as u8)
+        .collect();
     fs::write(&content_path, &content).expect("write content fixture");
     let expected_digest = sha512_hex(&content);
 
@@ -154,7 +161,9 @@ fn multi_process_recovery_from_pre_seeded_truncated_file() {
     let content_path = tmp.path().join("content.bin");
     let target_path = tmp.path().join("target.bin");
 
-    let content: Vec<u8> = (0..CONTENT_SIZE).map(|i| ((i * 13) % 256) as u8).collect();
+    let content: Vec<u8> = (0..CONTENT_SIZE)
+        .map(|i| ((i * 13) % 256) as u8)
+        .collect();
     fs::write(&content_path, &content).expect("write content fixture");
     let expected_digest = sha512_hex(&content);
 

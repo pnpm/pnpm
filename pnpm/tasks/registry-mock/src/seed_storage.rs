@@ -32,7 +32,10 @@ pub fn seed_runtime_storage() -> io::Result<usize> {
         if !entry.file_type().is_file() {
             continue;
         }
-        let rel = entry.path().strip_prefix(src).expect("entry under src");
+        let rel = entry
+            .path()
+            .strip_prefix(src)
+            .expect("entry under src");
         let dest_path = dest.join(rel);
         if let Some(parent) = dest_path.parent() {
             fs::create_dir_all(parent)?;

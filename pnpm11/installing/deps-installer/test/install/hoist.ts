@@ -13,7 +13,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/testing.registry-mock'
-import type { DepPath, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
@@ -985,4 +985,550 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   projects['root'].has('.pnpm/node_modules/package')
   projects['root'].has('.pnpm/node_modules/package2')
   projects['root'].hasNot('.pnpm/node_modules/root')
+})
+
+test('hoistWorkspacePackages should hoist workspace projects when nothing is installed from a registry', async () => {
+  const workspaceRootManifest = {
+    name: 'root',
+    version: '1.0.0',
+  }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+  }
+  const pluginManifest = {
+    name: 'eslint-plugin-local',
+    version: '1.0.0',
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'app',
+      package: appManifest,
+    },
+    {
+      location: 'eslint-plugin-local',
+      package: pluginManifest,
+    },
+  ])
+
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: appManifest,
+      rootDir: path.resolve('app') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: pluginManifest,
+      rootDir: path.resolve('eslint-plugin-local') as ProjectRootDir,
+    },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({
+    mutation: 'install',
+    rootDir,
+  }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].has('eslint-plugin-local')
+  projects['root'].has('.pnpm/node_modules/app')
+  projects['root'].hasNot('.pnpm/node_modules/root')
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toMatchObject({
+    app: { app: 'private' },
+    'eslint-plugin-local': { 'eslint-plugin-local': 'public' },
+  })
+
+  appManifest.name = 'renamed-app'
+  const remainingProjects = allProjects.slice(0, 2)
+  await mutateModules(mutatedProjects.slice(0, 2), testDefaults({
+    allProjects: remainingProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].hasNot('eslint-plugin-local')
+  projects['root'].hasNot('.pnpm/node_modules/app')
+  projects['root'].has('.pnpm/node_modules/renamed-app')
+
+  await mutateModules(mutatedProjects.slice(0, 1), testDefaults({
+    allProjects: allProjects.slice(0, 1),
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+    publicHoistPattern: ['*eslint*'],
+  }))
+
+  projects['root'].hasNot('.pnpm/node_modules/renamed-app')
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({})
+})
+
+test('hoistWorkspacePackages rejects a workspace name that escapes the hoist root', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const maliciousManifest = { name: '../outside/project', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: maliciousManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: maliciousManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await expect(mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+  expect(fs.existsSync('node_modules/.pnpm/outside')).toBe(false)
+})
+
+test('hoistWorkspacePackages replaces a removed project with the new owner of its name', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const removedManifest = { name: 'shared-name', version: '1.0.0' }
+  const replacementManifest: { name?: string, version: string } = { version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'removed', package: removedManifest },
+    { location: 'replacement', package: replacementManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: removedManifest, rootDir: path.resolve('removed') as ProjectRootDir },
+    { buildIndex: 0, manifest: replacementManifest, rootDir: path.resolve('replacement') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))
+  expect(await resolveLinkTarget(path.resolve('node_modules/.pnpm/node_modules/shared-name'))).toBe(path.resolve('removed'))
+
+  replacementManifest.name = 'shared-name'
+  const remainingProjects = [allProjects[0], allProjects[2]]
+  await mutateModules([mutatedProjects[0], mutatedProjects[2]], testDefaults({
+    allProjects: remainingProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+  }))
+
+  projects['root'].has('.pnpm/node_modules/shared-name')
+  expect(await resolveLinkTarget(path.resolve('node_modules/.pnpm/node_modules/shared-name'))).toBe(path.resolve('replacement'))
+})
+
+test('hoistWorkspacePackages rejects a symlinked destination parent', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const nestedManifest = { name: 'nested/inner', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: nestedManifest },
+  ])
+  const outside = path.resolve('outside')
+  fs.mkdirSync('node_modules')
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, path.resolve('node_modules/nested'), process.platform === 'win32' ? 'junction' : 'dir')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: nestedManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await expect(mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({
+    allProjects,
+    hoistWorkspacePackages: true,
+    publicHoistPattern: '*',
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+  expect(fs.existsSync(path.join(outside, 'inner'))).toBe(false)
+})
+
+test('hoistWorkspacePackages does not prune a stale link through a symlinked parent', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const nestedManifest = { name: 'nested/inner', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: nestedManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: nestedManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+  const mutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+  const opts = testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  })
+
+  await mutateModules(mutations, opts)
+
+  const parent = path.resolve('node_modules/.pnpm/node_modules/nested')
+  const outside = path.resolve('outside')
+  fs.rmSync(parent, { recursive: true })
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(path.resolve('project'), path.join(outside, 'inner'), process.platform === 'win32' ? 'junction' : 'dir')
+  await fs.promises.symlink(outside, parent, process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(mutateModules(mutations.slice(0, 1), testDefaults({
+    allProjects: allProjects.slice(0, 1),
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    pruneLockfileImporters: true,
+  }))).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME' })
+  expect(await resolveLinkTarget(path.join(outside, 'inner'))).toBe(path.resolve('project'))
+})
+
+test.each([
+  ['nested', 'nested/inner'],
+  ['nested/inner', 'nested'],
+])('hoistWorkspacePackages renames a workspace project from %s to %s', async (initialName, nextName) => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const projectManifest = { name: initialName, version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: projectManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: projectManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+  const mutations = allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir }))
+  const opts = testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  })
+
+  await mutateModules(mutations, opts)
+  projectManifest.name = nextName
+  await mutateModules(mutations, opts)
+
+  const privateHoistDir = path.resolve('node_modules/.pnpm/node_modules')
+  expect(await resolveLinkTarget(path.join(privateHoistDir, nextName))).toBe(path.resolve('project'))
+  expect(projects.root.readModulesManifest()).toMatchObject({
+    hoistedDependencies: { project: { [nextName]: 'private' } },
+  })
+})
+
+test('hoistWorkspacePackages reserves workspace aliases from transitive dependencies', async () => {
+  const workspaceName = '@pnpm.e2e/dep-of-pkg-with-1-dep'
+  const rootManifest = {
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  const projectManifest = { name: workspaceName, version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: projectManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: projectManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/.pnpm/node_modules', workspaceName))).toBe(path.resolve('project'))
+  const hoistedDependencies = projects.root.readModulesManifest()?.hoistedDependencies ?? {}
+  expect(hoistedDependencies['project' as ProjectId]).toStrictEqual({ [workspaceName]: 'private' })
+  for (const [dependencyId, aliases] of Object.entries(hoistedDependencies)) {
+    if (dependencyId !== 'project') expect(aliases).not.toHaveProperty(workspaceName)
+  }
+})
+
+test('hoistWorkspacePackages omits a workspace alias that contains a transitive dependency destination', async () => {
+  const rootManifest = {
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  const projectManifest = { name: '@pnpm.e2e', version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: projectManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: projectManifest, rootDir: path.resolve('project') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))
+
+  const privateHoistDir = path.resolve('node_modules/.pnpm/node_modules')
+  expect(await resolveLinkTarget(path.join(privateHoistDir, '@pnpm.e2e/dep-of-pkg-with-1-dep'))).not.toBe(path.resolve('project'))
+  expect(fs.existsSync(path.resolve('project/dep-of-pkg-with-1-dep'))).toBe(false)
+  expect(projects.root.readModulesManifest()?.hoistedDependencies['project' as ProjectId]).toBeUndefined()
+})
+
+test('hoistWorkspacePackages ignores non-root direct dependency destinations outside the public hoist directory', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const projectManifest = { name: '@pnpm.e2e', version: '1.0.0' }
+  const consumerManifest = {
+    name: 'consumer',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' },
+  }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'project', package: projectManifest },
+    { location: 'consumer', package: consumerManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: projectManifest, rootDir: path.resolve('project') as ProjectRootDir },
+    { buildIndex: 0, manifest: consumerManifest, rootDir: path.resolve('consumer') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install' as const, rootDir })), testDefaults({
+    allProjects,
+    hoistWorkspacePackages: true,
+    publicHoistPattern: ['@pnpm.e2e'],
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/@pnpm.e2e'))).toBe(path.resolve('project'))
+  expect(await resolveLinkTarget(path.resolve('consumer/node_modules/@pnpm.e2e/pkg-with-1-dep'))).not.toBe(path.resolve('project'))
+})
+
+test('hoistWorkspacePackages omits workspace names with conflicting destinations', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const parentManifest = { name: 'nested', version: '1.0.0' }
+  const childManifest = { name: 'nested/inner', version: '1.0.0' }
+  const siblingManifest = { name: 'nested/other', version: '1.0.0' }
+  const similarlyPrefixedManifest = { name: 'nested-other', version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'parent', package: parentManifest },
+    { location: 'child', package: childManifest },
+    { location: 'sibling', package: siblingManifest },
+    { location: 'similarly-prefixed', package: similarlyPrefixedManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: parentManifest, rootDir: path.resolve('parent') as ProjectRootDir },
+    { buildIndex: 0, manifest: childManifest, rootDir: path.resolve('child') as ProjectRootDir },
+    { buildIndex: 0, manifest: siblingManifest, rootDir: path.resolve('sibling') as ProjectRootDir },
+    { buildIndex: 0, manifest: similarlyPrefixedManifest, rootDir: path.resolve('similarly-prefixed') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({
+    mutation: 'install' as const,
+    rootDir,
+  })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+  }))
+  expect(fs.existsSync('node_modules/.pnpm/node_modules/nested')).toBe(false)
+  const modulesManifest = projects.root.readModulesManifest()
+  expect(Object.keys(modulesManifest?.hoistedDependencies ?? {})).not.toContain('parent')
+  expect(Object.keys(modulesManifest?.hoistedDependencies ?? {})).not.toContain('child')
+  expect(Object.keys(modulesManifest?.hoistedDependencies ?? {})).not.toContain('sibling')
+  expect(modulesManifest?.hoistedDependencies['similarly-prefixed' as ProjectId]).toStrictEqual({ 'nested-other': 'private' })
+})
+
+test('hoistWorkspacePackages links workspace projects into the root modules directory with the hoisted node linker', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const appManifest = { name: 'app', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } }
+  const libManifest = { name: '@scope/lib', version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'app', package: appManifest },
+    { location: 'lib', package: libManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+    { buildIndex: 0, manifest: libManifest, rootDir: path.resolve('lib') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/app'))).toBe(path.resolve('app'))
+  expect(await resolveLinkTarget(path.resolve('node_modules/@scope/lib'))).toBe(path.resolve('lib'))
+  expect(fs.lstatSync('node_modules/is-positive').isDirectory()).toBe(true)
+  projects['root'].hasNot('root')
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({
+    app: { app: 'private' },
+    lib: { '@scope/lib': 'private' },
+  })
+
+  libManifest.name = 'renamed-lib'
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(fs.existsSync('node_modules/@scope/lib')).toBe(false)
+  expect(await resolveLinkTarget(path.resolve('node_modules/renamed-lib'))).toBe(path.resolve('lib'))
+})
+
+test('hoistWorkspacePackages with the hoisted node linker gives up a project name that a dependency takes over', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const appManifest: { name: string, version: string, dependencies?: Record<string, string> } = { name: 'app', version: '1.0.0' }
+  const isPositiveManifest = { name: 'is-positive', version: '1.0.0' }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'app', package: appManifest },
+    { location: 'positive', package: isPositiveManifest },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+    { buildIndex: 0, manifest: isPositiveManifest, rootDir: path.resolve('positive') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  const opts = {
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    linkWorkspacePackagesDepth: -1,
+    nodeLinker: 'hoisted' as const,
+  }
+
+  await mutateModules(mutatedProjects, testDefaults(opts))
+  expect(await resolveLinkTarget(path.resolve('node_modules/is-positive'))).toBe(path.resolve('positive'))
+
+  fs.mkdirSync('positive/node_modules/marker', { recursive: true })
+  fs.writeFileSync('positive/node_modules/marker/package.json', '{}')
+  appManifest.dependencies = { 'is-positive': '3.1.0' }
+  await mutateModules(mutatedProjects, testDefaults(opts))
+
+  expect(fs.lstatSync('node_modules/is-positive').isSymbolicLink()).toBe(false)
+  expect(JSON.parse(fs.readFileSync('node_modules/is-positive/package.json', 'utf8')).version).toBe('3.1.0')
+  expect(JSON.parse(fs.readFileSync('positive/package.json', 'utf8')).version).toBe('1.0.0')
+  expect(fs.existsSync('positive/node_modules/marker/package.json')).toBe(true)
+})
+
+test('hoistWorkspacePackages with the hoisted node linker links the project bins no package provides when the root project is not selected', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+    bin: { 'app-cli': 'cli.js', 'hello-world-js-bin': 'cli.js' },
+    dependencies: { '@pnpm.e2e/hello-world-js-bin': '1.0.0' },
+  }
+  preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'app', package: appManifest },
+  ])
+  fs.writeFileSync('app/cli.js', '#!/usr/bin/env node\n')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+  ]
+
+  await mutateModules([{ mutation: 'install', rootDir: allProjects[1].rootDir }], testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/app'))).toBe(path.resolve('app'))
+  expect(fs.readdirSync('node_modules/.bin')).toContain('app-cli')
+  expect(fs.readFileSync('node_modules/.bin/hello-world-js-bin', 'utf8')).toContain('@pnpm.e2e/hello-world-js-bin')
+})
+
+test('hoistWorkspacePackages: false removes the workspace links and bins of the hoisted node linker', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0' }
+  const appManifest = { name: 'app', version: '1.0.0', bin: { 'app-cli': 'cli.js' } }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'app', package: appManifest },
+  ])
+  fs.writeFileSync('app/cli.js', '#!/usr/bin/env node\n')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+  ]
+  const mutatedProjects: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+  expect(await resolveLinkTarget(path.resolve('node_modules/app'))).toBe(path.resolve('app'))
+  expect(fs.readdirSync('node_modules/.bin')).toContain('app-cli')
+
+  await mutateModules(mutatedProjects, testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(fs.existsSync('node_modules/app')).toBe(false)
+  expect(fs.readdirSync('node_modules/.bin').filter((name) => name.startsWith('app-cli'))).toStrictEqual([])
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({})
+})
+
+test('hoistWorkspacePackages with the hoisted node linker leaves a name to the root project\'s linked dependency', async () => {
+  const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: 'link:bar' } }
+  const fooManifest = { name: 'foo', version: '1.0.0', bin: { 'foo-cli': 'cli.js' } }
+  const barManifest = { name: 'bar', version: '1.0.0' }
+  const projects = preparePackages([
+    { location: '.', package: rootManifest },
+    { location: 'foo', package: fooManifest },
+    { location: 'bar', package: barManifest },
+  ])
+  fs.writeFileSync('foo/cli.js', '#!/usr/bin/env node\n')
+  const allProjects = [
+    { buildIndex: 0, manifest: rootManifest, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: fooManifest, rootDir: path.resolve('foo') as ProjectRootDir },
+    { buildIndex: 0, manifest: barManifest, rootDir: path.resolve('bar') as ProjectRootDir },
+  ]
+
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(await resolveLinkTarget(path.resolve('node_modules/foo'))).toBe(path.resolve('bar'))
+  expect(await resolveLinkTarget(path.resolve('node_modules/bar'))).toBe(path.resolve('bar'))
+  expect(projects['root'].readModulesManifest()?.hoistedDependencies).toStrictEqual({ bar: { bar: 'private' } })
+  expect(fs.existsSync('node_modules/.bin/foo-cli')).toBe(false)
 })

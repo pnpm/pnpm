@@ -12,10 +12,11 @@ use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,
 };
 use dashmap::DashSet;
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     LatestQuery, PackageVersionGuard, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use pnpm_tarball::SharedReportedProgressKeys;
 use std::sync::Arc;
 
 /// One resolved tarball-shaped package, surfaced as the resolver's tree
@@ -23,11 +24,6 @@ use std::sync::Arc;
 /// the tarball before the full lockfile is assembled. Borrowed: the
 /// observer copies whatever it needs out of the call.
 pub struct ResolvedPackageHint<'a> {
-    /// Canonical `name@version` identifier — the store-index
-    /// `package_id` the install pass keys downloads by.
-    pub id: &'a str,
-    pub name: &'a str,
-    pub version: &'a str,
     /// Subresource-integrity string (`sha512-...`).
     pub integrity: &'a str,
     /// The resolver's `dist.tarball` URL — the same string the install
@@ -42,6 +38,9 @@ pub struct ResolvedPackageHint<'a> {
     /// registry published one. The per-file term of the download
     /// priority's pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision. Its presence selects the immutable
+    /// one-request, no-redirect download policy on the client.
+    pub revision: Option<u64>,
     /// Whether the package resolved from a registry (npm / named / jsr), so
     /// [`Self::tarball_url`] is the registry packument's `dist.tarball`. A
     /// server router must classify such a package by its *registry* route, not
@@ -50,6 +49,15 @@ pub struct ResolvedPackageHint<'a> {
     /// for a direct tarball/git/local dependency, whose tarball URL *is* its
     /// source.
     pub from_registry: bool,
+    pub identity: ResolvedPackageIdentity<'a>,
+}
+
+pub struct ResolvedPackageIdentity<'a> {
+    /// Canonical `name@version` identifier — the store-index
+    /// `package_id` the install pass keys downloads by.
+    pub id: &'a str,
+    pub name: &'a str,
+    pub version: &'a str,
 }
 
 /// Sink notified once per resolved tarball package during a resolve.
@@ -69,6 +77,17 @@ pub trait ResolutionObserver: Send + Sync {
     fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
         None
     }
+
+    /// Install-scoped package-status keys this observer coordinates with
+    /// fetch and materialization paths.
+    fn progress_reported(&self) -> Option<SharedReportedProgressKeys> {
+        None
+    }
+
+    /// Emit deferred package progress after fetch and materialization paths
+    /// settle, before `ImportingDone` and `Summary`. Called once on a
+    /// successful fresh-resolution install.
+    fn flush_progress(&self) {}
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to
@@ -81,10 +100,13 @@ pub trait ResolutionObserver: Send + Sync {
 pub struct ObservingResolver {
     inner: Box<dyn Resolver>,
     observer: Arc<dyn ResolutionObserver>,
-    /// Tarball URLs already reported. The deps-resolver calls `resolve`
-    /// once per `(parent, child)` edge, so the same package surfaces many
-    /// times; dedup by URL collapses those to a single frame. Mirrors
-    /// `PrefetchingResolver::spawned_urls`.
+    /// Cache identities already reported. The deps-resolver calls
+    /// `resolve` once per `(parent, child)` edge, so the same package
+    /// surfaces many times; dedup collapses those to a single frame.
+    /// Two resolutions naming one URL are two archives when they pin
+    /// different hashes, and the prefetch the frame starts keys them
+    /// apart, so the identity is what dedups here too. Mirrors
+    /// `PrefetchingResolver::spawned_downloads`.
     seen: DashSet<String>,
 }
 
@@ -99,10 +121,20 @@ impl ObservingResolver {
         let Ok((tarball_url, integrity)) = extract_tarball(&result.resolution) else {
             return;
         };
-        let Some(name_ver) = result.name_ver.as_ref() else {
+        let Some(name_ver) = result.package.name_ver.as_ref() else {
             return;
         };
-        if !self.seen.insert(tarball_url.to_string()) {
+        let revision = match &result.resolution {
+            pnpm_lockfile::LockfileResolution::Tarball(tarball) => {
+                tarball.revision.map(pnpm_lockfile::TarballRevision::get)
+            }
+            _ => None,
+        };
+        if !self.seen.insert(pnpm_tarball::package_mem_cache_key(
+            tarball_url,
+            Some(&integrity),
+            revision.is_some(),
+        )) {
             return;
         }
         let id = name_ver.to_string();
@@ -110,14 +142,13 @@ impl ObservingResolver {
         let version = name_ver.suffix.to_string();
         let integrity = integrity.to_string();
         self.observer.on_resolved(ResolvedPackageHint {
-            id: &id,
-            name: &name,
-            version: &version,
             integrity: &integrity,
             tarball_url,
-            unpacked_size: manifest_unpacked_size(result.manifest.as_deref()),
-            file_count: manifest_file_count(result.manifest.as_deref()),
+            unpacked_size: manifest_unpacked_size(result.package.manifest.as_deref()),
+            file_count: manifest_file_count(result.package.manifest.as_deref()),
+            revision,
             from_registry: is_registry_resolution(&result.resolved_via),
+            identity: crate::ResolvedPackageIdentity { id: &id, name: &name, version: &version },
         });
     }
 }

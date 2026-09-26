@@ -19,12 +19,10 @@
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "semver": "catalog:",
     "write-json-file": "catalog:"
   },
   "devDependencies": {
-    "@pnpm-private/updater": "workspace:*",
-    "@types/semver": "catalog:"
+    "@pnpm-private/updater": "workspace:*"
   },
   "keywords": [
     "pnpm",

@@ -1,5 +1,5 @@
 //! Chain-friendly wrappers that implement
-//! [`pacquet_resolving_resolver_base::Resolver`] over the free
+//! [`pnpm_resolving_resolver_base::Resolver`] over the free
 //! functions in [`super::local_resolver`].
 //!
 //! The resolver chain interleaves the local-scheme step ahead of the
@@ -12,12 +12,15 @@
 
 use crate::{
     local_resolver::{
-        LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, resolve_from_local_path,
-        resolve_from_local_scheme, resolve_latest_from_local,
+        LocalCurrentPkg, LocalResolverContext, LocalResolverOptions, LocalResolverUpdate,
+        resolve_from_local_path, resolve_from_local_scheme, resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
 };
-use pacquet_resolving_resolver_base::{
+use std::sync::Arc;
+
+use pnpm_lockfile::LockfileResolution;
+use pnpm_resolving_resolver_base::{
     LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
     Resolver, UpdateBehavior, WantedDependency,
 };
@@ -201,13 +204,21 @@ fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDepen
 
 fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
     LocalResolverOptions {
-        project_dir: opts.project_dir.clone(),
-        lockfile_dir: Some(opts.lockfile_dir.clone()),
-        current_pkg: None,
-        update: match opts.update {
-            UpdateBehavior::Off => LocalResolverUpdate::Off,
+        project_dir: opts.project.project_dir.clone(),
+        lockfile_dir: Some(opts.project.lockfile_dir.clone()),
+        current_pkg: opts.refresh.current_pkg
+            .as_ref()
+            .filter(|current| matches!(current.resolution, LockfileResolution::Tarball(_)))
+            .map(|current| LocalCurrentPkg {
+                id: current.id.clone(),
+                resolution: current.resolution.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
+            }),
+        update: match opts.refresh.update {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
+            UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
+        inject_workspace_packages: opts.project.inject_workspace_packages,
     }
 }
 

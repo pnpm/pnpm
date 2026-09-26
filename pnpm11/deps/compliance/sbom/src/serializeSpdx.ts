@@ -140,7 +140,7 @@ export function serializeSpdx (result: SbomResult, opts?: SpdxOptions): string {
     name: rootComponent.name,
     documentNamespace,
     creationInfo: {
-      created: new Date().toISOString(),
+      created: `${new Date().toISOString().split('.')[0]}Z`,
       creators: [
         'Tool: pnpm',
       ],

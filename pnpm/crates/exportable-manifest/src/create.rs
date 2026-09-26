@@ -9,7 +9,7 @@
 //!    surviving `scripts` map loses its publish-lifecycle entries.
 //! 2. **Dependency rewriting.** Each `dependencies` /
 //!    `devDependencies` / `optionalDependencies` / `peerDependencies`
-//!    value runs through the workspace → catalog → jsr replacers in
+//!    value runs through the catalog → workspace → jsr replacers in
 //!    sequence, turning `workspace:` / `catalog:` / `jsr:` specifiers
 //!    into the concrete specifiers the registry understands.
 //! 3. **`publishConfig` override.** Whitelisted `publishConfig` keys
@@ -23,26 +23,27 @@
 //! a list of closures.
 //!
 //! `beforePacking` pnpmfile hooks are not applied here: pacquet's
-//! pnpmfile bridge (`pacquet_hooks::PnpmfileHooks`) does not yet
+//! pnpmfile bridge (`pnpm_hooks::PnpmfileHooks`) does not yet
 //! expose that hook, so there is no source to feed it. The step lands
 //! when the bridge grows a `beforePacking` entry point.
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, replace_workspace_protocol,
+        ReplaceWorkspaceProtocolError, WorkspacePackageManifest, replace_workspace_protocol,
         replace_workspace_protocol_peer_dependency,
     },
     transform::{TransformError, transform},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_resolver::{
-    CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    resolve_from_catalog,
 };
-use pacquet_catalogs_types::Catalogs;
-use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
-use std::{fs, io, path::Path};
+use std::{collections::HashMap, fs, io, path::Path};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
@@ -83,6 +84,11 @@ const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
 pub struct CreateExportableManifestOptions<'a> {
     /// Parsed workspace catalogs, used to resolve `catalog:` specifiers.
     pub catalogs: &'a Catalogs,
+    /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
+    /// `link:` catalog entry's relative path is measured from. `None`
+    /// leaves such an entry as the catalog writes it, for a caller with
+    /// no workspace — and so no catalogs — of its own.
+    pub workspace_dir: Option<&'a Path>,
     /// Where workspace dependencies are installed. Defaults to
     /// `<dir>/node_modules` when `None`.
     pub modules_dir: Option<&'a Path>,
@@ -93,6 +99,8 @@ pub struct CreateExportableManifestOptions<'a> {
     /// field when one is present and the manifest doesn't already
     /// declare `readme`.
     pub embed_readme: bool,
+    /// Workspace packages lookup used when a dependency is not in `node_modules`.
+    pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
 }
 
 /// Failures from [`create_exportable_manifest`].
@@ -130,18 +138,7 @@ pub fn create_exportable_manifest(
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
 
-    let mut publish = if opts.skip_manifest_obfuscation {
-        omit_keys(original, &["pnpm"])
-    } else {
-        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
-        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
-            publish.insert(
-                "scripts".to_string(),
-                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
-            );
-        }
-        publish
-    };
+    let mut publish = publication_fields(original, opts.skip_manifest_obfuscation);
 
     for field in ["dependencies", "devDependencies", "optionalDependencies"] {
         if let Some(deps) =
@@ -163,15 +160,32 @@ pub fn create_exportable_manifest(
 
     if opts.embed_readme
         && !publish.contains_key("readme")
-        && let Some(readme) = read_readme_file(dir).map_err(|source| {
-            CreateExportableManifestError::ReadReadme { dir: dir.display().to_string(), source }
-        })?
+        && let Some(readme) = read_readme_file(dir)
+            .map_err(|source| CreateExportableManifestError::ReadReadme {
+                dir: dir.display().to_string(),
+                source,
+            })?
     {
         publish.insert("readme".to_string(), Value::String(readme));
     }
 
     transform(&mut publish).map_err(CreateExportableManifestError::Transform)?;
     Ok(Value::Object(publish))
+}
+
+fn publication_fields(original: &Map<String, Value>, skip_obfuscation: bool) -> Map<String, Value> {
+    if skip_obfuscation {
+        omit_keys(original, &["pnpm"])
+    } else {
+        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
+        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
+            publish.insert(
+                "scripts".to_string(),
+                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
+            );
+        }
+        publish
+    }
 }
 
 /// Whether a dependency map's specifiers carry the regular-dependency
@@ -209,7 +223,7 @@ fn make_publish_dependencies(
     Ok(Some(Value::Object(out)))
 }
 
-/// Run one specifier through the workspace → catalog → jsr replacers in
+/// Run one specifier through the catalog → workspace → jsr replacers in
 /// sequence, returning the registry-ready specifier.
 fn convert_dependency_for_publish(
     dep_name: &str,
@@ -218,28 +232,46 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
+    let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
     let after_workspace = match kind {
-        DependencyKind::Regular => {
-            replace_workspace_protocol(dep_name, spec, dir, opts.modules_dir)
-        }
-        DependencyKind::Peer => {
-            replace_workspace_protocol_peer_dependency(dep_name, spec, dir, opts.modules_dir)
-        }
+        DependencyKind::Regular => replace_workspace_protocol(
+            dep_name,
+            &after_catalog,
+            dir,
+            opts.modules_dir,
+            opts.workspace_packages,
+        ),
+        DependencyKind::Peer => replace_workspace_protocol_peer_dependency(
+            dep_name,
+            &after_catalog,
+            dir,
+            opts.modules_dir,
+            opts.workspace_packages,
+        ),
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
-    let after_catalog = replace_catalog_protocol(dep_name, &after_workspace, opts.catalogs)?;
-    replace_jsr_protocol(dep_name, &after_catalog)
+    replace_jsr_protocol(dep_name, &after_workspace)
 }
 
 /// Dereference a `catalog:` specifier; pass any other specifier
 /// through unchanged.
+///
+/// A `file:` / `link:` entry is re-anchored on `dir`, the directory of
+/// the package being exported, so it means the same place a local
+/// dependency written directly in that package's manifest would. Both
+/// are read relative to the exported manifest.
 fn replace_catalog_protocol(
     alias: &str,
     spec: &str,
-    catalogs: &Catalogs,
+    dir: &Path,
+    opts: &CreateExportableManifestOptions<'_>,
 ) -> Result<String, CreateExportableManifestError> {
     let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
-    match resolve_from_catalog(catalogs, &wanted) {
+    let anchor = match opts.workspace_dir {
+        Some(workspace_dir) => CatalogAnchor::Reanchor { workspace_dir, consumer_dir: Some(dir) },
+        None => CatalogAnchor::AsWritten,
+    };
+    match resolve_from_catalog(opts.catalogs, &wanted, anchor) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {
@@ -274,7 +306,10 @@ fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&st
 /// dropping them from `publishConfig` (and removing `publishConfig`
 /// entirely once empty).
 fn override_publish_config(publish: &mut Map<String, Value>) {
-    let Some(publish_config) = publish.get("publishConfig").and_then(Value::as_object).cloned()
+    let Some(publish_config) = publish
+        .get("publishConfig")
+        .and_then(Value::as_object)
+        .cloned()
     else {
         return;
     };
@@ -309,7 +344,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
         if !entry.file_type()?.is_file() {
             continue;
         }
-        if entry.file_name().to_string_lossy().eq_ignore_ascii_case("readme.md") {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .eq_ignore_ascii_case("readme.md")
+        {
             return read_regular_file(&entry.path());
         }
     }
@@ -325,7 +364,11 @@ pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
 #[cfg(unix)]
 fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
     use std::os::unix::fs::OpenOptionsExt;
-    let file = match fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path) {
+    let file = match fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+    {
         Ok(file) => file,
         Err(err) if err.raw_os_error() == Some(libc::ELOOP) => return Ok(None),
         Err(err) => return Err(err),

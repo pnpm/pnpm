@@ -46,10 +46,12 @@ privatePackages/store
 
 ## Verdaccio storage
 storage
-# ...but not the pnpr crate's `storage` source module (the bare rule above
-# is unanchored and would otherwise swallow this source directory).
-!/pnpr/crates/pnpr/src/storage/
-!/pnpr/crates/pnpr/src/storage/**
+# ...but not pnpr's `storage` crate. The bare rule above is unanchored, so it
+# matches a directory of that name at any depth and would otherwise swallow
+# this source tree — silently, since `git add` skips ignored paths without
+# saying so. Keep this negation in step if the crate ever moves.
+!/pnpr/crates/storage/
+!/pnpr/crates/storage/**
 
 yarn.lock
 
@@ -59,7 +61,13 @@ RELEASE.md
 .verdaccio-cache
 .turbo
 .eslintcache
+## Claude Code's local state, except the tracked skills symlink. Git cannot
+## re-include a path inside an excluded directory, so the root .claude
+## directory is un-excluded first and its contents excluded again.
 .claude
+!/.claude/
+/.claude/*
+!/.claude/skills
 .local-settings
 .pnpm-typecheck.json
 
@@ -72,6 +80,7 @@ pnpm11/__fixtures__/custom-modules-dir/patches/
 /target
 /bench-work-env
 .pacquet
+/.pnpm/
 
 ## test registry auth state (written by pnpr when serving with auth)
 htpasswd

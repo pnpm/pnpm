@@ -40,12 +40,39 @@ fn parses_scoped_package_keys() {
 }
 
 #[test]
+fn parses_hyphenated_keys() {
+    assert_eq!(
+        keys("dependencies.some-package-name"),
+        vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into())],
+    );
+    assert_eq!(
+        keys("devDependencies.another-package"),
+        vec![Segment::Key("devDependencies".into()), Segment::Key("another-package".into())],
+    );
+    assert_eq!(
+        keys("a.b-c.d-e"),
+        vec![Segment::Key("a".into()), Segment::Key("b-c".into()), Segment::Key("d-e".into())],
+    );
+    assert_eq!(keys("foo-bar[0]"), vec![Segment::Key("foo-bar".into()), Segment::Index(0.0)]);
+    // The bracketed form already accepted these keys, and still does.
+    assert_eq!(
+        keys(r#"dependencies["some-package-name"]"#),
+        vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into())],
+    );
+}
+
+#[test]
 fn parse_errors() {
     assert_eq!(
         parse_property_path("foo..bar"),
         Err(ParsePropertyPathError::UnexpectedToken { token: ".".into() }),
     );
     assert_eq!(parse_property_path("foo["), Err(ParsePropertyPathError::UnexpectedEndOfInput));
+    // A hyphen still cannot start an identifier.
+    assert_eq!(
+        parse_property_path("dependencies.-foo"),
+        Err(ParsePropertyPathError::UnexpectedToken { token: "-".into() }),
+    );
 }
 
 #[test]

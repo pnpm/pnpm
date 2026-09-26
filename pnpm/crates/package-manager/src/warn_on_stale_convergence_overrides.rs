@@ -15,10 +15,10 @@
 use crate::overrides::parse_declared_range;
 use futures_util::future;
 use node_semver::Version;
-use pacquet_config_parse_overrides::VersionOverride;
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pipe_trait::Pipe;
+use pnpm_config_parse_overrides::VersionOverride;
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -37,6 +37,10 @@ pub(crate) struct StaleConvergenceOverride {
 /// a resolved version newer than the override's value satisfies every
 /// collected range — a strictly better convergence.
 ///
+/// Every range of every override resolves concurrently: each resolution
+/// is a registry round trip, so serializing the overrides would put
+/// their count on the critical path.
+///
 /// A range that fails to resolve contributes no candidate but still
 /// participates in the satisfies-every-range check, so failures can
 /// only suppress the verdict, never fabricate one.
@@ -49,45 +53,62 @@ where
     ResolveRange: Fn(String, String) -> ResolveRangeFuture,
     ResolveRangeFuture: Future<Output = Option<Version>>,
 {
-    let mut stale = Vec::new();
-    for override_entry in parsed_overrides.iter().filter(|entry| entry.converge) {
-        let name = &override_entry.target_pkg.name;
-        let Some(ranges) = converge_declared_ranges.get(name) else { continue };
-        let Ok(current) = Version::parse(&override_entry.new_bare_specifier) else { continue };
-        // The collector only records parseable ranges, so a `None`
-        // here is unreachable in practice; bailing out keeps the
-        // "satisfies EVERY collected range" guarantee if it ever
-        // happens.
-        let Some(parsed_ranges) =
-            ranges.iter().map(|range| parse_declared_range(range)).collect::<Option<Vec<_>>>()
-        else {
-            continue;
-        };
-        if parsed_ranges.is_empty() {
-            continue;
-        }
-        let mut candidates: Vec<Version> = ranges
-            .iter()
-            .map(|range| resolve_range(name.clone(), range.clone()))
-            .pipe(future::join_all)
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
-        candidates.retain(|candidate| *candidate > current);
-        candidates.sort_unstable_by(|lhs, rhs| rhs.cmp(lhs));
-        let best = candidates
-            .into_iter()
-            .find(|candidate| parsed_ranges.iter().all(|range| range.satisfies(candidate)));
-        if let Some(best) = best {
-            stale.push(StaleConvergenceOverride {
-                name: name.clone(),
-                current_value: override_entry.new_bare_specifier.clone(),
-                best,
-            });
-        }
+    parsed_overrides
+        .iter()
+        .filter(|entry| entry.converge)
+        .filter_map(|override_entry| {
+            let ranges = converge_declared_ranges.get(&override_entry.target_pkg.name)?;
+            let candidates = ranges
+                .iter()
+                .map(|range| resolve_range(override_entry.target_pkg.name.clone(), range.clone()))
+                .pipe(future::join_all);
+            Some(async move {
+                let resolved = candidates.await.into_iter().flatten();
+                let best = better_convergence(override_entry, ranges, resolved)?;
+                Some(StaleConvergenceOverride {
+                    name: override_entry.target_pkg.name.clone(),
+                    current_value: override_entry.new_bare_specifier.clone(),
+                    best,
+                })
+            })
+        })
+        .pipe(future::join_all)
+        .await
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+/// The newest resolved candidate past the override's value that satisfies
+/// every declared range, when one exists.
+fn better_convergence(
+    override_entry: &VersionOverride,
+    ranges: &HashSet<String>,
+    candidates: impl Iterator<Item = Version>,
+) -> Option<Version> {
+    let current = Version::parse(&override_entry.new_bare_specifier).ok()?;
+    // The collector only records parseable ranges, so a `None`
+    // here is unreachable in practice; bailing out keeps the
+    // "satisfies EVERY collected range" guarantee if it ever
+    // happens.
+    let parsed_ranges = ranges
+        .iter()
+        .map(|range| parse_declared_range(range))
+        .collect::<Option<Vec<_>>>()?;
+    if parsed_ranges.is_empty() {
+        return None;
     }
-    stale
+    let mut candidates: Vec<Version> = candidates
+        .filter(|candidate| *candidate > current)
+        .collect();
+    candidates.sort_unstable_by(|lhs, rhs| rhs.cmp(lhs));
+    candidates
+        .into_iter()
+        .find(|candidate| {
+            parsed_ranges
+                .iter()
+                .all(|range| range.satisfies(candidate))
+        })
 }
 
 /// Resolve the best version `range` admits for `name` through the
@@ -107,11 +128,15 @@ pub(crate) async fn resolve_best_admitted_version(
         bare_specifier: Some(range),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, opts).await.ok().flatten()?;
+    let result = resolver
+        .resolve(&wanted, opts)
+        .await
+        .ok()
+        .flatten()?;
     if result.policy_violation.is_some() {
         return None;
     }
-    result.name_ver.map(|name_ver| name_ver.suffix)
+    result.package.name_ver.map(|name_ver| name_ver.suffix)
 }
 
 /// Emit the `pnpm:global` warning for each stale convergence override

@@ -67,6 +67,37 @@ test('do not check for updates when last update check happened recently', async 
   expect(state).toStrictEqual({ lastUpdateCheck })
 })
 
+test('check for updates when the last update check is dated in the future', async () => {
+  prepareEmpty()
+
+  const lastUpdateCheckDate = new Date()
+  lastUpdateCheckDate.setDate(lastUpdateCheckDate.getDate() + 365)
+  const initialLastUpdateCheck = lastUpdateCheckDate.toUTCString()
+  writeJsonFileSync('pnpm-state.json', {
+    lastUpdateCheck: initialLastUpdateCheck,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  await checkForUpdates({
+    ...config,
+    stateDir: process.cwd(),
+  })
+
+  expect(updateCheckLogger.debug).toHaveBeenCalledWith({
+    currentVersion: expect.any(String),
+    latestVersion: expect.any(String),
+  })
+
+  const state = loadJsonFileSync<{ lastUpdateCheck: string }>('pnpm-state.json')
+  expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
+})
+
 test('check for updates when last update check happened two days ago', async () => {
   prepareEmpty()
 

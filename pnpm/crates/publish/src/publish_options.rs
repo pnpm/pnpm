@@ -4,8 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
@@ -54,10 +54,8 @@ pub struct PublishUnsupportedRegistryProtocolError {
     pub registry_url: String,
 }
 
-/// Find the target registry for a package. The manifest's
-/// `publishConfig.registry` wins, then a scoped registry for the package's
-/// scope, then the default registry. Credential / TLS resolution is handled by
-/// pacquet's shared [`pacquet_network::AuthHeaders`] at request time.
+/// Find the target registry for a package. Credential / TLS resolution is
+/// handled by pacquet's shared [`pnpm_network::AuthHeaders`] at request time.
 pub fn find_registry_info(
     name: &str,
     default_registry: &str,
@@ -112,11 +110,9 @@ pub struct OidcTokenProvenance {
 /// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(GetIdTokenError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(DetermineProvenanceError),
 }
@@ -203,6 +199,17 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
+/// The registry `publishConfig` sets for `name`: its `@<scope>:registry` entry
+/// for the scope of `name`, else `publishConfig.registry`. Entries that are not
+/// strings are ignored. `None` means the configured registries apply.
+pub fn publish_config_registry<'a>(manifest: &'a Value, name: &str) -> Option<&'a str> {
+    let publish_config = manifest.get("publishConfig")?;
+    scope_of(name)
+        .and_then(|scope| publish_config.get(format!("@{scope}:registry")))
+        .and_then(Value::as_str)
+        .or_else(|| publish_config.get("registry").and_then(Value::as_str))
+}
+
 /// Build the registry / auth / access options for publishing `manifest`. When
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
 /// publish sends many packages a package-scoped token cannot authorize).
@@ -215,16 +222,15 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
-        .and_then(Value::as_str);
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let registry = find_registry_info(
         name,
         input.default_registry,
         input.scoped_registries,
-        publish_config_registry,
+        publish_config_registry(manifest, name),
     )?;
 
     let access = resolve_access(input.access, manifest);
@@ -260,11 +266,9 @@ where
 /// Failure surface of [`create_publish_options`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum CreatePublishOptionsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     UnsupportedProtocol(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Oidc(FetchTokenAndProvenanceError),
 }

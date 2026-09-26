@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.detect-dep-types",
-  "version": "1100.0.19",
+  "version": "1100.0.25",
   "description": "Detect the types of dependencies",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

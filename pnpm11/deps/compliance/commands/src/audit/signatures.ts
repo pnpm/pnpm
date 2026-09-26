@@ -12,9 +12,13 @@ import { createAuditNetworkOptions, loadAuditContext } from './auditContext.js'
 
 export async function auditSignatures (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const { envLockfile, include, lockfile } = await loadAuditContext(opts)
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile, include })
+  const auditRequest = lockfileToAuditRequest(lockfile, {
+    envLockfile,
+    include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+  })
   const packages: SignaturePackage[] = Object.entries(auditRequest.request).flatMap(([name, versions]) => (
-    versions.map((version) => ({ name, registry: pickRegistryForPackage(opts.registries, name), version }))
+    versions.map((version) => ({ name, registry: pickRegistryForPackage(opts.registriesByScope, name), version }))
   ))
   if (packages.length === 0) {
     throw new PnpmError('AUDIT_NO_PACKAGES', 'No installed packages found to audit')

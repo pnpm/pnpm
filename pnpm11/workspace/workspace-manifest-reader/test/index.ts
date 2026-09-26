@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 
 test('readWorkspaceManifest() works with a valid workspace file', async () => {
   const manifest = await readWorkspaceManifest(path.join(import.meta.dirname, '__fixtures__/ok'))
@@ -9,6 +9,22 @@ test('readWorkspaceManifest() works with a valid workspace file', async () => {
   expect(manifest).toEqual({
     packages: ['packages/**', 'types'],
   })
+})
+
+test('readWorkspaceManifestSync() works with a valid workspace file', () => {
+  expect(readWorkspaceManifestSync(path.join(import.meta.dirname, '__fixtures__/ok'))).toEqual({
+    packages: ['packages/**', 'types'],
+  })
+})
+
+test.each([
+  ['string', 'Expected object but found - string'],
+  ['array', 'Expected object but found - array'],
+  ['packages-string', 'packages field is not an array'],
+  ['packages-contains-empty', 'Missing or empty package'],
+  ['packages-contains-number', 'Invalid package type - number'],
+])('readWorkspaceManifestSync() rejects invalid manifest fixture %s', (fixture, message) => {
+  expect(() => readWorkspaceManifestSync(path.join(import.meta.dirname, '__fixtures__', fixture))).toThrow(message)
 })
 
 test('readWorkspaceManifest() throws on string content', async () => {

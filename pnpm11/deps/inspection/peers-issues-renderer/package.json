@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.peers-issues-renderer",
-  "version": "1100.0.12",
+  "version": "1100.0.15",
   "description": "Visualizes peer dependency issues",
   "keywords": [
     "pnpm",
@@ -31,6 +31,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:"
   },

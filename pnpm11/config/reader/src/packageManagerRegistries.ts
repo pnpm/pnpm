@@ -1,4 +1,4 @@
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 
 import type { Config } from './Config.js'
 
@@ -15,11 +15,11 @@ export interface PackageManagerBootstrapConfig {
   key?: string
   localAddress?: string
   noProxy?: string | boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   strictSsl?: boolean
 }
 
-export function getPackageManagerRegistries (config: PackageManagerConfig): Registries {
+export function getPackageManagerRegistries (config: PackageManagerConfig): RegistriesByScope {
   return {
     default: DEFAULT_PACKAGE_MANAGER_REGISTRY,
     ...config.packageManagerRegistries,
@@ -36,7 +36,7 @@ export function getPackageManagerBootstrapConfig (config: PackageManagerConfig):
     key: config.packageManagerNetworkConfig?.key,
     localAddress: config.packageManagerNetworkConfig?.localAddress,
     noProxy: config.packageManagerNetworkConfig?.noProxy,
-    registries: getPackageManagerRegistries(config),
+    registriesByScope: getPackageManagerRegistries(config),
     strictSsl: config.packageManagerNetworkConfig?.strictSsl,
   }
 }

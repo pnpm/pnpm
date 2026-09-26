@@ -15,15 +15,7 @@ esac
 
 command -v "$AGENT_CLI" >/dev/null 2>&1 || exit 0
 
-PROMPT="Review and fix PR #$PR_NUMBER. Steps:
-1. Use gh to read the PR description, diff, and all review comments (both PR-level and inline).
-2. Understand the intent of the PR and what each change does.
-3. Resolve any conflicts with the base branch by running './shell/resolve-pr-conflicts.sh $PR_NUMBER'. This force-fetches the base branch (avoiding stale refs), rebases, and auto-resolves lockfile conflicts. If it prints MANUAL_RESOLUTION_NEEDED, read the listed conflicted files, resolve the conflict markers, run 'git add' on each resolved file, then run './shell/resolve-pr-conflicts.sh $PR_NUMBER --continue' to finish the rebase and push. Do NOT skip this step. Do NOT assume the branch is up to date.
-4. Address every review comment — fix the code as requested or as appropriate.
-5. Review the changed code with the framework in REVIEW_GUIDE.md (security first, performance second, then correctness) and the documented code conventions for the relevant stack — AGENTS.md and CONTRIBUTING.md for the TypeScript CLI, pnpm/AGENTS.md and pnpm/CODE_STYLE_GUIDE.md or pnpr/AGENTS.md for the Rust stacks. Fix any issues you find in the changed code.
-6. Run the relevant tests to verify your fixes work.
-7. Give me a summary of what you found and what you changed, including any conflicts you resolved.
-Do NOT push. Leave all non-merge changes unstaged for me to review."
+PROMPT="Use the review-and-fix-pr skill in .agents/skills/review-and-fix-pr/SKILL.md to review and fix PR $PR_NUMBER. Commit and push the fixes, then follow the existing PR through CI and review using the pull-requests skill."
 
 case "$AGENT_CLI" in
   claude)

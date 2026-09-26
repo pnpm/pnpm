@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 
-use pacquet_lockfile::{
-    ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
-    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
-    ResolvedDependencySpec, TarballResolution,
+/// The registry facts with only the scope map populated — what these tests
+/// vary; the aliases and per-registry settings stay empty.
+fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext { registries, ..Default::default() }
+}
+
+use pnpm_lockfile::{
+    BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
+    LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
+    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution, TarballRevision,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
@@ -42,6 +48,8 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -51,6 +59,7 @@ fn registry_metadata() -> PackageMetadata {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -87,6 +96,13 @@ fn fresh_resolves_when_range_no_longer_satisfies_locked_version() {
 }
 
 #[test]
+fn fresh_resolves_when_locked_prerelease_does_not_satisfy_stable_range() {
+    let lockfile = single_dep_lockfile("react", "21.0.0-rc.0", "21.0.0-rc.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "react", "21.0.0").is_none());
+    assert!(reusable_importer_dep(&lockfile, ".", "react", "^21.0.0").is_none());
+}
+
+#[test]
 fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
     assert!(reusable_importer_dep(&lockfile, ".", "left-pad", "^1.0.0").is_none());
@@ -104,6 +120,7 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
             resolution: LockfileResolution::Git(GitResolution {
                 repo: "file:///repo".to_string(),
                 commit: "0123456789012345678901234567890123456789".to_string(),
+                integrity: None,
                 path: None,
             }),
             version: Some("1.0.0".to_string()),
@@ -124,13 +141,13 @@ fn synthesizes_a_registry_resolution_with_the_recorded_integrity() {
     let result =
         synthesize_reused_result(&lockfile, &key, "react").expect("registry dep is reusable");
     assert_eq!(result.id.as_str(), "react@18.2.0");
-    let name_ver = result.name_ver.expect("name_ver");
+    let name_ver = result.package.name_ver.expect("name_ver");
     assert_eq!(name_ver.name.to_string(), "react");
     assert_eq!(name_ver.suffix.to_string(), "18.2.0");
     assert_eq!(result.resolution, metadata.resolution);
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.alias.as_deref(), Some("react"));
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("react"));
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("18.2.0"));
 }
@@ -146,9 +163,11 @@ fn synthesized_manifest_carries_peer_metadata() {
 
     let result =
         synthesize_reused_result(&lockfile, &key, "react-dom").expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
-    let peers =
-        manifest.get("peerDependencies").and_then(serde_json::Value::as_object).expect("peers");
+    let manifest = result.package.manifest.expect("synthesized manifest");
+    let peers = manifest
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .expect("peers");
     assert_eq!(peers.get("react").and_then(serde_json::Value::as_str), Some("^18.0.0"));
 }
 
@@ -162,11 +181,53 @@ fn synthesized_manifest_carries_deprecated_metadata() {
 
     let result =
         synthesize_reused_result(&lockfile, &key, "left-pad").expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(
         manifest.get("deprecated").and_then(serde_json::Value::as_str),
         Some("use String.prototype.padStart()"),
     );
+}
+
+#[test]
+fn synthesized_manifest_carries_bundled_dependencies() {
+    let key: PkgNameVerPeer = "pkg-with-bundled-deps@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Names(vec!["napi-wasm".to_string()]));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
+        .expect("registry dep is reusable");
+    let manifest = result.package.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::json!(["napi-wasm"])));
+}
+
+#[test]
+fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
+    let key: PkgNameVerPeer = "pkg-bundling-everything@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Boolean(true));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
+        .expect("registry dep is reusable");
+    let manifest = result.package.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::Value::Bool(true)));
+}
+
+#[test]
+fn synthesized_manifest_keeps_the_scalar_libc_form() {
+    let key: PkgNameVerPeer = "pkg-with-scalar-libc@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.libc = Some(StringOrList::String("musl".to_string()));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-scalar-libc")
+        .expect("registry dep is reusable");
+    let manifest = result.package.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("libc"), Some(&serde_json::Value::String("musl".to_string())));
 }
 
 #[test]
@@ -176,6 +237,7 @@ fn does_not_reuse_directory_resolutions() {
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -194,6 +256,7 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     metadata.resolution = LockfileResolution::Git(GitResolution {
         repo: "file:///repo".to_string(),
         commit: "0123456789012345678901234567890123456789".to_string(),
+        integrity: None,
         path: None,
     });
     metadata.version = Some("1.2.3".to_string());
@@ -203,10 +266,10 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     let result = synthesize_reused_result(&lockfile, &key, "git-pkg")
         .expect("locked git dependency is reusable");
     assert_eq!(result.id.as_str(), key.to_string());
-    assert_eq!(result.name_ver, None);
+    assert_eq!(result.package.name_ver, None);
     assert_eq!(result.resolution, metadata.resolution);
     assert_eq!(result.resolved_via, "git-repository");
-    let manifest = result.manifest.expect("synthesized git manifest");
+    let manifest = result.package.manifest.expect("synthesized git manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("git-pkg"));
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
 }
@@ -239,7 +302,7 @@ fn current_pkg_materializes_a_registry_resolution_into_its_tarball_url() {
         Some(HashMap::from([("react@18.2.0".parse().expect("parse key"), registry_metadata())]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     assert_eq!(current_pkg.id.to_string(), "react@18.2.0");
@@ -261,7 +324,7 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
     registries.insert("@scope".to_string(), "https://scoped.example.test/".to_string());
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &registries, &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(registries))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -271,12 +334,46 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
 }
 
 #[test]
+fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
+    let key: PkgNameVerPeer = "pkg@work:1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    let LockfileResolution::Registry(registry_resolution) = &mut metadata.resolution else {
+        unreachable!("registry_metadata returns a registry resolution");
+    };
+    registry_resolution.integrity =
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+            .parse()
+            .expect("parse integrity");
+    registry_resolution.revision = Some(TarballRevision::try_from(7).unwrap());
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+    let mut context = registry_context(default_registry());
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example.test/work/npm/".to_string(),
+    );
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
+        .expect("declared prefix makes the revision reusable");
+
+    let LockfileResolution::Tarball(tarball) = current_pkg.resolution else {
+        panic!("registry resolution must materialize as a tarball");
+    };
+    assert_eq!(
+        tarball.tarball,
+        format!("https://registry.example.test/work/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+    );
+    assert_eq!(tarball.revision, Some(TarballRevision::try_from(7).unwrap()));
+}
+
+#[test]
 fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     let key: PkgNameVerPeer = "pkg@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -284,7 +381,7 @@ fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
 
     let current_pkg =
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .expect("packages entry exists");
 
     let LockfileResolution::Tarball(tarball) = &current_pkg.resolution else {
@@ -298,7 +395,7 @@ fn current_pkg_is_none_without_a_packages_entry() {
     let key: PkgNameVerPeer = "react@18.2.0".parse().expect("parse key");
     let lockfile = empty_lockfile();
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &default_registry(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(default_registry()))
             .is_none(),
     );
 }
@@ -309,14 +406,14 @@ fn current_pkg_is_withheld_for_a_registry_entry_without_a_registry_map() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), registry_metadata())]));
     assert!(
-        super::current_pkg_from_lockfile(&lockfile, &key, &HashMap::new(), &HashMap::new())
+        super::current_pkg_from_lockfile(&lockfile, &key, &registry_context(HashMap::new()))
             .is_none(),
     );
 }
 
 #[test]
 fn prior_child_key_applies_the_satisfies_gate() {
-    let snapshot: pacquet_lockfile::SnapshotEntry =
+    let snapshot: pnpm_lockfile::SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
             .expect("parse snapshot entry");
 
@@ -328,6 +425,12 @@ fn prior_child_key_applies_the_satisfies_gate() {
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
     assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
+
+    let prerelease_snapshot: pnpm_lockfile::SnapshotEntry =
+        serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "21.0.0-rc.0" } }))
+            .expect("parse snapshot entry");
+    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "21.0.0").is_none());
+    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "^21.0.0").is_none());
 }
 
 #[test]
@@ -351,4 +454,42 @@ fn reduce_named_registry_spec_matches_registry_and_package_name() {
     // A spec aimed at another registry never satisfies this key.
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
     assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
+}
+
+#[test]
+fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
+    let mut manifest = serde_json::json!({ "name": "pkg", "version": "1.0.0" });
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "dependencies": {
+            "is-positive": "1.0.0(peer@2.0.0)",
+            "aliased": "target@2.0.0",
+            "linked": "link:packages/sub",
+            "node": "runtime:22.0.0(peer@1.0.0)",
+            "custom-node": "node@runtime:22.0.0(peer@1.0.0)",
+        },
+        "optionalDependencies": {
+            "opt": "3.0.0",
+        },
+    }))
+    .expect("parse snapshot");
+
+    super::attach_snapshot_dependencies(&mut manifest, Some(&snapshot));
+
+    assert_eq!(
+        manifest,
+        serde_json::json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "dependencies": {
+                "aliased": "npm:target@2.0.0",
+                "custom-node": "npm:node@runtime:22.0.0",
+                "is-positive": "1.0.0",
+                "linked": "link:packages/sub",
+                "node": "runtime:22.0.0",
+            },
+            "optionalDependencies": {
+                "opt": "3.0.0",
+            },
+        }),
+    );
 }

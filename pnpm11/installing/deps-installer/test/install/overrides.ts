@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { afterAll, expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
@@ -13,7 +13,19 @@ import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
+import { readMetadataMirror, testDefaults } from '../utils/index.js'
+
+// The mocked registry is shared by every suite in this package, and a
+// `latest` tag this suite moves stays moved. `@pnpm/resolving.npm-resolver`
+// prefers `latest` whenever it satisfies the wanted range, so a suite that
+// runs later and expects the highest version resolves this suite's pick
+// instead. The fixture's default `latest` is the highest published version.
+afterAll(async () => {
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+  ])
+})
 
 function trackRequestedPackages (
   storeController: StoreController,
@@ -482,6 +494,51 @@ test('versions are replaced with versions specified through overrides option', a
   )
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/4587
+test('removing an override re-resolves the dependencies it pinned to a version the declared range still accepts', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0' } })
+  )
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ overrides: {} }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides).toBeUndefined()
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+})
+
+test('removing an override resolves the version it pinned as if the lockfile never held it', async () => {
+  const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0' } })
+  )
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ overrides: {} }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+})
+
 test('when adding a new dependency that is present in the overrides, use the spec from the override', async () => {
   prepareEmpty()
 
@@ -515,7 +572,18 @@ test('explicitly specifying a version at install will ignore overrides', async (
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(EXACT_VERSION)
 })
 
-test('overrides with local file and link specs', async () => {
+test('explicitly specifying a version at install will ignore an override that removes the dependency', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['@pnpm.e2e/bar@100.0.0'],
+    testDefaults({ overrides: { '@pnpm.e2e/bar': '-' } })
+  )
+
+  expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe('100.0.0')
+})
+
+test('overrides with local file, link and bare path specs', async () => {
   interface LocationAndManifest {
     location: string
     package: ProjectManifest
@@ -535,6 +603,7 @@ test('overrides with local file and link specs', async () => {
         'absolute-file-pkg': '*',
         'relative-link-pkg': '*',
         'absolute-link-pkg': '*',
+        'bare-path-pkg': '*',
       },
     },
   }
@@ -577,6 +646,7 @@ test('overrides with local file and link specs', async () => {
       'absolute-file-pkg': `file:${path.resolve('overrides/pkg')}`,
       'relative-link-pkg': 'link:./overrides/pkg',
       'absolute-link-pkg': `link:${path.resolve('overrides/pkg')}`,
+      'bare-path-pkg': './overrides/pkg',
       '@pnpm.e2e/pkg-a': 'file:./overrides/pkg',
       '@pnpm.e2e/pkg-b': `file:${path.resolve('overrides/pkg')}`,
       '@pnpm.e2e/pkg-c': 'link:./overrides/pkg',
@@ -600,6 +670,12 @@ test('overrides with local file and link specs', async () => {
         specifier: 'link:../../overrides/pkg',
         version: 'link:../../overrides/pkg',
       },
+      // A bare path names the workspace's directory the way its `link:`
+      // spelling does, not one inside the package being rewritten.
+      'bare-path-pkg': {
+        specifier: '../../overrides/pkg',
+        version: 'link:../../overrides/pkg',
+      },
       'absolute-link-pkg': {
         specifier: `link:${path.resolve('overrides/pkg')}`,
         version: 'link:../../overrides/pkg',
@@ -621,12 +697,35 @@ test('overrides with local file and link specs', async () => {
   expect(fs.realpathSync(path.join(directPrefix, 'relative-file-pkg'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'absolute-link-pkg'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(directPrefix, 'relative-link-pkg'))).toBe(path.resolve('overrides/pkg'))
+  expect(fs.realpathSync(path.join(directPrefix, 'bare-path-pkg'))).toBe(path.resolve('overrides/pkg'))
 
   const indirectPrefix = 'node_modules/.pnpm/@pnpm.e2e+depends-on-pkg-abcd@1.0.0/node_modules'
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-a'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-b'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-c'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-d'))).toBe(path.resolve('overrides/pkg'))
+})
+
+test('an override to a local directory is not written to the metadata cache', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('local-dep')
+  fs.writeFileSync('local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0' }))
+
+  const opts = testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 'file:./local-dep',
+    },
+  })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  expect(project.readLockfile().snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'local-dep@file:local-dep',
+  })
+  const { raw, meta } = await readMetadataMirror(opts.cacheDir, '@pnpm.e2e/pkg-with-1-dep')
+  expect(raw).not.toContain('local-dep')
+  expect(meta.versions['100.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+  })
 })
 
 test('overrides remove dependencies', async () => {
@@ -668,4 +767,103 @@ test('overrides remove dependencies', async () => {
   ).toBe(false)
   const currentLockfile = project.readCurrentLockfile()
   expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/14224
+// An override claims the dependency even when it repeats the range the project
+// declares, so the declared range is not the update's to move: the overrides
+// hook rewrites it back before the resolver reads it, and the lockfile would
+// then record a specifier the manifest never shows.
+test('update keeps the declared range of a dependency an override repeats', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, { ...options, update: true, updatePackageManifest: true })
+
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo'].specifier).toBe('^100.0.0')
+})
+
+// A range-scoped override claims one declaration of an alias and not another,
+// so ownership is decided per declared range rather than per name. Here the
+// override matches only the `devDependencies` entry; the `dependencies` one
+// the manifest writer reaches is still the update's to move.
+test('update moves a declaration a range-scoped override does not claim', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '@pnpm.e2e/foo@^1.0.0': '1.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, { ...options, update: true, updatePackageManifest: true })
+
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.1.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo'].specifier).toBe('^100.1.0')
+})
+
+test('overrides with leading or trailing whitespace on selectors are trimmed and applied', async () => {
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '  @pnpm.e2e/dep-of-pkg-with-1-dep  ': '100.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+  })
 })

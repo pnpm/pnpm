@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -14,6 +15,28 @@ import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
+
+test.each([undefined, '/parent/package-manager'])('pnpm exec sets package-manager environment variables (inherited: %s)', async (inherited) => {
+  prepare({})
+  const { stdout } = await execa(process.execPath, [pnpmBin, '--reporter=silent', 'exec', 'node', '-e',
+    'console.log(JSON.stringify({ npm_execpath: process.env.npm_execpath, INIT_CWD: process.env.INIT_CWD, npm_node_execpath: process.env.npm_node_execpath, NODE: process.env.NODE }))',
+  ], {
+    env: {
+      npm_execpath: inherited,
+      INIT_CWD: inherited,
+      npm_node_execpath: inherited,
+      NODE: undefined,
+    },
+  })
+
+  assert(typeof stdout === 'string')
+  expect(JSON.parse(stdout)).toStrictEqual({
+    npm_execpath: pnpmBin,
+    INIT_CWD: process.cwd(),
+    npm_node_execpath: process.execPath,
+    NODE: process.execPath,
+  })
+})
 
 test('pnpm recursive exec', async () => {
   await using server1 = await createTestIpcServer()
@@ -191,6 +214,68 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
   expect(fs.readFileSync('foo/pkgname', 'utf8')).toBe('foo')
 })
 
+testOnPosixOnly('pnpm recursive exec sets PWD to the logical path of a project reached through a symlink', async () => {
+  preparePackages([
+    { location: 'real', package: { name: 'foo', version: '1.0.0' } },
+  ])
+  fs.symlinkSync('real', path.join(process.cwd(), 'linked'), 'dir')
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - linked\n')
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+
+  expect(fs.readFileSync('linked/pwd.txt', 'utf8')).toBe(path.join(process.cwd(), 'linked'))
+})
+
+testOnPosixOnly('pnpm recursive exec sets PWD to each project directory', async () => {
+  preparePackages([
+    { name: 'foo', version: '1.0.0' },
+  ])
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+
+  expect(fs.readFileSync('foo/pwd.txt', 'utf8')).toBe(path.join(process.cwd(), 'foo'))
+})
+
+testOnPosixOnly('pnpm exec keeps the inherited PWD when running in the invocation directory', async () => {
+  prepare({ name: 'foo', version: '1.0.0' })
+  const linked = path.join(process.cwd(), '../linked-cwd')
+  fs.symlinkSync(process.cwd(), linked, 'dir')
+
+  // A shell that entered this directory through a symlink exported the
+  // logical path as PWD. A non-recursive exec runs right here, so the
+  // inherited value already names the command's cwd and must survive.
+  const originalPwd = process.env.PWD
+  process.env.PWD = linked
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pwd.txt\', process.env.PWD, \'utf8\')'])
+  } finally {
+    if (originalPwd === undefined) {
+      delete process.env.PWD
+    } else {
+      process.env.PWD = originalPwd
+    }
+  }
+
+  expect(fs.readFileSync('pwd.txt', 'utf8')).toBe(linked)
+})
+
 test('testing the bail config with "pnpm recursive exec"', async () => {
   await using server = await createTestIpcServer()
 
@@ -245,7 +330,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
-    }, ['npm', 'run', 'build', '--no-bail'])
+    }, ['npm', 'run', 'build'])
   } catch (_err: any) { // eslint-disable-line
     err1 = _err
     failed = true
@@ -271,6 +356,62 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
 
   expect(err2.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
   expect(failed).toBeTruthy()
+})
+
+test('without --bail, recursive exec skips dependents of a failed project and runs unrelated ones', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('project-c'),
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  let err!: PnpmError
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: true,
+      reportSummary: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, ['npm', 'run', 'build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  // The failure that blocked project-a is already counted; the skipped
+  // dependent must not turn one failure into two.
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+  expect(err.message).toContain('failed in 1 packages')
+  expect(server.getLines()).toStrictEqual(['project-c'])
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json'), { with: { type: 'json' } }))
+  expect(executionStatus[path.resolve('project-a')].status).toBe('skipped')
+  expect(executionStatus[path.resolve('project-b')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-c')].status).toBe('passed')
 })
 
 test('pnpm recursive exec --no-sort', async () => {
@@ -390,6 +531,52 @@ test('pnpm exec on single project', async () => {
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])
+})
+
+test("pnpm exec from a subdirectory of the project runs in the subdirectory with the project's bins", async () => {
+  const projectDirName = `project${path.delimiter}delimiter`
+  preparePackages([
+    {
+      name: projectDirName,
+      dependencies: {
+        cowsay: '1.5.0',
+      },
+    },
+  ])
+  const projectDir = path.resolve(projectDirName)
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  fs.writeFileSync(path.join(projectDir, '.pnp.cjs'), '')
+  const subdir = path.join(projectDir, 'subdir')
+  fs.mkdirSync(subdir)
+  process.chdir(subdir)
+
+  const execOpts = {
+    ...DEFAULT_OPTS,
+    dir: projectDir,
+    recursive: false,
+    selectedProjectsGraph: {},
+  }
+  await exec.handler(execOpts, ['cowsay', 'hi'])
+  await exec.handler(execOpts, [
+    'node',
+    '-e',
+    'require("fs").writeFileSync("context.json", JSON.stringify({ cwd: process.cwd(), packageName: process.env.PNPM_PACKAGE_NAME, nodeOptions: process.env.NODE_OPTIONS }), "utf8")',
+  ])
+
+  const context = JSON.parse(fs.readFileSync(path.join(subdir, 'context.json'), 'utf8'))
+  expect(context).toMatchObject({
+    cwd: subdir,
+    packageName: projectDirName,
+  })
+  expect(context.nodeOptions).toContain('--require=')
+  expect(context.nodeOptions).toContain('.pnp.cjs')
 })
 
 test('pnpm exec on single project should return non-zero exit code when the process fails', async () => {
@@ -590,7 +777,59 @@ test('pnpm recursive exec --resume-from should work', async () => {
     resumeFrom: 'project-3',
   }, ['npm', 'run', 'build'])
 
-  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
+  // Only the anchor's transitive dependencies (project-1) are skipped;
+  // project-4 is unrelated to the anchor, so resuming still runs it.
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3', 'project-4'])
+})
+
+test('recursive exec resumes from exactly the projects that passed before a failure', async () => {
+  preparePackages([
+    {
+      name: 'dependency',
+      version: '1.0.0',
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        dependency: '1',
+      },
+    },
+    {
+      name: 'completed',
+      version: '1.0.0',
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const command = [
+    'node',
+    '-e',
+    "const fs = require('fs'); const name = require('path').basename(process.cwd()); fs.appendFileSync('../order.log', `${name}\\n`); if (name === 'dependency' && fs.existsSync('../fail')) process.exit(1)",
+  ]
+  const opts = {
+    ...DEFAULT_OPTS,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sort: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+
+  await expect(exec.handler(opts, command)).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  const firstRun = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect([...firstRun].sort()).toStrictEqual(['completed', 'dependency'])
+
+  await fs.promises.rm('fail')
+  await exec.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, command)
+
+  expect((await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')).toStrictEqual([
+    ...firstRun,
+    'dependency',
+    'anchor',
+  ])
 })
 
 test('should throw error when the package specified by resume-from does not exist', async () => {
@@ -771,6 +1010,9 @@ test('pnpm recursive exec report summary with --bail', async () => {
 
   const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
 
+  // The first failure ends the run at once: commands still running are
+  // reported as such (the exit path terminates them), and a command still
+  // queued behind the concurrency limit is never started.
   expect(executionStatus[path.resolve('project-1')].status).toBe('running')
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
   expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()

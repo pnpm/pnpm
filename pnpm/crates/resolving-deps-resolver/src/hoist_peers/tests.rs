@@ -4,7 +4,7 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path};
 
-use pacquet_resolving_resolver_base::{
+use pnpm_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };
 use pretty_assertions::assert_eq;
@@ -284,7 +284,39 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]);
 
     assert_eq!(
-        get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
+        get_hoistable_optional_peers_with_locked_versions(
+            &missing,
+            &preferred,
+            &[],
+            &locked,
+            &|_, _| true,
+        ),
+        BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
+    );
+}
+
+/// A locked version whose provider left the graph pins nothing (pnpm/pnpm#14895).
+#[test]
+fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph() {
+    let missing = BTreeMap::from([("peer".to_string(), vec!["*".to_string()])]);
+    let preferred = PreferredVersions::from([(
+        "peer".to_string(),
+        BTreeMap::from([(
+            "1.0.0".to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]);
+    let locked =
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]);
+
+    assert_eq!(
+        get_hoistable_optional_peers_with_locked_versions(
+            &missing,
+            &preferred,
+            &[],
+            &locked,
+            &|_, _| true,
+        ),
         BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
     );
 }
@@ -531,6 +563,49 @@ fn get_hoistable_optional_peers_stays_within_the_workspace_roots_range() {
     let mut expected_unbounded = BTreeMap::new();
     expected_unbounded.insert("postcss".to_string(), "8.5.22".to_string());
     assert_eq!(unbounded, expected_unbounded);
+}
+
+#[test]
+fn get_hoistable_optional_peers_ignores_a_root_specifier_a_wanted_range_rejects() {
+    let preferred = preferred(&[(
+        "date-fns",
+        &[
+            ("2.30.0", plain(VersionSelectorType::Version)),
+            ("4.4.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("date-fns".to_string(), vec!["^4.0.0".to_string()]);
+    let root_deps = [WorkspaceRootDep {
+        alias: "date-fns-v2".to_string(),
+        pkg_name: "date-fns".to_string(),
+        normalized_bare_specifier: Some("npm:date-fns@2.30.0".to_string()),
+    }];
+
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_deps);
+    let mut expected = BTreeMap::new();
+    expected.insert("date-fns".to_string(), "4.4.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn get_hoistable_optional_peers_ignores_a_root_specifier_only_one_wanted_range_accepts() {
+    let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
+    let mut missing = BTreeMap::new();
+    missing.insert(
+        "foo".to_string(),
+        vec![">=1.0.0 <3.0.0".to_string(), ">=2.0.0 <4.0.0".to_string()],
+    );
+    let root_deps = [WorkspaceRootDep {
+        alias: "foo".to_string(),
+        pkg_name: "foo".to_string(),
+        normalized_bare_specifier: Some("1.0.0".to_string()),
+    }];
+
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_deps);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "2.0.0".to_string());
+    assert_eq!(result, expected);
 }
 
 #[test]

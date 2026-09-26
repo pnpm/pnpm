@@ -101,6 +101,15 @@ jobs:
           fi
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout trusted comparison script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # workflow_run's SHA belongs to the default branch, never the PR.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+          path: trusted-tools
+
       - name: Download benchmark report
         # `run-id` + `github-token` lets v8 pull artifacts from a different
         # workflow run, which is exactly the workflow_run pattern.
@@ -110,6 +119,25 @@ jobs:
           path: benchmark-artifact
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare HEAD with main from the same runner
+        id: comparison
+        continue-on-error: true
+        shell: bash
+        run: |
+          node trusted-tools/.github/scripts/compare-integrated-benchmarks.mjs benchmark-artifact > comparison.md
+
+      - name: Add comparison to report
+        if: always() && (steps.comparison.outcome == 'success' || steps.comparison.outcome == 'failure')
+        shell: bash
+        run: |
+          if [ ! -s comparison.md ]; then
+            echo '### Same-run regression check' > comparison.md
+            echo 'Comparison failed because benchmark data was missing or invalid. See the workflow log.' >> comparison.md
+          fi
+          cat comparison.md >> "$GITHUB_STEP_SUMMARY"
+          cat comparison.md benchmark-artifact/SUMMARY.md > combined-summary.md
+          mv combined-summary.md benchmark-artifact/SUMMARY.md
 
       - name: Find existing comment
         # Match on the literal substring the report header carries.
@@ -135,15 +163,14 @@ jobs:
 
       - name: Install Bencher CLI
         if: hashFiles('benchmark-artifact/bencher-results.json') != ''
-        uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
+        uses: bencherdev/bencher@8d75325c3bc59403a2186a056b472c4f49d42838 # v0.6.12
 
       - name: Upload PR results to Bencher
         # workflow_run runs in the base-repo privilege context, so
         # BENCHER_API_TOKEN is available even for fork PRs. PR number
         # comes from the trusted workflow_run payload (resolved in
-        # `meta` above), never from the artifact body. `--ci-number`
-        # is required here because Bencher can't infer the PR from a
-        # workflow_run event the way it does on pull_request.
+        # `meta` above), never from the artifact body. Historical results
+        # are retained without creating a separate historical-threshold check.
         #
         # One benchmark, two testbeds: `pacquet` (direct install) and
         # `pnpr` (the accelerated path). Each uploads from its own
@@ -151,7 +178,6 @@ jobs:
         if: hashFiles('benchmark-artifact/bencher-results.json') != ''
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.meta.outputs.pr }}
         shell: bash
         run: |
@@ -159,9 +185,6 @@ jobs:
             echo "::notice::BENCHER_API_TOKEN not set, skipping Bencher upload"
             exit 0
           fi
-          # `--start-point-clone-thresholds` so the PR branch inherits the
-          # threshold configured on main; `--err` so the action surfaces
-          # a regression on the PR check.
           upload() {
             local testbed=$1 file=$2
             if [ ! -f "$file" ]; then
@@ -175,11 +198,41 @@ jobs:
               --start-point main \
               --start-point-reset \
               --start-point-clone-thresholds \
-              --err \
               --adapter json \
-              --file "$file" \
-              --ci-number "$PR_NUMBER" \
-              --github-actions "$GITHUB_TOKEN"
+              --file "$file"
           }
           upload pacquet benchmark-artifact/bencher-results.json
           upload pnpr benchmark-artifact/bencher-results-pnpr.json
+
+      - name: Publish regression check on the PR commit
+        if: always() && steps.meta.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+          OUTCOME: ${{ steps.comparison.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          conclusion=failure
+          if [ "$OUTCOME" = success ]; then
+            conclusion=success
+          fi
+          if [ ! -s comparison.md ]; then
+            echo 'Benchmark comparison could not complete. See the workflow log.' > comparison.md
+          fi
+          # Preserve the existing required check name while replacing its
+          # historical threshold with the same-run comparison.
+          jq -n --arg sha "$HEAD_SHA" --arg conclusion "$conclusion" \
+            --arg url "$RUN_URL" --rawfile summary comparison.md \
+            --arg name "Bencher Report (pnpm's project)" \
+            '{name: $name, head_sha: $sha, status: "completed", conclusion: $conclusion,
+              details_url: $url, output: {title: "Same-run benchmark comparison", summary: $summary}}' \
+            > check.json
+          gh api --method POST "repos/$REPO/check-runs" --input check.json
+
+      - name: Enforce same-run regression check
+        if: always() && steps.comparison.outcome != 'success'
+        run: |
+          echo '::error::Same-run benchmark comparison failed. See the comparison report and workflow log.'
+          exit 1

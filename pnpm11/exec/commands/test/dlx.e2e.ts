@@ -52,7 +52,7 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,
-  registries: DEFAULT_OPTS.registries,
+  registriesByScope: DEFAULT_OPTS.registriesByScope,
   supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
 })
 
@@ -290,6 +290,37 @@ test('dlx with cache', async () => {
   jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
 })
 
+test('dlx does not reuse the cache across Node.js major versions', async () => {
+  prepareEmpty()
+
+  const spy = jest.mocked(add.handler)
+  const runDlx = async (nodeVersion: string) => {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockReturnValue(nodeVersion)
+    spy.mockClear()
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['shx@0.3.4', 'touch', 'foo'])
+  }
+
+  try {
+    await runDlx('v22.1.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    await runDlx('v22.2.0')
+    expect(spy).not.toHaveBeenCalled()
+
+    await runDlx('v24.0.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(2)
+  } finally {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
+  }
+})
+
 test('dlx does not reuse expired cache', async () => {
   prepareEmpty()
 
@@ -397,7 +428,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
     packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
     allowBuild,
-    registries: DEFAULT_OPTS.registries,
+    registriesByScope: DEFAULT_OPTS.registriesByScope,
     supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
   }), 'pkg')
   const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
@@ -448,21 +479,33 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
 // forwards `all: true` to approve-builds, which approves every pending
 // build without prompting and re-runs install. The build artifacts must
 // end up in the dlx cache.
-test('dlx prompts to approve ignored builds when invoked with a commands map', async () => {
+test.each(['fresh', 'cached', 'missing-lockfile', 'disabled-lockfile'])('dlx prompts to approve ignored builds with cache state: %s', async (cacheState) => {
   prepareEmpty()
+
+  const opts = {
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    strictDepBuilds: true,
+    useLockfile: cacheState !== 'disabled-lockfile',
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+  if (cacheState === 'cached' || cacheState === 'missing-lockfile') {
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'])
+  }
+
+  if (cacheState === 'missing-lockfile') {
+    const cachedDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+    fs.unlinkSync(path.join(cachedDir, 'pnpm-lock.yaml'))
+    fs.unlinkSync(path.join(cachedDir, 'node_modules/.pnpm/lock.yaml'))
+  }
 
   const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
   process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
   try {
-    await dlx.handler({
-      ...DEFAULT_OPTS,
-      enableGlobalVirtualStore: false,
-      strictDepBuilds: true,
-      dir: path.resolve('project'),
-      storeDir: path.resolve('store'),
-      cacheDir: path.resolve('cache'),
-      dlxCacheMaxAge: Infinity,
-    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
   } finally {
     if (prevAutoApprove === undefined) {
       delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
@@ -485,7 +528,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
       dir: path.resolve('project'),
       minimumReleaseAge: 60 * 24 * 10000,
       minimumReleaseAgeStrict: true,
-      registries: {
+      registriesByScope: {
         // We must use the public registry instead of verdaccio here
         // because verdaccio has the "times" field in the abbreviated metadata too.
         default: 'https://registry.npmjs.org/',
@@ -504,7 +547,7 @@ test('dlx should respect minimumReleaseAgeExclude', async () => {
     cacheDir: path.resolve('cache'),
     minimumReleaseAge: 60 * 24 * 10000,
     minimumReleaseAgeExclude: ['*'],
-    registries: {
+    registriesByScope: {
       // We must use the public registry instead of verdaccio here
       // because verdaccio has the "times" field in the abbreviated metadata too.
       default: 'https://registry.npmjs.org/',

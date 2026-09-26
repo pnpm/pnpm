@@ -3,11 +3,14 @@
 //! an unsealed one is rolled back, and the journal directory carries
 //! no residue after a successful publish.
 
+use crate::npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::{sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, recover_publish_journal, router};
 use serde_json::{Value, json};
 use std::{
@@ -20,8 +23,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -47,7 +50,10 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
@@ -73,6 +79,10 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
+///
+/// The manifest is written with the `packument_file` / `tarballs` keys an
+/// earlier pnpr wrote, so these tests also cover recovering a journal a
+/// running server sealed before the upgrade.
 fn fabricate_crashed_publish_in(
     storage: &Path,
     org: Option<&str>,
@@ -146,14 +156,23 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     assert_eq!(std::fs::read(storage.join("crash-fwd/crash-fwd-1.0.0.tgz")).unwrap(), tarball);
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none(),
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
         "journal should be empty after recovery",
     );
 
     // And it serves.
     let app = router(static_config(storage));
-    let response =
-        app.oneshot(Request::get("/crash-fwd").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/crash-fwd")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -182,7 +201,12 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
         !storage.join("crash-org").exists(),
         "nothing must land in the flat root for an org-journaled publish",
     );
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -198,7 +222,12 @@ async fn recovery_rolls_an_unsealed_transaction_back() {
     assert!(!storage.join("crash-back/package.json").exists());
     assert!(!storage.join("crash-back/crash-back-1.0.0.tgz").exists());
     assert!(!tmp_path.exists(), "staged tmp file should be deleted");
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 }
 
 /// Replaying a sealed transaction merges into the current on-disk
@@ -260,31 +289,10 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     assert!(storage.join("residue-pkg/package.json").exists());
     let journal_root = storage.join(".pnpr-journal");
     let leftover: Vec<_> = match std::fs::read_dir(&journal_root) {
-        Ok(entries) => entries.map(|entry| entry.unwrap().path()).collect(),
+        Ok(entries) => entries
+            .map(|entry| entry.unwrap().path())
+            .collect(),
         Err(_) => Vec::new(),
     };
     assert!(leftover.is_empty(), "journal entries must be removed after apply: {leftover:?}");
-}
-
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-/// Compute the 40-char hex SHA-1 the way npm clients send it in the
-/// legacy `dist.shasum` field.
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_base64 = &integrity.hashes[0].digest;
-    let digest_bytes = BASE64.decode(digest_base64).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }

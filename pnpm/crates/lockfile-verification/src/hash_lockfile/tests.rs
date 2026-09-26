@@ -1,4 +1,4 @@
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
 
 use super::hash_lockfile;
 
@@ -30,8 +30,42 @@ importers:
         version: 4.17.21
 ";
 
+const NESTED_LOCKFILE_YAML: &str = "lockfileVersion: '9.0'
+ignoredOptionalDependencies:
+  - zebra
+  - alpha
+metadata:
+  z: null
+  a:
+    - z: 'café'
+      a: { z: true, a: 42 }
+    - [ { z: false, a: -7 }, 3.5, '雪' ]
+";
+
 fn parse(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse fixture lockfile")
+}
+
+/// Recorded verifications carry this digest, so a change to the hashed
+/// bytes orphans every cache entry written before it.
+#[test]
+fn hash_matches_pinned_digests() {
+    for (yaml, expected) in [
+        (LOCKFILE_YAML, "c8991e89c9a1098fa78aeb75d8bc7f4c6e5d2781258875e4f9436e03913351ea"),
+        (NESTED_LOCKFILE_YAML, "48e073ddc4599b78202df75cd29b986928e7823a2535c6e9d4f001f44e546361"),
+    ] {
+        assert_eq!(hash_lockfile(&parse(yaml)), expected);
+    }
+}
+
+/// The lockfile's arrays are ordered data (dependency-name lists follow
+/// their manifest section), so only object keys are normalized.
+#[test]
+fn array_order_affects_hash() {
+    let original = parse(NESTED_LOCKFILE_YAML);
+    let reordered =
+        parse(&NESTED_LOCKFILE_YAML.replace("  - zebra\n  - alpha", "  - alpha\n  - zebra"));
+    assert_ne!(hash_lockfile(&original), hash_lockfile(&reordered));
 }
 
 #[test]
@@ -43,8 +77,8 @@ fn hash_is_stable_across_calls() {
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
-/// `HashMap` key iteration is non-deterministic; the normalize step
-/// is what makes the hash stable.
+/// `HashMap` key iteration is non-deterministic; sorting every object
+/// before hashing is what makes the hash stable.
 #[test]
 fn key_order_in_yaml_does_not_affect_hash() {
     let original = parse(LOCKFILE_YAML);
@@ -76,4 +110,27 @@ importers:
 ",
     );
     assert_ne!(hash_lockfile(&original), hash_lockfile(&drifted));
+}
+
+/// The digest has to describe the bytes the lockfile will be saved as,
+/// not the in-memory map: a `time:` entry the writer prunes must not
+/// move it, or a recorded verification would never be found again.
+#[test]
+fn a_pruned_time_entry_does_not_move_the_hash() {
+    let pruned_to_nothing = parse(&with_time("scheduler@0.20.2: '2020-10-20T00:00:00.000Z'"));
+    let empty = parse(&with_time("{}"));
+    assert_eq!(hash_lockfile(&pruned_to_nothing), hash_lockfile(&empty));
+}
+
+#[test]
+fn a_retained_time_entry_flips_the_hash() {
+    let direct = parse(&with_time("react@17.0.2: '2021-03-22T14:00:00.000Z'"));
+    let empty = parse(&with_time("{}"));
+    assert_ne!(hash_lockfile(&direct), hash_lockfile(&empty));
+}
+
+/// `entry` is either a single `depPath: date` pair or the literal `{}`.
+fn with_time(entry: &str) -> String {
+    let separator = if entry == "{}" { " " } else { "\n  " };
+    format!("{LOCKFILE_YAML}\ntime:{separator}{entry}\n")
 }

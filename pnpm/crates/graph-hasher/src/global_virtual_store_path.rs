@@ -1,22 +1,20 @@
 //! Global-virtual-store directory naming — the GVS hash computation
 //! and path formatting.
 //!
-//! The engine string contribution is gated by
-//! `transitively_requires_build` (private to this crate): when the
-//! caller supplies a `built_dep_paths` set (derived from
-//! `allowBuilds` / `dangerouslyAllowAllBuilds`), only snapshots
-//! that themselves run a build script — or that transitively
-//! depend on one — keep the engine in the GVS hash payload.
+//! The engine string contribution is gated by a precomputed
+//! `build_required_dep_paths` set: only snapshots that themselves run
+//! a build script — or that transitively depend on one — keep the
+//! engine in the GVS hash payload.
 //! Pure-JS leaves and their pure-JS ancestors hash with
 //! `engine = null`, so their GVS directories survive Node.js
 //! upgrades and architecture moves. Passing `None` for
-//! `built_dep_paths` reproduces the always-include behaviour (the
-//! `built_dep_paths === undefined` branch).
+//! `build_required_dep_paths` reproduces the always-include behaviour.
 
 use crate::{
     HashEncoding,
-    dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash, transitively_requires_build},
+    dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash},
     hash_object, hash_object_without_sorting,
+    object_hasher::{digest_hex, serialize_str},
 };
 use serde_json::{Value, json};
 use std::{
@@ -41,16 +39,9 @@ use std::{
 /// pure-JS subgraphs hash with `engine = null` so their GVS
 /// directories survive Node.js upgrades. The gating is driven by:
 ///
-/// - `built_dep_paths`: when `Some`, the set of snapshot keys whose
-///   `allowBuilds` entry evaluates to `true` (or every snapshot when
-///   `dangerouslyAllowAllBuilds` is on). `None` disables the gating
-///   and forces `include_engine = true` — the
-///   `built_dep_paths === undefined` branch.
-/// - `build_required_cache`: install-scoped memoization for the
-///   gating walk. Allocated once at the call site and reused across
-///   every snapshot in the install. Untouched when `built_dep_paths`
-///   is `None`; callers that don't care can hold a throwaway
-///   `let mut cache = HashMap::new();` and pass `&mut cache`.
+/// - `build_required_dep_paths`: when `Some`, the fixed set returned by
+///   [`crate::build_required_dep_paths`]. `None` disables the gating and
+///   forces `include_engine = true`.
 ///
 /// `project` scopes the slot to one project instead of sharing it
 /// across every project in the store. Callers pass `Some(lockfile_dir)`
@@ -62,23 +53,13 @@ pub fn calc_graph_node_hash<Key>(
     cache: &mut DepsStateCache<Key>,
     dep_path: &Key,
     engine: Option<&str>,
-    built_dep_paths: Option<&HashSet<Key>>,
-    build_required_cache: &mut HashMap<Key, bool>,
+    build_required_dep_paths: Option<&HashSet<Key>>,
     project: Option<&str>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let include_engine = match built_dep_paths {
-        None => true,
-        Some(set) => transitively_requires_build(
-            graph,
-            set,
-            build_required_cache,
-            dep_path,
-            &mut HashSet::new(),
-        ),
-    };
+    let include_engine = build_required_dep_paths.is_none_or(|set| set.contains(dep_path));
     let engine_value = if include_engine {
         match engine {
             Some(s) => Value::String(s.to_owned()),
@@ -88,11 +69,33 @@ where
         Value::Null
     };
     let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
-    let payload = match project {
-        None => json!({ "engine": engine_value, "deps": deps_hash }),
-        Some(project) => json!({ "engine": engine_value, "deps": deps_hash, "project": project }),
-    };
-    hash_object_without_sorting(&payload, HashEncoding::Hex)
+    // The object-hash serialization of
+    // `{ engine, deps }`, plus `project` when the caller has one, with
+    // `sort = false`: keys stay in the order written here, which is the
+    // order `hash_object_without_sorting` reads them out of a
+    // `preserve_order` `serde_json` map.
+    let mut buf = Vec::with_capacity(256);
+    buf.extend_from_slice(b"object:");
+    buf.extend_from_slice(if project.is_some() { b"3" } else { b"2" });
+    buf.push(b':');
+    serialize_str(&mut buf, "engine");
+    buf.push(b':');
+    match &engine_value {
+        Value::String(engine) => serialize_str(&mut buf, engine),
+        _ => buf.extend_from_slice(b"Null"),
+    }
+    buf.push(b',');
+    serialize_str(&mut buf, "deps");
+    buf.push(b':');
+    serialize_str(&mut buf, &deps_hash);
+    buf.push(b',');
+    if let Some(project) = project {
+        serialize_str(&mut buf, "project");
+        buf.push(b':');
+        serialize_str(&mut buf, project);
+        buf.push(b',');
+    }
+    digest_hex(&buf)
 }
 
 /// Compute the GVS hash for a config dependency that has no children
@@ -152,23 +155,16 @@ pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &
 }
 
 /// Join `base` with a [`format_global_virtual_store_path`]-shaped
-/// relative path, expanding each `/`-separated segment into a native
-/// path component.
+/// relative path.
 ///
-/// The GVS relative path is always formatted with `/` because it
-/// doubles as a cross-platform canonical id (it feeds hashing and
-/// lockfile comparison). Passing that string straight to
-/// [`Path::join`] keeps the `/` bytes on Windows, and the directory
-/// symlink/junction syscall that later consumes the slot path then
-/// rejects the forward-slash path with `ERROR_DIRECTORY`
-/// (`os error 267`). Splitting on `/` and pushing each segment yields
-/// a path built from the platform-native separator on every OS (and
-/// is a no-op transformation on Unix, where `/` is already native).
+/// A GVS relative path is always formatted with `/` because it doubles
+/// as a cross-platform canonical id: it feeds hashing and lockfile
+/// comparison. Turning it back into a native path is therefore
+/// [`pnpm_fs::push_slash_separated_path`]'s job, whose documentation
+/// covers what a `/` left in a Windows path string costs.
 #[must_use]
 pub fn join_global_virtual_store_path(base: &Path, rel: &str) -> PathBuf {
-    let mut path = base.to_path_buf();
-    path.extend(rel.split('/'));
-    path
+    pnpm_fs::join_slash_separated_path(base, rel)
 }
 
 #[cfg(test)]

@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 /// `path.relative(base, path)`: the shortest relative path when the two
 /// share a filesystem root, otherwise the absolute `path` (Node likewise
 /// returns the absolute target when the inputs cannot be related).
+/// Both inputs are normalized lexically before computing the difference.
 ///
 /// On Windows the two `Prefix` components must match (drive letters
 /// case-folded) before diffing; without that guard [`pathdiff::diff_paths`]
 /// emits a re-anchored garbage path across drives or UNC shares.
 #[must_use]
 pub fn relative_path(base: &Path, path: &Path) -> PathBuf {
-    relative_path_inner(base, path)
+    relative_path_inner(&crate::lexical_normalize(base), &crate::lexical_normalize(path))
 }
 
 #[cfg(windows)]
@@ -28,7 +29,7 @@ fn relative_path_inner(base: &Path, path: &Path) -> PathBuf {
     pathdiff::diff_paths(path, base).unwrap_or_else(|| path.to_path_buf())
 }
 
-/// Whether `a` and `b` have an identical `Component::Prefix` after
+/// Whether `path` and `base` have an identical `Component::Prefix` after
 /// `dunce::simplified`, with drive letters case-folded. UNC shares
 /// only match when their server/share are written with identical
 /// casing and variant — the check has to stay in lockstep with what
@@ -36,7 +37,7 @@ fn relative_path_inner(base: &Path, path: &Path) -> PathBuf {
 /// case-tolerant comparison here would let the downstream diff emit
 /// a re-anchored garbage path on a `Prefix` mismatch it cannot relate.
 #[cfg(windows)]
-fn same_path_root(a: &Path, b: &Path) -> bool {
+fn same_path_root(path: &Path, base: &Path) -> bool {
     fn first_prefix(path: &Path) -> Option<std::path::Prefix<'_>> {
         match path.components().next()? {
             std::path::Component::Prefix(p) => Some(p.kind()),
@@ -51,9 +52,29 @@ fn same_path_root(a: &Path, b: &Path) -> bool {
             other => other,
         }
     }
-    match (first_prefix(a), first_prefix(b)) {
+    match (first_prefix(path), first_prefix(base)) {
         (Some(pa), Some(pb)) => case_normalize(pa) == case_normalize(pb),
         (None, None) => true,
         _ => false,
     }
+}
+
+/// [`push_slash_separated_path`] applied to a copy of `base`.
+#[must_use]
+pub fn join_slash_separated_path(base: &Path, rel: &str) -> PathBuf {
+    let mut path = base.to_path_buf();
+    push_slash_separated_path(&mut path, rel);
+    path
+}
+
+/// Extend `path` with `rel`, one component per `/`-separated segment.
+///
+/// [`PathBuf::push`] takes the whole of `rel` as a single component, so
+/// on Windows its `/` bytes survive into the path string. The directory
+/// symlink and junction syscalls that later consume such a path reject
+/// it with `ERROR_DIRECTORY` (`os error 267`). Splitting the segments
+/// yields the platform's own separator everywhere, and leaves the path
+/// unchanged on Unix, where `/` is already native.
+pub fn push_slash_separated_path(path: &mut PathBuf, rel: &str) {
+    path.extend(rel.split('/'));
 }

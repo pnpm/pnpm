@@ -11,9 +11,9 @@
 //!   [`pick_lowest_version_by_version_range`] — choose the
 //!   highest/lowest version in `meta.versions` satisfying a range
 //!   string, biased by an optional [`VersionSelectors`] preference
-//!   table. The high-side variant also runs the deprecated-version
-//!   fallback (if the max pick is deprecated and other versions
-//!   exist, retry against the non-deprecated subset).
+//!   table. The high-side variant skips deprecated versions wherever it
+//!   is free to choose one, retrying within the winning dist-tag target
+//!   or preference group.
 //! - [`filter_pkg_metadata_by_publish_date`] — derive a packument
 //!   that contains only versions published at or before a cutoff,
 //!   plus rewritten `dist-tags` pointing to the highest within-cutoff
@@ -22,6 +22,21 @@
 //! The "pure picker" piece sits below the cache+fetch orchestration
 //! in [`crate::pick_package()`]; both depend on this module but this
 //! module pulls in no I/O.
+
+pub(crate) mod semver_range;
+
+pub(crate) use preferred_versions::dominant_lockfile_version;
+
+pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
+
+pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
+
+use semver_range::{max_satisfying, max_version, min_satisfying, semver_satisfies_loose};
+
+mod preferred_versions;
+use preferred_versions::prioritize_preferred_versions;
+
+mod release_age;
 
 use std::{
     cell::OnceCell,
@@ -33,10 +48,11 @@ use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
-use pacquet_resolving_resolver_base::{
-    VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
+use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_registry::{DerivedPackuments, Package, PackageVersion, PackageVersions};
+use pnpm_resolving_resolver_base::{
+    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    parse_packument_timestamp,
 };
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]: the
@@ -51,6 +67,12 @@ pub enum RegistryPackageSpecType {
     Range,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegistryRevisionSelector {
+    Valid(u64),
+    Invalid(String),
+}
+
 /// Parsed registry spec produced by the bare-specifier parser. The
 /// picker (and the cache+fetch wrapper above it) consume this shape;
 /// the parser that produces it lives in its own module.
@@ -59,6 +81,7 @@ pub struct RegistryPackageSpec {
     pub name: String,
     pub fetch_spec: String,
     pub spec_type: RegistryPackageSpecType,
+    pub revision: Option<RegistryRevisionSelector>,
     /// Echo of the original bare specifier when the spec came from a
     /// tarball-URL parse. The resolver writes this back into
     /// `ResolveResult.normalized_bare_specifier`; the picker itself
@@ -73,6 +96,7 @@ impl RegistryPackageSpec {
             name: name.into(),
             fetch_spec: "latest".to_string(),
             spec_type: RegistryPackageSpecType::Tag,
+            revision: None,
             normalized_bare_specifier: None,
         }
     }
@@ -159,36 +183,13 @@ where
     let meta_ref: &Package = match opts.published_by {
         Some(cutoff) => {
             view = apply_published_by_policy(meta, cutoff, opts.published_by_exclude);
-            if view.needs_full_metadata {
-                // The missing-time error signals the orchestrator, which
-                // then upgrades the fetch to full metadata.
-                //
-                // Cutoff is inclusive (`<=`) to match the per-version
-                // filter in `filter_pkg_metadata_by_publish_date`: a
-                // version published exactly at the cutoff is mature,
-                // so `modified == cutoff` (which means no version is
-                // newer than the cutoff) is also safe to shortcut.
-                let modified_date = meta.modified.as_deref().and_then(parse_packument_timestamp);
-                match modified_date {
-                    Some(date) if date <= cutoff => meta,
-                    _ => {
-                        return Err(PickPackageFromMetaError::MissingTime {
-                            pkg_name: meta.name.clone(),
-                        });
-                    }
-                }
-            } else {
-                view.filtered.as_deref().unwrap_or(meta)
-            }
+            mature_view(&view, meta, cutoff)?
         }
         None => meta,
     };
 
     if meta_ref.versions.is_empty() && opts.published_by.is_none() {
-        if has_unpublished_versions(meta_ref) {
-            return Err(PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() });
-        }
-        return Err(PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() });
+        return Err(no_versions_error(meta_ref, spec));
     }
 
     // An undecodable fragment behaves as if the version were absent
@@ -199,20 +200,9 @@ where
     let mut undecodable_excluded: Option<Package> = None;
     loop {
         let meta_now: &Package = undecodable_excluded.as_ref().unwrap_or(meta_ref);
-        let picked_version: Option<String> = match spec.spec_type {
-            RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
-            RegistryPackageSpecType::Tag => meta_now.dist_tag(&spec.fetch_spec).map(str::to_string),
-            RegistryPackageSpecType::Range => {
-                pick_version_by_range(&PickVersionByVersionRangeOptions {
-                    meta: meta_now,
-                    version_range: &spec.fetch_spec,
-                    preferred_version_selectors: opts.preferred_version_selectors,
-                    published_by: opts.published_by,
-                })
-            }
+        let Some(version) = pick_version(&pick_version_by_range, opts, meta_now, spec) else {
+            return Ok(None);
         };
-
-        let Some(version) = picked_version else { return Ok(None) };
         let Some(manifest) = meta_now.versions.get(&version) else {
             if !meta_now.versions.contains_key(&version) {
                 // The picked string names a version the packument
@@ -223,15 +213,76 @@ where
             undecodable_excluded = Some(without_version(meta_now, &version));
             continue;
         };
-        if !meta_now.name.is_empty() && manifest.name != meta_now.name {
-            // GitHub registry quirk: a scoped package can be published as
-            // `@owner/foo` while the per-version `name` is just `foo`.
-            // Pin the manifest name to the packument-level name.
-            let mut pinned = (*manifest).clone();
-            pinned.name.clone_from(&meta_now.name);
-            return Ok(Some(Arc::new(pinned)));
+        return Ok(Some(pinned_manifest(manifest, meta_now)));
+    }
+}
+
+/// A packument with no versions at all: either every version was
+/// unpublished, or it never had any.
+fn no_versions_error(meta: &Package, spec: &RegistryPackageSpec) -> PickPackageFromMetaError {
+    if has_unpublished_versions(meta) {
+        return PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() };
+    }
+    PickPackageFromMetaError::NoVersions { pkg_name: spec.name.clone() }
+}
+
+/// GitHub registry quirk: a scoped package can be published as `@owner/foo`
+/// while the per-version `name` is just `foo`. The manifest name is pinned
+/// to the packument-level name.
+fn pinned_manifest(manifest: Arc<PackageVersion>, meta: &Package) -> Arc<PackageVersion> {
+    if meta.name.is_empty() || manifest.name == meta.name {
+        return manifest;
+    }
+    let mut pinned = (*manifest).clone();
+    pinned.name.clone_from(&meta.name);
+    Arc::new(pinned)
+}
+
+/// The packument the maturity filter leaves to pick from.
+///
+/// A view that needs full metadata reports the missing-time error, which
+/// signals the orchestrator to upgrade the fetch — unless the packument's
+/// own `modified` proves no version is newer than the cutoff. That check is
+/// inclusive (`<=`) to match the per-version filter in
+/// [`filter_pkg_metadata_by_publish_date`]: a version published exactly at the
+/// cutoff is mature.
+fn mature_view<'a>(
+    view: &'a PublishedByView,
+    meta: &'a Package,
+    cutoff: chrono::DateTime<chrono::Utc>,
+) -> Result<&'a Package, PickPackageFromMetaError> {
+    if !view.needs_full_metadata {
+        return Ok(view.filtered.as_deref().unwrap_or(meta));
+    }
+    let modified_date = meta.modified.as_deref().and_then(parse_packument_timestamp);
+    match modified_date {
+        Some(date) if date <= cutoff => Ok(meta),
+        _ => Err(PickPackageFromMetaError::MissingTime { pkg_name: meta.name.clone() }),
+    }
+}
+
+/// The version string the spec selects: itself for an exact version, the
+/// tag's target for a tag, and the picker's answer for a range.
+fn pick_version<PickFn>(
+    pick_version_by_range: &PickFn,
+    opts: &PickPackageFromMetaOptions<'_>,
+    meta: &Package,
+    spec: &RegistryPackageSpec,
+) -> Option<String>
+where
+    PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
+{
+    match spec.spec_type {
+        RegistryPackageSpecType::Version => Some(spec.fetch_spec.clone()),
+        RegistryPackageSpecType::Tag => meta.dist_tag(&spec.fetch_spec).map(str::to_string),
+        RegistryPackageSpecType::Range => {
+            pick_version_by_range(&PickVersionByVersionRangeOptions {
+                meta,
+                version_range: &spec.fetch_spec,
+                preferred_version_selectors: opts.preferred_version_selectors,
+                published_by: opts.published_by,
+            })
         }
-        return Ok(Some(manifest));
     }
 }
 
@@ -244,8 +295,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
         // Tags pointing at the removed version go with it — the
         // latest-tag fast path would otherwise re-pick the version
         // this clone exists to exclude.
-        dist_tags: meta
-            .dist_tags
+        dist_tags: meta.dist_tags
             .iter()
             .filter(|(_, target)| *target != version)
             .map(|(tag, target)| (tag.clone(), target.clone()))
@@ -256,7 +306,6 @@ fn without_version(meta: &Package, version: &str) -> Package {
         etag: meta.etag.clone(),
         homepage: meta.homepage.clone(),
         mutex: Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -283,51 +332,104 @@ pub fn pick_version_by_version_range(
 ) -> Option<String> {
     let latest = opts.meta.dist_tag("latest");
 
-    if let Some(selectors) = opts.preferred_version_selectors
-        && !selectors.is_empty()
-    {
-        let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
-        for group in groups {
-            if let Some(latest) = latest
-                && group.iter().any(|version| version == latest)
-                && semver_satisfies_loose(latest, opts.version_range)
-            {
-                return Some(latest.to_string());
-            }
-            if let Some(pick) = max_satisfying(&group, opts.version_range) {
-                return Some(pick);
-            }
-        }
+    if let Some(pick) = preferred_max_pick(opts, latest) {
+        return Some(pick);
     }
 
-    if let Some(latest) = latest {
-        // `*` is special-cased because `semver.satisfies` rejects
-        // prereleases for `*`: a package whose only version is
-        // `1.0.0-beta.1` would otherwise return nothing for `*`.
-        // See pnpm/pnpm#865.
-        if opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range) {
+    if let Some(latest) = latest
+        && (opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range))
+    {
+        if !opts.meta.versions.is_deprecated(latest) {
             return Some(latest.to_string());
         }
+        let all_versions: Vec<&str> = opts.meta.versions
+            .keys()
+            .map(String::as_str)
+            .collect();
+        return Some(
+            non_deprecated_pick(opts, &all_versions, latest).unwrap_or_else(|| latest.to_string()),
+        );
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
-    let max_pick = max_satisfying(&all_versions, opts.version_range);
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let max_pick = max_satisfying(&all_versions, opts.version_range)?;
+    non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
+}
 
-    if let Some(ref picked) = max_pick {
-        let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
-        if picked_is_deprecated && all_versions.len() > 1 {
-            let non_deprecated: Vec<&str> = all_versions
+/// The highest satisfying version of the first preference group that has
+/// one, with `latest` winning inside its own group. A deprecated winner
+/// falls back within its own group, so a group that is a single pinned
+/// version keeps that version.
+fn preferred_max_pick(
+    opts: &PickVersionByVersionRangeOptions<'_>,
+    latest: Option<&str>,
+) -> Option<String> {
+    let selectors = opts.preferred_version_selectors.filter(|selectors| !selectors.is_empty())?;
+    let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
+    for group in groups {
+        let pick = if let Some(latest) = latest
+            && group
                 .iter()
-                .copied()
-                .filter(|version| !opts.meta.versions.is_deprecated(version))
-                .collect();
-            if let Some(non_deprecated_max) = max_satisfying(&non_deprecated, opts.version_range) {
-                return Some(non_deprecated_max);
-            }
+                .any(|version| version == latest)
+            && semver_satisfies_loose(latest, opts.version_range)
+        {
+            Some(latest.to_string())
+        } else {
+            max_satisfying(&group, opts.version_range)
+        };
+        if let Some(pick) = pick {
+            return Some(non_deprecated_pick(opts, &group, &pick).unwrap_or(pick));
         }
     }
+    None
+}
 
-    max_pick
+/// A deprecated pick falls back to the highest non-deprecated version
+/// among `candidates`, when the packument carries another one at all.
+/// Scoping the retry to the candidates keeps a preference group that is
+/// one explicitly pinned version from being overridden.
+fn same_release_line(version: &str, target: &node_semver::Version) -> bool {
+    node_semver::Version::parse(version)
+        .is_ok_and(|parsed| {
+            parsed.major == target.major
+                && parsed.minor == target.minor
+                && parsed.patch == target.patch
+        })
+}
+
+fn same_release_non_deprecated_pick(non_deprecated: &[&str], picked: &str) -> Option<String> {
+    let picked_semver = node_semver::Version::parse(picked).ok()?;
+    let same_release_prereleases: Vec<&str> = non_deprecated
+        .iter()
+        .copied()
+        .filter(|version| same_release_line(version, &picked_semver))
+        .collect();
+    max_version(&same_release_prereleases)
+}
+
+fn non_deprecated_pick<Raw: AsRef<str>>(
+    opts: &PickVersionByVersionRangeOptions<'_>,
+    candidates: &[Raw],
+    picked: &str,
+) -> Option<String> {
+    if !opts.meta.versions.is_deprecated(picked) || candidates.len() <= 1 {
+        return None;
+    }
+    let non_deprecated: Vec<&str> = candidates
+        .iter()
+        .map(AsRef::as_ref)
+        .filter(|version| !opts.meta.versions.is_deprecated(version))
+        .collect();
+    if opts.version_range == "*"
+        && !semver_satisfies_loose(picked, opts.version_range)
+        && let Some(same_release) = same_release_non_deprecated_pick(&non_deprecated, picked)
+    {
+        return Some(same_release);
+    }
+    max_satisfying(&non_deprecated, opts.version_range)
 }
 
 /// Pick the **lowest** version in `meta.versions` satisfying
@@ -347,11 +449,18 @@ pub fn pick_lowest_version_by_version_range(
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     if opts.version_range == "*" {
         let mut parsed: Vec<(Version, &str)> = all_versions
             .iter()
-            .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, *raw)))
+            .filter_map(|raw| {
+                Version::parse(raw)
+                    .ok()
+                    .map(|version| (version, *raw))
+            })
             .collect();
         parsed.sort_by(|left, right| left.0.cmp(&right.0));
         return parsed.first().map(|(_, raw)| (*raw).to_string());
@@ -359,434 +468,25 @@ pub fn pick_lowest_version_by_version_range(
     min_satisfying(&all_versions, opts.version_range)
 }
 
-/// What the `publishedBy` cutoff leaves visible, as computed by
-/// [`apply_published_by_policy`].
-pub(crate) struct PublishedByView {
-    /// The narrowed packument, or `None` when the input is already the
-    /// view: the policy excludes the package wholesale, or the cutoff
-    /// could not be applied.
-    pub(crate) filtered: Option<Arc<Package>>,
-
-    /// The cutoff could not be applied: the metadata is abbreviated, so
-    /// there are no per-version timestamps to filter on. Whether that
-    /// is fatal is the caller's call — the pick needs full metadata to
-    /// honor the cutoff, while a caller reasoning about a pick that
-    /// already succeeded knows the versions cleared the cutoff some
-    /// other way.
-    pub(crate) needs_full_metadata: bool,
-}
-
-/// Narrow `meta` to the versions the `cutoff` admits, honoring the
-/// exclusion policy: a package the policy excludes wholesale keeps its
-/// unfiltered metadata, and versions the policy names explicitly stay
-/// in regardless of their age.
-///
-/// Every consumer of the cutoff goes through here so they agree on what
-/// the policy admits — a baseline that filters differently from the
-/// pick would misreport why a version was chosen.
+/// Returns the cached version only when lockfile preferences prove
+/// that no version missing from the packument could tie or outrank it.
 #[must_use]
-pub(crate) fn apply_published_by_policy(
-    meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
-    exclude: Option<&PackageVersionPolicy>,
-) -> PublishedByView {
-    let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
-    if matches!(exclude_result, PolicyMatch::AnyVersion) {
-        return PublishedByView { filtered: None, needs_full_metadata: false };
-    }
-    if meta.time.is_none() {
-        return PublishedByView { filtered: None, needs_full_metadata: true };
-    }
-    let trusted = match &exclude_result {
-        PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
-        _ => None,
-    };
-    PublishedByView {
-        filtered: Some(filter_pkg_metadata_by_publish_date(meta, cutoff, trusted)),
-        needs_full_metadata: false,
-    }
-}
-
-/// Filter a packument to versions published at or before `cutoff`,
-/// then rewrite each `dist-tag` to the highest within-cutoff version
-/// that still belongs to the tag's original "family" (same major
-/// for non-`latest` tags, no newer than the original target, matching
-/// prerelease/release status, and preferring non-deprecated versions
-/// when both are present).
-///
-/// The result is memoized on `meta` (see [`DerivedPackuments`]) and
-/// shared between callers, so it is handed back behind an [`Arc`]:
-/// every caller of one cutoff and trusted-version list gets the same
-/// document, whose version manifests are the ones `meta` holds.
-///
-/// Panics if `meta.time` is `None`. Go through
-/// `apply_published_by_policy`, which reports abbreviated metadata as
-/// `needs_full_metadata` rather than filtering it.
-#[must_use]
-pub fn filter_pkg_metadata_by_publish_date(
-    meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
-    trusted_versions: Option<&[String]>,
-) -> Arc<Package> {
-    let policy_key = publish_date_policy_key(cutoff, trusted_versions);
-    meta.derived.get_or_derive(&policy_key, || {
-        filter_pkg_metadata_by_publish_date_uncached(meta, cutoff, trusted_versions)
-    })
-}
-
-/// Every input the filter's output depends on, in one string: the same
-/// packument is served to installs whose cutoff or trusted versions
-/// differ, and they must not read each other's view.
-///
-/// The cutoff goes in at the precision it is compared at: it comes from
-/// `Utc::now()` and packument timestamps parse to the same resolution,
-/// so a key rounded to the millisecond would let two cutoffs that keep
-/// different versions share one derived packument.
-fn publish_date_policy_key(
-    cutoff: chrono::DateTime<chrono::Utc>,
-    trusted_versions: Option<&[String]>,
-) -> String {
-    let mut key = format!("{}.{}", cutoff.timestamp(), cutoff.timestamp_subsec_nanos());
-    for trusted in trusted_versions.unwrap_or_default() {
-        key.push('\0');
-        key.push_str(trusted);
-    }
-    key
-}
-
-fn filter_pkg_metadata_by_publish_date_uncached(
-    meta: &Package,
-    cutoff: chrono::DateTime<chrono::Utc>,
-    trusted_versions: Option<&[String]>,
-) -> Package {
-    let time = meta.time.as_ref().expect(
-        "filter_pkg_metadata_by_publish_date called without `time`; \
-         caller must check before invoking",
-    );
-
-    filter_pkg_metadata_versions_with_dist_tag_bound(
-        meta,
-        |version| {
-            let mature = time
-                .get(version)
-                .and_then(serde_json::Value::as_str)
-                .and_then(parse_packument_timestamp)
-                .is_some_and(|date| date <= cutoff);
-            let trusted = trusted_versions
-                .is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
-            mature || trusted
-        },
-        true,
-    )
-}
-
-/// Filter a packument's versions by string while keeping dist-tags
-/// usable. Tags that still point at a kept version are preserved; tags
-/// whose target was removed are rewritten using the generic dist-tag
-/// rules: `latest` may move to the best remaining version across any
-/// major, while other tags stay within the removed target's
-/// major/prerelease lane.
-#[must_use]
-pub fn filter_pkg_metadata_versions(meta: &Package, keep: impl FnMut(&str) -> bool) -> Package {
-    filter_pkg_metadata_versions_with_dist_tag_bound(meta, keep, false)
-}
-
-fn filter_pkg_metadata_versions_with_dist_tag_bound(
-    meta: &Package,
-    mut keep: impl FnMut(&str) -> bool,
-    bound_dist_tags: bool,
-) -> Package {
-    // Decide on version strings alone; slots move as raw fragments, so
-    // the filter never hydrates a manifest.
-    let filtered_versions = meta.versions.filtered(|version| keep(version));
-    let dist_tags = repopulate_dist_tags(meta, &filtered_versions, bound_dist_tags);
-
-    Package {
-        name: meta.name.clone(),
-        dist_tags,
-        versions: filtered_versions,
-        time: meta.time.clone(),
-        modified: meta.modified.clone(),
-        etag: meta.etag.clone(),
-        homepage: meta.homepage.clone(),
-        mutex: std::sync::Arc::clone(&meta.mutex),
-        release_age_upgrade_checked: false,
-        derived: DerivedPackuments::default(),
-    }
-}
-
-fn repopulate_dist_tags(
-    meta: &Package,
-    filtered_versions: &PackageVersions,
-    bound_dist_tags: bool,
-) -> std::collections::HashMap<String, String> {
-    let mut dist_tags_within_date = std::collections::HashMap::new();
-    // Candidate versions parsed once per filter call and shared by
-    // every repopulated tag, with the deprecation flag resolved
-    // lazily per candidate.
-    // Deprecation goes through [`PackageVersions::is_deprecated`]
-    // instead of hydrating each candidate's manifest; the hydration
-    // per comparison dominated warm-resolve CPU on packuments with
-    // out-of-cutoff dist-tags.
-    let mut parsed_candidates: Option<Vec<(Version, &String, OnceCell<bool>)>> = None;
-    for (tag, version) in &meta.dist_tags {
-        if filtered_versions.contains_key(version) {
-            dist_tags_within_date.insert(tag.clone(), version.clone());
-            continue;
-        }
-        let Ok(original) = Version::parse(version) else { continue };
-        let original_is_prerelease = !original.pre_release.is_empty();
-        let candidates = parsed_candidates.get_or_insert_with(|| {
-            filtered_versions
-                .keys()
-                .filter_map(|raw| {
-                    Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
-                })
-                .collect()
-        });
-        let deprecated = |slot: &(Version, &String, OnceCell<bool>)| -> bool {
-            *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
-        };
-        let mut best_index: Option<usize> = None;
-        for (index, slot) in candidates.iter().enumerate() {
-            let (candidate, _, _) = slot;
-            if bound_dist_tags && candidate > &original {
-                continue;
-            }
-            if tag != "latest" && candidate.major != original.major {
-                continue;
-            }
-            if candidate.pre_release.is_empty() == original_is_prerelease {
-                continue;
-            }
-            match best_index {
-                None => best_index = Some(index),
-                Some(best) => {
-                    let best_slot = &candidates[best];
-                    let best_deprecated = deprecated(best_slot);
-                    let candidate_deprecated = deprecated(slot);
-                    let candidate_wins = (*candidate > best_slot.0
-                        && best_deprecated == candidate_deprecated)
-                        || (best_deprecated && !candidate_deprecated);
-                    if candidate_wins {
-                        best_index = Some(index);
-                    }
-                }
-            }
-        }
-        if let Some(best) = best_index {
-            dist_tags_within_date.insert(tag.clone(), candidates[best].1.clone());
-        }
-    }
-    dist_tags_within_date
-}
-
-/// Group versions by weight (highest weight first); each group is
-/// the input to a single max/min-satisfying call.
-fn prioritize_preferred_versions(
+pub fn pick_stable_cached_range_version(
     meta: &Package,
     version_range: &str,
     preferred_version_selectors: Option<&VersionSelectors>,
-) -> Vec<Vec<String>> {
-    let mut prioritizer = PreferredVersionsPrioritizer::default();
-
-    // Seed every range-satisfying version at weight 0. JS treats 0
-    // as falsy, so a later positive-weight `add` overwrites this
-    // sentinel rather than summing with it — preserved below in
-    // [`PreferredVersionsPrioritizer::add`].
-    for version in meta.versions.keys() {
-        if semver_satisfies_loose(version, version_range) {
-            prioritizer.add(version.clone(), 0);
-        }
-    }
-
-    if let Some(selectors) = preferred_version_selectors {
-        for (preferred_selector, entry) in selectors {
-            if preferred_selector == version_range {
-                continue;
-            }
-            let (selector_type, weight) = match entry {
-                VersionSelectorEntry::Plain(selector_type) => (*selector_type, 1),
-                VersionSelectorEntry::Weighted(weighted) => {
-                    (weighted.selector_type, weighted.weight)
-                }
-            };
-            match selector_type {
-                VersionSelectorType::Tag => {
-                    if let Some(version) = meta.dist_tag(preferred_selector) {
-                        prioritizer.add(version.to_string(), weight);
-                    }
-                }
-                VersionSelectorType::Range => {
-                    for version in meta.versions.keys() {
-                        if semver_satisfies_loose(version, preferred_selector) {
-                            prioritizer.add(version.clone(), weight);
-                        }
-                    }
-                }
-                VersionSelectorType::Version => {
-                    if meta.versions.contains_key(preferred_selector) {
-                        prioritizer.add(preferred_selector.clone(), weight);
-                    }
-                }
-            }
-        }
-    }
-
-    prioritizer.versions_by_priority()
-}
-
-/// Group-by-weight accumulator, including the quirk that weight `0`
-/// acts as a sentinel a later non-zero `add` overwrites rather than
-/// sums with.
-#[derive(Default)]
-struct PreferredVersionsPrioritizer {
-    preferred_versions: BTreeMap<String, u32>,
-}
-
-impl PreferredVersionsPrioritizer {
-    fn add(&mut self, version: String, weight: u32) {
-        let entry = self.preferred_versions.entry(version).or_insert(0);
-        if *entry == 0 {
-            // JS truthiness: `0` is falsy, so a later positive
-            // weight replaces the seed. Once non-zero, further
-            // adds sum normally.
-            *entry = weight;
-        } else {
-            *entry += weight;
-        }
-    }
-
-    fn versions_by_priority(&self) -> Vec<Vec<String>> {
-        let mut by_weight: BTreeMap<u32, Vec<String>> = BTreeMap::new();
-        for (version, weight) in &self.preferred_versions {
-            by_weight.entry(*weight).or_default().push(version.clone());
-        }
-        // Highest weight first. BTreeMap iterates lowest→highest, so
-        // reverse explicitly.
-        by_weight.into_iter().rev().map(|(_, group)| group).collect()
-    }
-}
-
-/// Process-global cache of parsed [`Range`]s keyed by their source
-/// string. Most installs hit the same handful of ranges thousands of times
-/// (the `*` from a CLI add, the `^X` from manifest entries, the few
-/// dist-tag fall-backs in `preferred_version_selectors`), and reparsing
-/// each is the picker's hottest cost. The cache stores `Option<Arc<Range>>`
-/// so the parse error case ("range is unparsable") is memoized too —
-/// pickers fall through to the next candidate without retrying the
-/// parse.
-///
-/// `DashMap` (not `Mutex<HashMap>`) keeps lookups lock-free under the
-/// fan-out the deps-resolver runs concurrently.
-static RANGE_CACHE: LazyLock<DashMap<String, Option<Arc<Range>>>> = LazyLock::new(DashMap::new);
-
-fn cached_range(range: &str) -> Option<Arc<Range>> {
-    if let Some(entry) = RANGE_CACHE.get(range) {
-        // `entry` is a `dashmap::Ref` guard around the stored
-        // `Option<Arc<Range>>`. `value()` projects out the `&Option<...>`
-        // so the clone runs on the inner value (Arc bump + Option clone),
-        // not on the guard.
-        return entry.value().clone();
-    }
-    let normalized = normalize_partial_lte_comparators(range);
-    let parsed = Range::parse(&normalized).ok().map(Arc::new);
-    RANGE_CACHE.insert(range.to_string(), parsed.clone());
-    parsed
-}
-
-fn normalize_partial_lte_comparators(range: &str) -> String {
-    let tokens: Vec<&str> = range.split_whitespace().collect();
-    let mut normalized = Vec::with_capacity(tokens.len());
-    let mut cursor = 0;
-    while cursor < tokens.len() {
-        let token = tokens[cursor];
-        if token == "<="
-            && let Some(version) = tokens.get(cursor + 1)
-            && let Some(comparator) = partial_lte_upper_bound(version)
-        {
-            normalized.push(comparator);
-            cursor += 2;
-            continue;
-        }
-        if let Some(version) = token.strip_prefix("<=")
-            && let Some(comparator) = partial_lte_upper_bound(version)
-        {
-            normalized.push(comparator);
-            cursor += 1;
-            continue;
-        }
-        normalized.push(token.to_string());
-        cursor += 1;
-    }
-    normalized.join(" ")
-}
-
-fn partial_lte_upper_bound(version: &str) -> Option<String> {
-    if version.contains('-') || version.contains('+') || version.contains('*') {
+) -> Option<String> {
+    let dominant = dominant_lockfile_version(version_range, preferred_version_selectors)?;
+    if !meta.versions.contains_key(&dominant) {
         return None;
     }
-    let parts: Vec<&str> = version.split('.').collect();
-    match parts.as_slice() {
-        [major] if is_digits(major) => {
-            let major: u64 = major.parse().ok()?;
-            let next_major = major.checked_add(1)?;
-            Some(format!("<{next_major}.0.0-0"))
-        }
-        [major, minor] if is_digits(major) && is_digits(minor) => {
-            let minor: u64 = minor.parse().ok()?;
-            let next_minor = minor.checked_add(1)?;
-            Some(format!("<{major}.{next_minor}.0-0"))
-        }
-        _ => None,
-    }
-}
-
-fn is_digits(value: &str) -> bool {
-    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-/// Check whether `version` satisfies `range` under node-semver's
-/// loose grammar, reusing a cached [`Range`] parse when possible.
-/// A parse failure on either input is treated as "doesn't satisfy"
-/// so the picker can fall through to the next candidate instead of
-/// crashing.
-fn semver_satisfies_loose(version: &str, range: &str) -> bool {
-    let Ok(parsed_version) = Version::parse(version) else { return false };
-    let Some(parsed_range) = cached_range(range) else { return false };
-    parsed_version.satisfies(&parsed_range)
-}
-
-fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
-    let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, String)> = None;
-    for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
-        if !parsed.satisfies(&parsed_range) {
-            continue;
-        }
-        match &best {
-            Some((current, _)) if current >= &parsed => {}
-            _ => best = Some((parsed, version.as_ref().to_string())),
-        }
-    }
-    best.map(|(_, raw)| raw)
-}
-
-fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
-    let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, String)> = None;
-    for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
-        if !parsed.satisfies(&parsed_range) {
-            continue;
-        }
-        match &best {
-            Some((current, _)) if current <= &parsed => {}
-            _ => best = Some((parsed, version.as_ref().to_string())),
-        }
-    }
-    best.map(|(_, raw)| raw)
+    let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+        meta,
+        version_range,
+        preferred_version_selectors,
+        published_by: None,
+    })?;
+    (picked == dominant).then_some(dominant)
 }
 
 fn has_unpublished_versions(meta: &Package) -> bool {

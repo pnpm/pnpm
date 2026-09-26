@@ -31,6 +31,14 @@ test('the compared ignoredOptionalDependencies arrays are left in their original
   expect(configured).toStrictEqual(['*', '!bar'])
 })
 
+test('pnpmfileChecksum is reported when it differs, unless its comparison is skipped', () => {
+  const lockfile = emptyLockfile({ pnpmfileChecksum: 'sha256-abc' })
+
+  expect(getOutdatedLockfileSettings(lockfile, {})).toContain('pnpmfileChecksum')
+  expect(getOutdatedLockfileSettings(lockfile, { ignorePnpmfileChecksum: true }))
+    .not.toContain('pnpmfileChecksum')
+})
+
 function emptyLockfile (settings: Partial<LockfileObject>): LockfileObject {
   return {
     importers: {},

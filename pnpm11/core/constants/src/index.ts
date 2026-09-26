@@ -14,7 +14,7 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 /**
  * Named-registry aliases that work without any configuration. User entries in
- * the `namedRegistries` setting are merged on top and may override these
+ * the `registriesByPrefix` setting are merged on top and may override these
  * (e.g. GHES users can point `gh` at their own enterprise host).
  *
  * `npmjs` is here so a dependency can be pinned to the public registry even
@@ -26,7 +26,7 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
  * against, an org that proxies npmjs should point `npmjs` at their proxy so
  * verification keeps going there rather than to the public host.
  */
-export const BUILTIN_NAMED_REGISTRIES: Readonly<Record<string, string>> = Object.freeze({
+export const BUILTIN_REGISTRIES_BY_PREFIX: Readonly<Record<string, string>> = Object.freeze({
   gh: 'https://npm.pkg.github.com/',
   npmjs: 'https://registry.npmjs.org/',
 })

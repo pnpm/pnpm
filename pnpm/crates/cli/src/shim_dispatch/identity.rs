@@ -1,7 +1,7 @@
 //! Candidate identity: which package provides a bin, and the
 //! fingerprint a trust approval is bound to.
 
-use pacquet_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -26,7 +26,10 @@ pub(super) fn provider_of_target(target: &Path) -> Option<Provider> {
     let package_dir = package_dir_of_target(&target)?;
     let manifest = std::fs::read(package_dir.join("package.json")).ok()?;
     let parsed: Value = serde_json::from_slice(&manifest).ok()?;
-    let name = parsed.get("name").and_then(Value::as_str)?.to_string();
+    let name = parsed
+        .get("name")
+        .and_then(Value::as_str)?
+        .to_string();
     Some(Provider { name, package_dir, manifest_hash: create_hex_hash_bytes(&manifest) })
 }
 
@@ -46,19 +49,7 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         let hash = create_hex_hash(&format!("symlink\0{}", target.display()));
         (target, hash)
     } else {
-        let script = bin.parent()?.join(name);
-        let content = std::fs::read_to_string(&script).ok()?;
-        let target = read_shim_target_from_content(&content)?;
-        // The executed flavor can differ from the trailer-carrying sh
-        // flavor (`tool.cmd` vs `tool` on Windows), so the fingerprint
-        // binds both: replacing either file invalidates an approval.
-        let executed_hash = if script == bin {
-            String::new()
-        } else {
-            let executed_len = std::fs::metadata(bin).ok()?.len();
-            small_file_hash(bin, executed_len)?
-        };
-        (target, create_hex_hash(&format!("script\0{content}\0{executed_hash}")))
+        shim_target_and_hash(bin, name)?
     };
     let resolved = if target.is_absolute() { target } else { bin.parent()?.join(target) };
     let provider = provider_of_target(&resolved)?;
@@ -74,6 +65,23 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         target_stat,
     ));
     Some(LocalBinIdentity { provider, fingerprint })
+}
+
+/// The target a shim script names, and the fingerprint of the script. The
+/// executed flavor can differ from the trailer-carrying sh flavor
+/// (`tool.cmd` vs `tool` on Windows), so the fingerprint binds both:
+/// replacing either file invalidates an approval.
+fn shim_target_and_hash(bin: &Path, name: &str) -> Option<(PathBuf, String)> {
+    let script = bin.parent()?.join(name);
+    let content = std::fs::read_to_string(&script).ok()?;
+    let target = read_shim_target_from_content(&content)?;
+    let executed_hash = if script == bin {
+        String::new()
+    } else {
+        let executed_len = std::fs::metadata(bin).ok()?.len();
+        small_file_hash(bin, executed_len)?
+    };
+    Some((target, create_hex_hash(&format!("script\0{content}\0{executed_hash}"))))
 }
 
 pub(super) fn project_lockfile_hash(path: &Path) -> String {
@@ -109,13 +117,18 @@ pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> 
         return None;
     }
     let mut bytes = Vec::with_capacity(expected_len as usize);
-    std::fs::File::open(path).ok()?.take(MAX_HASHED_BIN_SIZE + 1).read_to_end(&mut bytes).ok()?;
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_HASHED_BIN_SIZE + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
     (bytes.len() as u64 <= MAX_HASHED_BIN_SIZE).then(|| create_hex_hash_bytes(&bytes))
 }
 
 #[cfg(windows)]
 pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Foundation::HANDLE;
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
     };
@@ -124,7 +137,8 @@ pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
     // SAFETY: `file` owns a valid handle for this call and `info` points to
     // writable storage of the exact structure the API initializes.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, info.as_mut_ptr()) } == 0 {
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as HANDLE, info.as_mut_ptr()) } == 0
+    {
         return None;
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.

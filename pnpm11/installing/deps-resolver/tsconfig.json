@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
@@ -47,6 +50,9 @@
     },
     {
       "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../fs/symlink-dependency"

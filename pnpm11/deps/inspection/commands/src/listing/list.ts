@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { list, listForPackages } from '@pnpm/deps.inspection.list'
+import { getPackagesForListing, list, listForPackages, type PackageDependencyHierarchy, searchForPackages } from '@pnpm/deps.inspection.list'
 import { PnpmError } from '@pnpm/error'
 import { findGlobalInstallDirs, listGlobalPackages } from '@pnpm/global.commands'
-import type { Finder, IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies, Project } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -90,6 +92,7 @@ export type ListCommandOptions = Pick<Config,
 | 'optional'
 | 'production'
 | 'modulesDir'
+| 'resolvePeersFromWorkspaceRoot'
 | 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
 | 'allProjects'
@@ -107,7 +110,7 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs'>>
 
 export async function handler (
   opts: ListCommandOptions,
@@ -160,9 +163,19 @@ export async function handler (
       reportAs: determineReportAs(opts),
     })
   }
+  const workspaceProjectDirs = opts.allProjects?.map(({ rootDir }) => rootDir)
+  const workspaceProjectPublishDirs = getWorkspaceProjectPublishDirs(opts.allProjects ?? [])
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly, onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects })
+    return listRecursive(pkgs, params, {
+      ...opts,
+      depth,
+      include,
+      checkWantedLockfileOnly: opts.lockfileOnly,
+      onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+      workspaceProjectDirs,
+      workspaceProjectPublishDirs,
+    })
   }
   return render([opts.dir], params, {
     ...opts,
@@ -171,31 +184,71 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
     onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+    workspaceProjectDirs,
+    workspaceProjectPublishDirs,
   })
+}
+
+/**
+ * Dependents link a project with `publishConfig.directory` through that
+ * directory unless `publishConfig.linkDirectory` is false.
+ */
+function getWorkspaceProjectPublishDirs (projects: Project[]): Record<string, string> {
+  const publishDirs: Record<string, string> = {}
+  for (const { rootDir, manifest } of projects) {
+    const publishConfig = manifest.publishConfig
+    if (publishConfig?.directory != null && publishConfig.linkDirectory !== false) {
+      publishDirs[path.resolve(rootDir, publishConfig.directory)] = rootDir
+    }
+  }
+  return publishDirs
 }
 
 export async function render (
   prefixes: string[],
   params: string[],
-  opts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeers?: boolean
-    include: IncludedDependencies
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    json?: boolean
-    onlyProjects?: boolean
-    parseable?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Record<string, Finder>
-    findBy?: string[]
-  }
+  opts: RenderOptions
 ): Promise<string> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? listForPackages(params, prefixes, listOpts)
+    : list(prefixes, listOpts)
+}
+
+export async function loadProjectHierarchies (
+  prefixes: string[],
+  params: string[],
+  opts: RenderOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? searchForPackages(params, prefixes, listOpts)
+    : getPackagesForListing(prefixes, listOpts)
+}
+
+interface RenderOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeers?: boolean
+  include: IncludedDependencies
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  json?: boolean
+  onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
+  parseable?: boolean
+  modulesDir?: string
+  resolvePeersFromWorkspaceRoot?: boolean
+  virtualStoreDirMaxLength: number
+  finders?: Record<string, Finder>
+  findBy?: string[]
+}
+
+function getListOptions (opts: RenderOptions) {
   const finders = resolveFinders(opts)
-  const listOpts = {
+  return {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
     excludePeerDependencies: opts.excludePeers,
@@ -204,14 +257,14 @@ export async function render (
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
+    workspaceProjectDirs: opts.workspaceProjectDirs,
+    workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
     reportAs: determineReportAs(opts),
     showExtraneous: false,
     showSummary: true,
     modulesDir: opts.modulesDir,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,
   }
-  return (params.length > 0) || listOpts.finders.length > 0
-    ? listForPackages(params, prefixes, listOpts)
-    : list(prefixes, listOpts)
 }

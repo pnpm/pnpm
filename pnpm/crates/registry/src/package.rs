@@ -3,8 +3,8 @@ use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
-use pacquet_network::{AuthHeaders, ThrottledClient};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -12,6 +12,13 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry package metadata."
+    )
+)]
 pub struct Package {
     pub name: String,
     #[serde(rename = "dist-tags")]
@@ -67,14 +74,6 @@ pub struct Package {
     /// [`DerivedPackuments`].
     #[serde(skip_serializing, skip_deserializing)]
     pub derived: DerivedPackuments,
-
-    /// `true` once a release-age upgrade fetch for this document answered
-    /// `304 Not Modified` in this process: the registry holds no fuller
-    /// form than what is already cached, so re-asking within the install
-    /// is pure waste. In-memory only — never written to the mirror, so a
-    /// later install re-validates once and re-stamps.
-    #[serde(skip_serializing, skip_deserializing)]
-    pub release_age_upgrade_checked: bool,
 }
 
 impl Package {
@@ -82,7 +81,45 @@ impl Package {
     /// registry didn't report one for that pin.
     #[must_use]
     pub fn published_at(&self, version: &str) -> Option<&str> {
-        self.time.as_ref()?.get(version)?.as_str()
+        self.time
+            .as_ref()?
+            .get(version)?
+            .as_str()
+    }
+
+    /// Drop `time` unless it carries a publish timestamp for every
+    /// version this packument lists.
+    ///
+    /// Registries may answer with a partial map: npmmirror adds `time`
+    /// to its abbreviated documents but fills it in only for the
+    /// versions it has synced since it started recording publish times,
+    /// leaving the rest out. A partial map is indistinguishable from a
+    /// complete one at the point of use, so the `minimumReleaseAge`
+    /// filter reads every absent timestamp as "not mature" and silently
+    /// drops the version — resolution then falls back to the lowest
+    /// match.
+    ///
+    /// A map that can't decide maturity is worth nothing to the
+    /// resolver, so it is normalized away where the document is parsed.
+    /// Every packument past that point carries either a complete `time`
+    /// or none at all — the shape the npm registry's own abbreviated
+    /// documents have, and the one the rest of the resolver is written
+    /// against.
+    /// A packument with no versions keeps whatever `time` it has — there
+    /// is nothing for the map to be incomplete about — and a version whose
+    /// entry is an empty string counts as absent.
+    pub fn drop_incomplete_publish_times(&mut self) {
+        let Some(time) = self.time.as_ref() else { return };
+        let complete = self.versions
+            .keys()
+            .all(|version| {
+                time.get(version)
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|at| !at.is_empty())
+            });
+        if !complete {
+            self.time = None;
+        }
     }
 
     /// Version under `dist-tags.<tag>`, or `None` when the tag is
@@ -98,7 +135,9 @@ impl Package {
     /// past the cutoff. Iteration order is undefined (`HashMap`), so
     /// callers that need a stable rewrite are expected to sort.
     pub fn dist_tags(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.dist_tags.iter().map(|(tag, version)| (tag.as_str(), version.as_str()))
+        self.dist_tags
+            .iter()
+            .map(|(tag, version)| (tag.as_str(), version.as_str()))
     }
 }
 
@@ -171,7 +210,9 @@ impl DerivedPackuments {
 }
 
 fn find(memo: &DerivedMemo, policy_key: &str) -> Option<Arc<Package>> {
-    memo.iter().find(|(key, _)| key == policy_key).map(|(_, derived)| Arc::clone(derived))
+    memo.iter()
+        .find(|(key, _)| key == policy_key)
+        .map(|(_, derived)| Arc::clone(derived))
 }
 
 impl Package {
@@ -181,23 +222,29 @@ impl Package {
         registry: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<Self, RegistryError> {
-        let encoded_name = pacquet_network::encode_package_name(name);
+        let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
         let network_error = |error| NetworkError { error, url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.
         let guard = http_client.acquire_for_url(&url).await;
-        let mut request = guard.get(&url).header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        );
+        let mut request = guard
+            .get(&url)
+            .header(
+                "accept",
+                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            );
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
         request
             .send()
             .await
+            .map_err(network_error)?
+            // An unknown package answers with a JSON error body, which
+            // decodes into neither a `Package` nor a useful message.
+            .error_for_status()
             .map_err(network_error)?
             .json::<Package>()
             .await
@@ -207,11 +254,10 @@ impl Package {
 
     #[must_use]
     pub fn pinned_version(&self, version_range: &str) -> Option<Arc<PackageVersion>> {
-        let range: node_semver::Range = version_range.parse().unwrap(); // TODO: this step should have happened in PackageManifest
+        let range: node_semver::Range = version_range.parse().ok()?;
         // Match on the version *strings* so only winning manifests
         // hydrate from their raw fragments.
-        let mut satisfying = self
-            .versions
+        let mut satisfying = self.versions
             .keys()
             .filter_map(|key| {
                 key.parse::<node_semver::Version>()
@@ -221,7 +267,9 @@ impl Package {
             })
             .collect::<Vec<_>>();
         satisfying.sort_by(|(left, _), (right, _)| right.partial_cmp(left).unwrap());
-        satisfying.into_iter().find_map(|(_, key)| self.versions.get(key))
+        satisfying
+            .into_iter()
+            .find_map(|(_, key)| self.versions.get(key))
     }
 
     /// Manifest under `dist-tags.latest`, or `None` — registry-served
@@ -229,6 +277,20 @@ impl Package {
     #[must_use]
     pub fn latest(&self) -> Option<Arc<PackageVersion>> {
         self.versions.get(self.dist_tags.get("latest")?)
+    }
+
+    /// The version behind `dist-tags.latest` and why its manifest
+    /// failed to decode, when the packument lists that version but
+    /// pnpm can't parse it.
+    ///
+    /// `None` covers every healthy case as well as a genuinely dangling
+    /// tag, so a caller that has already failed to resolve `latest` can
+    /// use this to tell "the registry serves a manifest pnpm can't read"
+    /// apart from "the tag points at nothing".
+    #[must_use]
+    pub fn latest_decode_error(&self) -> Option<(&str, String)> {
+        let version = self.dist_tag("latest")?;
+        Some((version, self.versions.decode_error(version)?))
     }
 }
 

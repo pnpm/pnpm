@@ -19,10 +19,11 @@ import {
 import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { semverDiff } from '@pnpm/semver-diff'
-import type { DependenciesField, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { sanitizeInline } from '@pnpm/text.sanitize'
+import type { DependenciesOrPeersField, IncludedDependencies, PackageManifest, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import { pick, sortWith } from 'ramda'
+import { countBy, pick, sortWith } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { outdatedRecursive } from './recursive.js'
@@ -173,7 +174,7 @@ export type OutdatedCommandOptions = {
 | 'optional'
 | 'production'
 | 'configByUri'
-| 'registries'
+| 'registriesByScope'
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
@@ -216,6 +217,10 @@ export async function handler (
     ]
   }
   const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  if (hasUnmatchedPackageParams(packages, packageParams, include)) {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+      'None of the specified packages were found in the dependencies.')
+  }
   const [outdatedPerProject, outdatedActions] = await Promise.all([
     params.length === 0 || packageParams.length > 0
       ? outdatedDepsOfProjects(packages, packageParams, {
@@ -240,6 +245,8 @@ export async function handler (
         compatible: opts.compatible,
         dir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         match: params.length > 0 ? createMatcher(params.map(normalizeGitHubActionSelector)) : undefined,
+        minimumReleaseAge: opts.minimumReleaseAge,
+        minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
         serverUrl: opts.updateConfig?.githubActionsServer,
       }),
   ])
@@ -270,6 +277,32 @@ export async function handler (
     output,
     exitCode: outdatedPackages.length === 0 ? 0 : 1,
   }
+}
+
+export function hasUnmatchedPackageParams (
+  pkgs: Array<{ manifest: ProjectManifest }>,
+  packageParams: string[],
+  include: IncludedDependencies
+): boolean {
+  const positiveParams = packageParams.filter((param) => !param.startsWith('!'))
+  if (positiveParams.length === 0) return false
+  const availableDeps = new Set<string>()
+  for (const { manifest } of pkgs) {
+    if (include.dependencies && manifest.dependencies) {
+      for (const dep of Object.keys(manifest.dependencies)) availableDeps.add(dep)
+    }
+    if (include.devDependencies && manifest.devDependencies) {
+      for (const dep of Object.keys(manifest.devDependencies)) availableDeps.add(dep)
+    }
+    if (include.optionalDependencies && manifest.optionalDependencies) {
+      for (const dep of Object.keys(manifest.optionalDependencies)) availableDeps.add(dep)
+    }
+  }
+  const deps = Array.from(availableDeps)
+  return positiveParams.some((param) => {
+    const matcher = createMatcher([param])
+    return !deps.some((dep) => matcher(dep))
+  })
 }
 
 export type OutdatedItem = OutdatedPackage & { dependencyType?: 'githubAction' }
@@ -347,14 +380,16 @@ export interface OutdatedPackageJSONOutput {
   latest?: string
   wanted: string
   isDeprecated: boolean
-  dependencyType: DependenciesField | 'githubAction'
+  dependencyType: DependenciesOrPeersField | 'githubAction'
   latestManifest?: PackageManifest
 }
 
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedItem[], opts: { long?: boolean, sortBy?: 'name' }): string {
+  const getOutdatedJSONKey = createOutdatedJSONKeyGetter(outdatedPackages)
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
-      acc[outdatedPkg.packageName] = {
+      const key = getOutdatedJSONKey(outdatedPkg)
+      acc[key] = {
         current: outdatedPkg.current,
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
@@ -362,7 +397,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedItem[], opts: { 
         dependencyType: outdatedPkg.dependencyType ?? outdatedPkg.belongsTo,
       }
       if (opts.long) {
-        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+        acc[key].latestManifest = outdatedPkg.latestManifest
       }
       return acc
     }, {} as Record<string, OutdatedPackageJSONOutput>)
@@ -402,12 +437,36 @@ export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated
   }
 }
 
-export function renderPackageName ({ belongsTo, dependencyType, packageName }: OutdatedItem): string {
-  if (dependencyType === 'githubAction') return `${packageName} ${chalk.dim('(github action)')}`
+export function renderPackageName (outdatedPkg: OutdatedItem): string {
+  const label = getDependencyTypeLabel(outdatedPkg)
+  return label == null ? outdatedPkg.packageName : `${outdatedPkg.packageName} ${chalk.dim(`(${label})`)}`
+}
+
+/**
+ * JSON output is keyed by package name. A name that occurs more than once in
+ * the report, such as one package installed at several versions across a
+ * workspace, is keyed by name, current version, and dependency type instead,
+ * so that no entry overwrites another.
+ */
+export function createOutdatedJSONKeyGetter (outdatedPackages: readonly OutdatedItem[]): (outdatedPkg: OutdatedItem) => string {
+  const packageCounts = countBy((outdatedPkg) => outdatedPkg.packageName, outdatedPackages)
+  return (outdatedPkg) => {
+    if (packageCounts[outdatedPkg.packageName] === 1) return outdatedPkg.packageName
+    const label = getDependencyTypeLabel(outdatedPkg)
+    const suffix = label == null ? '' : ` (${label})`
+    return outdatedPkg.current
+      ? `${outdatedPkg.packageName}@${outdatedPkg.current}${suffix}`
+      : `${outdatedPkg.packageName}${suffix}`
+  }
+}
+
+function getDependencyTypeLabel ({ belongsTo, dependencyType }: OutdatedItem): string | undefined {
+  if (dependencyType === 'githubAction') return 'github action'
   switch (belongsTo) {
-    case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
-    case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
-    default: return packageName
+    case 'devDependencies': return 'dev'
+    case 'optionalDependencies': return 'optional'
+    case 'peerDependencies': return 'peer'
+    default: return undefined
   }
 }
 
@@ -438,7 +497,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(chalk.redBright(latestManifest.deprecated))
+    outputs.push(chalk.redBright(sanitizeInline(latestManifest.deprecated)))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))

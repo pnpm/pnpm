@@ -14,8 +14,8 @@
 //! `saveWorkspaceProtocol` is off and the user didn't ask for
 //! `workspace:` themselves.
 
-use pacquet_config::SaveWorkspaceProtocol;
-use pacquet_registry::{RangeSpecGranularity, RangeSpecStyle};
+use pnpm_config::SaveWorkspaceProtocol;
+use pnpm_registry::{RangeSpecGranularity, RangeSpecStyle};
 
 use crate::infer_range_spec_style::infer_range_spec_style;
 
@@ -46,6 +46,7 @@ pub fn calc_specifier_for_workspace_dep(
     resolved_version: Option<&str>,
     save_workspace_protocol: SaveWorkspaceProtocol,
     default_pin: RangeSpecStyle,
+    is_update: bool,
 ) -> String {
     // An aliased dependency has to name its target inside the protocol
     // (`workspace:<real name>@<range>`), otherwise the entry would point
@@ -61,12 +62,26 @@ pub fn calc_specifier_for_workspace_dep(
         return rolling_specifier(&prefix, declared);
     };
 
-    // A prerelease is written exactly: a `^`/`~` range over it would not
-    // match the prerelease it was resolved from.
-    if is_prerelease(resolved_version) {
-        return format!("{prefix}{resolved_version}");
+    let prev_style = declared.prev.and_then(infer_range_spec_style);
+    let requested_style = declared.bare.and_then(infer_range_spec_style);
+
+    if !is_update && matches!(requested_style, Some(RangeSpecStyle::Patch | RangeSpecStyle::Exact))
+    {
+        let style = requested_style.unwrap();
+        return format!("{prefix}{}{resolved_version}", style.range_prefix());
     }
-    let pin = declared.prev.and_then(infer_range_spec_style).unwrap_or(default_pin);
+
+    if is_saved_exactly(resolved_version) {
+        return match prev_style {
+            Some(style) => format!("{prefix}{}{resolved_version}", style.range_prefix()),
+            None => format!("{prefix}{resolved_version}"),
+        };
+    }
+    let pin = if is_update {
+        prev_style.or(requested_style).unwrap_or(default_pin)
+    } else {
+        requested_style.or(prev_style).unwrap_or(default_pin)
+    };
     format!("{prefix}{}{resolved_version}", pin.range_prefix())
 }
 
@@ -76,7 +91,10 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     let Some(specifier) = declared.prev.or(declared.bare) else {
         return format!("{prefix}^");
     };
-    if ["*", "^", "~"].iter().any(|suffix| specifier == format!("{prefix}{suffix}")) {
+    if ["*", "^", "~"]
+        .iter()
+        .any(|suffix| specifier == format!("{prefix}{suffix}"))
+    {
         return specifier.to_string();
     }
     let suffix = match infer_range_spec_style(specifier).map(RangeSpecStyle::granularity) {
@@ -89,8 +107,48 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     format!("{prefix}{suffix}")
 }
 
-fn is_prerelease(version: &str) -> bool {
-    version.parse::<node_semver::Version>().is_ok_and(|parsed| !parsed.pre_release.is_empty())
+/// A prerelease or a partial version such as `1` or `1.0` is written
+/// exactly: a `^`/`~` range over it would not match the version it was
+/// resolved from. Any other non-semver version keeps the operator, because
+/// written exactly it could mean something else inside `workspace:`, such
+/// as a wildcard, a tag, or an alias.
+fn is_saved_exactly(version: &str) -> bool {
+    match version.parse::<node_semver::Version>() {
+        Ok(parsed) => !parsed.pre_release.is_empty(),
+        Err(_) => is_partial_version(version),
+    }
+}
+
+/// Whether the specifier written for `version` still names the workspace
+/// package once the `workspace:` protocol is stripped from it: a semver
+/// version or a partial one. Anything else, such as `github:owner/repo`,
+/// keeps the protocol, since the next install would read the bare text as
+/// a different dependency source.
+#[must_use]
+pub fn can_drop_workspace_protocol(version: &str) -> bool {
+    version.parse::<node_semver::Version>().is_ok() || is_partial_version(version)
+}
+
+/// `1`, `1.0` or `1.x`. The shape check comes first because the range
+/// parser skips alternatives it cannot read (`github:owner/repo || 1.2.3`
+/// parses); the range parse then bounds each component.
+fn is_partial_version(version: &str) -> bool {
+    let mut parts = version.split('.');
+    let Some(major) = parts.next() else { return false };
+    let minor_and_patch: Vec<&str> = parts.collect();
+    is_version_number(major)
+        && minor_and_patch.len() <= 2
+        && minor_and_patch
+            .iter()
+            .all(|part| matches!(*part, "x" | "X" | "*") || is_version_number(part))
+        && version.parse::<node_semver::Range>().is_ok()
+}
+
+fn is_version_number(part: &str) -> bool {
+    part == "0"
+        || (!part.is_empty()
+            && !part.starts_with('0')
+            && part.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 #[cfg(test)]

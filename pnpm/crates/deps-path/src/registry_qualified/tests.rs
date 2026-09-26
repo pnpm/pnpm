@@ -1,4 +1,6 @@
-use super::{is_well_formed_registry_name, parse_registry_qualified_version};
+use super::{
+    is_well_formed_registry_name, parse_registry_qualified_version, shadows_reserved_version_prefix,
+};
 use node_semver::Version;
 
 #[test]
@@ -29,4 +31,20 @@ fn well_formed_registry_names() {
     assert!(!is_well_formed_registry_name("9work"));
     assert!(!is_well_formed_registry_name("no colons"));
     assert!(!is_well_formed_registry_name(""));
+}
+
+/// A dep path carries the prefix pnpm wrote, so reading one back matches it
+/// exactly. An alias is rejected in any case only for a prefix a selector
+/// may spell in any case.
+#[test]
+fn an_alias_shadows_a_case_insensitive_prefix_in_any_case() {
+    assert!(shadows_reserved_version_prefix("pkg"));
+    assert!(shadows_reserved_version_prefix("PKG"));
+    assert!(shadows_reserved_version_prefix("Pkg"));
+    assert!(shadows_reserved_version_prefix("npm"));
+    // `npm:` is read exactly, so `Npm:lodash` names a registry called `Npm`.
+    assert!(!shadows_reserved_version_prefix("Npm"));
+    assert!(!shadows_reserved_version_prefix("work"));
+    assert!(!shadows_reserved_version_prefix("pkgs"));
+    assert_eq!(parse_registry_qualified_version("PKG:1.0.0").map(|(name, _)| name), Some("PKG"));
 }

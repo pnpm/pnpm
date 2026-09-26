@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/has-optional-y-v1",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm/y": "1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm/y": {
+      "optional": true
+    }
+  }
+}

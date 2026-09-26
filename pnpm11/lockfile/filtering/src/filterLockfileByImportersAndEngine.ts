@@ -6,6 +6,12 @@ import {
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
   PackageSnapshots,
@@ -53,6 +59,7 @@ export interface FilterLockfileOptions {
   includeIncompatiblePackages?: boolean
   failOnMissingDependencies: boolean
   lockfileDir: string
+  resolvePeersFromWorkspaceRoot?: boolean
   skipped: Set<string>
   skipRuntimes?: boolean
   supportedArchitectures?: SupportedArchitectures
@@ -81,6 +88,7 @@ export function filterLockfileByImportersAndEngine (
         includeIncompatiblePackages:
             opts.includeIncompatiblePackages === true,
         lockfileDir: opts.lockfileDir,
+        peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(lockfile, opts),
         skipped: opts.skipped,
         skipRuntimes: opts.skipRuntimes,
         supportedArchitectures: opts.supportedArchitectures,
@@ -119,6 +127,7 @@ interface PickPkgsOptions {
   include: { [dependenciesField in DependenciesField]: boolean }
   includeIncompatiblePackages: boolean
   lockfileDir: string
+  peerSatisfactionEdges: PeerSatisfactionEdges | undefined
   skipped: Set<string>
   skipRuntimes?: boolean
   supportedArchitectures?: SupportedArchitectures
@@ -163,7 +172,10 @@ function pickPkgsWithAllDeps (
   classifyDeps(ctx, depEdges, opts)
   reportInstallability(ctx, opts)
   pickSkippedDeps(ctx, depEdges, opts)
-  return { packages: ctx.pickedPackages, requiredDepPaths: ctx.requiredDepPaths }
+  return {
+    packages: pruneDanglingPeerSatisfactionEdges(ctx.pickedPackages, opts.peerSatisfactionEdges),
+    requiredDepPaths: ctx.requiredDepPaths,
+  }
 }
 
 /**
@@ -201,7 +213,7 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
       // TODO: depPath is not the package ID. Should be fixed
       incompatible.set(depPath, !opts.includeIncompatiblePackages && checkPackageInstallability(
         pkgSnapshot.id ?? depPath,
-        toInstallabilityManifest(depPath, pkgSnapshot),
+        toInstallabilityManifest(depPath, pkgSnapshot, opts.engineStrict),
         {
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: true,
@@ -212,7 +224,7 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
     if (optional && incompatible.get(depPath)) continue
     ctx.installed.add(depPath)
     ctx.pickedPackages[depPath] = pkgSnapshot
-    const edges = nextDepEdges(ctx, pkgSnapshot, opts)
+    const edges = nextDepEdges(ctx, { depPath, pkgSnapshot }, opts)
     ctx.edgesByDepPath.set(depPath, edges)
     // Appended one by one: `push(...edges)` passes each edge as its own
     // argument and overflows the engine's argument limit on a wide enough
@@ -236,7 +248,7 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
       opts.includeIncompatiblePackages ||
       packageIsInstallable(
         pkgSnapshot.id ?? depPath,
-        toInstallabilityManifest(depPath, pkgSnapshot),
+        toInstallabilityManifest(depPath, pkgSnapshot, opts.engineStrict),
         {
           // A subtree hanging off an `optionalDependencies` entry stays
           // best-effort: the dependency is installed so its dependent is not
@@ -257,11 +269,17 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
   }
 }
 
-function toInstallabilityManifest (depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath]): InstallabilityManifest {
+function toInstallabilityManifest (
+  depPath: DepPath,
+  pkgSnapshot: PackageSnapshots[DepPath],
+  engineStrict: boolean
+): InstallabilityManifest {
   return {
     ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
     cpu: pkgSnapshot.cpu,
-    engines: pkgSnapshot.engines,
+    // A patch can change `engines` after this pass. The published range is
+    // checked again from the patched manifest once the patch is applied.
+    engines: engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
     os: pkgSnapshot.os,
     libc: pkgSnapshot.libc,
   }
@@ -297,7 +315,7 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
     // `visited` guarantees one pass per dep path, so a cached entry is
     // released as soon as it is consumed rather than being retained until the
     // whole walk ends.
-    const edges = ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, pkgSnapshot, opts)
+    const edges = ctx.edgesByDepPath.get(depPath) ?? nextDepEdges(ctx, { depPath, pkgSnapshot }, opts)
     ctx.edgesByDepPath.delete(depPath)
     for (const edge of edges) {
       queue.push(edge.depPath)
@@ -306,11 +324,19 @@ function pickSkippedDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickP
 }
 
 /** The outbound edges of a package, tagged with the optionality of each. */
-function nextDepEdges (ctx: PickPkgsContext, pkgSnapshot: PackageSnapshots[DepPath], opts: PickPkgsOptions): DepEdge[] {
-  const { depEdges, importerIds } = parseDepRefs([
+function nextDepEdges (
+  ctx: PickPkgsContext,
+  { depPath, pkgSnapshot }: { depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath] },
+  opts: PickPkgsOptions
+): DepEdge[] {
+  let depRefs = [
     ...toDepRefs(pkgSnapshot.dependencies, false),
     ...(opts.include.optionalDependencies ? toDepRefs(pkgSnapshot.optionalDependencies, true) : []),
-  ], ctx.lockfile)
+  ]
+  if (opts.peerSatisfactionEdges?.has(depPath)) {
+    depRefs = depRefs.filter(({ pkgName }) => !isPeerSatisfactionEdge(opts.peerSatisfactionEdges, depPath, pkgName))
+  }
+  const { depEdges, importerIds } = parseDepRefs(depRefs, ctx.lockfile)
   for (const importerId of importerIds) {
     ctx.importerIdSet.add(importerId)
   }

@@ -1,10 +1,10 @@
-use pacquet_network::{ThrottledClient, redact_and_sanitize};
-use pacquet_network_web_auth::{
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network_web_auth::{
     AuthUrlMessage, Clock, EnterKeyListener, OpenUrl, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
     WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, format_auth_url_message,
     poll_for_web_auth_token, prompt_browser_open,
 };
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use super::{error::LoginError, global_info, registry_join};
@@ -31,7 +31,10 @@ where
 
     let json = serde_json::from_str::<Value>(&response.body).unwrap_or(Value::Null);
     let read = |field: &str| {
-        json.get(field).and_then(Value::as_str).filter(|value| !value.is_empty()).map(str::to_owned)
+        json.get(field)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
     };
     let (Some(auth_url), Some(done_url)) = (read("loginUrl"), read("doneUrl")) else {
         return Err(WebLoginFlowError::InvalidResponse);

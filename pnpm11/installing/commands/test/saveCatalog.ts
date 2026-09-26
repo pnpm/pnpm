@@ -84,13 +84,15 @@ test('saveCatalogName works with different protocols', async () => {
     .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 
-  const options = createOptions()
-  options.registries['@jsr'] = 'https://npm.jsr.io/'
+  // Override the TLS and socket defaults to keep requests on the global mock dispatcher.
+  const options = { ...createOptions(), strictSsl: true, maxSockets: 0 }
+  options.registriesByScope['@jsr'] = 'https://npm.jsr.io/'
   await add.handler(options, [
     '@pnpm.e2e/foo@100.1.0',
     'jsr:@rus/greet@0.0.3',
     'github:kevva/is-positive#97edff6',
   ])
+  getMockAgent().assertNoPendingInterceptors()
 
   expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies'], {
     '@pnpm.e2e/foo': 'catalog:',
@@ -165,9 +167,7 @@ test('saveCatalogName does not work with local dependencies', async () => {
     version: '0.0.0',
     private: true,
     dependencies: {
-      'local-dep': process.platform === 'win32'
-        ? 'link:..\\local-dep'
-        : 'link:../local-dep',
+      'local-dep': 'link:../local-dep',
     },
   })
 

@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use pacquet_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{
     prune_target_within_modules, prune_virtual_store, same_dir, should_prune_virtual_store,
@@ -100,12 +100,24 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
     let removed = prune_virtual_store(vsdir, keys.iter(), &skipped, max);
 
     assert_eq!(removed, Some(2));
-    assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
-    assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
+    assert!(
+        vsdir
+            .join(keep.to_virtual_store_name(max))
+            .exists(),
+    );
+    assert!(
+        vsdir
+            .join(keep_peer.to_virtual_store_name(max))
+            .exists(),
+    );
     assert!(vsdir.join("node_modules").exists());
     assert!(vsdir.join("lock.yaml").exists());
     assert!(!vsdir.join("surplus@9.9.9").exists());
-    assert!(!vsdir.join(skipped_key.to_virtual_store_name(max)).exists());
+    assert!(
+        !vsdir
+            .join(skipped_key.to_virtual_store_name(max))
+            .exists(),
+    );
 }
 
 #[test]
@@ -140,7 +152,7 @@ fn prune_target_must_be_inside_node_modules() {
     fs::create_dir_all(&inside).unwrap();
     assert_eq!(
         prune_target_within_modules(&inside, &modules),
-        Some(fs::canonicalize(&inside).unwrap()),
+        Some(dunce::canonicalize(&inside).unwrap()),
     );
 
     assert_eq!(prune_target_within_modules(&modules, &modules), None);
@@ -152,7 +164,7 @@ fn prune_target_must_be_inside_node_modules() {
     let not_created = modules.join("not-created-yet");
     assert_eq!(
         prune_target_within_modules(&not_created, &modules),
-        Some(fs::canonicalize(&modules).unwrap().join("not-created-yet")),
+        Some(dunce::canonicalize(&modules).unwrap().join("not-created-yet")),
     );
 
     // A not-yet-created path that escapes node_modules is refused even though
@@ -162,10 +174,42 @@ fn prune_target_must_be_inside_node_modules() {
 }
 
 #[test]
+fn missing_modules_dir_is_not_a_prune_root() {
+    let root = tempfile::tempdir().unwrap();
+    let modules = root.path().join("node_modules");
+
+    assert_eq!(prune_target_within_modules(&modules.join(".pnpm"), &modules), None);
+}
+
+#[test]
 fn same_dir_matches_equivalent_paths() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("store");
     fs::create_dir_all(&store).unwrap();
     assert!(same_dir(&store, &store.join(".")));
     assert!(!same_dir(&store, dir.path()));
+}
+
+#[test]
+fn sweep_preserves_an_in_progress_lockfile_write() {
+    use std::io::Write;
+
+    let store = tempfile::tempdir().unwrap();
+    for name in ["lock.yaml.123456789", ".lock.yaml.123.456.tmp"] {
+        fs::create_dir(store.path().join("surplus@1.0.0")).unwrap();
+        fs::write(store.path().join("stray-file"), "remove").unwrap();
+        let pending_path = store.path().join(name);
+        let mut pending = fs::File::create_new(&pending_path).unwrap();
+        pending.write_all(b"pending lockfile").unwrap();
+        pending.flush().unwrap();
+
+        let removed = prune_virtual_store(store.path(), [].iter(), &SkippedSnapshots::new(), 120);
+
+        assert_eq!(removed, Some(2));
+        drop(pending);
+        let destination = store.path().join("lock.yaml");
+        fs::rename(pending_path, &destination).unwrap();
+        assert_eq!(fs::read_to_string(destination).unwrap(), "pending lockfile");
+        assert!(!store.path().join("stray-file").exists());
+    }
 }

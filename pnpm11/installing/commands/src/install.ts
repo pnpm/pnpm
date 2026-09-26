@@ -334,6 +334,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'forceIgnoresPlatform'
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'
@@ -347,6 +348,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'optimisticRepeatInstall'
+| 'minimumReleaseAgeExcludePrune'
 | 'modulesDir'
 | 'nodeLinker'
 | 'packageProvider'
@@ -354,7 +356,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'
 | 'production'
-| 'registries'
+| 'registriesByScope'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -365,12 +367,14 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
+| 'sideEffectsCacheRead'
+| 'sideEffectsCacheWrite'
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'trustLockfile'
+| 'trustPolicyExcludePrune'
+| 'tryLoadDefaultPnpmfile'
 | 'allowBuilds'
 | 'optional'
 | 'virtualStoreDir'
@@ -401,6 +405,9 @@ export type InstallCommandOptions = Pick<Config,
     original: string[]
     remain?: string[]
   }
+  /** See {@link InstallDepsOptions.excludeWorkspaceRootProject}. */
+  excludeWorkspaceRootProject?: boolean
+  deploy?: boolean
   fixLockfile?: boolean
   updateChecksums?: boolean
   frozenLockfileIfExists?: boolean
@@ -411,7 +418,10 @@ export type InstallCommandOptions = Pick<Config,
   recursive?: boolean
   resolutionOnly?: boolean
   saveLockfile?: boolean
+  /** See {@link InstallDepsOptions.saveWorkspaceState}. */
+  saveWorkspaceState?: boolean
   workspace?: boolean
+  interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
   pnpmfile: string[]

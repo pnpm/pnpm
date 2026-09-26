@@ -119,7 +119,7 @@ test('installing a package that need authentication, using password', async () =
       [registry.replace(/^https?:/, '')]: { '@': { basicAuth: BASIC_AUTH_CREDENTIALS } },
     }
     await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
-      registries: { default: registry },
+      registriesByScope: { default: registry },
     }, {
       configByUri,
       registry,
@@ -144,7 +144,7 @@ test('a scoped package that need authentication specific to scope', async () => 
     [`//localhost:${REGISTRY_MOCK_PORT}/`]: { '@': { authToken: data.token } },
   }
   let opts = testDefaults({
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
@@ -164,7 +164,7 @@ test('a scoped package that need authentication specific to scope', async () => 
 
   // Recreating options to have a new storeController with clean cache
   opts = testDefaults({
-    registries: {
+    registriesByScope: {
       default: 'https://registry.npmjs.org/',
       '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
@@ -187,7 +187,7 @@ test('a scoped package that need legacy authentication specific to scope', async
       [registry.replace(/^https?:/, '')]: { '@': { basicAuth: BASIC_AUTH_CREDENTIALS } },
     }
     let opts = testDefaults({
-      registries: {
+      registriesByScope: {
         default: 'https://registry.npmjs.org/',
         '@private': registry,
       },
@@ -207,7 +207,7 @@ test('a scoped package that need legacy authentication specific to scope', async
 
     // Recreating options to have a new storeController with clean cache
     opts = testDefaults({
-      registries: {
+      registriesByScope: {
         default: 'https://registry.npmjs.org/',
         '@private': registry,
       },
@@ -236,7 +236,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { '@': { authToken: data.token } },
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
-    registries: {
+    registriesByScope: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
@@ -262,7 +262,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/`]: { '@': { authToken: data.token } },
   }
   let opts = testDefaults({
-    registries: {
+    registriesByScope: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {
@@ -280,7 +280,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   // Recreating options to clean store cache
   opts = testDefaults({
-    registries: {
+    registriesByScope: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
   }, {

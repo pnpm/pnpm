@@ -28,7 +28,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     // `pnpm publish` and the resolvers actually use.
     if (key.endsWith(':registry')) {
       const scope = key.slice(0, key.length - ':registry'.length)
-      const merged = opts._config.registries?.[scope]
+      const merged = opts._config.registriesByScope?.[scope]
       if (merged !== undefined) {
         return { value: merged }
       }
@@ -39,6 +39,12 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
     return { value: getGlobalConfigPath(opts.configDir) }
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key
+  // The merged map is what resolvers use, so `registry` answers the same
+  // default the resolved `registries` view declares as the bare `@` scope —
+  // a raw `.npmrc` value would contradict it.
+  if (kebabKey === 'registry') {
+    return { value: opts._config.registriesByScope?.default ?? opts.authConfig.registry }
+  }
   // Resolve typed keys from Config — check explicitly set values first,
   // then fall back to authConfig (for keys like registry set in .npmrc)
   if (Object.hasOwn(types, kebabKey)) {

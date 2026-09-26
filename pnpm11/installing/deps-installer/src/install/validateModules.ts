@@ -12,7 +12,7 @@ import { logger } from '@pnpm/logger'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectRootDir,
-  type Registries,
+  type RegistriesByScope,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
@@ -45,7 +45,7 @@ export async function validateModules (
     include?: IncludedDependencies
     lockfileDir: string
     modulesDir: string
-    registries: Registries
+    registriesByScope: RegistriesByScope
     storeDir: string
     virtualStoreDir: string
     virtualStoreDirMaxLength: number

@@ -7,10 +7,12 @@
 
 use std::{future::Future, path::PathBuf, pin::Pin, process::Command, sync::Arc, time::Duration};
 
-use pacquet_network::ThrottledClient;
+use pnpm_network::{AddressGuard, ThrottledClient};
+use reqwest::StatusCode;
 
 use crate::{
     git_resolver::{GitProbe, ProbeFuture},
+    pinned_remote::pinned_git_config,
     resolve_ref::{GitCommandRunner, GitRunError},
 };
 
@@ -40,27 +42,8 @@ impl GitProbe for RealGitProbe {
         Box::pin(async move {
             let mut delay = Duration::from_millis(500);
             for attempt in 0..3 {
-                // Scoped so the throttle permit is released before any
-                // backoff sleep.
-                let status = {
-                    let guard = self.http_client.acquire_for_url(url).await;
-                    guard
-                        .head(url)
-                        .timeout(self.head_timeout)
-                        .send()
-                        .await
-                        .map(|response| response.status())
-                        .ok()
-                };
-                if let Some(status) = status {
-                    if status.is_success() {
-                        return true;
-                    }
-                    let transient = status.is_server_error()
-                        || matches!(status.as_u16(), 408 | 409 | 420 | 429);
-                    if !transient {
-                        return false;
-                    }
+                if let Some(verdict) = probe_verdict(self.head_status(url).await) {
+                    return verdict;
                 }
                 if attempt < 2 {
                     tokio::time::sleep(delay).await;
@@ -70,6 +53,32 @@ impl GitProbe for RealGitProbe {
             false
         })
     }
+}
+
+impl RealGitProbe {
+    async fn head_status(&self, url: &str) -> Option<StatusCode> {
+        // Scoped so the throttle permit is released before any backoff sleep
+        // the caller does.
+        let guard = self.http_client.acquire_for_url(url).await;
+        guard
+            .head(url)
+            .timeout(self.head_timeout)
+            .send()
+            .await
+            .map(|response| response.status())
+            .ok()
+    }
+}
+
+/// The answer a HEAD attempt settles, or `None` when the failure is
+/// transient and the probe should try again.
+fn probe_verdict(status: Option<StatusCode>) -> Option<bool> {
+    let status = status?;
+    if status.is_success() {
+        return Some(true);
+    }
+    let transient = status.is_server_error() || matches!(status.as_u16(), 408 | 409 | 420 | 429);
+    if transient { None } else { Some(false) }
 }
 
 /// Production [`GitCommandRunner`].
@@ -83,12 +92,22 @@ impl GitProbe for RealGitProbe {
 /// attempt on transient failure.
 pub struct RealGitRunner {
     pub git_bin: Option<PathBuf>,
+    /// When set, `git ls-remote` connects to an `http(s)` remote only at
+    /// addresses this admits, resolved before git runs. Other transports are
+    /// not pinned.
+    pub connect_guard: Option<AddressGuard>,
 }
 
 impl RealGitRunner {
     #[must_use]
     pub fn new() -> Self {
-        Self { git_bin: None }
+        Self { git_bin: None, connect_guard: None }
+    }
+
+    #[must_use]
+    pub fn with_connect_guard(mut self, connect_guard: Option<AddressGuard>) -> Self {
+        self.connect_guard = connect_guard;
+        self
     }
 }
 
@@ -107,9 +126,14 @@ impl GitCommandRunner for RealGitRunner {
         let bin = self.git_bin.as_deref().map(std::path::Path::to_path_buf);
         let repo_owned = repo.to_string();
         let ref_owned = ref_.map(str::to_string);
+        let connect_guard = self.connect_guard.clone();
         Box::pin(async move {
+            let config = match connect_guard {
+                Some(guard) => pinned_git_config(&repo_owned, guard).await?,
+                None => Vec::new(),
+            };
             tokio::task::spawn_blocking(move || {
-                run_ls_remote_blocking(bin.as_ref(), &repo_owned, ref_owned.as_ref())
+                run_ls_remote_blocking(bin.as_ref(), &config, &repo_owned, ref_owned.as_ref())
             })
             .await
             .map_err(|err| GitRunError { message: format!("ls-remote task panicked: {err}") })?
@@ -119,13 +143,14 @@ impl GitCommandRunner for RealGitRunner {
 
 fn run_ls_remote_blocking(
     bin: Option<&PathBuf>,
+    config: &[String],
     repo: &str,
     ref_: Option<&String>,
 ) -> Result<String, GitRunError> {
     let attempts = 2; // matches upstream `graceful-git` retries: 1
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let mut cmd = ls_remote_command(bin, repo, ref_.map(String::as_str));
+        let mut cmd = ls_remote_command(bin, config, repo, ref_.map(String::as_str));
         let output = cmd.output();
         match output {
             Ok(out) if out.status.success() => {
@@ -135,7 +160,7 @@ fn run_ls_remote_blocking(
                 last_err = Some(String::from_utf8_lossy(&out.stderr).into_owned());
             }
             Err(err) => {
-                last_err = Some(err.to_string());
+                last_err = Some(spawn_failure(&err));
             }
         }
     }
@@ -144,15 +169,34 @@ fn run_ls_remote_blocking(
     })
 }
 
-fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> Command {
+/// pnpm does not bundle git, so a missing binary is a setup problem rather
+/// than a transport one and is worth saying outright.
+fn spawn_failure(err: &std::io::Error) -> String {
+    if err.kind() == std::io::ErrorKind::NotFound {
+        return "`git` executable not found on PATH. Install git to resolve git-hosted packages."
+            .to_string();
+    }
+    err.to_string()
+}
+
+fn ls_remote_command(
+    bin: Option<&PathBuf>,
+    config: &[String],
+    repo: &str,
+    ref_: Option<&str>,
+) -> Command {
     let mut cmd = match bin {
         Some(bin) => Command::new(bin),
         None => Command::new("git"),
     };
-    cmd.env("GIT_TERMINAL_PROMPT", "0");
+    pnpm_git_utils::disable_git_prompts::<pnpm_git_utils::Host>(&mut cmd, None);
+    for setting in config {
+        cmd.arg("-c").arg(setting);
+    }
     cmd.arg("ls-remote").arg("--").arg(repo);
     if let Some(ref_) = ref_ {
-        cmd.arg(ref_).arg(format!("{ref_}^{{}}"));
+        cmd.arg(ref_)
+            .arg(format!("{ref_}^{{}}"));
     }
     cmd
 }

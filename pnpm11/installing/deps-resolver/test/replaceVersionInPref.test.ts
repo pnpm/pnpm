@@ -8,6 +8,9 @@ test('replaceVersionInBareSpecifier()', () => {
   expect(replaceVersionInBareSpecifier('npm:@foo/bar@^1.0.0', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
   expect(replaceVersionInBareSpecifier('npm:foo', '1.1.0')).toBe('npm:foo@1.1.0')
   expect(replaceVersionInBareSpecifier('npm:@foo/bar', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
+  expect(replaceVersionInBareSpecifier('jsr:^1.0.0', '1.1.0')).toBe('jsr:1.1.0')
+  expect(replaceVersionInBareSpecifier('jsr:@foo/bar@^1.0.0', '1.1.0')).toBe('jsr:@foo/bar@1.1.0')
+  expect(replaceVersionInBareSpecifier('jsr:@foo/bar', '1.1.0')).toBe('jsr:@foo/bar@1.1.0')
 })
 
 test('replaceVersionInBareSpecifier() applies the fast path to configured named-registry prefixes', () => {
@@ -17,6 +20,7 @@ test('replaceVersionInBareSpecifier() applies the fast path to configured named-
   const prefixes = ['gh:', 'work:']
   expect(replaceVersionInBareSpecifier('gh:^1.0.0', '1.1.0', prefixes)).toBe('gh:1.1.0')
   expect(replaceVersionInBareSpecifier('gh:@acme/foo@^1.0.0', '1.1.0', prefixes)).toBe('gh:@acme/foo@1.1.0')
+  expect(replaceVersionInBareSpecifier('gh:foo', '1.1.0', prefixes)).toBe('gh:foo@1.1.0')
   expect(replaceVersionInBareSpecifier('gh:@acme/foo', '1.1.0', prefixes)).toBe('gh:@acme/foo@1.1.0')
   expect(replaceVersionInBareSpecifier('work:@corp/lib@^2.0.0', '2.1.0', prefixes)).toBe('work:@corp/lib@2.1.0')
 })

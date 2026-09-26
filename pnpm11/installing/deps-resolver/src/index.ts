@@ -1,18 +1,20 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
+import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { verifyPatches } from '@pnpm/patching.config'
+import { findLockedRootNodeRuntime, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   getAllDependenciesFromManifest,
@@ -35,6 +37,7 @@ import {
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { difference, zipWith } from 'ramda'
+import semver from 'semver'
 
 import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
@@ -58,6 +61,7 @@ import {
 import { toResolveImporter } from './toResolveImporter.js'
 import { updateLockfile } from './updateLockfile.js'
 import { updateProjectManifest } from './updateProjectManifest.js'
+import { wantedDepShouldUpdateCatalog } from './wantedDepShouldUpdateCatalog.js'
 
 export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 
@@ -71,6 +75,7 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
 interface ProjectToLink {
@@ -88,17 +93,24 @@ interface ProjectToLink {
 }
 
 export interface ImporterToResolve extends Importer<{
-  isNew?: boolean
   nodeExecPath?: string
   rangeSpecStyle?: RangeSpecStyle
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
   peer?: boolean
+  peerAliases?: Set<string>
   rangeSpecStyle?: RangeSpecStyle
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  /**
+   * Tells a declared range the update owns from one an override governs, so
+   * `updateProjectManifest` leaves the latter where the project wrote it.
+   * Built per project by `@pnpm/hooks.read-package-hook`.
+   */
+  isOverriddenDependency?: (alias: string, bareSpecifier: string) => boolean
+  hookOwnedAliases?: Set<string>
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
@@ -159,8 +171,9 @@ export async function resolveDependencies (
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
+    autoInstallPeers: opts.autoInstallPeers,
     defaultUpdateDepth: opts.defaultUpdateDepth,
-    lockfileOnly: opts.dryRun,
+    hideAlienModules: !opts.dryRun || opts.hideAlienModules === true,
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     globalVirtualStoreDir: opts.globalVirtualStoreDir,
@@ -174,7 +187,6 @@ export async function resolveDependencies (
     resolvedImporters,
     resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches,
     time,
     allPeerDepNames,
     resolutionPolicyViolations,
@@ -208,19 +220,6 @@ export async function resolveDependencies (
   }
 
   opts.storeController.clearResolutionCache()
-
-  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
-  if (
-    opts.patchedDependencies &&
-    (opts.forceFullResolution || !Object.keys(opts.wantedLockfile.packages ?? {})?.length) &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
-  ) {
-    verifyPatches({
-      patchedDependencies: opts.patchedDependencies,
-      appliedPatches,
-      allowUnusedPatches: opts.allowUnusedPatches,
-    })
-  }
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -304,6 +303,7 @@ export async function resolveDependencies (
     })
     : initiallyResolvedPeers
 
+  const preserveDedupedWorkspaceLinks = Boolean(opts.dedupeInjectedDeps)
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -396,7 +396,7 @@ export async function resolveDependencies (
       const previousRef = previousDirectRefs[alias]
       const targetedByUpdate = updateTargetedAliases.has(alias) ||
         (updateMatching?.(depNode.name) ?? false)
-      if (!targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
+      if (preserveDedupedWorkspaceLinks && !targetedByUpdate && ref.startsWith('file:') && previousRef?.startsWith('link:')) {
         ref = previousRef
       }
       if (projectSnapshot.dependencies?.[alias]) {
@@ -414,8 +414,7 @@ export async function resolveDependencies (
     if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
-      const updateSpec = project.wantedDependencies[i]?.updateSpec ?? false
-      if (!updateSpec) continue
+      if (!wantedDepShouldUpdateCatalog(project.wantedDependencies[i])) continue
       const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
       // If normalizedBareSpecifier isn't defined, this catalog entry was resolved from cache.
@@ -423,7 +422,9 @@ export async function resolveDependencies (
       if (dep.normalizedBareSpecifier == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
+        ? dep.version
+        : dep.normalizedBareSpecifier
     }
   }
 
@@ -447,8 +448,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
     prefix: opts.virtualStoreDir,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    ...pickRegistryContext(opts),
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {
@@ -461,6 +461,17 @@ export async function resolveDependencies (
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
+
+  if (
+    opts.patchedDependencies &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches({
+      patchedDependencies: opts.patchedDependencies,
+      appliedPatches: getAppliedPatchKeys(newLockfile, opts.patchedDependencies),
+      allowUnusedPatches: opts.allowUnusedPatches,
+    })
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -485,11 +496,32 @@ export async function resolveDependencies (
   }
 }
 
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+}
+
 function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {
   for (const node of dependenciesTree.values()) {
     if (node.lockedPeerContext != null) return true
   }
   return false
+}
+
+function getAppliedPatchKeys (
+  lockfile: LockfileObject,
+  patchedDependencies: PatchGroupRecord
+): Set<string> {
+  const appliedPatchKeys = new Set<string>()
+  for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
+    if (!depPath.includes('(patch_hash=')) continue
+    const { patchHash } = parseDepPath(depPath)
+    if (patchHash == null) continue
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    if (version == null) continue
+    const patch = getPatchInfo(patchedDependencies, name, version)
+    if (patch != null && patchHash === `(patch_hash=${patch.hash})`) appliedPatchKeys.add(patch.key)
+  }
+  return appliedPatchKeys
 }
 
 function addDirectDependenciesToLockfile (
@@ -508,6 +540,9 @@ function addDirectDependenciesToLockfile (
 
   if (newManifest.publishConfig?.directory) {
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
+    if (newManifest.publishConfig.linkDirectory === false) {
+      newProjectSnapshot.linkDirectory = false
+    }
   }
 
   for (const linkedPkg of linkedPackages) {
@@ -637,19 +672,19 @@ function extendGraph (
     enableGlobalVirtualStore?: boolean
     lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
+    wantedLockfile: LockfileObject
   }
 ): DependenciesGraph {
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  // Anchor every snapshot's engine hash to the project-pinned Node
-  // version (from `engines.runtime` / `devEngines.runtime`) when the
-  // resolver produced one — the graph carries it as a
-  // `node@runtime:<version>` key. Without this, GVS slots for
-  // approved-build packages would hash under the runner's
-  // `process.version` instead of the script-runner Node, splitting
-  // the cache between pinned and non-pinned installs on the same host.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
+  // Anchor every snapshot's engine hash to the root project's pinned
+  // Node version (from `engines.runtime` / `devEngines.runtime`).
+  // Without this, GVS slots for approved-build packages would hash
+  // under the runner's `process.version` instead of the script-runner
+  // Node, splitting the cache between pinned and non-pinned installs
+  // on the same host.
+  const nodeVersion = findLockedRootNodeRuntime(opts.wantedLockfile)?.version
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
     allowBuild,
     supportedArchitectures: opts.supportedArchitectures,

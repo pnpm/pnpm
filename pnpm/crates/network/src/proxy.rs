@@ -2,12 +2,13 @@
 //! [`crate::ThrottledClient::for_installs`].
 //!
 //! [`ProxyConfig`] holds the resolved `(https_proxy, http_proxy, no_proxy)`
-//! triple — typically built by `pacquet-config` from the `.npmrc` keys
+//! triple — typically built by `pnpm-config` from the `.npmrc` keys
 //! `https-proxy`, `http-proxy`, `proxy` (legacy), `no-proxy` and
 //! `noproxy`, plus the env-var fallback cascade. [`NoProxyMatcher`] and
 //! the URL helpers are private to the crate; they're invoked from the
 //! client constructor.
 
+use crate::percent_decode_str;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use reqwest::Url;
@@ -15,10 +16,10 @@ use reqwest::Url;
 /// Resolved proxy configuration after the `.npmrc` + env cascade has run.
 ///
 /// All three fields are `None` when no proxy is configured. Built once
-/// inside `pacquet_config::Config::current` and threaded into the
+/// inside `pnpm_config::Config::current` and threaded into the
 /// install client by [`crate::ThrottledClient::for_installs`]. Lives in
-/// `pacquet-network` (rather than `pacquet-config`) because
-/// `pacquet-config` already depends on `pacquet-network` for the auth
+/// `pnpm-network` (rather than `pnpm-config`) because
+/// `pnpm-config` already depends on `pnpm-network` for the auth
 /// plumbing, so adding the reverse direction would form a cycle.
 ///
 /// An empty proxy string means "no proxy", never "an invalid proxy URL":
@@ -98,12 +99,13 @@ pub(crate) fn parse_proxy_url(raw: &str) -> Result<Url, ProxyError> {
     {
         return Ok(url);
     }
-    Url::parse(&format!("http://{raw}")).ok().filter(|url| url.host().is_some()).ok_or_else(|| {
-        ProxyError::InvalidProxy {
+    Url::parse(&format!("http://{raw}"))
+        .ok()
+        .filter(|url| url.host().is_some())
+        .ok_or_else(|| ProxyError::InvalidProxy {
             url: raw.to_string(),
             reason: "could not parse as an authority-bearing URL".to_string(),
-        }
-    })
+        })
 }
 
 /// Split a proxy URL into its userless form and the
@@ -117,7 +119,10 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
         return (url, None);
     }
     let user = percent_decode_str(raw_user);
-    let pass = url.password().map(percent_decode_str).unwrap_or_default();
+    let pass = url
+        .password()
+        .map(percent_decode_str)
+        .unwrap_or_default();
     // `set_username("")` and `set_password(None)` cannot fail on a URL
     // that already parsed successfully (the scheme is by definition
     // one that supports authority).
@@ -126,49 +131,17 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
     (url, Some((user, pass)))
 }
 
-/// Minimal percent-decoder for the user/password halves of a proxy URL
-/// userinfo.
-///
-/// Unlike JavaScript's `decodeURIComponent`, which throws `URIError` on
-/// malformed `%XX` sequences (e.g. `%ZZ`), this function intentionally
-/// keeps invalid sequences verbatim. The lenient fallback matches what
-/// pnpm's interpreter does in practice (a thrown error during proxy
-/// setup would surface as `ERR_PNPM_INVALID_PROXY`, but pnpm's flow
-/// doesn't validate that strictly either), and is the safer choice in
-/// a config path where the alternative is rejecting a half-broken
-/// password value.
-///
-/// Hand-rolled rather than pulling in `percent-encoding` as a direct
-/// workspace dep because the only call sites are the two halves of a
-/// proxy URL userinfo. The substitution table is exactly the
-/// `%XX → byte` form plus pass-through.
-pub(crate) fn percent_decode_str(text: &str) -> String {
-    let mut out = Vec::with_capacity(text.len());
-    let bytes = text.as_bytes();
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[idx + 1..idx + 3]).ok();
-            if let Some(byte) = hex.and_then(|hex_digits| u8::from_str_radix(hex_digits, 16).ok()) {
-                out.push(byte);
-                idx += 3;
-                continue;
-            }
-        }
-        out.push(bytes[idx]);
-        idx += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
 /// Pre-built reverse-dot-segment lookup table for the no-proxy bypass.
 ///
 /// Each entry's dot-segments are reversed at construction, and a host
 /// matches when the entry's reversed segments are a prefix of the
 /// host's reversed segments. `npmjs.org` thus matches
 /// `registry.npmjs.org` and `foo.bar.npmjs.org` but not
-/// `evilnpmjs.org`. Empty entries (from stray commas) never match.
-#[derive(Debug)]
+/// `evilnpmjs.org`. A leading dot (`.npmjs.org`) is the conventional
+/// spelling of the same rule, so entries and hosts are normalized with
+/// [`reverse_dot_segments`] and match alike. Empty entries (from stray
+/// commas) never match.
+#[derive(Debug, Default)]
 pub(crate) struct NoProxyMatcher {
     bypass: bool,
     entries: Vec<Vec<String>>,
@@ -183,7 +156,7 @@ impl NoProxyMatcher {
                 bypass: false,
                 entries: list
                     .iter()
-                    .map(|entry| entry.split('.').rev().map(str::to_string).collect())
+                    .map(|entry| reverse_dot_segments(entry).map(str::to_string).collect())
                     .collect(),
             },
         }
@@ -193,12 +166,17 @@ impl NoProxyMatcher {
         if self.bypass {
             return true;
         }
-        let host_rev: Vec<&str> = host.split('.').rev().collect();
-        self.entries.iter().any(|entry_rev| {
-            !entry_rev.is_empty()
-                && entry_rev.len() <= host_rev.len()
-                && entry_rev.iter().zip(host_rev.iter()).all(|(a, b)| a == b)
-        })
+        let host_rev: Vec<&str> = reverse_dot_segments(host).collect();
+        self.entries
+            .iter()
+            .any(|entry_rev| {
+                !entry_rev.is_empty()
+                    && entry_rev.len() <= host_rev.len()
+                    && entry_rev
+                        .iter()
+                        .zip(host_rev.iter())
+                        .all(|(a, b)| a == b)
+            })
     }
 
     pub(crate) fn matches_url(&self, url: &Url) -> bool {
@@ -207,4 +185,18 @@ impl NoProxyMatcher {
             None => false,
         }
     }
+}
+
+/// Split a `no-proxy` entry or a candidate host into dot-segments,
+/// most-significant label first.
+///
+/// Empty segments are dropped so a leading dot (`.npmjs.org`), a
+/// trailing root dot (`npmjs.org.`), and a doubled dot all normalize to
+/// the same segment list. Both sides of the comparison in
+/// [`NoProxyMatcher::matches_host`] go through this, so the entry and
+/// the host are always segmented the same way.
+fn reverse_dot_segments(host: &str) -> impl Iterator<Item = &str> {
+    host.split('.')
+        .filter(|segment| !segment.is_empty())
+        .rev()
 }

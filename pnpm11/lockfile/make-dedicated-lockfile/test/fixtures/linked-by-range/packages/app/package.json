@@ -1,0 +1,8 @@
+{
+  "name": "range-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "@dedicated-lockfile-test/range-lib": "^1.0.0",
+    "is-positive": "1.0.0"
+  }
+}

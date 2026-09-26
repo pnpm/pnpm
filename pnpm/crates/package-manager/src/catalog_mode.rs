@@ -10,14 +10,20 @@
 //!   rewritten to `catalog:` / `catalog:<name>` and, when no entry
 //!   exists yet, recorded for write-back to `pnpm-workspace.yaml`.
 
+use crate::is_workspace_local_path_specifier;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use node_semver::Version;
-use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use pacquet_config::CatalogMode;
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use node_semver::{Range, Version};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_config::CatalogMode;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
+use pnpm_resolving_npm_resolver::calc_version_range;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -114,6 +120,10 @@ pub(crate) fn decide_catalog_outcome(
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
+    if is_project_relative_path(dep.bare_specifier) {
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
+    }
+
     if catalog_mode == CatalogMode::Manual && save_catalog_name.is_none() {
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
@@ -135,11 +145,25 @@ pub(crate) fn decide_catalog_outcome(
         });
     }
 
+    decide_catalog_entry(catalog_mode, catalogs, dep, prefix, catalog_name, catalog_specifier)
+}
+
+fn decide_catalog_entry(
+    catalog_mode: CatalogMode,
+    catalogs: &Catalogs,
+    dep: &CatalogModeDep<'_>,
+    prefix: &str,
+    catalog_name: &str,
+    catalog_specifier: String,
+) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
     let wanted = WantedDependency {
         alias: dep.alias.to_string(),
         bare_specifier: catalog_specifier.clone(),
     };
-    let entry = match resolve_from_catalog(catalogs, &wanted) {
+    // The entry is compared against the specifier `pnpm add` was given
+    // and repeated back in a mismatch error, never installed from, so it
+    // reads best exactly as `pnpm-workspace.yaml` writes it.
+    let entry = match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => found.resolution.specifier,
         _ => {
             return Ok(CatalogDecisionOutcome {
@@ -155,16 +179,27 @@ pub(crate) fn decide_catalog_outcome(
         }
     };
 
-    if versions_equal(dep.bare_specifier, &entry) {
+    if catalog_covers(&entry, dep.bare_specifier) {
+        let updated_entry = moved_catalog_entry(&entry, dep.bare_specifier)
+            .map(|specifier| CatalogEntry { catalog_name: catalog_name.to_string(), specifier });
         return Ok(CatalogDecisionOutcome {
             decision: CatalogDecision::Catalog {
                 manifest_specifier: catalog_specifier,
-                updated_entry: None,
+                updated_entry,
             },
             warning: None,
         });
     }
 
+    catalog_mismatch(catalog_mode, dep, prefix, &entry)
+}
+
+fn catalog_mismatch(
+    catalog_mode: CatalogMode,
+    dep: &CatalogModeDep<'_>,
+    prefix: &str,
+    entry: &str,
+) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
     match catalog_mode {
         CatalogMode::Strict => Err(CatalogVersionMismatchError {
             catalog_dep: format!("{}@{entry}", dep.alias),
@@ -187,20 +222,50 @@ pub(crate) fn decide_catalog_outcome(
     }
 }
 
-/// Equal only when **both** specifiers are concrete semver versions that
-/// compare equal. A range (e.g. `^2.0.0`) fails [`Version::parse`], so it
-/// never reaches the comparison — the Rust analogue of pnpm guarding
-/// `semver.eq` with `semver.valid`
-/// ([pnpm#11706](https://github.com/pnpm/pnpm/pull/11706)). Passing a
-/// range to an exact-version comparison is the bug that fix prevents.
-fn versions_equal(lhs: &str, rhs: &str) -> bool {
-    matches!((Version::parse(lhs), Version::parse(rhs)), (Ok(left), Ok(right)) if left == right)
+/// Whether `specifier` names a path resolved against the project that
+/// declares it — a `file:` / `link:` protocol, a bare path or tarball
+/// filename, or a `workspace:` pointing at a directory rather than a range.
+///
+/// A catalog measures such a path from `pnpm-workspace.yaml`'s own
+/// directory, so moving the specifier into one would point it somewhere
+/// else than where `pnpm add` was run. Auto-cataloging leaves it alone
+/// and keeps the dependency direct.
+fn is_project_relative_path(specifier: &str) -> bool {
+    is_local_filesystem_specifier(specifier) || is_workspace_local_path_specifier(specifier)
+}
+
+/// Whether the catalog entry already covers the wanted specifier, so the
+/// dependency can keep resolving through the catalog: the entry names the
+/// same specifier, or it is a range the wanted version satisfies.
+///
+/// A wanted range has to match the entry exactly. Keeping the catalog swaps
+/// the wanted range for the entry's, so a merely narrower range would drop
+/// what the dependency asked for, and pnpm does not widen the entry to make
+/// room for it. A wanted version is different: `pnpm add` moves the catalog
+/// onto the version it names.
+pub(crate) fn catalog_covers(entry: &str, wanted: &str) -> bool {
+    entry == wanted
+        || matches!((Range::parse(entry), Version::parse(wanted)), (Ok(entry), Ok(wanted)) if entry.satisfies(&wanted))
+}
+
+/// The catalog entry that pins `wanted` under the operator `entry` declares,
+/// or `None` when the entry stays as written: `wanted` is not a version, or
+/// the entry is a range no single operator describes, such as
+/// `>=1.2.0 <2.0.0`.
+///
+/// A covered version still moves the entry, so the version `add` or `update`
+/// asked for is the one the whole catalog resolves to from then on. The range
+/// is written the way `update` writes one it bumps to a resolved version.
+fn moved_catalog_entry(entry: &str, wanted: &str) -> Option<String> {
+    let version = Version::parse(wanted).ok()?;
+    let moved = calc_version_range(&version, Some(entry), None, RangeSpecStyle::Major);
+    (moved != entry).then_some(moved)
 }
 
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
 /// specifier pins the named group; otherwise the global `--save-catalog-name`,
 /// falling back to the default catalog.
-fn per_dep_catalog_name<'a>(
+pub(crate) fn per_dep_catalog_name<'a>(
     prev_specifier: Option<&'a str>,
     save_catalog_name: Option<&'a str>,
 ) -> &'a str {

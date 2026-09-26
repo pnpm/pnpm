@@ -67,7 +67,7 @@ test('createPackageVersionPolicy()', () => {
   }
   {
     const match = createPackageVersionPolicy(['axios@1.12.2', 'axios'])
-    expect(match('axios')).toStrictEqual(['1.12.2'])
+    expect(match('axios')).toBe(true)
   }
   {
     const match = createPackageVersionPolicy(['axios', 'axios@1.12.2'])
@@ -75,11 +75,16 @@ test('createPackageVersionPolicy()', () => {
   }
   {
     const match = createPackageVersionPolicy(['axios@1.12.2', 'ax*'])
-    expect(match('axios')).toStrictEqual(['1.12.2'])
+    expect(match('axios')).toBe(true)
   }
   {
     const match = createPackageVersionPolicy(['ax*', 'axios@1.12.2'])
     expect(match('axios')).toBe(true)
+  }
+  {
+    const match = createPackageVersionPolicy('axios@1.12.2')
+    expect(match('axios')).toStrictEqual(['1.12.2'])
+    expect(match('lodash')).toBe(false)
   }
 })
 

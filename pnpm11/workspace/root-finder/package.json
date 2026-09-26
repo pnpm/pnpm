@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.root-finder",
-  "version": "1100.0.5",
+  "version": "1100.1.0",
   "description": "Finds the root of a pnpm workspace",
   "keywords": [
     "pnpm",
@@ -31,12 +31,16 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/workspace.package-patterns": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "empathic": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/workspace.root-finder": "workspace:*"
+    "@pnpm/workspace.root-finder": "workspace:*",
+    "tempy": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

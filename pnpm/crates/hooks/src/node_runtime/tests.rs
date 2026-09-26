@@ -1,4 +1,4 @@
-use super::{LoggerLevel, next_line_bounded, parse_logger_line};
+use super::output::{LoggerLevel, next_line_bounded, parse_logger_line};
 use tokio::io::BufReader;
 
 #[tokio::test]

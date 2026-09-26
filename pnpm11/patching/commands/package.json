@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.commands",
-  "version": "1100.1.21",
+  "version": "1101.0.6",
   "description": "Commands for creating patches",
   "keywords": [
     "pnpm",
@@ -44,6 +44,7 @@
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",

@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::fs;
 
@@ -13,14 +13,68 @@ fn test_runs_declared_test_script() {
         "name": "test-command",
         "version": "0.0.0",
         "scripts": {
-            "test": format!(r#"printf tested > "{}""#, marker.display()),
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("test").assert().success();
+    pacquet
+        .with_arg("test")
+        .assert()
+        .success();
 
-    assert_eq!(fs::read_to_string(marker).expect("read marker"), "tested");
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
+
+    drop(root);
+}
+
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell command")]
+#[test]
+fn t_alias_runs_declared_test_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("tested-t.txt");
+    let manifest = json!({
+        "name": "test-command",
+        "version": "0.0.0",
+        "scripts": {
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet.with_arg("t").assert().success();
+
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
+
+    drop(root);
+}
+
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell command")]
+#[test]
+fn tst_alias_runs_declared_test_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("tested-tst.txt");
+    let manifest = json!({
+        "name": "test-command",
+        "version": "0.0.0",
+        "scripts": {
+            "t": format!(r#"printf ran_t > "{}""#, marker.display()),
+            "tst": format!(r#"printf ran_tst > "{}""#, marker.display()),
+            "test": format!(r#"printf ran_test > "{}""#, marker.display()),
+        },
+    });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+
+    pacquet
+        .with_arg("tst")
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 
     drop(root);
 }
@@ -34,7 +88,10 @@ fn test_skips_missing_test_script() {
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.with_arg("test").assert().success();
+    pacquet
+        .with_arg("test")
+        .assert()
+        .success();
 
     drop(root);
 }

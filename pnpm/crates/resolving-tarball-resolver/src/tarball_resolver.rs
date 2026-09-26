@@ -3,18 +3,16 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::SilentReporter;
-use pacquet_resolving_resolver_base::{
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pacquet_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
-};
-use pacquet_tarball::{
-    FetchTarballForResolution, MemCache, PrefetchResult, RetryOpts, prefetch_cas_paths,
+use pnpm_tarball::{
+    FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
+    TarballError, prefetch_cas_paths,
 };
 use ssri::Integrity;
 
@@ -28,16 +26,9 @@ use ssri::Integrity;
 /// unit tests that exercise the HEAD/normalize/redirect logic in
 /// isolation — see [`TarballResolver`].
 pub struct TarballFetchContext {
-    pub store_dir: &'static StoreDir,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub mem_cache: Option<Arc<MemCache>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
-    /// Read-only store index, for reusing a warm tarball without a
-    /// re-download (see `reuse_from_warm_store`).
-    pub store_index: Option<SharedReadonlyStoreIndex>,
-    pub verify_store_integrity: bool,
-    pub verified_files_cache: SharedVerifiedFilesCache,
     /// What the prior lockfile recorded for each remote-tarball entry,
     /// keyed by `pkg_id`. Lets a re-resolve reuse the already-extracted
     /// store content instead of re-downloading. Empty on a first install.
@@ -46,6 +37,7 @@ pub struct TarballFetchContext {
     /// the resolver can look an entry up before the preflight that would
     /// reveal a redirect.
     pub prior_tarball_entries: Arc<HashMap<String, PriorTarballEntry>>,
+    pub store: pnpm_tarball::ArchiveStoreContext<'static>,
 }
 
 /// One remote-tarball entry carried over from the prior lockfile.
@@ -111,8 +103,9 @@ impl TarballResolver {
         // Round-trip through `Url::parse` to drop a redundant default
         // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
         // it reaches the lockfile.
-        let normalized_bare_specifier =
-            reqwest::Url::parse(bare).map_err(|err| Box::new(err) as ResolveError)?.to_string();
+        let normalized_bare_specifier = reqwest::Url::parse(bare)
+            .map_err(|err| Box::new(err) as ResolveError)?
+            .to_string();
 
         // Warm-store reuse: when the prior
         // lockfile recorded this exact tarball URL with an integrity and
@@ -130,35 +123,7 @@ impl TarballResolver {
             return Ok(Some(reused));
         }
 
-        let client = self.http_client.acquire_for_url(&normalized_bare_specifier).await;
-        let mut request = client.head(&normalized_bare_specifier);
-        // Authenticate the preflight the same way the resolve-time GET
-        // does (`auth_headers.for_url`), so a private tarball host isn't
-        // rejected here before `FetchTarballForResolution` runs.
-        if let Some(value) = self
-            .fetch_context
-            .as_ref()
-            .and_then(|ctx| ctx.auth_headers.for_url(&normalized_bare_specifier))
-        {
-            request = request.header("authorization", value);
-        }
-        let response = request.send().await.map_err(|err| Box::new(err) as ResolveError)?;
-
-        // If the upstream marks the response immutable, store the
-        // *post-redirect* URL so subsequent installs hit the
-        // canonical location directly. Mutable responses (and
-        // missing headers) keep the normalized request URL so the
-        // moving target gets revalidated next run.
-        let resolved_url = if response
-            .headers()
-            .get(reqwest::header::CACHE_CONTROL)
-            .and_then(|header| header.to_str().ok())
-            .is_some_and(|header| header.contains("immutable"))
-        {
-            response.url().to_string()
-        } else {
-            normalized_bare_specifier.clone()
-        };
+        let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
         // No store context (unit tests): keep the HEAD-only shape. The
         // download below is what fills `manifest` + `integrity`; without
@@ -180,25 +145,11 @@ impl TarballResolver {
         // extraction. Silent reporter: the install pass owns the
         // `resolved → found_in_store → imported` event ordering (see
         // `prefetching_resolver.rs`).
-        let resolved = FetchTarballForResolution {
-            http_client: &self.http_client,
-            store_dir: ctx.store_dir,
-            store_index_writer: ctx.store_index_writer.clone(),
-            package_url: &resolved_url,
-            // The bare specifier — not `resolved_url` — is this
-            // dependency's `pkg_id`: it is what the lockfile key carries
-            // and therefore what the install pass keys the store-index
-            // row by. The two differ when an immutable response
-            // redirects. Such tarballs carry no scoped-registry auth.
-            package_id: &normalized_bare_specifier,
-            auth_headers: &ctx.auth_headers,
-            retry_opts: ctx.retry_opts,
-            // A plain tarball is the package; its manifest is at the root.
-            manifest_subdir: None,
-        }
-        .run::<SilentReporter>(ctx.mem_cache.as_deref())
-        .await
-        .map_err(|err| Box::new(err) as ResolveError)?;
+        let resolved = self
+            .tarball_fetch(ctx, &normalized_bare_specifier, &resolved_url)
+            .run::<SilentReporter>(ctx.mem_cache.as_deref())
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
 
         Ok(Some(Self::head_only_result(
             wanted_dependency,
@@ -207,6 +158,71 @@ impl TarballResolver {
             Some(resolved.integrity),
             resolved.manifest.map(Arc::new),
         )))
+    }
+
+    /// The normalized specifier is the store package ID even when an immutable
+    /// redirect changes the download URL: the lockfile and install pass key the
+    /// store-index row by this ID. The manifest is at the tarball root.
+    fn tarball_fetch<'a>(
+        &'a self,
+        ctx: &'a TarballFetchContext,
+        normalized_bare_specifier: &'a str,
+        resolved_url: &'a str,
+    ) -> FetchTarballForResolution<'a> {
+        FetchTarballForResolution {
+            http_client: &self.http_client,
+            store_dir: ctx.store.dir,
+            store_index_writer: ctx.store.index_writer.clone(),
+            package: pnpm_tarball::TarballPackage {
+                integrity: None,
+                unpacked_size: None,
+                file_count: None,
+                url: resolved_url,
+                id: normalized_bare_specifier,
+            },
+            auth_headers: &ctx.auth_headers,
+            retry_opts: ctx.retry_opts,
+            manifest_subdir: None,
+            // A direct URL tarball carries no registry revision.
+            revision_addressed: false,
+        }
+    }
+
+    /// Authorize and authenticate the HEAD preflight like the GET. Only immutable responses
+    /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
+    async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && !ctx.auth_headers.allows_fetch(normalized_bare_specifier)
+        {
+            return Err(Box::new(TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(normalized_bare_specifier),
+            }));
+        }
+        let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
+        let mut request = client.head(normalized_bare_specifier);
+        if let Some(value) = self.fetch_context
+            .as_ref()
+            .and_then(|ctx| ctx.auth_headers.for_url(normalized_bare_specifier))
+        {
+            request = request.header("authorization", value);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
+
+        let resolved_url = if response
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|header| header.to_str().ok())
+            .is_some_and(|header| header.contains("immutable"))
+        {
+            response.url().to_string()
+        } else {
+            normalized_bare_specifier.to_string()
+        };
+
+        Ok(resolved_url)
     }
 
     /// Reuse an already-extracted store entry for the dependency whose
@@ -224,14 +240,7 @@ impl TarballResolver {
         let ctx = self.fetch_context.as_ref()?;
         let prior = ctx.prior_tarball_entries.get(normalized_bare_specifier)?;
         let cache_key = &prior.store_index_key;
-        let PrefetchResult { cas_paths, manifests, .. } = prefetch_cas_paths(
-            ctx.store_index.clone(),
-            ctx.store_dir,
-            vec![cache_key.clone()],
-            ctx.verify_store_integrity,
-            Arc::clone(&ctx.verified_files_cache),
-        )
-        .await;
+        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key).await;
         // The bundled manifest is required to resolve the tarball's
         // transitive dependencies; a row without one (or with no CAFS
         // entry) is treated as a miss so the caller re-fetches.
@@ -262,13 +271,10 @@ impl TarballResolver {
     ) -> ResolveResult {
         ResolveResult {
             id: PkgResolutionId::from(normalized_bare_specifier.clone()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest,
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: resolved_url,
                 integrity,
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),
@@ -276,6 +282,13 @@ impl TarballResolver {
             normalized_bare_specifier: Some(normalized_bare_specifier),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest,
+                non_deprecated_alternative: None,
+            },
         }
     }
 }
@@ -298,3 +311,16 @@ fn is_http_url(bare: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+impl TarballFetchContext {
+    async fn prefetch(&self, cache_key: &str) -> PrefetchResult {
+        prefetch_cas_paths(
+            self.store.index.clone(),
+            self.store.dir,
+            vec![cache_key.to_string()],
+            PrefetchIntegrityCheck::eager_if(self.store.verify_integrity),
+            Arc::clone(&self.store.verified_files_cache),
+        )
+        .await
+    }
+}

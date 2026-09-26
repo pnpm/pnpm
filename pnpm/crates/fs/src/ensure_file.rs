@@ -1,16 +1,19 @@
+use crate::{rename_with_retry, retry::retry_transient_file_locks};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
     fs::{self, File, OpenOptions},
     hash::{BuildHasher, Hasher},
-    io::{self, Write},
+    io::{self, Seek, Write},
     path::{Path, PathBuf},
     sync::{
         Mutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
 };
+
+#[cfg(unix)]
+use std::time::Duration;
 
 /// POSIX `EMFILE` — process has hit `RLIMIT_NOFILE`. Hardcoded
 /// instead of pulling in `libc` for a single integer that's been
@@ -134,7 +137,8 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///    target and `rename`ing it over. Rename is atomic on Unix
 ///    (`rename(2)`) and replaces-in-place on Windows
 ///    (`SetFileInformationByHandle`/`MoveFileEx`), so an observer
-///    never sees a partial file.
+///    never sees a partial file. ([`ensure_cas_file`] instead repairs
+///    in place, keeping the inode for the sake of hard-linked copies.)
 /// 5. Any other open error propagates as `CreateFile`.
 ///
 /// Design choices:
@@ -160,7 +164,51 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
+) -> Result<(), EnsureFileError> {
+    ensure(file_path, content, mode, Repair::Rename)
+}
+
+/// [`ensure_file`] with the repair strategy CAS blobs need: when the
+/// existing file's bytes mismatch, overwrite it in place first, keeping
+/// the inode so the hard links to it from other projects'
+/// `node_modules` are healed by the same write (pnpm/pnpm#3445). The
+/// temp+`rename` repair [`ensure_file`] uses would swap the inode and
+/// leave those copies corrupt. Falls back to the rename when the
+/// in-place overwrite is refused or fails verification.
+///
+/// In-place overwrite is not atomic — a concurrent reader can observe
+/// torn content for the duration of the write — so this variant is for
+/// content-addressed blobs only: their consumers validate integrity and
+/// re-trigger this repair on a torn read. Files whose readers take the
+/// bytes as-is (`.pnp.cjs`, the package map) must keep [`ensure_file`]'s
+/// atomic rename.
+pub fn ensure_cas_file(
+    file_path: &Path,
+    content: &[u8],
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
+) -> Result<(), EnsureFileError> {
+    ensure(file_path, content, mode, Repair::InPlace)
+}
+
+/// How [`ensure`] repairs an existing file whose bytes mismatch.
+#[derive(Clone, Copy)]
+enum Repair {
+    /// Temp file + `rename` over the target. Atomic, but swaps the
+    /// inode, disconnecting hard-linked copies.
+    Rename,
+    /// Truncate and rewrite under the same inode, healing hard-linked
+    /// copies; falls back to the rename when refused.
+    InPlace,
+}
+
+fn ensure(
+    file_path: &Path,
+    content: &[u8],
+    mode: Option<u32>,
+    repair: Repair,
 ) -> Result<(), EnsureFileError> {
     // See the "Process-local per-path mutex" bullet above and
     // [`cas_write_lock`] for the rationale.
@@ -179,12 +227,14 @@ pub fn ensure_file(
     }
 
     match retry_on_fd_pressure(|| options.open(file_path)) {
-        Ok(mut file) => file.write_all(content).map_err(|error| EnsureFileError::WriteFile {
-            file_path: file_path.to_path_buf(),
-            error,
-        }),
+        Ok(mut file) => file
+            .write_all(content)
+            .map_err(|error| EnsureFileError::WriteFile {
+                file_path: file_path.to_path_buf(),
+                error,
+            }),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            verify_or_rewrite(file_path, content, mode)
+            verify_or_rewrite(file_path, content, mode, repair)
         }
         Err(error) => {
             Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
@@ -267,6 +317,7 @@ fn verify_or_rewrite(
     file_path: &Path,
     content: &[u8],
     mode: Option<u32>,
+    repair: Repair,
 ) -> Result<(), EnsureFileError> {
     match fs::symlink_metadata(file_path) {
         Ok(meta) if !meta.file_type().is_file() => {
@@ -277,10 +328,12 @@ fn verify_or_rewrite(
         // Cheap size-mismatch reject before we read a single byte —
         // a CAS file whose length doesn't match the buffer we were
         // about to write cannot possibly have matching contents.
-        Ok(meta) if meta.len() != content.len() as u64 => write_atomic(file_path, content, mode),
+        Ok(meta) if meta.len() != content.len() as u64 => {
+            repair_file(file_path, content, mode, repair)
+        }
         Ok(_) => match file_equals_bytes(file_path, content) {
             Ok(true) => Ok(()),
-            Ok(false) => write_atomic(file_path, content, mode),
+            Ok(false) => repair_file(file_path, content, mode, repair),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 write_atomic(file_path, content, mode)
             }
@@ -293,6 +346,27 @@ fn verify_or_rewrite(
         }
         Err(error) => Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error }),
     }
+}
+
+/// Repair a corrupt regular file at `file_path` per the caller's
+/// strategy. [`Repair::InPlace`] overwrites under the same inode so
+/// every hard link to the file — other projects' `node_modules` copies
+/// of the CAS blob — is healed by the same write (pnpm/pnpm#3445),
+/// falling back to [`write_atomic`]'s temp+rename when the in-place
+/// overwrite is refused or the freshly written bytes fail verification
+/// (e.g. a concurrent process still mid-write on the same path
+/// interleaved with ours).
+fn repair_file(
+    file_path: &Path,
+    content: &[u8],
+    mode: Option<u32>,
+    repair: Repair,
+) -> Result<(), EnsureFileError> {
+    let mut source = content;
+    let repaired = matches!(repair, Repair::InPlace)
+        && overwrite_file_in_place(file_path, &mut source)
+        && file_equals_bytes(file_path, content).unwrap_or(false);
+    if repaired { Ok(()) } else { write_atomic(file_path, content, mode) }
 }
 
 /// Stream `file_path` and byte-compare against `content` without
@@ -342,6 +416,95 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
     }
 }
 
+/// Overwrite the regular file at `file_path` in place with bytes from
+/// `reader`, keeping the inode so hard-linked copies of the file — other
+/// projects' `node_modules` entries importing the same CAS blob — are
+/// healed by the same write (pnpm/pnpm#3445).
+///
+/// The open does not follow a symlink at `file_path` (`O_NOFOLLOW` on
+/// Unix, `FILE_FLAG_OPEN_REPARSE_POINT` on Windows), and the opened
+/// handle is compared against the identity of the file seen before the
+/// open, so a dirent swapped in between is left untouched. Nothing is
+/// truncated before that check passes. `O_NONBLOCK` keeps a FIFO from
+/// holding the open.
+///
+/// Returns `false` when in-place overwrite is refused and the caller
+/// should fall back to an atomic temp+rename: the target is not a
+/// regular file, it refuses the write open (write protection, a running
+/// executable's `ETXTBSY`, another owner's file), or the write failed.
+/// Every such state is one the rename handles correctly, and a
+/// persistent failure (e.g. `ENOSPC`) re-surfaces with proper context
+/// when the fallback attempts its own write, so no error detail is lost
+/// by collapsing these into `false`.
+///
+/// In-place overwrite is not atomic: a concurrent reader can observe
+/// torn content for the duration of the write. The file was already
+/// corrupt, and a failed integrity check re-triggers this repair, so
+/// the trade is a brief torn-read window for healing every hard-linked
+/// copy at once.
+pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> bool {
+    // A write-protected file refuses the write open, and on Windows that
+    // refusal would first spend the transient-lock retry budget.
+    #[cfg_attr(windows, expect(unused_variables, reason = "Windows compares handles instead"))]
+    let meta = match fs::symlink_metadata(file_path) {
+        Ok(meta) if meta.file_type().is_file() && !meta.permissions().readonly() => meta,
+        _ => return false,
+    };
+    #[cfg(unix)]
+    let expected = meta;
+    #[cfg(windows)]
+    let Ok(expected) = same_file::Handle::from_path(file_path) else {
+        return false;
+    };
+    let mut options = OpenOptions::new();
+    options.write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    // Antivirus and indexer scans briefly hold just-written Windows
+    // paths open, failing an unlucky open with an access-denied error
+    // that clears moments later.
+    let open = || retry_transient_file_locks(|| retry_on_fd_pressure(|| options.open(file_path)));
+    let Ok(mut file) = open() else {
+        return false;
+    };
+    same_file(&file, &expected)
+        && file.set_len(0).is_ok()
+        && file.rewind().is_ok()
+        && io::copy(reader, &mut file).is_ok()
+}
+
+/// Whether the opened handle is the same regular file `expected`
+/// describes — the guard against a dirent swapped into the path between
+/// the metadata check and the open.
+#[cfg(unix)]
+fn same_file(file: &File, expected: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    file.metadata()
+        .is_ok_and(|handle_meta| {
+            handle_meta.file_type().is_file()
+                && handle_meta.dev() == expected.dev()
+                && handle_meta.ino() == expected.ino()
+        })
+}
+
+#[cfg(windows)]
+fn same_file(file: &File, expected: &same_file::Handle) -> bool {
+    file.metadata()
+        .is_ok_and(|handle_meta| handle_meta.file_type().is_file())
+        && file
+            .try_clone()
+            .and_then(same_file::Handle::from_file)
+            .is_ok_and(|handle| &handle == expected)
+}
+
 /// Write `content` to a unique temporary path next to `file_path` and
 /// `rename` it over the target. The rename is the only atomic step; an
 /// observer sees either the old contents or the new ones, never a
@@ -363,8 +526,62 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 fn write_atomic(
     file_path: &Path,
     content: &[u8],
-    #[cfg_attr(windows, allow(unused))] mode: Option<u32>,
+    mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
+    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
+    let name = file_path
+        .file_name()
+        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let (tmp_path, mut file) = create_exclusive_temp_file(parent, &strip_dash_suffix(&name), mode)?;
+
+    if let Err(error) = file.write_all(content) {
+        drop(file);
+        let _ = fs::remove_file(&tmp_path);
+        return Err(EnsureFileError::WriteFile { file_path: tmp_path, error });
+    }
+    // Close the handle before `rename`. Windows `MoveFileEx` over
+    // an open source file can fail with sharing-violation; Unix
+    // doesn't care but an early `close` lets the kernel commit
+    // dirty buffers before the rename commits the dirent change.
+    drop(file);
+
+    if let Err(error) = rename_with_retry(&tmp_path, file_path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(EnsureFileError::RenameFile {
+            tmp_path,
+            file_path: file_path.to_path_buf(),
+            error,
+        });
+    }
+    Ok(())
+}
+
+/// Create a uniquely-named file inside `dir` with `O_CREAT | O_EXCL`
+/// semantics, returning its path and open handle. The name is
+/// `{base}{pid}{counter}`: the counter is a process-local
+/// monotonically-increasing atomic, giving uniqueness across rayon /
+/// tokio workers in the same process, and the pid avoids collisions
+/// when multiple install processes share a store dir.
+///
+/// The exclusive open means we never follow a symlink or truncate a
+/// file an attacker (or a crashed prior install) pre-seeded at our
+/// predicted temp path. If we hit `AlreadyExists` anyway — collisions
+/// are vanishingly rare given the pid + per-process atomic counter temp
+/// scheme, but cross-container shared-store setups can re-use pids — we
+/// advance the counter and try again, up to `MAX_TEMP_ATTEMPTS` times.
+///
+/// The caller owns the file's lifecycle: rename it into place on
+/// success, remove it on failure.
+pub fn create_exclusive_temp_file(
+    dir: &Path,
+    base: &str,
+    // `mode` feeds `OpenOptionsExt::mode` inside the `cfg(unix)` block
+    // below; Windows has no POSIX mode bits to set at open time, so the
+    // parameter is genuinely unused there.
+    #[cfg_attr(windows, allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    mode: Option<u32>,
+) -> Result<(PathBuf, File), EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
     /// counter values is plenty — under benign conditions we never
     /// collide; under shared-store-across-containers the chance of
@@ -374,7 +591,7 @@ fn write_atomic(
     let mut last_already_exists: Option<io::Error> = None;
 
     for _ in 0..MAX_TEMP_ATTEMPTS {
-        let tmp_path = temp_path_for(file_path);
+        let tmp_path = temp_path_in(dir, base);
 
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -387,164 +604,53 @@ fn write_atomic(
             }
         }
 
-        let mut file = match retry_on_fd_pressure(|| options.open(&tmp_path)) {
-            Ok(file) => file,
+        match retry_on_fd_pressure(|| options.open(&tmp_path)) {
+            Ok(file) => return Ok((tmp_path, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed.
                 // Retry with a fresh counter; don't touch whatever is
                 // at the colliding path.
                 last_already_exists = Some(error);
-                continue;
             }
             Err(error) => {
                 return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
             }
-        };
-
-        if let Err(error) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp_path);
-            return Err(EnsureFileError::WriteFile { file_path: tmp_path, error });
         }
-        // Close the handle before `rename`. Windows `MoveFileEx` over
-        // an open source file can fail with sharing-violation; Unix
-        // doesn't care but an early `close` lets the kernel commit
-        // dirty buffers before the rename commits the dirent change.
-        drop(file);
-
-        if let Err(error) = rename_with_retry(&tmp_path, file_path) {
-            let _ = fs::remove_file(&tmp_path);
-            return Err(EnsureFileError::RenameFile {
-                tmp_path,
-                file_path: file_path.to_path_buf(),
-                error,
-            });
-        }
-        return Ok(());
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
-    // so the operator can see what happened; pick the file_path as
+    // so the operator can see what happened; pick the directory as
     // the best-effort context since we can't enumerate every temp
     // name we tried.
     Err(EnsureFileError::CreateFile {
-        file_path: file_path.to_path_buf(),
+        file_path: dir.to_path_buf(),
         error: last_already_exists.unwrap_or_else(|| {
             io::Error::new(
                 io::ErrorKind::AlreadyExists,
-                "exhausted temp-path attempts for atomic CAS rewrite",
+                "exhausted temp-path attempts for exclusive temp file",
             )
         }),
     })
 }
 
-/// Total budget for retrying a rename that keeps hitting transient
-/// errors.
-const RENAME_RETRY_BUDGET: Duration = Duration::from_mins(1);
-
-/// Cap on per-iteration sleep — the backoff grows by 10 ms each loop
-/// and stops growing at 100 ms.
-const RENAME_RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
-
-/// `fs::rename` with the one retry family that actually hits pacquet
-/// in practice: Windows Defender (and other Windows antivirus / file-
-/// indexer tooling) momentarily holding the destination open, which
-/// makes the rename fail with `ERROR_ACCESS_DENIED` /
-/// `ERROR_SHARING_VIOLATION`. These surface through Rust's
-/// `io::ErrorKind` as `PermissionDenied` or `ResourceBusy`, and they
-/// clear as soon as the scan completes — a short sleep + retry
-/// recovers. Mirrors the `EPERM|EACCES|EBUSY` arm of
-/// `rename-overwrite`'s `renameOverwriteSync` (see zkochan/packages/
-/// rename-overwrite/index.js): 60-second total budget, 10 ms backoff
-/// step, 100 ms cap.
-///
-/// Other retry arms from `rename-overwrite` (`ENOTEMPTY`/`EEXIST`/
-/// `ENOTDIR` swap-rename, `ENOENT` mkdir-and-recurse, `EXDEV` copy-
-/// and-delete) don't apply to this call site: temp and target share
-/// the CAS shard dir (already pre-created by `StoreDir::init`), both
-/// are files not directories, and pacquet's CAS readers
-/// (`link_file` → `fs::hard_link` / `reflink_copy`) don't keep file
-/// handles on the target, so there's no "parallel reader sees a gap"
-/// concern that would motivate swap-rename.
-fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
-    let mut backoff = Duration::ZERO;
-    let start = Instant::now();
-
-    loop {
-        match fs::rename(src, dst) {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                if !is_transient_rename_error(&error) || start.elapsed() >= RENAME_RETRY_BUDGET {
-                    return Err(error);
-                }
-                if !backoff.is_zero() {
-                    std::thread::sleep(backoff);
-                }
-                backoff = (backoff + Duration::from_millis(10)).min(RENAME_RETRY_BACKOFF_CAP);
-            }
-        }
-    }
-}
-
-/// Classify a `rename` error as transient-retry-worthy.
-///
-/// On Windows, AV / indexer interference briefly holds the
-/// destination open and surfaces as `ERROR_ACCESS_DENIED` (→
-/// `PermissionDenied`) or `ERROR_SHARING_VIOLATION` (→
-/// `ResourceBusy`, Rust 1.84+ mapping). Both clear on their own
-/// within tens-to-hundreds of ms, which is exactly what the retry
-/// loop is for.
-///
-/// On Unix, `rename` returning `EACCES`/`EPERM` is essentially
-/// always a permanent permission issue (non-writable directory,
-/// sticky-bit conflict, `AppArmor` deny) — retrying for 60 s just
-/// stretches out the failure. `EBUSY` on Unix also tends to be
-/// permanent (mount-point conflicts). So on non-Windows the
-/// classifier is disabled and any `rename` error propagates
-/// immediately.
-fn is_transient_rename_error(
-    #[cfg_attr(not(windows), allow(unused, reason = "only inspected in the Windows branch below"))]
-    error: &io::Error,
-) -> bool {
-    #[cfg(windows)]
-    {
-        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
-}
-
-/// Build a unique temp path next to `file_path`, of the form
-/// `{stripped_basename}{pid}{counter}`. The counter is a process-local
-/// monotonically-increasing `AtomicU64`, giving uniqueness across
-/// rayon / tokio workers in the same process; combining it with the
-/// pid avoids collisions when multiple install processes share a store
-/// dir.
-///
-/// We drop `-exec` / any dash-suffix, mainly so temp files don't look
-/// like executable CAS entries to any observer scanning the shard.
-fn temp_path_for(file_path: &Path) -> PathBuf {
+/// Build a unique temp path inside `dir`, of the form
+/// `{base}{pid}{counter}` per [`create_exclusive_temp_file`]'s
+/// uniqueness contract.
+fn temp_path_in(dir: &Path, base: &str) -> PathBuf {
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
 
-    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-    let name = file_path
-        .file_name()
-        .map(|file_name| file_name.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let base = strip_dash_suffix(&name);
-
-    parent.join(format!("{base}{pid}{counter}"))
+    dir.join(format!("{base}{pid}{counter}"))
 }
 
 /// Strip the first `-…` tail; if the tail was `-exec`, append `x`. On
 /// pacquet's CAS names (`{hex}` or `{hex}-exec`) the only real input is
 /// those two shapes, but the general form is handled so any future
-/// suffix doesn't silently diverge.
+/// suffix doesn't silently diverge. Applied to [`write_atomic`]'s temp
+/// names mainly so temp files don't look like executable CAS entries to
+/// any observer scanning the shard.
 fn strip_dash_suffix(name: &str) -> String {
     let Some(dash_pos) = name.find('-') else {
         return name.to_string();

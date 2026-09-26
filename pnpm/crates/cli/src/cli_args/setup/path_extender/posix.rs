@@ -42,7 +42,9 @@ fn detect_current_shell() -> Option<String> {
         return Some("nu".to_string());
     }
     let shell = std::env::var("SHELL").ok()?;
-    Path::new(&shell).file_name().map(|name| name.to_string_lossy().into_owned())
+    Path::new(&shell)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
 }
 
 fn update_shell(
@@ -121,7 +123,10 @@ fn create_path_value(position: AddingPosition, dir: &str) -> String {
 fn get_config_file_path(shell: &str) -> Result<PathBuf, PathExtenderError> {
     match shell {
         "zsh" => Ok(zdotdir_or_home()?.join(".zshrc")),
-        "dash" | "sh" => match std::env::var("ENV").ok().filter(|env| !env.is_empty()) {
+        "dash" | "sh" => match std::env::var("ENV")
+            .ok()
+            .filter(|env| !env.is_empty())
+        {
             Some(env) => Ok(PathBuf::from(env)),
             None => Err(PathExtenderError::NoShellConfig { shell: shell.to_string() }),
         },
@@ -259,7 +264,7 @@ fn update_shell_config(
         write_config(config_file, &format!("{config_content}\n{new_content}\n"))?;
         return Ok((ConfigFileChangeType::Appended, String::new()));
     };
-    if &config_content[matched_range] != new_content {
+    if config_content[matched_range].replace("\r\n", "\n") != new_content {
         if !opts.overwrite {
             return Err(PathExtenderError::BadShellSection {
                 config_file: config_file.to_path_buf(),
@@ -274,42 +279,114 @@ fn update_shell_config(
     Ok((ConfigFileChangeType::Skipped, old_settings))
 }
 
-/// Overwrite the rc file crash-safely via [`pacquet_fs::ensure_file`], the
+/// Overwrite the rc file crash-safely via [`pnpm_fs::ensure_file`], the
 /// repo's hardened atomic writer: it writes through a unique sibling temp
 /// file opened with `O_CREAT|O_EXCL` (so it never follows a pre-seeded
 /// symlink or truncates an attacker-planted path) and renames it over the
 /// target.
 fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
-    pacquet_fs::ensure_file(path, content.as_bytes(), None)?;
+    pnpm_fs::ensure_file(path, content.as_bytes(), None)?;
     Ok(())
 }
 
-/// Locate the `# <section>` ... `# <section> end` block, returning the byte
-/// range of the whole block and the inner settings between the markers.
-/// Mirrors pnpm's greedy `# <section>\n([\s\S]*)\n# <section> end` match:
-/// the block opens at the first `# <section>\n` and closes at the last
-/// `\n# <section> end`.
+fn complete_section(
+    content: &str,
+    start_offset: usize,
+    inner_start: usize,
+    line_start: usize,
+    line: &str,
+) -> (std::ops::Range<usize>, String) {
+    let inner_len = content[inner_start..line_start]
+        .trim_end_matches(['\r', '\n'])
+        .len();
+    let inner = content[inner_start..inner_start + inner_len].to_string();
+    let marker_len = line
+        .trim_end_matches(['\r', '\n'])
+        .len();
+    (start_offset..line_start + marker_len, inner)
+}
+
+fn parse_sections(content: &str, section: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    let start_marker = format!("# {section}");
+    let end_marker = format!("# {section} end");
+    let mut sections = Vec::new();
+    let mut last_start = None;
+    let mut offset = 0;
+
+    for line in content.split_inclusive('\n') {
+        let line_start = offset;
+        offset += line.len();
+        let trimmed = line.trim_end_matches(['\r', '\n', ' ', '\t']);
+
+        if trimmed == start_marker {
+            last_start = Some((line_start, offset));
+        } else if trimmed == end_marker
+            && let Some((start, inner)) = last_start.take()
+        {
+            sections.push(complete_section(content, start, inner, line_start, line));
+        }
+    }
+
+    sections
+}
+
+fn select_section(
+    mut sections: Vec<(std::ops::Range<usize>, String)>,
+    section: &str,
+) -> Option<(std::ops::Range<usize>, String)> {
+    if sections.len() <= 1 {
+        return sections.pop();
+    }
+    let home_var = format!("{}_HOME", section.to_uppercase());
+    let settings: Vec<String> = sections
+        .iter()
+        .map(|(_, inner)| strip_comments(inner))
+        .collect();
+    let predicates: [&dyn Fn(&str) -> bool; 3] = [
+        &|text| text.contains("PATH") && text.contains(&home_var),
+        &|text| text.contains(&home_var),
+        &|text| text.contains("PATH"),
+    ];
+    for predicate in predicates {
+        if let Some(idx) = settings.iter().rposition(|text| predicate(text)) {
+            return Some(sections.swap_remove(idx));
+        }
+    }
+    sections.pop()
+}
+
+fn strip_comments(settings: &str) -> String {
+    settings
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Find a `# <section>` ... `# <section> end` section and return its full byte range
+/// along with the inner configuration text.
+///
+/// A valid section is bounded by an opening `# <section>` line and a closing
+/// `# <section> end` line with no intermediate `# <section>` or `# <section> end`
+/// markers. If several valid sections exist, the last one whose non-comment
+/// lines reference both `PATH` and `<SECTION>_HOME` wins, then the last one
+/// referencing `<SECTION>_HOME`, then the last one referencing `PATH`, then
+/// the last section.
 fn find_section(content: &str, section: &str) -> Option<(std::ops::Range<usize>, String)> {
-    let start_pat = format!("# {section}\n");
-    let end_pat = format!("\n# {section} end");
-    let start = content.find(&start_pat)?;
-    let inner_start = start + start_pat.len();
-    let end = content.rfind(&end_pat)?;
-    if end < inner_start {
+    if content.is_empty() {
         return None;
     }
-    let inner = content[inner_start..end].to_string();
-    Some((start..end + end_pat.len(), inner))
+    let sections = parse_sections(content, section);
+    select_section(sections, section)
 }
 
 /// Replace the `# <section>` ... `# <section> end` block with `new_section`.
-/// Mirrors pnpm's greedy `# <section>[\s\S]*# <section> end` replacement.
 fn replace_section(content: &str, new_section: &str, section: &str) -> String {
-    let begin_pat = format!("# {section}");
-    let end_pat = format!("# {section} end");
-    let begin = content.find(&begin_pat).unwrap_or(0);
-    let end = content.rfind(&end_pat).map_or(content.len(), |index| index + end_pat.len());
-    format!("{}{}{}", &content[..begin], new_section, &content[end..])
+    if let Some((range, _)) = find_section(content, section) {
+        format!("{}{}{}", &content[..range.start], new_section, &content[range.end..])
+    } else {
+        content.to_string()
+    }
 }
 
 fn home_dir() -> Result<PathBuf, PathExtenderError> {
@@ -317,7 +394,10 @@ fn home_dir() -> Result<PathBuf, PathExtenderError> {
 }
 
 fn zdotdir_or_home() -> Result<PathBuf, PathExtenderError> {
-    match std::env::var("ZDOTDIR").ok().filter(|dir| !dir.is_empty()) {
+    match std::env::var("ZDOTDIR")
+        .ok()
+        .filter(|dir| !dir.is_empty())
+    {
         Some(dir) => Ok(PathBuf::from(dir)),
         None => home_dir(),
     }

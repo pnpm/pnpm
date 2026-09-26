@@ -4,9 +4,9 @@ import type { DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.fs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { Finder, Registries } from '@pnpm/types'
+import type { Finder, RegistriesByScope } from '@pnpm/types'
 
-import type { DependencyGraph } from './buildDependencyGraph.js'
+import { type DependencyGraph, isProjectEdge } from './buildDependencyGraph.js'
 import type { DependencyNode } from './DependencyNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
@@ -23,8 +23,8 @@ export interface BaseTreeOpts {
   onlyProjects?: boolean
   search?: Finder
   skipped: Set<string>
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   depTypes: DepTypes
   storeDir?: string
   storeIndex?: StoreIndex
@@ -162,7 +162,7 @@ function materializeChildren (
   const sortedEdges = [...graphNode.edges].sort((a, b) => lexCompare(a.alias, b.alias))
 
   for (const edge of sortedEdges) {
-    if (ctx.onlyProjects && edge.target?.nodeId.type !== 'importer') {
+    if (ctx.onlyProjects && !isProjectEdge(parentId, edge)) {
       continue
     }
 
@@ -174,6 +174,11 @@ function materializeChildren (
       linkedPathBaseDir,
       parentDir,
     })
+    // A project linked through its publish directory is listed at its own
+    // directory.
+    if (ctx.onlyProjects && edge.target?.nodeId.type === 'importer') {
+      packageInfo.path = path.join(ctx.lockfileDir, edge.target.nodeId.importerId)
+    }
 
     const searchMatch = ctx.search?.({
       alias: edge.alias,
@@ -188,8 +193,10 @@ function materializeChildren (
     let dedupedSearchMessages: string[] = []
 
     if (edge.target == null) {
-      // External link or unresolvable — no traversal possible
-      if (ctx.search == null || searchMatch) {
+      // External link or unresolvable — no traversal possible. With
+      // onlyProjects, this is a link to a project outside the lockfile, which
+      // buildDependenciesTree walks and prunes for the search afterwards.
+      if (ctx.search == null || searchMatch || ctx.onlyProjects) {
         newEntry = packageInfo
       } else {
         continue

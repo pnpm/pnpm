@@ -1,12 +1,19 @@
+import util from 'node:util'
+
 import { checkbox, input, Separator } from '@inquirer/prompts'
+import { interactivePromptPageSize } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { globalInfo } from '@pnpm/logger'
 import {
   assembleReleasePlan,
   BUMP_TYPES,
   type ChangeIntent,
+  checkPendingRelease,
+  describeCheckedIntents,
   indexProjectRefs,
   type IntentBumpType,
+  privateProjectDirs,
   readChangeIntents,
   readLedger,
   type ReleasePlan,
@@ -43,6 +50,7 @@ export function help (): string {
     usages: [
       'pnpm change [--bump <type>] [--summary <text>] [<pkg>...]',
       'pnpm change status',
+      'pnpm change check',
     ],
     descriptionLists: [
       {
@@ -79,12 +87,25 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   if (!workspaceDir) {
     throw new PnpmError('WORKSPACE_ONLY', 'pnpm change is only supported in a workspace')
   }
-  // Only the exact no-option invocation is the status form, so a package
-  // that happens to be named "status" stays recordable.
-  if (params.length === 1 && params[0] === 'status' && opts.bump == null && opts.summary == null) {
-    return renderStatus(workspaceDir, opts)
+  // Only the exact no-option invocations are the diagnostic forms, so a package
+  // that happens to be named "status" or "check" stays recordable.
+  if (params.length === 1 && opts.bump == null && opts.summary == null) {
+    if (params[0] === 'status') {
+      return renderStatus(workspaceDir, opts)
+    }
+    if (params[0] === 'check') {
+      return renderCheck(workspaceDir, opts)
+    }
   }
-  return recordChange(workspaceDir, opts, params)
+  try {
+    return await recordChange(workspaceDir, opts, params)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
+      globalInfo('Change canceled')
+      process.exit(0)
+    }
+    throw err
+  }
 }
 
 async function recordChange (workspaceDir: string, opts: ChangeCommandOptions, params: string[]): Promise<string> {
@@ -162,6 +183,7 @@ async function promptForPackages (
   return checkbox<string>({
     message: 'Which packages does this change affect?',
     choices,
+    pageSize: interactivePromptPageSize(),
     required: true,
   })
 }
@@ -226,6 +248,7 @@ async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, Inten
     const chosen = new Set(await checkbox<string>({
       message: `Which packages should have a ${bumpType} bump?`,
       choices: remaining.map((ref) => ({ value: ref })),
+      pageSize: interactivePromptPageSize(),
     }))
     for (const ref of chosen) bumpByRef.set(ref, bumpType)
     remaining = remaining.filter((ref) => !chosen.has(ref))
@@ -246,7 +269,8 @@ async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): 
     versioning: opts.versioning,
   }
   const publishedNames = publishedNameByManifestName(baseArgs.projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = privateProjectDirs(baseArgs.projects, workspaceDir)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
   if (plan.releases.length === 0) {
     return 'No pending changes.'
@@ -267,6 +291,23 @@ export function renderReleasePlan (plan: ReleasePlan): string {
     output += `  ${release.name}: ${release.currentVersion} → ${release.newVersion} (${release.bumpType}, via ${release.causes.join('+')})\n`
   }
   return output
+}
+
+/** Fails with every violation `checkPendingRelease` found, listed. */
+async function renderCheck (workspaceDir: string, opts: ChangeCommandOptions): Promise<string> {
+  const { intentCount, violations } = await checkPendingRelease({
+    workspaceDir,
+    projects: toWorkspaceProjects(opts.allProjects ?? []),
+    versioning: opts.versioning,
+  })
+  if (violations.length === 0) {
+    return `${describeCheckedIntents(intentCount)}\nAll package versions satisfy the configured versioning invariants.`
+  }
+  throw new PnpmError(
+    'VERSIONING_INVARIANTS_VIOLATED',
+    `Found ${violations.length} versioning invariant violation${violations.length === 1 ? '' : 's'}:\n` +
+    violations.map((violation) => `  - ${violation.message}`).join('\n')
+  )
 }
 
 export interface ReleasableProject {

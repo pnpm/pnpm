@@ -64,6 +64,9 @@
       "path": "../../engine/runtime/system-version"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../installing/client"
     },
     {
@@ -100,7 +103,16 @@
       "path": "../../workspace/projects-sorter"
     },
     {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../esm-node-path-loader"
+    },
+    {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../npm-lifecycle"
     },
     {
       "path": "../pnpm-cli-runner"

@@ -6,6 +6,7 @@ import type {
 } from '@pnpm/fetching.fetcher-base'
 import type {
   DirectoryResolution,
+  NonDeprecatedAlternative,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -15,11 +16,14 @@ import type {
 } from '@pnpm/resolving.resolver-base'
 import type {
   FilesMap,
+  FileWriteResult,
   ImportPackageFunction,
   ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
+  RemoteSideEffectsOrigin,
   ResolvedFrom,
+  SideEffectsDiff,
 } from '@pnpm/store.cafs-types'
 import type {
   AllowBuild,
@@ -27,11 +31,12 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   RangeSpecStyle,
+  ReadPackageHook,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, RemoteSideEffectsOrigin, ResolvedFrom, SideEffectsDiff }
 
 export * from '@pnpm/resolving.resolver-base'
 export type { BundledManifest }
@@ -41,7 +46,12 @@ export interface UploadPkgToStoreOpts {
   sideEffectsCacheKey: string
 }
 
-export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+export interface UploadPkgToStoreResult {
+  filesMap: FilesMap
+  sideEffects?: SideEffectsDiff
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
   requestPackage: RequestPackageFunction
@@ -51,6 +61,27 @@ export interface StoreController {
   close: () => Promise<void>
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  addFileToStore?: (buffer: Buffer, mode: number) => FileWriteResult
+  /**
+   * Path of the file the store already holds for this content, or `undefined`
+   * when it holds none.
+   *
+   * Lets a caller that would otherwise fetch content the store already has —
+   * a remote side-effects artifact whose files are shared with the package's
+   * own, or with another artifact — skip the transfer. `mode` matters because
+   * the store keeps executable and non-executable content apart.
+   */
+  locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
+  persistRemoteSideEffects?: (opts: {
+    filesIndexFile: string
+    sideEffectsCacheKey: string
+    sideEffects: SideEffectsDiff
+  }) => boolean
+  quarantineRemoteSideEffects?: (opts: {
+    channel: string
+    envelopeDigest: string
+    filesIndexFile: string
+  }) => boolean
   clearResolutionCache: () => void
 }
 
@@ -135,11 +166,23 @@ export interface RequestPackageOptions {
   ignoreScripts?: boolean
   projectDir: string
   lockfileDir: string
+  /**
+   * The Node.js version this package's engines are checked against. Defaults
+   * to the one the store controller was created with.
+   */
+  nodeVersion?: string
+  /**
+   * When this returns true under `engineStrict`, `engines` are not checked
+   * yet. A patch applied later may change them; the build phase checks the
+   * patched manifest.
+   */
+  deferEnginesCheck?: (manifest: { name?: string, version?: string }) => boolean
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
@@ -159,6 +202,7 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
+  readPackageHook?: ReadPackageHook
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -187,6 +231,12 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.nonDeprecatedAlternative`,
+     * so the deprecation warning can name a version to move to. Set only for a
+     * deprecated pick that the resolver worked out from a packument.
+     */
+    nonDeprecatedAlternative?: NonDeprecatedAlternative
     alias?: string
     /**
      * Forwarded from the resolver's `ResolveResult.policyViolation`.
@@ -195,6 +245,7 @@ export interface PackageResponse {
      * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
     policyViolation?: ResolutionPolicyViolation
+    hooked?: boolean
   } & (
     {
       isLocal: true

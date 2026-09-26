@@ -3,32 +3,79 @@
 //! `add` and `update` rewrite `package.json` from what the resolver
 //! picked. What that text should look like is the resolver's business,
 //! not the command's: only the npm resolver knows that an npm alias
-//! round-trips as `npm:<real name>@<range>`, or that a prerelease pick
-//! is written without a range operator.
+//! round-trips as `npm:<real name>@<range>`, or how a prerelease pick
+//! is pinned.
 
-use node_semver::Range;
-use pacquet_registry::{PackageVersion, RangeSpecStyle};
+use node_semver::{Range, Version};
+use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
-use crate::infer_range_spec_style::infer_range_spec_style;
+use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
+
+/// The manifest range that pins `version` for a dependency whose existing
+/// manifest entry, if it already had one, read `prev_specifier`, and that
+/// the request, if it named one, asked for as `requested`.
+///
+/// An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
+/// `1 || 2`) is kept as written when it still admits `version` and the
+/// request names no specifier of its own, so an update moves the version
+/// without trading the range's bounds for `default_style` (pnpm/pnpm#6714).
+/// A request that names one (`pnpm add foo@1.2.3`) is the range it wants
+/// instead.
+///
+/// Mirrors the TypeScript `calcVersionRange`.
+#[must_use]
+pub fn calc_version_range(
+    version: &Version,
+    prev_specifier: Option<&str>,
+    requested: Option<&str>,
+    default_style: RangeSpecStyle,
+) -> String {
+    let prev_style = prev_specifier.and_then(infer_range_spec_style);
+    if prev_style.is_none()
+        && requested.is_none_or(|requested| Some(requested) == prev_specifier)
+        && let Some(prev_range) = prev_specifier.and_then(range_of_specifier)
+        && prev_range
+            .parse::<Range>()
+            .is_ok_and(|range| range.satisfies(version))
+    {
+        return prev_range.to_string();
+    }
+    let requested_style = requested.and_then(infer_range_spec_style);
+    if matches!(requested_style, Some(RangeSpecStyle::Patch | RangeSpecStyle::Exact)) {
+        let style = requested_style.unwrap();
+        return format!("{}{version}", style.range_prefix());
+    }
+    if !version.pre_release.is_empty() {
+        return match prev_style {
+            Some(style) => format!("{}{version}", style.range_prefix()),
+            None => version.to_string(),
+        };
+    }
+    let style = requested_style.or(prev_style).unwrap_or(default_style);
+    format!("{}{version}", style.range_prefix())
+}
 
 /// The specifier to write for `picked` when the dependency currently
 /// declares `bare_specifier` under the install name `alias`.
 ///
 /// Keeps the range operator the dependency already declared — `^` stays
-/// `^`, `~` stays `~`, an exact pin stays exact — and falls back to
-/// `default_pin` when it declares none. An npm alias is re-wrapped so the
-/// entry keeps pointing at the same real package.
+/// `^`, `~` stays `~`, an exact pin stays exact — preferring
+/// `prev_specifier` over `bare_specifier`, and falling back to
+/// `default_pin` when neither declares a recoverable pin. An npm alias is
+/// re-wrapped so the entry keeps pointing at the same real package.
 ///
 /// Mirrors the TypeScript resolver's `unwrapPackageName` / `calcSpecifier`
 /// pair.
 #[must_use]
 pub fn calc_specifier(
     bare_specifier: &str,
+    prev_specifier: Option<&str>,
     alias: Option<&str>,
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
+    let range =
+        calc_version_range(&picked.version, prev_specifier, Some(bare_specifier), default_pin);
     match npm_alias_target(bare_specifier, alias) {
         Some(real_name) => format!("npm:{real_name}@{range}"),
         None => range,
@@ -51,11 +98,13 @@ pub fn calc_prefixed_specifier(
     prefix: &str,
     pkg_name: &str,
     bare_specifier: &str,
+    prev_specifier: Option<&str>,
     alias: Option<&str>,
     picked: &PackageVersion,
     default_pin: RangeSpecStyle,
 ) -> String {
-    let range = picked.serialize(infer_range_spec_style(bare_specifier).unwrap_or(default_pin));
+    let range =
+        calc_version_range(&picked.version, prev_specifier, Some(bare_specifier), default_pin);
     match alias {
         Some(alias) if !alias.is_empty() && alias != pkg_name => {
             format!("{prefix}{pkg_name}@{range}")

@@ -1,0 +1,2166 @@
+exports[`batch script > shim files > bat.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$msys" ]; then
+  if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
+    exec "$basedir/cmd.exe" //C "$basedir_win/src.bat" "$@"
+  elif [ -x "$basedir/cmd" ]; then
+    exec "$basedir/cmd" //C "$basedir_abs/src.bat" "$@"
+  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
+    exec cmd //C "$basedir_win/src.bat" "$@"
+  elif command -v cmd >/dev/null 2>&1; then
+    exec cmd //C "$basedir_abs/src.bat" "$@"
+  elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
+    exec cmd.exe //C "$basedir_win/src.bat" "$@"
+  else
+    exec cmd //C "$basedir_abs/src.bat" "$@"
+  fi
+
+else
+  if [ -n "$exe" ] && [ -x "$basedir/cmd.exe" ]; then
+    exec "$basedir/cmd.exe" /C "$basedir_win/src.bat" "$@"
+  elif [ -x "$basedir/cmd" ]; then
+    exec "$basedir/cmd" /C "$basedir_abs/src.bat" "$@"
+  elif [ -n "$msys" ] && command -v cmd >/dev/null 2>&1; then
+    exec cmd /C "$basedir_win/src.bat" "$@"
+  elif command -v cmd >/dev/null 2>&1; then
+    exec cmd /C "$basedir_abs/src.bat" "$@"
+  elif [ -n "$exe" ] && command -v cmd.exe >/dev/null 2>&1; then
+    exec cmd.exe /C "$basedir_win/src.bat" "$@"
+  else
+    exec cmd /C "$basedir_abs/src.bat" "$@"
+  fi
+
+fi
+
+`;
+
+exports[`batch script > shim files > bat.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\cmd.exe" (
+  "%~dp0\\cmd.exe" /C "%~dp0\\src.bat" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  cmd /C "%~dp0\\src.bat" %*
+)
+
+`;
+
+exports[`batch script > shim files > bat.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/cmd$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/cmd$exe" /C "$basedir/src.bat" $args
+  } else {
+    & "$basedir/cmd$exe" /C "$basedir/src.bat" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "cmd$exe" /C "$basedir/src.bat" $args
+  } else {
+    & "cmd$exe" /C "$basedir/src.bat" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`custom node executable > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+exec "/.pnpm/nodejs/16.0.0/node"  "$basedir_abs/src.env" "$@"
+exit $?
+
+`;
+
+exports[`custom node executable > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@"/.pnpm/nodejs/16.0.0/node"  "%~dp0\\src.env" %*
+
+`;
+
+exports[`custom node executable > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+# Support pipeline input
+if ($MyInvocation.ExpectingInput) {
+  $input | & "/.pnpm/nodejs/16.0.0/node"  "$basedir/src.env" $args
+} else {
+  & "/.pnpm/nodejs/16.0.0/node"  "$basedir/src.env" $args
+}
+exit $LASTEXITCODE
+
+`;
+
+exports[`env shebang > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  "%~dp0\\src.env" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  "%~dp0\\src.env" %*
+)
+
+`;
+
+exports[`env shebang > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  "$basedir/src.env" $args
+  } else {
+    & "$basedir/node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  "$basedir/src.env" $args
+  } else {
+    & "node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`env shebang with NODE_PATH > shim files > env.shim (windows) 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$msys" ]; then
+  new_node_path='\\john\\src\\node_modules;\\bin\\node\\node_modules'
+  node_path_sep=';'
+else
+  new_node_path='/john/src/node_modules:/bin/node/node_modules'
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+else
+  export NODE_PATH="$new_node_path$node_path_sep$NODE_PATH"
+fi
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang with NODE_PATH > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="/john/src/node_modules:/bin/node/node_modules"
+else
+  export NODE_PATH="/john/src/node_modules:/bin/node/node_modules:$NODE_PATH"
+fi
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang with NODE_PATH > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF NOT DEFINED NODE_PATH (
+  @SET "NODE_PATH=\\john\\src\\node_modules;\\bin\\node\\node_modules"
+) ELSE (
+  @SET "NODE_PATH=\\john\\src\\node_modules;\\bin\\node\\node_modules;%NODE_PATH%"
+)
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  "%~dp0\\src.env" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  "%~dp0\\src.env" %*
+)
+
+`;
+
+exports[`env shebang with NODE_PATH > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+$pathsep=":"
+$env_node_path=$env:NODE_PATH
+$new_node_path="\\john\\src\\node_modules;\\bin\\node\\node_modules"
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+  $pathsep=";"
+} else {
+  $new_node_path="/john/src/node_modules:/bin/node/node_modules"
+}
+if ([string]::IsNullOrEmpty($env_node_path)) {
+  $env:NODE_PATH=$new_node_path
+} else {
+  $env:NODE_PATH="$new_node_path$pathsep$env_node_path"
+}
+
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  "$basedir/src.env" $args
+  } else {
+    & "$basedir/node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  "$basedir/src.env" $args
+  } else {
+    & "node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+}
+$env:NODE_PATH=$env_node_path
+exit $ret
+
+`;
+
+exports[`env shebang with PATH extending > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+export PATH="/add-to-path:$PATH"
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang with PATH extending > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@SET "PATH=\\add-to-path:%PATH%"
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  "%~dp0\\src.env" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  "%~dp0\\src.env" %*
+)
+
+`;
+
+exports[`env shebang with PATH extending > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+$pathsep=":"
+$env_path=$env:PATH
+$prepend_path="\\add-to-path"
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+  $pathsep=";"
+} else {
+  $prepend_path="/add-to-path"
+}
+
+$env:PATH="$prepend_path$pathsep$env:PATH"
+
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  "$basedir/src.env" $args
+  } else {
+    & "$basedir/node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  "$basedir/src.env" $args
+  } else {
+    & "node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+}
+$env:PATH=$env_path
+exit $ret
+
+`;
+
+exports[`env shebang with args > shim files > env.args.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  --expose_gc "$basedir_win/src.env.args" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  --expose_gc "$basedir_abs/src.env.args" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_win/src.env.args" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_abs/src.env.args" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  --expose_gc "$basedir_win/src.env.args" "$@"
+else
+  exec node  --expose_gc "$basedir_abs/src.env.args" "$@"
+fi
+
+`;
+
+exports[`env shebang with args > shim files > env.args.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  --expose_gc "%~dp0\\src.env.args" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  --expose_gc "%~dp0\\src.env.args" %*
+)
+
+`;
+
+exports[`env shebang with args > shim files > env.args.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  --expose_gc "$basedir/src.env.args" $args
+  } else {
+    & "$basedir/node$exe"  --expose_gc "$basedir/src.env.args" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  --expose_gc "$basedir/src.env.args" $args
+  } else {
+    & "node$exe"  --expose_gc "$basedir/src.env.args" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`env shebang with default args > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe" --preserve-symlinks "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node" --preserve-symlinks "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node --preserve-symlinks "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node --preserve-symlinks "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe --preserve-symlinks "$basedir_win/src.env" "$@"
+else
+  exec node --preserve-symlinks "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang with default args > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe" --preserve-symlinks "%~dp0\\src.env" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node --preserve-symlinks "%~dp0\\src.env" %*
+)
+
+`;
+
+exports[`env shebang with default args > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe" --preserve-symlinks "$basedir/src.env" $args
+  } else {
+    & "$basedir/node$exe" --preserve-symlinks "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe" --preserve-symlinks "$basedir/src.env" $args
+  } else {
+    & "node$exe" --preserve-symlinks "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`env shebang with no NODE_PATH > shim files > env.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  "$basedir_win/src.env" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  "$basedir_abs/src.env" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_win/src.env" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  "$basedir_abs/src.env" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  "$basedir_win/src.env" "$@"
+else
+  exec node  "$basedir_abs/src.env" "$@"
+fi
+
+`;
+
+exports[`env shebang with no NODE_PATH > shim files > env.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  "%~dp0\\src.env" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  "%~dp0\\src.env" %*
+)
+
+`;
+
+exports[`env shebang with no NODE_PATH > shim files > env.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  "$basedir/src.env" $args
+  } else {
+    & "$basedir/node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  "$basedir/src.env" $args
+  } else {
+    & "node$exe"  "$basedir/src.env" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`explicit shebang > shim files > sh.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
+  exec "$basedir//usr/bin/sh.exe"  "$basedir_win/src.sh" "$@"
+elif [ -x "$basedir//usr/bin/sh" ]; then
+  exec "$basedir//usr/bin/sh"  "$basedir_abs/src.sh" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  "$basedir_win/src.sh" "$@"
+elif command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  "$basedir_abs/src.sh" "$@"
+elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
+  exec /usr/bin/sh.exe  "$basedir_win/src.sh" "$@"
+else
+  exec /usr/bin/sh  "$basedir_abs/src.sh" "$@"
+fi
+
+`;
+
+exports[`explicit shebang > shim files > sh.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\/usr/bin/sh.exe" (
+  "%~dp0\\/usr/bin/sh.exe"  "%~dp0\\src.sh" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  /usr/bin/sh  "%~dp0\\src.sh" %*
+)
+
+`;
+
+exports[`explicit shebang > shim files > sh.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir//usr/bin/sh$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir//usr/bin/sh$exe"  "$basedir/src.sh" $args
+  } else {
+    & "$basedir//usr/bin/sh$exe"  "$basedir/src.sh" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "/usr/bin/sh$exe"  "$basedir/src.sh" $args
+  } else {
+    & "/usr/bin/sh$exe"  "$basedir/src.sh" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`explicit shebang with args > shim files > sh.args.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
+  exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" "$@"
+elif [ -x "$basedir//usr/bin/sh" ]; then
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_win/src.sh.args" "$@"
+elif command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" "$@"
+elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
+  exec /usr/bin/sh.exe  -x "$basedir_win/src.sh.args" "$@"
+else
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" "$@"
+fi
+
+`;
+
+exports[`explicit shebang with args > shim files > sh.args.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\/usr/bin/sh.exe" (
+  "%~dp0\\/usr/bin/sh.exe"  -x "%~dp0\\src.sh.args" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  /usr/bin/sh  -x "%~dp0\\src.sh.args" %*
+)
+
+`;
+
+exports[`explicit shebang with args > shim files > sh.args.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir//usr/bin/sh$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir//usr/bin/sh$exe"  -x "$basedir/src.sh.args" $args
+  } else {
+    & "$basedir//usr/bin/sh$exe"  -x "$basedir/src.sh.args" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "/usr/bin/sh$exe"  -x "$basedir/src.sh.args" $args
+  } else {
+    & "/usr/bin/sh$exe"  -x "$basedir/src.sh.args" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`explicit shebang with args, linking to another drive on Windows > shim files > sh.args.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
+  exec "$basedir//usr/bin/sh.exe"  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+elif [ -x "$basedir//usr/bin/sh" ]; then
+  exec "$basedir//usr/bin/sh"  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+elif command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
+  exec /usr/bin/sh.exe  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+else
+  exec /usr/bin/sh  -x "J:/cmd-shim/fixtures/src.sh.args" "$@"
+fi
+
+`;
+
+exports[`explicit shebang with args, linking to another drive on Windows > shim files > sh.args.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\/usr/bin/sh.exe" (
+  "%~dp0\\/usr/bin/sh.exe"  -x "J:\\cmd-shim\\fixtures\\src.sh.args" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  /usr/bin/sh  -x "J:\\cmd-shim\\fixtures\\src.sh.args" %*
+)
+
+`;
+
+exports[`explicit shebang with args, linking to another drive on Windows > shim files > sh.args.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir//usr/bin/sh$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir//usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
+  } else {
+    & "$basedir//usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "/usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
+  } else {
+    & "/usr/bin/sh$exe"  -x "J:/cmd-shim/fixtures/src.sh.args" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`explicit shebang with prog args > shim files > sh.args.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir//usr/bin/sh.exe" ]; then
+  exec "$basedir//usr/bin/sh.exe"  -x "$basedir_win/src.sh.args" hello "$@"
+elif [ -x "$basedir//usr/bin/sh" ]; then
+  exec "$basedir//usr/bin/sh"  -x "$basedir_abs/src.sh.args" hello "$@"
+elif [ -n "$msys" ] && command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_win/src.sh.args" hello "$@"
+elif command -v /usr/bin/sh >/dev/null 2>&1; then
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" hello "$@"
+elif [ -n "$exe" ] && command -v /usr/bin/sh.exe >/dev/null 2>&1; then
+  exec /usr/bin/sh.exe  -x "$basedir_win/src.sh.args" hello "$@"
+else
+  exec /usr/bin/sh  -x "$basedir_abs/src.sh.args" hello "$@"
+fi
+
+`;
+
+exports[`explicit shebang with prog args > shim files > sh.args.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\/usr/bin/sh.exe" (
+  "%~dp0\\/usr/bin/sh.exe"  -x "%~dp0\\src.sh.args" hello %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  /usr/bin/sh  -x "%~dp0\\src.sh.args" hello %*
+)
+
+`;
+
+exports[`explicit shebang with prog args > shim files > sh.args.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir//usr/bin/sh$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir//usr/bin/sh$exe"  -x "$basedir/src.sh.args" hello $args
+  } else {
+    & "$basedir//usr/bin/sh$exe"  -x "$basedir/src.sh.args" hello $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "/usr/bin/sh$exe"  -x "$basedir/src.sh.args" hello $args
+  } else {
+    & "/usr/bin/sh$exe"  -x "$basedir/src.sh.args" hello $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;
+
+exports[`no cmd file > shim files > exe.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+exec "$basedir_abs/src.exe"   "$@"
+exit $?
+
+`;
+
+exports[`no cmd file > shim files > exe.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+# Support pipeline input
+if ($MyInvocation.ExpectingInput) {
+  $input | & "$basedir/src.exe"   $args
+} else {
+  & "$basedir/src.exe"   $args
+}
+exit $LASTEXITCODE
+
+`;
+
+exports[`no shebang > shim files > exe.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+exec "$basedir_abs/src.exe"   "$@"
+exit $?
+
+`;
+
+exports[`no shebang > shim files > exe.shim.cmd 1`] = `
+
+@SETLOCAL
+@"%~dp0\\src.exe"   %*
+
+`;
+
+exports[`no shebang > shim files > exe.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+# Support pipeline input
+if ($MyInvocation.ExpectingInput) {
+  $input | & "$basedir/src.exe"   $args
+} else {
+  & "$basedir/src.exe"   $args
+}
+exit $LASTEXITCODE
+
+`;
+
+exports[`shebang with -S > shim files > from.env.s.shim 1`] = `
+
+#!/bin/sh
+# Resolve $0 through symlinks so basedir is the shim's real directory.
+# Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
+#
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
+#
+# Where no default path is compiled in, as on Nix, \`command -p\` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+link="$0"
+# \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
+# and stands for a file in the current directory.
+case "$link" in
+  */*|*\\\\*) ;;
+  *) link="./$link" ;;
+esac
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(command -p readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="\${link%/*}/$target" ;;
+  esac
+done
+basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
+basedir="\${basedir%/*}"
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exe=""
+msys=""
+
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+    elif command -v cygpath > /dev/null 2>&1; then
+      basedir_win=\`cygpath -w "$basedir"\`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
+      basedir_win="$converted"
+      exe=".exe"
+    elif command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
+esac
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+
+if [ -n "$exe" ] && [ -x "$basedir/node.exe" ]; then
+  exec "$basedir/node.exe"  --expose_gc "$basedir_win/from.env.S" "$@"
+elif [ -x "$basedir/node" ]; then
+  exec "$basedir/node"  --expose_gc "$basedir_abs/from.env.S" "$@"
+elif [ -n "$msys" ] && command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_win/from.env.S" "$@"
+elif command -v node >/dev/null 2>&1; then
+  exec node  --expose_gc "$basedir_abs/from.env.S" "$@"
+elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
+  exec node.exe  --expose_gc "$basedir_win/from.env.S" "$@"
+else
+  exec node  --expose_gc "$basedir_abs/from.env.S" "$@"
+fi
+
+`;
+
+exports[`shebang with -S > shim files > from.env.s.shim.cmd 1`] = `
+
+@SETLOCAL
+@IF EXIST "%~dp0\\node.exe" (
+  "%~dp0\\node.exe"  --expose_gc "%~dp0\\from.env.S" %*
+) ELSE (
+  @SET PATHEXT=%PATHEXT:;.JS;=;%
+  node  --expose_gc "%~dp0\\from.env.S" %*
+)
+
+`;
+
+exports[`shebang with -S > shim files > from.env.s.shim.ps1 1`] = `
+
+#!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
+}
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  --expose_gc "$basedir/from.env.S" $args
+  } else {
+    & "$basedir/node$exe"  --expose_gc "$basedir/from.env.S" $args
+  }
+  $ret=$LASTEXITCODE
+} else {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  --expose_gc "$basedir/from.env.S" $args
+  } else {
+    & "node$exe"  --expose_gc "$basedir/from.env.S" $args
+  }
+  $ret=$LASTEXITCODE
+}
+exit $ret
+
+`;

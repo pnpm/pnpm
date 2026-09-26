@@ -6,12 +6,9 @@ use std::{
 };
 use tempfile::tempdir;
 
-// The `prefix_probe!` fake below is only used by tests gated on
-// `cfg(unix)` (the cross-volume scenarios construct absolute Unix paths
-// like `/Volumes/src/...`). On Windows, every consumer is excluded, so
-// gate the macro and its imports to keep clippy's `dead_code`/`unused`
-// lints happy under `-D warnings`.
-#[cfg(unix)]
+// `LinkProbe` is shared by the Windows regression test and the Unix-only
+// `prefix_probe!` fake below. Only the fake's allowlist needs `Mutex`, so
+// that import remains Unix-gated.
 use crate::api::LinkProbe;
 #[cfg(unix)]
 use std::sync::Mutex;
@@ -71,6 +68,37 @@ fn resolve_store_dir_same_volume_uses_home_default() {
     assert_eq!(resolved, home_default);
 }
 
+#[test]
+#[cfg_attr(not(windows), ignore = "requires Windows path canonicalization")]
+fn resolve_store_dir_cross_volume_uses_project_drive_without_verbatim_prefix() {
+    struct RootProbe;
+    impl LinkProbe for RootProbe {
+        fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
+            to_dir == filesystem_root(from_dir)
+        }
+    }
+
+    let tmp = tempdir().expect("create tempdir");
+    let pkg_root = tmp.path().join("project");
+    fs::create_dir_all(&pkg_root).expect("create project dir");
+    let project_drive = filesystem_root(&pkg_root);
+    let pnpm_home = if project_drive.to_string_lossy().eq_ignore_ascii_case(r"C:\") {
+        PathBuf::from(r"D:\pnpm-home")
+    } else {
+        PathBuf::from(r"C:\pnpm-home")
+    };
+    let home_default = pnpm_home.join("store");
+    let expected = project_drive.join(".pnpm-store");
+
+    let resolved = resolve_store_dir::<RootProbe>(home_default, &pnpm_home, &pkg_root);
+    assert_eq!(resolved, expected);
+    let resolved_display = resolved.display().to_string();
+    assert!(
+        !resolved_display.starts_with(r"\\?\"),
+        "resolved store dir has a verbatim prefix: {resolved_display}",
+    );
+}
+
 // Per-test [`LinkProbe`] fake whose `can_link_between_dirs` accepts a `to_dir`
 // only under an allowlisted prefix, pinning the mountpoint deterministically
 // without two real volumes. The allowlist is fn-local, so each `#[test]` owns
@@ -110,7 +138,10 @@ fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
     // pkg_root must canonicalize, so symlinks (`/var` → `/private/var`
     // on macOS) don't surprise the prefix match.
     let pkg_root_canon = fs::canonicalize(&pkg_root).expect("canonicalize pkg_root");
-    let mount_canon = pkg_root_canon.parent().expect("project has parent").to_path_buf();
+    let mount_canon = pkg_root_canon
+        .parent()
+        .expect("project has parent")
+        .to_path_buf();
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
@@ -131,8 +162,14 @@ fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
     let pkg_root = mount.join("project");
     fs::create_dir_all(&pkg_root).expect("create project dir");
     let pkg_root_canon = fs::canonicalize(&pkg_root).expect("canonicalize pkg_root");
-    let mount_canon = pkg_root_canon.parent().expect("project has parent").to_path_buf();
-    let parent_canon = mount_canon.parent().expect("mount has parent").to_path_buf();
+    let mount_canon = pkg_root_canon
+        .parent()
+        .expect("project has parent")
+        .to_path_buf();
+    let parent_canon = mount_canon
+        .parent()
+        .expect("mount has parent")
+        .to_path_buf();
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
@@ -213,4 +250,87 @@ fn host_can_link_between_dirs_missing_from_dir_is_false() {
     let to = tmp.path().join("to");
     fs::create_dir_all(&to).expect("create to");
     assert!(!host_can_link_between_dirs(&missing_from, &to));
+}
+
+/// Set up `<tmp>/home` as the pnpm home and `<tmp>/volume/project` as a
+/// project whose volume is `<tmp>/volume`, then resolve the default store
+/// with a [`LinkProbe`] that only links within that volume.
+#[cfg(unix)]
+macro_rules! resolve_relocated_store {
+    ($tmp:ident => $config:ident, $root:ident, $home_store:ident) => {
+        prefix_probe!();
+        impl crate::api::GetHomeDir for PrefixProbe {
+            fn home_dir() -> Option<PathBuf> {
+                Some(PathBuf::from("/home/test-user"))
+            }
+        }
+
+        let $root = fs::canonicalize($tmp.path()).expect("canonicalize tempdir");
+        let $home_store = $root.join("home/store").join(pnpm_store_dir::STORE_VERSION);
+        fs::create_dir_all($root.join("volume/project")).expect("create project dir");
+        set_allow(&[&$root.join("volume")]);
+        let mut config = crate::Config::new();
+        config.resolve_store_dir_from_home::<PrefixProbe>(
+            &$root.join("home"),
+            &$root.join("volume/project"),
+        );
+        let $config = config;
+    };
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_names_both_stores_when_home_store_exists() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let relocated = root.join("volume/.pnpm-store").join(pnpm_store_dir::STORE_VERSION);
+
+    assert_eq!(config.store_dir.root(), relocated);
+    assert_eq!(
+        config.bypassed_home_store_warning(),
+        Some(format!(
+            "The store at {} is not used because packages cannot be hard linked from it into this project. Using the store at {} instead. Set storeDir to choose the store.",
+            home_store.display(),
+            relocated.display(),
+        )),
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_without_a_home_store() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    assert!(config.store_relocation.is_some());
+    assert!(!home_store.exists(), "{} must not exist", root.display());
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_after_an_explicit_store_dir() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let mut config = config;
+    config.store_dir = root.join("explicit-store").into();
+    assert_eq!(config.bypassed_home_store_warning(), None);
+}
+
+#[test]
+#[cfg(unix)]
+fn bypassed_home_store_warning_is_none_when_the_home_store_is_linkable() {
+    let tmp = tempdir().expect("create tempdir");
+    resolve_relocated_store!(tmp => config, root, home_store);
+    fs::create_dir_all(&home_store).expect("create home store");
+    let mut config = config;
+    set_allow(&[&root]);
+    config.resolve_store_dir_from_home::<PrefixProbe>(
+        &root.join("home"),
+        &root.join("volume/project"),
+    );
+    assert_eq!(config.store_dir.root(), home_store);
+    assert_eq!(config.store_relocation, None);
+    assert_eq!(config.bypassed_home_store_warning(), None);
 }

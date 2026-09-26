@@ -26,8 +26,9 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, VerifyDepsBeforeRun,
+    CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
+    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -54,41 +55,19 @@ fn s(value: &str) -> Scalar {
 /// is nothing to string-compare against, so they are exercised by the
 /// dedicated `current::<Host>()` config-loading tests instead.
 const NON_LITERAL: &[&str] = &[
+    "ci",                           // detected from the process environment
+    "package-lock",                 // npmDefaults['package-lock']
     "registry",                     // npmDefaults.registry
     "unsafe-perm",                  // npmDefaults['unsafe-perm']
     "userconfig",                   // npmDefaults.userconfig (home-derived path)
     "virtual-store-dir-max-length", // isWindows() ? 60 : 120
     "workspace-concurrency",        // derived from CPU count
+    "workspace-prefix",             // the discovered workspace directory
 ];
 
 /// pnpm settings pacquet has no `Config` field for yet. Porting one
 /// means moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[
-    "bail",
-    "ci",
-    "color",
-    "disallow-workspace-cycles",
-    "embed-readme",
-    "fail-if-no-match",
-    "fetch-min-speed-ki-bps",
-    "fetch-warn-timeout-ms",
-    "git-branch-lockfile",
-    "ignore-workspace-cycles",
-    "ignore-workspace-root-check",
-    "init-package-manager",
-    "init-type",
-    "optional",
-    "package-lock",
-    "pending",
-    "recursive-install",
-    "reverse",
-    "shell-emulator",
-    "skip-manifest-obfuscation",
-    "sort",
-    "strict-store-pkg-content-check",
-    "use-beta-cli",
-    "workspace-prefix",
-];
+const NOT_PORTED: &[&str] = &[];
 
 /// Settings both stacks implement but deliberately default differently,
 /// with the reason each divergence is intended. Entries here are exempt
@@ -101,8 +80,14 @@ const NOT_PORTED: &[&str] = &[
 /// is exactly what the rest of this module exists to prevent. Add a row
 /// only for a staged rollout whose end state is convergence, and delete
 /// it once both stacks agree.
-fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
-    Vec::new()
+fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
+    vec![(
+        "force-ignores-platform",
+        Scalar::Bool(cfg.force_ignores_platform),
+        "pnpm v11 keeps the behaviour its `--force` always had, installing \
+         optional dependencies of every platform; pnpm v12 matches npm 7+ \
+         and keeps the platform filter under `--force`",
+    )]
 }
 
 /// `(pnpm key, pacquet default rendered as a [`Scalar`])` for every
@@ -112,6 +97,18 @@ fn divergent_rows(_cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
 fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
     use Scalar::{Bool, Int};
     vec![
+        ("bail", Bool(cfg.bail)),
+        ("color", color_mode_scalar(cfg.color)),
+        ("embed-readme", Bool(cfg.embed_readme)),
+        ("ignore-workspace-root-check", Bool(cfg.ignore_workspace_root_check)),
+        ("optional", Bool(cfg.optional)),
+        ("pending", Bool(cfg.pending)),
+        ("recursive-install", Bool(cfg.recursive_install)),
+        ("reverse", Bool(cfg.reverse)),
+        ("shell-emulator", Bool(cfg.shell_emulator)),
+        ("skip-manifest-obfuscation", Bool(cfg.skip_manifest_obfuscation)),
+        ("sort", Bool(cfg.sort)),
+        ("use-beta-cli", Bool(cfg.use_beta_cli)),
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
@@ -126,9 +123,13 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("enable-pre-post-scripts", Bool(cfg.enable_pre_post_scripts)),
         ("exclude-links-from-lockfile", Bool(cfg.exclude_links_from_lockfile)),
         ("extend-node-path", Bool(cfg.extend_node_path)),
+        ("fail-if-no-match", Bool(cfg.fail_if_no_match)),
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
+        ("git-branch-lockfile", Bool(cfg.use_git_branch_lockfile)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
+        ("init-package-manager", Bool(cfg.init_package_manager)),
+        ("init-type", init_type_scalar(cfg.init_type)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
         ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (
@@ -142,6 +143,9 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
         ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
         ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
+        ("disallow-workspace-cycles", Bool(cfg.disallow_workspace_cycles)),
+        ("ignore-workspace-cycles", Bool(cfg.ignore_workspace_cycles)),
+        ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
@@ -168,6 +172,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
         ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
+        ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
+        ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
@@ -179,14 +185,49 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("peers-suffix-max-length", Int(cfg.peers_suffix_max_length as i64)),
         (
             "hoist-pattern",
-            Scalar::Set(cfg.hoist_pattern.clone().unwrap_or_default().into_iter().collect()),
+            Scalar::Set(
+                cfg.hoist_pattern
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            ),
         ),
         (
             "public-hoist-pattern",
-            Scalar::Set(cfg.public_hoist_pattern.clone().unwrap_or_default().into_iter().collect()),
+            Scalar::Set(
+                cfg.public_hoist_pattern
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            ),
         ),
-        ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
+        (
+            "git-shallow-hosts",
+            Scalar::Set(
+                cfg.git_shallow_hosts
+                    .iter()
+                    .cloned()
+                    .collect(),
+            ),
+        ),
     ]
+}
+
+fn color_mode_scalar(value: ColorMode) -> Scalar {
+    match value {
+        ColorMode::Always => s("always"),
+        ColorMode::Auto => s("auto"),
+        ColorMode::Never => s("never"),
+    }
+}
+
+fn init_type_scalar(value: InitType) -> Scalar {
+    match value {
+        InitType::Module => s("module"),
+        InitType::Commonjs => s("commonjs"),
+    }
 }
 
 fn node_linker_scalar(value: NodeLinker) -> Scalar {
@@ -267,13 +308,14 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
-    let src = std::fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!(
-            "read pnpm config-reader source at {path}: {err}. \
+    let src = std::fs::read_to_string(path)
+        .unwrap_or_else(|err| {
+            panic!(
+                "read pnpm config-reader source at {path}: {err}. \
              This contract test reads pnpm's `defaultOptions` from the TypeScript \
              tree; if config/reader moved, update the path.",
-        )
-    });
+            )
+        });
     let marker = "const defaultOptions: Partial<KebabCaseConfig> = {";
     let start = src
         .find(marker)
@@ -319,11 +361,19 @@ fn pnpm_raw_value<'a>(block: &'a str, key: &str) -> Option<&'a str> {
     let key_pos = block
         .match_indices(&quoted)
         .map(|(idx, mat)| (idx, mat.len()))
-        .chain(block.match_indices(&bare).map(|(idx, mat)| (idx, mat.len())))
+        .chain(
+            block
+                .match_indices(&bare)
+                .map(|(idx, mat)| (idx, mat.len())),
+        )
         // Only accept a match that sits at the start of a line (after
         // indentation) so a substring of a longer key can't match.
         .find(|&(idx, _)| {
-            block[..idx].chars().rev().take_while(|&ch| ch != '\n').all(char::is_whitespace)
+            block[..idx]
+                .chars()
+                .rev()
+                .take_while(|&ch| ch != '\n')
+                .all(char::is_whitespace)
         })?;
     let after = block[key_pos.0 + key_pos.1..].trim_start();
     if after.starts_with('[') {
@@ -353,10 +403,16 @@ fn parse_scalar(raw: &str, key: &str) -> Scalar {
     if raw == "true" || raw == "false" {
         return Scalar::Bool(raw == "true");
     }
-    if let Some(inner) = raw.strip_prefix('\'').and_then(|rest| rest.strip_suffix('\'')) {
+    if let Some(inner) = raw
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+    {
         return Scalar::Str(inner.to_string());
     }
-    if let Some(inner) = raw.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')) {
+    if let Some(inner) = raw
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+    {
         // Strip comments per line *before* splitting on commas — a
         // comment line inside the array (e.g. the `git-shallow-hosts`
         // provenance note) shares no comma with the element below it.
@@ -374,7 +430,13 @@ fn parse_scalar(raw: &str, key: &str) -> Scalar {
     // (`24 * 60`, `7 * 24 * 60`).
     let product: Option<i64> = raw
         .split('*')
-        .map(|factor| factor.trim().replace('_', "").parse::<i64>().ok())
+        .map(|factor| {
+            factor
+                .trim()
+                .replace('_', "")
+                .parse::<i64>()
+                .ok()
+        })
         .try_fold(1_i64, |acc, factor| Some(acc * factor?));
     match product {
         Some(value) => Scalar::Int(value),
@@ -408,9 +470,10 @@ fn intentional_divergences_still_diverge() {
     let cfg = Config::default();
 
     for (key, pacquet_value, reason) in divergent_rows(&cfg) {
-        let raw = pnpm_raw_value(&block, key).unwrap_or_else(|| {
-            panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
-        });
+        let raw = pnpm_raw_value(&block, key)
+            .unwrap_or_else(|| {
+                panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
+            });
         let pnpm_value = parse_scalar(raw, key);
         assert_ne!(
             pacquet_value, pnpm_value,
@@ -427,14 +490,22 @@ fn every_pnpm_default_is_classified() {
     let pnpm_keys = pnpm_keys(&block);
     let cfg = Config::default();
 
-    let mapped: BTreeSet<String> =
-        mapped_rows(&cfg).into_iter().map(|(key, _)| key.to_string()).collect();
-    let non_literal: BTreeSet<String> =
-        NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
-    let not_ported: BTreeSet<String> =
-        NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
-    let divergent: BTreeSet<String> =
-        divergent_rows(&cfg).into_iter().map(|(key, _, _)| key.to_string()).collect();
+    let mapped: BTreeSet<String> = mapped_rows(&cfg)
+        .into_iter()
+        .map(|(key, _)| key.to_string())
+        .collect();
+    let non_literal: BTreeSet<String> = NON_LITERAL
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    let not_ported: BTreeSet<String> = NOT_PORTED
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    let divergent: BTreeSet<String> = divergent_rows(&cfg)
+        .into_iter()
+        .map(|(key, _, _)| key.to_string())
+        .collect();
 
     // The buckets must be disjoint — a key can't be both mapped and
     // skipped.
@@ -450,8 +521,11 @@ fn every_pnpm_default_is_classified() {
         assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
-    let classified: BTreeSet<String> =
-        [&mapped, &non_literal, &not_ported, &divergent].into_iter().flatten().cloned().collect();
+    let classified: BTreeSet<String> = [&mapped, &non_literal, &not_ported, &divergent]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect();
 
     let unclassified: Vec<_> = pnpm_keys.difference(&classified).collect();
     assert!(

@@ -5,8 +5,8 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use pacquet_workspace::WorkspaceManifest;
+use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_workspace::WorkspaceManifest;
 
 /// Raised when the workspace manifest defines the default catalog
 /// twice — once via the top-level `catalog:` shorthand and once via
@@ -55,7 +55,9 @@ pub fn check_default_catalog_is_defined_once(
     manifest: &WorkspaceManifest,
 ) -> Result<(), InvalidCatalogsConfigurationError> {
     if manifest.catalog.is_some()
-        && manifest.catalogs.as_ref().is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
+        && manifest.catalogs
+            .as_ref()
+            .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
     {
         return Err(InvalidCatalogsConfigurationError::DefaultDefinedMultipleTimes);
     }

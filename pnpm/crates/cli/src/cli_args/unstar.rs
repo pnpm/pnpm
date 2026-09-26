@@ -1,6 +1,6 @@
 use crate::cli_args::star::star_action;
 use clap::Parser;
-use pacquet_config::Config;
+use pnpm_config::Config;
 
 #[derive(Debug, Parser)]
 pub struct UnstarArgs {

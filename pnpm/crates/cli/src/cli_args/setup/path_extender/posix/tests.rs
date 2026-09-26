@@ -248,3 +248,199 @@ fn replace_section_swaps_the_block() {
     let replaced = replace_section(content, "# pnpm\nnew\n# pnpm end", "pnpm");
     assert_eq!(replaced, "a\n# pnpm\nnew\n# pnpm end\nb");
 }
+
+#[test]
+fn update_shell_config_preserves_surrounding_aliases_and_nvm_lines() {
+    // Regression test for pnpm/pnpm#7067:
+    // A comment `# pnpm` preceding aliases or other configurations must not be
+    // treated as the start of the section and cause preceding lines to be wiped.
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let initial = r#"# pnpm
+# https://pnpm.io/installation#using-a-shorter-alias
+alias p="pnpm"
+alias px="pnpm dlx"
+alias s='pnpm create svelte@latest'
+alias pi='pnpm install'
+alias pa='pnpm add'
+
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# pnpm
+export PNPM_HOME="/home/user/.old_pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+"#;
+    fs::write(&config_file, initial).expect("write initial config");
+
+    let new_section = wrap_settings(
+        "pnpm",
+        r#"export PNPM_HOME="/home/user/.new_pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac"#,
+    );
+
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_section, &opts(true)).expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Modified);
+    assert_eq!(
+        old_settings,
+        r#"export PNPM_HOME="/home/user/.old_pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac"#,
+    );
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    let preamble = r#"# pnpm
+# https://pnpm.io/installation#using-a-shorter-alias
+alias p="pnpm"
+alias px="pnpm dlx"
+alias s='pnpm create svelte@latest'
+alias pi='pnpm install'
+alias pa='pnpm add'
+
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+"#;
+    let expected = format!("{preamble}{new_section}\n");
+    assert_eq!(written, expected);
+}
+
+#[test]
+fn update_shell_config_appends_when_only_comment_present() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let initial = "# pnpm\nalias p=\"pnpm\"\n";
+    fs::write(&config_file, initial).expect("write initial config");
+
+    let new_section = wrap_settings("pnpm", "export FOO=1");
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_section, &opts(false)).expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Appended);
+    assert_eq!(old_settings, "");
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{initial}\n{new_section}\n"));
+}
+
+#[test]
+fn update_shell_config_selects_path_section_when_multiple_sections_exist() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let alias_block = wrap_settings("pnpm", "alias p=pnpm");
+    let old_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let initial = format!("{alias_block}\n\nexport OTHER=1\n\n{old_env_block}\n");
+    fs::write(&config_file, &initial).expect("write initial config");
+
+    let new_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_env_block, &opts(true))
+            .expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Modified);
+    assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{alias_block}\n\nexport OTHER=1\n\n{new_env_block}\n"));
+}
+
+#[test]
+fn update_shell_config_prioritizes_path_block_over_later_block_mentioning_pnpm() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let old_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let alias_block = wrap_settings("pnpm", "# PNPM aliases\nalias p=pnpm");
+    let initial = format!("{old_env_block}\n\nexport OTHER=1\n\n{alias_block}\n");
+    fs::write(&config_file, &initial).expect("write initial config");
+
+    let new_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_env_block, &opts(true))
+            .expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Modified);
+    assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{new_env_block}\n\nexport OTHER=1\n\n{alias_block}\n"));
+}
+
+#[test]
+fn update_shell_config_prioritizes_generated_env_block_over_later_custom_path_block() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let generated_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let custom_path_block = wrap_settings("pnpm", "export PATH=/custom/bin:$PATH");
+    let initial = format!("{generated_env_block}\n\nexport OTHER=1\n\n{custom_path_block}\n");
+    fs::write(&config_file, &initial).expect("write initial config");
+
+    let new_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let (change_type, old_settings) =
+        update_shell_config(&config_file, &new_env_block, &opts(true))
+            .expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Modified);
+    assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{new_env_block}\n\nexport OTHER=1\n\n{custom_path_block}\n"));
+}
+
+#[test]
+fn update_shell_config_ignores_comments_mentioning_pnpm_home_and_path() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let generated_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let custom_block =
+        wrap_settings("pnpm", "# Keep PNPM_HOME and PATH customizations\nalias pn=pnpm");
+    fs::write(&config_file, format!("{generated_env_block}\n\n{custom_block}\n"))
+        .expect("write initial config");
+
+    let new_env_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/new\nexport PATH=$PNPM_HOME:$PATH");
+    let (_, old_settings) = update_shell_config(&config_file, &new_env_block, &opts(true))
+        .expect("update shell config");
+
+    assert_eq!(old_settings, "export PNPM_HOME=/old\nexport PATH=$PNPM_HOME:$PATH");
+    let written = fs::read_to_string(&config_file).expect("read updated config");
+    assert_eq!(written, format!("{new_env_block}\n\n{custom_block}\n"));
+}
+
+#[test]
+fn update_shell_config_skips_an_equivalent_crlf_section() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_file = dir.path().join(".zshrc");
+
+    let lf_block =
+        wrap_settings("pnpm", "export PNPM_HOME=/home/user/.pnpm\nexport PATH=$PNPM_HOME:$PATH");
+    fs::write(&config_file, lf_block.replace('\n', "\r\n")).expect("write initial config");
+
+    let (change_type, _) =
+        update_shell_config(&config_file, &lf_block, &opts(false)).expect("update shell config");
+
+    assert_eq!(change_type, ConfigFileChangeType::Skipped);
+}

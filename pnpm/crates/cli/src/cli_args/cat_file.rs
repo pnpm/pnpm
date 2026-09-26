@@ -1,8 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_store_dir::StoreDir;
+use pnpm_config::Config;
+use pnpm_store_dir::StoreDir;
 use std::{fs::File, io::Write as _};
 
 #[derive(Debug, Args)]
@@ -42,7 +42,11 @@ impl CatFileArgs {
         let store_dir: &StoreDir = &config.store_dir;
 
         // Path should be <store>/files/<first 2 chars>/<rest of hex chars>
-        let file_path = store_dir.root().join("files").join(&hex[..2]).join(&hex[2..]);
+        let file_path = store_dir
+            .root()
+            .join("files")
+            .join(&hex[..2])
+            .join(&hex[2..]);
 
         let mut file = File::open(&file_path)
             .into_diagnostic()

@@ -1,14 +1,16 @@
+pub mod terminal;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pacquet_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
-use pacquet_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
-use pacquet_testing_utils::{
+use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
+use pnpm_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
+use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
-use pacquet_workspace_state::WorkspaceState;
+use pnpm_workspace_state::WorkspaceState;
 use serde_json::{Map, Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,9 +18,29 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{Child, Command, ExitStatus, Output},
+    thread,
+    time::{Duration, Instant},
 };
 use tempfile::TempDir;
+
+#[cfg(unix)]
+pub fn write_executable(path: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::write(path, body).expect("write executable");
+    let mut perms = fs::metadata(path).expect("stat executable").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).expect("chmod executable");
+}
+
+pub fn write_fake_bin(bin_dir: &Path, name: &str, marker: &str) {
+    fs::create_dir_all(bin_dir).expect("create the bin dir");
+    #[cfg(unix)]
+    write_executable(&bin_dir.join(name), &format!("#!/bin/sh\necho {marker}\n"));
+    #[cfg(windows)]
+    fs::write(bin_dir.join(format!("{name}.cmd")), format!("@echo {marker}\r\n"))
+        .expect("write the command shim");
+}
 
 /// Fresh `pnpm` invocation anchored in `workspace`, for tests that run
 /// the binary more than once (an `assert_cmd` command is consumed by
@@ -29,6 +51,82 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
+}
+
+pub fn wait_for_child(child: &mut Child) -> ExitStatus {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = child.try_wait().expect("read child status") {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not finish before the deadline");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn wait_for_child_output(child: &mut Child, path: &Path, expected: &str) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let output = fs::read_to_string(path).unwrap_or_default();
+        if output.contains(expected) {
+            return;
+        }
+        if let Some(status) = child.try_wait().expect("read child status") {
+            panic!("child exited with {status} before writing {expected:?}:\n{output}");
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop stalled child");
+            child.wait().expect("reap stalled child");
+            panic!("child did not write {expected:?} before the deadline:\n{output}");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+pub fn assert_child_output_stays_absent(child: &mut Child, path: &Path, unexpected: &str) {
+    let deadline = Instant::now() + Duration::from_millis(500);
+    loop {
+        let output = fs::read_to_string(path).expect("read child output");
+        assert!(!output.contains(unexpected), "unexpected {unexpected:?}:\n{output}");
+        assert!(
+            child
+                .try_wait()
+                .expect("read child status")
+                .is_none(),
+            "child exited while it was expected to remain blocked:\n{output}",
+        );
+        if Instant::now() >= deadline {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Make the spawned `pnpm` style its output.
+///
+/// Whether a run carries ANSI styles is otherwise decided by the
+/// inherited `FORCE_COLOR` / `CLICOLOR_FORCE` / `NO_COLOR`, so a
+/// contributor's shell or a CI runner can flip it under a test that
+/// asserts on the styling. [`without_colors`] is the counterpart.
+#[must_use]
+pub fn with_colors(mut command: Command) -> Command {
+    command.env_remove("NO_COLOR");
+    command.env("FORCE_COLOR", "1");
+    command
+}
+
+/// Make the spawned `pnpm` leave its output unstyled. See
+/// [`with_colors`] for why a test pins this.
+#[must_use]
+pub fn without_colors(mut command: Command) -> Command {
+    command.env_remove("FORCE_COLOR");
+    command.env_remove("CLICOLOR_FORCE");
+    command.env("NO_COLOR", "1");
+    command
 }
 
 /// Strip whitespace and box-drawing glyphs out of a miette report so a
@@ -43,7 +141,7 @@ pub fn flatten_report(report: &str) -> String {
 }
 
 /// Flip the `enableGlobalVirtualStore` key in the `pnpm-workspace.yaml`
-/// that [`pacquet_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
+/// that [`pnpm_testing_utils::bin::CommandTempCwd::add_mocked_registry`]
 /// populated with `storeDir` / `cacheDir` / `enableGlobalVirtualStore: false`.
 /// The replacement is in-place rather than appended so the file stays
 /// valid YAML (pnpm rejects duplicate top-level mapping keys).
@@ -89,13 +187,49 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     let key_prefix = format!("{key}:");
     assert!(
-        !yaml.lines().any(|line| line.starts_with(&key_prefix)),
+        !yaml
+            .lines()
+            .any(|line| line.starts_with(&key_prefix)),
         "pnpm-workspace.yaml already has a `{key}:` key — update this helper",
     );
     if !yaml.ends_with('\n') {
         yaml.push('\n');
     }
     writeln!(yaml, "{key}: {value}").unwrap();
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// The sorted `packages:` keys of the lockfile in `dir` — what the
+/// upstream tests read as `lockfile.packages['<name>@<version>']`.
+#[must_use]
+pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
+    let mut keys = read_lockfile(&dir.join("pnpm-lock.yaml")).packages
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys
+}
+
+/// Append an `updateConfig.ignoreDependencies` block to the
+/// `pnpm-workspace.yaml` the harness already wrote.
+pub fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // appending a second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("updateConfig:"),
+        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
+    for name in names {
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
+    }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
@@ -118,9 +252,11 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
 
     let mut out = BTreeMap::new();
     for key in index.keys().expect("list index keys") {
-        let row = index.get(&key).expect("read index row").expect("row disappeared");
-        let files = row
-            .files
+        let row = index
+            .get(&key)
+            .expect("read index row")
+            .expect("row disappeared");
+        let files = row.files
             .into_iter()
             .map(|(filename, mut info)| {
                 info.checked_at = None;
@@ -135,7 +271,7 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
 /// Parse `<workspace>/node_modules/.pnpm/lock.yaml` — the current
 /// lockfile describing what the last install materialized.
 #[must_use]
-pub fn read_current_lockfile(workspace: &Path) -> pacquet_lockfile::Lockfile {
+pub fn read_current_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
     let text = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
         .expect("read the current lockfile");
     serde_saphyr::from_str(&text).expect("parse the current lockfile")
@@ -242,7 +378,7 @@ impl WorkspaceFixture {
     }
 
     pub fn write_modules(&self, modules: Modules) {
-        pacquet_modules_yaml::write_modules_manifest::<ModulesHost>(
+        pnpm_modules_yaml::write_modules_manifest::<ModulesHost>(
             &self.workspace.join("node_modules"),
             modules,
         )
@@ -328,7 +464,9 @@ pub fn write_manifest_value(project: &Path, manifest: &Value) {
 pub fn set_dependency(project: &Path, group: &str, name: &str, spec: &str) {
     let mut manifest = read_manifest(project);
     let object = manifest.as_object_mut().expect("manifest is an object");
-    let dependencies = object.entry(group).or_insert_with(|| json!({}));
+    let dependencies = object
+        .entry(group)
+        .or_insert_with(|| json!({}));
     dependencies
         .as_object_mut()
         .expect("dependency group is an object")
@@ -400,6 +538,56 @@ pub fn repin_snapshot_dependency(
     lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
 }
 
+/// A package script that creates `relative_path` as an empty file: the
+/// portable stand-in for `touch`, which Windows has no program for.
+///
+/// The path is relative, so the marker lands in whatever directory the
+/// runner gave the script — which is what the recursive suites assert on.
+#[must_use]
+pub fn write_marker_script(relative_path: &str) -> String {
+    format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
+}
+
+/// A package script that appends `line` and a newline to `relative_path`,
+/// the portable stand-in for `echo <line> >> <path>`. `cmd` would carry
+/// the spaces before its redirection operator into the file, and would
+/// end the line with a carriage return the readers do not expect.
+///
+/// The newline comes from `String.fromCharCode` rather than a `\n`
+/// escape: `sh -c` unescapes the backslash before Node sees it while
+/// `cmd /d /s /c` passes it through, so an escape would hand the two
+/// platforms different programs.
+#[must_use]
+pub fn append_line_script(line: &str, relative_path: &str) -> String {
+    format!(
+        r#"node -e "require('fs').appendFileSync('{relative_path}', '{line}' + String.fromCharCode(10))""#,
+    )
+}
+
+/// Assert that `shim` is a bin a caller could actually invoke.
+///
+/// What that takes differs per platform: Unix has the executable bit on
+/// the extensionless shim, while Windows has no such bit and relies on the
+/// `.cmd` / `.ps1` launchers written next to it.
+pub fn assert_bin_linked(shim: &Path) {
+    assert!(shim.exists(), "the bin must be linked at {shim:?}");
+    #[cfg(unix)]
+    assert!(
+        pnpm_testing_utils::fs::is_path_executable(shim),
+        "the bin shim at {shim:?} must be executable",
+    );
+    #[cfg(windows)]
+    for extension in ["cmd", "ps1"] {
+        let launcher = shim.with_file_name(format!(
+            "{}.{extension}",
+            shim.file_name()
+                .expect("bin shim has a file name")
+                .to_string_lossy(),
+        ));
+        assert!(launcher.exists(), "the bin shim at {shim:?} needs its {extension} launcher");
+    }
+}
+
 pub fn assert_success(output: &Output) {
     assert!(
         output.status.success(),
@@ -414,7 +602,10 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
     [&output.stderr[..], &output.stdout[..]]
         .into_iter()
         .flat_map(|stream| {
-            String::from_utf8_lossy(stream).lines().map(str::to_string).collect::<Vec<_>>()
+            String::from_utf8_lossy(stream)
+                .lines()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
         })
         .filter_map(|line| serde_json::from_str(&line).ok())
         .collect()
@@ -424,18 +615,19 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
 /// emits when it is entered with an up-to-date lockfile.
 #[must_use]
 pub fn has_up_to_date_log(records: &[Value]) -> bool {
-    records.iter().any(|record| {
-        record.get("name").and_then(Value::as_str) == Some("pnpm")
-            && record.get("level").and_then(Value::as_str) == Some("info")
-            && record.get("message").and_then(Value::as_str)
-                == Some("Lockfile is up to date, resolution step is skipped")
-    })
+    records
+        .iter()
+        .any(|record| {
+            record.get("name").and_then(Value::as_str) == Some("pnpm")
+                && record.get("level").and_then(Value::as_str) == Some("info")
+                && record.get("message").and_then(Value::as_str)
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        })
 }
 
 #[must_use]
 pub fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
-    lockfile
-        .importers
+    lockfile.importers
         .get(id)
         .unwrap_or_else(|| panic!("missing importer {id:?}: {:?}", lockfile.importers.keys()))
 }
@@ -444,15 +636,18 @@ pub fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
 pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
     let name: PkgName = name.parse().expect("parse package name");
     let snapshot = importer(lockfile, id);
-    snapshot
-        .dependencies
+    snapshot.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&name))
         .or_else(|| {
-            snapshot.dev_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+            snapshot.dev_dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(&name))
         })
         .or_else(|| {
-            snapshot.optional_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+            snapshot.optional_dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(&name))
         })
         .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
         .version
@@ -462,8 +657,7 @@ pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
 #[must_use]
 pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
     let name: PkgName = name.parse().expect("parse package name");
-    importer(lockfile, id)
-        .dependencies
+    importer(lockfile, id).dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&name))
         .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
@@ -473,29 +667,39 @@ pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
 
 #[must_use]
 pub fn importer_ids(lockfile: &Lockfile) -> BTreeSet<String> {
-    lockfile.importers.keys().cloned().collect()
+    lockfile.importers
+        .keys()
+        .cloned()
+        .collect()
 }
 
 #[must_use]
 pub fn snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, SnapshotEntry)> {
-    lockfile
-        .snapshots
+    lockfile.snapshots
         .as_ref()
         .into_iter()
         .flatten()
-        .filter(|(key, _)| key.to_string().starts_with(&format!("{name}@")))
+        .filter(|(key, _)| {
+            key.to_string()
+                .starts_with(&format!("{name}@"))
+        })
         .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
         .collect()
 }
 
 #[must_use]
 pub fn has_snapshot(lockfile: &Lockfile, name: &str, version: &str) -> bool {
-    lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-        snapshots.keys().any(|key| {
-            let key = key.to_string();
-            key == format!("{name}@{version}") || key.starts_with(&format!("{name}@{version}("))
+    lockfile.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| {
+            snapshots
+                .keys()
+                .any(|key| {
+                    let key = key.to_string();
+                    key == format!("{name}@{version}")
+                        || key.starts_with(&format!("{name}@{version}("))
+                })
         })
-    })
 }
 
 #[must_use]
@@ -514,7 +718,9 @@ pub fn canonical_path(path: &Path) -> String {
 pub fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
     assert_eq!(
         importer_ids(lockfile),
-        ids.iter().map(ToString::to_string).collect(),
+        ids.iter()
+            .map(ToString::to_string)
+            .collect(),
         "wanted lockfile must retain every real importer",
     );
 }
@@ -535,4 +741,70 @@ pub fn importer_has_group_dependency(
         _ => panic!("unsupported dependency group {group}"),
     }
     .is_some_and(|dependencies| dependencies.contains_key(&name))
+}
+
+/// The dependency the Git-conflict fixtures lock. The mocked registry also
+/// publishes 3.1.0, which satisfies [`CONFLICTED_SPECIFIER`] and is what a
+/// resolution that discarded the conflicted lockfile would pick.
+pub const CONFLICTED_DEPENDENCY: &str = "@pnpm.e2e/multi-version-b";
+pub const CONFLICTED_SPECIFIER: &str = ">=2.0.0 <3.1.1";
+/// The version merging the two conflict sides keeps: the newer of the
+/// two they locked.
+pub const CONFLICTED_MERGED_VERSION: &str = "3.0.0";
+
+/// Leave `workspace` holding a `pnpm-lock.yaml` Git left conflicted
+/// between two valid lockfiles, and a manifest both sides satisfy. The
+/// sides lock different versions of [`CONFLICTED_DEPENDENCY`], so a run
+/// that dropped one of them is visible in what ends up locked.
+///
+/// Returns the conflicted text, which a test that installs more than once
+/// writes back to restore the conflict.
+pub fn write_conflicted_lockfile_fixture(workspace: &Path) -> String {
+    let ours = locked_conflict_side(workspace, "2.0.0");
+    let theirs = locked_conflict_side(workspace, CONFLICTED_MERGED_VERSION);
+    assert_ne!(ours, theirs, "the conflict sides must lock different graphs");
+    write_manifest_value(
+        workspace,
+        &json!({ "dependencies": { CONFLICTED_DEPENDENCY: CONFLICTED_SPECIFIER } }),
+    );
+    let conflicted = format!("<<<<<<< HEAD\n{ours}=======\n{theirs}>>>>>>> branch\n");
+    fs::write(workspace.join("pnpm-lock.yaml"), &conflicted).expect("write conflicted lockfile");
+    conflicted
+}
+
+/// Lock `version` for [`CONFLICTED_DEPENDENCY`] in `workspace`, then
+/// restate the importer's specifier as [`CONFLICTED_SPECIFIER`]. Both
+/// sides have to agree on the specifier the way two branches that only
+/// moved the locked version do.
+fn locked_conflict_side(workspace: &Path, version: &str) -> String {
+    write_manifest_value(workspace, &json!({ "dependencies": { CONFLICTED_DEPENDENCY: version } }));
+    pacquet_in(workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read locked side")
+        .replace(&format!("specifier: {version}"), &format!("specifier: '{CONFLICTED_SPECIFIER}'"))
+}
+
+/// The registry also publishes 3.1.0, which satisfies the fixture's
+/// range, so the version assertion below is what separates a merge from
+/// a fresh resolution that discarded a side.
+pub fn assert_merged_conflicted_lockfile(workspace: &Path, stdout: &str) {
+    eprintln!("STDOUT:\n{stdout}");
+    assert!(
+        stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"),
+        "the merge must be reported",
+    );
+    assert!(!stdout.contains("Ignoring broken lockfile"), "the lockfile must not be discarded");
+    let written = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(!written.contains("<<<<<<<"), "the conflict markers must be gone:\n{written}");
+    assert_eq!(
+        importer_version(
+            &read_lockfile(&workspace.join("pnpm-lock.yaml")),
+            ".",
+            CONFLICTED_DEPENDENCY
+        ),
+        CONFLICTED_MERGED_VERSION,
+    );
 }

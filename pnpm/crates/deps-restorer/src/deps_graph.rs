@@ -1,5 +1,5 @@
 //! Adapter from pacquet's lockfile structures to
-//! [`pacquet_graph_hasher::DepsGraphNode`].
+//! [`pnpm_graph_hasher::DepsGraphNode`].
 //!
 //! `BuildModules`'s `is_built` gate needs to call
 //! `calc_dep_state(graph, ...)` per snapshot to compute the
@@ -9,9 +9,10 @@
 //! + `optional_dependencies`.
 
 use indexmap::IndexMap;
-use pacquet_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
-use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
+use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
+use pnpm_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, PlatformSelector, SnapshotDepRef,
+    SnapshotEntry, select_platform_variant,
 };
 use std::collections::HashMap;
 
@@ -32,9 +33,20 @@ pub fn build_deps_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
 ) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
+    build_deps_graph_for_platform(snapshots, packages, &crate::host_platform_selector())
+}
+
+/// Build a dependency graph whose variations resolutions use the source
+/// integrity selected for `platform_selector`.
+#[must_use]
+pub fn build_deps_graph_for_platform(
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+    platform_selector: &PlatformSelector,
+) -> HashMap<PackageKey, DepsGraphNode<PackageKey>> {
     let mut graph = HashMap::with_capacity(snapshots.len());
     for (snapshot_key, snapshot) in snapshots {
-        if let Some(node) = build_node(snapshot_key, snapshot, packages) {
+        if let Some(node) = build_node(snapshot_key, snapshot, packages, platform_selector) {
             graph.insert(snapshot_key.clone(), node);
         }
     }
@@ -63,6 +75,7 @@ pub fn build_deps_subgraph<Iter>(
 where
     Iter: IntoIterator<Item = PackageKey>,
 {
+    let platform_selector = crate::host_platform_selector();
     let mut graph: HashMap<PackageKey, DepsGraphNode<PackageKey>> = HashMap::new();
     let mut queue: std::collections::VecDeque<PackageKey> = roots.into_iter().collect();
     while let Some(key) = queue.pop_front() {
@@ -70,7 +83,9 @@ where
             continue;
         }
         let Some(snapshot) = snapshots.get(&key) else { continue };
-        let Some(node) = build_node(&key, snapshot, packages) else { continue };
+        let Some(node) = build_node(&key, snapshot, packages, &platform_selector) else {
+            continue;
+        };
         // Enqueue every child the new node points at. Repeat-enqueues
         // are cheap — the `graph.contains_key` guard at the top of
         // the loop discards them.
@@ -88,29 +103,52 @@ fn build_node(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
     packages: &HashMap<PackageKey, PackageMetadata>,
+    platform_selector: &PlatformSelector,
 ) -> Option<DepsGraphNode<PackageKey>> {
     let metadata_key = snapshot_key.without_peer();
     let metadata = packages.get(&metadata_key)?;
-    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution);
+    let full_pkg_id = full_pkg_id_for(&metadata_key, &metadata.resolution, platform_selector);
     let children = build_children(snapshot);
     Some(DepsGraphNode { full_pkg_id, children })
 }
 
 /// Returns the `pkg_id:<...>` string used as the `id` field in
 /// `calc_dep_graph_hash`'s `{ id, deps }` object.
-fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> String {
+fn full_pkg_id_for(
+    pkg_key: &PackageKey,
+    resolution: &LockfileResolution,
+    platform_selector: &PlatformSelector,
+) -> String {
     // `PackageKey`'s `Display` impl produces `<name>@<ver>` — the
     // shape the `pkgIdWithPatchHash` carries in v9 lockfiles. (Pre-v6
     // lockfiles used the `/<name>/<ver>` shape, but pacquet doesn't
     // parse those.)
     let pkg_id = pkg_key.to_string();
+    if let LockfileResolution::Variations(variations) = resolution
+        && let Some(variant) = select_platform_variant(&variations.variants, platform_selector)
+        && let Some(integrity) = variant.resolution.integrity()
+    {
+        return format!("{pkg_id}:{integrity}");
+    }
     if let Some(integrity) = resolution.integrity() {
         return format!("{pkg_id}:{integrity}");
     }
-    // Fallback for non-integrity resolutions (git, directory). We
-    // serialize the resolution to a JSON value and hash it. The hash
-    // is base64-encoded, the encoding the resulting
-    // `<pkg_id>:<digest>` string requires.
+    full_pkg_id_without_builtin_integrity(&pkg_id, resolution)
+}
+
+/// The `<pkg_id>:<...>` id of a resolution that
+/// [`LockfileResolution::integrity`] has no value for. A custom
+/// resolver's own `integrity` string stands in for it, as in pnpm 11's
+/// `createFullPkgId`. Any other resolution (git, directory, or custom
+/// without an integrity) is identified by a base64 hash of the whole
+/// object.
+pub(crate) fn full_pkg_id_without_builtin_integrity(
+    pkg_id: &str,
+    resolution: &LockfileResolution,
+) -> String {
+    if let Some(integrity) = resolution.custom_integrity().and_then(serde_json::Value::as_str) {
+        return format!("{pkg_id}:{integrity}");
+    }
     let resolution_value = serde_json::to_value(resolution).unwrap_or(serde_json::Value::Null);
     let hash =
         hash_object_with_encoding(&resolution_value, HashEncoding::Base64, /* sort */ true);
@@ -127,7 +165,7 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 /// from `dependencies` while taking its value from
 /// `optionalDependencies`. Both sections are sorted on disk, so sorting
 /// them here restores the order the graph hasher's digests are defined
-/// in (see [`pacquet_graph_hasher::DepsGraphNode::children`]).
+/// in (see [`pnpm_graph_hasher::DepsGraphNode::children`]).
 #[must_use]
 pub fn build_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     build_children_with(snapshot, |alias, dep_ref| dep_ref.resolve(alias))
@@ -163,17 +201,22 @@ fn extend_children<Child>(
 /// directly hands the graph hasher a different entry-point order on
 /// every run — and the digests it computes for cyclic subgraphs depend
 /// on that order (see
-/// [`pacquet_graph_hasher::DepsGraphNode::children`]). Sorting by the
+/// [`pnpm_graph_hasher::DepsGraphNode::children`]). Sorting by the
 /// rendered snapshot key reproduces how pnpm writes — and therefore
 /// iterates — the `snapshots:` section.
 #[must_use]
 pub fn in_lockfile_order<Value>(
     snapshots: &HashMap<PackageKey, Value>,
 ) -> Vec<(&PackageKey, &Value)> {
-    let mut entries: Vec<(String, &PackageKey, &Value)> =
-        snapshots.iter().map(|(key, value)| (key.to_string(), key, value)).collect();
+    let mut entries: Vec<(String, &PackageKey, &Value)> = snapshots
+        .iter()
+        .map(|(key, value)| (key.to_string(), key, value))
+        .collect();
     entries.sort_unstable_by(|(left, ..), (right, ..)| left.cmp(right));
-    entries.into_iter().map(|(_, key, value)| (key, value)).collect()
+    entries
+        .into_iter()
+        .map(|(_, key, value)| (key, value))
+        .collect()
 }
 
 #[cfg(test)]

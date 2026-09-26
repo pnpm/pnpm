@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1101.1.1",
+  "version": "1102.2.3",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -32,6 +32,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
@@ -43,6 +44,7 @@
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
@@ -68,7 +70,6 @@
     "path-exists": "catalog:",
     "promise-share": "catalog:",
     "ramda": "catalog:",
-    "rename-overwrite": "catalog:",
     "safe-promise-defer": "catalog:",
     "semver": "catalog:",
     "semver-range-intersect": "catalog:",

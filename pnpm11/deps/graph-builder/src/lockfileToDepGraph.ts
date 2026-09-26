@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -22,14 +23,7 @@ import type {
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type {
-  AllowBuild,
-  DepPath,
-  PkgIdWithPatchHash,
-  ProjectId,
-  Registries,
-  SupportedArchitectures,
-} from '@pnpm/types'
+import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, RegistriesByScope, RegistryContext, SupportedArchitectures } from '@pnpm/types'
 import { pathExists } from 'path-exists'
 import { equals, isEmpty } from 'ramda'
 
@@ -63,12 +57,14 @@ export interface DependenciesGraph {
   [depPath: string]: DependenciesGraphNode
 }
 
-export interface LockfileToDepGraphOptions {
+export interface LockfileToDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers: boolean
   enableGlobalVirtualStore?: boolean
   engineStrict: boolean
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  includeIncompatiblePackages?: boolean
   importerIds: ProjectId[]
   include: IncludedDependencies
   includeUnchangedDeps?: boolean
@@ -83,10 +79,15 @@ export interface LockfileToDepGraphOptions {
   skipFetching?: boolean
   lockfileDir: string
   nodeVersion: string
+  /**
+   * Skip the `resolved` progress log for every package this graph fetches.
+   * The default reporter counts each event without deduplicating by package,
+   * so a caller that already ran a resolve pass over the same graph has
+   * reported them and repeating them here inflates `Progress: resolved N`.
+   */
+  omitResolvedProgress?: boolean
   pnpmVersion: string
   patchedDependencies?: PatchGroupRecord
-  registries: Registries
-  namedRegistries?: Record<string, string>
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as
@@ -145,7 +146,7 @@ export async function lockfileToDepGraph (
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
-    registries: opts.registries,
+    registriesByScope: opts.registriesByScope,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     skipped: opts.skipped,
     storeController: opts.storeController,
@@ -206,14 +207,14 @@ async function buildGraphFromPackages (
       const pkg = {
         name: pkgName,
         version: pkgVersion,
-        engines: pkgSnapshot.engines,
+        engines: opts.engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
         cpu: pkgSnapshot.cpu,
         os: pkgSnapshot.os,
         libc: pkgSnapshot.libc,
       }
 
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-      if (!opts.force && packageIsInstallable(packageId, pkg, {
+      if (!opts.includeIncompatiblePackages && packageIsInstallable(packageId, pkg, {
         // An incompatibility inside an `optionalDependencies` subtree is
         // reported, not fatal — see `filterLockfileByImportersAndEngine`,
         // which classifies these dep paths.
@@ -296,14 +297,18 @@ async function buildGraphFromPackages (
         }
       }
 
-      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
       if (!fetchResponse && opts.skipFetching) {
-        progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        if (!opts.omitResolvedProgress) {
+          progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        }
         fetchResponse = {}
       }
 
       if (!fetchResponse) {
-        progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        if (!opts.omitResolvedProgress) {
+          progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
+        }
 
         try {
           fetchResponse = await opts.storeController.fetchPackage({
@@ -347,7 +352,7 @@ async function buildGraphFromPackages (
 interface GetChildrenPathsContext {
   graph: DependenciesGraph
   force: boolean
-  registries: Registries
+  registriesByScope: RegistriesByScope
   virtualStoreDir: string
   storeDir: string
   skipped: Set<DepPath>

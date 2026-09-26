@@ -1,23 +1,12 @@
 //! Checks a package's wanted `os` / `cpu` / `libc` against the host.
 
+use crate::supported_architectures::{
+    ArchitectureAxes, SupportedArchitectures,
+    platform::{NamedPlatform, SupportedPlatform},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use serde::{Deserialize, Serialize};
-
-/// Caller-supplied override for the `os` / `cpu` / `libc` triples
-/// against which a package's wanted platform is evaluated. Each list
-/// defaults to `['current']` at the call site (read from the config
-/// setting, falling back to `['current']` if absent). The `'current'`
-/// sentinel is compared as the concrete host triple.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SupportedArchitectures {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub os: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cpu: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub libc: Option<Vec<String>>,
-}
+use serde::Serialize;
 
 /// Wanted platform triple as declared by a package's manifest
 /// (`os`, `cpu`, `libc`). Each is optional; absent means "any".
@@ -95,7 +84,10 @@ fn current_json(current: &Platform) -> String {
     // The current platform is `{ os, cpu, libc }` with single strings,
     // not arrays.
     fn single(values: &[String]) -> String {
-        values.first().cloned().unwrap_or_default()
+        values
+            .first()
+            .cloned()
+            .unwrap_or_default()
     }
     format!(
         r#"{{"os":{:?},"cpu":{:?},"libc":{:?}}}"#,
@@ -106,7 +98,10 @@ fn current_json(current: &Platform) -> String {
 }
 
 fn json_string_array(values: &[String]) -> String {
-    let joined: Vec<String> = values.iter().map(|s| format!("{s:?}")).collect();
+    let joined: Vec<String> = values
+        .iter()
+        .map(|s| format!("{s:?}"))
+        .collect();
     format!("[{}]", joined.join(","))
 }
 
@@ -124,7 +119,8 @@ fn json_string_array(values: &[String]) -> String {
 /// (for diagnostic display via the
 /// [`UnsupportedPlatformError`]).
 ///
-/// `supported_architectures` substitutes for `['current']` per axis.
+/// `supported` substitutes for `['current']`: per axis when it names the
+/// axes, and as a whole when it names the platforms themselves.
 ///
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
@@ -162,6 +158,59 @@ pub fn platform_is_supported(
     current_cpu: &str,
     current_libc: &str,
 ) -> bool {
+    match supported {
+        Some(SupportedArchitectures::Platforms(platforms)) => platforms
+            .iter()
+            .any(|platform| {
+                platform_allows(platform, wanted, current_os, current_cpu, current_libc)
+            }),
+        Some(SupportedArchitectures::Axes(axes)) => {
+            axes_allow(Some(axes), wanted, current_os, current_cpu, current_libc)
+        }
+        None => axes_allow(None, wanted, current_os, current_cpu, current_libc),
+    }
+}
+
+/// Whether one platform of a platform list takes the package.
+fn platform_allows(
+    platform: &SupportedPlatform,
+    wanted: WantedPlatformRef<'_>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
+    match platform {
+        SupportedPlatform::Current => {
+            axes_allow(None, wanted, current_os, current_cpu, current_libc)
+        }
+        SupportedPlatform::Named(named) => named_platform_allows(named, wanted),
+    }
+}
+
+/// Whether a platform named outright takes the package. Every axis is
+/// judged against that one platform's own value, so the package is taken
+/// only where the whole platform suits it, rather than where each axis
+/// suits it on its own. A platform that has no C library places no
+/// constraint on one.
+fn named_platform_allows(platform: &NamedPlatform, wanted: WantedPlatformRef<'_>) -> bool {
+    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os.name(), None, wanted_os))
+        && wanted.cpu.is_none_or(|wanted_cpu| {
+            axis_is_supported(platform.architecture.cpu(), None, wanted_cpu)
+        })
+        && wanted.libc.is_none_or(|wanted_libc| {
+            platform.libc
+                .as_ref()
+                .is_none_or(|libc| axis_is_supported(libc.name(), None, wanted_libc))
+        })
+}
+
+fn axes_allow(
+    supported: Option<&ArchitectureAxes>,
+    wanted: WantedPlatformRef<'_>,
+    current_os: &str,
+    current_cpu: &str,
+    current_libc: &str,
+) -> bool {
     wanted.os.is_none_or(|wanted_os| {
         axis_is_supported(
             current_os,
@@ -188,24 +237,38 @@ fn axis_is_supported(current: &str, supported: Option<&[String]>, wanted: &[Stri
     if wanted.len() == 1 && wanted[0] == "any" {
         return true;
     }
+    let Some(matched) = axis_match(current, supported, wanted) else {
+        return false;
+    };
+    matched
+        || wanted
+            .iter()
+            .all(|entry| entry.starts_with('!'))
+}
 
+/// Whether any value the package declares for this axis matched what is
+/// wanted, or `None` when one was explicitly rejected by a `!value` entry.
+///
+/// A package that declares nothing for the axis is judged on the running
+/// platform's own value.
+fn axis_match(current: &str, supported: Option<&[String]>, wanted: &[String]) -> Option<bool> {
+    let Some(supported) = supported else {
+        return match platform_value_match(current, wanted) {
+            PlatformValueMatch::Rejected => None,
+            PlatformValueMatch::Matched => Some(true),
+            PlatformValueMatch::NoMatch => Some(false),
+        };
+    };
     let mut matched = false;
-    if let Some(supported) = supported {
-        for value in supported {
-            match platform_value_match(if value == "current" { current } else { value }, wanted) {
-                PlatformValueMatch::Rejected => return false,
-                PlatformValueMatch::Matched => matched = true,
-                PlatformValueMatch::NoMatch => {}
-            }
-        }
-    } else {
-        match platform_value_match(current, wanted) {
-            PlatformValueMatch::Rejected => return false,
+    for value in supported {
+        let value = if value == "current" { current } else { value };
+        match platform_value_match(value, wanted) {
+            PlatformValueMatch::Rejected => return None,
             PlatformValueMatch::Matched => matched = true,
             PlatformValueMatch::NoMatch => {}
         }
     }
-    matched || wanted.iter().all(|entry| entry.starts_with('!'))
+    Some(matched)
 }
 
 enum PlatformValueMatch {

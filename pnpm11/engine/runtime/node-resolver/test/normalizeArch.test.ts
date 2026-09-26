@@ -17,3 +17,12 @@ test.each([
 ])('getNormalizedArch(%s, %s)', (platform, arch, nodeVersion, normalizedArch) => {
   expect(getNormalizedArch(platform, arch, nodeVersion)).toBe(normalizedArch)
 })
+
+test.each([
+  ['win32', 'arm64', '18.20.0', 'x64'],
+  ['win32', 'arm64', '20.7.0', 'arm64'],
+  ['win32', 'arm64', undefined, 'arm64'],
+])('getNormalizedArch(%s, %s, %s)', (platform, arch, nodeVersion, normalizedArch) => {
+  expect(getNormalizedArch(platform, arch, nodeVersion)).toBe(normalizedArch)
+})
+

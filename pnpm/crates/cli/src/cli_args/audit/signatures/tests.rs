@@ -4,7 +4,7 @@ use super::{
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
-use pacquet_network::encode_package_name;
+use pnpm_network::encode_package_name;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
@@ -12,7 +12,10 @@ fn signing_key() -> SigningKey {
 
 fn public_key_b64(key: &SigningKey) -> String {
     use p256::pkcs8::EncodePublicKey;
-    let der = key.verifying_key().to_public_key_der().expect("encode SPKI");
+    let der = key
+        .verifying_key()
+        .to_public_key_der()
+        .expect("encode SPKI");
     base64::engine::general_purpose::STANDARD.encode(der.as_bytes())
 }
 
@@ -112,7 +115,13 @@ fn key_expiry_gates_only_when_published_after_expiry() {
         &signatures,
         &keys,
     );
-    assert!(published_after.unwrap().reason.unwrap().contains("expired"));
+    assert!(
+        published_after
+            .unwrap()
+            .reason
+            .unwrap()
+            .contains("expired"),
+    );
 
     assert!(
         verify_package_signatures(

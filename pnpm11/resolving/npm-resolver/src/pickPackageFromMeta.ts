@@ -3,7 +3,12 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
+import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type VersionSelectors,
+  type VersionSelectorType,
+} from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
@@ -180,35 +185,120 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
-      if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
-        return latest
-      }
-      const preferredVersion = maxSatisfyingLoose(preferredVersions, versionRange)
+      const preferredVersion = latest != null && preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)
+        ? latest
+        : maxSatisfyingLoose(preferredVersions, versionRange)
       if (preferredVersion) {
-        return preferredVersion
+        return nonDeprecatedPick(meta, preferredVersions, preferredVersion, versionRange) ?? preferredVersion
       }
     }
   }
 
-  const versions = Object.keys(meta.versions)
   if (latest && (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))) {
     // Not using semver.satisfies in case of * because it does not select beta versions.
     // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
-    return latest
+    if (!meta.versions[latest]?.deprecated) {
+      return latest
+    }
+    const versions = Object.keys(meta.versions)
+    return nonDeprecatedPick(meta, versions, latest, versionRange) ?? latest
   }
 
+  const versions = Object.keys(meta.versions)
   const maxVersion = maxSatisfyingLoose(versions, versionRange)
-
-  // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
-  if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
-    const nonDeprecatedVersions = versions.map((version) => meta.versions[version])
-      .filter((versionMeta) => !versionMeta.deprecated)
-      .map((versionMeta) => versionMeta.version)
-
-    const maxNonDeprecatedVersion = maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
-    if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
+  if (maxVersion) {
+    return nonDeprecatedPick(meta, versions, maxVersion, versionRange) ?? maxVersion
   }
-  return maxVersion
+  return null
+}
+
+/**
+ * Returns the cached version only when lockfile preferences prove that no
+ * version missing from the cached packument could tie or outrank it.
+ */
+export function pickStableCachedRangeVersion ({
+  meta,
+  preferredVersionSelectors,
+  versionRange,
+}: PickVersionByVersionRangeOptions): string | null {
+  const dominantLockfileVersion = getDominantLockfileVersion(versionRange, preferredVersionSelectors)
+  if (dominantLockfileVersion == null || meta.versions[dominantLockfileVersion] == null) return null
+  try {
+    const pickedVersion = pickVersionByVersionRange({ meta, preferredVersionSelectors, versionRange })
+    return pickedVersion === dominantLockfileVersion ? dominantLockfileVersion : null
+  } catch {
+    return null
+  }
+}
+
+export function getDominantLockfileVersion (
+  versionRange: string,
+  preferredVersionSelectors?: VersionSelectors
+): string | null {
+  if (preferredVersionSelectors == null) return null
+  let lockfileVersion: string | undefined
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    if (!Number.isSafeInteger(weight) || weight <= 0) return null
+    if (
+      selectorType === 'version' &&
+      weight >= EXISTING_VERSION_SELECTOR_WEIGHT &&
+      semverSatisfiesLoose(selector, versionRange)
+    ) {
+      if (lockfileVersion != null) return null
+      lockfileVersion = selector
+    }
+  }
+  if (lockfileVersion == null) return null
+
+  let guaranteedLockfileWeight = 0
+  let maximumOtherVersionWeight = 0
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    switch (selectorType) {
+      case 'version':
+        if (selector === lockfileVersion) {
+          guaranteedLockfileWeight += weight
+        } else if (
+          weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
+          semverSatisfiesLoose(selector, versionRange)
+        ) {
+          maximumOtherVersionWeight += weight
+        }
+        break
+      case 'range':
+        if (semverSatisfiesLoose(lockfileVersion, selector)) {
+          guaranteedLockfileWeight += weight
+        }
+        // Conservatively assume an unseen version can satisfy every preferred
+        // range, even when proving range intersection would be more precise.
+        maximumOtherVersionWeight += weight
+        break
+      case 'tag':
+        // A registry can move a tag between requests. Do not count its current
+        // target toward the lockfile version, and assume all tags could move to
+        // the same unseen version.
+        maximumOtherVersionWeight += weight
+        break
+    }
+    if (
+      !Number.isSafeInteger(guaranteedLockfileWeight) ||
+      !Number.isSafeInteger(maximumOtherVersionWeight)
+    ) return null
+  }
+  return guaranteedLockfileWeight > maximumOtherVersionWeight
+    ? lockfileVersion
+    : null
+}
+
+function preferredSelectorInfo (
+  value: VersionSelectors[string]
+): { selectorType: VersionSelectorType, weight: number } {
+  return typeof value === 'string'
+    ? { selectorType: value, weight: 1 }
+    : value
 }
 
 function prioritizePreferredVersions (
@@ -228,9 +318,7 @@ function prioritizePreferredVersions (
 
   // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
-    const { selectorType, weight } = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 }
-      : preferredSelectorType
+    const { selectorType, weight } = preferredSelectorInfo(preferredSelectorType)
     if (preferredSelector === versionRange) continue
     switch (selectorType) {
       case 'tag': {
@@ -291,6 +379,146 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 // semver's own maxSatisfying/minSatisfying re-parse the range and every
 // version string on each call, which dominates resolution time on large
 // packuments; these reuse the parse caches instead.
+/**
+ * The newest version of `meta` the registry does not report as deprecated,
+ * for the deprecation warning to point at.
+ *
+ * `meta` must already be narrowed by any active `publishedBy` policy, so the
+ * version named is one pnpm would actually install. `undefined` when every
+ * admissible version is deprecated. Reads deprecation off the packument pnpm
+ * already holds, so it costs no extra request.
+ */
+export interface PublishPolicyOptions {
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+}
+
+/** Whether the policy trusts `version` outright. */
+function policyTrusts (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  const excludeResult = opts.publishedByExclude?.(meta.name)
+  if (excludeResult === true) return true
+  return Array.isArray(excludeResult) && excludeResult.includes(version)
+}
+
+/**
+ * Whether the cutoff has positive evidence that `version` is too new.
+ *
+ * A version pnpm cannot date is not flagged, matching the resolver's own
+ * violation check, which likewise only flags a version it can date.
+ * Reporting wants this direction: hiding an available version over metadata
+ * pnpm failed to read would be its own wrong answer.
+ */
+export function knownImmature (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return false
+  if (policyTrusts(meta, version, opts)) return false
+  const publishedAt = meta.time?.[version]
+  if (publishedAt == null) return false
+  const ts = new Date(publishedAt).getTime()
+  return !Number.isNaN(ts) && ts > opts.publishedBy.getTime()
+}
+
+/**
+ * Whether `version` clears the cutoff the way the pick's own filter requires.
+ *
+ * The inverse of {@link knownImmature}: admission needs positive evidence of
+ * maturity, because `filterPkgMetadataByPublishDate` drops every version it
+ * cannot date. Recommending a version wants this direction, so pnpm never
+ * names one the pick would then refuse.
+ */
+export function installableUnderPolicy (
+  meta: PackageMeta,
+  version: string,
+  opts: PublishPolicyOptions
+): boolean {
+  if (!opts.publishedBy) return true
+  if (policyTrusts(meta, version, opts)) return true
+  if (meta.time == null) {
+    // Abbreviated metadata carries no per-version timestamps, and the pick
+    // admits every version here once `modified` proves the whole document
+    // predates the cutoff. Follow it, so a package that resolved from
+    // abbreviated metadata still gets told where to go.
+    const modified = parseModifiedDate(meta.modified)
+    return modified != null && modified <= opts.publishedBy
+  }
+  const publishedAt = meta.time[version]
+  if (publishedAt == null) return false
+  const ts = new Date(publishedAt).getTime()
+  return !Number.isNaN(ts) && ts <= opts.publishedBy.getTime()
+}
+
+export function findNonDeprecatedAlternative (
+  meta: PackageMeta,
+  spec: RegistryPackageSpec,
+  opts: PublishPolicyOptions
+): NonDeprecatedAlternative | undefined {
+  let newest: semver.SemVer | undefined
+  for (const [version, versionMeta] of Object.entries(meta.versions)) {
+    if (versionMeta.deprecated) continue
+    if (!installableUnderPolicy(meta, version, opts)) continue
+    const parsed = semver.parse(version, true)
+    if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
+      newest = parsed
+    }
+  }
+  if (newest == null) return undefined
+  const version = newest.version
+  return {
+    version,
+    outsideDeclaredRange: spec.type === 'range' &&
+      spec.fetchSpec !== '*' &&
+      !semverSatisfiesLoose(version, spec.fetchSpec),
+  }
+}
+
+function nonDeprecatedPick (
+  meta: PackageMeta,
+  candidates: string[],
+  picked: string,
+  versionRange: string
+): string | null {
+  if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
+  const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
+  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
+    const pickedParsed = parseSemverLoose(picked)
+    if (pickedParsed != null) {
+      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
+        const parsed = parseSemverLoose(version)
+        return parsed != null &&
+          parsed.major === pickedParsed.major &&
+          parsed.minor === pickedParsed.minor &&
+          parsed.patch === pickedParsed.patch
+      })
+      const sameRelease = maxVersionLoose(sameReleasePrereleases)
+      if (sameRelease != null) return sameRelease
+    }
+  }
+
+  return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
+}
+
+/** The newest version by semver order, without a range check. */
+function maxVersionLoose (versions: string[]): string | null {
+  let bestVersion: string | null = null
+  let bestParsed: semver.SemVer | null = null
+  for (const version of versions) {
+    const parsed = parseSemverLoose(version)
+    if (parsed == null) continue
+    if (bestParsed == null || parsed.compare(bestParsed) > 0) {
+      bestVersion = version
+      bestParsed = parsed
+    }
+  }
+  return bestVersion
+}
+
 function maxSatisfyingLoose (versions: string[], range: string): string | null {
   return findSatisfyingLoose(versions, range, (candidate, best) => candidate.compare(best) > 0)
 }

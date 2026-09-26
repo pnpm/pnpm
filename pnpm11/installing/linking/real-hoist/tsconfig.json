@@ -27,6 +27,9 @@
       "path": "../../../lockfile/fs"
     },
     {
+      "path": "../../../lockfile/types"
+    },
+    {
       "path": "../../../lockfile/utils"
     }
   ]

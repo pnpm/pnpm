@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.preferred-versions",
-  "version": "1100.0.28",
+  "version": "1100.0.35",
   "description": "Get preferred version from lockfile",
   "keywords": [
     "pnpm",
@@ -33,6 +33,8 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

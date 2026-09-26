@@ -4,19 +4,23 @@ import util from 'node:util'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
+import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  checkPatchedDepPaths,
   getGitBranchLockfileNamesSync,
   getLockfileImporterId,
   getWantedLockfileName,
   type LockfileObject,
+  type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
+  type ResolvedDependencies,
   wantedLockfileHasMergeConflictsSync,
 } from '@pnpm/lockfile.fs'
 import {
@@ -46,18 +50,24 @@ import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader
 import { equals, filter, isEmpty, once } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
+import { findInjectedWorkspaceDep } from './findInjectedWorkspaceDep.js'
 import { safeStat, safeStatSync } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 
 export type CheckDepsStatusOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'catalogs'
+| 'dedupeDirectDeps'
 | 'excludeLinksFromLockfile'
+| 'ignorePnpmfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'mergeGitBranchLockfiles'
+| 'modulesDir'
+| 'modulesDirsByProjectName'
 | 'nodeLinker'
+| 'packageConfigs'
 | 'patchedDependencies'
 | 'peersSuffixMaxLength'
 | 'sharedWorkspaceLockfile'
@@ -184,6 +194,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   // (the only one setting this flag) "up-to-date" would skip the install
   // and break the local-file-deps guarantee.
   if (opts.treatLocalFileDepsAsOutdated) {
+    // `parseOverrides` throws on a misconfigured catalog or invalid selector.
+    // The outer catch in `checkDepsStatus` then reports the status as unknown,
+    // and the resulting full install surfaces the same error.
+    const overrides = opts.overrides != null && !isEmpty(opts.overrides)
+      ? parseOverrides(opts.overrides, catalogs)
+      : []
     const manifests = allProjects?.map(({ manifest }) => manifest) ?? []
     // `rootProjectManifest` is tracked separately from `allProjects` and the
     // recursive project list can omit the workspace root (for example when
@@ -192,7 +208,15 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (rootProjectManifest != null && !allProjects?.some(({ rootDir }) => rootDir === rootProjectManifestDir)) {
       manifests.push(rootProjectManifest)
     }
-    const localFileDep = findLocalFileDep(manifests, opts.include, catalogs)
+    const localFileDepContext: LocalFileDepSearchContext = {
+      include: opts.include,
+      catalogs,
+      // An empty manifest is the parent of no `parent>dep` override, so only
+      // overrides without a parent selector apply. Whether a parent-scoped one
+      // applies depends on which package declares the dependency.
+      isOverridden: createOverriddenDependencyMatcher(overrides, workspaceDir ?? rootProjectManifestDir)?.({}),
+    }
+    const localFileDep = findLocalFileDep(manifests, localFileDepContext)
     if (localFileDep != null) {
       return {
         upToDate: false,
@@ -200,7 +224,21 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
-    const localFileOverride = findLocalFileOverride(opts.overrides, catalogs)
+    const injectedWorkspaceDep = findInjectedWorkspaceDep(manifests, {
+      workspaceManifests: manifests,
+      injectWorkspacePackages,
+      linkWorkspacePackages,
+      include: opts.include,
+      catalogs,
+    })
+    if (injectedWorkspaceDep != null) {
+      return {
+        upToDate: false,
+        issue: `The dependency "${injectedWorkspaceDep}" is an injected workspace dependency and its contents may have changed`,
+        workspaceState,
+      }
+    }
+    const localFileOverride = findLocalFileOverride(overrides)
     if (localFileOverride != null) {
       return {
         upToDate: false,
@@ -208,7 +246,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         workspaceState,
       }
     }
-    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, opts.include, catalogs)
+    const localFileExtension = findLocalFilePackageExtension(opts.packageExtensions, localFileDepContext)
     if (localFileExtension != null) {
       return {
         upToDate: false,
@@ -307,11 +345,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
     let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
     if (nodeLinker === 'hoisted') {
-      const statsPromise = safeStat(path.join(rootProjectManifestDir, 'node_modules'))
+      const statsPromise = safeStat(path.resolve(rootProjectManifestDir, opts.modulesDir ?? 'node_modules'))
       statModulesDir = () => statsPromise
     } else {
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
-      statModulesDir = project => safeStat(path.join(project.rootDir, 'node_modules'))
+      const modulesDirOf = createProjectModulesDirResolver(opts)
+      statModulesDir = project => safeStat(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'))
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
@@ -329,12 +368,32 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     }))
 
     if (!workspaceState.filteredInstall) {
-      for (const { modulesDirStats, project } of allManifestStats) {
-        if (modulesDirStats) continue
-        if (isEmpty({
+      const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
+        modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
-        })) continue
+        }))
+      // Under dedupeDirectDeps a project whose direct dependencies resolve to
+      // the root's targets gets nothing linked, so the linker never creates
+      // its modules directory; it is installed all the same.
+      const rootModulesDirExists = allManifestStats.some(({ modulesDirStats, project }) =>
+        modulesDirStats?.isDirectory() === true && project.rootDir === rootProjectManifestDir)
+      const dedupeLockfileDir = opts.lockfileDir ?? workspaceDir ?? rootProjectManifestDir
+      const mayBeDeduped = (project: Project): boolean =>
+        opts.dedupeDirectDeps === true && rootModulesDirExists && project.rootDir !== rootProjectManifestDir
+      const wantedLockfileForDedupe = withoutModulesDir.some(({ project }) => mayBeDeduped(project))
+        ? await readWantedLockfile(dedupeLockfileDir, {
+          ignoreIncompatible: false,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+        : null
+      for (const { project } of withoutModulesDir) {
+        if (
+          wantedLockfileForDedupe != null &&
+          mayBeDeduped(project) &&
+          dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir, opts.include)
+        ) continue
         const id = project.manifest.name ?? project.rootDir
         return {
           upToDate: false,
@@ -350,6 +409,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -504,7 +564,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
-        patterns: workspaceManifest?.packages,
+        patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
+        modulesDir: opts.modulesDir,
+        modulesDirsByProjectName: opts.modulesDirsByProjectName,
       })
       return checkDepsStatus({
         ...opts,
@@ -517,6 +579,13 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
+    if (recordedInAnotherDirectory(workspaceState, rootProjectManifestDir)) {
+      return {
+        upToDate: false,
+        issue: 'The project directory has changed since last install',
+        workspaceState,
+      }
+    }
     const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
     const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
@@ -556,6 +625,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       lastValidatedTimestamp: effectiveWantedLockfileStats.mtime.valueOf(),
       currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
+      ignorePnpmfile: opts.ignorePnpmfile,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -690,12 +760,26 @@ async function assertWantedLockfileUpToDate (
     packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,
+    ignorePnpmfileChecksum: config.ignorePnpmfile === true && pnpmfileChecksum == null,
   })
 
   if (outdatedLockfileSettingName) {
     throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_LOCKFILE', `Setting ${outdatedLockfileSettingName} of lockfile in ${wantedLockfileDir} is outdated`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
+  }
+
+  switch (checkPatchedDepPaths(wantedLockfile)) {
+    case 'stale':
+      throw new PnpmError('RUN_CHECK_DEPS_STALE_PATCH_HASHES', `The lockfile in ${wantedLockfileDir} has patch hashes that disagree with its own "patchedDependencies"`, {
+        hint: 'Run `pnpm install` to update the lockfile',
+      })
+    case 'indeterminate':
+      throw new PnpmError('RUN_CHECK_DEPS_UNCHECKABLE_PATCH_HASHES', `The lockfile in ${wantedLockfileDir} cannot be checked for stale patch hashes`, {
+        hint: 'Run `pnpm install` to update the lockfile',
+      })
+    case 'up-to-date':
+      break
   }
 
   if (!satisfiesPackageManifest(
@@ -715,6 +799,7 @@ async function assertWantedLockfileUpToDate (
   if (!await linkedPackagesAreUpToDate({
     linkWorkspacePackages: !!linkWorkspacePackages,
     lockfileDir: wantedLockfileDir,
+    workspaceDir: config.workspaceDir,
     manifestsByDir: getManifestsByDir(),
     workspacePackages: getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,
@@ -729,6 +814,12 @@ async function assertWantedLockfileUpToDate (
   }
 }
 
+interface LocalFileDepSearchContext {
+  include?: IncludedDependencies
+  catalogs?: Catalogs
+  isOverridden?: OverriddenDependencyMatcher
+}
+
 /**
  * Returns the name of the first dependency declared with a local file
  * specifier in any of the given manifests, or `undefined` when there is none.
@@ -737,15 +828,16 @@ async function assertWantedLockfileUpToDate (
  * current install (per `include`) are skipped: their local file dependencies
  * are not installed, so their contents cannot be stale. `catalog:` specs are
  * dereferenced through the catalogs config: the catalog resolver only bans
- * the `workspace:`, `link:`, and `file:` protocols, so a catalog entry can
+ * the `link:` and `file:` protocols, so a catalog entry can
  * still hold a bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to
- * a local file dependency.
+ * a local file dependency. Dependencies an override replaces are skipped:
+ * the override's target is installed instead.
  */
-function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+function findLocalFileDep (manifests: ProjectManifest[], ctx: LocalFileDepSearchContext): string | undefined {
   for (const manifest of manifests) {
     for (const depField of DEPENDENCIES_FIELDS) {
-      if (include?.[depField] === false) continue
-      const depName = findLocalFileDepInRecord(manifest[depField], catalogs)
+      if (ctx.include?.[depField] === false) continue
+      const depName = findLocalFileDepInRecord(manifest[depField], ctx)
       if (depName != null) return depName
     }
   }
@@ -754,22 +846,33 @@ function findLocalFileDep (manifests: ProjectManifest[], include?: IncludedDepen
 
 /**
  * Returns the name of the first dependency in `deps` declared with (or
- * resolving through a catalog to) a local file specifier, or `undefined`.
+ * resolving through a catalog to) a local file specifier and not replaced by
+ * an override, or `undefined`.
  */
-function findLocalFileDepInRecord (deps: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
+function findLocalFileDepInRecord (deps: Record<string, string> | undefined, { catalogs, isOverridden }: LocalFileDepSearchContext): string | undefined {
   if (deps == null) return undefined
   for (const [depName, spec] of Object.entries(deps)) {
     // A malformed manifest may carry a non-string spec; skip it rather
     // than throw — checkDepsStatus() must never crash.
     if (typeof spec !== 'string') continue
-    if (isLocalFileSpec(spec)) return depName
-    // Only catalog: specs consult the catalogs, so skip the lookup for
-    // everything else to keep the optimistic fast path cheap.
-    if (!spec.startsWith('catalog:')) continue
-    const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
-    if (catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)) return depName
+    if (!isEffectiveLocalFileSpec(depName, spec, catalogs)) continue
+    if (isOverridden?.(depName, spec)) continue
+    return depName
   }
   return undefined
+}
+
+/**
+ * Whether the dependency's specifier is (or resolves through a catalog to) a
+ * local file specifier.
+ */
+function isEffectiveLocalFileSpec (depName: string, spec: string, catalogs?: Catalogs): boolean {
+  if (isLocalFileSpec(spec)) return true
+  // Only catalog: specs consult the catalogs, so skip the lookup for
+  // everything else to keep the optimistic fast path cheap.
+  if (!spec.startsWith('catalog:')) return false
+  const catalogResult = resolveFromCatalog(catalogs ?? {}, { alias: depName, bareSpecifier: spec })
+  return catalogResult.type === 'found' && isLocalFileSpec(catalogResult.resolution.specifier)
 }
 
 /**
@@ -782,12 +885,12 @@ function findLocalFileDepInRecord (deps: Record<string, string> | undefined, cat
  * `optionalDependencies` are scanned: peer dependencies are resolved from the
  * graph rather than fetched, so a local spec there is never installed.
  */
-function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], include?: IncludedDependencies, catalogs?: Catalogs): string | undefined {
+function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOptions['packageExtensions'], ctx: LocalFileDepSearchContext): string | undefined {
   if (packageExtensions == null) return undefined
   for (const [selector, extension] of Object.entries(packageExtensions)) {
-    if (findLocalFileDepInRecord(extension.dependencies, catalogs) != null) return selector
-    if (include?.optionalDependencies === false) continue
-    if (findLocalFileDepInRecord(extension.optionalDependencies, catalogs) != null) return selector
+    if (findLocalFileDepInRecord(extension.dependencies, ctx) != null) return selector
+    if (ctx.include?.optionalDependencies === false) continue
+    if (findLocalFileDepInRecord(extension.optionalDependencies, ctx) != null) return selector
   }
   return undefined
 }
@@ -797,20 +900,14 @@ function findLocalFilePackageExtension (packageExtensions: CheckDepsStatusOption
  * specifier, or `undefined` when there is none. An override redirects every
  * matching dependency in the graph to its specifier, so a local file override
  * makes the installed contents depend on that directory or tarball the same
- * way a direct local file dependency does. Overrides are run through
- * `parseOverrides` so `catalog:` specs are dereferenced before the check.
- * `parseOverrides` throws on a misconfigured catalog or invalid selector;
- * that propagates to the outer catch in `checkDepsStatus`, which reports
- * not-up-to-date, and the resulting full install surfaces the same error.
+ * way a direct local file dependency does.
  */
-function findLocalFileOverride (overrides: Record<string, string> | undefined, catalogs?: Catalogs): string | undefined {
-  if (overrides == null || isEmpty(overrides)) return undefined
-  return parseOverrides(overrides, catalogs)
-    .find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
+function findLocalFileOverride (overrides: VersionOverride[]): string | undefined {
+  return overrides.find(({ newBareSpecifier }) => isLocalFileSpec(newBareSpecifier))?.selector
 }
 
 const LOCAL_PATH_PREFIX = /^(?:[./\\]|~[/\\]|[a-z]:)/i
-const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
+const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 
 /**
  * Whether the specifier resolves to a local directory or tarball whose
@@ -827,8 +924,8 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
  * specs (and anything else carrying a protocol or URL) stay on the fast
  * path. `catalog:` specs also return false here — callers dereference them
  * through the catalogs config first, because a catalog entry may hold a
- * bare local path (the catalog resolver only bans the `workspace:`,
- * `link:`, and `file:` protocols).
+ * bare local path (the catalog resolver only bans the `link:` and `file:`
+ * protocols).
  */
 function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true
@@ -934,6 +1031,7 @@ async function patchesOrHooksAreModified (opts: {
   lastValidatedTimestamp: number
   currentPnpmfiles: string[]
   previousPnpmfiles: string[]
+  ignorePnpmfile?: boolean
 }): Promise<string | undefined> {
   if (opts.patchedDependencies) {
     const allPatchStats = await Promise.all(Object.values(opts.patchedDependencies).map((patchFile) => {
@@ -945,6 +1043,9 @@ async function patchesOrHooksAreModified (opts: {
     )) {
       return 'Patches were modified'
     }
+  }
+  if (opts.ignorePnpmfile) {
+    return undefined
   }
   if (!equals(opts.currentPnpmfiles, opts.previousPnpmfiles)) {
     return 'The list of pnpmfiles changed.'
@@ -980,4 +1081,66 @@ function modifiedAtOrAfter (stats: fs.Stats, referenceMs: number): boolean {
   const wholeSecond = stats.mtimeMs % 1000 === 0
   const mtimeMs = stats.mtime.valueOf()
   return wholeSecond ? mtimeMs + 1000 > referenceMs : mtimeMs > referenceMs
+}
+
+/**
+ * Whether `dedupeDirectDeps` links nothing into the project at `projectDir`:
+ * for every alias the project declares in a materialized group, the wanted
+ * lockfile records one target on each side, and the two are the same, which
+ * is what the linker compares. An alias declared with differing targets in
+ * several groups has one effective target the linker picks by group order;
+ * that choice is not reproduced here, so such an alias proves nothing.
+ * Neither does a lockfile that lacks either importer.
+ */
+function dedupeLinksNothing (
+  lockfile: LockfileObject,
+  lockfileDir: string,
+  rootDir: string,
+  projectDir: string,
+  include?: IncludedDependencies
+): boolean {
+  const root = lockfile.importers[getLockfileImporterId(lockfileDir, rootDir)]
+  const project = lockfile.importers[getLockfileImporterId(lockfileDir, projectDir)]
+  if (root == null || project == null) return false
+  const materializedGroups = (importer: ProjectSnapshot): Array<ResolvedDependencies | undefined> => [
+    include?.dependencies === false ? undefined : importer.dependencies,
+    include?.devDependencies === false ? undefined : importer.devDependencies,
+    include?.optionalDependencies === false ? undefined : importer.optionalDependencies,
+  ]
+  const soleTarget = (importer: ProjectSnapshot, alias: string): string | undefined => {
+    const versions = materializedGroups(importer)
+      .map((deps) => deps?.[alias])
+      .filter((version): version is string => version != null)
+    return versions.length > 0 && versions.every((version) => version === versions[0]) ? versions[0] : undefined
+  }
+  const aliases = new Set(materializedGroups(project).flatMap((deps) => Object.keys(deps ?? {})))
+  return [...aliases].every((alias) => {
+    const version = soleTarget(project, alias)
+    const rootVersion = soleTarget(root, alias)
+    return version != null && rootVersion != null && resolvesToSameTarget(rootDir, rootVersion, projectDir, version)
+  })
+}
+
+/**
+ * Whether two importer dependency versions resolve to one target: the same
+ * snapshot, or `link:` paths that name the same directory once resolved
+ * against their own importer directories.
+ */
+function resolvesToSameTarget (rootDir: string, rootVersion: string, projectDir: string, version: string): boolean {
+  const rootLink = rootVersion.startsWith('link:')
+  const projectLink = version.startsWith('link:')
+  if (rootLink !== projectLink) return false
+  if (!rootLink) return rootVersion === version
+  return path.resolve(rootDir, rootVersion.slice('link:'.length)) === path.resolve(projectDir, version.slice('link:'.length))
+}
+
+/**
+ * `projectsToRecordInWorkspaceState` in `@pnpm/installing.commands` explains
+ * why a moved project needs a real install. A state file without a recorded
+ * project is never reported as recorded elsewhere.
+ */
+function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir: string): boolean {
+  const recordedProjectDirs = Object.keys(workspaceState.projects)
+  return recordedProjectDirs.length > 0 &&
+    !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
 }

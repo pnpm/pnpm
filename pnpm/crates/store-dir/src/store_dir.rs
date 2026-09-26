@@ -132,7 +132,7 @@ impl StoreDir {
     /// path calls this per CAFS file written, so caching the joined
     /// path saves one `PathBuf` allocation per call (~170k on the
     /// alotta-files clean install).
-    fn files_dir(&self) -> &PathBuf {
+    pub(crate) fn files_dir(&self) -> &PathBuf {
         self.cached_files_dir.get_or_init(|| self.root.join("files"))
     }
 
@@ -159,6 +159,12 @@ impl StoreDir {
     /// Path to the temporary directory inside the store.
     pub fn tmp(&self) -> PathBuf {
         self.root.join("tmp")
+    }
+
+    /// A path under [`Self::tmp`] no other process names, for a
+    /// directory labelled `label` (a single path component).
+    pub fn unique_tmp_dir(&self, label: &str) -> PathBuf {
+        self.tmp().join(unique_dir_name(label))
     }
 
     /// Path to the shared global-virtual-store directory inside the
@@ -255,6 +261,15 @@ impl StoreDir {
         }
         Ok(())
     }
+}
+
+/// A directory name no concurrent process produces, so installs that
+/// share a parent directory never collide.
+pub(crate) fn unique_dir_name(label: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos =
+        SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
+    format!("{label}-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]

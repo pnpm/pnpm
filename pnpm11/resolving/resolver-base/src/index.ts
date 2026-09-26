@@ -18,6 +18,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -270,19 +271,19 @@ export interface PlatformSelector {
 
 /**
  * Resolve a {@link PlatformSelector} from the user's supportedArchitectures config
- * and the host's own platform/arch/libc. When `supportedArchitectures.xxx` is set
- * and its first entry is not `"current"`, that entry wins; otherwise the host's
- * value is used. Additional entries beyond the first are ignored — variant
- * selection picks exactly one (os, cpu, libc) triplet per install.
+ * and the host's own platform/arch/libc. Exactly one (os, cpu, libc) triplet is
+ * installed, so each axis prefers the host's own value: a variant built for
+ * another platform cannot run here.
+ * @see https://github.com/pnpm/pnpm/issues/13898
  */
 export function resolvePlatformSelector (
   supportedArchitectures: SupportedArchitectures | undefined,
   host: { platform: string, arch: string, libc: string | null | undefined }
 ): PlatformSelector {
   return {
-    os: pickFirstNonCurrent(supportedArchitectures?.os) ?? host.platform,
-    cpu: pickFirstNonCurrent(supportedArchitectures?.cpu) ?? host.arch,
-    libc: pickFirstNonCurrent(supportedArchitectures?.libc) ?? host.libc,
+    os: pickSupported(supportedArchitectures?.os, host.platform),
+    cpu: pickSupported(supportedArchitectures?.cpu, host.arch),
+    libc: pickSupported(supportedArchitectures?.libc, host.libc),
   }
 }
 
@@ -312,16 +313,36 @@ function libcMatches (variantLibc: string | undefined, requestedLibc: string | n
   return variantLibc === requestedLibc
 }
 
-function pickFirstNonCurrent (requirements: string[] | undefined): string | undefined {
-  if (requirements?.length && requirements[0] !== 'current') {
-    return requirements[0]
-  }
-  return undefined
+function pickSupported<T extends string | null | undefined> (requirements: string[] | undefined, hostValue: T): string | T {
+  if (!requirements?.length) return hostValue
+  if (requirements.some((requirement) => requirement === 'current' || requirement === hostValue)) return hostValue
+  return requirements[0]
+}
+
+/**
+ * A version of the same package the registry does not report as deprecated.
+ *
+ * Only the resolver can work this out, since only it holds the packument.
+ */
+export interface NonDeprecatedAlternative {
+  version: string
+  /**
+   * Whether reaching it means widening the declared range. Only ever true
+   * for a dependency that declared a range: a tag says nothing about which
+   * versions are acceptable, so there is no range to be outside of.
+   */
+  outsideDeclaredRange: boolean
 }
 
 export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
+  /**
+   * Set only when the resolved version is deprecated, so that the
+   * deprecation warning can name a version to move to. Absent when the
+   * resolution was reused from the lockfile, which holds no packument.
+   */
+  nonDeprecatedAlternative?: NonDeprecatedAlternative
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution
@@ -399,6 +420,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated

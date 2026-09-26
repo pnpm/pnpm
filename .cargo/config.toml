@@ -1,3 +1,19 @@
 [alias]
 # Do not append `--` or it will break IDEs
-codecov = "llvm-cov nextest --workspace --exclude pacquet-integrated-benchmark --exclude pacquet-micro-benchmark --exclude pacquet-registry-mock --ignore-filename-regex tasks"
+codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --exclude pnpm-micro-benchmark --exclude pnpm-registry-mock --ignore-filename-regex tasks"
+
+# >>> pnpm-managed cargo sources >>>
+[source.crates-io]
+replace-with = "pnpm-crates-io"
+
+[source.pnpm-crates-io]
+directory = ".pnpm/crates/crates-io"
+
+[source.pnpm-git]
+directory = ".pnpm/crates/git"
+
+[source."git+https://github.com/pnpm/node-semver-rs?rev=1ae976a0023b4dec80b1a5411ccee8343f91320e"]
+git = "https://github.com/pnpm/node-semver-rs"
+rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e"
+replace-with = "pnpm-git"
+# <<< pnpm-managed cargo sources <<<

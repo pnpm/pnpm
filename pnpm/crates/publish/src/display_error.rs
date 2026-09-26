@@ -1,7 +1,7 @@
 //! render a caught error as a short one-line string
 //! for a warning message.
 
-use pacquet_diagnostics::miette::Diagnostic;
+use pnpm_diagnostics::miette::Diagnostic;
 
 /// Combine an error's `code` (or `name`) and `message` into a one-line
 /// string:

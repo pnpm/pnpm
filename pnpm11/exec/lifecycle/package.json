@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.lifecycle",
-  "version": "1100.1.12",
+  "version": "1100.1.19",
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",
@@ -37,16 +37,16 @@
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
-    "@pnpm/npm-lifecycle": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "chalk": "catalog:",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
-    "run-groups": "catalog:",
     "shlex": "catalog:"
   },
   "peerDependencies": {

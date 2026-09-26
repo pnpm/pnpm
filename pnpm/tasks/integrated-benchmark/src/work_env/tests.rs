@@ -1,11 +1,15 @@
 use super::{
-    BenchId, BenchmarkScenario, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER,
-    PEER_HEAVY_WIDTH, PhaseEvent, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
-    create_package_json, create_pnpm_workspace, non_trivial_cold_batch, peer_heavy_package_name,
-    pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
-    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
+    create_install_script, create_package_json, create_pnpm_workspace,
+    fixtures::peer_heavy_package_name,
+    measurements::PhaseEvent,
+    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
     summarize_phase_events,
 };
+use crate::cli_args::BenchmarkScenario;
 use std::{collections::HashMap, fs};
 
 #[test]
@@ -47,6 +51,28 @@ fn online_scenario_writes_no_prewarm_script() {
     assert!(!has_prewarm);
 }
 
+/// The whys live on the `cleanup()` arm and the
+/// `prewarms_node_modules` predicate this test pins.
+#[test]
+fn repeat_install_scenarios_keep_node_modules_populated() {
+    for scenario in [
+        BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore,
+        BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore,
+    ] {
+        let cleanup = scenario.cleanup();
+        assert!(
+            !cleanup.remove.contains(&"node_modules"),
+            "{scenario:?} must not wipe node_modules between iterations",
+        );
+        assert!(
+            cleanup.restore.is_empty(),
+            "{scenario:?} must not restore files a repeat install never mutates",
+        );
+        assert!(scenario.prewarms_node_modules(), "{scenario:?} must pre-warm node_modules");
+        assert!(scenario.seeds_lockfile(), "{scenario:?} needs the seeded lockfile");
+    }
+}
+
 #[test]
 fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let dir = std::env::temp_dir()
@@ -77,13 +103,19 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(registry.join(peer_heavy_package_name(0, 0)).join("package.json"))
-            .expect("read first peer-heavy packument"),
+        &fs::read(
+            registry
+                .join(peer_heavy_package_name(0, 0))
+                .join("package.json"),
+        )
+        .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
         &fs::read(
-            registry.join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0)).join("package.json"),
+            registry
+                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
+                .join("package.json"),
         )
         .expect("read leaf peer-heavy packument"),
     )
@@ -114,6 +146,70 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
             .as_object()
             .expect("leaf dependencies")
             .is_empty(),
+    );
+}
+
+/// The fixture's point is the `workspace:*` fan-out and the peer every
+/// linked project declares: without both, the install never walks a shared
+/// `link:` graph and the scenario stops guarding anything.
+#[test]
+fn linked_workspace_scenario_generates_a_shared_link_graph() {
+    let scenario = BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline;
+    let dir = std::env::temp_dir()
+        .join(format!("pacquet-integrated-benchmark-linked-workspace-{}", std::process::id()));
+    fs::create_dir_all(&dir).expect("create linked-workspace test dir");
+
+    create_package_json(&dir, None, scenario);
+    super::linked_workspace::create_projects(&dir);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+
+    let root: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read root manifest"))
+            .expect("parse root manifest");
+    let first: serde_json::Value = serde_json::from_slice(
+        &fs::read(dir.join("packages/level-0-00/package.json")).expect("read first project"),
+    )
+    .expect("parse first project");
+    let leaf: serde_json::Value = serde_json::from_slice(
+        &fs::read(dir.join(format!(
+            "packages/level-{}-00/package.json",
+            LINKED_WORKSPACE_DEPTH - 1,
+        )))
+        .expect("read leaf project"),
+    )
+    .expect("parse leaf project");
+    let workspace =
+        fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read generated workspace");
+    let project_count = fs::read_dir(dir.join("packages")).expect("read projects").count();
+    let _ = fs::remove_dir_all(&dir);
+
+    assert_eq!(project_count, LINKED_WORKSPACE_DEPTH * LINKED_WORKSPACE_WIDTH + 1);
+    assert!(workspace.contains("- packages/*"), "workspace = {workspace}");
+    dbg!(&root, &first, &leaf);
+    assert_eq!(
+        root["dependencies"]
+            .as_object()
+            .expect("root dependencies")
+            .len(),
+        LINKED_WORKSPACE_WIDTH + 1,
+    );
+    // Every project links the whole next level plus the shared peer provider.
+    assert_eq!(
+        first["dependencies"]
+            .as_object()
+            .expect("first dependencies")
+            .len(),
+        LINKED_WORKSPACE_WIDTH + 1,
+    );
+    assert_eq!(first["dependencies"]["@pnpmtest/linked-benchmark-level-1-00"], "workspace:*");
+    assert_eq!(first["peerDependencies"]["@pnpmtest/linked-benchmark-shared"], "1.0.0");
+    // The last level links nothing but the provider, so the graph terminates.
+    assert_eq!(
+        leaf["dependencies"]
+            .as_object()
+            .expect("leaf dependencies")
+            .len(),
+        1,
     );
 }
 
@@ -207,7 +303,7 @@ fn peer_heavy_diagnostics(pacquet: (f64, f64), pnpm: (f64, f64)) -> super::Bench
         id: id.to_string(),
         hyperfine_mean_seconds: Some(mean),
         hyperfine_min_seconds: Some(min),
-        phase_summary: super::PhaseSummary::default(),
+        phase_summary: super::measurements::PhaseSummary::default(),
         phase_events: vec![],
     };
     super::BenchmarkDiagnostics {
@@ -320,6 +416,7 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
 
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
+    assert!(yaml.contains("allowedPrivateNetworks:"));
     assert!(yaml.contains("max_users: -1"));
     assert!(yaml.contains("htpasswd"));
 }
@@ -344,8 +441,8 @@ fn diagnostics_markdown_includes_create_virtual_store_line_item() {
                 id: "pnpr@HEAD".to_string(),
                 hyperfine_mean_seconds: Some(7.5),
                 hyperfine_min_seconds: Some(7.5),
-                phase_summary: super::PhaseSummary {
-                    partition: Some(super::PartitionMetric {
+                phase_summary: super::measurements::PhaseSummary {
+                    partition: Some(super::measurements::PartitionMetric {
                         warm: 12,
                         cold: 88,
                         skipped: 0,
@@ -374,7 +471,7 @@ fn diagnostics_markdown_notes_fresh_install_cold_store_tarball_baseline_shift() 
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
                 hyperfine_min_seconds: Some(1.0),
-                phase_summary: super::PhaseSummary::default(),
+                phase_summary: super::measurements::PhaseSummary::default(),
                 phase_events: vec![],
             }],
             pnpr_direct_ratios: vec![],
@@ -395,8 +492,8 @@ fn diagnostics_markdown_omits_baseline_note_after_pnpr_main_is_instrumented() {
                 id: "pnpr@main".to_string(),
                 hyperfine_mean_seconds: Some(1.0),
                 hyperfine_min_seconds: Some(1.0),
-                phase_summary: super::PhaseSummary {
-                    partition: Some(super::PartitionMetric {
+                phase_summary: super::measurements::PhaseSummary {
+                    partition: Some(super::measurements::PartitionMetric {
                         warm: 0,
                         cold: 1,
                         skipped: 0,
@@ -422,22 +519,28 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
 
     // Current layout, `pnpm` bin, with taplo-style key padding.
     let current = root.join("current");
-    let manifest_dir = current.join("pnpm").join("crates").join("cli");
+    let manifest_dir = current
+        .join("pnpm")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname       = \"pacquet-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
+        "[package]\nname       = \"pnpm-cli\"\n\n[[bin]]\nname = \"pnpm\"\n",
     )
     .expect("write current-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&current), "pnpm");
 
     // Old layout, `pacquet` bin.
     let old = root.join("old");
-    let manifest_dir = old.join("pacquet").join("crates").join("cli");
+    let manifest_dir = old
+        .join("pacquet")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
-        "[package]\nname = \"pacquet-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
+        "[package]\nname = \"pnpm-cli\"\n\n[[bin]]\nname = \"pacquet\"\n",
     )
     .expect("write old-layout manifest");
     assert_eq!(WorkEnv::cli_bin_name(&old), "pacquet");

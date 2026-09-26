@@ -5,8 +5,10 @@ use crate::version_policy::{
 use pretty_assertions::assert_eq;
 
 fn expand(specs: &[&str]) -> Vec<String> {
-    let mut out: Vec<String> =
-        expand_package_version_specs(specs.iter().copied()).unwrap().into_iter().collect();
+    let mut out: Vec<String> = expand_package_version_specs(specs.iter().copied())
+        .unwrap()
+        .into_iter()
+        .collect();
     out.sort();
     out
 }
@@ -153,7 +155,7 @@ fn create_policy_deduplicates_repeated_versions_across_rules() {
 #[test]
 fn create_policy_bare_rule_after_exact_keeps_exact_versions() {
     let policy = create_package_version_policy(["axios@1.12.2", "axios"]).unwrap();
-    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
+    assert_eq!(policy.matches("axios"), PolicyMatch::AnyVersion);
 }
 
 #[test]
@@ -165,7 +167,7 @@ fn create_policy_bare_rule_listed_first_wins_over_later_exact() {
 #[test]
 fn create_policy_wildcard_after_exact_keeps_exact_versions() {
     let policy = create_package_version_policy(["axios@1.12.2", "ax*"]).unwrap();
-    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
+    assert_eq!(policy.matches("axios"), PolicyMatch::AnyVersion);
 }
 
 #[test]

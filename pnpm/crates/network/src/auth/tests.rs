@@ -1,6 +1,7 @@
 use super::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
-    nerf_dart, redact_and_sanitize, redact_url_credentials,
+    nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
+    redact_url_credentials, redact_url_for_display,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -14,10 +15,40 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[test]
+fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
+    let mut headers = AuthHeaders::default().with_secure_transport();
+    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
+        headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
+    }
+    for headers in [headers.clone(), headers] {
+        for (url, allowed) in [
+            ("https://registry.example/simple/pkg.whl", true),
+            ("http://registry.example/simple/pkg.whl", false),
+            ("http://user:secret@registry.example/simple/pkg.whl", false),
+            ("http://127.0.0.1/simple/pkg.whl", true),
+            ("http://localhost/simple/pkg.whl", true),
+            ("http://[::1]/simple/pkg.whl", true),
+        ] {
+            eprintln!("url={url}, allowed={allowed}");
+            assert_eq!(headers.for_url(url).is_some(), allowed);
+            assert_eq!(
+                headers
+                    .for_url_with_package(url, Some("python:alpha"))
+                    .is_some(),
+                allowed,
+            );
+        }
+    }
+}
+
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),
-        command.iter().map(|part| (*part).to_owned()).collect::<Vec<String>>(),
+        command
+            .iter()
+            .map(|part| (*part).to_owned())
+            .collect::<Vec<String>>(),
     ))
     .collect()
 }
@@ -121,6 +152,20 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     assert_eq!(auth.for_url("https://reg.com/path/pkg"), None);
     // A request that doesn't match the helper prefix still gets the static token.
     assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
+}
+
+#[test]
+fn a_url_header_overlays_only_its_request_route() {
+    let mut auth = AuthHeaders::from_creds_map([
+        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
+    ]);
+
+    auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
+
+    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
 }
 
 /// Records every `(url, package)` it is asked about and answers with a
@@ -234,6 +279,50 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
 }
 
 #[test]
+fn redact_npm_auth_key_hides_protocol_relative_userinfo() {
+    assert_eq!(
+        redact_npm_auth_key("//user:password@registry.example/:_authToken"),
+        "//registry.example/:_authToken",
+    );
+    let malformed = redact_npm_auth_key("//user:pa/ss@registry.example/:_authToken");
+    assert_eq!(malformed, "[hidden]");
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/:_authToken"),
+        "//registry.example/:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/npm/@org:_authToken"),
+        "//registry.example/npm/@org:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/:@org:_authToken"),
+        "//registry.example/:@org:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//localhost:4873/@org:_authToken"),
+        "//localhost:4873/@org:_authToken",
+    );
+    let malformed_scoped = redact_npm_auth_key("//user:pa/ss/@registry.example/:_authToken");
+    assert_eq!(malformed_scoped, "[hidden]");
+    assert_eq!(redact_npm_auth_key("//user:pa/ss/:@org:_authToken"), "[hidden]");
+    let malformed_later_userinfo =
+        redact_npm_auth_key("//registry.example/:@scope/user:password@evil:_authToken");
+    assert_eq!(malformed_later_userinfo, "[hidden]");
+}
+
+#[test]
+fn redact_url_for_display_strips_secrets_and_control_chars() {
+    assert_eq!(
+        redact_url_for_display("https://user:pass@host/pkg?token=secret#fragment\u{1b}"),
+        "https://host/pkg",
+    );
+    assert_eq!(redact_url_for_display("https://host/pkg#secret"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://host/pkg"), "https://host/pkg");
+    assert_eq!(redact_url_for_display("https://user:pa?ss@host/pkg"), "[hidden]");
+    assert_eq!(redact_url_for_display("https://user:pa#ss@host/pkg"), "[hidden]");
+}
+
+#[test]
 fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
     // A token long enough to recognize keeps four characters.
     assert_eq!(hide_auth_information("Bearer npm_0123456789abcdefghij"), "Bearer npm_[hidden]");
@@ -258,7 +347,9 @@ fn hide_auth_information_strips_control_characters() {
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
-        entries.iter().map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
+        entries
+            .iter()
+            .map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
     )
 }
 
@@ -380,19 +471,27 @@ fn package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/:@orgB", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
@@ -411,11 +510,15 @@ fn slash_package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/@orgB/", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
 }
@@ -427,7 +530,9 @@ fn package_scope_auth_keeps_registry_path() {
         ("//reg.com/npm/:@orgA", "Bearer org-a-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
@@ -437,7 +542,9 @@ fn package_scope_auth_keeps_registry_path() {
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
 }
@@ -484,8 +591,9 @@ fn entries_round_trip_package_scope_auth() {
 #[test]
 fn basic_auth_in_url_wins_over_package_scope_auth() {
     let headers = build(&[("//reg.com/:@orgA", "Bearer org-a-token")]);
-    let header =
-        headers.for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg")).unwrap();
+    let header = headers
+        .for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg"))
+        .unwrap();
     assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 
@@ -533,7 +641,37 @@ fn registry_with_pathname_matches_with_explicit_port() {
 
 #[test]
 fn returns_none_for_unmatched_url_in_empty_map() {
-    assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
+    let headers = AuthHeaders::default();
+    assert!(headers.is_empty());
+    assert_eq!(headers.for_url("http://reg.com"), None);
+}
+
+#[test]
+fn secure_lookup_rejects_plain_http_but_allows_loopback() {
+    let headers = build(&[
+        ("//reg.com/", "Bearer remote"),
+        ("//127.0.0.1/", "Bearer local"),
+        ("//[::1]/", "Bearer ipv6-local"),
+    ]);
+    assert!(!headers.is_empty());
+    assert_eq!(headers.for_secure_url("http://reg.com/pkg"), None);
+    let remote = headers.for_secure_url("https://reg.com/pkg");
+    assert_eq!(remote.as_deref(), Some("Bearer remote"));
+    let local = headers.for_secure_url("http://127.0.0.1/pkg");
+    assert_eq!(local.as_deref(), Some("Bearer local"));
+    let ipv6_local = headers.for_secure_url("http://[::1]:4873/pkg");
+    assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
+}
+
+#[test]
+fn classifies_urls_that_are_secure_for_credentials() {
+    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("not a url"));
 }
 
 /// Specifically exercises the trailing-slash-append branch in
@@ -578,4 +716,22 @@ fn nerf_dart_handles_url_with_no_path_separator() {
 fn empty_user_info_returns_no_basic_header() {
     let empty = AuthHeaders::default();
     assert_eq!(empty.for_url("https://@reg.com/"), None);
+}
+
+#[test]
+fn redact_and_sanitize_multiline_keeps_line_breaks() {
+    assert_eq!(
+        redact_and_sanitize_multiline("cloning https://user:pass@host/x.git\r\nfailed"),
+        "cloning https://host/x.git\nfailed",
+    );
+}
+
+#[test]
+fn redact_and_sanitize_multiline_collapses_when_a_newline_splits_credentials() {
+    // Redacting each line on its own would leave "user:pass" readable, so the
+    // collapsed form wins over the more readable one.
+    let redacted = redact_and_sanitize_multiline("url: https://user:pass\n@host/x.git\nfailed");
+    dbg!(&redacted);
+    assert!(!redacted.contains("user:pass"), "{redacted}");
+    assert_eq!(redacted, redact_and_sanitize("url: https://user:pass\n@host/x.git\nfailed"));
 }

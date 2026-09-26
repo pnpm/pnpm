@@ -1,5 +1,8 @@
-use pacquet_lockfile::{BundledDependencies, PackageMetadata, PeerDependencyMeta, StringOrList};
-use pacquet_resolving_resolver_base::ResolveResult;
+use pnpm_lockfile::{
+    BundledDependencies, LockfileFormError, LockfileFormOptions, PackageMetadata,
+    PeerDependencyMeta, StringOrList,
+};
+use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -9,15 +12,18 @@ pub(crate) fn package_metadata(
     result: &ResolveResult,
     registry: &str,
     lockfile_include_tarball_url: bool,
-) -> PackageMetadata {
-    let manifest = result.manifest.as_deref();
-    PackageMetadata {
+) -> Result<PackageMetadata, LockfileFormError> {
+    let manifest = result.package.manifest.as_deref();
+    Ok(PackageMetadata {
         resolution: result.resolution.to_lockfile_form(
             name,
             version,
-            registry,
-            lockfile_include_tarball_url,
-        ),
+            LockfileFormOptions {
+                registry,
+                server_type: None,
+                include_tarball_url: lockfile_include_tarball_url,
+            },
+        )?,
         version: None,
         engines: read_engines(manifest),
         cpu: read_string_list(manifest, "cpu"),
@@ -32,33 +38,26 @@ pub(crate) fn package_metadata(
         bundled_dependencies: BundledDependencies::from_manifest(manifest),
         peer_dependencies: read_string_map(manifest, "peerDependencies"),
         peer_dependencies_meta: read_peer_dependencies_meta(manifest),
-    }
+    })
 }
 
 pub(crate) fn read_dependency_map(manifest: Option<&Value>, key: &str) -> HashMap<String, String> {
     read_string_map(manifest, key).unwrap_or_default()
 }
 
+/// The legacy array form of `engines`, such as `["node >= 0.8"]`, is not
+/// checked for installability, so it is not recorded either.
 fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, String>> {
-    let entries: Vec<(String, String)> = match manifest?.get("engines")? {
-        Value::Object(map) => map
-            .iter()
-            .filter_map(|(name, value)| {
-                let range = value.as_str()?;
-                (range != "*").then(|| (name.clone(), range.to_string()))
-            })
-            .collect(),
-        Value::Array(items) => items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| {
-                let range = value.as_str()?;
-                (range != "*").then(|| (index.to_string(), range.to_string()))
-            })
-            .collect(),
-        _ => return None,
-    };
-    (!entries.is_empty()).then(|| entries.into_iter().collect())
+    let engines: HashMap<String, String> = manifest?
+        .get("engines")?
+        .as_object()?
+        .iter()
+        .filter_map(|(name, value)| {
+            let range = value.as_str()?;
+            (range != "*").then(|| (name.clone(), range.to_string()))
+        })
+        .collect();
+    (!engines.is_empty()).then_some(engines)
 }
 
 fn read_string_map(manifest: Option<&Value>, key: &str) -> Option<HashMap<String, String>> {
@@ -75,8 +74,11 @@ fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> 
     match manifest?.get(key)? {
         Value::String(value) if !value.is_empty() => Some(vec![value.clone()]),
         Value::Array(items) => {
-            let out: Vec<String> =
-                items.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+            let out: Vec<String> = items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect();
             (!out.is_empty()).then_some(out)
         }
         _ => None,

@@ -1,5 +1,5 @@
 use super::RemoveDependencyOptions;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
 #[test]

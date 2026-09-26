@@ -1,7 +1,5 @@
-use pacquet_config::PackageImportMethod;
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_store_dir::StoreDir;
+use pnpm_config::PackageImportMethod;
+use pnpm_store_dir::StoreDir;
 use std::{collections::HashMap, path::Path};
 
 /// Default npm registry used when neither the config nor a scope entry
@@ -10,31 +8,22 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// Handles and settings the config-dependency resolve/install pass
 /// needs. Assembled by the caller (the config-finalization seam) from
-/// the resolved [`pacquet_config::Config`] plus a network client, then
+/// the resolved [`pnpm_config::Config`] plus a network client, then
 /// passed by reference into [`crate::resolve_and_install_config_deps()`].
 ///
 /// Every field borrows so the caller keeps ownership of the long-lived
 /// install handles (HTTP client, auth headers, registries map).
 pub struct ConfigDepsInstallOptions<'a> {
+    pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
+    pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
+    pub store: crate::ConfigDependencyStore,
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
-    pub store_dir: &'static StoreDir,
-    pub http_client: &'a ThrottledClient,
-    pub auth_headers: &'a AuthHeaders,
     /// `default` plus per-scope (`@scope`) registry entries.
     pub registries: &'a HashMap<String, String>,
-    pub verify_store_integrity: bool,
-    pub offline: bool,
-    pub package_import_method: PackageImportMethod,
-    pub retry_opts: RetryOpts,
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen_lockfile: bool,
-    pub supported_architectures: Option<&'a SupportedArchitectures>,
-    pub current_node_version: &'a str,
-    pub current_os: &'a str,
-    pub current_cpu: &'a str,
-    pub current_libc: &'a str,
 }
 
 impl ConfigDepsInstallOptions<'_> {
@@ -66,5 +55,15 @@ impl ConfigDepsInstallOptions<'_> {
 /// Byte offset just past the `@scope` of a scoped package name, or
 /// `None` for an unscoped name.
 fn scope_of(name: &str) -> Option<usize> {
-    name.starts_with('@').then(|| name.find('/')).flatten()
+    name.starts_with('@')
+        .then(|| name.find('/'))
+        .flatten()
+}
+
+#[derive(Clone, Copy)]
+pub struct ConfigDependencyStore {
+    pub dir: &'static StoreDir,
+    pub verify_integrity: bool,
+    pub strict_pkg_content_check: bool,
+    pub package_import_method: PackageImportMethod,
 }

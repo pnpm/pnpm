@@ -199,7 +199,14 @@ function createMinimumReleaseAgeHandler (opts: PolicyHandlersOptions): PolicyHan
 }
 
 function filterImmatureViolations (violations: readonly PolicyViolation[]): PolicyViolation[] {
-  return violations.filter((v) => v.code === MINIMUM_RELEASE_AGE_VIOLATION_CODE)
+  const seen = new Set<string>()
+  return violations.filter((v) => {
+    if (v.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return false
+    const key = `${v.name}@${v.version}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function pickImmatureEntries (

@@ -4,18 +4,18 @@
 )]
 
 use super::{InstallPackageFromRegistry, InstallPackageFromRegistryError};
-use pacquet_config::Config;
-use pacquet_lockfile::{LockfileResolution, TarballResolution};
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
-use pacquet_resolving_npm_resolver::{
+use pipe_trait::Pipe;
+use pnpm_config::Config;
+use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use pacquet_store_dir::{SharedVerifiedFilesCache, StoreDir};
-use pacquet_testing_utils::registry::TestRegistry;
-use pipe_trait::Pipe;
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use std::{
     collections::HashMap,
@@ -31,14 +31,50 @@ fn create_config(
     cache_dir: &Path,
 ) -> Config {
     Config {
+        tools: std::collections::BTreeMap::new(),
+        indexes_by_ecosystem: std::collections::BTreeMap::new(),
+        bail: true,
+        ci: false,
+        progress: true,
+        update_notifier: true,
+        color: Default::default(),
+        embed_readme: false,
+        ignore_workspace_root_check: false,
+        optional: true,
+        package_lock: true,
+        pending: false,
+        recursive_install: true,
+        reverse: false,
+        stream: false,
+        aggregate_output: false,
+        reporter_hide_prefix: None,
+        use_stderr: false,
+        ignore_workspace: false,
+        workspace_search_skipped: false,
+        workspace_package_patterns: None,
+        shell_emulator: false,
+        skip_manifest_obfuscation: false,
+        sort: true,
+        use_beta_cli: false,
+        loglevel: Default::default(),
+        reporter: Default::default(),
+        workspace_key_issues: Default::default(),
+        npmrc_warnings: Vec::new(),
         versioning: Default::default(),
         hoist: false,
         hoist_pattern: None,
         public_hoist_pattern: None,
+        hoist_patterns_before_virtual_store_only: None,
         extend_node_path: true,
+        prefer_symlinked_executables: None,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
+        skip_store_dir_resolution: false,
+        store_dir_placement_skipped: false,
+        store_relocation: None,
+        state_dir: store_dir.join("state"),
         modules_dir: modules_dir.to_path_buf(),
+        macos_backup: Default::default(),
         node_linker: Default::default(),
         node_experimental_package_map: false,
         node_package_map_type: Default::default(),
@@ -55,29 +91,38 @@ fn create_config(
         global_bin: None,
         package_import_method: Default::default(),
         modules_cache_max_age: 0,
-        virtual_store_dir_max_length: pacquet_config::default_virtual_store_dir_max_length(),
-        peers_suffix_max_length: pacquet_config::default_peers_suffix_max_length(),
+        virtual_store_dir_max_length: pnpm_config::default_virtual_store_dir_max_length(),
+        peers_suffix_max_length: pnpm_config::default_peers_suffix_max_length(),
         lockfile: false,
+        lockfile_dir: None,
         prefer_frozen_lockfile: false,
         frozen_lockfile: None,
         optimistic_repeat_install: false,
         skip_runtimes: false,
         engine_strict: false,
+        force_ignores_platform: false,
         node_version: None,
         runtime_on_fail: None,
         node_download_mirrors: Default::default(),
         deploy_all_files: false,
         force_legacy_deploy: false,
         shared_workspace_lockfile: true,
+        use_git_branch_lockfile: false,
+        merge_git_branch_lockfiles: false,
+        merge_git_branch_lockfiles_branch_pattern: Vec::new(),
+        git_branch_lockfile_name: None,
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
         registry: "https://registry.npmjs.com/".to_string(),
         scope: None,
-        registries: Default::default(),
+        registries_by_scope: Default::default(),
         pnpr_server: None,
-        package_provider: None,
-        named_registries: Default::default(),
+        cargo: Default::default(),
+        python: Default::default(),
+        remote_side_effects_cache: None,
+        registries_by_prefix: Default::default(),
+        registry_options_by_url: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
         exclude_links_from_lockfile: false,
@@ -90,6 +135,7 @@ fn create_config(
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
         dedupe_peers: false,
+        auto_dedupe: false,
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
@@ -97,29 +143,44 @@ fn create_config(
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
+        include_workspace_root: false,
+        ignore_workspace_cycles: false,
+        disallow_workspace_cycles: false,
+        strict_store_pkg_content_check: true,
         frozen_store: false,
         force: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,
+        side_effects_cache_read_setting: None,
+        side_effects_cache_write_setting: None,
         fetch_retries: 2,
         fetch_retry_factor: 10,
         fetch_retry_mintimeout: 10_000,
         fetch_retry_maxtimeout: 60_000,
-        network_concurrency: pacquet_network::default_network_concurrency(),
+        network_concurrency: pnpm_network::default_network_concurrency(),
         max_sockets: None,
         fetch_timeout: 60_000,
+        fetch_warn_timeout_ms: 10_000,
+        fetch_min_speed_ki_bps: 50,
         user_agent: "pnpm".to_string(),
         npmrc_auth_file: None,
         workspace_dir: None,
+        target_workspace_dir: None,
         patched_dependencies: None,
+        patched_dependency_hashes_override: None,
         patches_dir: None,
+        pnpmfile: None,
+        global_pnpmfile: None,
         allow_unused_patches: false,
         config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
         strict_dep_builds: true,
         ignore_scripts: false,
+        ignore_pnpmfile: false,
         git_checks: true,
+        publish_wait_timeout: 0,
+        tag_version_prefix: "v".to_string(),
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
@@ -133,13 +194,18 @@ fn create_config(
         filter: Vec::new(),
         filter_prod: Vec::new(),
         workspace_root: false,
+        fail_if_no_match: false,
         test_pattern: Vec::new(),
+        legacy_dir_filtering: false,
+        sync_injected_deps_after_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
-        git_shallow_hosts: pacquet_config::default_git_shallow_hosts(),
+        git_shallow_hosts: pnpm_config::default_git_shallow_hosts(),
         supported_architectures: None,
         ignored_optional_dependencies: None,
         overrides: None,
         package_extensions: None,
+        package_configs: None,
+        package_provider: None,
         cache_dir: cache_dir.to_path_buf(),
         dlx_cache_max_age: 24 * 60,
         minimum_release_age: None,
@@ -148,26 +214,42 @@ fn create_config(
         minimum_release_age_strict: None,
         trust_lockfile: false,
         trust_policy: Default::default(),
+        init_package_manager: true,
+        init_type: Default::default(),
+        init_author_name: None,
+        init_author_email: None,
+        init_author_url: None,
+        init_license: None,
+        init_version: None,
         pm_on_fail: None,
         verify_deps_before_run: Default::default(),
         audit_level: None,
         audit_config: Default::default(),
+        audit_ignore_prune: None,
         trust_policy_exclude: None,
+        trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),
-        cleanup_unused_catalogs: false,
+        catalog_prune: false,
+        minimum_release_age_exclude_prune: false,
         catalogs: None,
         save_catalog_name: None,
         save_prefix: None,
         save_exact: false,
         save_peer: false,
+        save_types: false,
         registry_supports_time_field: false,
         allowed_deprecated_versions: Default::default(),
         update_config: Default::default(),
+        tasks: Default::default(),
+        pipelines: Default::default(),
+        pipeline_base: Default::default(),
+        concurrency_groups: Default::default(),
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
         auth_tokens_by_uri: Default::default(),
+        registry_creds_by_uri: Default::default(),
         proxy: Default::default(),
         proxy_keys: Default::default(),
         tls: Default::default(),
@@ -185,24 +267,32 @@ async fn resolve_via_mock(
     http_client: Arc<ThrottledClient>,
     alias: &str,
     range: &str,
-) -> pacquet_resolving_resolver_base::ResolveResult {
+) -> pnpm_resolving_resolver_base::ResolveResult {
     let mut registries = HashMap::new();
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
-        http_client,
-        auth_headers: Default::default(),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
-        full_metadata: false,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        registries_by_prefix: HashMap::new(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Default::default(),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
+        store_index: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),
@@ -230,7 +320,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -246,19 +336,22 @@ pub async fn should_install_package_from_pre_resolved_result() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -298,7 +391,10 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -315,7 +411,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -331,7 +427,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
@@ -339,13 +435,16 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     // First edge: full path. Run, then clear events for the assertion
     // on the second edge.
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "first-alias",
@@ -360,13 +459,16 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     EVENTS.lock().unwrap().clear();
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "second-alias",
@@ -383,14 +485,14 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         .lock()
         .unwrap()
         .iter()
-        .filter_map(|event| match event {
-            LogEvent::Progress(log) => Some(match &log.message {
+        .filter_map(|event| {
+            let LogEvent::Progress(log) = event else { return None };
+            Some(match &log.message {
                 ProgressMessage::Resolved { .. } => "resolved",
                 ProgressMessage::Fetched { .. } => "fetched",
                 ProgressMessage::FoundInStore { .. } => "found_in_store",
                 ProgressMessage::Imported { .. } => "imported",
-            }),
-            _ => None,
+            })
         })
         .collect();
     assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");
@@ -413,7 +515,10 @@ async fn install_emits_progress_sequence() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -430,7 +535,7 @@ async fn install_emits_progress_sequence() {
         virtual_store_dir.path(),
         cache_dir.path(),
     );
-    config.registry = mock_instance.url();
+    config.registry = mock_instance.url().to_string();
     let config: &'static Config = config.pipe(Box::new).pipe(Box::leak);
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
@@ -446,19 +551,22 @@ async fn install_emits_progress_sequence() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -534,13 +642,10 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
 
     let resolution = ResolveResult {
         id: "git+ssh://git@example.com/foo/bar.git#deadbeef".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -548,18 +653,28 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         normalized_bare_specifier: Some("github:foo/bar#deadbeef".to_string()),
         alias: Some("bar".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+            non_deprecated_alternative: None,
+        },
     };
 
     let slot_dir = virtual_store_dir.path().join("bar@unused");
 
     let result = InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "bar",
@@ -611,16 +726,10 @@ async fn install_rejects_traversal_manifest_name() {
     let traversal_name = "@x/../../../../../../OUTSIDE";
     let resolution = ResolveResult {
         id: "https://example.com/foo.tar.gz".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(serde_json::json!({
-            "name": traversal_name,
-            "version": "1.0.0",
-        }))),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -628,18 +737,31 @@ async fn install_rejects_traversal_manifest_name() {
         normalized_bare_specifier: None,
         alias: Some("bar".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(serde_json::json!({
+                "name": traversal_name,
+                "version": "1.0.0",
+            }))),
+            non_deprecated_alternative: None,
+        },
     };
 
     let slot_dir = virtual_store_dir.path().join("bar@1.0.0");
 
     let result = InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "bar",
@@ -660,8 +782,18 @@ async fn install_rejects_traversal_manifest_name() {
 
     // The traversal must not have materialized anything outside the
     // slot's `node_modules`.
-    assert!(!virtual_store_dir.path().join("OUTSIDE").exists());
-    assert!(!slot_dir.join("node_modules").join("OUTSIDE").exists());
+    assert!(
+        !virtual_store_dir
+            .path()
+            .join("OUTSIDE")
+            .exists(),
+    );
+    assert!(
+        !slot_dir
+            .join("node_modules")
+            .join("OUTSIDE")
+            .exists(),
+    );
 
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir));
 }

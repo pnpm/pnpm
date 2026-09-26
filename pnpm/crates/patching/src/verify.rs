@@ -5,14 +5,15 @@ use std::collections::HashSet;
 
 /// Iterate every configured patch key in a stable order.
 pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<Item = &str> + '_ {
-    patched_dependencies.values().flat_map(|group| {
-        group
-            .exact
-            .values()
-            .map(|info| info.key.as_str())
-            .chain(group.range.iter().map(|item| item.patch.key.as_str()))
-            .chain(group.all.iter().map(|info| info.key.as_str()))
-    })
+    patched_dependencies
+        .values()
+        .flat_map(|group| {
+            group.exact
+                .values()
+                .map(|info| info.key.as_str())
+                .chain(group.range.iter().map(|item| item.patch.key.as_str()))
+                .chain(group.all.iter().map(|info| info.key.as_str()))
+        })
 }
 
 /// Raised when one or more configured patches were never applied

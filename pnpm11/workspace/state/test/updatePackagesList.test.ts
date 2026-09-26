@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
@@ -5,6 +6,7 @@ import { logger } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
+import { getFilePath } from '../src/filePath.js'
 import { loadWorkspaceState, updateWorkspaceState } from '../src/index.js'
 
 const originalLoggerDebug = logger.debug
@@ -85,4 +87,26 @@ test('updateWorkspaceState()', async () => {
       [path.resolve('packages/d')]: {},
     },
   }))
+})
+
+test('updateWorkspaceState() does not throw when cache file writing fails', async () => {
+  preparePackages([])
+  const workspaceDir = process.cwd()
+  const cacheFile = getFilePath(workspaceDir)
+  await fs.promises.mkdir(cacheFile, { recursive: true })
+
+  await expect(updateWorkspaceState({
+    pnpmfiles: [],
+    workspaceDir,
+    allProjects: [],
+    filteredInstall: false,
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      linkWorkspacePackages: false,
+      injectWorkspacePackages: false,
+    },
+  })).resolves.toBeUndefined()
 })

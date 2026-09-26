@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1103.2.0",
+  "version": "1104.2.1",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -48,13 +48,13 @@
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.range-resolver": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
-    "encode-registry": "catalog:",
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",
@@ -63,7 +63,6 @@
     "ramda": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",
-    "semver-utils": "catalog:",
     "ssri": "catalog:",
     "validate-npm-package-name": "catalog:",
     "version-selector-type": "catalog:"

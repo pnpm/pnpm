@@ -1,4 +1,90 @@
-This is a placeholder. pnpm's native binary replaces this file during
-installation (see ./install.js). If you are reading this, the install/build
-script did not run — reinstall with build scripts enabled (e.g. allow-list
-pnpm's build under pnpm or Bun, or drop --ignore-scripts).
+# pnpm's native binary replaces this file during installation (see
+# ./install.js). Until then this hands over to ./bin/pnpm.mjs, which finds the
+# installed binary or downloads one and spawns it.
+#
+# Shebang-less on purpose, and therefore an `sh` script: a bin shim generated
+# from a shebang records that interpreter, and pnpm 11 generates the shim before
+# it puts the native binary at this path.
+#
+# Something has to retry this file under a shell, because the kernel answers
+# ENOEXEC for it. A bin shim and a shell both do, and so does glibc's `execvp`.
+# Apple's libc does not, so on macOS a program that spawns this path itself gets
+# ENOEXEC; Windows has neither and cannot reach it at all.
+if ! command -v node > /dev/null 2>&1; then
+  echo "pnpm's native binary was not installed, and there is no Node.js to run pnpm without it." >&2
+  echo "Reinstall pnpm with build scripts enabled (allow-list pnpm's build under pnpm or Bun, or drop --ignore-scripts)." >&2
+  exit 1
+fi
+
+if [ -t 2 ]; then
+  echo "pnpm is running through Node.js because the script that installs its native binary was skipped." >&2
+  echo "Reinstall pnpm with its build scripts allowed to run the binary directly." >&2
+fi
+
+# $0 is whatever shim or symlink pnpm was launched through; ./bin/pnpm.mjs is
+# found relative to this file. The hop cap matches the kernel's ELOOP limit, so
+# a cycle cannot hang the script.
+#
+# `readlink` runs through `command -p`, which searches the system default path,
+# and directories come from `${self%/*}`, which runs nothing at all. The caller's
+# PATH therefore decides only which `node` runs, which is what it is for.
+#
+# Where no default path is compiled in, as on Nix, `command -p` searches PATH
+# instead, so the helpers run with node_modules and relative entries dropped from
+# PATH.
+caller_path_set=${PATH+set}
+caller_path=${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=${rest%%:*}
+  rest=${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=${helper_path:-/}
+self=$0
+# MSYS and Cygwin can launch this with a native Windows path, which has no slash
+# for `${self%/*}` to strip. Only a drive letter or a UNC prefix marks one; a
+# backslash anywhere else is an ordinary character in a Unix file name, so the
+# path is left alone. The separators are swapped in the shell rather than through
+# `echo`, which mangles a `\t` or `\b` in a path under dash.
+case $self in
+  [A-Za-z]:\\*|\\\\*)
+    while :; do
+      case $self in
+        *\\*) self=${self%%\\*}/${self#*\\} ;;
+        *) break ;;
+      esac
+    done
+    ;;
+esac
+# `${self%/*}` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=${self%/*}/$link ;;
+  esac
+done
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take `bin/pnpm.mjs`
+# from the wrong directory.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "pnpm: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec node "${self%/*}/bin/pnpm.mjs" "$@"

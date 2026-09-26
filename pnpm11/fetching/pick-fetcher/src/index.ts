@@ -9,7 +9,7 @@ import type {
   GitFetcher,
 } from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher, CustomFetcherDelegation } from '@pnpm/hooks.types'
-import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
+import { type AtomicResolution, classifyResolution, type Resolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
 
 export type PickedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
@@ -25,10 +25,14 @@ export async function pickFetcher (
   // Try custom fetcher hooks first if available
   // Custom fetchers act as complete fetcher replacements
   if (opts?.customFetchers && opts.customFetchers.length > 0) {
+    const lockedIntegrity = getLockedArchiveIntegrity(resolution)
+    const fetchers = lockedIntegrity == null
+      ? fetcherByHostingType
+      : bindArchiveIntegrity(fetcherByHostingType, lockedIntegrity)
     for (const customFetcher of opts.customFetchers) {
       if (customFetcher.canFetch && customFetcher.fetch) {
         // eslint-disable-next-line no-await-in-loop
-        const canFetch = await customFetcher.canFetch(opts.packageId, resolution)
+        const canFetch = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.canFetch!(opts.packageId, resolution))
 
         if (canFetch) {
           // Preserve `this` for custom fetchers that implement their optional
@@ -38,15 +42,11 @@ export async function pickFetcher (
             : undefined
           return Object.assign(
             async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> => {
-              const result = await customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
+              const result = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.fetch!(cafs, resolution, fetchOpts, fetchers))
               if (isCustomFetcherDelegation(result)) {
-                // The `{ delegate }` envelope is the portable delegation form
-                // (it also works over pacquet's pnpmfile IPC, where `cafs` and
-                // `fetchers` cannot be passed): rewrite the resolution and run
-                // the built-in fetcher on the rewritten shape. A custom-typed
-                // `delegate` is rejected by `pickBuiltinFetcher`, keeping
-                // delegation single-step.
-                const delegate = result.delegate as AtomicResolution
+                const delegate = (lockedIntegrity == null
+                  ? result.delegate
+                  : preserveArchiveIntegrity(result.delegate, lockedIntegrity)) as AtomicResolution
                 const fetch = pickBuiltinFetcher(fetcherByHostingType, delegate) as FetchFunction
                 return fetch(cafs, delegate, fetchOpts)
               }
@@ -57,9 +57,61 @@ export async function pickFetcher (
         }
       }
     }
+    return pickBuiltinFetcher(fetchers, lockedIntegrity == null
+      ? resolution
+      : preserveArchiveIntegrity(resolution, lockedIntegrity))
   }
 
   return pickBuiltinFetcher(fetcherByHostingType, resolution)
+}
+
+function getLockedArchiveIntegrity (resolution: AtomicResolution): string | undefined {
+  if (resolution.type != null && resolution.type !== 'binary') return
+  return typeof resolution.integrity === 'string' && resolution.integrity.length > 0
+    ? resolution.integrity
+    : undefined
+}
+
+async function callWithLockedIntegrity<Result> (resolution: Resolution, integrity: string | undefined, call: () => Result | Promise<Result>): Promise<Result> {
+  try {
+    return await call()
+  } finally {
+    if (integrity != null && (!('integrity' in resolution) || resolution.integrity !== integrity)) {
+      Object.assign(resolution, { integrity })
+    }
+  }
+}
+
+function bindArchiveIntegrity (fetchers: Fetchers, integrity: string): Fetchers {
+  return {
+    localTarball: bindFetcherIntegrity(fetchers.localTarball, integrity),
+    remoteTarball: bindFetcherIntegrity(fetchers.remoteTarball, integrity),
+    gitHostedTarball: bindFetcherIntegrity(fetchers.gitHostedTarball, integrity),
+    directory: async () => rejectArchiveDelegation('directory'),
+    git: async () => rejectArchiveDelegation('git'),
+    binary: bindFetcherIntegrity(fetchers.binary, integrity),
+  }
+}
+
+function bindFetcherIntegrity<FetcherResolution extends Resolution, Options, Result> (
+  fetch: FetchFunction<FetcherResolution, Options, Result>,
+  integrity: string
+): FetchFunction<FetcherResolution, Options, Result> {
+  return Object.assign(
+    (cafs: Cafs, resolution: FetcherResolution, opts: Options) => fetch(cafs, preserveArchiveIntegrity(resolution, integrity), opts),
+    { resolutionNeedsFetch: fetch.resolutionNeedsFetch?.bind(fetch) }
+  )
+}
+
+function preserveArchiveIntegrity<FetcherResolution extends Resolution> (resolution: FetcherResolution, integrity: string): FetcherResolution {
+  if (resolution.type != null && resolution.type !== 'binary') {
+    return rejectArchiveDelegation(resolution.type)
+  }
+  return { ...resolution, integrity }
+}
+
+function rejectArchiveDelegation (resolutionType: string): never {
+  throw new PnpmError('TARBALL_INTEGRITY', `Cannot verify the locked archive integrity after delegating to resolution type "${resolutionType}".`)
 }
 
 function isCustomFetcherDelegation (result: FetchResult | CustomFetcherDelegation): result is CustomFetcherDelegation {

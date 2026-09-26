@@ -3,7 +3,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 
 import { normalizeRegistryUrl, rcOptionsTypes, readErrorBody } from './common.js'
@@ -90,7 +90,7 @@ export interface TeamOptions extends CreateFetchFromRegistryOptions {
     json?: boolean
   }
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 export async function handler (
@@ -414,7 +414,7 @@ function getRegistryAndAuthForOrg (
   scope: string
 ): { registryUrl: string, authHeader: string | undefined } {
   const pkgName = `@${scope}/__pnpm_team__`
-  const registryUrl = pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, pkgName)
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, pkgName)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, pkgName)
   if (!authHeader) {
     throw new PnpmError('TEAM_MISSING_AUTH', 'Authentication required for registry access')

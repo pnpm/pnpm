@@ -1,8 +1,9 @@
-use crate::lifecycle::DEV_PREINSTALL_ALREADY_RAN_ENV;
+use crate::lifecycle::{DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
 
@@ -23,14 +24,9 @@ pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
     pub pkg_root: &'a Path,
-    pub init_cwd: &'a Path,
     pub script_src_dir: &'a Path,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    pub node_gyp_path: Option<&'a Path>,
-    pub user_agent: Option<&'a str>,
     pub unsafe_perm: bool,
-    pub extra_env: &'a HashMap<String, String>,
+    pub environment: crate::ScriptEnvironment<'a>,
 }
 
 /// The product of [`build_env`]: a ready-to-spawn env map and the
@@ -86,33 +82,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    let parent_path = path_value(&env);
-    let node_execpath = opts
-        .node_execpath
-        .map(Path::to_path_buf)
-        .or_else(|| find_node_in_path(parent_path.as_deref()));
-    if let Some(node) = node_execpath {
-        let node_str = node.to_string_lossy().into_owned();
-        env.insert("npm_node_execpath".into(), node_str.clone());
-        env.insert("NODE".into(), node_str);
-    }
-
-    env.insert(
-        "npm_package_json".into(),
-        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
-    );
-
-    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
-    if let Some(p) = npm_execpath {
-        env.insert("npm_execpath".into(), p.to_string_lossy().into_owned());
-    }
-
-    // `npm_config_node_gyp` is a default pnpm supplies, not a reserved
-    // stamp: TS `npm-lifecycle` sets it before spreading `extraEnv`, so a
-    // user `extraEnv` overrides it. Stamp it before `extra_env` to match.
-    if let Some(p) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), p.to_string_lossy().into_owned());
-    }
+    stamp_executables(&mut env, &opts.environment, opts.pkg_root);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -122,22 +92,23 @@ fn build_env_for_platform(
     //    PNPM_SCRIPT_SRC_DIR, npm_config_user_agent }` — the reserved
     //    keys overwrite anything `extra_env` set. A non-reserved key
     //    still takes effect.
-    //    `extra_env` is also the one route by which
-    //    [`DEV_PREINSTALL_ALREADY_RAN_ENV`] could re-enter after
+    //    `extra_env` is also the one route by which a delegation marker
+    //    ([`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
+    //    [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]) could re-enter after
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
-    for (k, v) in opts.extra_env {
-        if is_dev_preinstall_marker(k, is_windows) {
+    for (k, v) in opts.environment.extra_env {
+        if is_delegation_marker(k, is_windows) {
             continue;
         }
         env.insert(k.clone(), v.clone());
     }
 
-    env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
+    env.insert("INIT_CWD".into(), opts.environment.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
-    if let Some(ua) = opts.user_agent {
+    if let Some(ua) = opts.environment.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
 
@@ -180,17 +151,20 @@ fn build_env_for_platform(
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
 fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
-    env.into_iter().filter(|(k, _)| !is_stamping_key(k, is_windows)).collect()
+    env.into_iter()
+        .filter(|(k, _)| !is_stamping_key(k, is_windows))
+        .collect()
 }
 
 /// Whether `key` must be dropped from the inherited parent env: an
 /// `npm_package_*` stamp, a `(npm|pnpm)_config_*` auth credential, a
 /// per-call stamp [`build_env`] re-derives (`NODE`, `INIT_CWD`,
-/// `PNPM_SCRIPT_SRC_DIR`), or
-/// [`DEV_PREINSTALL_ALREADY_RAN_ENV`]. Stripping the auth credentials
-/// keeps them out of dependency lifecycle scripts; stripping the
-/// delegation marker keeps it scoped to the install that received it,
-/// so a nested install started by a script still runs its own hook.
+/// `PNPM_SCRIPT_SRC_DIR`), or a delegation marker
+/// ([`DEV_PREINSTALL_ALREADY_RAN_ENV`], [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]).
+/// Stripping the auth credentials keeps them out of dependency lifecycle
+/// scripts; stripping the delegation markers keeps them scoped to the
+/// install that received them, so a nested install started by a script
+/// still runs its own hooks.
 ///
 /// `is_windows` toggles case-insensitive matching so test code can
 /// drive both branches without `#[cfg(windows)]` gating the test
@@ -205,22 +179,33 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
-    const DROPPED: [&str; 4] =
-        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
+    const DROPPED: [&str; 5] = [
+        "NODE",
+        "INIT_CWD",
+        "PNPM_SCRIPT_SRC_DIR",
+        DEV_PREINSTALL_ALREADY_RAN_ENV,
+        ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    ];
     if is_windows {
-        return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
+        return DROPPED
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
     DROPPED.contains(&key)
 }
 
-/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`], under the
-/// same casing rule [`is_stamping_key`] applies: on Windows every
-/// spelling is the same variable, so every spelling must be dropped.
-fn is_dev_preinstall_marker(key: &str, is_windows: bool) -> bool {
+/// Whether `key` names [`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
+/// [`ROOT_PREINSTALL_ALREADY_RAN_ENV`], under the same casing rule
+/// [`is_stamping_key`] applies: on Windows every spelling is the same
+/// variable, so every spelling must be dropped.
+fn is_delegation_marker(key: &str, is_windows: bool) -> bool {
+    const MARKERS: [&str; 2] = [DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
-        return key.eq_ignore_ascii_case(DEV_PREINSTALL_ALREADY_RAN_ENV);
+        return MARKERS
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
-    key == DEV_PREINSTALL_ALREADY_RAN_ENV
+    MARKERS.contains(&key)
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it
@@ -250,20 +235,22 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 /// returning the value here lets the rest of [`build_env`] stay
 /// independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
-    env.iter().find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+    env.iter()
+        .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
 /// `parent_env`'s PATH (not the process-global env) so [`build_env`]
 /// stays deterministic given its inputs — matching the docstring
 /// contract.
-fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
+fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path).find_map(|dir| {
-        let candidate = dir.join(node_name);
-        candidate.is_file().then_some(candidate)
-    })
+    env::split_paths(path)
+        .find_map(|dir| {
+            let candidate = dir.join(node_name);
+            candidate.is_file().then_some(candidate)
+        })
 }
 
 /// Recursively stamp `npm_package_*` env vars from the manifest. JSON
@@ -275,39 +262,35 @@ fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
 /// recursed under one of those, everything is kept.
 fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
     let pairs: Vec<(String, &Value)> = match value {
-        Value::Object(map) => map.iter().map(|(k, v)| (k.clone(), v)).collect(),
-        Value::Array(arr) => arr.iter().enumerate().map(|(i, v)| (i.to_string(), v)).collect(),
+        Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect(),
+        Value::Array(arr) => arr
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i.to_string(), v))
+            .collect(),
         _ => return,
     };
 
-    for (key, v) in pairs {
-        if key.starts_with('_') {
+    for (key, value) in pairs {
+        if !stamps_manifest_field(prefix, &key) {
             continue;
         }
-
-        let is_top_level_keep =
-            matches!(key.as_str(), "name" | "version" | "config" | "engines" | "bin");
-        let in_descent = prefix.starts_with("npm_package_config_")
-            || prefix.starts_with("npm_package_engines_")
-            || prefix.starts_with("npm_package_bin_");
-        if !is_top_level_keep && !in_descent {
-            continue;
-        }
-
         let env_key = sanitize_env_key(&format!("{prefix}{key}"));
-        match v {
+        match value {
             Value::Object(_) | Value::Array(_) => {
-                let child_prefix = format!("{env_key}_");
-                stamp_package(env, &child_prefix, v);
+                stamp_package(env, &format!("{env_key}_"), value);
             }
-            Value::String(s) => {
-                env.insert(env_key, escape_newlines(s));
+            Value::String(text) => {
+                env.insert(env_key, escape_newlines(text));
             }
-            Value::Number(n) => {
-                env.insert(env_key, n.to_string());
+            Value::Number(number) => {
+                env.insert(env_key, number.to_string());
             }
-            Value::Bool(b) => {
-                env.insert(env_key, b.to_string());
+            Value::Bool(flag) => {
+                env.insert(env_key, flag.to_string());
             }
             Value::Null => {
                 env.insert(env_key, String::new());
@@ -316,10 +299,87 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
     }
 }
 
+/// Stamp the executables a script resolves through: the Node binary, the
+/// package manifest, pnpm itself, and the `node-gyp` default.
+///
+/// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
+/// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
+/// overrides it. It is stamped before `extra_env` to match.
+fn stamp_executables(
+    env: &mut HashMap<String, String>,
+    opts: &crate::ScriptEnvironment<'_>,
+    pkg_root: &Path,
+) {
+    let parent_path = path_value(env);
+    env.extend(
+        package_manager_env(
+            opts.init_cwd,
+            opts.node_execpath,
+            opts.npm_execpath,
+            parent_path.as_deref().map(OsStr::new),
+        )
+        .into_iter()
+        .map(|(key, value)| (key, value.to_string_lossy().into_owned())),
+    );
+
+    env.insert(
+        "npm_package_json".into(),
+        pkg_root
+            .join("package.json")
+            .to_string_lossy()
+            .into_owned(),
+    );
+
+    if let Some(path) = opts.node_gyp_path {
+        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+    }
+}
+
+/// Environment identifying the invoking package manager and working directory.
+#[must_use]
+pub fn package_manager_env(
+    init_cwd: &Path,
+    node_execpath: Option<&Path>,
+    npm_execpath: Option<&Path>,
+    path: Option<&OsStr>,
+) -> HashMap<String, OsString> {
+    let mut env = HashMap::new();
+    env.insert("INIT_CWD".into(), init_cwd.as_os_str().to_os_string());
+    let node_execpath = node_execpath.map(Path::to_path_buf).or_else(|| find_node_in_path(path));
+    if let Some(node) = node_execpath {
+        let node_path = node.into_os_string();
+        env.insert("npm_node_execpath".into(), node_path.clone());
+        env.insert("NODE".into(), node_path);
+    }
+    let npm_execpath = npm_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| crate::current_pnpm_exe().ok());
+    if let Some(path) = npm_execpath {
+        env.insert("npm_execpath".into(), path.into_os_string());
+    }
+    env
+}
+
+/// Whether one manifest field reaches the environment. The top level keeps
+/// only `name`, `version`, `config`, `engines` and `bin`; below those three,
+/// recursion keeps everything. An underscore-prefixed key is npm's own
+/// bookkeeping and never stamped.
+fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
+    if key.starts_with('_') {
+        return false;
+    }
+    matches!(key, "name" | "version" | "config" | "engines" | "bin")
+        || prefix.starts_with("npm_package_config_")
+        || prefix.starts_with("npm_package_engines_")
+        || prefix.starts_with("npm_package_bin_")
+}
+
 /// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
 /// sanitization an env key derived from a manifest field needs.
 fn sanitize_env_key(raw: &str) -> String {
-    raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
+    raw.chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
+        .collect()
 }
 
 /// JSON-encode multi-line strings (those containing `\n`) so child

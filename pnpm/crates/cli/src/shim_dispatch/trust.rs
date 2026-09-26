@@ -1,8 +1,7 @@
 //! The machine-local trust registry and its terminal prompt.
 
 use super::Candidate;
-use pacquet_config::{Host, default_state_dir};
-use pacquet_fs::lexical_normalize;
+use pnpm_fs::lexical_normalize;
 use serde_json::{Value, json};
 use std::{io::IsTerminal, path::Path};
 
@@ -16,7 +15,7 @@ pub(super) const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TEST
 /// so a concurrent append can only make the dispatcher ask again.
 pub(super) const TRUST_FILE_NAME: &str = "global-bin-trust.jsonl";
 
-pub(super) fn is_trusted(candidate: &Candidate, name: &str) -> bool {
+pub(super) fn is_trusted(candidate: &Candidate, name: &str, state_dir: &Path) -> bool {
     // Debug builds only: the e2e suite spawns real (debug) binaries, and
     // a release binary must not carry an environment backdoor around the
     // trust gate.
@@ -26,7 +25,7 @@ pub(super) fn is_trusted(candidate: &Candidate, name: &str) -> bool {
     let project_dir = candidate.project_dir();
     let candidate_id = candidate.identity();
     let project_key = lexical_normalize(project_dir).display().to_string();
-    let trust_file = default_state_dir::<Host>().map(|dir| dir.join(TRUST_FILE_NAME));
+    let trust_file = (!state_dir.as_os_str().is_empty()).then(|| state_dir.join(TRUST_FILE_NAME));
     if let Some(trust_file) = &trust_file
         && let Some(allow) = read_trust_decision(trust_file, &project_key, candidate_id)
     {
@@ -84,7 +83,10 @@ pub(super) fn append_trust_decision(
         "allow": allow,
         "decidedAt": decided_at,
     });
-    let mut file = std::fs::OpenOptions::new().create(true).append(true).open(trust_file)?;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(trust_file)?;
     writeln!(file, "{record}")
 }
 
@@ -93,11 +95,15 @@ pub(super) fn append_trust_decision(
 /// was interrupted) — the caller falls back to the global target and
 /// records nothing, so the next interactive invocation asks again.
 pub(super) fn prompt_for_trust(project_key: &str, name: &str) -> Option<bool> {
-    if is_ci::cached() || !std::io::stdin().is_terminal() {
+    if pnpm_config::is_ci() || !std::io::stdin().is_terminal() {
         return None;
     }
     let prompt = format!(
         "The project at \"{project_key}\" provides its own \"{name}\", which will be used instead of the globally installed one.\nDo you trust this project?",
     );
-    dialoguer::Confirm::new().with_prompt(prompt).default(false).interact().ok()
+    dialoguer::Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+        .ok()
 }

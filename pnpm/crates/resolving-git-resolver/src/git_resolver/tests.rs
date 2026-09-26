@@ -1,7 +1,11 @@
-use super::{GitProbe, GitResolver, ProbeFuture};
+use super::{AllowlistedProbe, GitProbe, GitResolver, ProbeFuture};
 use crate::resolve_ref::{GitCommandRunner, GitRunError};
-use pacquet_lockfile::LockfileResolution;
-use pacquet_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use miette::Diagnostic;
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::{AuthHeaders, UpstreamRouteHook};
+use pnpm_resolving_resolver_base::{
+    GitResolveError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+};
 use std::{
     future::Future,
     pin::Pin,
@@ -23,7 +27,10 @@ impl FakeProbe {
 
 impl GitProbe for FakeProbe {
     fn anonymous_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a> {
-        self.calls.lock().unwrap().push(url.to_string());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(url.to_string());
         let ok = self.archive_ok;
         Box::pin(async move { ok })
     }
@@ -39,10 +46,46 @@ impl GitCommandRunner for FakeRunner {
         repo: &'a str,
         ref_: Option<&'a str>,
     ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-        self.calls.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
+        self.calls
+            .lock()
+            .unwrap()
+            .push((repo.to_string(), ref_.map(str::to_string)));
         let stdout = self.stdout.clone();
         Box::pin(async move { Ok(stdout) })
     }
+}
+
+/// Stands in for a git that cannot reach the remote at all — a machine
+/// without the host's CA certificates, without an SSH key, offline.
+struct UnreachableRunner {
+    stderr: String,
+}
+
+impl GitCommandRunner for UnreachableRunner {
+    fn ls_remote<'a>(
+        &'a self,
+        _repo: &'a str,
+        _ref_: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
+        let message = self.stderr.clone();
+        Box::pin(async move { Err(GitRunError { message }) })
+    }
+}
+
+async fn resolve_unreachable(bare_specifier: &str, stderr: &str) -> GitResolveError {
+    let resolver = GitResolver::new(
+        Arc::new(FakeProbe::new(true)),
+        Arc::new(UnreachableRunner { stderr: stderr.to_string() }),
+    );
+    let wanted = WantedDependency {
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("unreachable remote");
+    *err.downcast::<GitResolveError>().expect("the resolver's own diagnostic, boxed outermost")
 }
 
 fn runner(stdout: &str) -> FakeRunner {
@@ -65,8 +108,11 @@ async fn resolve_with(
         bare_specifier: Some(bare_specifier.to_string()),
         ..WantedDependency::default()
     };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claimed");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claimed");
     (result, runner, probe)
 }
 
@@ -78,7 +124,13 @@ async fn declines_non_git_specifier() {
         bare_specifier: Some("1.2.3".to_string()),
         ..WantedDependency::default()
     };
-    assert!(resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().is_none());
+    assert!(
+        resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -279,4 +331,66 @@ async fn credentialed_https_url_keeps_the_authenticated_url() {
         [(AUTH_URL.to_string(), Some("HEAD".to_string()))],
     );
     assert!(probe.calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn unreachable_remote_names_the_dependency_and_how_to_substitute_the_transport() {
+    let err = resolve_unreachable(
+        "zkochan/is-negative#next",
+        "fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem",
+    )
+    .await;
+
+    assert_eq!(err.code().expect("code").to_string(), "ERR_PNPM_GIT_RESOLVE_FAILED");
+    assert_eq!(
+        err.to_string(),
+        r#"Failed to resolve git dependency "zkochan/is-negative#next": git ls-remote failed: fatal: unable to access 'https://github.com/zkochan/is-negative.git/': SSL certificate problem"#,
+    );
+    let help = err.help().expect("help").to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."git@github.com:".insteadOf "https://github.com/""#
+        ),
+        "{help}",
+    );
+}
+
+// A known host's SSH URL is an identity that finalises to HTTPS (see
+// `parse_bare_specifier`), so the hint applies there too. Only an unknown
+// host's URL keeps the transport the user wrote.
+#[tokio::test]
+async fn unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+    let err = resolve_unreachable(
+        "git+ssh://git@example.com/foo/bar.git",
+        "git@example.com: Permission denied (publickey).",
+    )
+    .await;
+
+    assert!(err.help().is_none());
+}
+
+/// Refuses every fetch whose URL names `host`.
+struct DenyHost(&'static str);
+
+impl UpstreamRouteHook for DenyHost {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn allows_fetch(&self, url: &str) -> bool {
+        !url.contains(self.0)
+    }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[tokio::test]
+async fn an_archive_host_off_the_fetch_allowlist_is_not_probed() {
+    let probe = FakeProbe::new(true);
+    let auth_headers =
+        AuthHeaders::default().with_route_hook(Arc::new(DenyHost("codeload.github.com")));
+    let allowlisted = AllowlistedProbe { inner: &probe, auth_headers: Some(&auth_headers) };
+
+    assert!(!allowlisted.anonymous_head_ok("https://codeload.github.com/foo/bar/tar.gz/0").await);
+    assert!(allowlisted.anonymous_head_ok("https://archive.example/foo/bar/0").await);
+    assert_eq!(probe.calls.lock().unwrap().as_slice(), ["https://archive.example/foo/bar/0"]);
 }

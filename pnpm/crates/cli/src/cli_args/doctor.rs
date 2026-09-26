@@ -9,7 +9,7 @@
 
 use crate::cli_args::ping::PingArgs;
 use clap::Args;
-use pacquet_config::Config;
+use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
 use std::{
     fmt::Write as _,
@@ -129,7 +129,10 @@ impl DoctorArgs {
         checks.push(self.check_connectivity(config).await);
         checks.push(check_install_smoke_test(self.benchmark));
 
-        let outcome = if checks.iter().any(|check| check.status == CheckStatus::Fail) {
+        let outcome = if checks
+            .iter()
+            .any(|check| check.status == CheckStatus::Fail)
+        {
             DoctorOutcome::Unhealthy
         } else {
             DoctorOutcome::Healthy
@@ -137,9 +140,10 @@ impl DoctorArgs {
 
         let report = DoctorReport { checks };
         let output = if self.json {
-            serde_json::to_string_pretty(&report).map_err(|error| {
-                miette::miette!("Failed to render the doctor report as JSON: {error}")
-            })?
+            serde_json::to_string_pretty(&report)
+                .map_err(|error| {
+                    miette::miette!("Failed to render the doctor report as JSON: {error}")
+                })?
         } else {
             render_report(&report)
         };
@@ -167,10 +171,9 @@ impl DoctorArgs {
 }
 
 fn check_versions() -> CheckResult {
-    let pnpm_version = env!("CARGO_PKG_VERSION");
     let detail = match node_version() {
-        Some(node_version) => format!("pnpm {pnpm_version}, Node.js {node_version}"),
-        None => format!("pnpm {pnpm_version}"),
+        Some(node_version) => format!("pnpm {PNPM_VERSION}, Node.js {node_version}"),
+        None => format!("pnpm {PNPM_VERSION}"),
     };
     CheckResult::pass("Versions", detail)
 }
@@ -179,12 +182,20 @@ fn check_versions() -> CheckResult {
 /// native binary, so Node is not required for pnpm itself to work — its
 /// absence is worth reporting, not failing on.
 fn node_version() -> Option<String> {
-    let output = Command::new("node").arg("--version").output().ok()?;
+    let output = Command::new("node")
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
     let version = String::from_utf8(output.stdout).ok()?;
-    Some(version.trim().trim_start_matches('v').to_owned())
+    Some(
+        version
+            .trim()
+            .trim_start_matches('v')
+            .to_owned(),
+    )
 }
 
 fn check_install_method() -> CheckResult {
@@ -205,8 +216,10 @@ fn check_install_method() -> CheckResult {
 /// whichever candidate `PATH` actually contains.
 fn check_global_bin_dir(config: &Config) -> CheckResult {
     let title = "Global bin directory";
-    let candidates: Vec<PathBuf> =
-        [config.global_bin_dir.clone(), config.global_dir.clone()].into_iter().flatten().collect();
+    let candidates: Vec<PathBuf> = [config.global_bin_dir.clone(), config.global_dir.clone()]
+        .into_iter()
+        .flatten()
+        .collect();
     let Some(first) = candidates.first() else {
         return CheckResult::pass(title, "not configured");
     };
@@ -239,13 +252,15 @@ fn check_global_bin_dir(config: &Config) -> CheckResult {
 
 fn dir_is_in_path(dir: &Path, path_dirs: &[PathBuf]) -> bool {
     let canonical = dir.canonicalize();
-    path_dirs.iter().any(|entry| {
-        entry == dir
-            || match (&canonical, entry.canonicalize()) {
-                (Ok(dir), Ok(entry)) => dir == &entry,
-                _ => false,
-            }
-    })
+    path_dirs
+        .iter()
+        .any(|entry| {
+            entry == dir
+                || match (&canonical, entry.canonicalize()) {
+                    (Ok(dir), Ok(entry)) => dir == &entry,
+                    _ => false,
+                }
+        })
 }
 
 fn check_writable_dir(title: &str, dir: &Path) -> CheckResult {
@@ -282,8 +297,11 @@ fn check_filesystem_capabilities(config: &Config, benchmark: bool) -> CheckResul
         );
     };
 
-    let available: Vec<&str> =
-        capabilities.iter().filter(|(_, supported)| *supported).map(|(name, _)| *name).collect();
+    let available: Vec<&str> = capabilities
+        .iter()
+        .filter(|(_, supported)| *supported)
+        .map(|(name, _)| *name)
+        .collect();
     let has_cheap_link = capabilities
         .iter()
         .any(|(name, supported)| *supported && matches!(*name, "reflink" | "hardlink"));
@@ -362,8 +380,8 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
     // A throwaway store keeps the probe from writing into the real one. The
     // fixture is a temp directory with no lockfile and no workspace above it,
     // so nothing here depends on the lockfile or workspace flags.
-    let current_exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(current_exe)
+    let pnpm = pnpm_executor::current_pnpm_exe().map_err(|error| error.to_string())?;
+    let output = Command::new(pnpm)
         .current_dir(&consumer)
         .args(["install", "--offline", "--ignore-scripts"])
         .arg(format!("--store-dir={}", store.display()))
@@ -385,7 +403,10 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
 }
 
 fn last_line(text: &str) -> String {
-    text.lines().rfind(|line| !line.trim().is_empty()).unwrap_or_default().to_owned()
+    text.lines()
+        .rfind(|line| !line.trim().is_empty())
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn can_write_to_dir(dir: &Path) -> bool {
@@ -396,8 +417,7 @@ fn can_write_to_dir(dir: &Path) -> bool {
 }
 
 fn render_report(report: &DoctorReport) -> String {
-    let mut lines: Vec<String> = report
-        .checks
+    let mut lines: Vec<String> = report.checks
         .iter()
         .map(|check| {
             let mut line = format!("{} {}", status_mark(check.status), check.title);
@@ -416,8 +436,14 @@ fn render_report(report: &DoctorReport) -> String {
         })
         .collect();
 
-    let failed = report.checks.iter().filter(|check| check.status == CheckStatus::Fail).count();
-    let warned = report.checks.iter().filter(|check| check.status == CheckStatus::Warn).count();
+    let failed = report.checks
+        .iter()
+        .filter(|check| check.status == CheckStatus::Fail)
+        .count();
+    let warned = report.checks
+        .iter()
+        .filter(|check| check.status == CheckStatus::Warn)
+        .count();
     let summary = if failed > 0 {
         format!("{failed} check(s) failed")
     } else if warned > 0 {

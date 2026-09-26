@@ -16,10 +16,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    net::TcpListener,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -37,8 +36,10 @@ fn empty_auth_file(root: &Path) -> PathBuf {
 }
 
 fn run_ping(workspace: &Path, auth_file: &Path, registry: Option<&str>) -> std::process::Output {
-    let mut command =
-        pacquet_at(workspace).with_arg("--npmrc-auth-file").with_arg(auth_file).with_arg("ping");
+    let mut command = pacquet_at(workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(auth_file)
+        .with_arg("ping");
     if let Some(registry) = registry {
         command = command.with_arg("--registry").with_arg(registry);
     }
@@ -52,23 +53,15 @@ fn ping_mock(server: &mut mockito::Server, path_prefix: &str) -> mockito::Mock {
         .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
 }
 
-/// A loopback registry URL with nothing listening: bind an ephemeral port,
-/// then drop the listener so a connection is refused immediately. Avoids
-/// assuming a fixed port is free and keeps the network-failure test fast — a
-/// closed loopback port returns `ECONNREFUSED` rather than stalling on connect.
-fn unreachable_registry() -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a probe socket");
-    let port = listener.local_addr().expect("read the probe socket address").port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}/")
-}
-
 #[test]
 fn reports_ping_and_pong_for_a_reachable_registry() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -83,7 +76,11 @@ fn reports_ping_and_pong_for_a_reachable_registry() {
     let lines: Vec<&str> = stdout.trim().lines().collect();
     assert_eq!(lines.len(), 2, "an empty JSON body produces no details: {stdout:?}");
     assert_eq!(lines[0], format!("PING {registry}"));
-    let pong = lines[1].strip_prefix("PONG ").expect("PONG line").strip_suffix("ms").expect("ms");
+    let pong = lines[1]
+        .strip_prefix("PONG ")
+        .expect("PONG line")
+        .strip_suffix("ms")
+        .expect("ms");
     pong.parse::<u128>().expect("the elapsed time must be a number of milliseconds");
     drop((root, server));
 }
@@ -94,7 +91,10 @@ fn includes_details_when_the_body_is_non_empty_json() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let body = r#"{"host":"npm","user":"anonymous"}"#;
-    let mock = ping_mock(&mut server, "").with_status(200).with_body(body).create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -118,7 +118,10 @@ fn uses_the_configured_registry_when_no_flag_is_given() {
     let mut server = mockito::Server::new();
     fs::write(workspace.join(".npmrc"), format!("registry={}\n", server.url()))
         .expect("write project .npmrc");
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, None);
@@ -173,7 +176,10 @@ fn preserves_a_registry_path_prefix() {
     let mut server = mockito::Server::new();
     // No trailing slash: ping must still target `<prefix>/-/ping`.
     let registry = format!("{}/custom-prefix", server.url());
-    let mock = ping_mock(&mut server, "/custom-prefix").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "/custom-prefix")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
@@ -193,7 +199,10 @@ fn preserves_a_registry_path_prefix() {
 fn redacts_inline_credentials_in_the_ping_line() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = ping_mock(&mut server, "").with_status(200).with_body("{}").create();
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     // A registry URL carrying inline basic-auth credentials, which must not
     // leak into the echoed `PING` line.
     let host = server.url();
@@ -224,9 +233,9 @@ fn redacts_inline_credentials_in_the_ping_line() {
 fn fails_on_a_network_failure() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
-    let registry = unreachable_registry();
-
-    let output = run_ping(&workspace, &auth_file, Some(&registry));
+    // `0.0.0.0:1` fails the connect at once on every OS. A bound loopback port
+    // with no listener times out on macOS and takes 2 s to fail on Windows.
+    let output = run_ping(&workspace, &auth_file, Some("http://0.0.0.0:1/"));
 
     assert!(
         !output.status.success(),

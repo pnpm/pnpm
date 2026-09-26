@@ -2,7 +2,7 @@
 //! root once materialized.
 //!
 //! Dependency-name validation lives in the lockfile verifier
-//! ([`pacquet_lockfile_verification::verify_lockfile_dependency_names`]),
+//! ([`pnpm_lockfile_verification::verify_lockfile_dependency_names`]),
 //! which the install runs unconditionally. This module covers the one
 //! escape that name validation alone can't: the global-virtual-store
 //! slot path inserts the package name and the version-derived segment as
@@ -12,9 +12,9 @@
 //! is why it lives here rather than in the verifier crate.
 
 use crate::VirtualStoreLayout;
-use pacquet_fs::is_subdir;
-use pacquet_lockfile::{PackageKey, SnapshotEntry};
-use pacquet_lockfile_verification::VerifyError;
+use pnpm_fs::is_subdir;
+use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile_verification::VerifyError;
 use std::collections::{BTreeSet, HashMap};
 
 /// Reject the install when any snapshot's computed virtual-store slot

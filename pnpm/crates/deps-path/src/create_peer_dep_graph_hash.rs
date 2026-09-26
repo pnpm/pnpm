@@ -1,4 +1,4 @@
-use pacquet_crypto_hash::create_short_hash;
+use pnpm_crypto_hash::create_short_hash;
 
 use crate::peer_id::PeerId;
 
@@ -10,7 +10,10 @@ use crate::peer_id::PeerId;
 /// so the comparison `dirName.length > maxLength` happens before the
 /// leading `(` is prepended.
 pub fn create_peer_dep_graph_hash(peer_ids: &[PeerId], max_length: usize) -> String {
-    let mut segments: Vec<String> = peer_ids.iter().map(PeerId::as_segment).collect();
+    let mut segments: Vec<String> = peer_ids
+        .iter()
+        .map(PeerId::as_segment)
+        .collect();
     segments.sort();
     let body = segments.join(")(");
     if body.len() > max_length {

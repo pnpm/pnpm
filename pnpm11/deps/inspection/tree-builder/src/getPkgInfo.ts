@@ -13,7 +13,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { readPackageJsonFromDirSync } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
-import type { DependencyManifest, Registries } from '@pnpm/types'
+import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 import { readManifestFromCafs } from './readManifestFromCafs.js'
@@ -24,8 +24,8 @@ export interface GetPkgInfoOpts {
   readonly ref: string
   readonly currentPackages: PackageSnapshots
   readonly peers?: Set<string>
-  readonly registries: Registries
-  readonly namedRegistries?: Record<string, string>
+  readonly registriesByScope: RegistriesByScope
+  readonly registriesByPrefix?: Record<string, string>
   readonly skipped: Set<string>
   readonly storeDir?: string
   readonly storeIndex?: StoreIndex
@@ -35,7 +35,9 @@ export interface GetPkgInfoOpts {
   readonly depTypes: DepTypes
 
   /**
-   * The base dir if the `ref` argument is a `"link:"` relative path.
+   * The base dir if the `ref` argument is a `"link:"` relative path. An
+   * absolute `"link:"` path, such as one on another drive on Windows, is used
+   * as is.
    */
   readonly linkedPathBaseDir: string
 
@@ -94,9 +96,9 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
     }
     if (pkgSnapshot) {
       try {
-        resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries }) as TarballResolution).tarball
+        resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix }) as TarballResolution).tarball
       } catch (err: unknown) {
-        // Inspection commands may run without the workspace's namedRegistries
+        // Inspection commands may run without the workspace's registriesByPrefix
         // setting (registries come from .modules.yaml); a named-registry entry
         // whose alias can't be resolved to a URL just has no tarball to show.
         if ((err as { code?: string }).code !== 'ERR_PNPM_MISSING_NAMED_REGISTRY') throw err
@@ -124,7 +126,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       modulesDir: opts.modulesDir,
       parentDir: opts.parentDir,
     })
-    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+    : path.resolve(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`

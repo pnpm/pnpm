@@ -1,6 +1,7 @@
-use pacquet_registry::{PackageVersion, RangeSpecStyle};
+use node_semver::Version;
+use pnpm_registry::{PackageVersion, RangeSpecStyle};
 
-use super::{calc_prefixed_specifier, calc_specifier};
+use super::{calc_prefixed_specifier, calc_specifier, calc_version_range};
 
 fn picked(version: &str) -> PackageVersion {
     serde_json::from_value(serde_json::json!({
@@ -17,7 +18,13 @@ fn keeps_the_range_operator_the_dependency_already_declared() {
         [("^1.0.0", "^4.2.0"), ("~1.0.0", "~4.2.0"), ("1.0.0", "4.2.0"), ("*", "^4.2.0")]
     {
         assert_eq!(
-            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+            calc_specifier(
+                bare_specifier,
+                None,
+                Some("foo"),
+                &picked("4.2.0"),
+                RangeSpecStyle::Major,
+            ),
             expected,
             "specifier for {bare_specifier}",
         );
@@ -32,7 +39,7 @@ fn falls_back_to_the_default_pin_when_none_is_declared() {
         (RangeSpecStyle::Patch, "4.2.0"),
     ] {
         assert_eq!(
-            calc_specifier("latest", Some("foo"), &picked("4.2.0"), default_pin),
+            calc_specifier("latest", None, Some("foo"), &picked("4.2.0"), default_pin),
             expected,
             "specifier for default pin {default_pin:?}",
         );
@@ -42,12 +49,19 @@ fn falls_back_to_the_default_pin_when_none_is_declared() {
 #[test]
 fn rewraps_an_npm_alias_around_the_new_range() {
     assert_eq!(
-        calc_specifier("npm:bar@^1.0.0", Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+        calc_specifier(
+            "npm:bar@^1.0.0",
+            None,
+            Some("foo"),
+            &picked("4.2.0"),
+            RangeSpecStyle::Major,
+        ),
         "npm:bar@^4.2.0",
     );
     assert_eq!(
         calc_specifier(
             "npm:@types/table@6.0.0",
+            None,
             Some("@types/zkochan__table"),
             &picked("7.0.0"),
             RangeSpecStyle::Major,
@@ -60,21 +74,113 @@ fn rewraps_an_npm_alias_around_the_new_range() {
 fn an_alias_that_names_the_install_name_round_trips_as_a_bare_range() {
     for bare_specifier in ["npm:^1.0.0", "npm:foo@^1.0.0"] {
         assert_eq!(
-            calc_specifier(bare_specifier, Some("foo"), &picked("4.2.0"), RangeSpecStyle::Major),
+            calc_specifier(
+                bare_specifier,
+                None,
+                Some("foo"),
+                &picked("4.2.0"),
+                RangeSpecStyle::Major,
+            ),
             "^4.2.0",
             "specifier for {bare_specifier}",
         );
     }
 }
 
-/// A prerelease has no meaningful range operator, so it is pinned exactly
-/// whatever the declared specifier or the default asks for.
 #[test]
-fn a_prerelease_pick_is_written_exactly() {
+fn a_prerelease_pick_keeps_the_declared_range_operator() {
     assert_eq!(
-        calc_specifier("^1.0.0", Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
+        calc_specifier(
+            "latest",
+            Some("^1.0.0"),
+            Some("foo"),
+            &picked("5.0.0-rc.1"),
+            RangeSpecStyle::Major,
+        ),
+        "^5.0.0-rc.1",
+    );
+    assert_eq!(
+        calc_specifier("latest", None, Some("foo"), &picked("5.0.0-rc.1"), RangeSpecStyle::Major),
         "5.0.0-rc.1",
     );
+}
+
+#[test]
+fn calc_version_range_preserves_an_existing_prerelease_range_style() {
+    let version = Version::parse("3.0.0-rc.11").expect("parse prerelease version");
+    for (prev, expected) in [
+        ("^3.0.0-rc.8", "^3.0.0-rc.11"),
+        ("~3.0.0-rc.8", "~3.0.0-rc.11"),
+        ("3.0.0-rc.8", "3.0.0-rc.11"),
+        ("=3.0.0-rc.8", "=3.0.0-rc.11"),
+        (">=3.0.0-rc.8", ">=3.0.0-rc.8"),
+        ("2 || 3", "3.0.0-rc.11"),
+    ] {
+        assert_eq!(
+            calc_version_range(&version, Some(prev), None, RangeSpecStyle::Major),
+            expected,
+            "range for previous specifier {prev}",
+        );
+    }
+    assert_eq!(calc_version_range(&version, None, None, RangeSpecStyle::Major), "3.0.0-rc.11");
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/6714>.
+#[test]
+fn calc_version_range_keeps_the_shape_of_the_existing_range() {
+    for (prev, version, expected) in [
+        ("<= 1.2.5", "1.2.0", "<= 1.2.5"),
+        ("<= 1.2.5", "100.1.0", "^100.1.0"),
+        (">=1.0.0 <1.3.0", "1.2.0", ">=1.0.0 <1.3.0"),
+        (">=1.0.0 <1.3.0", "100.1.0", "^100.1.0"),
+        ("~5 <5.4.54 || ~5.4.55", "5.4.53", "~5 <5.4.54 || ~5.4.55"),
+        ("=1.1.0", "1.1.0", "=1.1.0"),
+        ("=1.1.0", "100.1.0", "=100.1.0"),
+        ("~1.1.0", "1.1.0", "~1.1.0"),
+        ("~1.1.0", "100.1.0", "~100.1.0"),
+        ("^3.0.0-rc.0", "3.0.0-rc.1", "^3.0.0-rc.1"),
+        ("1.1.0", "1.1.0", "1.1.0"),
+        ("1.1.0", "100.1.0", "100.1.0"),
+        ("*", "100.1.0", "^100.1.0"),
+        ("npm:bar@<= 1.2.5", "1.2.0", "<= 1.2.5"),
+        ("latest", "100.1.0", "^100.1.0"),
+    ] {
+        let version = Version::parse(version).expect("parse version");
+        assert_eq!(
+            calc_version_range(&version, Some(prev), Some(prev), RangeSpecStyle::Major),
+            expected,
+            "range for previous specifier {prev} at {version}",
+        );
+    }
+}
+
+#[test]
+fn a_request_that_names_a_specifier_replaces_a_kept_range() {
+    let version = Version::parse("1.2.0").expect("parse version");
+    for (requested, expected) in [
+        ("1.2.0", "1.2.0"),
+        ("^1.2.0", "^1.2.0"),
+        (">=1.1.0 <1.3.0", "^1.2.0"),
+        ("latest", "^1.2.0"),
+    ] {
+        assert_eq!(
+            calc_version_range(&version, Some("<= 1.2.5"), Some(requested), RangeSpecStyle::Major),
+            expected,
+            "range for request {requested}",
+        );
+    }
+}
+
+#[test]
+fn calc_version_range_ignores_the_requested_specifier_style_for_a_prerelease() {
+    let prerelease = Version::parse("3.0.0-rc.11").expect("parse prerelease version");
+    let requested = Some("~3.0.0-rc.8");
+    assert_eq!(
+        calc_version_range(&prerelease, None, requested, RangeSpecStyle::Major),
+        "3.0.0-rc.11",
+    );
+    let release = Version::parse("3.1.0").expect("parse release version");
+    assert_eq!(calc_version_range(&release, None, requested, RangeSpecStyle::Major), "~3.1.0");
 }
 
 #[test]
@@ -87,6 +193,7 @@ fn a_prefixed_specifier_keeps_its_protocol_and_the_declared_range_operator() {
                 "jsr:",
                 "@pnpm-e2e/foo",
                 bare_specifier,
+                None,
                 Some("@pnpm-e2e/foo"),
                 &picked("4.2.0"),
                 RangeSpecStyle::Major,
@@ -104,6 +211,7 @@ fn an_aliased_prefixed_specifier_keeps_naming_the_package_it_resolves_through() 
             "jsr:",
             "@pnpm-e2e/foo",
             "jsr:@pnpm-e2e/foo@1.0.0",
+            None,
             Some("foo-from-jsr"),
             &picked("4.2.0"),
             RangeSpecStyle::Major,
@@ -120,9 +228,52 @@ fn an_unaliased_prefixed_specifier_carries_the_range_alone() {
             "@pnpm-e2e/foo",
             "jsr:latest",
             None,
+            None,
             &picked("4.2.0"),
             RangeSpecStyle::Minor,
         ),
         "jsr:~4.2.0",
+    );
+}
+
+#[test]
+fn an_exact_request_wins_over_the_previous_range_operator() {
+    assert_eq!(
+        calc_specifier(
+            "19.3.0",
+            Some("^19.2.8"),
+            Some("react"),
+            &picked("19.3.0"),
+            RangeSpecStyle::Major,
+        ),
+        "19.3.0",
+    );
+    assert_eq!(
+        calc_specifier(
+            "19.3.0",
+            Some("~19.2.8"),
+            Some("react"),
+            &picked("19.3.0"),
+            RangeSpecStyle::Major,
+        ),
+        "19.3.0",
+    );
+    assert_eq!(
+        calc_specifier("19.3.0", None, Some("react"), &picked("19.3.0"), RangeSpecStyle::Major),
+        "19.3.0",
+    );
+}
+
+#[test]
+fn exact_prerelease_request_wins_over_previous_range_operator() {
+    assert_eq!(
+        calc_specifier(
+            "1.0.0-rc.2",
+            Some("^1.0.0-rc.1"),
+            Some("1.0.0-rc.2"),
+            &picked("1.0.0-rc.2"),
+            RangeSpecStyle::Major,
+        ),
+        "1.0.0-rc.2",
     );
 }

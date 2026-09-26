@@ -1,14 +1,14 @@
 use super::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, OidcTokenProvenance,
-    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info, resolve_access,
-    scope_of,
+    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info,
+    publish_config_registry, resolve_access, scope_of,
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use pacquet_reporter::SilentReporter;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -30,6 +30,28 @@ fn publish_config_registry_wins() {
     )
     .unwrap();
     assert_eq!(registry.as_str(), "https://from-config.example/");
+}
+
+#[test]
+fn publish_config_scoped_registry_wins_for_its_scope() {
+    let manifest = json!({
+        "publishConfig": {
+            "registry": "https://unscoped.example/",
+            "@a:registry": "https://scoped.example/",
+            "@other:registry": "https://other.example/",
+        },
+    });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), Some("https://scoped.example/"));
+    assert_eq!(publish_config_registry(&manifest, "@c/d"), Some("https://unscoped.example/"));
+    assert_eq!(publish_config_registry(&manifest, "b"), Some("https://unscoped.example/"));
+
+    let manifest = json!({
+        "publishConfig": { "registry": "https://unscoped.example/", "@a:registry": true },
+    });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), Some("https://unscoped.example/"));
+    let manifest = json!({ "publishConfig": { "@other:registry": "https://other.example/" } });
+    assert_eq!(publish_config_registry(&manifest, "@a/b"), None);
+    assert_eq!(publish_config_registry(&json!({ "name": "@a/b" }), "@a/b"), None);
 }
 
 #[test]
@@ -275,8 +297,9 @@ async fn create_publish_options_skips_oidc_when_disabled() {
         http: &http,
     };
 
-    let resolved =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, false).await.unwrap();
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, false)
+        .await
+        .unwrap();
     assert_eq!(resolved.registry.as_str(), "https://default.example/");
     assert_eq!(resolved.default_tag, "latest");
     assert_eq!(resolved.otp, Some("123456".to_owned()));
@@ -303,8 +326,9 @@ async fn create_publish_options_applies_oidc_when_enabled() {
         http: &http,
     };
 
-    let resolved =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap();
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap();
     assert_eq!(resolved.auth_token_override, Some("registry-token".to_owned()));
     assert_eq!(resolved.provenance, Some(true));
 }
@@ -340,7 +364,8 @@ async fn create_publish_options_rejects_unsupported_protocol() {
         http: &http,
     };
 
-    let err =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap_err();
+    let err = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap_err();
     assert!(matches!(err, CreatePublishOptionsError::UnsupportedProtocol(_)));
 }

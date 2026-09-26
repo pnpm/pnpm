@@ -42,7 +42,7 @@ const AUTH_CFG_KEYS = [
   'configByUri',
   'key',
   'registry',
-  'registries',
+  'registriesByScope',
 ] satisfies Array<keyof Config>
 
 /**

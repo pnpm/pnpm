@@ -61,7 +61,7 @@ async function fetchPublishedChangelog (version: string): Promise<string | undef
         return
       }
       const chunks: Buffer[] = []
-      stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
       stream.on('error', reject)
       stream.on('end', () => {
         changelog = Buffer.concat(chunks).toString('utf8')

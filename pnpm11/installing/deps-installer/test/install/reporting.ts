@@ -14,10 +14,13 @@ test('reports warning when installing deprecated packages', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
-    deprecated: 'express 0.x series is deprecated',
     level: 'debug',
     name: 'pnpm:deprecation',
     pkgId: 'express@0.14.1',
+  }))
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:deprecation',
+    deprecated: expect.anything(),
   }))
 
   const lockfile = project.readLockfile()

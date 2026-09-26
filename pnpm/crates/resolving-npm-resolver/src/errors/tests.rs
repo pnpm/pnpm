@@ -1,5 +1,5 @@
 use super::FetchMetadataError;
-use pacquet_network::redact_url_credentials;
+use pnpm_network::redact_url_credentials;
 
 /// The retry path logs the failing error through
 /// `redact_url_credentials(&format!("{error:?}"))`. `FetchMetadataError`'s

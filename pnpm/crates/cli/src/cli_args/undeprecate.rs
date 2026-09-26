@@ -1,9 +1,8 @@
-use clap::Args;
-use pacquet_config::Config;
-
 use super::deprecate::{
     DeprecateContext, DeprecateError, PackageSpec, parse_package_spec, update_deprecation,
 };
+use clap::Args;
+use pnpm_config::Config;
 
 #[derive(Debug, Args)]
 pub struct UndeprecateArgs {

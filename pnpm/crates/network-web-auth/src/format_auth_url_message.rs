@@ -1,5 +1,5 @@
 use derive_more::Display;
-use pacquet_reporter::Reporter;
+use pnpm_reporter::Reporter;
 
 use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
 

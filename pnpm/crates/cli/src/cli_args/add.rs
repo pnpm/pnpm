@@ -1,21 +1,41 @@
+pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs};
+
+pub(crate) use execution::{AddGroups, add_package, add_packages};
+
+mod arguments;
+
 use crate::{
     State,
+    cargo_manifest::CargoDependencyKind,
     cli_args::{
-        install::resolve_bool_override, pipelines::InstallFamilySelection,
+        install::{included_dependency_groups, resolve_bool_override},
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
+        workspace_option::workspace_link_root,
     },
     config_deps,
+    engine_pm::{
+        error::EngineError,
+        pin::{
+            declared_package_manager, describe_pin, record_package_manager_pin, resolve_project_pin,
+        },
+        selector::tool_install_selector,
+    },
 };
 use clap::Args;
 use derive_more::{Display, Error};
+
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::Config;
-use pacquet_package_manager::Add;
-use pacquet_package_manifest::DependencyGroup;
-use pacquet_registry::RangeSpecStyle;
-use pacquet_reporter::Reporter;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_workspace_manifest_writer::set_allow_builds;
+use pnpm_config::Config;
+use pnpm_package_manager::{Add, build_workspace_packages_map, parse_allow_build_selector};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_resolver_base::WorkspacePackages;
+use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -32,6 +52,9 @@ pub struct AddDependencyOptions {
     /// Install the specified packages as optionalDependencies.
     #[clap(short = 'O', long)]
     save_optional: bool,
+    /// Install crate: packages as Cargo build dependencies.
+    #[clap(long = "save-build")]
+    save_build: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
     #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
@@ -42,6 +65,24 @@ pub struct AddDependencyOptions {
 }
 
 impl AddDependencyOptions {
+    pub(crate) fn python_development(&self) -> miette::Result<bool> {
+        if self.save_build || self.save_optional || self.save_peer {
+            return Err(miette::miette!(
+                "pypi: dependencies do not support --save-build, --save-optional or --save-peer"
+            ));
+        }
+        if self.save_prod && self.save_dev {
+            return Err(miette::miette!(
+                "pypi: dependencies do not support combining --save-prod and --save-dev"
+            ));
+        }
+        Ok(self.save_dev)
+    }
+
+    pub(crate) fn save_build(&self) -> bool {
+        self.save_build
+    }
+
     /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
     fn with_save_peer_setting(self, save_peer: bool) -> Self {
         Self {
@@ -56,10 +97,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_prod || (!save_dev && !save_optional && !save_peer)
+        save_prod || (!save_dev && !save_optional && !save_build && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
@@ -68,10 +110,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_dev || (!save_prod && !save_optional && save_peer)
+        save_dev || (!save_prod && !save_optional && !save_build && save_peer)
     }
 
     /// Whether to add entry to `"optionalDependencies"`.
@@ -82,6 +125,38 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"peerDependencies"`.
     fn save_peer(&self) -> bool {
         self.save_peer
+    }
+
+    pub(crate) fn cargo_dependency_kind(
+        &self,
+        has_node_packages: bool,
+    ) -> miette::Result<CargoDependencyKind> {
+        if self.save_optional || self.save_peer {
+            return Err(miette::miette!(
+                "crate: dependencies do not support --save-optional or --save-peer"
+            ));
+        }
+        if self.save_build && has_node_packages {
+            return Err(miette::miette!(
+                "--save-build cannot be applied to Node.js packages in a mixed add"
+            ));
+        }
+        let selected = [self.save_prod, self.save_dev, self.save_build]
+            .into_iter()
+            .filter(|selected| *selected)
+            .count();
+        if selected > 1 {
+            return Err(miette::miette!(
+                "crate: dependencies can be added to only one dependency table at a time"
+            ));
+        }
+        Ok(if self.save_dev {
+            CargoDependencyKind::Development
+        } else if self.save_build {
+            CargoDependencyKind::Build
+        } else {
+            CargoDependencyKind::Normal
+        })
     }
 
     /// Convert the `--save-*` flags to an iterator of [`DependencyGroup`]
@@ -98,16 +173,18 @@ impl AddDependencyOptions {
     /// flag names it explicitly, `None` when pnpm infers it per package
     /// (an already-declared dependency is updated in the group it
     /// occupies; a new one lands in `dependencies`).
-    fn save_target(&self) -> Option<Vec<DependencyGroup>> {
+    pub(crate) fn save_target(&self) -> Option<Vec<DependencyGroup>> {
         let &AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_peer)
-            .then(|| self.dependency_groups().collect())
+        (save_prod || save_dev || save_optional || save_build || save_peer).then(|| {
+            self.dependency_groups().collect()
+        })
     }
 }
 
@@ -115,66 +192,72 @@ impl AddDependencyOptions {
 pub struct AddArgs {
     /// Names of the packages to add.
     #[clap(required = true)]
-    pub package_names: Vec<String>,
+    pub package_names: Vec<AddRequest>,
     /// --save-prod, --save-dev, --save-optional, --save-peer
     #[clap(flatten)]
     pub dependency_options: AddDependencyOptions,
+    /// `--prod` / `--dev`: which dependency groups end up in `node_modules`.
+    #[clap(flatten)]
+    pub include: AddIncludeArgs,
     /// `--cpu`, `--os`, and `--libc` filters for which optional dependencies are installed.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
-    /// Saved dependencies will be configured with an exact version rather than using
-    /// the default semver range operator.
-    #[clap(short = 'E', long = "save-exact")]
-    pub save_exact: bool,
-    /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
-    #[clap(long = "save-prefix", value_name = "prefix")]
-    pub save_prefix: Option<String>,
-    /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
-    #[clap(long = "save-catalog")]
-    pub save_catalog: bool,
-    /// Save the new dependency to the named catalog `<name>`.
-    #[clap(long = "save-catalog-name", value_name = "name")]
-    pub save_catalog_name: Option<String>,
-    /// Add the package as a configuration dependency.
-    #[clap(long = "config")]
-    pub config: bool,
-    /// Package names allowed to run lifecycle (build) scripts during this
-    /// install, appended to `allowBuilds`. May be repeated.
-    #[clap(long = "allow-build")]
-    pub allow_build: Vec<String>,
-    /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
-    #[clap(long = "lockfile-only")]
-    pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
-
-    /// Install the package globally, linking its bins into the global bin directory.
-    #[clap(short = 'g', long)]
-    pub global: bool,
-    /// Don't run lifecycle scripts of the added package or its dependencies.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-    /// Force-enable lifecycle scripts for this invocation.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
-    #[clap(long)]
-    pub force: bool,
+    #[clap(flatten)]
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub save: AddSaveArgs,
+    #[clap(flatten)]
+    pub target: AddTargetArgs,
+    #[clap(flatten)]
+    pub install: AddInstallArgs,
 }
 
 impl AddArgs {
+    pub(crate) fn check_workspace_root(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        if config.recursive
+            || config.workspace_root
+            || resolve_bool_override(
+                self.target.ignore_workspace_root_check,
+                self.target.no_ignore_workspace_root_check,
+                config.ignore_workspace_root_check,
+            )
+            || config.workspace_dir.as_deref() != Some(dir)
+        {
+            return Ok(());
+        }
+        let patterns = pnpm_workspace::read_workspace_manifest(dir)
+            .into_diagnostic()?
+            .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
+        if patterns
+            .as_ref()
+            .is_some_and(|patterns| patterns.len() > 1)
+        {
+            return Err(AddError::AddingToRoot.into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        config.ignore_scripts = resolve_bool_override(
-            self.ignore_scripts,
-            self.no_ignore_scripts,
-            config.ignore_scripts,
+        self.scripts.apply(config);
+        config.save_types =
+            resolve_bool_override(self.save.types, self.save.no_save_types, config.save_types);
+        self.install.dedupe.apply(config);
+        config.ignore_workspace_root_check = resolve_bool_override(
+            self.target.ignore_workspace_root_check,
+            self.target.no_ignore_workspace_root_check,
+            config.ignore_workspace_root_check,
         );
-        config.force = self.force || config.force;
+        config.optional =
+            resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.force = self.install.force || config.force;
+    }
+
+    /// The dependency groups the install that follows the manifest edit
+    /// resolves and materializes. Distinct from
+    /// [`AddDependencyOptions::save_target`], which names the manifest
+    /// group the added packages are written to.
+    fn included_groups(&self, config: &Config) -> Vec<DependencyGroup> {
+        included_dependency_groups(self.include.prod, self.include.dev, config.optional).collect()
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to
@@ -187,16 +270,17 @@ impl AddArgs {
     pub(super) fn parse_config_dependencies(
         &self,
     ) -> miette::Result<Option<BTreeMap<String, String>>> {
-        if !self.config {
+        if !self.target.config {
             return Ok(None);
         }
 
         let mut added = BTreeMap::new();
         for package_name in &self.package_names {
-            let parsed = parse_wanted_dependency(package_name);
+            let selector = package_name.selector();
+            let parsed = parse_wanted_dependency(selector);
             let Some(name) = parsed.alias else {
                 return Err(miette::miette!(
-                    "'{package_name}' is not a valid package name for a configuration dependency",
+                    "'{selector}' is not a valid package name for a configuration dependency",
                 ));
             };
             let specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());
@@ -205,168 +289,65 @@ impl AddArgs {
         Ok(Some(added))
     }
 
-    /// Execute the subcommand. `config_dependencies` is
-    /// [`Self::parse_config_dependencies`]'s output, so it is `Some` exactly
-    /// when `--config` was passed.
-    pub async fn run<Reporter: self::Reporter + 'static>(
-        self,
-        state: State,
-        config_dependencies: Option<BTreeMap<String, String>>,
-    ) -> miette::Result<()> {
-        // `--config` routes to the configurational-dependency path
-        // instead of the regular `package.json` add: resolve + install
-        // into `.pnpm-config`, then record the clean specifiers in
-        // `pnpm-workspace.yaml`.
-        if let Some(added) = config_dependencies {
-            // configDependencies are workspace-level: write to the
-            // workspace root's `pnpm-workspace.yaml` / env lockfile /
-            // `.pnpm-config`, not the current package's. Fall back to the
-            // manifest's directory for a single-package repo.
-            let root_dir = state.config.workspace_dir.clone().unwrap_or_else(|| {
-                state.manifest.path().parent().map_or_else(|| PathBuf::from("."), Path::to_path_buf)
-            });
-            return config_deps::add_config_dependencies::<Reporter>(
-                state.config,
-                &root_dir,
-                &added,
-            )
-            .await;
-        }
-
-        // Merge CLI overrides with the yaml-derived value before
-        // handing off to the install pipeline. See
-        // `cli_args::install.rs` for the parallel comment — the
-        // pattern is identical (clone from `&'static Config`, merge,
-        // pass merged value through).
-        let supported_architectures =
-            self.supported_architectures.apply_to(state.config.supported_architectures.clone());
-
-        // `--save-catalog-name=<name>` wins; `--save-catalog` is the
-        // shorthand for the default catalog; otherwise fall back to the
-        // `saveCatalogName` config default (`None`). Mirrors pnpm's
-        // `save-catalog` → `--save-catalog-name=default` shorthand.
-        let save_catalog_name = self
-            .save_catalog_name
-            .clone()
-            .or_else(|| self.save_catalog.then(|| "default".to_string()))
-            .or_else(|| state.config.save_catalog_name.clone());
-
-        let range_spec_style = self.range_spec_style(state.config);
-        let dependency_options =
-            self.dependency_options.clone().with_save_peer_setting(state.config.save_peer);
-
-        add_packages::<Reporter, _>(
-            state,
-            &self.package_names,
-            range_spec_style,
-            save_catalog_name,
-            self.lockfile_only,
-            supported_architectures,
-            dependency_options.save_target(),
-        )
-        .await
-    }
-
-    pub(crate) async fn run_selected<Reporter: self::Reporter + 'static>(
-        self,
-        mut state: State,
-        selection: InstallFamilySelection,
-    ) -> miette::Result<()> {
-        let supported_architectures =
-            self.supported_architectures.apply_to(state.config.supported_architectures.clone());
-        let save_catalog_name = self
-            .save_catalog_name
-            .clone()
-            .or_else(|| self.save_catalog.then(|| "default".to_string()))
-            .or_else(|| state.config.save_catalog_name.clone());
-        let range_spec_style = self.range_spec_style(state.config);
-        let dependency_groups = self
-            .dependency_options
-            .clone()
-            .with_save_peer_setting(state.config.save_peer)
-            .save_target();
-        let InstallFamilySelection {
-            workspace_root: _,
-            mut projects,
-            ordered_groups,
-            ordered_dirs,
-            selected_dirs,
-            active_manifest_is_standin,
-        } = selection;
-        let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &mut state;
-        let lockfile =
-            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-        Add {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            lockfile,
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups,
-            package_names: &self.package_names,
-            range_spec_style,
-            save_catalog_name,
-            resolved_packages,
-            supported_architectures,
-            lockfile_only: self.lockfile_only,
-        }
-        .run_selected::<Reporter>(
-            &mut projects,
-            &ordered_groups,
-            &ordered_dirs,
-            selected_dirs.as_ref(),
-            active_manifest_is_standin,
-        )
-        .await
-        .wrap_err("adding a new package")
-    }
-
-    /// `pnpm add -g`: install the package into the global packages
-    /// directory and link its bins. Delegates to
-    /// [`crate::cli_args::global::handle_global_add`].
-    pub async fn run_global<Reporter: self::Reporter + 'static>(
-        self,
-        config: &'static Config,
-        dir: &Path,
-    ) -> miette::Result<()> {
-        // `--config` (configurational dependency) and `--lockfile-only` have
-        // no meaning for a global install; reject rather than silently ignore.
-        if self.config {
-            return Err(miette::miette!("`pnpm add --config` cannot be combined with --global."));
-        }
-        if self.lockfile_only {
-            return Err(miette::miette!(
-                "`pnpm add --lockfile-only` cannot be combined with --global."
-            ));
-        }
-        let supported_architectures =
-            self.supported_architectures.apply_to(config.supported_architectures.clone());
-        let range_spec_style = self.range_spec_style(config);
-        Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
-            config,
-            &self.package_names,
-            range_spec_style,
-            supported_architectures,
-            &self.allow_build,
-            dir,
-        ))
-        .await
-    }
-
     /// The style that decides the saved range: `--save-exact` /
-    /// `--save-prefix` layered over the `saveExact` and `savePrefix`
+    /// `--tilde` / `--save-prefix` layered over the `saveExact` and `savePrefix`
     /// settings, mirroring pnpm's `getRangeSpecStyle`.
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
+        let cli_save_prefix = (!self.save.exact)
+            .then_some(())
+            .and_then(|()| self.save.tilde.then_some("~").or(self.save.prefix.as_deref()));
         RangeSpecStyle::from_save_options(
-            self.save_exact || config.save_exact,
-            self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
+            self.save.exact || (cli_save_prefix.is_none() && config.save_exact),
+            cli_save_prefix.or(config.save_prefix.as_deref()),
         )
     }
+
+    /// The workspace packages `--workspace` links the added dependencies
+    /// to, indexed by name and version. `Ok(None)` means the flag was not
+    /// passed.
+    pub(crate) fn workspace_link_targets(
+        &self,
+        config: &Config,
+    ) -> miette::Result<Option<WorkspacePackages>> {
+        workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())?
+            .map(|workspace_root| {
+                recursive::discover_workspace_projects(workspace_root, config)
+                    .map(|(projects, _)| {
+                        build_workspace_packages_map(Some(&projects)).unwrap_or_default()
+                    })
+            })
+            .transpose()
+    }
+}
+
+/// The `workspace:` requests `--workspace` resolves in place of the
+/// selectors the user typed: `foo` becomes `foo@workspace:*`, `foo@^1`
+/// becomes `foo@workspace:^1`, and an explicit `workspace:` range is kept.
+///
+/// `--workspace` asks to link packages the workspace has, so a selector
+/// naming one it does not have is an error rather than a registry
+/// fallback.
+fn workspace_selectors(
+    selectors: &[String],
+    workspace_packages: &WorkspacePackages,
+) -> Result<Vec<String>, AddError> {
+    selectors
+        .iter()
+        .map(|selector| {
+            let parsed = parse_wanted_dependency(selector);
+            let Some(name) = parsed.alias else {
+                return Err(AddError::NoPkgNameInSpec { selector: selector.clone() });
+            };
+            if !workspace_packages.contains_key(&name) {
+                return Err(AddError::WorkspacePackageNotFound { name });
+            }
+            Ok(match parsed.bare_specifier {
+                None => format!("{name}@workspace:*"),
+                Some(range) if range.starts_with("workspace:") => selector.clone(),
+                Some(range) => format!("{name}@workspace:{range}"),
+            })
+        })
+        .collect()
 }
 
 /// Honor `--allow-build`: reject any package the root project explicitly
@@ -374,7 +355,7 @@ impl AddArgs {
 /// `settings_dir`'s `pnpm-workspace.yaml`, and enable them for this
 /// install. `settings_dir` is the workspace root, or the project
 /// directory outside a workspace. Mirrors pnpm's `add` handler; shared by
-/// the workspace and `--global` add paths.
+/// the `add` and `install` commands (including `--global` add paths).
 pub(crate) fn apply_allow_build(
     config: &mut Config,
     allow_build: &[String],
@@ -383,10 +364,21 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let overlap: Vec<&str> = allow_build
-        .iter()
-        .filter(|pkg| config.allow_builds.get(pkg.as_str()) == Some(&false))
-        .map(String::as_str)
+    let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
+    let mut allowed_only: Vec<&str> = Vec::new();
+    for pkg in allow_build {
+        let (name, allowed) = parse_allow_build_selector(pkg);
+        if name.is_empty() {
+            return Err(AllowBuildError::MissingPackage.into());
+        }
+        allow_build_map.push((name, allowed));
+        if allowed {
+            allowed_only.push(name);
+        }
+    }
+    let overlap: Vec<&str> = allowed_only
+        .into_iter()
+        .filter(|pkg| config.allow_builds.get(*pkg) == Some(&false))
         .collect();
     if !overlap.is_empty() {
         return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {
@@ -394,12 +386,53 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(settings_dir, allow_build.iter().map(|pkg| (pkg.as_str(), true)))
-        .into_diagnostic()?;
-    for pkg in allow_build {
-        config.allow_builds.insert(pkg.clone(), true);
+    set_allow_builds(settings_dir, allow_build_map.iter().copied()).into_diagnostic()?;
+    for (name, is_allow) in allow_build_map {
+        config.allow_builds.insert(name.to_string(), is_allow);
     }
     Ok(())
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum AddError {
+    #[display(
+        "Running this command will add the dependency to the workspace root, which might not be what you want - if you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."
+    )]
+    #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
+    AddingToRoot,
+
+    #[display(
+        "Cannot declare {request} as the package manager of a filtered selection of projects"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_PACKAGE_MANAGER_IN_SELECTION),
+        help(
+            "Which package manager a project uses is declared in that project. Run the command in the project itself, without a filter."
+        )
+    )]
+    PackageManagerInSelection {
+        #[error(not(source))]
+        request: String,
+    },
+
+    /// A `--workspace` selector named a package that no workspace project
+    /// publishes.
+    #[display(r#""{name}" not found in the workspace"#)]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND))]
+    WorkspacePackageNotFound {
+        #[error(not(source))]
+        name: String,
+    },
+
+    /// A `--workspace` selector carried no package name to look up in the
+    /// workspace, such as a bare path or URL.
+    #[display(r#"Cannot update/install from workspace through "{selector}""#)]
+    #[diagnostic(code(ERR_PNPM_NO_PKG_NAME_IN_SPEC))]
+    NoPkgNameInSpec {
+        #[error(not(source))]
+        selector: String,
+    },
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -415,80 +448,15 @@ pub enum AllowBuildError {
         )
     )]
     OverridingIgnoredBuiltDependencies { dependencies: String },
-}
 
-/// Add a single package to `state`'s manifest and install it.
-///
-/// Shared by `pacquet dlx`, `pacquet runtime`, and the self-updater. dlx
-/// points `state` at a cache directory (via a [`Config`] whose `modules_dir`
-/// is anchored there) and saves to `dependencies` so the package's bin lands
-/// in `<cacheDir>/node_modules/.bin`.
-pub(crate) async fn add_package<Reporter, DependencyGroupList>(
-    state: State,
-    package_name: &str,
-    range_spec_style: RangeSpecStyle,
-    save_catalog_name: Option<String>,
-    lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    dependency_groups: DependencyGroupList,
-) -> miette::Result<()>
-where
-    Reporter: self::Reporter + 'static,
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
-    let package_names = [package_name.to_string()];
-    Box::pin(add_packages::<Reporter, _>(
-        state,
-        &package_names,
-        range_spec_style,
-        save_catalog_name,
-        lockfile_only,
-        supported_architectures,
-        Some(dependency_groups),
-    ))
-    .await
-}
-
-/// Add packages to `state`'s manifest and install them in one operation.
-pub(crate) async fn add_packages<Reporter, DependencyGroupList>(
-    mut state: State,
-    package_names: &[String],
-    range_spec_style: RangeSpecStyle,
-    save_catalog_name: Option<String>,
-    lockfile_only: bool,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    dependency_groups: Option<DependencyGroupList>,
-) -> miette::Result<()>
-where
-    Reporter: self::Reporter + 'static,
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
-    let lockfile_path = state.lockfile_path();
-    let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-        &mut state;
-    let lockfile =
-        lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-
-    Add {
-        tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-        http_client,
-        http_client_arc: std::sync::Arc::clone(http_client),
-        config,
-        manifest,
-        lockfile,
-        lockfile_path: Some(&lockfile_path),
-        dependency_groups,
-        package_names,
-        range_spec_style,
-        save_catalog_name,
-        resolved_packages,
-        supported_architectures,
-        lockfile_only,
-    }
-    .run::<Reporter>()
-    .await
-    .wrap_err("adding a new package")
+    #[display(
+        "The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts."
+    )]
+    #[diagnostic(code(ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE))]
+    MissingPackage,
 }
 
 #[cfg(test)]
 mod tests;
+
+mod execution;

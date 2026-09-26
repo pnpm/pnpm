@@ -64,8 +64,57 @@ fn variable_wins_over_default_when_set() {
 }
 
 #[test]
+fn optional_placeholder_expands_without_being_recorded() {
+    static ENV: &[(&str, &str)] = &[("SET", "--max-old-space-size=8192"), ("EMPTY", "")];
+    struct StaticEnv;
+    impl EnvVar for StaticEnv {
+        fn var(name: &str) -> Option<String> {
+            ENV.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
+        }
+    }
+    assert_eq!(
+        replace_clean::<StaticEnv>("${SET?} --use-system-ca"),
+        "--max-old-space-size=8192 --use-system-ca",
+    );
+    assert_eq!(replace_clean::<StaticEnv>("${UNSET?} --use-system-ca"), " --use-system-ca");
+    assert_eq!(replace_clean::<StaticEnv>("${EMPTY?}"), "");
+    assert_eq!(replace_clean::<StaticEnv>(r"\${UNSET?}"), "${UNSET?}");
+    assert_eq!(replace_clean::<StaticEnv>(r"\\${UNSET?}"), r"\");
+}
+
+#[test]
+fn malformed_optional_placeholder_is_recorded() {
+    let (value, unresolved) = env_replace_lossy::<NoEnv>("${?}${A??}");
+    assert_eq!(value, "");
+    assert_eq!(unresolved, vec!["${?}".to_owned(), "${A??}".to_owned()]);
+}
+
+#[test]
 fn passthrough_when_no_placeholder() {
     assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
+}
+
+/// The scan walks `text` byte by byte, so every span it leaves
+/// untouched has to be copied back as a string slice; decoding a
+/// multi-byte character one byte at a time would mangle it.
+#[test]
+fn preserves_non_ascii_literal_text() {
+    struct EnvWithValue;
+    impl EnvVar for EnvWithValue {
+        fn var(name: &str) -> Option<String> {
+            (name == "VALUE").then(|| "resolved".to_owned())
+        }
+    }
+    assert_eq!(replace_clean::<EnvWithValue>("café/日本語"), "café/日本語");
+    assert_eq!(replace_clean::<EnvWithValue>("café/${VALUE}/日本語"), "café/resolved/日本語");
+    assert_eq!(
+        replace_clean::<EnvWithValue>("café/${MISSING:-défaut}/日本語"),
+        "café/défaut/日本語",
+    );
+    assert_eq!(replace_clean::<EnvWithValue>(r"café/\${VALUE}/日本語"), "café/${VALUE}/日本語");
+    assert_eq!(replace_clean::<EnvWithValue>("café/${OPEN/日本語"), "café/${OPEN/日本語");
 }
 
 #[test]
@@ -123,7 +172,9 @@ fn handles_multiple_placeholders() {
     struct StaticEnv;
     impl EnvVar for StaticEnv {
         fn var(name: &str) -> Option<String> {
-            ENV.iter().find(|(key, _)| *key == name).map(|(_, value)| (*value).to_owned())
+            ENV.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| (*value).to_owned())
         }
     }
     assert_eq!(replace_clean::<StaticEnv>("${A}-${B}-${A}"), "1-2-1");
@@ -186,4 +237,31 @@ fn collects_every_unresolved_placeholder_occurrence() {
     let (value, unresolved) = env_replace_lossy::<NoEnv>("${A}-${B}-${A}");
     assert_eq!(value, "--");
     assert_eq!(unresolved, vec!["${A}".to_owned(), "${B}".to_owned(), "${A}".to_owned()]);
+}
+
+#[test]
+fn dash_default_distinguishes_missing_and_empty_variables() {
+    struct TestEnv;
+    impl EnvVar for TestEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "SET" => Some("value".to_owned()),
+                "EMPTY" => Some(String::new()),
+                _ => None,
+            }
+        }
+    }
+    for (template, expected) in [
+        ("${SET-fallback}", "value"),
+        ("${MISSING-fallback}", "fallback"),
+        ("${MISSING-?}", "?"),
+        ("${EMPTY-fallback}", ""),
+        ("${SET:-fallback}", "value"),
+        ("${MISSING:-fallback}", "fallback"),
+        ("${EMPTY:-fallback}", "fallback"),
+        ("${MISSING-a-b}", "a-b"),
+        (r"\${MISSING-fallback}", "${MISSING-fallback}"),
+    ] {
+        assert_eq!(replace_clean::<TestEnv>(template), expected);
+    }
 }

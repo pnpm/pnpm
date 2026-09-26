@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { renderHelp } from 'render-help'
 
 import { envList } from './envList.js'
+import { envRemove } from './envRemove.js'
 import { envUse } from './envUse.js'
 import type { NvmNodeCommandOptions } from './node.js'
 
@@ -33,6 +34,11 @@ export function help (): string {
             name: 'use',
           },
           {
+            description: 'Removes the specified version of Node.js.',
+            name: 'remove',
+            shortAlias: 'rm',
+          },
+          {
             description: 'List remote Node.js versions available to install.',
             name: 'list',
             shortAlias: 'ls',
@@ -57,6 +63,8 @@ export function help (): string {
       'pnpm env use --global krypton',
       'pnpm env use --global latest',
       'pnpm env use --global rc/24',
+      'pnpm env remove --global 24',
+      'pnpm env rm --global 24',
       'pnpm env list',
       'pnpm env list 24',
       'pnpm env list lts',
@@ -81,6 +89,13 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
   switch (params[0]) {
     case 'use': {
       await envUse(opts, params.slice(1))
+      return
+    }
+    case 'remove':
+    case 'rm':
+    case 'uninstall':
+    case 'un': {
+      await envRemove(opts, params.slice(1))
       return
     }
     case 'list':

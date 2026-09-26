@@ -1,4 +1,5 @@
-use super::{ignored_pnpm_field_keys, root_manifest};
+use super::ignored_pnpm_field_keys;
+use crate::cli_args::package_manager::read_root_manifest_json;
 use std::{fs, path::Path};
 
 fn write_manifest(dir: &Path, contents: &str) {
@@ -6,7 +7,7 @@ fn write_manifest(dir: &Path, contents: &str) {
 }
 
 fn keys_in(dir: &Path) -> Vec<String> {
-    ignored_pnpm_field_keys(root_manifest(dir).as_ref())
+    ignored_pnpm_field_keys(read_root_manifest_json(dir).as_ref())
 }
 
 #[test]

@@ -11,6 +11,13 @@ use ssri::{Algorithm, IntegrityOpts};
 /// to the `npm publish --json` shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm publish --json result format."
+    )
+)]
 pub struct PublishSummary {
     /// Human-readable identifier `name@version`.
     pub id: String,
@@ -70,7 +77,10 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
         shasum: sha1_hex(tarball_data),
         integrity: sha512_sri(tarball_data),
         filename,
-        files: info.contents.iter().map(|path| PublishSummaryFile { path: path.clone() }).collect(),
+        files: info.contents
+            .iter()
+            .map(|path| PublishSummaryFile { path: path.clone() })
+            .collect(),
         entry_count: info.contents.len(),
         bundled: extract_bundled_dependencies(info.published_manifest),
         stage_id: None,
@@ -87,9 +97,10 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
         .filter(|value| !value.is_null())
         .or_else(|| manifest.get("bundleDependencies"));
     match raw {
-        Some(Value::Array(items)) => {
-            items.iter().filter_map(|item| item.as_str().map(str::to_owned)).collect()
-        }
+        Some(Value::Array(items)) => items
+            .iter()
+            .filter_map(|item| item.as_str().map(str::to_owned))
+            .collect(),
         // `true` means "bundle every dependency"; expand it to the names.
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
@@ -101,7 +112,11 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
 }
 
 fn manifest_string(manifest: &Value, key: &str) -> String {
-    manifest.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
+    manifest
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn sha1_hex(data: &[u8]) -> String {

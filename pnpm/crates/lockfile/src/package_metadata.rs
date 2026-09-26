@@ -8,6 +8,13 @@ use std::{collections::HashMap, ops::Deref};
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror package records in pnpm-lock.yaml."
+    )
+)]
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 
@@ -74,8 +81,9 @@ impl BundledDependencies {
     /// depend on the manifest source.
     #[must_use]
     pub fn from_manifest(manifest: Option<&serde_json::Value>) -> Option<Self> {
-        ["bundledDependencies", "bundleDependencies"].into_iter().find_map(|key| {
-            match manifest?.get(key)? {
+        ["bundledDependencies", "bundleDependencies"]
+            .into_iter()
+            .find_map(|key| match manifest?.get(key)? {
                 serde_json::Value::Array(items) if !items.is_empty() => {
                     Some(BundledDependencies::Names(
                         items
@@ -87,8 +95,7 @@ impl BundledDependencies {
                 }
                 serde_json::Value::Bool(true) => Some(BundledDependencies::Boolean(true)),
                 _ => None,
-            }
-        })
+            })
     }
 }
 

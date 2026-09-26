@@ -1,23 +1,20 @@
 use super::{
     PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
-    patch_candidates_from_lockfile, resolution_kind,
+    compare_candidates, default_patch_target, patch_candidates_from_lockfile, resolution_kind,
 };
-use pacquet_config::ScriptsPrependNodePath;
-use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
     LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
     TarballResolution, VariationsResolution,
 };
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_resolving_npm_resolver::{
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pacquet_store_dir::{StoreDir, StoreIndex, store_index_key};
-use pacquet_testing_utils::registry::TestRegistry;
+use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{collections::HashMap, sync::Arc};
@@ -37,12 +34,16 @@ fn empty_lockfile() -> Lockfile {
         importers: HashMap::new(),
         packages: None,
         snapshots: None,
+        time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
@@ -68,7 +69,10 @@ fn patch_target(raw: &str, lockfile: &Lockfile) -> PatchTarget {
 }
 
 fn versions(candidates: &[PatchCandidate]) -> Vec<&str> {
-    candidates.iter().map(|candidate| candidate.version.as_str()).collect()
+    candidates
+        .iter()
+        .map(|candidate| candidate.version.as_str())
+        .collect()
 }
 
 #[test]
@@ -197,7 +201,7 @@ async fn patch_extract_imports_package_files_into_empty_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract package for patching");
 
@@ -226,7 +230,7 @@ async fn patch_extract_rejects_symlinked_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect_err("symlink destination must be rejected");
 
@@ -244,10 +248,10 @@ async fn patch_extract_records_download_in_store_index() {
     let store_dir = tmp.path().join("store");
     std::fs::create_dir_all(&store_dir).expect("create store dir");
 
-    let mut config = pacquet_config::Config::new();
-    config.registry = registry.url();
+    let mut config = pnpm_config::Config::new();
+    config.registry = registry.url().to_string();
     config.store_dir = StoreDir::new(&store_dir);
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 
     let http_client = Arc::new(ThrottledClient::new_for_installs());
     let resolved = resolve_registry_fixture(
@@ -258,7 +262,7 @@ async fn patch_extract_records_download_in_store_index() {
         "1.0.0",
     )
     .await;
-    let name_ver = resolved.name_ver.as_ref().expect("npm resolver fills name/version");
+    let name_ver = resolved.package.name_ver.as_ref().expect("npm resolver fills name/version");
     let package_id = name_ver.to_string();
     let integrity = resolved.resolution.integrity().expect("registry fixture has integrity");
     let store_index_key = store_index_key(&integrity.to_string(), &package_id);
@@ -283,21 +287,24 @@ async fn patch_extract_records_download_in_store_index() {
     let dest = tmp.path().join("edit");
 
     WritePackageForPatch {
-        tarball_mem_cache: &pacquet_tarball::MemCache::default(),
+        tarball_mem_cache: &pnpm_tarball::MemCache::default(),
         http_client: http_client.as_ref(),
         config,
         current_lockfile: &lockfile,
         target: &target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract registry package");
 
     let store_index = StoreIndex::shared_readonly_in(&config.store_dir)
         .expect("patch extraction should create a store index");
-    let indexed_package =
-        store_index.lock().expect("store index lock").get(&store_index_key).expect("read row");
+    let indexed_package = store_index
+        .lock()
+        .expect("store index lock")
+        .get(&store_index_key)
+        .expect("read row");
     assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 
@@ -315,7 +322,7 @@ async fn patch_extract_replaces_existing_empty_destination() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract into empty dir");
 
@@ -335,13 +342,13 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract git-hosted package for patching");
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -360,13 +367,13 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
         target: &fixture.target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .expect("extract URL-inferred git-hosted package for patching");
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -375,9 +382,9 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
 #[tokio::test]
 async fn patch_extract_rejects_unsupported_resolution_shape() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.store_dir = tmp.path().join("store").into();
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let metadata: PackageMetadata = serde_json::from_value(json!({
         "resolution": {
             "type": "directory",
@@ -388,8 +395,8 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
     .unwrap();
     let lockfile = lockfile_with_package_metadata("foo@1.0.0", metadata);
     let target = patch_target("foo@1.0.0", &lockfile);
-    let mem_cache = pacquet_tarball::MemCache::default();
-    let http_client = pacquet_network::ThrottledClient::default();
+    let mem_cache = pnpm_tarball::MemCache::default();
+    let http_client = pnpm_network::ThrottledClient::default();
     let dest = tmp.path().join("edit");
 
     let err = WritePackageForPatch {
@@ -400,7 +407,7 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
         target: &target,
         dest: &dest,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .unwrap_err();
 
@@ -410,11 +417,11 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
 #[tokio::test]
 async fn patch_extract_rejects_missing_package_metadata() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.store_dir = tmp.path().join("store").into();
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
-    let mem_cache = pacquet_tarball::MemCache::default();
-    let http_client = pacquet_network::ThrottledClient::default();
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
+    let mem_cache = pnpm_tarball::MemCache::default();
+    let http_client = pnpm_network::ThrottledClient::default();
     let target = PatchTarget {
         alias: "missing".to_string(),
         version: "1.0.0".to_string(),
@@ -432,29 +439,13 @@ async fn patch_extract_rejects_missing_package_metadata() {
         target: &target,
         dest: &tmp.path().join("edit"),
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .await
     .unwrap_err();
 
     assert!(
         matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
         "missing metadata should be reported, got {err:?}",
-    );
-}
-
-#[test]
-fn executor_scripts_prepend_node_path_maps_all_variants() {
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Always),
-        ExecScriptsPrependNodePath::Always,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Never),
-        ExecScriptsPrependNodePath::Never,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::WarnOnly),
-        ExecScriptsPrependNodePath::WarnOnly,
     );
 }
 
@@ -486,6 +477,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     let tarball = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: Some("sha512-aGVsbG8=".parse().expect("integrity")),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -493,12 +485,14 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
 
     let registry = LockfileResolution::Registry(RegistryResolution {
         integrity: "sha512-aGVsbG8=".parse().expect("integrity"),
+        revision: None,
     });
     assert_eq!(resolution_kind(&registry), "registry");
 
     let git = LockfileResolution::Git(GitResolution {
         repo: "https://github.com/example/foo.git".to_string(),
         commit: "deadbeef".to_string(),
+        integrity: None,
         path: None,
     });
     assert_eq!(resolution_kind(&git), "git");
@@ -518,9 +512,9 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
 
 struct PatchExtractFixture {
     tmp: tempfile::TempDir,
-    mem_cache: pacquet_tarball::MemCache,
-    http_client: pacquet_network::ThrottledClient,
-    config: &'static pacquet_config::Config,
+    mem_cache: pnpm_tarball::MemCache,
+    http_client: pnpm_network::ThrottledClient,
+    config: &'static pnpm_config::Config,
     lockfile: Lockfile,
     target: PatchTarget,
 }
@@ -544,7 +538,7 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pacquet_tarball::CacheValue;
+        use pnpm_tarball::{CacheValue, CachedTarball};
         use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -553,7 +547,9 @@ impl PatchExtractFixture {
         let pkg_json = store_dir.join("pkg-json");
         let index = store_dir.join("index");
         let manifest = if use_git_hosted_url {
-            format!(r#"{{"name":"{name}","version":"{version}","files":["index.js"]}}"#)
+            format!(
+                r#"{{"name":"{name}","version":"{version}","files":["index.js"],"scripts":{{"prepare":"exit 1"}}}}"#,
+            )
         } else {
             format!(r#"{{"name":"{name}","version":"{version}"}}"#)
         };
@@ -562,11 +558,11 @@ impl PatchExtractFixture {
         let ignored = store_dir.join("ignore");
         std::fs::write(&ignored, "do not publish\n").expect("write ignored file");
 
-        let mut config = pacquet_config::Config::new();
+        let mut config = pnpm_config::Config::new();
         config.registry = "https://registry.test/".to_string();
         config.store_dir = store_dir.into();
         config.offline = true;
-        let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+        let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 
         let key = format!("{name}@{version}");
         let lockfile = lockfile_with_package_metadata(
@@ -588,16 +584,22 @@ impl PatchExtractFixture {
             ("index.js".to_string(), index),
             ("ignore.txt".to_string(), ignored),
         ]);
-        let mem_cache = pacquet_tarball::MemCache::default();
+        let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(
-            tarball_url,
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+            pnpm_tarball::package_mem_cache_key(
+                &tarball_url,
+                Some(&"sha512-aGVsbG8=".parse().expect("parse integrity")),
+                false,
+            ),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                seeded,
+            )))),
         );
 
         Self {
             tmp,
             mem_cache,
-            http_client: pacquet_network::ThrottledClient::default(),
+            http_client: pnpm_network::ThrottledClient::default(),
             config,
             lockfile,
             target,
@@ -611,24 +613,32 @@ async fn resolve_registry_fixture(
     http_client: Arc<ThrottledClient>,
     alias: &str,
     range: &str,
-) -> pacquet_resolving_resolver_base::ResolveResult {
+) -> pnpm_resolving_resolver_base::ResolveResult {
     let mut registries = HashMap::new();
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        named_registries: HashMap::new(),
-        http_client,
-        auth_headers: Arc::default(),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
-        full_metadata: false,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        registries_by_prefix: HashMap::new(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Arc::default(),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
+        store_index: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

@@ -1,4 +1,4 @@
-use pacquet_workspace_projects_graph::lexical_normalize;
+use pnpm_workspace_projects_graph::lexical_normalize;
 use std::path::{Path, PathBuf};
 
 /// Join `rel` onto `prefix` and lexically normalize the result,

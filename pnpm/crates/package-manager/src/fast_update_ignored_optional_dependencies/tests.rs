@@ -1,5 +1,24 @@
-use super::try_fast_update_ignored_optional_dependencies;
-use pacquet_lockfile::Lockfile;
+use pnpm_lockfile::Lockfile;
+
+/// The composed pipeline restricted to `ignoredOptionalDependencies`
+/// drift: every other input is neutral, so these tests exercise this
+/// handler and the shared epilogue alone.
+fn try_fast_update_ignored_optional_dependencies(
+    lockfile: &Lockfile,
+    ignored_optional_dependencies: &[String],
+) -> Option<Lockfile> {
+    crate::fast_update_compose::try_compose_fast_updates(
+        lockfile,
+        &[],
+        &[],
+        &pnpm_config::Config {
+            ignored_optional_dependencies: Some(ignored_optional_dependencies.to_vec()),
+            ..pnpm_config::Config::default()
+        },
+        None,
+        false,
+    )
+}
 
 fn lockfile(source: &str) -> Lockfile {
     serde_saphyr::from_str(source).expect("parse lockfile")
@@ -57,7 +76,9 @@ snapshots:
     assert!(updated.importers["."].optional_dependencies.is_none());
     let parent_key = "parent@1.0.0".parse().expect("parent key");
     assert!(
-        updated.snapshots.as_ref().expect("snapshots")[&parent_key].optional_dependencies.is_none(),
+        updated.snapshots.as_ref().expect("snapshots")[&parent_key]
+            .optional_dependencies
+            .is_none(),
     );
     let snapshots = updated.snapshots.as_ref().expect("snapshots");
     assert!(snapshots.contains_key(&"shared@1.0.0".parse().expect("shared key")));

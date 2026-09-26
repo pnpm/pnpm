@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1101.3.3",
+  "version": "1102.1.4",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -42,6 +42,7 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
@@ -65,7 +66,8 @@
     "ramda": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",
-    "symlink-dir": "catalog:"
+    "symlink-dir": "catalog:",
+    "write-file-atomic": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -80,7 +82,8 @@
     "@pnpm/testing.mock-agent": "workspace:*",
     "@types/cross-spawn": "catalog:",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/write-file-atomic": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

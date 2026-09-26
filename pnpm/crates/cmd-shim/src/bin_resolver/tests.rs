@@ -317,6 +317,35 @@ fn empty_bin_key_is_rejected() {
     assert_eq!(commands[0].name, "good");
 }
 
+/// `url-loader@1.1.2` is published with `"bin": ""`, which would otherwise
+/// resolve to the package directory and make the linker probe a directory
+/// as a shim source.
+#[test]
+fn empty_bin_string_declares_no_command() {
+    let manifest = json!({"name": "url-loader", "version": "1.1.2", "bin": ""});
+    assert!(get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p")).is_empty());
+}
+
+#[test]
+fn empty_bin_string_falls_through_to_directories_bin() {
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("pkg");
+    let bin_dir = pkg.join("bin-dir");
+    create_dir_all(&bin_dir).unwrap();
+    write_file(bin_dir.join("tool.js"), "").unwrap();
+
+    let manifest = json!({
+        "name": "empty-bin",
+        "version": "1.0.0",
+        "bin": "",
+        "directories": {"bin": "bin-dir"},
+    });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg);
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].name, "tool.js");
+    assert_eq!(commands[0].path, bin_dir.join("tool.js"));
+}
+
 /// The relative names `.` and `..` survive the URL-safe guard's character
 /// set (`.` is unescaped by `encodeURIComponent`) but resolve to the bin
 /// directory itself or its parent when joined to a target dir, so

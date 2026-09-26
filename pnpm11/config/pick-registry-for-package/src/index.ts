@@ -1,8 +1,8 @@
-import type { NamedRegistries, Registries } from '@pnpm/types'
+import type { RegistriesByPrefix, RegistriesByScope } from '@pnpm/types'
 
-export function pickRegistryForPackage (registries: Registries, packageName: string, bareSpecifier?: string): string {
+export function pickRegistryForPackage (registriesByScope: RegistriesByScope, packageName: string, bareSpecifier?: string): string {
   const scope = getScope(packageName, bareSpecifier)
-  return (scope && registries[scope]) ?? registries.default
+  return (scope && registriesByScope[scope]) ?? registriesByScope.default
 }
 
 function getScope (pkgName: string, bareSpecifier?: string): string | null {
@@ -31,11 +31,11 @@ function getScope (pkgName: string, bareSpecifier?: string): string | null {
  * where verification traffic goes for entries that name no registry. Memoized
  * on the map because the caller sits behind a per-package walk.
  */
-export function namedRegistryTarballPrefixes (namedRegistries: NamedRegistries): readonly string[] {
-  let prefixes = tarballPrefixesCache.get(namedRegistries)
+export function namedRegistryTarballPrefixes (registriesByPrefix: RegistriesByPrefix): readonly string[] {
+  let prefixes = tarballPrefixesCache.get(registriesByPrefix)
   if (prefixes) return prefixes
 
-  prefixes = Object.values(namedRegistries)
+  prefixes = Object.values(registriesByPrefix)
     .map((url) => {
       let parsed: URL
       try {
@@ -50,8 +50,8 @@ export function namedRegistryTarballPrefixes (namedRegistries: NamedRegistries):
     .filter((prefix): prefix is string => prefix != null)
     // Tie-break equal lengths so the order does not depend on key order.
     .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
-  tarballPrefixesCache.set(namedRegistries, prefixes)
+  tarballPrefixesCache.set(registriesByPrefix, prefixes)
   return prefixes
 }
 
-const tarballPrefixesCache = new WeakMap<NamedRegistries, readonly string[]>()
+const tarballPrefixesCache = new WeakMap<RegistriesByPrefix, readonly string[]>()

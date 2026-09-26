@@ -8,7 +8,7 @@ use crate::{
     },
     resolved_tree::ResolvedTree,
 };
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,9 +26,9 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
     let mut tree = ResolvedTree {
         direct: Vec::new(),
         packages: HashMap::from_iter([
-            ("same@1.0.0".to_string(), package("same", "1.0.0", &[("peer", "*")], false)),
-            ("child-a@1.0.0".to_string(), package("child-a", "1.0.0", &[], true)),
-            ("child-b@1.0.0".to_string(), package("child-b", "1.0.0", &[], true)),
+            ("same@1.0.0".into(), package("same", "1.0.0", &[("peer", "*")], false)),
+            ("child-a@1.0.0".into(), package("child-a", "1.0.0", &[], true)),
+            ("child-b@1.0.0".into(), package("child-b", "1.0.0", &[], true)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (first.clone(), tree_node("same@1.0.0", BTreeMap::new(), 1)),
@@ -42,11 +42,11 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker.node_dep_paths.insert(first.clone(), final_dep_path.clone());
-    walker.node_dep_paths.insert(second.clone(), final_dep_path.clone());
-    walker.node_dep_paths.insert(first_child.clone(), DepPath::from("child-a@1.0.0"));
-    walker.node_dep_paths.insert(second_child.clone(), DepPath::from("child-b@1.0.0"));
-    walker.node_records.insert(
+    walker.caches.node_dep_paths.insert(first.clone(), final_dep_path.clone());
+    walker.caches.node_dep_paths.insert(second.clone(), final_dep_path.clone());
+    walker.caches.node_dep_paths.insert(first_child.clone(), DepPath::from("child-a@1.0.0"));
+    walker.caches.node_dep_paths.insert(second_child.clone(), DepPath::from("child-b@1.0.0"));
+    walker.output.node_records.insert(
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), second_child)]),
@@ -58,7 +58,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
             order: 1,
         },
     );
-    walker.node_records.insert(
+    walker.output.node_records.insert(
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), first_child)]),
@@ -76,8 +76,11 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         (second, final_dep_path.clone()),
     ]));
 
-    assert_eq!(graph[&final_dep_path].children.get("peer"), Some(&DepPath::from("child-a@1.0.0")));
-    assert!(graph[&final_dep_path].transitive_peer_dependencies.contains("debug"));
+    assert_eq!(
+        graph[&final_dep_path].edges.children.get("peer"),
+        Some(&DepPath::from("child-a@1.0.0")),
+    );
+    assert!(graph[&final_dep_path].edges.transitive_peer_dependencies.contains("debug"));
 }
 
 #[test]
@@ -98,7 +101,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
     let mut tree = ResolvedTree {
         direct: Vec::new(),
         packages: HashMap::from_iter([(
-            "consumer@1.0.0".to_string(),
+            "consumer@1.0.0".into(),
             package("consumer", "1.0.0", &[], false),
         )]),
         dependencies_tree: HashMap::from_iter([
@@ -111,9 +114,9 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker.node_dep_paths.insert(first.clone(), parent_dep_path.clone());
-    walker.node_dep_paths.insert(second.clone(), parent_dep_path.clone());
-    walker.node_records.insert(
+    walker.caches.node_dep_paths.insert(first.clone(), parent_dep_path.clone());
+    walker.caches.node_dep_paths.insert(second.clone(), parent_dep_path.clone());
+    walker.output.node_records.insert(
         first.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), first_child.clone())]),
@@ -125,7 +128,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
             order: 0,
         },
     );
-    walker.node_records.insert(
+    walker.output.node_records.insert(
         second.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), second_child.clone())]),
@@ -145,7 +148,10 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         (second_child, matching_child_dep_path.clone()),
     ]));
 
-    assert_eq!(graph[&parent_dep_path].children.get("webpack-cli"), Some(&matching_child_dep_path));
+    assert_eq!(
+        graph[&parent_dep_path].edges.children.get("webpack-cli"),
+        Some(&matching_child_dep_path),
+    );
 }
 
 #[test]
@@ -171,7 +177,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
         direct: Vec::new(),
         packages: HashMap::from_iter([
             (
-                "webpack-cli@6.0.1".to_string(),
+                "webpack-cli@6.0.1".into(),
                 package(
                     "webpack-cli",
                     "6.0.1",
@@ -184,7 +190,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
                 ),
             ),
             (
-                "@webpack-cli/serve@3.0.1".to_string(),
+                "@webpack-cli/serve@3.0.1".into(),
                 package(
                     "@webpack-cli/serve",
                     "3.0.1",
@@ -200,21 +206,24 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             (consumer_revisit.clone(), tree_node("@webpack-cli/serve@3.0.1", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
-            "webpack".to_string(),
-            "webpack-cli".to_string(),
-            "webpack-dev-server".to_string(),
-            "webpack-bundle-analyzer".to_string(),
+            "webpack".into(),
+            "webpack-cli".into(),
+            "webpack-dev-server".into(),
+            "webpack-bundle-analyzer".into(),
         ]),
         policy_violations: Vec::new(),
         applied_patches: HashSet::default(),
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker.node_dep_paths.insert(provider_analyzer.clone(), provider_analyzer_dep_path.clone());
-    walker.node_dep_paths.insert(provider_bare.clone(), provider_bare_dep_path.clone());
-    walker.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
-    walker.node_dep_paths.insert(consumer_revisit.clone(), consumer_dep_path.clone());
-    walker.node_records.insert(
+    walker.caches.node_dep_paths.insert(
+        provider_analyzer.clone(),
+        provider_analyzer_dep_path.clone(),
+    );
+    walker.caches.node_dep_paths.insert(provider_bare.clone(), provider_bare_dep_path.clone());
+    walker.caches.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
+    walker.caches.node_dep_paths.insert(consumer_revisit.clone(), consumer_dep_path.clone());
+    walker.output.node_records.insert(
         provider_analyzer.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
@@ -226,7 +235,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             order: 0,
         },
     );
-    walker.node_records.insert(
+    walker.output.node_records.insert(
         provider_bare.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
@@ -238,7 +247,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             order: 1,
         },
     );
-    walker.node_records.insert(
+    walker.output.node_records.insert(
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), provider_analyzer.clone())]),
@@ -250,7 +259,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             order: 2,
         },
     );
-    walker.node_external_peers.insert(
+    walker.nodes.external_peers.insert(
         provider_analyzer.clone(),
         Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
@@ -258,11 +267,11 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),
     );
-    walker.node_external_peers.insert(
+    walker.nodes.external_peers.insert(
         provider_bare.clone(),
         Arc::new(HashMap::from_iter([("webpack".to_string(), NodeId::leaf("webpack@5.107.2"))])),
     );
-    walker.node_external_peers.insert(
+    walker.nodes.external_peers.insert(
         consumer.clone(),
         Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
@@ -280,7 +289,7 @@ fn final_graph_peer_edge_keeps_the_providers_own_peer_suffix() {
     ]));
 
     assert_eq!(
-        graph[&consumer_dep_path].children.get("webpack-cli"),
+        graph[&consumer_dep_path].edges.children.get("webpack-cli"),
         Some(&provider_analyzer_dep_path),
     );
     assert_eq!(graph[&consumer_dep_path].depth, 0);
@@ -312,7 +321,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         direct: Vec::new(),
         packages: HashMap::from_iter([
             (
-                "webpack-dev-server@5.2.2".to_string(),
+                "webpack-dev-server@5.2.2".into(),
                 package(
                     "webpack-dev-server",
                     "5.2.2",
@@ -321,7 +330,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
                 ),
             ),
             (
-                "webpack-cli@6.0.1".to_string(),
+                "webpack-cli@6.0.1".into(),
                 package(
                     "webpack-cli",
                     "6.0.1",
@@ -340,31 +349,31 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             (consumer.clone(), tree_node("webpack-cli@6.0.1", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
-            "bufferutil".to_string(),
-            "tslib".to_string(),
-            "utf-8-validate".to_string(),
-            "webpack".to_string(),
-            "webpack-cli".to_string(),
-            "webpack-dev-server".to_string(),
-            "webpack-bundle-analyzer".to_string(),
+            "bufferutil".into(),
+            "tslib".into(),
+            "utf-8-validate".into(),
+            "webpack".into(),
+            "webpack-cli".into(),
+            "webpack-dev-server".into(),
+            "webpack-bundle-analyzer".into(),
         ]),
         policy_violations: Vec::new(),
         applied_patches: HashSet::default(),
         children_by_id: HashMap::default(),
     };
     let mut walker = walker_for_tests(&mut tree);
-    walker.node_dep_paths.insert(provider.clone(), provider_dep_path.clone());
-    walker.node_dep_paths.insert(provider_revisit.clone(), provider_dep_path.clone());
-    walker.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
-    walker.node_records.insert(
+    walker.caches.node_dep_paths.insert(provider.clone(), provider_dep_path.clone());
+    walker.caches.node_dep_paths.insert(provider_revisit.clone(), provider_dep_path.clone());
+    walker.caches.node_dep_paths.insert(consumer.clone(), consumer_dep_path.clone());
+    walker.output.node_records.insert(
         provider.clone(),
         NodeRecord {
             edges: BTreeMap::new(),
             optional_child_aliases: HashSet::default(),
             transitive_peer_dependencies: HashSet::from_iter([
-                "bufferutil".to_string(),
-                "tslib".to_string(),
-                "utf-8-validate".to_string(),
+                "bufferutil".into(),
+                "tslib".into(),
+                "utf-8-validate".into(),
             ]),
             depth: 1,
             installable: true,
@@ -372,7 +381,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             order: 0,
         },
     );
-    walker.node_records.insert(
+    walker.output.node_records.insert(
         consumer.clone(),
         NodeRecord {
             edges: BTreeMap::from([("webpack-dev-server".to_string(), provider.clone())]),
@@ -384,7 +393,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             order: 1,
         },
     );
-    walker.node_external_peers.insert(
+    walker.nodes.external_peers.insert(
         provider.clone(),
         Arc::new(HashMap::from_iter([
             ("bufferutil".to_string(), NodeId::leaf("bufferutil@4.1.0")),
@@ -394,7 +403,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
             ("webpack".to_string(), NodeId::leaf("webpack@5.107.2")),
         ])),
     );
-    walker.node_external_peers.insert(
+    walker.nodes.external_peers.insert(
         consumer.clone(),
         Arc::new(HashMap::from_iter([
             ("webpack-bundle-analyzer".to_string(), NodeId::leaf("webpack-bundle-analyzer@4.10.2")),
@@ -410,7 +419,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
     ]));
 
     assert_eq!(
-        graph[&consumer_dep_path].children.get("webpack-dev-server"),
+        graph[&consumer_dep_path].edges.children.get("webpack-dev-server"),
         Some(&provider_dep_path),
     );
     assert_eq!(graph[&provider_dep_path].depth, 0);

@@ -2,12 +2,12 @@ import { afterEach, beforeEach, expect, test } from '@jest/globals'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
-import type { Registries } from '@pnpm/types'
+import type { RegistriesByScope } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const registries: Registries = {
+const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
@@ -51,7 +51,7 @@ test('metadata is fetched again after calling clearCache()', async () => {
   const { resolveFromNpm, clearCache } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
-    registries,
+    registriesByScope,
     storeDir: temporaryDirectory(),
   })
 

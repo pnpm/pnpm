@@ -1,0 +1,303 @@
+use super::{
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, PERMISSION_DENIED_RETRY_BUDGET,
+    REMOVAL_PERMISSION_DENIED_RETRY_BUDGET, RetryTiming, create_dir_all_with_retry,
+    create_dir_with_retry, file_locks_are_transient, is_transient_file_lock_error,
+    is_wsl_kernel_release, metadata_with_retry, remove_dir_all_with_retry, remove_dir_with_retry,
+    rename_with_retry, retry_fs_operation, retry_fs_operation_with_timing,
+    symlink_metadata_with_retry,
+};
+use std::{cell::Cell, fs, io, time::Duration};
+use tempfile::tempdir;
+
+#[test]
+fn retries_transient_errors_until_the_operation_succeeds() {
+    let attempts = Cell::new(0);
+
+    let result = retry_fs_operation(
+        || {
+            let attempt = attempts.get();
+            attempts.set(attempt + 1);
+            if attempt < 2 {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            } else {
+                Ok("done")
+            }
+        },
+        |error| error.kind() == io::ErrorKind::PermissionDenied,
+    );
+
+    assert_eq!(result.unwrap(), "done");
+    assert_eq!(attempts.get(), 3);
+}
+
+#[test]
+fn propagates_non_transient_errors_without_retrying() {
+    let attempts = Cell::new(0);
+
+    let result: io::Result<()> = retry_fs_operation(
+        || {
+            attempts.set(attempts.get() + 1);
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        },
+        |_| false,
+    );
+
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(attempts.get(), 1);
+}
+
+#[test]
+fn stops_retrying_at_the_budget_deadline() {
+    let attempts = Cell::new(0);
+    let elapsed = Cell::new(Duration::ZERO);
+    let budget = Duration::from_millis(15);
+
+    let result: io::Result<()> = retry_fs_operation_with_timing(
+        || {
+            let attempt = attempts.get() + 1;
+            attempts.set(attempt);
+            Err(io::Error::other(format!("attempt {attempt}")))
+        },
+        |_| true,
+        RetryTiming {
+            budget,
+            permission_denied_budget: PERMISSION_DENIED_RETRY_BUDGET,
+            elapsed: || elapsed.get(),
+            sleep: |delay| elapsed.set(elapsed.get() + delay),
+        },
+    );
+
+    assert_eq!(result.unwrap_err().to_string(), "attempt 3");
+    assert_eq!(attempts.get(), 3);
+    assert_eq!(elapsed.get(), budget);
+}
+
+#[test]
+fn transient_file_lock_error_classifier_follows_the_host() {
+    for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
+        let error = io::Error::from(kind);
+        assert_eq!(is_transient_file_lock_error(&error), file_locks_are_transient(), "{kind:?}");
+    }
+
+    for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
+        let error = io::Error::from_raw_os_error(code);
+        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "os error {code}");
+    }
+
+    for kind in [
+        io::ErrorKind::NotFound,
+        io::ErrorKind::AlreadyExists,
+        io::ErrorKind::InvalidInput,
+        io::ErrorKind::InvalidData,
+        io::ErrorKind::Unsupported,
+        io::ErrorKind::Other,
+    ] {
+        assert!(!is_transient_file_lock_error(&io::Error::from(kind)), "{kind:?}");
+    }
+}
+
+#[test]
+fn wsl_kernels_are_recognized_by_their_release() {
+    for release in ["5.15.167.4-microsoft-standard-WSL2", "4.4.0-19041-Microsoft\n"] {
+        assert!(is_wsl_kernel_release(release), "{release}");
+    }
+    for release in ["6.8.0-45-generic", "6.10.14-linuxkit", "6.1.0-rpi7-rpi-v8"] {
+        assert!(!is_wsl_kernel_release(release), "{release}");
+    }
+}
+
+#[test]
+fn rename_with_retry_moves_the_entry() {
+    let root = tempdir().unwrap();
+    let src = root.path().join("src");
+    let dst = root.path().join("dst");
+    fs::write(&src, b"payload").unwrap();
+
+    rename_with_retry(&src, &dst).expect("rename should succeed");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"payload");
+    assert!(!src.exists(), "source should be gone after rename");
+}
+
+#[test]
+fn remove_dir_all_with_retry_removes_the_tree() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::create_dir_all(target.join("nested")).unwrap();
+    fs::write(target.join("nested/file"), b"payload").unwrap();
+
+    remove_dir_all_with_retry(&target).expect("remove should succeed");
+
+    assert!(!target.exists(), "directory tree should be gone after removal");
+}
+
+#[test]
+fn create_dir_with_retry_creates_one_level() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+
+    create_dir_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn create_dir_all_with_retry_creates_every_missing_parent() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("nested/deeper/target");
+
+    create_dir_all_with_retry(&target).expect("creation should succeed");
+
+    assert!(target.is_dir());
+}
+
+#[test]
+fn remove_dir_with_retry_removes_an_empty_directory() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::create_dir(&target).unwrap();
+
+    remove_dir_with_retry(&target).expect("removal should succeed");
+
+    assert!(!target.exists());
+}
+
+#[test]
+fn symlink_metadata_with_retry_reads_the_entry_without_following_it() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    fs::write(&target, b"payload").unwrap();
+
+    let metadata = symlink_metadata_with_retry(&target).expect("inspection should succeed");
+
+    assert!(metadata.is_file());
+    assert_eq!(metadata.len(), b"payload".len() as u64);
+}
+
+#[test]
+fn symlink_metadata_with_retry_reports_an_absent_entry_as_not_found() {
+    let root = tempdir().unwrap();
+
+    let error = symlink_metadata_with_retry(&root.path().join("absent"))
+        .expect_err("an absent entry has no metadata");
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+/// The refusal stands for a Windows path another process has unlinked but
+/// not yet released, which is inaccessible for as long as that lasts.
+#[test]
+fn a_refusal_that_resolves_into_absence_surfaces_the_absence() {
+    let attempts = Cell::new(0);
+
+    let result: io::Result<()> = retry_fs_operation(
+        || {
+            let attempt = attempts.get();
+            attempts.set(attempt + 1);
+            if attempt < 2 {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            } else {
+                Err(io::Error::from(io::ErrorKind::NotFound))
+            }
+        },
+        |error| error.kind() == io::ErrorKind::PermissionDenied,
+    );
+
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(attempts.get(), 3);
+}
+
+#[cfg(windows)]
+mod windows;
+
+#[test]
+fn permission_errors_shorten_the_budget_even_when_errors_change() {
+    for permission_attempt in [0, 3] {
+        let attempts = Cell::new(0);
+        let elapsed = Cell::new(Duration::ZERO);
+        let result: io::Result<()> = retry_fs_operation_with_timing(
+            || {
+                let attempt = attempts.get();
+                attempts.set(attempt + 1);
+                Err(io::Error::from(if attempt == permission_attempt {
+                    io::ErrorKind::PermissionDenied
+                } else {
+                    io::ErrorKind::ResourceBusy
+                }))
+            },
+            |_| true,
+            RetryTiming {
+                budget: Duration::from_mins(1),
+                permission_denied_budget: PERMISSION_DENIED_RETRY_BUDGET,
+                elapsed: || elapsed.get(),
+                sleep: |delay| elapsed.set(elapsed.get() + delay),
+            },
+        );
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::ResourceBusy);
+        assert_eq!(elapsed.get(), Duration::from_secs(1));
+    }
+}
+
+#[test]
+fn explicit_locks_keep_the_full_budget() {
+    for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
+        let elapsed = Cell::new(Duration::ZERO);
+        let result: io::Result<()> = retry_fs_operation_with_timing(
+            || Err(io::Error::from_raw_os_error(code)),
+            |_| true,
+            RetryTiming {
+                budget: Duration::from_mins(1),
+                permission_denied_budget: PERMISSION_DENIED_RETRY_BUDGET,
+                elapsed: || elapsed.get(),
+                sleep: |delay| elapsed.set(elapsed.get() + delay),
+            },
+        );
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(code));
+        assert_eq!(elapsed.get(), Duration::from_mins(1));
+    }
+}
+
+#[test]
+fn permission_errors_stop_at_the_given_permission_denied_budget() {
+    let elapsed = Cell::new(Duration::ZERO);
+    let result: io::Result<()> = retry_fs_operation_with_timing(
+        || Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+        |_| true,
+        RetryTiming {
+            budget: Duration::from_mins(1),
+            permission_denied_budget: REMOVAL_PERMISSION_DENIED_RETRY_BUDGET,
+            elapsed: || elapsed.get(),
+            sleep: |delay| elapsed.set(elapsed.get() + delay),
+        },
+    );
+    assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(elapsed.get(), REMOVAL_PERMISSION_DENIED_RETRY_BUDGET);
+}
+
+#[test]
+fn metadata_with_retry_follows_directory_links() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir(&target).unwrap();
+    crate::symlink_dir(&target, &link).unwrap();
+
+    let metadata = metadata_with_retry(&link).expect("inspect the link target");
+
+    assert!(metadata.is_dir());
+    assert!(!metadata.file_type().is_symlink());
+}
+
+#[test]
+fn metadata_with_retry_reports_a_missing_target() {
+    let root = tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir(&target).unwrap();
+    crate::symlink_dir(&target, &link).unwrap();
+    fs::remove_dir(&target).unwrap();
+
+    let error = metadata_with_retry(&link).expect_err("a broken link has no target metadata");
+
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}

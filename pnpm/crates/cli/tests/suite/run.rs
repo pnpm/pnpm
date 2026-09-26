@@ -1,17 +1,11 @@
+#[cfg(unix)]
+use crate::_utils::write_executable;
+use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::fs;
-
-#[cfg(unix)]
-fn write_executable(path: &std::path::Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    fs::write(path, body).expect("write executable");
-    let mut perms = fs::metadata(path).expect("stat executable").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("chmod executable");
-}
+use std::{fs, time::Duration};
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -38,7 +32,11 @@ fn run_executes_declared_script() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("touch-marker").assert().success();
+    pacquet
+        .with_arg("run")
+        .with_arg("touch-marker")
+        .assert()
+        .success();
     assert!(marker_path.exists(), "script should have created the marker file");
 
     drop(root);
@@ -74,7 +72,12 @@ fn run_passes_extra_arguments_to_the_script() {
     .to_string();
     fs::write(&manifest_path, manifest).expect("write package.json");
 
-    pacquet.with_arg("run").with_arg("echo-args").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("run")
+        .with_arg("echo-args")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let written = fs::read_to_string(&marker_path).expect("read marker");
     assert_eq!(written, "hello-world");
 
@@ -156,23 +159,58 @@ JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')"
     drop(root);
 }
 
-/// Without `--if-present`, calling a script that does not exist fails
-/// with pnpm's `NO_SCRIPT` error.
+/// A script shortcut forwards options that are also pnpm global options.
+/// `--filter` must not turn `pnpm test` into a recursive workspace run
+/// (`pnpm/pnpm#15217`).
 #[test]
-fn run_errors_on_missing_script_without_if_present() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let manifest_path = workspace.join("package.json");
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": { "build": "echo built" },
-    })
-    .to_string();
-    fs::write(&manifest_path, manifest).expect("write package.json");
+fn script_shortcuts_forward_global_options() {
+    for shortcut in ["test", "start", "stop"] {
+        for script_args in [
+            &["--filter=Foo"][..],
+            &["--filter", "Foo", "--reporter", "custom"],
+            &["-r", "--help"],
+            &["--", "--filter=Foo"],
+            &[],
+        ] {
+            assert_shortcut_arguments(shortcut, script_args);
+        }
+    }
+}
 
-    let output =
-        pacquet.with_arg("run").with_arg("nonexistent").output().expect("spawn pacquet run");
-    assert!(!output.status.success(), "missing script must surface as a failure");
+fn assert_shortcut_arguments(shortcut: &str, script_args: &[&str]) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("recordArgs.js"),
+        "require('fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)), 'utf8')",
+    )
+    .expect("write recordArgs.js");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "test": "node recordArgs.js",
+                "start": "node recordArgs.js",
+                "stop": "node recordArgs.js",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("--dir")
+        .with_arg(&workspace)
+        .with_arg(shortcut)
+        .with_args(script_args)
+        .assert()
+        .success();
+
+    let recorded: Vec<String> =
+        serde_json::from_str(&fs::read_to_string(workspace.join("args.json")).expect("read args"))
+            .expect("parse args");
+    assert_eq!(recorded, script_args, "{shortcut} {script_args:?}");
 
     drop(root);
 }
@@ -192,7 +230,11 @@ fn run_start_without_script_or_server_errors() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("start").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("start")
+        .output()
+        .expect("spawn pacquet run");
     assert!(!output.status.success(), "run start without script or server.js must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -219,7 +261,11 @@ fn run_empty_start_script_hits_server_js_guard() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("start").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("start")
+        .output()
+        .expect("spawn pacquet run");
     assert!(!output.status.success(), "empty start without server.js must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -227,71 +273,6 @@ fn run_empty_start_script_hits_server_js_guard() {
             || stderr.contains("Missing script start or file server.js"),
         "should surface NO_SCRIPT_OR_SERVER:\n{stderr}",
     );
-
-    drop(root);
-}
-
-/// With `--if-present`, the same missing script becomes a no-op
-/// and pacquet exits cleanly. Required for orchestration tools
-/// that probe optional scripts without wanting to fail the
-/// pipeline.
-#[test]
-fn run_with_if_present_is_a_noop_for_missing_script() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let manifest_path = workspace.join("package.json");
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": { "build": "echo built" },
-    })
-    .to_string();
-    fs::write(&manifest_path, manifest).expect("write package.json");
-
-    pacquet.with_arg("run").with_arg("--if-present").with_arg("nonexistent").assert().success();
-
-    drop(root);
-}
-
-/// pnpm also accepts `--if-present` ahead of the script name
-/// (`pnpm --if-present <script>`), where the script dispatches through
-/// the shorthand fallback instead of an explicit `run`. The missing
-/// script must be the same clean no-op — not an exec fallback error.
-#[test]
-fn top_level_if_present_is_a_noop_for_missing_script() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": { "build": "echo built" },
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-
-    pacquet.with_arg("--if-present").with_arg("nonexistent").assert().success();
-
-    drop(root);
-}
-
-/// `pnpm run` with no script name lists the available scripts, grouped
-/// into lifecycle scripts and others. Mirrors pnpm's `printProjectCommands`.
-#[test]
-fn run_lists_scripts_when_no_name_given() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": { "build": "echo built", "test": "echo tested" },
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-
-    let output = pacquet.with_arg("run").output().expect("spawn pacquet run");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("STDOUT:\n{stdout}\n");
-    assert!(output.status.success(), "listing scripts should succeed");
-    assert!(stdout.contains("Commands available via"), "should list non-lifecycle scripts");
-    assert!(stdout.contains("build"), "should list the build script");
-    assert!(stdout.contains("Lifecycle scripts:"), "should group lifecycle scripts");
 
     drop(root);
 }
@@ -344,8 +325,38 @@ fn run_propagates_failing_script_exit_code() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("fail").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("fail")
+        .output()
+        .expect("spawn pacquet run");
     assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn run_names_the_signal_that_killed_the_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "test": "kill -9 $$" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("test")
+        .output()
+        .expect("spawn pacquet run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("[ELIFECYCLE] Command failed with signal SIGKILL."),
+        "the lifecycle error should name the signal:\n{stderr}",
+    );
 
     drop(root);
 }
@@ -366,7 +377,11 @@ fn run_preserves_embedded_quotes_in_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("say").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("say")
+        .output()
+        .expect("spawn pacquet run");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "the script must exit 0, got: {output:?}");
     assert!(stdout.contains("verbatim-ok"), "embedded quotes must survive; stdout: {stdout:?}");
@@ -374,44 +389,36 @@ fn run_preserves_embedded_quotes_in_script() {
     drop(root);
 }
 
+/// A `scriptShell` pointing at `cmd.exe` gets the same `/d /s /c` and
+/// verbatim script as the default shell. With `-c`, `cmd.exe` would take
+/// the `/c` inside `install/can-compile` as its own switch and try to run
+/// `an-compile` (pnpm/pnpm#7181).
+#[cfg(windows)]
 #[test]
-fn run_preserves_parent_tmpdir() {
+fn run_with_cmd_exe_script_shell_keeps_slash_c_inside_the_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let alternate_tmpdir = workspace.join("project-tmp");
-    fs::create_dir(&alternate_tmpdir).expect("create alternate temp dir");
-    fs::write(
-        workspace.join("show-tmp.js"),
-        "require('fs').writeFileSync('tmpdir.json', JSON.stringify({ \
-env: process.env.TMPDIR, os: require('os').tmpdir() }))",
-    )
-    .expect("write show-tmp.js");
-    fs::write(
-        workspace.join("package.json"),
-        json!({
-            "name": "test",
-            "version": "0.0.0",
-            "scripts": { "show-tmp": "node show-tmp.js" },
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "build": "node install/can-compile" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::create_dir(workspace.join("install")).expect("create install dir");
+    fs::write(workspace.join("install/can-compile.js"), "process.stdout.write('can-compile-ran')")
+        .expect("write can-compile.js");
+    let cmd_exe =
+        std::env::var("ComSpec").unwrap_or_else(|_| r"C:\Windows\System32\cmd.exe".into());
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("scriptShell: '{cmd_exe}'\n"))
+        .expect("write pnpm-workspace.yaml");
 
-    pacquet
-        .with_env("TMPDIR", &alternate_tmpdir)
-        .with_arg("run")
-        .with_arg("show-tmp")
-        .assert()
-        .success();
-
-    let recorded: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(workspace.join("tmpdir.json")).expect("read tmpdir.json"),
-    )
-    .expect("parse tmpdir.json");
-    let expected_tmpdir = alternate_tmpdir.to_string_lossy();
-    assert_eq!(recorded["env"], expected_tmpdir.as_ref());
-    if cfg!(not(windows)) {
-        assert_eq!(recorded["os"], expected_tmpdir.as_ref());
-    }
+    let output = pacquet
+        .with_args(["run", "build"])
+        .output()
+        .expect("spawn pacquet run");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "the script must exit 0, got: {output:?}");
+    assert!(stdout.contains("can-compile-ran"), "stdout: {stdout:?}");
 
     drop(root);
 }
@@ -431,105 +438,17 @@ fn run_failing_test_script_prints_test_failed_message() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("run").with_arg("test").output().expect("spawn pacquet run");
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("test")
+        .output()
+        .expect("spawn pacquet run");
     assert_eq!(output.status.code(), Some(1), "the script's exit code must propagate");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Test failed. See above for more details."),
         "test-stage failure should print pnpm's test message:\n{stderr}",
     );
-
-    drop(root);
-}
-
-/// A script that invokes a locally-installed binary resolves it through
-/// `node_modules/.bin`, which `pnpm run` prepends to `PATH`.
-#[cfg(unix)]
-#[test]
-fn run_finds_local_bin_on_path() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let marker = workspace.join("marker.txt");
-    write_executable(
-        &bin_dir.join("say-hi"),
-        &format!("#!/bin/sh\ntouch \"{}\"\n", marker.display()),
-    );
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": { "hi": "say-hi" },
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-
-    pacquet.with_arg("run").with_arg("hi").assert().success();
-    assert!(marker.exists(), "the local bin should be resolved via node_modules/.bin");
-
-    drop(root);
-}
-
-/// Running a script from a workspace member resolves binaries from the
-/// workspace root's `node_modules/.bin` — pnpm puts it on PATH via
-/// `extraBinPaths`, so root-level dev tools are callable from every
-/// workspace project.
-#[cfg(unix)]
-#[test]
-fn run_finds_workspace_root_bin_on_path() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project\n")
-        .expect("write pnpm-workspace.yaml");
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
-    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
-    let project = workspace.join("project");
-    fs::create_dir_all(&project).expect("create project dir");
-    let manifest = json!({
-        "name": "project",
-        "version": "0.0.0",
-        "scripts": { "build": "root-tool" },
-    })
-    .to_string();
-    fs::write(project.join("package.json"), manifest).expect("write package.json");
-
-    std::process::Command::cargo_bin("pnpm")
-        .expect("find pacquet binary")
-        .with_current_dir(&project)
-        .with_arg("run")
-        .with_arg("build")
-        .assert()
-        .success();
-    assert!(
-        project.join("root-tool-ran.txt").exists(),
-        "the workspace root's node_modules/.bin should be on the script's PATH",
-    );
-
-    drop(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn top_level_fallback_runs_script_before_local_bin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let marker = workspace.join("source.txt");
-    write_executable(
-        &bin_dir.join("commitlint"),
-        &format!("#!/bin/sh\nprintf bin > \"{}\"\n", marker.display()),
-    );
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": {
-            "commitlint": format!(r#"printf script > "{}""#, marker.display()),
-        },
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-
-    pacquet.with_arg("commitlint").assert().success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "script");
 
     drop(root);
 }
@@ -598,73 +517,6 @@ fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
         .assert()
         .success();
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--prefix forwarded");
-
-    drop(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn top_level_fallback_runs_local_bin_when_script_is_missing() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let marker = workspace.join("args.txt");
-    write_executable(
-        &bin_dir.join("commitlint"),
-        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
-    );
-    let manifest = json!({
-        "name": "test",
-        "version": "0.0.0",
-        "scripts": {},
-    })
-    .to_string();
-    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-
-    pacquet
-        .with_args(["commitlint", "--edit", "--config=commitlint.config.cjs"])
-        .assert()
-        .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "--edit\n--config=commitlint.config.cjs\n",
-    );
-
-    drop(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn top_level_fallback_runs_local_bin_without_package_json() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let marker = workspace.join("args.txt");
-    write_executable(
-        &bin_dir.join("commitlint"),
-        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
-    );
-
-    pacquet.with_args(["commitlint", "--edit", "COMMIT_EDITMSG"]).assert().success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--edit\nCOMMIT_EDITMSG\n");
-
-    drop(root);
-}
-
-#[cfg(unix)]
-#[test]
-fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let bin_dir = workspace.join("node_modules").join(".bin");
-    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-    let marker = workspace.join("args.txt");
-    write_executable(
-        &bin_dir.join("commitlint"),
-        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
-    );
-
-    pacquet.with_args(["commitlint", "--config.foo=bar"]).assert().success();
-    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--config.foo=bar\n");
 
     drop(root);
 }
@@ -771,7 +623,12 @@ fn run_start_falls_back_to_node_server_js_when_present() {
 
     let existing_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", shim_dir.display(), existing_path);
-    pacquet.with_env("PATH", new_path).with_arg("run").with_arg("start").assert().success();
+    pacquet
+        .with_env("PATH", new_path)
+        .with_arg("run")
+        .with_arg("start")
+        .assert()
+        .success();
 
     let written = fs::read_to_string(&marker).expect("read marker");
     assert_eq!(written, "server.js");
@@ -850,7 +707,11 @@ fn script_shortcuts_forward_every_argument_to_the_script() {
         .to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-        pacquet.with_arg(command).with_args(arguments).assert().success();
+        pacquet
+            .with_arg(command)
+            .with_args(arguments)
+            .assert()
+            .success();
 
         let written = fs::read_to_string(&marker).expect("read marker");
         assert_eq!(written, expected, "command: {command} {arguments:?}");
@@ -859,56 +720,241 @@ fn script_shortcuts_forward_every_argument_to_the_script() {
     }
 }
 
-/// A `/pattern/` positional selects every matching script rather than
-/// naming one, through both `pnpm run <selector>` and the bare
-/// `pnpm <selector>` fallback.
-#[cfg(unix)]
-#[test]
-fn run_executes_every_script_matching_a_regexp_selector() {
-    for prefix in [&["run"][..], &[][..]] {
-        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        let manifest = json!({
+/// `--no-bail` on a non-recursive `/pattern/` run lets every matched
+/// script finish, even after a sibling exits non-zero, and then reports
+/// the failures together as `ERR_PNPM_RUN_FAILED` with exit code 1. This
+/// is the counterpart of
+/// [`regexp_selected_scripts_cancel_siblings_after_failure`] and matches
+/// pnpm 11 ([pnpm/pnpm#14718](https://github.com/pnpm/pnpm/issues/14718)).
+/// The failing script is declared first so a sequential run has to keep
+/// going past it.
+fn assert_no_bail_lets_siblings_finish(workspace_concurrency: &str) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "typecheck:one": format!(r#"touch "{}""#, workspace.join("one.txt").display()),
-                "typecheck:two": format!(r#"touch "{}""#, workspace.join("two.txt").display()),
-                "build": format!(r#"touch "{}""#, workspace.join("build.txt").display()),
+                "check:fast-fail": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('fast-fail-finished', ''); process.exit(3); }, 100)""#,
+                "check:slow-ok": r#"node -e "const fs = require('fs'); setTimeout(() => { fs.writeFileSync('slow-ok-finished', ''); process.exit(0); }, 1000)""#,
             },
         })
-        .to_string();
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = assert_cmd::Command::from_std(pacquet)
+        .args([workspace_concurrency, "--no-bail", "run", "/^check:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(1)
+        .get_output()
+        .clone();
+    assert!(
+        workspace.join("fast-fail-finished").exists(),
+        "the failing script should still run to completion under --no-bail",
+    );
+    assert!(
+        workspace.join("slow-ok-finished").exists(),
+        "the slow sibling must not be cancelled under --no-bail",
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RUN_FAILED") && stderr.contains("Some scripts failed: 1 of 2"),
+        "stderr should summarise the failed scripts, got: {stderr}",
+    );
+    assert!(stderr.contains("check:fast-fail: exit"), "got: {stderr}");
+    assert!(!stderr.contains("check:slow-ok: exit"), "got: {stderr}");
+
+    drop(root);
+}
+
+/// `shellEmulator` runs scripts in pacquet's own shell instead of the
+/// platform's, which is what makes a script written for `sh` portable to
+/// Windows. The tests prove the emulator took over by pointing
+/// `scriptShell` at a path that could never be spawned: the script still
+/// runs, and without the setting the same configuration fails.
+mod shell_emulator {
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::bin::CommandTempCwd;
+    use serde_json::json;
+    use std::{fs, path::Path};
+
+    fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
+        let manifest =
+            json!({ "name": "test", "version": "0.0.0", "scripts": scripts }).to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let unspawnable_shell = workspace.join("no-such-shell");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "scriptShell: {}\nshellEmulator: {shell_emulator}\n",
+                unspawnable_shell.display(),
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+    }
 
-        pacquet.with_args(prefix).with_arg("/^typecheck:.+/").assert().success();
+    #[test]
+    fn runs_the_script_without_the_configured_shell() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
 
-        assert!(workspace.join("one.txt").exists(), "prefix: {prefix:?}");
-        assert!(workspace.join("two.txt").exists(), "prefix: {prefix:?}");
-        assert!(!workspace.join("build.txt").exists(), "prefix: {prefix:?}");
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .success();
+
+        let marker =
+            fs::read_to_string(workspace.join("marker.txt")).expect("read the script's output");
+        assert_eq!(marker.trim(), "emulated");
+
+        drop(root);
+    }
+
+    #[test]
+    fn preserves_literal_arguments() {
+        let args = [
+            r"C:\Program Files\tool\",
+            "",
+            "'it''s'",
+            r#"a"b"#,
+            "$PNPM_QUOTING_TEST",
+            "$(echo expanded)",
+            "a;b",
+            "*",
+            "line\nbreak",
+            "中文",
+        ];
+
+        for streamed in [false, true] {
+            let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+            write_project(&workspace, &json!({ "record": "node record-args.cjs" }), true);
+            fs::write(
+                workspace.join("record-args.cjs"),
+                "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+            )
+            .expect("write argument recorder");
+
+            if streamed {
+                pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+            }
+            pacquet
+                .args(["run", "record"])
+                .args(args)
+                .env("PNPM_QUOTING_TEST", "expanded");
+            pacquet.assert().success();
+
+            let recorded: Vec<String> = serde_json::from_slice(
+                &fs::read(workspace.join("args.json")).expect("read recorded arguments"),
+            )
+            .expect("parse recorded arguments");
+            assert_eq!(recorded, args, "streamed: {streamed}");
+
+            drop(root);
+        }
+    }
+
+    #[test]
+    fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
+
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .failure();
+        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
+
+        drop(root);
+    }
+
+    #[test]
+    fn propagates_a_failing_scripts_exit_code() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_project(&workspace, &json!({ "fail": "exit 5" }), true);
+
+        let output = pacquet
+            .with_args(["run", "fail"])
+            .output()
+            .expect("spawn pacquet run");
+        assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
 
         drop(root);
     }
 }
 
-/// Flags on a selector say nothing about which scripts to pick, so pnpm
-/// rejects them instead of honouring a subset.
-#[cfg(unix)]
+mod selection;
+
+mod environment;
+
 #[test]
-fn run_rejects_regexp_flags_in_a_selector() {
+fn run_resolves_commands_from_the_configured_modules_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: vendor\n")
+        .expect("write pnpm-workspace.yaml");
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
-        "scripts": { "build": "true" },
+        "scripts": { "greet": "greet" },
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_args(["run", "/^BUILD/i"]).assert().failure();
-    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_UNSUPPORTED_SCRIPT_COMMAND_FORMAT"),
-        "should reject the flags:\n{stderr}",
-    );
+    for (modules_dir, marker) in [("vendor", "configured"), ("node_modules", "stale")] {
+        write_fake_bin(&workspace.join(modules_dir).join(".bin"), "greet", marker);
+    }
+
+    let output = pacquet
+        .with_args(["run", "greet"])
+        .output()
+        .expect("run pacquet run greet");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet run greet should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("configured"), "the configured modules dir must win: {stdout}");
+    assert!(!stdout.contains("stale"), "node_modules/.bin must not win: {stdout}");
 
     drop(root);
+}
+
+#[test]
+fn run_with_a_missing_script_shell_names_it() {
+    for streamed in [false, true] {
+        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest =
+            json!({ "name": "test", "version": "0.0.0", "scripts": { "build": "echo built" } })
+                .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        let missing_shell = workspace.join("no-such-shell");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("scriptShell: '{}'\n", missing_shell.display()),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        if streamed {
+            pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+        }
+        let output = pacquet
+            .with_args(["run", "build"])
+            .output()
+            .expect("spawn pacquet run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // miette wraps the report at the terminal width, splitting the temp path.
+        let unwrapped: String = stderr
+            .chars()
+            .filter(|&c| !c.is_whitespace() && c != '│')
+            .collect();
+        assert!(!output.status.success(), "streamed: {streamed}, got: {output:?}");
+        assert!(
+            unwrapped.contains("TheconfiguredscriptShellwasnotfound")
+                && unwrapped.contains(&missing_shell.display().to_string()),
+            "streamed: {streamed}, the error must name the configured scriptShell, got: {stderr}",
+        );
+
+        drop(root);
+    }
 }

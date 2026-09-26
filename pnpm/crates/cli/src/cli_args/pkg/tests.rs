@@ -39,6 +39,18 @@ fn test_get_single_key_nested() {
 }
 
 #[test]
+fn test_get_hyphenated_key_nested() {
+    let manifest = json!({
+        "dependencies": {
+            "some-package-name": "0.23.4"
+        }
+    });
+    let result =
+        get_output(&manifest, &["dependencies.some-package-name".to_string()], false).unwrap();
+    assert_eq!(result, "0.23.4");
+}
+
+#[test]
 fn test_get_single_key_object() {
     let manifest = json!({
         "scripts": {
@@ -224,6 +236,20 @@ fn test_set_nested_key() {
 }
 
 #[test]
+fn test_set_hyphenated_key_nested() {
+    let mut value = json!({
+        "name": "test-pkg"
+    });
+    set_object_value_by_property_path(
+        &mut value,
+        "dependencies.some-package-name",
+        json!("0.23.4"),
+    )
+    .unwrap();
+    assert_eq!(value["dependencies"], json!({ "some-package-name": "0.23.4" }));
+}
+
+#[test]
 fn test_set_creates_intermediate_objects() {
     let mut value = json!({
         "name": "test-pkg"
@@ -309,7 +335,7 @@ fn test_set_rejects_empty_path() {
 #[test]
 fn test_set_rejects_too_large_index() {
     let mut value = json!({});
-    let big_idx = format!("x[{}]", super::MAX_ARRAY_INDEX + 1);
+    let big_idx = format!("x[{}]", super::editing::MAX_ARRAY_INDEX + 1);
     let result = set_object_value_by_property_path(&mut value, &big_idx, json!("value"));
     assert!(result.is_err());
 }

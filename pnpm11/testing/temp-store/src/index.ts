@@ -20,7 +20,7 @@ export function createTempStore (opts?: {
   fastUnpack?: boolean
   storeDir?: string
   clientOptions?: Partial<ClientOptions>
-  storeOptions?: CreatePackageStoreOptions
+  storeOptions?: Partial<CreatePackageStoreOptions>
 }): CreateTempStoreResult {
   const configByUri: ClientOptions['configByUri'] = {}
   const cacheDir = path.resolve('cache')
@@ -37,7 +37,7 @@ export function createTempStore (opts?: {
     cacheDir,
     storeDir,
     storeIndex,
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     ...opts?.clientOptions,

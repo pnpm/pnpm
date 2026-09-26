@@ -61,6 +61,7 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
       'content-type': 'application/json',
       accept: 'application/json',
       'npm-auth-type': 'web',
+      authorization: `Basic ${Buffer.from(`${opts.username}:${opts.password}`, 'utf8').toString('base64')}`,
       ...(opts.otp != null ? { 'npm-otp': opts.otp } : {}),
     },
     body: JSON.stringify({

@@ -1,7 +1,9 @@
-import { describe, expect, test } from '@jest/globals'
+import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { type LogBase, streamParser } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 
+import { warnMissingTimeFieldOnce } from '../src/pickPackage.js'
 import { failIfTrustDowngraded, getTrustEvidence } from '../src/trustChecks.js'
 
 describe('getTrustEvidence', () => {
@@ -760,5 +762,116 @@ describe('failIfTrustDowngraded with trustPolicyIgnoreAfter', () => {
     expect(() => {
       failIfTrustDowngraded(meta, '3.0.0')
     }).toThrow('High-risk trust downgrade')
+  })
+})
+
+describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
+  const metaWithoutTime = {
+    name: 'timeless',
+    'dist-tags': { latest: '2.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'timeless',
+        version: '1.0.0',
+        dist: {
+          shasum: 'abc123',
+          tarball: 'https://registry.example.com/timeless/-/timeless-1.0.0.tgz',
+          attestations: {
+            provenance: {
+              predicateType: 'https://slsa.dev/provenance/v1',
+            },
+          },
+        },
+      },
+      '2.0.0': {
+        name: 'timeless',
+        version: '2.0.0',
+        dist: {
+          shasum: 'def456',
+          tarball: 'https://registry.example.com/timeless/-/timeless-2.0.0.tgz',
+        },
+      },
+    },
+    // Note: no 'time' field — a registry that strips it, or one whose
+    // partial map `dropIncompletePublishTimes` normalized away.
+  }
+
+  test('fails with ERR_PNPM_MISSING_TIME when the flag is off', () => {
+    expect(() => {
+      failIfTrustDowngraded(metaWithoutTime, '2.0.0')
+    }).toThrow('The metadata of timeless is missing the "time" field')
+  })
+
+  test('skips the check when the flag is on', () => {
+    expect(() => {
+      failIfTrustDowngraded(metaWithoutTime, '2.0.0', { ignoreMissingTimeField: true })
+    }).not.toThrow()
+  })
+
+  test('still fails when the time map is present but omits the version', () => {
+    // A packument that dates the versions it lists is saying it does not have
+    // this one, so the gap stays a hard failure no matter how the flag is set.
+    const meta: PackageMetaWithTime = {
+      ...metaWithoutTime,
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0', { ignoreMissingTimeField: true })
+    }).toThrow('Missing time for version 2.0.0 of timeless in metadata')
+  })
+
+  test('still reports a downgrade when the time map is complete', () => {
+    const meta: PackageMetaWithTime = {
+      ...metaWithoutTime,
+      time: {
+        '1.0.0': '2025-01-01T00:00:00.000Z',
+        '2.0.0': '2025-02-01T00:00:00.000Z',
+      },
+    }
+
+    expect(() => {
+      failIfTrustDowngraded(meta, '2.0.0', { ignoreMissingTimeField: true })
+    }).toThrow('High-risk trust downgrade')
+  })
+})
+
+// Both time-dependent checks go dark on the same missing field, so the
+// warning must name each one that was skipped rather than letting whichever
+// ran first stand in for both.
+describe('warnMissingTimeFieldOnce', () => {
+  const collectedWarnings: string[] = []
+
+  function collectWarnings (msg: LogBase & { message?: string }): void {
+    if (msg.level === 'warn' && typeof msg.message === 'string') {
+      collectedWarnings.push(msg.message)
+    }
+  }
+
+  beforeEach(() => {
+    collectedWarnings.length = 0
+    streamParser.on('data', collectWarnings as (msg: LogBase) => void)
+  })
+
+  afterEach(() => {
+    streamParser.removeListener('data', collectWarnings as (msg: LogBase) => void)
+  })
+
+  test('warns once per check for the same package, and no more', async () => {
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'minimumReleaseAge')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'trustPolicy')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'minimumReleaseAge')
+    warnMissingTimeFieldOnce('dual-policy-pkg', 'trustPolicy')
+    // The log stream delivers on its own turn of the event loop.
+    await new Promise((resolve) => {
+      setImmediate(resolve)
+    })
+
+    expect(collectedWarnings.filter((message) => message.includes('dual-policy-pkg'))).toStrictEqual([
+      'The metadata of dual-policy-pkg is missing the "time" field; skipping the minimumReleaseAge check for this package.',
+      'The metadata of dual-policy-pkg is missing the "time" field; skipping the trustPolicy check for this package.',
+    ])
   })
 })

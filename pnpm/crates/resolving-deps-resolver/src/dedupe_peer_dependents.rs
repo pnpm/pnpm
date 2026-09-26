@@ -21,7 +21,7 @@
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
 
-use pacquet_deps_path::DepPath;
+use pnpm_deps_path::DepPath;
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
@@ -71,9 +71,15 @@ pub fn dedupe_peer_dependents(
 fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
     let mut by_pkg: BTreeMap<&str, Vec<DepPath>> = BTreeMap::new();
     for (dep_path, node) in graph {
-        by_pkg.entry(node.resolved_package_id.as_str()).or_default().push(dep_path.clone());
+        by_pkg
+            .entry(node.resolved_package_id.as_str())
+            .or_default()
+            .push(dep_path.clone());
     }
-    by_pkg.into_values().filter(|variants| variants.len() > 1).collect()
+    by_pkg
+        .into_values()
+        .filter(|variants| variants.len() > 1)
+        .collect()
 }
 
 /// Run [`deduplicate_dep_paths`] in rounds: after each round, rewrite the
@@ -90,7 +96,7 @@ fn deduplicate_all(
         return dep_paths_map;
     }
     for node in graph.values_mut() {
-        for child_dep_path in node.children.values_mut() {
+        for child_dep_path in node.edges.children.values_mut() {
             if let Some(target) = dep_paths_map.get(child_dep_path) {
                 *child_dep_path = target.clone();
             }
@@ -135,17 +141,7 @@ fn deduplicate_dep_paths(
         current.sort_by(dep_count_sorter);
 
         while let Some(largest) = current.pop() {
-            let mut next = Vec::new();
-            while let Some(candidate) = current.pop() {
-                if is_compatible_and_has_more_deps(graph, &largest, &candidate) {
-                    dep_paths_map.insert(candidate.clone(), largest.clone());
-                    unresolved.remove(&largest);
-                    unresolved.remove(&candidate);
-                } else {
-                    next.push(candidate);
-                }
-            }
-            current = next;
+            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut unresolved);
             current.sort_by(dep_count_sorter);
         }
 
@@ -157,6 +153,28 @@ fn deduplicate_dep_paths(
     }
 
     (dep_paths_map, remaining_duplicates)
+}
+
+/// Absorb every remaining variant that `largest` subsumes, leaving the rest
+/// in `current` for the next round.
+fn absorb_compatible(
+    graph: &DependenciesGraph,
+    largest: &DepPath,
+    current: &mut Vec<DepPath>,
+    dep_paths_map: &mut HashMap<DepPath, DepPath>,
+    unresolved: &mut HashSet<DepPath>,
+) {
+    let mut next = Vec::new();
+    while let Some(candidate) = current.pop() {
+        if is_compatible_and_has_more_deps(graph, largest, &candidate) {
+            dep_paths_map.insert(candidate.clone(), largest.clone());
+            unresolved.remove(largest);
+            unresolved.remove(&candidate);
+        } else {
+            next.push(candidate);
+        }
+    }
+    *current = next;
 }
 
 #[cfg(test)]

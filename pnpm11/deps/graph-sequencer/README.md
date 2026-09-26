@@ -18,8 +18,7 @@ pnpm add @pnpm/deps.graph-sequencer
     [3, [0]],
   ]), [0, 1, 2, 3])).toStrictEqual(
     {
-      safe: false,
-      chunks: [[0, 1, 2, 3]],
+      order: [0, 1, 2, 3],
       cycles: [[0, 1, 2, 3]],
     }
   )

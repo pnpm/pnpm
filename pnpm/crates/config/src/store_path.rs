@@ -35,9 +35,9 @@
 //! question without touching disk. The production [`Host`] impl
 //! performs the real link attempts via [`host_can_link_between_dirs`].
 //!
-//! [`pacquet_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
+//! [`pnpm_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
 //! this module; the path returned here is the un-suffixed base. Every
-//! caller wraps the result in [`pacquet_store_dir::StoreDir::from`],
+//! caller wraps the result in [`pnpm_store_dir::StoreDir::from`],
 //! which appends the suffix in one place — an
 //! `if (!endsWith(v11)) append(v11)` step. Doing the join at
 //! construction guarantees that everything pacquet exposes externally
@@ -49,11 +49,33 @@
 //! [`Host`]: crate::api::Host
 
 use crate::api::LinkProbe;
+use pnpm_store_dir::StoreDir;
 use std::{
     fs,
     path::{Component, Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+/// A default store that the store resolution moved off the pnpm home
+/// directory: `home_store_dir` is the store the project cannot hard link
+/// from, `store_dir` the one chosen on the project's volume.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreRelocation {
+    pub home_store_dir: StoreDir,
+    pub store_dir: StoreDir,
+}
+
+impl StoreRelocation {
+    /// The warning for a relocation that leaves an existing home store
+    /// unused, for example one pre-populated in a container image.
+    pub fn warning(&self) -> String {
+        format!(
+            "The store at {} is not used because packages cannot be hard linked from it into this project. Using the store at {} instead. Set storeDir to choose the store.",
+            self.home_store_dir.root().display(),
+            self.store_dir.root().display(),
+        )
+    }
+}
 
 /// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.
@@ -65,7 +87,9 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    let Ok(pkg_root) = fs::canonicalize(pkg_root) else {
+    // `dunce` keeps the Windows result free of the `\\?\` verbatim prefix,
+    // which would otherwise leak into the user-visible store path.
+    let Ok(pkg_root) = dunce::canonicalize(pkg_root) else {
         return home_default;
     };
 

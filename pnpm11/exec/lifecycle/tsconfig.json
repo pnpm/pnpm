@@ -44,6 +44,12 @@
     },
     {
       "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../npm-lifecycle"
     }
   ]
 }

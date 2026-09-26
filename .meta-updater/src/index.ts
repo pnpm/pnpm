@@ -10,16 +10,9 @@ import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader
 import { isSubdir } from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
-import semver from 'semver'
 import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
-
-// Experimental packages that are versioned independently on the 0.0.x track
-// and should not be normalized to the pnpm major version.
-const EXPERIMENTAL_PKGS = new Set([
-  '@pnpm/pnpr.client',
-])
 
 // The Rust products' npm wrapper packages. Their manifests are release
 // artifacts owned by the respective generate-packages.mjs scripts and are
@@ -106,12 +99,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           pnpmMajorKeyword,
           ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
         ]
-        const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
-        const libMajorVersion = Number(manifest.version!.split('.')[0])
         if (manifest.name !== CLI_PKG_NAME) {
-          if (!semver.prerelease(pnpmVersion) && !EXPERIMENTAL_PKGS.has(manifest.name!) && (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100)) {
-            manifest.version = `${smallestAllowedLibVersion}.0.0`
-          }
           for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
             if (!manifest[depType]) continue
             manifest[depType] = sortDirectKeys(manifest[depType])
@@ -159,7 +147,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
         if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
-          manifest.version = pnpmVersion
           if (manifest.name === '@pnpm/exe') {
             for (const depName of [
               '@pnpm/linux-arm64',
@@ -383,6 +370,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let scripts: Record<string, string>
   let preset = '@pnpm/jest-config'
   switch (manifest.name) {
+    case '@pnpm/bins.cmd-shim':
     case '@pnpm/lockfile.types':
       scripts = { ...manifest.scripts }
       break
@@ -499,7 +487,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
   if (scripts.lint) {
-    if (fs.existsSync(path.join(dir, 'test'))) {
+    if (fs.existsSync(path.join(dir, 'test')) && manifest.name !== '@pnpm/bins.cmd-shim') {
       scripts.lint = 'eslint "src/**/*.ts" "test/**/*.ts"'
     } else {
       scripts.lint = 'eslint "src/**/*.ts"'
@@ -517,6 +505,10 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.bin) {
       files.push('bin')
     }
+    if (manifest.name === '@pnpm/exec.npm-lifecycle') {
+      // The node-gyp wrappers the runner puts on a script's PATH.
+      files.push('node-gyp-bin')
+    }
   }
   if (manifest.dependencies?.['@types/ramda']) {
     // We should never release @types/ramda as a prod dependency as it breaks the bit repository.
@@ -526,7 +518,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     delete manifest.dependencies['@types/ramda']
   }
-  if (scripts.test) {
+  if (scripts.test && manifest.name !== '@pnpm/bins.cmd-shim') {
     Object.assign(manifest, {
       jest: {
         ...(manifest as any).jest, // eslint-disable-line
@@ -544,7 +536,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,
-    license: 'MIT',
+    license: manifest.license ?? 'MIT',
     repository,
     scripts,
     exports: {

@@ -1,6 +1,7 @@
-use super::apply;
+use super::{apply, drop_context_no_newline_markers};
 use diffy::Patch;
 use pretty_assertions::assert_eq;
+use text_block_macros::text_block_fnl;
 
 fn applied(original: &str, patch: &str) -> String {
     let patch = Patch::from_str(patch).expect("parse patch");
@@ -152,4 +153,169 @@ fn applies_several_hunks_against_the_same_baseline() {
  l
 ";
     assert_eq!(applied(original, patch), "a\nA\nb\nc\nd\ne\nf\ng\nh\ni\nj\nK\nl\n");
+}
+
+#[test]
+fn applies_several_zero_context_insertions_against_the_same_baseline() {
+    let original = text_block_fnl! {
+        "a"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+    };
+    let patch = text_block_fnl! {
+        "--- a/file.txt"
+        "+++ b/file.txt"
+        "@@ -0,0 +1 @@"
+        "+START"
+        "@@ -1,0 +3 @@"
+        "+A"
+        "@@ -6,0 +9 @@"
+        "+F"
+        "@@ -12,0 +16 @@"
+        "+END"
+    };
+    let expected = text_block_fnl! {
+        "START"
+        "a"
+        "A"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "F"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+        "END"
+    };
+    let after = applied(original, patch);
+    eprintln!("{after}");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
+    let original = text_block_fnl! {
+        "a"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+    };
+    let patch = text_block_fnl! {
+        "--- a/file.txt"
+        "+++ b/file.txt"
+        "@@ -1,2 +0,0 @@"
+        "-a"
+        "-b"
+        "@@ -3,0 +2 @@"
+        "+C"
+        "@@ -5 +4,2 @@"
+        "-e"
+        "+E1"
+        "+E2"
+        "@@ -7,0 +8,2 @@"
+        "+G1"
+        "+G2"
+        "@@ -10 +12 @@"
+        "-j"
+        "+J"
+        "@@ -12,0 +15 @@"
+        "+END"
+    };
+    let expected = text_block_fnl! {
+        "c"
+        "C"
+        "d"
+        "E1"
+        "E2"
+        "f"
+        "g"
+        "G1"
+        "G2"
+        "h"
+        "i"
+        "J"
+        "k"
+        "l"
+        "END"
+    };
+    let after = applied(original, patch);
+    eprintln!("{after}");
+    assert_eq!(after, expected);
+}
+
+/// The markers on a deleted and an inserted line carry the final newline
+/// change. Lines that only look like the marker, such as those of a `.patch`
+/// file shipped inside a package, are file content.
+#[test]
+fn drops_only_the_no_newline_markers_that_follow_context() {
+    let patch = text_block_fnl! {
+        "@@ -1,3 +1 @@"
+        " one"
+        r"\ No newline at end of file"
+        "-two"
+        "-"
+        "@@ -5,3 +3,2 @@"
+        " five"
+        ""
+        r"\ No newline at end of file"
+        "-"
+        "@@ -9,2 +8,2 @@"
+        " nine"
+        "-ten"
+        r"\ No newline at end of file"
+        "+TEN"
+        r"\ No newline at end of file"
+        "@@ -12,2 +12,3 @@"
+        r" \ No newline at end of file"
+        r"+\ No newline at end of file"
+        r" \ No newline at end of file"
+        r"\ No newline at end of file"
+    };
+    let expected = text_block_fnl! {
+        "@@ -1,3 +1 @@"
+        " one"
+        "-two"
+        "-"
+        "@@ -5,3 +3,2 @@"
+        " five"
+        ""
+        "-"
+        "@@ -9,2 +8,2 @@"
+        " nine"
+        "-ten"
+        r"\ No newline at end of file"
+        "+TEN"
+        r"\ No newline at end of file"
+        "@@ -12,2 +12,3 @@"
+        r" \ No newline at end of file"
+        r"+\ No newline at end of file"
+        r" \ No newline at end of file"
+    };
+    assert_eq!(drop_context_no_newline_markers(patch.to_string()), expected);
+    assert_eq!(
+        drop_context_no_newline_markers(patch.to_string().replace('\n', "\r\n")),
+        expected.to_string().replace('\n', "\r\n"),
+    );
 }

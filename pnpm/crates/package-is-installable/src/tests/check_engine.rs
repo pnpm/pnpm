@@ -132,13 +132,25 @@ fn prerelease_satisfies_fully_specified_upper_bound() {
     );
 }
 
+/// npm lowers a bound to the `-0` prerelease only where it synthesized
+/// that bound for an omitted component, so `^9` accepts `9.0.0-alpha.1`
+/// while the spelled-out `^9.0.0` goes on rejecting it.
 #[test]
-fn prerelease_satisfies_caret_at_its_own_base() {
+fn a_caret_at_the_prereleases_own_base_accepts_it_only_when_written_open() {
+    let err = check_engine(
+        PACKAGE_ID,
+        &wanted(None, Some("^9.0.0")),
+        &current("0.2.1", Some("9.0.0-alpha.1")),
+    )
+    .expect("valid node version")
+    .expect("must report unsatisfied");
+    assert_eq!(err.wanted.pnpm.as_deref(), Some("^9.0.0"));
+
     assert!(
         check_engine(
             PACKAGE_ID,
-            &wanted(None, Some("^9.0.0")),
-            &current("0.2.1", Some("9.0.0-alpha.1")),
+            &wanted(None, Some("^9")),
+            &current("0.2.1", Some("9.0.0-alpha.1"))
         )
         .expect("valid node version")
         .is_none(),

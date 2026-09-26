@@ -3,7 +3,7 @@
 //! inference drives.
 
 use crate::{
-    InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest,
+    ArchitectureAxes, InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest,
     SupportedArchitectures, WantedPlatform, infer_platform_from_package_name,
     package_is_installable,
 };
@@ -18,7 +18,12 @@ fn platform(
 }
 
 fn owned(values: Option<&[&str]>) -> Option<Vec<String>> {
-    values.map(|values| values.iter().map(|value| (*value).to_string()).collect())
+    values.map(|values| {
+        values
+            .iter()
+            .map(|value| (*value).to_string())
+            .collect()
+    })
 }
 
 #[test]
@@ -68,11 +73,11 @@ fn optional_on_linux_x64(supported: Option<&SupportedArchitectures>) -> Installa
 }
 
 fn supported_linux_x64_glibc() -> SupportedArchitectures {
-    SupportedArchitectures {
+    SupportedArchitectures::Axes(ArchitectureAxes {
         os: Some(vec!["linux".to_string()]),
         cpu: Some(vec!["x64".to_string()]),
         libc: Some(vec!["glibc".to_string()]),
-    }
+    })
 }
 
 #[test]

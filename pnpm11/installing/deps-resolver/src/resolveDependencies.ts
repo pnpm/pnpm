@@ -1,13 +1,16 @@
 import path from 'node:path'
 import util from 'node:util'
 
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   deprecationLogger,
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
+import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
@@ -30,6 +33,7 @@ import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
+  EXISTING_VERSION_SELECTOR_WEIGHT,
   type PkgResolutionId,
   type PreferredVersions,
   type Resolution,
@@ -43,19 +47,8 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type {
-  AllowBuild,
-  AllowedDeprecatedVersions,
-  DepPath,
-  PackageManifest,
-  PackageVersionPolicy,
-  PkgIdWithPatchHash,
-  RangeSpecStyle,
-  ReadPackageHook,
-  Registries,
-  SupportedArchitectures,
-  TrustPolicy,
-} from '@pnpm/types'
+import { type AllowBuild, type AllowedDeprecatedVersions, DEPENDENCIES_OR_PEER_FIELDS, type DepPath, type PackageManifest, type PackageVersionPolicy, type PkgIdWithPatchHash, type RangeSpecStyle, type ReadPackageHook, type RegistryContext, type SupportedArchitectures, type TrustPolicy } from '@pnpm/types'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -161,20 +154,25 @@ export interface ChildrenByParentId {
   }>
 }
 
-export interface ResolutionContext {
+export interface ResolutionContext extends RegistryContext {
   allowBuild?: AllowBuild
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
-  appliedPatches: Set<string>
   updatedSet: Set<string>
+  /**
+   * One snapshot of each package in the wanted lockfile. The dependencies of
+   * a package other than its peers are the same in every snapshot of it.
+   */
+  lockedDepPathByPkgId: Map<PkgResolutionId, DepPath>
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
   skipFetching?: boolean
   forceFullResolution: boolean
+  staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
   ignoreScripts?: boolean
   resolvedPkgsById: ResolvedPkgsById
@@ -204,8 +202,6 @@ export interface ResolutionContext {
   engineStrict: boolean
   nodeVersion?: string
   pnpmVersion: string
-  registries: Registries
-  namedRegistries?: Record<string, string>
   namedRegistryPrefixes: readonly string[]
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
@@ -355,6 +351,7 @@ export type UpdateMatchingFunction = (pkgName: string, version?: string) => bool
 
 interface ResolvedDependenciesOptions {
   currentDepth: number
+  directDepVersions?: Record<string, string[]>
   parentIds: PkgResolutionId[]
   parentPkg: ParentPkg
   parentPkgAliases: ParentPkgAliases
@@ -362,11 +359,18 @@ interface ResolvedDependenciesOptions {
   // which were used by the previous version are passed
   // via this option
   preferredDependencies?: ResolvedDependencies
+  /**
+   * The dependencies that the lockfile records for the parent package, when
+   * the edge to the parent has no lockfile entry of its own. They are reused
+   * as preferred versions only, so the peers are resolved from scratch.
+   */
+  lockedDependencies?: ResolvedDependencies
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
   updateMatching?: UpdateMatchingFunction
+  updatePatches?: boolean
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
@@ -375,6 +379,7 @@ interface ResolvedDependenciesOptions {
 }
 
 interface PostponedResolutionOpts {
+  directDepVersions?: Record<string, string[]>
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   publishedBy?: Date
@@ -411,25 +416,29 @@ export async function resolveRootDependencies (
     }
   }
   let workspaceRootDeps: HoistableRootDep[]
+  let rootImporterIndex = -1
+  let rootDepVersions = new Map<string, string>()
   if (ctx.resolvePeersFromWorkspaceRoot) {
-    const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    workspaceRootDeps = await getHoistableRootDeps(
-      importers[rootImporterIndex],
-      pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
-    )
+    rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
+    const rootPkgAddresses = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
+    workspaceRootDeps = await getHoistableRootDeps(importers[rootImporterIndex], rootPkgAddresses)
+    rootDepVersions = getDirectDepVersions(ctx.resolvedPkgsById, rootPkgAddresses)
   } else {
     workspaceRootDeps = []
   }
+  const hoistedPeersUpdateDepths = importers.map(getHoistedPeersUpdateDepth)
   /* eslint-disable no-await-in-loop */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
+      const hoistedPeersUpdateDepth = hoistedPeersUpdateDepths[index]
       // The importer is the manifest the hoisted peer is added to, so a local
       // override's `link:`/`file:` target is made relative to its directory,
       // exactly as it would be for a dependency the importer declares.
       const _hoistPeers = hoistPeers.bind(null, {
         autoInstallPeers: ctx.autoInstallPeers,
         allPreferredVersions: ctx.allPreferredVersions,
+        isUpdateTarget: hoistedPeersUpdateDepth < 0 ? undefined : options.updateMatching,
         workspaceRootDeps,
         overrideBareSpecifier: ctx.overrideBareSpecifier == null
           ? undefined
@@ -439,6 +448,12 @@ export async function resolveRootDependencies (
       while (true) {
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
+        }
+        if (ctx.autoInstallPeers) {
+          importerResolutionResult.missingPeers = mergePkgsDeps([
+            importerResolutionResult.missingPeers,
+            collectMissingRequiredPeers(ctx, importerResolutionResult.pkgAddresses),
+          ], ctx)
         }
         const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
         const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
@@ -474,6 +489,7 @@ export async function resolveRootDependencies (
         const dependencies = _hoistPeers(missingRequiredPeers)
         if (!Object.keys(dependencies).length) break
         const wantedDependencies = getNonDevWantedDependencies({ dependencies })
+          .map((wantedDependency) => ({ ...wantedDependency, updateDepth: hoistedPeersUpdateDepth }))
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
@@ -482,6 +498,16 @@ export async function resolveRootDependencies (
           updateToLatest: false,
         })
         importerResolutionResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+        if (options.directDepVersions) {
+          for (const pkgAddress of resolveDependenciesResult.pkgAddresses) {
+            const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
+            if (!resolvedPackage) continue
+            options.directDepVersions[resolvedPackage.name] ??= []
+            if (!options.directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+              options.directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+            }
+          }
+        }
         Object.assign(importerResolutionResult,
           filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
         )
@@ -489,10 +515,23 @@ export async function resolveRootDependencies (
       return allMissingOptionalPeers
     }))
     let hasNewMissingPeers = false
-    await Promise.all(allMissingOptionalPeersByImporters.map(async (allMissingOptionalPeers, index) => {
+    const getCandidatePeerRanges = createCandidatePeerRangesLookup(ctx)
+    const hoistOptionalForImporter = async (index: number) => {
+      const allMissingOptionalPeers = allMissingOptionalPeersByImporters[index]
       const { preferredVersions, parentPkgAliases, options } = importers[index]
       if (Object.keys(allMissingOptionalPeers).length && ctx.allPreferredVersions) {
-        const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions, workspaceRootDeps)
+        // A hoisted provider resolves its own peers from the importer's direct
+        // dependencies first, then from the workspace root's.
+        const providedPeerVersions = new Map([
+          ...(index === rootImporterIndex ? [] : rootDepVersions),
+          ...getDirectDepVersions(ctx.resolvedPkgsById, pkgAddressesByImportersWithoutPeers[index].pkgAddresses),
+        ])
+        const optionalDependencies = getHoistableOptionalPeers(
+          allMissingOptionalPeers,
+          ctx.allPreferredVersions,
+          workspaceRootDeps,
+          (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions)
+        )
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
@@ -503,12 +542,39 @@ export async function resolveRootDependencies (
             updateToLatest: false,
           })
           pkgAddressesByImportersWithoutPeers[index].pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
+          if (options.directDepVersions) {
+            for (const pkgAddress of resolveDependenciesResult.pkgAddresses) {
+              const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
+              if (!resolvedPackage) continue
+              options.directDepVersions[resolvedPackage.name] ??= []
+              if (!options.directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+                options.directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+              }
+            }
+          }
           Object.assign(pkgAddressesByImportersWithoutPeers[index],
             filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
           )
         }
       }
-    }))
+    }
+    if (rootImporterIndex !== -1) {
+      rootDepVersions = getDirectDepVersions(
+        ctx.resolvedPkgsById,
+        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
+      )
+      await hoistOptionalForImporter(rootImporterIndex)
+      rootDepVersions = getDirectDepVersions(
+        ctx.resolvedPkgsById,
+        pkgAddressesByImportersWithoutPeers[rootImporterIndex].pkgAddresses
+      )
+    }
+    await Promise.all(
+      allMissingOptionalPeersByImporters.map(async (_, index) => {
+        if (index === rootImporterIndex) return
+        return hoistOptionalForImporter(index)
+      })
+    )
     if (!hasNewMissingPeers) break
   }
   /* eslint-enable no-await-in-loop */
@@ -516,6 +582,19 @@ export async function resolveRootDependencies (
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
     time,
   }
+}
+
+/**
+ * An update that matches packages by name reaches the importer's peers hoisted
+ * from its subtree. Any other update names only dependencies the importer
+ * declares, and a hoisted peer is not one of them.
+ */
+function getHoistedPeersUpdateDepth ({ options, wantedDependencies }: ImporterToResolve): number {
+  if (options.updateMatching == null || wantedDependencies.length === 0) return options.updateDepth
+  return wantedDependencies.reduce(
+    (updateDepth, wantedDependency) => Math.min(updateDepth, wantedDependency.updateDepth ?? options.updateDepth),
+    Infinity
+  )
 }
 
 /**
@@ -557,6 +636,89 @@ async function getHoistableRootDeps (
     }
     return pinProjectRelativeDepToItsVersion(rootDep, rootDir)
   }))
+}
+
+/** The version each direct dependency alias resolved to. */
+function getDirectDepVersions (
+  resolvedPkgsById: ResolvedPkgsById,
+  pkgAddresses: PkgAddressOrLink[]
+): Map<string, string> {
+  const versions = new Map<string, string>()
+  for (const pkgAddress of pkgAddresses) {
+    const version = pkgAddress.isLinkedDependency
+      ? pkgAddress.version
+      : resolvedPkgsById[pkgAddress.pkgId]?.version
+    if (version != null && !versions.has(pkgAddress.alias)) {
+      versions.set(pkgAddress.alias, version)
+    }
+  }
+  for (const pkgAddress of pkgAddresses) {
+    const realName = pkgAddress.isLinkedDependency
+      ? pkgAddress.name
+      : resolvedPkgsById[pkgAddress.pkgId]?.name
+    const version = pkgAddress.isLinkedDependency
+      ? pkgAddress.version
+      : resolvedPkgsById[pkgAddress.pkgId]?.version
+    if (realName && realName !== pkgAddress.alias && !versions.has(realName) && version != null) {
+      versions.set(realName, version)
+    }
+  }
+  return versions
+}
+
+/**
+ * Looks up the peer ranges an optional peer candidate declares. A candidate is
+ * found by name and version, since a package resolved from a named registry
+ * has a different ID. One seeded only from the wanted lockfile has no resolved
+ * package yet, so the lockfile describes its peers instead. The name and
+ * version index is built on the first miss, once per hoisting round.
+ */
+function createCandidatePeerRangesLookup (
+  ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>
+): (name: string, version: string) => Record<string, string> | undefined {
+  let byNameVersion: Map<string, Record<string, string>> | undefined
+  return (name, version) => {
+    const pkgId = `${name}@${version}`
+    const resolvedPackage = ctx.resolvedPkgsById[pkgId as PkgResolutionId]
+    if (resolvedPackage != null) return getPeerRanges(resolvedPackage)
+    if (byNameVersion == null) {
+      byNameVersion = new Map()
+      for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        if (pkgName && pkgVersion) {
+          byNameVersion.set(`${pkgName}@${pkgVersion}`, pkgSnapshot.peerDependencies ?? {})
+        }
+      }
+      for (const pkg of Object.values(ctx.resolvedPkgsById)) {
+        byNameVersion.set(`${pkg.name}@${pkg.version}`, getPeerRanges(pkg))
+      }
+    }
+    return byNameVersion.get(pkgId)
+  }
+}
+
+function getPeerRanges (resolvedPackage: ResolvedPackage): Record<string, string> {
+  return Object.fromEntries(Object.entries(resolvedPackage.peerDependencies).map(([peerName, { version: range }]) => [peerName, range]))
+}
+
+/**
+ * An optional peer provider taken from elsewhere in the graph resolves its own
+ * peers from the importer it is hoisted to. When the importer already has one
+ * of those peers at a version outside the provider's range, hoisting the
+ * provider creates a peer conflict the importer never asked for.
+ */
+function peersAcceptProvidedVersions (
+  peerRanges: Record<string, string> | undefined,
+  providedVersions: Map<string, string>
+): boolean {
+  if (peerRanges == null) return true
+  for (const [peerName, range] of Object.entries(peerRanges)) {
+    const providedVersion = providedVersions.get(peerName)
+    if (providedVersion != null && !semverUtils.satisfiesWithPrereleases(providedVersion, getPeerVersionRange(range), true)) {
+      return false
+    }
+  }
+  return true
 }
 
 /**
@@ -644,12 +806,13 @@ async function resolveDependenciesOfImporters (
   const resolveResults = await Promise.all(
     importers.map(async (importer) => {
       const extendedWantedDeps = getDepsToResolve(importer.wantedDependencies, ctx.wantedLockfile, {
+        currentDepth: 0,
         preferredDependencies: importer.options.preferredDependencies,
         prefix: importer.options.prefix,
         proceed: importer.options.proceed || ctx.forceFullResolution,
-        registries: ctx.registries,
-        namedRegistries: ctx.namedRegistries,
+        ...pickRegistryContext(ctx),
         resolvedDependencies: importer.options.resolvedDependencies,
+        staleOverrideTargets: ctx.staleOverrideTargets,
       })
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
       const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
@@ -692,6 +855,7 @@ async function resolveDependenciesOfImporters (
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
     const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
+    const directDepVersions: Record<string, string[]> = Object.create(null)
     for (const pkgAddress of pkgAddresses) {
       if (currentParentPkgAliases[pkgAddress.alias] !== true) {
         currentParentPkgAliases[pkgAddress.alias] = pkgAddress
@@ -701,18 +865,26 @@ async function resolveDependenciesOfImporters (
       }
       const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
+      directDepVersions[resolvedPackage.name] ??= []
+      if (!directDepVersions[resolvedPackage.name].includes(resolvedPackage.version)) {
+        directDepVersions[resolvedPackage.name].push(resolvedPackage.version)
+      }
       if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
         newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
       }
-      if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
-        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
-          selectorType: 'version',
-          weight: DIRECT_DEP_SELECTOR_WEIGHT,
-        }
+      const existingSelector = newPreferredVersions[resolvedPackage.name][resolvedPackage.version]
+      const existingWeight = typeof existingSelector === 'object' && existingSelector != null
+        ? existingSelector.weight
+        : typeof existingSelector === 'string' ? 1 : 0
+      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+        selectorType: 'version',
+        weight: existingWeight + DIRECT_DEP_SELECTOR_WEIGHT,
       }
     }
+    importer.options.directDepVersions = directDepVersions
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
     const postponedResolutionOpts: PostponedResolutionOpts = {
+      directDepVersions,
       preferredVersions: newPreferredVersions,
       parentPkgAliases: newParentPkgAliases,
       publishedBy,
@@ -767,20 +939,29 @@ async function resolveDependenciesOfImporterDependency (
   // The catalog protocol is only usable in importers (i.e. packages in the
   // workspace. Replacing catalog protocol while resolving importers here before
   // resolving dependencies of packages outside of the workspace/monorepo.
-  const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
+  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
+  const originalPrevSpecifier = (extendedWantedDep.wantedDependency as WantedDependency & { prevSpecifier?: string }).prevSpecifier
+  const catalogSpecifier = originalPrevSpecifier != null &&
+    parseCatalogProtocol(originalPrevSpecifier) != null &&
+    isExplicitDistTagSpecifier(originalBareSpecifier)
+    ? originalPrevSpecifier
+    : originalBareSpecifier
+  const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver({
+    ...extendedWantedDep.wantedDependency,
+    bareSpecifier: catalogSpecifier,
+  }), {
     found: (result) => result.resolution,
     unused: () => undefined,
     misconfiguration: (result) => {
       throw result.error
     },
   })
-  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
   // The lockfile from a previous installation may have already resolved this
   // cataloged dependency. Reuse the exact version in the lockfile catalog
   // snapshot to ensure all projects using the same cataloged dependency get the
   // same version.
-  if (catalogLookup != null) {
+  if (catalogLookup != null && originalBareSpecifier === catalogSpecifier) {
     extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
     extendedWantedDep.preferredVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
   }
@@ -803,11 +984,67 @@ async function resolveDependenciesOfImporterDependency (
   if (result.resolveDependencyResult != null && catalogLookup != null) {
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
-      userSpecifiedBareSpecifier: originalBareSpecifier,
+      userSpecifiedBareSpecifier: catalogSpecifier,
     }
   }
 
   return result
+}
+
+// Shared child resolution can omit peers supplied by another importer's ancestors.
+// Discover required peers from the graph without waiting on child-resolution promises.
+export function collectMissingRequiredPeers (
+  ctx: Pick<ResolutionContext, 'childrenByParentId' | 'autoInstallPeersFromHighestMatch'> & {
+    resolvedPkgsById: Record<PkgResolutionId, Pick<ResolvedPackage, 'peerDependencies'>>
+  },
+  roots: Array<Pick<PkgAddress, 'alias' | 'pkgId'>>
+): MissingPeers {
+  const rootAliases = new Set(roots.map(({ alias }) => alias))
+  const packages = new Map<PkgResolutionId, {
+    children: ChildrenByParentId[PkgResolutionId]
+    childAliases: Set<string>
+    requiredPeers: MissingPeers
+  }>()
+  const peerNames = new Set<string>()
+  const providedAliases = new Set<string>()
+  const pending = roots.map(({ pkgId }) => pkgId)
+  while (pending.length) {
+    const pkgId = pending.pop()!
+    if (packages.has(pkgId)) continue
+    const pkg = ctx.resolvedPkgsById[pkgId]
+    if (!pkg) continue
+    const children = ctx.childrenByParentId[pkgId] ?? []
+    const requiredPeers: MissingPeers = pickBy(({ optional }, name) => !optional && !rootAliases.has(name), getMissingPeers(pkg.peerDependencies))
+    packages.set(pkgId, { children, childAliases: new Set(children.map(({ alias }) => alias)), requiredPeers })
+    for (const name of Object.keys(requiredPeers)) peerNames.add(name)
+    for (const { alias, id } of children) {
+      providedAliases.add(alias)
+      pending.push(id)
+    }
+  }
+  const missingPeers: MissingPeers[] = []
+  for (const { requiredPeers } of packages.values()) {
+    missingPeers.push(pickBy((_, name) => !providedAliases.has(name), requiredPeers))
+  }
+  for (const peerName of peerNames) {
+    if (!providedAliases.has(peerName)) continue
+    const visited = new Set<PkgResolutionId>()
+    pending.push(...roots.map(({ pkgId }) => pkgId))
+    while (pending.length) {
+      const pkgId = pending.pop()!
+      if (visited.has(pkgId)) continue
+      visited.add(pkgId)
+      const pkg = packages.get(pkgId)
+      if (!pkg) continue
+      if (pkg.requiredPeers[peerName]) {
+        missingPeers.push({ [peerName]: pkg.requiredPeers[peerName] })
+      }
+      if (!pkg.childAliases.has(peerName)) {
+        for (const { id } of pkg.children) pending.push(id)
+      }
+    }
+  }
+  return mergePkgsDeps(missingPeers, ctx)
 }
 
 function filterMissingPeersFromPkgAddresses (
@@ -825,6 +1062,10 @@ function filterMissingPeersFromPkgAddresses (
       return false
     }, pkgAddress.missingPeers ?? {}),
   }))
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {
@@ -849,13 +1090,16 @@ export async function resolveDependencies (
   options: ResolvedDependenciesOptions
 ): Promise<ResolvedDependenciesResult> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+    currentDepth: options.currentDepth,
+    directDepVersions: options.directDepVersions,
     preferredDependencies: options.preferredDependencies,
+    lockedDependencies: options.lockedDependencies,
     preferredVersions,
     prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
-    registries: ctx.registries,
-    namedRegistries: ctx.namedRegistries,
+    ...pickRegistryContext(ctx),
     resolvedDependencies: options.resolvedDependencies,
+    staleOverrideTargets: ctx.staleOverrideTargets,
   })
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
@@ -897,8 +1141,13 @@ export async function resolveDependencies (
     if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
       newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
     }
-    if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
-      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    const existingSelector = newPreferredVersions[resolvedPackage.name][resolvedPackage.version]
+    const existingWeight = typeof existingSelector === 'object' && existingSelector != null
+      ? existingSelector.weight
+      : typeof existingSelector === 'string' ? 1 : 0
+    newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+      selectorType: 'version',
+      weight: existingWeight + 1,
     }
   }
   const newParentPkgAliases = {
@@ -906,6 +1155,7 @@ export async function resolveDependencies (
     ...currentParentPkgAliases,
   }
   const postponedResolutionOpts: PostponedResolutionOpts = {
+    directDepVersions: options.directDepVersions,
     preferredVersions: newPreferredVersions,
     parentPkgAliases: newParentPkgAliases,
     publishedBy: options.publishedBy,
@@ -1021,6 +1271,12 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
+  const mustKeepSpecifier = extendedWantedDep.wantedDependency.updateToLatestAllowed === false
+  // No update mode narrows a `workspace:` range: the workspace picker takes the newest local
+  // version whenever an update is requested at all. A specifier that has to be kept can only be
+  // kept by resolving this edge the way a plain install would.
+  const mustKeepWorkspaceRange = mustKeepSpecifier &&
+    extendedWantedDep.wantedDependency.bareSpecifier?.startsWith('workspace:') === true
   const updateRequested =
     updateShouldContinue &&
     (
@@ -1043,7 +1299,7 @@ async function resolveDependenciesOfDependency (
     wantedDepIsLocallyAvailable(
       ctx.workspacePackages,
       extendedWantedDep.wantedDependency,
-      { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
+      { defaultTag: ctx.defaultTag, registry: ctx.registriesByScope.default }
     )
   ) || ctx.updatedSet.has(extendedWantedDep.infoFromLockfile.name!)
 
@@ -1058,7 +1314,10 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
+    update: update && !mustKeepWorkspaceRange
+      ? options.updateToLatest && !mustKeepSpecifier ? 'latest' : 'compatible'
+      : false,
+    updatePatches: options.updatePatches,
     updateChecksums: ctx.updateChecksums,
     updateDepth,
     updateRequested,
@@ -1137,9 +1396,13 @@ async function resolveDependenciesOfDependency (
     parentPkg: resolveDependencyResult,
     childrenResolutionId: resolveDependencyResult.childrenResolutionId!,
     dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
+    lockedDependencies: extendedWantedDep.infoFromLockfile?.dependencyLockfile == null && !updateRequested
+      ? getLockedDependenciesOfPkg(ctx, resolveDependencyResult)
+      : undefined,
     parentDepth: options.currentDepth,
     parentIds: [...options.parentIds, resolveDependencyResult.pkgId],
     updateDepth,
+    updatePatches: options.updatePatches,
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
@@ -1183,7 +1446,7 @@ function wantedDependencyMatchesUpdateTarget (
 ): boolean {
   const { alias, bareSpecifier } = wantedDependency
   const spec = alias && bareSpecifier
-    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registries.default)
+    ? parseBareSpecifier(bareSpecifier, alias, ctx.defaultTag ?? 'latest', ctx.registriesByScope.default)
     : null
   const name = spec?.name ?? alias
   return name != null && updateMatching(name, undefined)
@@ -1454,8 +1717,10 @@ async function resolveChildren (
     childrenResolutionId,
     parentIds,
     dependencyLockfile,
+    lockedDependencies,
     parentDepth,
     updateDepth,
+    updatePatches,
     updateMatching,
     prefix,
     supportedArchitectures,
@@ -1464,22 +1729,21 @@ async function resolveChildren (
     childrenResolutionId: number
     parentIds: PkgResolutionId[]
     dependencyLockfile: PackageSnapshot | undefined
+    lockedDependencies?: ResolvedDependencies
     parentDepth: number
     updateDepth: number
+    updatePatches?: boolean
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
     updateToLatest?: boolean
   },
   {
+    directDepVersions,
     parentPkgAliases,
     preferredVersions,
     publishedBy,
-  }: {
-    parentPkgAliases: ParentPkgAliases
-    preferredVersions: PreferredVersions
-    publishedBy?: Date
-  }
+  }: PostponedResolutionOpts
 ): Promise<PeersResolutionResult> {
   if (!isCurrentChildrenResolution(ctx, parentPkg.pkgId, childrenResolutionId)) {
     setDependencyTreeNodeWithCurrentChildren(ctx, {
@@ -1515,9 +1779,11 @@ async function resolveChildren (
   } = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
+      directDepVersions,
       parentPkg,
       parentPkgAliases,
       preferredDependencies: currentResolvedDependencies,
+      lockedDependencies,
       prefix,
       // If the package is not linked, we should also gather information about its dependencies.
       // After linking the package we'll need to symlink its dependencies.
@@ -1525,6 +1791,7 @@ async function resolveChildren (
       publishedBy,
       resolvedDependencies,
       updateDepth,
+      updatePatches,
       updateMatching,
       supportedArchitectures,
       parentIds,
@@ -1574,18 +1841,21 @@ async function resolveChildren (
 function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   wantedLockfile: LockfileObject,
-  options: {
+  options: RegistryContext & {
+    currentDepth?: number
+    directDepVersions?: Record<string, string[]>
     preferredDependencies?: ResolvedDependencies
+    lockedDependencies?: ResolvedDependencies
     preferredVersions?: PreferredVersions
     prefix: string
     proceed: boolean
-    registries: Registries
-    namedRegistries?: Record<string, string>
     resolvedDependencies?: ResolvedDependencies
+    staleOverrideTargets?: ReadonlySet<string>
   }
 ): ExtendedWantedDependency[] {
   const resolvedDependencies = options.resolvedDependencies ?? {}
   const preferredDependencies = options.preferredDependencies ?? {}
+  const lockedDependencies = options.lockedDependencies ?? {}
   const extendedWantedDeps: ExtendedWantedDependency[] = []
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
@@ -1599,7 +1869,7 @@ function getDepsToResolve (
     let reference = undefined as undefined | string
     let preferredVersion = undefined as undefined | string
     let proceed = proceedAll
-    if (wantedDependency.alias) {
+    if (wantedDependency.alias && !options.staleOverrideTargets?.has(wantedDependency.alias)) {
       const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
       if (
         resolvedDependencies[wantedDependency.alias] &&
@@ -1612,9 +1882,9 @@ function getDepsToResolve (
         const pinned = pinnedRef.startsWith('file:')
           ? undefined
           : getPinnedNameVer(wantedLockfile, pinnedRef, wantedDependency.alias)
-        const higherDirectVersion = pinned == null
+        const higherDirectVersion = pinned == null || options.currentDepth === 0
           ? undefined
-          : findHigherDirectDepVersion(options.preferredVersions, pinned.name, pinned.version, wantedDependency.bareSpecifier)
+          : findHigherDirectDepVersion(options.preferredVersions, options.directDepVersions, pinned.name, pinned.version, wantedDependency.bareSpecifier)
         if (higherDirectVersion != null) {
           // `preferredVersion` (singular) overrides the
           // EXISTING_VERSION_SELECTOR_WEIGHT stability bias that would
@@ -1638,9 +1908,14 @@ function getDepsToResolve (
       ) {
         proceed = true
         reference = preferredDependencies[wantedDependency.alias]
+      } else if (
+        lockedDependencies[wantedDependency.alias] &&
+        satisfiesWanted(lockedDependencies[wantedDependency.alias])
+      ) {
+        preferredVersion = getPinnedNameVer(wantedLockfile, lockedDependencies[wantedDependency.alias], wantedDependency.alias)?.version
       }
     }
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, { registries: options.registries, namedRegistries: options.namedRegistries }, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
     if (
       !proceedAll &&
       (
@@ -1687,9 +1962,13 @@ function referenceSatisfiesWantedSpec (
     })
     return false
   }
-  const { version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let bareSpecifier = wantedDep.bareSpecifier
-  if (registryName != null) {
+  if (registryName == null && bareSpecifier.startsWith('npm:')) {
+    const npmAlias = unwrapPackageName(wantedDep.alias, bareSpecifier)
+    if (npmAlias.pkgName !== name) return false
+    bareSpecifier = npmAlias.bareSpecifier
+  } else if (registryName != null) {
     // A registry-qualified entry may only satisfy a spec of the same named
     // registry. A plain semver range means a default/scope-registry dep, which
     // the qualified entry must never be substituted for.
@@ -1705,7 +1984,24 @@ function referenceSatisfiesWantedSpec (
   return semver.satisfies(version, bareSpecifier, true)
 }
 
-function getPinnedNameVer (
+/**
+ * An edge without a lockfile entry of its own (such as an auto-installed peer)
+ * may resolve to a package that the lockfile already has. That package keeps
+ * the versions of its locked dependencies, as it does when it is reached
+ * through a locked edge.
+ */
+function getLockedDependenciesOfPkg (ctx: ResolutionContext, pkg: PkgAddress): ResolvedDependencies | undefined {
+  const depPath = ctx.lockedDepPathByPkgId.get(pkg.pkgId)
+  if (depPath == null) return undefined
+  const snapshot = getInfoFromLockfile(ctx.wantedLockfile, pickRegistryContext(ctx), depPath, pkg.pkg.name)?.dependencyLockfile
+  if (snapshot == null) return undefined
+  return {
+    ...snapshot.dependencies,
+    ...snapshot.optionalDependencies,
+  }
+}
+
+export function getPinnedNameVer (
   lockfile: LockfileObject,
   reference: string,
   alias: string
@@ -1720,25 +2016,41 @@ function getPinnedNameVer (
 // The highest version a direct dependency (the only deterministic,
 // resolved-first anchor) resolved to that is higher than the
 // lockfile-pinned `pinnedVersion` and still satisfies the edge's range, or
-// `undefined` when none exists. Direct-dependency versions are marked with
-// DIRECT_DEP_SELECTOR_WEIGHT in preferredVersions.
+// `undefined` when none exists.
 function findHigherDirectDepVersion (
   preferredVersions: PreferredVersions | undefined,
+  directDepVersions: Record<string, string[]> | undefined,
   pinnedName: string,
   pinnedVersion: string,
   bareSpecifier: string
 ): string | undefined {
-  if (preferredVersions == null) return undefined
   if (!semver.valid(pinnedVersion)) return undefined
   if (semver.validRange(bareSpecifier) === null) return undefined
+  if (directDepVersions && Object.hasOwn(directDepVersions, pinnedName)) {
+    let best: string | undefined
+    for (const candidate of directDepVersions[pinnedName] ?? []) {
+      if (
+        semver.valid(candidate) &&
+        semver.gt(candidate, pinnedVersion) &&
+        semver.satisfies(candidate, bareSpecifier, true) &&
+        (best == null || semver.gt(candidate, best))
+      ) {
+        best = candidate
+      }
+    }
+    return best
+  }
+  if (preferredVersions == null) return undefined
   const selectors = preferredVersions[pinnedName]
   if (selectors == null) return undefined
   let best: string | undefined
   for (const [candidate, selector] of Object.entries(selectors)) {
     if (
       typeof selector === 'object' &&
+      selector !== null &&
       selector.selectorType === 'version' &&
-      selector.weight === DIRECT_DEP_SELECTOR_WEIGHT &&
+      selector.weight >= DIRECT_DEP_SELECTOR_WEIGHT &&
+      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
       semver.valid(candidate) &&
       semver.gt(candidate, pinnedVersion) &&
       semver.satisfies(candidate, bareSpecifier, true) &&
@@ -1865,6 +2177,7 @@ interface ResolveDependencyOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   updateChecksums?: boolean
   updateDepth: number
   /**
@@ -1939,6 +2252,17 @@ async function resolveDependency (
 
     try {
       const calcSpecifier = options.currentDepth === 0
+      if (
+        options.updatePatches &&
+        currentPkg.version &&
+        !hasRegistryRevisionSpecifier(wantedDependency.bareSpecifier)
+      ) {
+        wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(
+          wantedDependency.bareSpecifier,
+          currentPkg.version,
+          ctx.namedRegistryPrefixes
+        )
+      }
       if (!options.update && currentPkg.version && pkgIdPinsVersion(currentPkg.pkgId, currentPkg.version) && !calcSpecifier) {
         wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
       }
@@ -1962,6 +2286,10 @@ async function resolveDependency (
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,
         lockfileDir: ctx.lockfileDir,
+        nodeVersion: ctx.nodeVersion,
+        deferEnginesCheck: (manifest) => manifest.name != null &&
+          manifest.version != null &&
+          getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version) != null,
         preferredVersions,
         preferWorkspacePackages: ctx.preferWorkspacePackages,
         projectDir: (
@@ -1975,6 +2303,7 @@ async function resolveDependency (
         trustPolicyExclude: ctx.trustPolicyExclude,
         trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
         update: options.update,
+        updatePatches: options.updatePatches,
         updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
@@ -1987,6 +2316,7 @@ async function resolveDependency (
         injectWorkspacePackages: ctx.injectWorkspacePackages,
         calcSpecifier,
         rangeSpecStyle: options.rangeSpecStyle,
+        readPackageHook: ctx.readPackageHook,
       })
     } catch (err: any) { // eslint-disable-line
       const wantedDependencyDetails = {
@@ -2038,6 +2368,7 @@ async function resolveDependency (
     if (
       ctx.blockExoticSubdeps &&
       options.currentDepth > 0 &&
+      options.parentPkg.resolvedVia !== 'workspace' &&
       pkgResponse.body.resolvedVia != null && // This is already coming from the lockfile, we skip the check in this case for now. Should be fixed later.
       isExoticDep(pkgResponse.body.resolvedVia)
     ) {
@@ -2080,7 +2411,7 @@ async function resolveDependency (
         optional: wantedDependency.optional,
         pkgId: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
-        version: pkgResponse.body.manifest.version,
+        version: pkgResponse.body.manifest.version || '0.0.0',
         normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
         pkg: pkgResponse.body.manifest,
         wantedDependency,
@@ -2089,27 +2420,23 @@ async function resolveDependency (
 
     let prepare!: boolean
     let hasBin!: boolean
-    let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
-    if (!pkg.dependencies) {
-      pkg.dependencies = {}
-    }
-    if (ctx.readPackageHook != null) {
+    let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
+    if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
       pkg = await ctx.readPackageHook(pkg)
     }
+    if (!pkg.version) {
+      pkg.version = '0.0.0'
+    }
     if (pkg.peerDependencies && pkg.dependencies) {
-      if (ctx.autoInstallPeers) {
-        pkg = {
-          ...pkg,
-          dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
-        }
-      } else {
-        pkg = {
-          ...pkg,
-          dependencies: omit(
-            Object.keys(pkg.peerDependencies).filter((peerDep) => options.parentPkgAliases[peerDep]),
-            pkg.dependencies
-          ),
-        }
+      const { peerDependenciesMeta } = pkg
+      const isAutoInstalledPeer = (peerDep: string): boolean =>
+        ctx.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
+      pkg = {
+        ...pkg,
+        dependencies: omit(
+          Object.keys(pkg.peerDependencies).filter((peerDep) => isAutoInstalledPeer(peerDep) || options.parentPkgAliases[peerDep]),
+          pkg.dependencies
+        ),
       }
     }
     if (pkg.engines?.runtime != null) {
@@ -2121,7 +2448,6 @@ async function resolveDependency (
     let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
     const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
     if (patch) {
-      ctx.appliedPatches.add(patch.key)
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }
 
@@ -2217,8 +2543,8 @@ async function resolveDependency (
       ) {
         // Report deprecated packages only on first occurrence.
         deprecationLogger.debug({
-          deprecated: pkg.deprecated,
           depth: options.currentDepth,
+          nonDeprecatedAlternative: pkgResponse.body.nonDeprecatedAlternative,
           pkgId: pkgResponse.body.id,
           pkgName: pkg.name,
           pkgVersion: pkg.version,
@@ -2251,6 +2577,7 @@ async function resolveDependency (
       })
     } else {
       detectNamedRegistryCollision(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
+      detectRegistryRevisionConflict(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
       ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
       ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
       ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
@@ -2313,6 +2640,16 @@ async function resolveDependency (
   }
 }
 
+function hasRegistryRevisionSpecifier (specifier: string): boolean {
+  const selectorStart = Math.max(specifier.lastIndexOf(':'), specifier.lastIndexOf('@')) + 1
+  const selector = specifier.slice(selectorStart)
+  if (semver.valid(selector) == null) return false
+  const marker = selector.lastIndexOf('+r')
+  if (marker === -1) return false
+  const revision = selector.slice(marker + 2)
+  return revision.length > 0 && Array.from(revision).every((character) => character >= '0' && character <= '9')
+}
+
 /**
  * Whether the wanted lockfile already holds a package entry that satisfies the
  * wanted dependency. An optional dependency that fails to resolve is normally
@@ -2352,7 +2689,7 @@ export function getManifestFromResponse (
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
 
-  if (currentPkg?.name && currentPkg?.version) {
+  if (currentPkg?.name && currentPkg?.version && currentPkg.version !== '0.0.0') {
     return {
       name: currentPkg.name,
       version: currentPkg.version,
@@ -2360,8 +2697,37 @@ export function getManifestFromResponse (
   }
   return {
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
-    version: '0.0.0',
+  } as PackageManifest
+}
+
+/**
+ * Returns a manifest that resolution may write to freely, leaving `manifest`
+ * untouched down to each `peerDependenciesMeta` entry. Every other field is
+ * shared with `manifest` and must stay read-only.
+ *
+ * The resolver returns the manifest object its metadata cache holds, so every
+ * dependency that resolves to the same package version is handed the same
+ * object. What resolution writes to it decides the isolation this owes:
+ * dependency and peer records are rewritten by the read-package hook, a
+ * `deprecated` notice is carried over from the lockfile, and an
+ * `engines.runtime` entry becomes a dependency. `dependencies` is present on
+ * the result whether or not the manifest declares it, since the peer handling
+ * and `convertEnginesRuntimeToDependencies` both write into it.
+ */
+function copyResolvedManifest (manifest: PackageManifest): PackageManifest {
+  const copy: PackageManifest = { ...manifest, dependencies: { ...manifest.dependencies } }
+  for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (manifest[depsField] != null) {
+      copy[depsField] = { ...manifest[depsField] }
+    }
   }
+  if (manifest.peerDependenciesMeta != null) {
+    copy.peerDependenciesMeta = {}
+    for (const [peerName, peerMeta] of Object.entries(manifest.peerDependenciesMeta)) {
+      copy.peerDependenciesMeta[peerName] = { ...peerMeta }
+    }
+  }
+  return copy
 }
 
 // The materialized peer set is used (not the manifest's raw peerDependencies)
@@ -2475,6 +2841,23 @@ export function detectNamedRegistryCollision (
     `"${resolved.name}@${resolved.version}" resolved to two different artifacts under one identity.`,
     {
       hint: 'A registry served different content for the same package name and version. Continuing would hand one dependency the other artifact\'s bytes, so the install stops here.',
+    }
+  )
+}
+
+export function detectRegistryRevisionConflict (
+  resolved: ResolvedPackage,
+  pkgResponse: PackageResponse
+): void {
+  const existing = resolved.resolution as TarballResolution | undefined
+  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
+  if (existing?.revision == null && incoming?.revision == null) return
+  if (existing?.revision === incoming?.revision && existing?.integrity === incoming?.integrity) return
+  throw new PnpmError(
+    'REVISION_CONFLICT',
+    `Conflicting registry revisions were requested for "${resolved.name}@${resolved.version}".`,
+    {
+      hint: 'A single package name and version can resolve to only one registry artifact in an install.',
     }
   )
 }

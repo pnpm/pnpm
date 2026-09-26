@@ -10,16 +10,28 @@ use std::ffi::OsString;
 
 fn expand(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    expand_universal_shorthands(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    expand_universal_shorthands(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 /// Run the full pre-parse pipeline (shorthands, then relocation) and parse.
 fn parse(tokens: &[&str]) -> CliArgs {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = expand_universal_shorthands(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = expand_universal_shorthands(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
     cmd.try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
@@ -103,10 +115,10 @@ fn option_values_are_not_rewritten() {
 #[test]
 fn expanded_silent_parses_to_the_silent_reporter() {
     let args = parse(&["pnpm", "store", "path", "--silent"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, Some(ReporterType::Silent)));
 
     let args = parse(&["pnpm", "install", "-s"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, Some(ReporterType::Silent)));
 }
 
 #[test]
@@ -114,8 +126,8 @@ fn later_reporter_overrides_the_silent_shorthand() {
     // nopt takes the last occurrence of a repeated option; `--silent` is
     // sugar for `--reporter=silent`, so an explicit later `--reporter` wins.
     let args = parse(&["pnpm", "install", "--silent", "--reporter=ndjson"]);
-    assert!(matches!(args.reporter, ReporterType::Ndjson));
+    assert!(matches!(args.output.presentation.reporter, Some(ReporterType::Ndjson)));
 
     let args = parse(&["pnpm", "install", "--reporter=ndjson", "--silent"]);
-    assert!(matches!(args.reporter, ReporterType::Silent));
+    assert!(matches!(args.output.presentation.reporter, Some(ReporterType::Silent)));
 }

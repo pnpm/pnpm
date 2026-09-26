@@ -6,7 +6,7 @@ import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
-import type { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 
@@ -29,6 +29,8 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     const { filesMap, manifest, requiresBuild, integrity } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: rawFilesIndexFile,
+      // The raw archive is not the prepared package, so it must not be indexed under the package's integrity key.
+      pkgResolutionId: undefined,
     })
     // Flush any queued store index writes so that the raw files index entry
     // written during tarball extraction is visible to subsequent reads.
@@ -39,9 +41,12 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
       return {
+        filesIndexFile: prepareResult.filesIndexFile,
         filesMap: prepareResult.filesMap,
         manifest: prepareResult.manifest ?? manifest,
         requiresBuild,
+        requiresPrepare: prepareResult.requiresPrepare,
+        ignoredBuild: prepareResult.ignoredBuild,
         // Propagate the raw tarball integrity so the lockfile pins it and
         // future installs detect a tampered tarball from the git host.
         integrity,
@@ -53,13 +58,17 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     }
   }
 
-  return fetch as FetchFunction
+  return Object.assign(fetch, {
+    resolutionNeedsFetch: fetchRemoteTarball.resolutionNeedsFetch?.bind(fetchRemoteTarball),
+  }) as FetchFunction
 }
 
 interface PrepareGitHostedPkgResult {
+  filesIndexFile: string
   filesMap: FilesMap
   manifest?: BundledManifest
   ignoredBuild: boolean
+  requiresPrepare: boolean
 }
 
 async function prepareGitHostedPkg (
@@ -80,30 +89,31 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const { shouldBeBuilt, pkgDir } = await preparePackage({
+  const { shouldBeBuilt, pkgDir, ignoredBuild = false } = await preparePackage({
     ...opts,
     allowBuild: fetcherOpts.allowBuild,
-    pkgResolutionId: createGitHostedTarballPkgResolutionId(resolution),
+    pkgResolutionId: fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution),
   }, tempLocation, resolution.path ?? '')
+  if (shouldBeBuilt && ((ignoredBuild && !opts.ignoreScripts) || (!ignoredBuild && filesIndexFile.endsWith('\tnot-built')))) {
+    filesIndexFile = gitHostedStoreIndexKey(fetcherOpts.pkgResolutionId ?? createGitHostedTarballPkgResolutionId(resolution), { built: !ignoredBuild })
+  }
   const files = await packlist(pkgDir)
   const { storeIndex } = opts
   if (!resolution.path && files.length === filesMap.size) {
-    if (!shouldBeBuilt) {
-      const data = storeIndex.get(rawFilesIndexFile)
-      if (data) {
-        storeIndex.set(filesIndexFile, data)
-        storeIndex.delete(rawFilesIndexFile)
+    if (!shouldBeBuilt || ignoredBuild) {
+      if (!ignoredBuild || !opts.ignoreScripts) {
+        const data = storeIndex.get(rawFilesIndexFile) as { requiresPrepare?: boolean } | undefined
+        if (data) {
+          data.requiresPrepare = shouldBeBuilt
+          storeIndex.set(filesIndexFile, data)
+        }
       }
-      return {
-        filesMap,
-        ignoredBuild: false,
-      }
-    }
-    if (opts.ignoreScripts) {
       storeIndex.delete(rawFilesIndexFile)
       return {
+        filesIndexFile,
         filesMap,
-        ignoredBuild: true,
+        ignoredBuild,
+        requiresPrepare: shouldBeBuilt,
       }
     }
   }
@@ -112,6 +122,7 @@ async function prepareGitHostedPkg (
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
+    filesIndexFile,
     ...await addFilesFromDir({
       storeDir: cafs.storeDir,
       storeIndex: opts.storeIndex,
@@ -120,8 +131,10 @@ async function prepareGitHostedPkg (
       filesIndexFile,
       pkg: fetcherOpts.pkg,
       readManifest: fetcherOpts.readManifest,
+      requiresPrepare: shouldBeBuilt,
     }),
-    ignoredBuild: Boolean(opts.ignoreScripts),
+    ignoredBuild,
+    requiresPrepare: shouldBeBuilt,
   }
 }
 

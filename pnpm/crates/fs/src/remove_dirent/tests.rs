@@ -117,3 +117,6 @@ fn windows_removes_a_dangling_junction() {
 
     assert_gone(&link, "the dangling junction");
 }
+
+#[cfg(all(windows, feature = "test"))]
+mod windows;

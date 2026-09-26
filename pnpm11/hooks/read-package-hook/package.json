@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "1100.2.3",
+  "version": "1100.3.4",
   "description": "Creates the default package reader hook used by pnpm",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/extensions": "catalog:",

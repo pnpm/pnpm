@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins } from '@pnpm/bins.linker'
+import { linkBins, nodeRuntimeBinDir } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {
@@ -11,11 +11,11 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
-import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import { calcDepState, type DepsStateCache, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
+  PROJECT_INSTALL_STAGES as EXEC_PROJECT_INSTALL_STAGES,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/exec.lifecycle'
@@ -24,6 +24,7 @@ import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
+  findLockedRootNodeRuntime,
   type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -45,8 +46,9 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
-import { runGroups } from 'run-groups'
 import semver from 'semver'
 
 import {
@@ -56,6 +58,9 @@ import {
 } from './extendBuildOptions.js'
 
 export type { BuildOptions }
+
+export const PROJECT_INSTALL_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish']
+export const PROJECT_LIFECYCLE_STAGES = ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare']
 
 // Serializes builds of a shared GVS projection across concurrent per-project
 // rebuilds: the first build proceeds, concurrent ones await it and reuse the
@@ -169,7 +174,6 @@ export async function buildSelectedPkgs (
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
-    registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.modulesFile?.storeDir ?? ctx.storeDir,
     virtualStoreDir: ctx.modulesFile?.virtualStoreDir ?? ctx.virtualStoreDir,
@@ -218,6 +222,7 @@ export async function buildProjects (
   const store = await createStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
+    extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -228,12 +233,17 @@ export async function buildProjects (
     unsafePerm: opts.unsafePerm || false,
     userAgent: opts.userAgent,
   }
-  await runLifecycleHooksConcurrently(
-    ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
-    Object.values(ctx.projects),
-    opts.childConcurrency || 5,
-    scriptsOpts
-  )
+  await runLifecycleHooksConcurrently({
+    childConcurrency: opts.childConcurrency || 5,
+    importers: Object.values(ctx.projects),
+    opts: scriptsOpts,
+    projectDependencies: opts.projectDependencies,
+    stages: opts.stages ?? (opts.deploy
+      ? EXEC_PROJECT_INSTALL_STAGES
+      : (ctx.include?.devDependencies !== false
+        ? PROJECT_LIFECYCLE_STAGES
+        : PROJECT_INSTALL_STAGES)),
+  })
   for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
@@ -251,7 +261,6 @@ export async function buildProjects (
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     publicHoistPattern: ctx.publicHoistPattern,
-    registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
@@ -304,13 +313,13 @@ async function _rebuild (
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
-  // Resolved `engines.runtime` Node version (when one is pinned) —
-  // every side-effects-cache key computed below is anchored to it so
+  // The root project's `engines.runtime` Node version (when one is
+  // pinned) anchors every side-effects-cache key computed below, so
   // the prefix tracks the script-runner Node rather than pnpm's own
   // `process.version`.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
+  const nodeVersion = findLockedRootNodeRuntime(ctx.currentLockfile)?.version
   const pkgsThatWereRebuilt = new Set<string>()
-  const graph = new Map()
+  const graph = new Map<DepPath, DepPath[]>()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
 
   const nodesToBuildAndTransitive = new Set<DepPath>()
@@ -324,6 +333,7 @@ async function _rebuild (
           devDependencies: opts.development,
           optionalDependencies: opts.optional,
         },
+        resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       }
     ).step,
     nodesToBuildAndTransitive,
@@ -335,13 +345,8 @@ async function _rebuild (
     const pkgSnapshot = pkgSnapshots[depPath]
     graph.set(depPath, Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
-      .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
+      .filter((childRelDepPath): childRelDepPath is DepPath => childRelDepPath != null && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
-  const graphSequencerResult = graphSequencer(
-    graph,
-    nodesToBuildAndTransitiveArray
-  )
-  const chunks = graphSequencerResult.chunks as DepPath[][]
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })
   }
@@ -397,146 +402,177 @@ async function _rebuild (
       ? path.join(gvsDirByDepPath.get(depPath)!, 'node_modules')
       : path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
 
-  const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
-    async () => {
-      const pkgSnapshot = pkgSnapshots[depPath]
-      const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoots = opts.nodeLinker === 'hoisted'
-        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
-        // `pkgInfo.name` comes from the depPath key of the lockfile in
-        // `node_modules` via `dp.parse`, which validates nothing (GHSA-c59q-g84q-2gj5).
-        : [safeJoinModulesDir(pkgModulesDir(depPath), pkgInfo.name)]
-      if (pkgRoots.length === 0) {
-        if (pkgSnapshot.optional) return
-        throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
-          hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
-        })
-      }
-      const pkgRoot = pkgRoots[0]
-      // If another project is already building this shared projection, wait for it
-      // and reuse the result instead of racing on the same directory.
-      const gvsDir = gvsDirByDepPath.get(depPath)
-      if (gvsDir != null) {
-        const inFlight = gvsBuildLocks.get(gvsDir)
-        if (inFlight != null) {
-          await inFlight.catch(() => {})
-          pkgsThatWereRebuilt.add(depPath)
-          return
-        }
-      }
-      let releaseGvsLock: (() => void) | undefined
-      if (gvsDir != null) {
-        let resolveLock!: () => void
-        gvsBuildLocks.set(gvsDir, new Promise<void>((resolve) => {
-          resolveLock = resolve
-        }))
-        releaseGvsLock = () => {
-          gvsBuildLocks.delete(gvsDir)
-          resolveLock()
-        }
-      }
-      try {
-        const extraBinPaths = ctx.extraBinPaths
-        if (opts.nodeLinker !== 'hoisted') {
-          const modules = pkgModulesDir(depPath)
-          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-          await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
-        } else {
-          extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
-        }
-        const resolution = (pkgSnapshot.resolution as TarballResolution)
-        let sideEffectsCacheKey: string | undefined
-        // Match the resolver-supplied pkg.id used by the writer in
-        // @pnpm/installing.package-requester: that's the tarball URL for
-        // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
-        const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
-        if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
-          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
-          const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
-          if (pkgFilesIndex) {
-            sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-              includeDepGraphHash: true,
-              supportedArchitectures: opts.supportedArchitectures,
-              nodeVersion,
-            })
-            if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
-              pkgsThatWereRebuilt.add(depPath)
-              return
-            }
-          }
-        }
-        let requiresBuild = true
-        const pgkManifest = await safeReadPackageJsonFromDir(pkgRoot)
-        if (pgkManifest != null) {
-          // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
-          // However, currently rebuild doesn't work for such packages at all, which should be fixed.
-          requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
-        }
+  // As in `buildModules` of `@pnpm/building.during-install`: a global virtual
+  // store slot's build scripts get only the root project's runtime `node`,
+  // because the slot hash records nothing else from the workspace root.
+  const gvsScriptBinPaths = nodeVersion == null
+    ? []
+    : [nodeRuntimeBinDir(safeJoinModulesDir(pkgModulesDir(`node@runtime:${nodeVersion}` as DepPath), 'node'))]
 
-        const hasSideEffects = requiresBuild && allowBuild(depPath) && await runPostinstallHooks({
-          depPath,
-          extraBinPaths,
-          extraEnv: opts.extraEnv,
-          optional: pkgSnapshot.optional === true,
-          pkgRoot,
-          rootModulesDir: ctx.rootModulesDir,
-          scriptsPrependNodePath: opts.scriptsPrependNodePath,
-          shellEmulator: opts.shellEmulator,
-          unsafePerm: opts.unsafePerm || false,
-          userAgent: opts.userAgent,
-        })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
-          builtDepPaths.add(depPath)
-          const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
-          try {
-            if (!sideEffectsCacheKey) {
-              sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-                includeDepGraphHash: true,
-                nodeVersion,
-              })
-            }
-            await opts.storeController.upload(pkgRoot, {
-              sideEffectsCacheKey,
-              filesIndexFile,
-            })
-          } catch (err: unknown) {
-            assert(util.types.isNativeError(err))
-            logger.warn({
-              error: err,
-              message: `An error occurred while uploading ${pkgRoot}`,
-              prefix: opts.lockfileDir,
-            })
-          }
-        }
+  const runBuild = async (depPath: DepPath): Promise<void> => {
+    const pkgSnapshot = pkgSnapshots[depPath]
+    const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    const pkgRoots = opts.nodeLinker === 'hoisted'
+      ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
+    // `pkgInfo.name` comes from the depPath key of the lockfile in
+    // `node_modules` via `dp.parse`, which validates nothing (GHSA-c59q-g84q-2gj5).
+      : [safeJoinModulesDir(pkgModulesDir(depPath), pkgInfo.name)]
+    if (pkgRoots.length === 0) {
+      if (pkgSnapshot.optional) return
+      throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
+        hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
+      })
+    }
+    const pkgRoot = pkgRoots[0]
+    // If another project is already building this shared projection, wait for it
+    // and reuse the result instead of racing on the same directory.
+    const gvsDir = gvsDirByDepPath.get(depPath)
+    if (gvsDir != null) {
+      const inFlight = gvsBuildLocks.get(gvsDir)
+      if (inFlight != null) {
+        await inFlight.catch(() => {})
         pkgsThatWereRebuilt.add(depPath)
-      } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
-        if (pkgSnapshot.optional) {
-          // TODO: add parents field to the log
-          skippedOptionalDependencyLogger.debug({
-            details: err.toString(),
-            package: {
-              id: pkgSnapshot.id ?? depPath,
-              name: pkgInfo.name,
-              version: pkgInfo.version,
-            },
-            prefix: opts.dir,
-            reason: 'build_failure',
-          })
-          return
-        }
-        throw err
-      } finally {
-        releaseGvsLock?.()
-      }
-      if (pkgRoots.length > 1) {
-        await hardLinkDir(pkgRoot, pkgRoots.slice(1))
+        return
       }
     }
-  ))
+    let releaseGvsLock: (() => void) | undefined
+    if (gvsDir != null) {
+      let resolveLock!: () => void
+      gvsBuildLocks.set(gvsDir, new Promise<void>((resolve) => {
+        resolveLock = resolve
+      }))
+      releaseGvsLock = () => {
+        gvsBuildLocks.delete(gvsDir)
+        resolveLock()
+      }
+    }
+    try {
+      let extraBinPaths: string[]
+      if (opts.nodeLinker !== 'hoisted') {
+        const modules = pkgModulesDir(depPath)
+        const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        extraBinPaths = gvsDir == null ? ctx.extraBinPaths : gvsScriptBinPaths
+      } else {
+        // A hoisted package builds in the project's own node_modules, not in a
+        // shared slot.
+        extraBinPaths = [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
+      }
+      const resolution = (pkgSnapshot.resolution as TarballResolution)
+      let sideEffectsCacheKey: string | undefined
+      // Match the resolver-supplied pkg.id used by the writer in
+      // @pnpm/installing.package-requester: that's the tarball URL for
+      // git-hosted packages (nonSemverVersion) and `name@version` otherwise.
+      const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
+      if (opts.skipIfHasSideEffectsCache && (resolution.gitHosted || resolution.integrity)) {
+        const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
+        const pkgFilesIndex = storeIndex!.get(filesIndexFile) as PackageFilesIndex | undefined
+        if (pkgFilesIndex) {
+          sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+            includeDepGraphHash: true,
+            supportedArchitectures: opts.supportedArchitectures,
+            nodeVersion,
+          })
+          if (pkgFilesIndex.sideEffects?.has(sideEffectsCacheKey)) {
+            pkgsThatWereRebuilt.add(depPath)
+            return
+          }
+        }
+      }
+      let requiresBuild = true
+      const pgkManifest = await safeReadPackageJsonFromDir(pkgRoot)
+      if (pgkManifest != null) {
+        // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
+        // However, currently rebuild doesn't work for such packages at all, which should be fixed.
+        requiresBuild = pkgRequiresBuild(pgkManifest, new Map())
+      }
 
-  await runGroups(opts.childConcurrency || 5, groups)
+      const hasSideEffects = requiresBuild && allowBuild(depPath) && await runPostinstallHooks({
+        depPath,
+        extraBinPaths,
+        extraEnv: opts.extraEnv,
+        optional: pkgSnapshot.optional === true,
+        pkgRoot,
+        rootModulesDir: ctx.rootModulesDir,
+        scriptsPrependNodePath: opts.scriptsPrependNodePath,
+        shellEmulator: opts.shellEmulator,
+        unsafePerm: opts.unsafePerm || false,
+        userAgent: opts.userAgent,
+      })
+      if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
+        builtDepPaths.add(depPath)
+        const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })
+        try {
+          if (!sideEffectsCacheKey) {
+            sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+              includeDepGraphHash: true,
+              nodeVersion,
+            })
+          }
+          await opts.storeController.upload(pkgRoot, {
+            sideEffectsCacheKey,
+            filesIndexFile,
+          })
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
+          logger.warn({
+            error: err,
+            message: `An error occurred while uploading ${pkgRoot}`,
+            prefix: opts.lockfileDir,
+          })
+        }
+      }
+      pkgsThatWereRebuilt.add(depPath)
+    } catch (err: unknown) {
+      assert(util.types.isNativeError(err))
+      if (pkgSnapshot.optional) {
+        // Other projects may link a global virtual store slot, so it is kept.
+        if (!gvsDirByDepPath.has(depPath)) {
+          // Hoisted package roots come from .modules.yaml, which is not validated.
+          const rootsToRemove = opts.nodeLinker === 'hoisted'
+            ? pkgRoots.filter((root) => isStrictSubdir(opts.lockfileDir, root))
+            : pkgRoots
+          await Promise.all(rootsToRemove.map((root) => fs.promises.rm(root, { recursive: true, force: true })))
+        }
+        // TODO: add parents field to the log
+        skippedOptionalDependencyLogger.debug({
+          details: err.toString(),
+          package: {
+            id: pkgSnapshot.id ?? depPath,
+            name: pkgInfo.name,
+            version: pkgInfo.version,
+          },
+          prefix: opts.dir,
+          reason: 'build_failure',
+        })
+        return
+      }
+      throw err
+    } finally {
+      releaseGvsLock?.()
+    }
+    if (pkgRoots.length > 1) {
+      await hardLinkDir(pkgRoot, pkgRoots.slice(1))
+    }
+  }
+  let firstError: unknown
+  await scheduleGraph(graph, {
+    bail: false,
+    concurrency: opts.childConcurrency || 5,
+    runNode: async (depPath): Promise<TaskCompletion> => {
+      if (!ctx.pkgsToRebuild.has(depPath) || ctx.skipped.has(depPath)) return 'passed'
+      try {
+        await runBuild(depPath)
+        return 'passed'
+      } catch (error: unknown) {
+        firstError ??= error
+        return 'failed'
+      }
+    },
+    onNodeSkipped: () => {},
+  })
   storeIndex?.close()
+  if (firstError != null) throw firstError
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

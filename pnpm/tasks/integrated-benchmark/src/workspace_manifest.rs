@@ -1,5 +1,5 @@
 //! Pacquet's prod manifest type
-//! (`pacquet_config::workspace_yaml::WorkspaceSettings`) is shaped for
+//! (`pnpm_config::workspace_yaml::WorkspaceSettings`) is shaped for
 //! deserializing user input as an additive overlay over `Config` — it
 //! is `Deserialize`-only, has no `supportedArchitectures` /
 //! `allowBuilds` fields, and its semantics are "apply non-`None` fields
@@ -14,6 +14,13 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the benchmark fixture pnpm-workspace.yaml format."
+    )
+)]
 pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_dir: Option<String>,

@@ -1,4 +1,10 @@
 import * as dp from '@pnpm/deps.path'
+import {
+  getPeerSatisfactionEdges,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+  type PeerSatisfactionEdgesOptions,
+} from '@pnpm/lockfile.peer-edges'
 import type { LockfileObject, PackageSnapshots, ResolvedDependencies } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
 
@@ -12,7 +18,12 @@ export type DepType = (typeof DepType)[keyof typeof DepType]
 
 export type DepTypes = Record<string, DepType>
 
-export function detectDepTypes (lockfile: LockfileObject): DepTypes {
+/**
+ * Classifies every package reachable from the importers. Peer-satisfaction
+ * edges (see `@pnpm/lockfile.peer-edges`) are not followed: a devDependency
+ * that only satisfies an optional peer of a production package is dev-only.
+ */
+export function detectDepTypes (lockfile: LockfileObject, opts?: PeerSatisfactionEdgesOptions): DepTypes {
   const dev: DepTypes = {}
   const devDepPaths = Object.values(lockfile.importers)
     .map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {})).flat()
@@ -25,6 +36,7 @@ export function detectDepTypes (lockfile: LockfileObject): DepTypes {
     walked: new Set<string>(),
     notProdOnly: new Set<string>(),
     dev,
+    peerSatisfactionEdges: getPeerSatisfactionEdges(lockfile, opts),
   }
   detectDepTypesInSubGraph(ctx, devDepPaths, {
     dev: true,
@@ -44,6 +56,7 @@ function detectDepTypesInSubGraph (
     packages: PackageSnapshots
     walked: Set<string>
     dev: Record<string, DepType>
+    peerSatisfactionEdges: PeerSatisfactionEdges
   },
   depPaths: DepPath[],
   opts: {
@@ -66,15 +79,16 @@ function detectDepTypesInSubGraph (
       ctx.dev[depPath] = DepType.ProdOnly
     }
     const depLockfile = ctx.packages[depPath]
-    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
+    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {}, ctx.peerSatisfactionEdges, depPath)
     detectDepTypesInSubGraph(ctx, newDependencies, opts)
-    const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
+    const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {}, ctx.peerSatisfactionEdges, depPath)
     detectDepTypesInSubGraph(ctx, newOptionalDependencies, { dev: opts.dev })
   }
 }
 
-function resolvedDepsToDepPaths (deps: ResolvedDependencies): DepPath[] {
+function resolvedDepsToDepPaths (deps: ResolvedDependencies, peerSatisfactionEdges?: PeerSatisfactionEdges, parent?: DepPath): DepPath[] {
   return Object.entries(deps)
+    .filter(([alias]) => parent == null || !isPeerSatisfactionEdge(peerSatisfactionEdges, parent, alias))
     .map(([alias, ref]) => dp.refToRelative(ref, alias))
     .filter((depPath) => depPath !== null) as DepPath[]
 }

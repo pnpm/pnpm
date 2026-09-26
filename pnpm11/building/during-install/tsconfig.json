@@ -10,7 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../../pnpr/client"
+    },
+    {
       "path": "../../bins/linker"
+    },
+    {
+      "path": "../../config/package-is-installable"
     },
     {
       "path": "../../config/reader"
@@ -31,16 +37,19 @@
       "path": "../../deps/graph-hasher"
     },
     {
-      "path": "../../deps/graph-sequencer"
-    },
-    {
       "path": "../../deps/path"
     },
     {
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../fs/hard-link-dir"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../patching/apply-patch"
@@ -56,6 +65,12 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../pkg-requires-build"
     }
   ]
 }

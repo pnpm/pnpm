@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -28,6 +29,18 @@ describe('cafs', () => {
     expect(pkgFile!.mode).toBe(420)
     expect(typeof pkgFile!.checkedAt).toBe('number')
     expect(pkgFile!.digest).toBe('f310afae50bb5b74e5c17c5eb6fe426538b9deccd88664fbb66a5717fb6d36d86d4d1f530bb63b58914f9894e81da490e2e39bb99c8e01174e258358b9349b5c')
+  })
+
+  it('unpack bzip2 tarball', () => {
+    const dest = temporaryDirectory()
+    const cafs = createCafs(dest)
+    const { filesIndex, manifest } = cafs.addFilesFromTarball(
+      fs.readFileSync(path.join(import.meta.dirname, 'fixtures/package.tar.bz2')),
+      true
+    )
+    expect(Array.from(filesIndex.keys()).sort()).toStrictEqual(['index.js', 'package.json'])
+    expect(manifest?.name).toBe('test-bzip2-pkg')
+    expect(manifest?.version).toBe('1.2.3')
   })
 
   it('addFilesFromTarball honors a per-call ignore predicate', () => {
@@ -68,7 +81,8 @@ describe('cafs', () => {
 
   it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = temporaryDirectory()
-    const srcDir = path.join(import.meta.dirname, 'fixtures/broken-symlink')
+    const srcDir = f.prepare('broken-symlink')
+    fs.symlinkSync('../dangling', path.join(srcDir, 'dangling'))
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()
@@ -185,6 +199,62 @@ describe('checkPkgFilesIntegrity()', () => {
       ]),
     }).passed).toBeFalsy()
   })
+
+  it('leaves a mismatched file in place for the re-fetch to replace atomically', () => {
+    const storeDir = temporaryDirectory()
+    const actual = Buffer.from('actual bytes!!!')
+    const claimedDigest = crypto.createHash('sha512').update('claimed content').digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, claimedDigest, 420)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, actual)
+    expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest: claimedDigest, mode: 420, size: actual.length }],
+      ]),
+    }).passed).toBeFalsy()
+    // A concurrent install sharing the store may be importing from this
+    // path right now; the re-fetch replaces it via temp+rename instead.
+    expect(fs.existsSync(filename)).toBeTruthy()
+  })
+
+  // Windows ignores the 0o000 mode, and root reads through it, so the open
+  // cannot be made to fail in either case.
+  const itOnPosix = process.platform === 'win32' || process.getuid?.() === 0 ? it.skip : it
+  itOnPosix('leaves an unreadable file in place', () => {
+    const storeDir = temporaryDirectory()
+    const content = Buffer.from('guarded content')
+    const digest = crypto.createHash('sha512').update(content).digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, digest, 420)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, content)
+    fs.chmodSync(filename, 0)
+    // A non-ENOENT read failure surfaces as an error (graceful-fs already
+    // absorbs transient EMFILE pressure); what matters here is that the
+    // blob is not deleted on the way out.
+    expect(() => checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest, mode: 420, size: content.length }],
+      ]),
+    })).toThrow()
+    fs.chmodSync(filename, 0o644)
+    expect(fs.existsSync(filename)).toBeTruthy()
+  })
+
+  it('removes a directory squatting at a blob path so the re-fetch can land', () => {
+    const storeDir = temporaryDirectory()
+    const claimedDigest = crypto.createHash('sha512').update('some content').digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, claimedDigest, 420)
+    fs.mkdirSync(filename, { recursive: true })
+    expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest: claimedDigest, mode: 420, size: 1_000_000 }],
+      ]),
+    }).passed).toBeFalsy()
+    expect(fs.existsSync(filename)).toBeFalsy()
+  })
 })
 
 test('file names are normalized when unpacking a tarball', () => {
@@ -251,7 +321,7 @@ test('unpack a tarball that contains hard links', () => {
 // A malicious tarball entry like "foo\..\..\..\.npmrc" should have its path normalized
 test('path traversal with backslashes is blocked (Windows security fix)', () => {
   // Create a minimal valid tarball with a malicious filename
-  const tarBuffer = createTarballWithEntry('foo\\..\\..\\..\\malicious.txt', 'evil content')
+  const tarBuffer = createTarballWithEntry('package/foo\\..\\..\\..\\malicious.txt', 'evil content')
 
   const result = parseTarball(tarBuffer)
   const fileNames = Array.from(result.files.keys())
@@ -263,16 +333,21 @@ test('path traversal with backslashes is blocked (Windows security fix)', () => 
   }
 })
 
+test('only one segment is stripped from a dot-prefixed tarball entry', () => {
+  const result = parseTarball(createTarballWithEntry('./package/package.json', '{}'))
+
+  expect(Array.from(result.files.keys())).toStrictEqual(['package/package.json'])
+})
+
 // Helper to create a minimal tarball buffer with a single entry
-function createTarballWithEntry (fileName: string, content: string): Buffer {
+function createTarballWithEntry (entryPath: string, content: string): Buffer {
   const contentBytes = Buffer.from(content, 'utf8')
 
   // Create a 512-byte header
   const header = Buffer.alloc(512, 0)
 
   // File name at offset 0 (max 100 chars)
-  const nameToWrite = `package/${fileName}`
-  header.write(nameToWrite, 0, Math.min(nameToWrite.length, 100), 'utf8')
+  header.write(entryPath, 0, Math.min(entryPath.length, 100), 'utf8')
 
   // File mode at offset 100 (octal, 8 bytes) - 0644
   header.write('0000644\0', 100, 8, 'utf8')

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
@@ -5,7 +6,7 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
@@ -86,6 +87,41 @@ The fixed vulnerabilities are:
     }
   })
 
+  test('patched versions older than the minimumReleaseAge cutoff are fixed without minimumReleaseAgeExclude entries', async () => {
+    const tmp = f.prepare('update-single-depth-2')
+
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+      // Every version on the mock registry was published in 2022, so the
+      // patched version is way older than the cutoff and needs no bypass.
+      minimumReleaseAge: 60 * 24,
+    })
+
+    expect(exitCode).toBe(0)
+    expect(output).toContain(`${chalk.green(1)} vulnerability was fixed`)
+    expect(output).not.toContain('minimumReleaseAgeExclude')
+
+    // No entries were needed, so no settings file is created.
+    expect(fs.existsSync(join(tmp, 'pnpm-workspace.yaml'))).toBe(false)
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(Object.keys(lockfile!.packages!)).toContain(expectedPkgId)
+  })
+
   test('top-level pinned vulnerability is fixed by updating the vulnerable package', async () => {
     const tmp = f.prepare('update-single-pinned')
 
@@ -158,6 +194,59 @@ The fixed vulnerabilities are:
       if (pkgId === originalPkgId) continue
       expect(packagesArray).toContain(pkgId)
     }
+  })
+
+  test('top-level pinned npm-aliased vulnerability is fixed by updating the vulnerable package', async () => {
+    const tmp = f.prepare('update-single-aliased-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const { manifest: originalManifest } = await readProjectManifest(tmp)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.\n\nThe fixed vulnerabilities are:\n- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}\n`)
+    expect(exitCode).toBe(0)
+
+    const { manifest } = await readProjectManifest(tmp)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    expect(lockfile!.importers['.' as ProjectId]?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
   })
 
   test('depth 2 vulnerability is fixed by updating the vulnerable package', async () => {
@@ -717,6 +806,73 @@ The fixed vulnerabilities are:
     // The vulnerable dependency should be updated
     expect(packagesArray).not.toContain(originalPkgId)
     expect(packagesArray).toContain(expectedPkgId)
+  })
+
+  test('top-level pinned npm-aliased workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
+    const tmp = f.prepare('update-workspace-catalog-aliased')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const subPkgDir = join(tmp, 'packages', 'sub-pkg-aliased')
+
+    const { manifest: originalManifest } = await readProjectManifest(subPkgDir)
+    expect(originalManifest.dependencies?.['aliased-pkg']).toBe('catalog:')
+
+    const originalWorkspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(originalWorkspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+
+    getMockAgent().get(MOCK_REGISTRY)
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, mockResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+
+    const { exitCode } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      catalogs: {
+        default: { 'aliased-pkg': 'npm:@pnpm.e2e/pkg-with-1-dep@100.0.0' },
+      },
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+
+    const { manifest } = await readProjectManifest(subPkgDir)
+    expect(manifest.dependencies?.['aliased-pkg']).toBe('catalog:')
+
+    const workspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+    expect(lockfile!.importers['packages/sub-pkg-aliased' as ProjectId]?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
   })
 
   test('top-level workspace catalog vulnerability is fixed by updating the catalog entry', async () => {

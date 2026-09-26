@@ -1,10 +1,44 @@
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use std::time::Duration;
 
 use super::{
     ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
-    FetchFullMetadataOutcome, fetch_full_metadata,
+    FetchFullMetadataOutcome, fetch_full_metadata, warn_if_request_is_slow,
 };
+
+#[test]
+fn warns_when_metadata_request_exceeds_configured_timeout() {
+    static WARNINGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record_warning(message: &str) {
+        WARNINGS
+            .lock()
+            .expect("warning recorder lock poisoned")
+            .push(message.to_string());
+    }
+
+    let http_client = ThrottledClient::default();
+    http_client.set_warning_handler(record_warning);
+    WARNINGS
+        .lock()
+        .expect("warning recorder lock poisoned")
+        .clear();
+
+    warn_if_request_is_slow(
+        &http_client,
+        Duration::from_millis(10_001),
+        "https://user:pass@registry.example.test/pkg?token=secret#fragment\u{1b}",
+    );
+    warn_if_request_is_slow(
+        &http_client,
+        Duration::from_secs(10),
+        "https://registry.example.test/not-slow",
+    );
+
+    assert_eq!(
+        *WARNINGS.lock().expect("warning recorder lock poisoned"),
+        ["Request took 10001ms: https://registry.example.test/pkg"],
+    );
+}
 
 /// The two constants repeat the media type as separate literals (Rust
 /// cannot build one string const from another without a macro), so
@@ -18,7 +52,7 @@ fn accept_header_offers_the_detected_abbreviated_media_type() {
 /// Unwrap a [`FetchFullMetadataOutcome::Modified`], panicking on
 /// `NotModified`. Used by the success-path tests below where the
 /// mock always responds 200.
-fn expect_modified(outcome: FetchFullMetadataOutcome) -> pacquet_registry::Package {
+fn expect_modified(outcome: FetchFullMetadataOutcome) -> pnpm_registry::Package {
     match outcome {
         FetchFullMetadataOutcome::Modified(pkg) => *pkg,
         FetchFullMetadataOutcome::NotModified => {
@@ -81,17 +115,19 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::from_creds_map([(
-        pacquet_network::nerf_dart(&registry),
+        pnpm_network::nerf_dart(&registry),
         "Bearer top-secret".to_owned(),
     )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg =
@@ -99,8 +135,18 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     assert_eq!(pkg.name, "acme");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     let version = pkg.versions.get("1.0.0").expect("version present");
-    assert!(version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some());
-    assert!(version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some());
+    assert!(
+        version.npm_user
+            .as_ref()
+            .and_then(|user| user.trusted_publisher.as_ref())
+            .is_some(),
+    );
+    assert!(
+        version.dist.attestations
+            .as_ref()
+            .and_then(|att| att.provenance.as_ref())
+            .is_some(),
+    );
     mock.assert_async().await;
 }
 
@@ -135,17 +181,19 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::from_creds_map([(
-        format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+        format!("{}@scope", pnpm_network::nerf_dart(&registry)),
         "Bearer scoped-token".to_owned(),
     )]);
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: false,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(
@@ -158,19 +206,26 @@ async fn fetch_full_metadata_uses_package_scope_auth() {
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
 
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -186,7 +241,12 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
 #[tokio::test]
 async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
 
     // Registry configured with inline basic-auth in the URL: the surfaced
     // error (Display *and* Debug, which reach the terminal and CI logs) must
@@ -196,12 +256,14 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
@@ -215,7 +277,12 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
 #[tokio::test]
 async fn fetch_full_metadata_retries_transient_status() {
     let mut server = mockito::Server::new_async().await;
-    let first = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let body = r#"{
         "name": "acme",
         "dist-tags": { "latest": "1.0.0" },
@@ -245,12 +312,14 @@ async fn fetch_full_metadata_retries_transient_status() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("503 retries"));
@@ -279,12 +348,14 @@ async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: Some("2025-01-15T12:00:00.000Z"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let outcome = fetch_full_metadata("acme", &opts).await.expect("server returns 304");
@@ -331,12 +402,14 @@ async fn fetch_full_metadata_drops_unparsable_modified_value() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: Some("not-a-date"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg =
@@ -393,12 +466,14 @@ async fn fetch_full_metadata_surfaces_body_read_failure_distinctly() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("undecodable body must surface");
@@ -442,12 +517,14 @@ async fn fetch_full_metadata_retries_body_read_failure() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("body read retries"));
@@ -489,12 +566,14 @@ async fn fetch_full_metadata_encodes_scoped_name() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = expect_modified(
@@ -520,12 +599,14 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: None,
         modified: None,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("malformed JSON must surface");
@@ -553,12 +634,14 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         full_metadata: true,
         etag: Some(r#"W/"fresh""#),
         modified: Some("Wed, 15 Jan 2025 12:00:00 GMT"),
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let outcome = fetch_full_metadata("acme", &opts).await.expect("304 must succeed");
@@ -567,4 +650,83 @@ async fn fetch_full_metadata_returns_not_modified_on_304() {
         "expected NotModified, got: {outcome:?}",
     );
     mock.assert_async().await;
+}
+
+/// A registry that accepts each connection, reads the request, writes
+/// `response` (possibly nothing, or a head promising more body than it
+/// sends), and then holds the socket open without sending another byte.
+async fn start_stalled_registry(response: &'static [u8]) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let address = listener.local_addr().expect("local address");
+    tokio::spawn(async move {
+        let mut sockets = Vec::new();
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let mut request = [0u8; 4096];
+            let _ = socket.read(&mut request).await;
+            let _ = socket.write_all(response).await;
+            sockets.push(socket);
+        }
+    });
+    format!("http://{address}/")
+}
+
+/// Mirrors the production client's inactivity timeout (`fetchTimeout`
+/// drives `read_timeout`), shortened so the test stalls for milliseconds.
+fn short_read_timeout_client() -> ThrottledClient {
+    let build = |redirect| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .read_timeout(Duration::from_millis(200))
+            .redirect(redirect)
+            .build()
+            .expect("build reqwest client")
+    };
+    ThrottledClient::from_clients(
+        build(reqwest::redirect::Policy::limited(10)),
+        build(reqwest::redirect::Policy::none()),
+    )
+}
+
+async fn fetch_from_stalled_registry(response: &'static [u8]) -> super::FetchMetadataError {
+    let registry = start_stalled_registry(response).await;
+    let http_client = short_read_timeout_client();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
+    };
+    fetch_full_metadata("acme", &opts).await.expect_err("a stalled registry must fail")
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_reports_timeout_when_registry_never_responds() {
+    let err = fetch_from_stalled_registry(b"").await;
+    assert!(
+        matches!(err, super::FetchMetadataError::Network { .. }),
+        "expected Network variant, got: {err:?}",
+    );
+    let rendered = err.to_string();
+    assert!(rendered.contains("timed out"), "timeout must be named, got: {rendered:?}");
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_reports_timeout_when_body_stalls() {
+    let err = fetch_from_stalled_registry(
+        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 1000\r\n\r\n{\"name\":",
+    )
+    .await;
+    assert!(
+        matches!(err, super::FetchMetadataError::BodyRead { .. }),
+        "expected BodyRead variant, got: {err:?}",
+    );
+    let rendered = err.to_string();
+    assert!(rendered.contains("timed out"), "timeout must be named, got: {rendered:?}");
 }

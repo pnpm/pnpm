@@ -1,0 +1,23 @@
+[package]
+name = "pnpm-cargo-equivalence"
+version = "0.0.0"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cargo-equivalence"
+path = "src/main.rs"
+
+[dependencies]
+cargo-lock = { workspace = true }
+clap = { workspace = true }
+which = { workspace = true }
+
+[lints]
+workspace = true

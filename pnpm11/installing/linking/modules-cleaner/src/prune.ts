@@ -49,6 +49,7 @@ export async function prune (
     currentLockfile: LockfileObject
     pruneStore?: boolean
     pruneVirtualStore?: boolean
+    resolvePeersFromWorkspaceRoot?: boolean
     skipped: Set<DepPath>
     skipRuntimes?: boolean
     virtualStoreDir: string
@@ -59,6 +60,7 @@ export async function prune (
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
     skipRuntimes: opts.skipRuntimes,
   })
@@ -131,7 +133,7 @@ export async function prune (
   // Otherwise, we would break the node_modules.
   const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
     ? getPkgsDepPaths(opts.currentLockfile.packages ?? {}, opts.skipped)
-    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts.include, opts.skipped)
+    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(wantedLockfile.packages ?? {}, opts.skipped)
 
   const orphanDepPaths = (Object.keys(currentPkgIdsByDepPaths) as DepPath[]).filter((path: DepPath) => !wantedPkgIdsByDepPaths[path])
@@ -203,7 +205,10 @@ function getScopeFromPackageName (pkgName: string): string | undefined {
 
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string): Promise<string[]> {
   try {
-    return await fs.readdir(virtualStoreDir)
+    const entries = await fs.readdir(virtualStoreDir, { withFileTypes: true })
+    return entries
+      .filter(entry => !entry.isFile() || !isLockfileName(entry.name))
+      .map(entry => entry.name)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       logger.warn({
@@ -214,6 +219,11 @@ async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string
     }
     return []
   }
+}
+
+function isLockfileName (name: string): boolean {
+  return name === 'lock.yaml' || name.startsWith('lock.yaml.') ||
+    (name.startsWith('.lock.yaml.') && name.endsWith('.tmp'))
 }
 
 async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDir: string): Promise<void> {
@@ -251,28 +261,27 @@ function getPkgsDepPaths (
 function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: ProjectId[],
   lockfile: LockfileObject,
-  include: { [dependenciesField in DependenciesField]: boolean },
-  skipped: Set<DepPath>
+  opts: {
+    include: { [dependenciesField in DependenciesField]: boolean }
+    resolvePeersFromWorkspaceRoot?: boolean
+    skipped: Set<DepPath>
+  }
 ): Record<string, string> {
-  const selected = filterLockfileByImporters(lockfile,
-    importerIds,
-    {
-      failOnMissingDependencies: false,
-      include,
-      skipped,
-    })
+  const filterOpts = {
+    failOnMissingDependencies: false,
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    skipped: opts.skipped,
+  }
+  const selected = filterLockfileByImporters(lockfile, importerIds, filterOpts)
   const other = filterLockfileByImporters(lockfile,
     difference(Object.keys(lockfile.importers) as ProjectId[], importerIds),
-    {
-      failOnMissingDependencies: false,
-      include,
-      skipped,
-    })
+    filterOpts)
   const packagesOfSelectedOnly = pickAll(
     difference(Object.keys(selected.packages!), Object.keys(other.packages!)),
     selected.packages!
   ) as PackageSnapshots
-  return getPkgsDepPaths(packagesOfSelectedOnly, skipped)
+  return getPkgsDepPaths(packagesOfSelectedOnly, opts.skipped)
 }
 
 function getPubliclyHoistedDependencies (hoistedDependencies: HoistedDependencies): Set<string> {

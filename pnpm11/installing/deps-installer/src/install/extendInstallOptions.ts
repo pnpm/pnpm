@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
+import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -11,30 +11,22 @@ import type { ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PackageVulnerabilityAudit,
-  PeerDependencyRules,
-  ReadPackageHook,
-  Registries,
-  RegistryConfig,
-  SupportedArchitectures,
-  TrustPolicy,
-} from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyIssues, PeerDependencyRules, ProjectManifest, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
 
-export interface StrictInstallOptions {
+export interface StrictInstallOptions extends RegistryContext {
   autoConfirmAllPrompts: boolean
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
-  cleanupUnusedCatalogs: boolean
+  catalogPrune: boolean
+  deploy?: boolean
+  minimumReleaseAgeExcludePrune: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   frozenStore: boolean
@@ -85,8 +77,11 @@ export interface StrictInstallOptions {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  forceIgnoresPlatform: boolean
   depth: number
   lockfileDir: string
+  workspaceDir?: string
   modulesDir: string
   configByUri: Record<string, RegistryConfig>
   verifyStoreIntegrity: boolean
@@ -96,6 +91,7 @@ export interface StrictInstallOptions {
   nodeExperimentalPackageMap: boolean
   nodePackageMapType: 'standard' | 'loose'
   nodeVersion?: string
+  nodeVersionFromEnginesRuntime?: boolean
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
   pnpmfile: string[] | string
@@ -112,6 +108,7 @@ export interface StrictInstallOptions {
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
+    untrackedPnpmfileReadPackageHook?: boolean
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -123,8 +120,6 @@ export interface StrictInstallOptions {
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
-  registries: Registries
-  namedRegistries?: Record<string, string>
   tag: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
@@ -159,6 +154,7 @@ export interface StrictInstallOptions {
   patchedDependencies?: Record<string, string>
 
   allProjects: ProjectOptions[]
+  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
@@ -269,7 +265,7 @@ export interface StrictInstallOptions {
    */
   runPacquet?: {
     supportsResolution: boolean
-    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>
   }
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
@@ -279,10 +275,37 @@ export interface StrictInstallOptions {
    */
   omitSummaryLog: boolean
   /**
+   * A materialization pass runs straight after this one and links into the
+   * same `node_modules`. It owns the reporter's `importing_done`, because the
+   * default reporter completes a prefix's progress stream on the first one and
+   * the real fetch and import counts would render to a closed stream. It also
+   * lets this pass move aside a `node_modules` entry another package manager
+   * installed, clearing the path the next pass links into.
+   *
+   * False for a standalone `--lockfile-only` or `--dry-run` run: no pass
+   * follows, so it emits its own completion, imports no package, and relocates
+   * no such entry.
+   */
+  materializeAfterResolution: boolean
+  /**
    * URL of a pnpr server that resolves dependencies server-side and serves
    * only the files missing from the client's store.
    */
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  beforeLifecycleScripts?: (result: BeforeLifecycleScriptsResult) => Promise<void>
+}
+
+export interface BeforeLifecycleScriptsResult {
+  updatedProjects: Array<{
+    originalManifest?: ProjectManifest
+    manifest: ProjectManifest
+    peerDependencyIssues?: PeerDependencyIssues
+    rootDir: ProjectRootDir
+  }>
+  updatedCatalogs?: Catalogs
+  newLockfile?: LockfileObject
+  resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 
 export type InstallOptions =
@@ -305,10 +328,12 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
     depth: 0,
     dedupeInjectedDeps: true,
+    deploy: opts.deploy ?? false,
     enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,
     force: false,
+    forceIgnoresPlatform: true,
     forceFullResolution: false,
     frozenLockfile: false,
     frozenStore: false,
@@ -328,6 +353,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       optionalDependencies: true,
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    workspaceDir: opts.workspaceDir,
     lockfileOnly: false,
     updateChecksums: false,
     nodeVersion: opts.nodeVersion,
@@ -348,7 +374,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     pruneLockfileImporters: false,
     pruneStore: false,
     configByUri: {},
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     scriptsPrependNodePath: false,
@@ -366,7 +392,8 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
-    cleanupUnusedCatalogs: false,
+    catalogPrune: false,
+    minimumReleaseAgeExcludePrune: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
@@ -390,12 +417,19 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     peersSuffixMaxLength: 1000,
     blockExoticSubdeps: false,
     omitSummaryLog: false,
+    materializeAfterResolution: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
   } as StrictInstallOptions
 }
 
 export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
+  /**
+   * Version preferences layered on top of the seed resolution takes from the lockfile, by
+   * package name. Callers pass them in (an audit fix penalizing vulnerable versions), and
+   * `mutateModules` adds its own for a catalog entry it moves.
+   */
+  preferredVersions?: PreferredVersions
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The
@@ -426,15 +460,7 @@ export function extendOptions (
   if (extendedOpts.parsedOverrides.some(({ converge }) => converge)) {
     extendedOpts.convergeDeclaredRanges = new Map()
   }
-  extendedOpts.readPackageHook = createReadPackageHook({
-    ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
-    readPackageHook: extendedOpts.hooks?.readPackage,
-    overrides: extendedOpts.parsedOverrides,
-    convergeDeclaredRanges: extendedOpts.convergeDeclaredRanges,
-    lockfileDir: extendedOpts.lockfileDir,
-    packageExtensions: extendedOpts.packageExtensions,
-    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
-  })
+  extendedOpts.readPackageHook = createInstallReadPackageHook(extendedOpts, extendedOpts.parsedOverrides)
   if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir && !extendedOpts.enableGlobalVirtualStore) {
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
@@ -487,7 +513,7 @@ export function extendOptions (
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
-  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   if (extendedOpts.enableGlobalVirtualStore) {
     if (extendedOpts.virtualStoreDir == null) {
       extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
@@ -498,4 +524,19 @@ export function extendOptions (
     ? extendedOpts.virtualStoreDir!
     : path.join(extendedOpts.storeDir, 'links')
   return extendedOpts
+}
+
+export function createInstallReadPackageHook (
+  opts: Pick<ProcessedInstallOptions, 'convergeDeclaredRanges' | 'hooks' | 'ignoreCompatibilityDb' | 'ignoredOptionalDependencies' | 'lockfileDir' | 'packageExtensions'>,
+  parsedOverrides: VersionOverride[]
+): ReadPackageHook | undefined {
+  return createReadPackageHook({
+    ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
+    readPackageHook: opts.hooks?.readPackage,
+    overrides: parsedOverrides,
+    convergeDeclaredRanges: opts.convergeDeclaredRanges,
+    lockfileDir: opts.lockfileDir,
+    packageExtensions: opts.packageExtensions,
+    ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
+  })
 }

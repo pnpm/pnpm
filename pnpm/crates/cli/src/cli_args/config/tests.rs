@@ -5,7 +5,7 @@
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
 use indexmap::IndexMap;
-use pacquet_config::Config;
+use pnpm_config::{Config, Host};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -24,7 +24,12 @@ fn read_yaml(path: &Path) -> Option<Value> {
 }
 
 fn read_ini(path: &Path) -> IndexMap<String, String> {
-    ini::read(path).expect("read ini")
+    let doc = ini::read(path).expect("read ini");
+    let mut map = IndexMap::new();
+    for (key, value) in doc.entries() {
+        map.insert(key.to_string(), value.to_string());
+    }
+    map
 }
 
 // --- config set: INI routing -----------------------------------------------
@@ -81,7 +86,11 @@ fn set_scoped_registry_project_creates_npmrc() {
         read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -141,19 +150,67 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
     )
     .unwrap();
 
-    let named_registries = json!({ "work": "https://work.example.com/" });
+    let registries_by_prefix = json!({ "work": "https://work.example.com/" });
     config_set(
         &config,
         tmp.path(),
         flags(true, None, true),
         "named-registries",
-        Some(named_registries.to_string()),
+        Some(registries_by_prefix.to_string()),
     )
     .unwrap();
 
     assert_eq!(
         read_yaml(&config_dir.join("config.yaml")).unwrap(),
-        json!({ "registries": registries, "namedRegistries": named_registries }),
+        json!({ "registries": registries, "namedRegistries": registries_by_prefix }),
+    );
+}
+
+#[test]
+fn set_macos_backup_requires_a_json_object() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "macos-backup",
+        Some("false".into()),
+    )
+    .unwrap_err();
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+    assert!(!config_dir.join("config.yaml").exists());
+
+    for value in [
+        r#"{"excludeModulesDir":"invalid"}"#,
+        r#"{"excludeStoreDir":"invalid"}"#,
+        r#"{"excludeStoreDirectory":false}"#,
+    ] {
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            "macos-backup",
+            Some(value.into()),
+        )
+        .unwrap_err();
+        assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+        assert!(!config_dir.join("config.yaml").exists());
+    }
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "macos-backup",
+        Some(r#"{"excludeModulesDir":false,"excludeStoreDir":true}"#.into()),
+    )
+    .unwrap();
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "macosBackup": { "excludeModulesDir": false, "excludeStoreDir": true } }),
     );
 }
 
@@ -194,6 +251,62 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
         read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
         json!({ "virtualStoreDir": ".pnpm" }),
     );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_pnpm_key_project_from_sub_package_writes_workspace_root_yaml() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "virtual-store-dir",
+        Some(".pnpm".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        json!({ "packages": ["packages/*"], "virtualStoreDir": ".pnpm" }),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_ini_key_project_from_sub_package_keeps_npmrc_in_current_dir() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://npm-registry.example.com/".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_ini(&sub_package_dir.join(".npmrc")).get("registry").map(String::as_str),
+        Some("https://npm-registry.example.com/"),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
 }
 
 #[test]
@@ -390,7 +503,11 @@ fn delete_last_yaml_key_removes_file() {
         Some(".pnpm".into()),
     )
     .unwrap();
-    assert!(tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 
     config_set(
         &config,
@@ -400,7 +517,11 @@ fn delete_last_yaml_key_removes_file() {
         None,
     )
     .unwrap();
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -433,6 +554,189 @@ fn delete_auth_key_set_and_unset() {
 }
 
 #[test]
+fn set_unrelated_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://registry.example.com/".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(text.contains("registry=https://registry.example.com/"));
+    assert!(!text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), Some("https://registry.example.com/"));
+}
+
+#[test]
+fn delete_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        None,
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(!text.contains("registry="));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), None);
+}
+
+#[test]
+fn delete_repeated_key_removes_all_occurrences_and_preserves_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(&config, tmp.path(), flags(false, Some(ConfigLocation::Project), false), "ca", None)
+        .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(!text.contains("ca="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), Vec::<&str>::new());
+    assert_eq!(doc.get("registry"), Some("https://registry.npmjs.org/"));
+}
+
+#[test]
+fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial =
+        "# Corporate CA certificates\nca=old-cert\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-1", "cert-2"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=cert-1"));
+    assert!(text.contains("ca=cert-2"));
+    assert!(!text.contains("ca=old-cert"));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-1", "cert-2"]);
+
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["cert-1", "cert-2"]);
+}
+
+#[test]
+fn set_ca_array_json_appends_unbracketed_ca_to_file_without_existing_ca() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-x", "cert-y"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Registry config"));
+    assert!(text.contains("ca=cert-x"));
+    assert!(text.contains("ca=cert-y"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-x", "cert-y"]);
+
+    // Verify runtime config reader consumes the repeated ca= entries into tls.ca
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["cert-x", "cert-y"]);
+}
+
+#[test]
+fn set_ca_replaces_existing_bracketed_ca_lines() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca[]=certificate-A\nca[]=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "ca",
+        Some("certificate-C".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=certificate-C"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-C"]);
+
+    let runtime_config =
+        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    assert_eq!(runtime_config.tls.ca, vec!["certificate-C"]);
+}
+
+#[test]
 fn delete_missing_params_errors() {
     // No key → NoParams. Exercised through the param-splitting shape the
     // dispatch uses.
@@ -459,6 +763,29 @@ fn get_scalar_string_and_camel() {
     let config = config_for_get(&[("storeDir", json!("~/store"))], &[]);
     assert_eq!(config_get(&config, flags(true, None, false), "store-dir").unwrap(), "~/store");
     assert_eq!(config_get(&config, flags(true, None, false), "storeDir").unwrap(), "~/store");
+}
+
+/// Both spellings of the virtual store's type are `types` keys, so `get`
+/// answers either from the explicit-settings record instead of falling
+/// through to the config record, which carries neither name.
+#[test]
+fn get_virtual_store_type_and_its_boolean_spelling() {
+    let config = config_for_get(
+        &[("virtualStoreType", json!("global")), ("enableGlobalVirtualStore", json!(true))],
+        &[],
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtual-store-type").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "virtualStoreType").unwrap(),
+        "global",
+    );
+    assert_eq!(
+        config_get(&config, flags(true, None, false), "enable-global-virtual-store").unwrap(),
+        "true",
+    );
 }
 
 #[test]
@@ -516,9 +843,10 @@ fn get_scoped_registry_from_auth_and_merged() {
 
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
     let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
-    merged
-        .registries
-        .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
+    merged.registries_by_scope.insert(
+        "@scope".to_string(),
+        "https://from-workspace-yaml.example.com/".to_string(),
+    );
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),
         "https://from-workspace-yaml.example.com/",
@@ -529,6 +857,187 @@ fn get_scoped_registry_from_auth_and_merged() {
         config_get(&absent, flags(false, None, false), "@scope:registry").unwrap(),
         "undefined",
     );
+}
+
+/// `registry` and `@jsr:registry` answer the merged routes — the built-in
+/// defaults when nothing routes them elsewhere — rather than `undefined`.
+#[test]
+fn get_registry_and_jsr_answer_the_merged_routes() {
+    let config = config_for_get(&[], &[]);
+    assert_eq!(
+        config_get(&config, flags(false, None, false), "registry").unwrap(),
+        "https://registry.npmjs.org/",
+    );
+    assert_eq!(
+        config_get(&config, flags(false, None, false), "@jsr:registry").unwrap(),
+        "https://npm.jsr.io/",
+    );
+
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
+    assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
+
+    // The resolved default — wherever it was routed from — wins over a raw
+    // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
+    // view.
+    let mut routed = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
+    routed.registry = "https://from-workspace-yaml.example.com/".to_string();
+    assert_eq!(
+        config_get(&routed, flags(false, None, false), "registry").unwrap(),
+        "https://from-workspace-yaml.example.com/",
+    );
+    let listed: Value = serde_json::from_str(&config_list(&routed)).unwrap();
+    assert_eq!(listed["registry"], json!("https://from-workspace-yaml.example.com/"));
+}
+
+#[test]
+fn get_registries_returns_resolved_declarations() {
+    let mut config = config_for_get(&[], &[]);
+    config.registry = "https://registry.example.com/".to_string();
+    config.registries_by_scope.insert("@corp".to_string(), "https://work.example.com/".to_string());
+    config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
+    config.registry_options_by_url.insert(
+        "https://work.example.com/".to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Artifactory),
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "registries").unwrap()
+        )
+        .unwrap(),
+        json!({
+            "https://npm.jsr.io/": { "scopes": ["@jsr"] },
+            "https://npm.pkg.github.com/": { "prefix": "gh" },
+            "https://registry.example.com/": { "scopes": ["@"] },
+            "https://registry.npmjs.org/": { "prefix": "npmjs" },
+            "https://work.example.com/": {
+                "serverType": "artifactory",
+                "scopes": ["@corp"],
+                "prefix": "work",
+            },
+        }),
+    );
+
+    // The npm-compat rows agree with the resolved view.
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["registry"], json!("https://registry.example.com/"));
+    assert_eq!(listed["@corp:registry"], json!("https://work.example.com/"));
+}
+
+/// The record shows the resolved registries view in place of the raw
+/// `registries` / `namedRegistries` values a source set.
+#[test]
+fn list_rejoins_registry_lookups_under_registries() {
+    let mut config = config_for_get(
+        &[
+            ("registries", json!({ "default": "https://registry.example.com/" })),
+            ("namedRegistries", json!({ "work": "https://work.example.com/" })),
+        ],
+        &[],
+    );
+    config.registry = "https://registry.example.com/".to_string();
+    config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(
+        listed["registries"],
+        json!({
+            "https://npm.jsr.io/": { "scopes": ["@jsr"] },
+            "https://npm.pkg.github.com/": { "prefix": "gh" },
+            "https://registry.example.com/": { "scopes": ["@"] },
+            "https://registry.npmjs.org/": { "prefix": "npmjs" },
+            "https://work.example.com/": { "prefix": "work" },
+        }),
+    );
+    assert_eq!(listed.get("namedRegistries"), None);
+}
+
+#[test]
+fn get_update_and_audit_return_resolved_settings() {
+    let mut config = config_for_get(
+        &[
+            ("update", json!({ "ignoreDeps": ["webpack"], "changeset": true })),
+            ("updateConfig", json!({ "ignoreDependencies": ["webpack"] })),
+            ("auditConfig", json!({ "ignoreGhsas": ["GHSA-xxxx-yyyy-zzzz"] })),
+            ("auditLevel", json!("high")),
+        ],
+        &[],
+    );
+    config.update_config.ignore_dependencies = Some(vec!["webpack".to_string()]);
+    config.update_config.changeset = Some(true);
+    config.audit_level = Some(pnpm_config::AuditLevel::High);
+    config.audit_config.ignore_ghsas = vec!["GHSA-xxxx-yyyy-zzzz".to_string()];
+
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "update").unwrap()
+        )
+        .unwrap(),
+        json!({ "ignoreDeps": ["webpack"], "changeset": true }),
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "audit").unwrap()
+        )
+        .unwrap(),
+        json!({ "level": "high", "ignore": ["GHSA-xxxx-yyyy-zzzz"] }),
+    );
+
+    // The deprecated internal spellings are no longer part of the record;
+    // `audit-level` still answers because it is a `types` key.
+    for deprecated_key in ["updateConfig", "auditConfig"] {
+        assert_eq!(
+            config_get(&config, flags(false, None, false), deprecated_key).unwrap(),
+            "undefined",
+            "{deprecated_key}",
+        );
+    }
+    assert_eq!(config_get(&config, flags(false, None, false), "audit-level").unwrap(), "high");
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed.get("auditLevel"), None);
+}
+
+#[test]
+fn list_merges_the_default_catalog_into_catalogs() {
+    let config = config_for_get(
+        &[
+            ("packages", json!(["."])),
+            ("catalog", json!({ "react": "^19.0.0" })),
+            ("catalogs", json!({ "react17": { "react": "^17.0.0" } })),
+            ("onlyBuiltDependencies", json!(["esbuild"])),
+        ],
+        &[],
+    );
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(listed["packages"], json!(["."]));
+    assert_eq!(listed["catalog"], json!({ "react": "^19.0.0" }));
+    assert_eq!(
+        listed["catalogs"],
+        json!({
+            "default": { "react": "^19.0.0" },
+            "react17": { "react": "^17.0.0" },
+        }),
+    );
+    assert_eq!(listed["onlyBuiltDependencies"], json!(["esbuild"]));
+}
+
+/// The resolved `catalogs` view answers whichever spelling declared a
+/// catalog: the singular `catalog` block alone still shows up as `default`.
+#[test]
+fn catalogs_resolve_from_the_singular_catalog_alone() {
+    let config = config_for_get(&[("catalog", json!({ "react": "^19.0.0" }))], &[]);
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            &config_get(&config, flags(false, None, false), "catalogs").unwrap()
+        )
+        .unwrap(),
+        json!({ "default": { "react": "^19.0.0" } }),
+    );
+
+    let empty = config_for_get(&[], &[]);
+    assert_eq!(config_get(&empty, flags(false, None, false), "catalogs").unwrap(), "undefined");
 }
 
 #[test]
@@ -642,7 +1151,11 @@ fn set_preserves_existing_npmrc_mode() {
     )
     .unwrap();
 
-    let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&npmrc)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
 }
 

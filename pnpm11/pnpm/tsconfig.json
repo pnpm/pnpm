@@ -57,6 +57,9 @@
       "path": "../config/commands"
     },
     {
+      "path": "../config/normalize-registries"
+    },
+    {
       "path": "../config/reader"
     },
     {
@@ -145,9 +148,6 @@
     },
     {
       "path": "../releasing/commands"
-    },
-    {
-      "path": "../shell/path"
     },
     {
       "path": "../store/cafs"

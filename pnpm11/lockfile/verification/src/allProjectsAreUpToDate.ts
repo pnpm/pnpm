@@ -9,6 +9,7 @@ import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
 import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
+import { catalogResolutionsAreUpToDate } from './catalogResolutionsAreUpToDate.js'
 import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
 import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
 import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
@@ -25,6 +26,7 @@ export async function allProjectsAreUpToDate (
     wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
     lockfileDir: string
+    workspaceDir?: string
   }
 ): Promise<boolean> {
   // Projects may declare dependencies using catalog protocol specifiers. If the
@@ -46,6 +48,8 @@ export async function allProjectsAreUpToDate (
     workspacePackages: opts.workspacePackages,
     lockfilePackages: opts.wantedLockfile.packages,
     lockfileDir: opts.lockfileDir,
+    workspaceDir: opts.workspaceDir,
+    injectWorkspacePackages: opts.wantedLockfile.settings?.injectWorkspacePackages,
   })
   const _localTarballDepsAreUpToDate = localTarballDepsAreUpToDate.bind(null, {
     fileIntegrityCache: new Map(),
@@ -66,7 +70,8 @@ export async function allProjectsAreUpToDate (
 
     return importer != null &&
       _satisfiesPackageManifest(importer, project.manifest).satisfies &&
+      catalogResolutionsAreUpToDate(importer, opts.wantedLockfile.catalogs) &&
       (await _localTarballDepsAreUpToDate(projectInfo)) &&
-      (_linkedPackagesAreUpToDate(projectInfo))
+      _linkedPackagesAreUpToDate(projectInfo)
   })
 }

@@ -25,7 +25,7 @@ export const commandNames = ['restart']
 
 export function help (): string {
   return renderHelp({
-    description: 'Restarts a package. Runs a package\'s "stop", "restart", and "start" scripts, and associated pre- and post- scripts.',
+    description: 'Restarts a package. Runs a package\'s "stop", "restart" (if present), and "start" scripts, and associated pre- and post- scripts.',
     descriptionLists: [
       {
         title: 'Options',
@@ -44,6 +44,6 @@ export async function handler (
   params: string[]
 ): Promise<void> {
   await run(opts, ['stop', ...params])
-  await run(opts, ['restart', ...params])
+  await run({ ...opts, ifPresent: true }, ['restart', ...params])
   await run(opts, ['start', ...params])
 }

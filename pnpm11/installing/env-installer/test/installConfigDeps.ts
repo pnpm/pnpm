@@ -48,7 +48,7 @@ test('configuration dependency is installed from env lockfile', async () => {
     '@pnpm.e2e/foo': { version: '100.0.0', integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
   })
   await installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -70,7 +70,7 @@ test('configuration dependency is installed from env lockfile', async () => {
   })
 
   await installConfigDeps(lockfile2, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -88,7 +88,7 @@ test('configuration dependency is installed from env lockfile', async () => {
   const lockfile3 = createEnvLockfile()
 
   await installConfigDeps(lockfile3, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -109,7 +109,7 @@ test('a config dependency with a path-traversal name in the env lockfile is reje
   })
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -142,7 +142,7 @@ test('an optional subdep with a path-traversal name in the env lockfile is rejec
   }
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -166,7 +166,7 @@ test('a config dependency named __proto__ in the env lockfile is rejected', asyn
   lockfile.snapshots['__proto__@1.0.0'] = {}
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -192,7 +192,7 @@ test('an optional subdep named __proto__ in the env lockfile is rejected', async
   lockfile.packages['__proto__@1.0.0'] = { resolution: { integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0') } }
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -214,7 +214,7 @@ test('an invalid config dependency name in the workspace manifest is rejected be
   }
 
   await expect(installConfigDeps(configDeps, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -236,7 +236,7 @@ test('an invalid config dependency version in the workspace manifest is rejected
   }
 
   await expect(installConfigDeps(configDeps, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -258,7 +258,7 @@ test('a config dependency with a path-traversal version in the env lockfile is r
   })
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -291,7 +291,7 @@ test('an optional subdep with a path-traversal version in the env lockfile is re
   }
 
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -326,7 +326,7 @@ test('optional subdep matching the current platform is installed and symlinked n
   }
 
   await installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -368,7 +368,7 @@ test('changing only an optional subdep version re-installs and re-symlinks the p
   }
 
   const installOpts = {
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     rootDir: process.cwd(),
     store: storeController,
     storeDir,
@@ -405,7 +405,7 @@ test('optional subdep that does not match the current platform is skipped', asyn
   }
 
   await installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -439,7 +439,7 @@ test('re-installs sibling symlinks even when the parent symlink is already corre
   }
 
   const installOpts = {
-    registries: { default: registry },
+    registriesByScope: { default: registry },
     rootDir: process.cwd(),
     store: storeController,
     storeDir,
@@ -484,7 +484,7 @@ test('optional subdep that does not match the current cpu is skipped', async () 
   }
 
   await installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -514,7 +514,7 @@ test('installation fails if the checksum of the config dependency is invalid', a
     },
   })
   await expect(installConfigDeps(lockfile, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -533,7 +533,7 @@ test('migration: installs from old inline integrity format and creates env lockf
     '@pnpm.e2e/foo': `100.0.0+${integrity}`,
   }
   await installConfigDeps(configDeps, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -566,7 +566,7 @@ test('migration fails with frozenLockfile when no env lockfile exists', async ()
     '@pnpm.e2e/foo': `100.0.0+${integrity}`,
   }
   await expect(installConfigDeps(configDeps, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),
@@ -590,7 +590,7 @@ test('installation fails if the config dependency does not have a checksum (old 
     '@pnpm.e2e/foo': '100.0.0',
   }
   await expect(installConfigDeps(configDeps, {
-    registries: {
+    registriesByScope: {
       default: registry,
     },
     rootDir: process.cwd(),

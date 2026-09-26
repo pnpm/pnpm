@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1103.1.1",
+  "version": "1104.2.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -70,6 +70,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -108,6 +109,8 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/pnpr.client": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
@@ -116,6 +119,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "hosted-git-info": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
@@ -125,7 +129,6 @@
     "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "run-groups": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {
@@ -136,6 +139,8 @@
     "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
+    "@pnpm/fs.dir-lock": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -151,6 +156,7 @@
     "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
+    "@types/hosted-git-info": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

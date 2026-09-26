@@ -1,0 +1,16 @@
+# Image overrides for `cross`. Every other release target builds in the image
+# `cross` picks by default, so only the exceptions belong here.
+#
+# The default Android images carry NDK r21, whose toolchain predates Rust's
+# move from libgcc to libunwind, so linking any binary fails with
+# `cannot find -lunwind`. The images below carry NDK r25b and link.
+#
+# Pinned by digest rather than tag: these build the published, attested release
+# binaries, and `:main` is a moving target. Re-pin deliberately, the way the
+# workflows pin their actions.
+
+[target.aarch64-linux-android]
+image = "ghcr.io/cross-rs/aarch64-linux-android@sha256:85d58ad7dd4cc97903bff4c5e861a2c980d79248bc9c842791b99f1eef2d0f3b"
+
+[target.x86_64-linux-android]
+image = "ghcr.io/cross-rs/x86_64-linux-android@sha256:e60e4a759b4f07ac5d6f7632afc728d2a6a3ad668013ec17d9627b537acf2cdc"

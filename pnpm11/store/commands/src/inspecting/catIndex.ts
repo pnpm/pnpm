@@ -37,7 +37,7 @@ export type CatIndexCommandOptions = Pick<
 | 'storeDir'
 | 'lockfileDir'
 | 'dir'
-| 'registries'
+| 'registriesByScope'
 | 'cacheDir'
 >
 

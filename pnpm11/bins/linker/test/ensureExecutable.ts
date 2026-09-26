@@ -7,12 +7,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import isWindows from 'is-windows'
 import { temporaryDirectory } from 'tempy'
 
-// `linkBins` calls `fixBin` to make a package's bin source executable. Under the
-// global virtual store that source lives inside the (potentially read-only) store,
-// so the chmod is refused with EPERM/EACCES. The linker wraps the call in
-// `ensureExecutable`, which treats an already-executable target as a no-op (the
-// chmod was redundant) but still surfaces the error for a genuinely
-// non-executable bin. These tests drive that wrapper by forcing `fixBin` to throw.
 const fixBinMock = jest.fn<(file: string, mode: number) => Promise<void>>()
 jest.unstable_mockModule('bin-links/lib/fix-bin.js', () => ({
   default: fixBinMock,
@@ -35,21 +29,20 @@ beforeEach(() => {
 // against, so the read-only-store reasoning these tests cover does not apply.
 const testOnPosix = isWindows() ? test.skip : test
 
-testOnPosix('linkBins() tolerates EPERM from fixBin when the bin source is already executable', async () => {
+testOnPosix('linkBins() skips fixBin when an executable source would reject chmod with EPERM', async () => {
   const eperm = Object.assign(new Error('EPERM: operation not permitted, chmod'), { code: 'EPERM' })
   fixBinMock.mockRejectedValue(eperm)
 
   const binTarget = temporaryDirectory()
   const fixture = f.prepare('simple-fixture')
   const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
-  // Mimic a complete seed: the bin already ships executable, so the refused chmod
-  // is redundant and must be swallowed.
+  // A complete seed already has executable bins, including on a read-only store.
   fs.chmodSync(binSource, 0o755)
 
   const warn = jest.fn()
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
 
-  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+  expect(fixBinMock).not.toHaveBeenCalled()
   expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
 })
 
@@ -68,7 +61,7 @@ testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source is not ex
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EPERM')
 })
 
-testOnPosix('linkBins() tolerates EROFS from fixBin when the bin source is already executable', async () => {
+testOnPosix('linkBins() skips fixBin when an executable source would reject chmod with EROFS', async () => {
   // A genuinely read-only filesystem (the primary frozenStore target) refuses
   // chmod with EROFS rather than EPERM/EACCES.
   const erofs = Object.assign(new Error('EROFS: read-only file system, chmod'), { code: 'EROFS' })
@@ -82,7 +75,7 @@ testOnPosix('linkBins() tolerates EROFS from fixBin when the bin source is alrea
   const warn = jest.fn()
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
 
-  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+  expect(fixBinMock).not.toHaveBeenCalled()
   expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
 })
 
@@ -102,3 +95,62 @@ testOnPosix('linkBins() rethrows a chmod failure when the bin still has a CRLF s
   const warn = jest.fn()
   await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EROFS')
 })
+
+testOnPosix('linkBins() invokes fixBin when the bin source has only partial execute bits', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.chmodSync(binSource, 0o744)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
+
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+  expect(fs.existsSync(path.join(binTarget, 'simple'))).toBe(true)
+})
+
+testOnPosix('linkBins() keeps the read and write bits a strict umask gave the bin source', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  // A bin imported from a store under a umask of 077.
+  fs.chmodSync(binSource, 0o700)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).resolves.toBeDefined()
+
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o711)
+})
+
+testOnPosix('linkBins() rethrows EPERM from fixBin when the bin source has only partial execute bits', async () => {
+  const eperm = Object.assign(new Error('EPERM: operation not permitted, chmod'), { code: 'EPERM' })
+  fixBinMock.mockRejectedValue(eperm)
+
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const binSource = path.join(fixture, 'node_modules', 'simple', 'index.js')
+  fs.chmodSync(binSource, 0o744)
+
+  const warn = jest.fn()
+  await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EPERM')
+  expect(fixBinMock).toHaveBeenCalledWith(binSource, 0o755)
+})
+
+testOnPosix('linkBins() does not swallow non-ENOENT stat errors on already linked bins', async () => {
+  const binTarget = temporaryDirectory()
+  const fixture = f.prepare('simple-fixture')
+  const warn = jest.fn()
+
+  await linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })
+
+  const statSpy = jest.spyOn(fs.promises, 'stat').mockRejectedValueOnce(
+    Object.assign(new Error('EACCES: permission denied, stat'), { code: 'EACCES' })
+  )
+
+  try {
+    await expect(linkBins(path.join(fixture, 'node_modules'), binTarget, { warn })).rejects.toHaveProperty('code', 'EACCES')
+  } finally {
+    statSpy.mockRestore()
+  }
+})
+

@@ -1,10 +1,8 @@
 use super::{CreateVirtualDirBySnapshot, optimistic_wire_method, remove_obsolete_child};
-use pacquet_config::PackageImportMethod;
-use pacquet_fs::force_symlink_dir;
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_reporter::{
-    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter,
-};
+use pnpm_config::PackageImportMethod;
+use pnpm_fs::force_symlink_dir;
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter};
 use std::{
     collections::HashMap,
     path::Path,
@@ -65,8 +63,7 @@ impl LinkConcurrencyProbe {
         if self.wait_for_overlap && current == 1 && !self.wait_started.swap(true, Ordering::SeqCst)
         {
             let guard = self.mutex.lock().expect("lock link-concurrency probe");
-            let _ = self
-                .condvar
+            let _ = self.condvar
                 .wait_timeout_while(guard, OVERLAP_TIMEOUT, |()| {
                     self.max.load(Ordering::SeqCst) < 2
                 })
@@ -108,7 +105,10 @@ impl Drop for LinkConcurrencyGuard<'_> {
 /// A future change to pacquet's `PackageImportMethod` set must
 /// either extend this match or fail this test.
 #[test]
-fn optimistic_wire_method_collapses_auto_and_clone_or_copy_to_clone() {
+fn optimistic_wire_method_reports_each_platforms_ladder_head() {
+    #[cfg(target_os = "linux")]
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Hardlink);
+    #[cfg(not(target_os = "linux"))]
     assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::CloneOrCopy), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::Clone), WireImportMethod::Clone);
@@ -126,7 +126,10 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -148,39 +151,50 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     // the caller's runtime flavor matters.
     let layout = crate::VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: None,
+
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
     .expect("empty-cas-paths run should succeed");
 
     let captured = EVENTS.lock().unwrap();
-    let imported = captured.iter().find_map(|event| match event {
-        LogEvent::Progress(log) => match &log.message {
-            ProgressMessage::Imported { method, requester, to } => {
-                Some((*method, requester.clone(), to.clone()))
-            }
-            _ => None,
-        },
-        _ => None,
-    });
+    let imported = captured
+        .iter()
+        .find_map(|event| {
+            let LogEvent::Progress(log) = event else { return None };
+            let ProgressMessage::Imported { method, requester, to } = &log.message else {
+                return None;
+            };
+            Some((*method, requester.clone(), to.clone()))
+        });
     let (method, requester, to) =
         imported.unwrap_or_else(|| panic!("imported must fire; got {captured:?}"));
     assert_eq!(method, WireImportMethod::Hardlink);
@@ -194,6 +208,177 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     assert!(
         Path::new(&to).ends_with("react@18.0.0/node_modules/react"),
         "imported.to suffix must mirror the virtual-store layout; got {to}",
+    );
+}
+
+/// A slot whose files a lifecycle script or a patch will still write must
+/// not share inodes with its source, so it ignores `packageImportMethod`.
+/// Every other slot keeps the configured method.
+#[test]
+fn needs_build_slots_ignore_the_configured_import_method() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    fn reported_import_method(
+        method: PackageImportMethod,
+        is_mutable: bool,
+        needs_build: bool,
+    ) -> WireImportMethod {
+        let dir = tempdir().expect("tempdir");
+        let layout = crate::VirtualStoreLayout::legacy(
+            dir.path().to_path_buf(),
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        );
+        let skipped = crate::SkippedSnapshots::default();
+        let snapshot = SnapshotEntry::default();
+        let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
+        let logged_methods = AtomicU8::new(0);
+
+        EVENTS.lock().unwrap().clear();
+        CreateVirtualDirBySnapshot {
+            dependencies: crate::SnapshotDependencyLinks {
+                package_key: &package_key,
+                snapshot: &snapshot,
+                skipped: &skipped,
+                include_optional: true,
+                removed_aliases: &[],
+                symlink: true,
+            },
+            import: crate::PackageImportOptions {
+                method,
+                logged_methods: &logged_methods,
+                requester: "/proj",
+            },
+            source: crate::SlotImportSource {
+                is_mutable,
+                force: false,
+                build_marker: None,
+                needs_build,
+            },
+            layout: &layout,
+            cas_paths: &HashMap::new(),
+
+            package_id: "react@18.0.0",
+
+            dir_clone_cache: None,
+            link_concurrency_probe: None,
+        }
+        .run::<RecordingReporter>()
+        .expect("import should succeed");
+
+        let captured = EVENTS.lock().unwrap();
+        captured
+            .iter()
+            .find_map(|event| {
+                let LogEvent::Progress(log) = event else { return None };
+                let ProgressMessage::Imported { method, .. } = &log.message else { return None };
+                Some(*method)
+            })
+            .unwrap_or_else(|| panic!("imported must fire; got {captured:?}"))
+    }
+
+    // An ordinary immutable package keeps the configured method.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Hardlink, false, false),
+        WireImportMethod::Hardlink,
+    );
+    // So does a `file:` package that nothing will build.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Copy, true, false),
+        WireImportMethod::Copy,
+    );
+    // A package that will be built imports with `clone-or-copy` instead,
+    // whatever the configured method is.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Hardlink, false, true),
+        WireImportMethod::Clone,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Hardlink, true, true),
+        WireImportMethod::Clone,
+    );
+}
+
+/// The write-through the issue reports: a build script that rewrites a
+/// shipped file inside its slot must not reach the source the slot was
+/// imported from. On a filesystem where the hardlink tier works this fails
+/// when the slot is hard-linked, and passes once a build forces
+/// `clone-or-copy`.
+#[test]
+fn a_build_write_does_not_reach_the_import_source() {
+    let dir = tempdir().expect("tempdir");
+    let source_dir = dir.path().join("source");
+    std::fs::create_dir_all(&source_dir).expect("create source dir");
+    let source_manifest = source_dir.join("package.json");
+    let source_data = source_dir.join("data.txt");
+    std::fs::write(
+        &source_manifest,
+        r#"{"name":"lib","version":"1.0.0","scripts":{"postinstall":"node build.js"}}"#,
+    )
+    .expect("write source manifest");
+    std::fs::write(&source_data, "ORIGINAL").expect("write source data");
+
+    let cas_paths = HashMap::from([
+        ("package.json".to_string(), source_manifest),
+        ("data.txt".to_string(), source_data.clone()),
+    ]);
+    let logged_methods = AtomicU8::new(0);
+    let snapshot = SnapshotEntry::default();
+    let package_key: PackageKey = "lib@file+packages+lib".parse().expect("valid snapshot key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().join("virtual-store"),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let skipped = crate::SkippedSnapshots::default();
+
+    CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: true,
+            force: false,
+            build_marker: None,
+            needs_build: true,
+        },
+        layout: &layout,
+        cas_paths: &cas_paths,
+
+        package_id: "lib@file+packages+lib",
+
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .run::<pnpm_reporter::SilentReporter>()
+    .expect("import package that needs a build");
+
+    // What the package's `postinstall` does to the file it ships.
+    let slot_data = layout.slot_dir(&package_key).join("node_modules/lib/data.txt");
+    std::fs::write(&slot_data, "MODIFIED by postinstall").expect("rewrite the slot's copy");
+
+    assert_eq!(
+        std::fs::read_to_string(&source_data).expect("read source data"),
+        "ORIGINAL",
+        "a build in the slot must not rewrite the source it was imported from",
     );
 }
 
@@ -214,33 +399,101 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
     let layout = crate::VirtualStoreLayout::legacy(
         dir.path().join("virtual-store"),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
 
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Copy,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: false,
+            build_marker: Some(&marker_source),
+            needs_build: true,
+        },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Copy,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: Some(&marker_source),
+
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>()
+    .run::<pnpm_reporter::SilentReporter>()
     .expect("import package with build marker");
 
     let package_dir = layout.slot_dir(&package_key).join("node_modules/react");
     assert!(package_dir.join("package.json").exists());
     assert!(package_dir.join(crate::NEEDS_BUILD_MARKER).is_file());
+}
+
+#[test]
+fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
+    let dir = tempdir().expect("tempdir");
+    let cas_dir = dir.path().join("cas");
+    std::fs::create_dir_all(&cas_dir).expect("create cas dir");
+    let source = cas_dir.join("index.js");
+    std::fs::write(&source, "module.exports = 'new'\n").expect("write CAS source");
+
+    let package_key: PackageKey = "revision-pkg@1.0.0".parse().expect("package key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().join("virtual-store"),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let package_dir = layout.slot_dir(&package_key).join("node_modules/revision-pkg");
+    std::fs::create_dir_all(&package_dir).expect("create existing package");
+    std::fs::write(package_dir.join("index.js"), "module.exports = 'old'\n")
+        .expect("write old package");
+    std::fs::write(package_dir.join("removed.js"), "old only\n").expect("write removed file");
+
+    CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &SnapshotEntry::default(),
+            skipped: &crate::SkippedSnapshots::default(),
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Copy,
+            logged_methods: &AtomicU8::new(0),
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: true,
+            build_marker: None,
+            needs_build: false,
+        },
+        layout: &layout,
+        cas_paths: &HashMap::from([("index.js".to_string(), source)]),
+
+        package_id: "revision-pkg@1.0.0",
+
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .run::<pnpm_reporter::SilentReporter>()
+    .expect("replace package contents");
+
+    assert_eq!(
+        std::fs::read_to_string(package_dir.join("index.js")).expect("read replaced package"),
+        "module.exports = 'new'\n",
+    );
+    assert!(!package_dir.join("removed.js").exists());
 }
 
 /// A snapshot key whose package name is a path traversal would become
@@ -258,27 +511,38 @@ fn run_rejects_traversal_package_name() {
 
     let layout = crate::VirtualStoreLayout::legacy(
         virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped = crate::SkippedSnapshots::default();
     let result = CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "../../escaped@1.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &[],
-        needs_build_marker_source: None,
+
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
-    .run::<pacquet_reporter::SilentReporter>();
+    .run::<pnpm_reporter::SilentReporter>();
 
     assert!(
         matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
@@ -291,12 +555,12 @@ fn run_rejects_traversal_package_name() {
 /// children it still depends on in place.
 #[tokio::test]
 async fn run_removes_obsolete_child_links() {
-    use pacquet_reporter::SilentReporter;
+    use pnpm_reporter::SilentReporter;
 
     let dir = tempdir().expect("tempdir");
     let layout = crate::VirtualStoreLayout::legacy(
         dir.path().to_path_buf(),
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid snapshot key");
     let node_modules = layout.slot_dir(&package_key).join("node_modules");
@@ -315,20 +579,31 @@ async fn run_removes_obsolete_child_links() {
     let removed_aliases =
         [PkgName::parse("is-positive").unwrap(), PkgName::parse("@scope/old").unwrap()];
     CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &removed_aliases,
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            requester: "/proj",
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
         layout: &layout,
         cas_paths: &cas_paths,
-        import_method: PackageImportMethod::Hardlink,
-        logged_methods: &logged_methods,
-        requester: "/proj",
+
         package_id: "react@18.0.0",
-        package_key: &package_key,
-        snapshot: &snapshot,
-        source_is_mutable: false,
-        include_optional_dependencies: true,
-        symlink: true,
-        skipped: &skipped,
-        removed_aliases: &removed_aliases,
-        needs_build_marker_source: None,
+
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()
@@ -337,7 +612,10 @@ async fn run_removes_obsolete_child_links() {
     assert!(!node_modules.join("is-positive").exists(), "obsolete child must be unlinked");
     assert!(!node_modules.join("@scope").exists(), "now-empty scope directory must be removed");
     assert!(
-        node_modules.join("keep-me").symlink_metadata().is_ok(),
+        node_modules
+            .join("keep-me")
+            .symlink_metadata()
+            .is_ok(),
         "children not in removed_aliases must be left untouched",
     );
 }
@@ -348,7 +626,10 @@ async fn run_removes_obsolete_child_links() {
 #[test]
 fn remove_obsolete_child_skips_path_traversal() {
     let dir = tempdir().expect("tempdir");
-    let node_modules = dir.path().join("slot").join("node_modules");
+    let node_modules = dir
+        .path()
+        .join("slot")
+        .join("node_modules");
     std::fs::create_dir_all(&node_modules).expect("create node_modules");
     let sibling = dir.path().join("slot").join("sibling");
     std::fs::create_dir_all(&sibling).expect("create sibling dir");
@@ -357,4 +638,23 @@ fn remove_obsolete_child_skips_path_traversal() {
         .expect("traversal alias is skipped, not an error");
 
     assert!(sibling.exists(), "a `..` alias must not delete a sibling of node_modules");
+}
+
+#[test]
+fn remove_obsolete_child_skips_traversal_through_a_dependency_symlink() {
+    let dir = tempdir().expect("tempdir");
+    let node_modules = dir.path().join("slot/node_modules");
+    let outside = dir.path().join("outside");
+    let package = outside.join("package");
+    let target = dir.path().join("target");
+    for path in [&node_modules, &package, &target] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    force_symlink_dir(&package, &node_modules.join("foo")).unwrap();
+    let victim = outside.join("victim");
+    force_symlink_dir(&target, &victim).unwrap();
+
+    remove_obsolete_child(&node_modules, &PkgName::parse("foo/../victim").unwrap()).unwrap();
+
+    assert!(victim.symlink_metadata().is_ok(), "cleanup must not unlink outside the slot");
 }

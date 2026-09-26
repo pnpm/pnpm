@@ -151,6 +151,10 @@ test('deploy with a shared lockfile after full install', async () => {
     files: ['index.js'],
     optionalDependencies: {},
   }
+  const expectedProdDeployManifest = {
+    ...expectedDeployManifest,
+    devDependencies: {},
+  }
 
   // deploy prod only
   {
@@ -175,7 +179,7 @@ test('deploy with a shared lockfile after full install', async () => {
     project.hasNot('is-negative')
     project.hasNot('project-4')
     project.hasNot('project-5')
-    expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
+    expect(readPackageJson('deploy')).toStrictEqual(expectedProdDeployManifest)
     expect(fs.existsSync('deploy/pnpm-lock.yaml')).toBeTruthy()
     expect(fs.existsSync('deploy/index.js')).toBeTruthy()
     expect(fs.existsSync('deploy/test.js')).toBeFalsy()
@@ -513,16 +517,6 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
           specifier: expect.stringMatching(/^prod-1@file:/),
         },
       },
-      devDependencies: {
-        'dev-0': {
-          version: expect.stringMatching(/^dev-0@file:/),
-          specifier: expect.stringMatching(/^dev-0@file:/),
-        },
-        'is-negative': {
-          version: '1.0.0',
-          specifier: '1.0.0',
-        },
-      },
     },
   })
 
@@ -534,10 +528,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     dependencies: {
       'prod-1': expect.stringMatching(/^prod-1@file:/),
     },
-    devDependencies: {
-      'dev-0': expect.stringMatching(/^dev-0@file:/),
-      'is-negative': '1.0.0',
-    },
+    devDependencies: {},
     optionalDependencies: {},
   })
 
@@ -1200,3 +1191,128 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
 
   expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test.each([
+  ['the deployed project', false],
+  ['the workspace root', true],
+])('deploy --prod leaves out an optional peer that a devDependency of %s satisfies', async (_, peerFromRoot) => {
+  const peers = { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' }
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        devDependencies: peerFromRoot ? peers : {},
+      },
+    },
+    {
+      name: 'app',
+      version: '0.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      devDependencies: peerFromRoot ? {} : peers,
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    resolvePeersFromWorkspaceRoot: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const virtualStore = fs.readdirSync('deploy/node_modules/.pnpm')
+  expect(virtualStore.filter((name) => name.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(0)
+  // A required peer is shipped even when only a devDependency provides it.
+  expect(fs.readdirSync(abcSlotScopeDir()).sort()).toStrictEqual(['abc-optional-peers', 'peer-a'])
+  const deployLockfile = assertProject(path.resolve('deploy')).readLockfile()
+  expect(Object.keys(deployLockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toHaveLength(0)
+})
+
+test('deploy --prod ships an optional peer that a production dependency of the workspace root satisfies', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        dependencies: { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+    },
+    {
+      name: 'app',
+      version: '0.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    resolvePeersFromWorkspaceRoot: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const virtualStore = fs.readdirSync('deploy/node_modules/.pnpm')
+  expect(virtualStore.filter((name) => name.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(1)
+  expect(fs.readdirSync(abcSlotScopeDir()).sort()).toStrictEqual(['abc-optional-peers', 'peer-a', 'peer-c'])
+})
+
+// The `@pnpm.e2e` directory inside the virtual-store slot of abc-optional-peers.
+// Found through the package's link, because the slot's name is truncated and
+// hashed where the virtual store directory length limit is short (Windows).
+function abcSlotScopeDir (): string {
+  return path.dirname(fs.realpathSync('deploy/node_modules/@pnpm.e2e/abc-optional-peers'))
+}

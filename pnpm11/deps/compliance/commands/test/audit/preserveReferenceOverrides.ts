@@ -12,7 +12,7 @@ import * as responses from './utils/responses/index.js'
 
 const f = fixtures(import.meta.dirname)
 
-const registries = DEFAULT_OPTS.registries
+const registriesByScope = DEFAULT_OPTS.registriesByScope
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -25,7 +25,7 @@ afterEach(async () => {
 test('overrides with references (via $) are preserved during audit --fix', async () => {
   const tmp = f.prepare('preserve-reference-overrides')
 
-  getMockAgent().get(registries.default.replace(/\/$/, ''))
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 

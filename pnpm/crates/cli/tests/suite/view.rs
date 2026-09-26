@@ -18,7 +18,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::Value;
 use std::{
     fs,
@@ -108,7 +108,12 @@ fn is_negative_body() -> String {
 /// Serve `body` at `GET /<path>` and return the mock so the test can keep the
 /// server alive for the duration of the request.
 fn serve(server: &mut mockito::Server, path: &str, body: &str) -> mockito::Mock {
-    server.mock("GET", path).with_status(200).with_body(body).expect_at_least(1).create()
+    server
+        .mock("GET", path)
+        .with_status(200)
+        .with_body(body)
+        .expect_at_least(1)
+        .create()
 }
 
 #[test]
@@ -177,7 +182,10 @@ fn package_not_found_is_fetch_404() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(&workspace, &auth_file, &["not-a-real-package"]);
@@ -196,7 +204,10 @@ fn package_not_found_is_fetch_404() {
 fn registry_flag_overrides_configured_registry() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut configured = mockito::Server::new();
-    let configured_mock = configured.mock("GET", "/is-negative").expect(0).create();
+    let configured_mock = configured
+        .mock("GET", "/is-negative")
+        .expect(0)
+        .create();
     write_registry_npmrc(&workspace, &format!("{}/", configured.url()));
     let mut overriding = mockito::Server::new();
     let mock = serve(&mut overriding, "/is-negative", &is_negative_body());
@@ -219,7 +230,10 @@ fn registry_flag_overrides_configured_registry() {
 fn registry_flag_404_exits_with_code_1() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(
@@ -230,11 +244,62 @@ fn registry_flag_404_exits_with_code_1() {
 
     mock.assert();
     assert_eq!(output.status.code(), Some(1), "a 404 must exit with code 1");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stderr.contains("ERR_PNPM_FETCH_404"),
-        "stderr must name the fetch-404 diagnostic; got:\n{stderr}",
+        stdout.contains("ERR_PNPM_FETCH_404"),
+        "stdout must name the fetch-404 diagnostic; got:\n{stdout}",
     );
+    drop((root, server));
+}
+
+#[test]
+fn json_flag_prints_errors_to_stdout_for_all_aliases() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .expect(4)
+        .create();
+    let auth_file = empty_auth_file(root.path());
+
+    for alias in ["view", "info", "show", "v"] {
+        let output = pacquet_at(&workspace)
+            .with_arg("--npmrc-auth-file")
+            .with_arg(&auth_file)
+            .with_args([
+                alias,
+                "not-a-real-package",
+                "versions",
+                "--registry",
+                &server.url(),
+                "--json",
+            ])
+            .output()
+            .expect("spawn pnpm view alias");
+
+        assert_eq!(output.status.code(), Some(1), "a 404 must exit with code 1");
+        assert!(
+            output.stderr.is_empty(),
+            "{alias} --json errors must not be rendered to stderr; stderr: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let parsed: Value = serde_json::from_str(&stdout)
+            .unwrap_or_else(|error| {
+                panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
+            });
+        assert_eq!(
+            parsed,
+            serde_json::json!({
+                "error": {
+                    "code": "ERR_PNPM_FETCH_404",
+                    "message": format!("GET {}/not-a-real-package: Not Found - 404", server.url()),
+                },
+            }),
+        );
+    }
+    mock.assert();
     drop((root, server));
 }
 
@@ -479,7 +544,10 @@ fn summary_header_dist_and_published_sections() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
     assert!(first_line.contains("is-negative@1.0.0"), "header: {first_line:?}");
     assert!(first_line.contains("deps: none"), "no-deps package: {first_line:?}");
     assert!(stdout.contains(".tarball:"), "dist tarball: {stdout:?}");
@@ -533,7 +601,10 @@ fn summary_shows_deps_count_and_deprecation() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
     assert!(first_line.contains("deps: "), "deps count: {first_line:?}");
     assert!(!first_line.contains("deps: none"), "should not be none: {first_line:?}");
     assert!(stdout.contains("DEPRECATED! - use something else"), "deprecation: {stdout:?}");
@@ -645,7 +716,7 @@ fn searches_upward_for_manifest() {
         .expect("write package.json");
     let nested = workspace.join("a").join("b");
     fs::create_dir_all(&nested).expect("create nested dir");
-    write_registry_npmrc(&nested, &format!("{}/", server.url()));
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 

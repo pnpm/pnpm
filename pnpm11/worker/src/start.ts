@@ -1,10 +1,9 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
-import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { pkgRequiresBuild, storedRequiresBuildNeedsManifestCheck } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
 import { PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
@@ -18,14 +17,17 @@ import {
   HASH_ALGORITHM,
   normalizeBundledManifest,
   type PackageFilesIndex,
+  parseJsonBufferSync,
+  takeVerifiedFileIntegrity,
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import type { Cafs, FilesMap, PackageFiles, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
-import { packForStorage, ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
+import { packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
+import { hashBuffer } from './hashBuffer.js'
 import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
@@ -104,6 +106,7 @@ async function handleMessage (
         if (!pkgFilesIndex) {
           parentPort!.postMessage({
             status: 'success',
+            verifiedFileIntegrity: takeVerifiedFileIntegrity(),
             value: {
               verified: false,
               pkgFilesIndex: null,
@@ -143,19 +146,26 @@ async function handleMessage (
           verifyResult = buildFileMapsFromIndex(storeDir, pkgFilesIndex)
         }
         const bundledManifest = pkgFilesIndex.manifest
-        const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(bundledManifest, verifyResult.filesMap)
+        const requiresBuild = resolveRequiresBuild(pkgFilesIndex.requiresBuild, bundledManifest, verifyResult.filesMap)
 
         parentPort!.postMessage({
           status: 'success',
           warnings,
+          // Store verification happens here, in the worker, but the
+          // install reports it from the main thread. Hand this worker's
+          // share back with the answer it belongs to.
+          verifiedFileIntegrity: takeVerifiedFileIntegrity(),
           value: {
             verified: verifyResult.passed,
             bundledManifest,
             files: {
               filesMap: verifyResult.filesMap,
               sideEffectsMaps: verifyResult.sideEffectsMaps,
+              sideEffectsDiffs: verifyResult.sideEffectsDiffs,
+              remoteSideEffectsQuarantine: verifyResult.remoteSideEffectsQuarantine,
               resolvedFrom: 'store',
               requiresBuild,
+              requiresPrepare: pkgFilesIndex.requiresPrepare,
             },
           },
         })
@@ -174,6 +184,10 @@ async function handleMessage (
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({
       status: 'error',
+      // Drained here too: a request that hashed and then threw would
+      // otherwise leave its share in this worker, to be handed to
+      // whichever install asks next.
+      verifiedFileIntegrity: takeVerifiedFileIntegrity(),
       error: {
         code: e.code,
         message: e.message ?? e.toString(),
@@ -183,10 +197,34 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
+function resolveRequiresBuild (
+  stored: boolean | undefined,
+  bundledManifest: BundledManifest | undefined,
+  filesMap: FilesMap
+): boolean {
+  if (stored == null) return pkgRequiresBuild(bundledManifest, filesMap)
+  if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
+  const manifest = readManifestFromCafs(filesMap)
+  return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)
+}
+
+function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefined {
+  const manifestPath = filesMap.get('package.json')
+  if (manifestPath == null) return undefined
+  try {
+    return parseJsonBufferSync(fs.readFileSync(manifestPath)) as DependencyManifest
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError || (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+      return undefined
+    }
+    throw err
+  }
+}
+
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
-    const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
+    const calculatedHash = hashBuffer(algorithm, buffer)
     if (calculatedHash !== hexDigest) {
       return {
         status: 'error',
@@ -220,20 +258,28 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, appen
     algo: HASH_ALGORITHM,
     files: filesIntegrity,
   }
+  const packedFilesIndex = packToShared(pkgFilesIndex)
+  const indexWrites: IndexWrite[] = [{ key: filesIndexFile, buffer: packedFilesIndex }]
+  if (!integrity) {
+    integrity = calcIntegrity(buffer)
+    if (pkgId) {
+      indexWrites.push({ key: storeIndexKey(integrity, pkgId), buffer: packedFilesIndex })
+    }
+  }
   return {
     status: 'success',
     value: {
       filesMap,
       manifest: bundledManifest,
       requiresBuild,
-      integrity: integrity ?? calcIntegrity(buffer),
+      integrity,
     },
-    indexWrites: [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }],
+    indexWrites,
   }
 }
 
 function calcIntegrity (buffer: Buffer): string {
-  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  const calculatedHash = hashBuffer('sha512', buffer)
   return formatIntegrity('sha512', calculatedHash)
 }
 
@@ -274,6 +320,8 @@ interface AddFilesFromDirResult {
     filesMap: FilesMap
     manifest?: BundledManifest
     requiresBuild: boolean
+    requiresPrepare?: boolean
+    sideEffects?: SideEffectsDiff
   }
   indexWrites?: IndexWrite[]
 }
@@ -313,6 +361,7 @@ function addFilesFromDir (
     files,
     filesIndexFile,
     includeNodeModules,
+    requiresPrepare,
     sideEffectsCacheKey,
     storeDir,
   }: AddDirToStoreMessage
@@ -335,7 +384,9 @@ function addFilesFromDir (
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const bundledManifest = manifest != null ? normalizeBundledManifest(manifest) : undefined
   let requiresBuild: boolean
+  let storedRequiresPrepare = requiresPrepare
   let indexWrites: IndexWrite[] | undefined
+  let sideEffects: SideEffectsDiff | undefined
   if (sideEffectsCacheKey) {
     const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
     if (!existingFilesIndex) {
@@ -359,24 +410,37 @@ function addFilesFromDir (
         `Algorithm mismatch: package index uses "${existingFilesIndex.algo}" but side effects were computed with "${HASH_ALGORITHM}"`
       )
     }
-    existingFilesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(existingFilesIndex.files, filesIntegrity))
+    sideEffects = calculateDiff(existingFilesIndex.files, filesIntegrity)
+    existingFilesIndex.sideEffects.set(sideEffectsCacheKey, sideEffects)
     if (existingFilesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
       requiresBuild = existingFilesIndex.requiresBuild
     }
+    storedRequiresPrepare = existingFilesIndex.requiresPrepare
     indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
   } else {
     requiresBuild = pkgRequiresBuild(bundledManifest, filesIntegrity)
     const pkgFilesIndex: PackageFilesIndex = {
       requiresBuild,
+      requiresPrepare,
       manifest: bundledManifest,
       algo: HASH_ALGORITHM,
       files: filesIntegrity,
     }
     indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
-  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild }, indexWrites }
+  return {
+    status: 'success',
+    value: {
+      filesMap,
+      manifest: bundledManifest,
+      requiresBuild,
+      requiresPrepare: storedRequiresPrepare,
+      sideEffects,
+    },
+    indexWrites,
+  }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {
@@ -497,4 +561,3 @@ function symlinkAllModules (opts: SymlinkAllModulesMessage): { status: 'success'
   }
   return { status: 'success' }
 }
-

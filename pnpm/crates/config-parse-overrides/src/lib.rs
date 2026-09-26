@@ -14,9 +14,11 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
-use pacquet_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_from_catalog};
-use pacquet_catalogs_types::Catalogs;
-use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::collections::HashMap;
 
 /// A parsed `pnpm.overrides` entry.
@@ -138,13 +140,18 @@ where
     let (lower_bound, _) = iter.size_hint();
     let mut out = Vec::with_capacity(lower_bound);
     for (selector, new_bare_specifier) in iter {
-        let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(selector)?;
+        let trimmed_selector = selector.trim();
+        let (parent_pkg, target_pkg) = parse_pkg_and_parent_selector(trimmed_selector)?;
         let resolved_specifier =
             resolve_catalog_in_value(catalogs, &target_pkg.name, new_bare_specifier)?;
-        let converge =
-            check_converge(selector, parent_pkg.as_ref(), &target_pkg, &resolved_specifier)?;
+        let converge = check_converge(
+            trimmed_selector,
+            parent_pkg.as_ref(),
+            &target_pkg,
+            &resolved_specifier,
+        )?;
         out.push(VersionOverride {
-            selector: selector.clone(),
+            selector: trimmed_selector.to_string(),
             parent_pkg,
             target_pkg,
             new_bare_specifier: resolved_specifier,
@@ -174,12 +181,13 @@ pub fn create_overrides_map_from_parsed(
 pub fn parse_pkg_and_parent_selector(
     selector: &str,
 ) -> Result<(Option<PackageSelector>, PackageSelector), ParseOverridesError> {
-    if let Some(delimiter_idx) = find_parent_delimiter(selector) {
-        let parent_selector = &selector[..delimiter_idx];
-        let child_selector = &selector[delimiter_idx + 1..];
+    let trimmed_selector = selector.trim();
+    if let Some(delimiter_idx) = find_parent_delimiter(trimmed_selector) {
+        let parent_selector = &trimmed_selector[..delimiter_idx];
+        let child_selector = &trimmed_selector[delimiter_idx + 1..];
         Ok((Some(parse_pkg_selector(parent_selector)?), parse_pkg_selector(child_selector)?))
     } else {
-        Ok((None, parse_pkg_selector(selector)?))
+        Ok((None, parse_pkg_selector(trimmed_selector)?))
     }
 }
 
@@ -189,15 +197,19 @@ pub fn parse_pkg_and_parent_selector(
 ///
 /// Matches the regex `/[^ |@]>/` and returns the index of the `>` itself.
 fn find_parent_delimiter(selector: &str) -> Option<usize> {
-    selector.as_bytes().windows(2).enumerate().find_map(|(idx, window)| {
-        if matches!(window[0], b' ' | b'|' | b'@') {
-            None
-        } else if window[1] == b'>' {
-            Some(idx + 1)
-        } else {
-            None
-        }
-    })
+    selector
+        .as_bytes()
+        .windows(2)
+        .enumerate()
+        .find_map(|(idx, window)| {
+            if matches!(window[0], b' ' | b'|' | b'@') {
+                None
+            } else if window[1] == b'>' {
+                Some(idx + 1)
+            } else {
+                None
+            }
+        })
 }
 
 /// Decide [`VersionOverride::converge`] for a parsed entry: a
@@ -233,7 +245,8 @@ fn check_converge(
 }
 
 fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesError> {
-    let wanted = parse_wanted_dependency(selector);
+    let trimmed_selector = selector.trim();
+    let wanted = parse_wanted_dependency(trimmed_selector);
     let Some(name) = wanted.alias else {
         return Err(ParseOverridesError::InvalidSelector { selector: selector.to_string() });
     };
@@ -243,9 +256,14 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
 /// Run the override value through the catalog resolver:
 /// `found` returns the resolved specifier, `unused` (non-`catalog:`)
 /// returns the value verbatim, and `misconfiguration` (missing entry
-/// or recursive / forbidden inner protocol) raises
+/// or a recursive one) raises
 /// [`ParseOverridesError::CatalogInOverrides`] with the resolver's
 /// error message.
+///
+/// A `file:` / `link:` entry keeps the path as the catalog wrote it.
+/// The overrider that applies the result anchors a local target itself,
+/// at the same root it uses for one written directly in `overrides`, so
+/// re-anchoring here would move the path twice.
 fn resolve_catalog_in_value(
     catalogs: &Catalogs,
     target_name: &str,
@@ -255,7 +273,7 @@ fn resolve_catalog_in_value(
         alias: target_name.to_string(),
         bare_specifier: new_bare_specifier.to_string(),
     };
-    match resolve_from_catalog(catalogs, &wanted) {
+    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(new_bare_specifier.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => {

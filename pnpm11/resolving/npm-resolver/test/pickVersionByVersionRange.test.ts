@@ -1,8 +1,13 @@
 import { expect, test } from '@jest/globals'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
-import { pickLowestVersionByVersionRange, pickVersionByVersionRange } from '../src/pickPackageFromMeta.js'
+import {
+  pickLowestVersionByVersionRange,
+  pickStableCachedRangeVersion,
+  pickVersionByVersionRange,
+} from '../src/pickPackageFromMeta.js'
 
 // Deliberately mixes prereleases, build metadata, an unparseable entry, and a
 // version only a loose parse accepts, because the pickers select over whatever
@@ -56,6 +61,23 @@ function metaWithoutLatest (versions: string[]): PackageMeta {
   return meta
 }
 
+function metaWithDeprecation (versions: Record<string, boolean>, latest?: string): PackageMeta {
+  const meta: PackageMeta = {
+    name: 'pick-version',
+    'dist-tags': latest == null ? {} : { latest },
+    versions: {},
+  }
+  for (const [version, deprecated] of Object.entries(versions)) {
+    meta.versions[version] = {
+      name: 'pick-version',
+      version,
+      ...(deprecated ? { deprecated: 'do not use' } : {}),
+      dist: { tarball: `https://registry.npmjs.org/pick-version/-/pick-version-${version}.tgz`, shasum: '' },
+    }
+  }
+  return meta
+}
+
 test.each(RANGES)('the highest satisfying version of %s matches semver.maxSatisfying', (versionRange) => {
   const meta = metaWithoutLatest(VERSIONS)
   expect(pickVersionByVersionRange({ meta, versionRange })).toBe(semver.maxSatisfying(VERSIONS, versionRange, true))
@@ -84,4 +106,179 @@ test('a packument of only unparseable versions satisfies nothing', () => {
   const meta = metaWithoutLatest(['not-a-version', 'also-not-a-version'])
   expect(pickVersionByVersionRange({ meta, versionRange: '^1.0.0' })).toBeNull()
   expect(pickLowestVersionByVersionRange({ meta, versionRange: '^1.0.0' })).toBeNull()
+})
+
+test('a single dominant lockfile version makes a cached range stable', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '^1.0.0': { selectorType: 'range', weight: 1000 },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.0.0')
+})
+
+test('a cache missing the lockfile version is not stable', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.1.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('multiple satisfying lockfile versions are not treated as stable', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '1.1.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a competing selector that can tie the lockfile pin is not stable', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '>=1.1.0': { selectorType: 'range', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a negative preferred selector disables cached range reuse', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '>=1.1.0': { selectorType: 'range', weight: -1 },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a movable dist-tag cannot outweigh a dominant lockfile pin', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  meta['dist-tags'].next = '1.1.0'
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      next: { selectorType: 'tag', weight: EXISTING_VERSION_SELECTOR_WEIGHT - 1 },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.0.0')
+})
+
+test('a fractional selector weight disables cached range reuse', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '>=1.1.0': { selectorType: 'range', weight: 0.5 },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a non-finite selector weight disables cached range reuse', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '>=1.1.0': { selectorType: 'range', weight: Number.POSITIVE_INFINITY },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('selector weights whose sum is unsafe disable cached range reuse', () => {
+  const meta = metaWithoutLatest(['1.0.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: Number.MAX_SAFE_INTEGER },
+      '>=1.0.0': { selectorType: 'range', weight: 1 },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a deprecated prerelease latest under * falls back to a non-deprecated prerelease', () => {
+  const meta = metaWithDeprecation({ '2.0.0-beta.1': true, '2.0.0-beta.2': false }, '2.0.0-beta.1')
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.2')
+})
+
+test('a deprecated prerelease latest under * does not fall back to a different prerelease line', () => {
+  const meta = metaWithDeprecation({ '2.0.0-beta.1': true, '3.0.0-alpha.1': false }, '2.0.0-beta.1')
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.1')
+})
+
+test('a deprecated prerelease latest under * prefers a non-deprecated prerelease from the same release over a lower stable version', () => {
+  const meta = metaWithDeprecation(
+    { '1.0.0': false, '2.0.0-beta.1': true, '2.0.0-beta.2': false },
+    '2.0.0-beta.1'
+  )
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('2.0.0-beta.2')
+})
+
+test('a deprecated stable latest under * does not fall back to a prerelease', () => {
+  const meta = metaWithDeprecation({ '0.9.0': false, '1.0.0': true, '2.0.0-beta.1': false }, '1.0.0')
+  expect(pickVersionByVersionRange({ meta, versionRange: '*' })).toBe('0.9.0')
+})
+
+test('a deprecated preferred-selector winner falls back inside its group', () => {
+  const meta = metaWithDeprecation({ '2.0.0': true, '2.0.0-beta.1': false }, '2.0.0')
+  const result = pickVersionByVersionRange({
+    meta,
+    preferredVersionSelectors: {
+      '^2.0.0-beta.0': { selectorType: 'range', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^2.0.0-beta.0',
+  })
+
+  expect(result).toBe('2.0.0-beta.1')
+})
+
+test('a preferred group holding one pinned version keeps it even when deprecated', () => {
+  const meta = metaWithDeprecation({ '1.0.0': true, '2.0.0': false }, '1.0.0')
+  const result = pickVersionByVersionRange({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.0.0')
 })

@@ -9,7 +9,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -27,8 +27,10 @@ fn empty_auth_file(root: &Path) -> PathBuf {
 }
 
 fn run_bugs(workspace: &Path, auth_file: &Path, args: &[&str]) -> std::process::Output {
-    let mut command =
-        pacquet_at(workspace).with_arg("--npmrc-auth-file").with_arg(auth_file).with_arg("bugs");
+    let mut command = pacquet_at(workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(auth_file)
+        .with_arg("bugs");
     for arg in args {
         command = command.with_arg(arg);
     }
@@ -91,7 +93,11 @@ fn fails_when_registry_package_has_no_bugs_url() {
         },
     })
     .to_string();
-    let mock = server.mock("GET", "/no-bugs-pkg/latest").with_status(200).with_body(&body).create();
+    let mock = server
+        .mock("GET", "/no-bugs-pkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create();
 
     fs::write(workspace.join(".npmrc"), format!("registry={registry}\n"))
         .expect("write project .npmrc");

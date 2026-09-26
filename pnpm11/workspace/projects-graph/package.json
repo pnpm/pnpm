@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.projects-graph",
-  "version": "1100.0.32",
+  "version": "1100.0.39",
   "description": "Create a graph from an array of packages",
   "keywords": [
     "pnpm",
@@ -31,6 +31,8 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/types": "workspace:*",

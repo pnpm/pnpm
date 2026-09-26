@@ -29,6 +29,19 @@ test('valid property path', () => {
   expect(Array.from(parsePropertyPath('.a .b .c .d'))).toStrictEqual(['a', 'b', 'c', 'd'])
 })
 
+test('hyphenated keys', () => {
+  expect(Array.from(parsePropertyPath('dependencies.some-package-name')))
+    .toStrictEqual(['dependencies', 'some-package-name'])
+  expect(Array.from(parsePropertyPath('devDependencies.another-package')))
+    .toStrictEqual(['devDependencies', 'another-package'])
+  expect(Array.from(parsePropertyPath('a.b-c.d-e'))).toStrictEqual(['a', 'b-c', 'd-e'])
+  expect(Array.from(parsePropertyPath('foo-bar[0]'))).toStrictEqual(['foo-bar', 0])
+  expect(Array.from(parsePropertyPath('scripts.build-prod'))).toStrictEqual(['scripts', 'build-prod'])
+  // The bracketed and quoted forms already accepted these keys, and still do.
+  expect(Array.from(parsePropertyPath('dependencies["some-package-name"]')))
+    .toStrictEqual(['dependencies', 'some-package-name'])
+})
+
 test('invalid property path', () => {
   expect(() => Array.from(parsePropertyPath('foo.bar.0'))).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_UNEXPECTED_LITERAL_IN_PROPERTY_PATH',
@@ -89,6 +102,13 @@ test('invalid property path', () => {
       content: ']',
     },
   } as Partial<UnexpectedTokenError<ExactToken<']'>>>))
+  expect(() => Array.from(parsePropertyPath('dependencies.-foo'))).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_UNEXPECTED_TOKEN_IN_PROPERTY_PATH',
+    token: {
+      type: 'unexpected',
+      content: '-',
+    },
+  } as Partial<UnexpectedTokenError<UnexpectedToken>>))
   expect(() => Array.from(parsePropertyPath('foo.bar?.baz'))).toThrow(expect.objectContaining({
     code: 'ERR_PNPM_UNEXPECTED_TOKEN_IN_PROPERTY_PATH',
     token: {

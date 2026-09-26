@@ -1,13 +1,15 @@
 use super::{
     PNPM_VERSION, default_cache_dir, default_child_concurrency,
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
-    default_store_dir, default_unsafe_perm, default_user_agent, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    default_store_dir, default_unsafe_perm, default_user_agent, default_virtual_store_dir,
+    default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
+    resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    resolve_configured_state_dir, store_dir_for_os,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pacquet_store_dir::{STORE_VERSION, StoreDir};
+use pnpm_store_dir::{STORE_VERSION, StoreDir};
 use pretty_assertions::assert_eq;
-use std::{io, path::PathBuf};
+use std::{fs, io, path::PathBuf};
 
 #[cfg(windows)]
 use super::{default_store_dir_windows, get_drive_letter};
@@ -15,7 +17,45 @@ use super::{default_store_dir_windows, get_drive_letter};
 use std::path::Path;
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
-    store_dir.display().to_string().replace('\\', "/")
+    store_dir
+        .display()
+        .to_string()
+        .replace('\\', "/")
+}
+
+#[test]
+fn configured_relative_state_dir_stays_inside_machine_state_root() {
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("pnpm-state-root");
+    let default_state_dir = state_root.join("pnpm");
+    let expected_state_dir =
+        dunce::canonicalize(root.path()).unwrap().join("pnpm-state-root/configured");
+
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../configured"),
+        expected_state_dir,
+    );
+    assert_eq!(
+        resolve_configured_state_dir(&default_state_dir, "nested/../../outside"),
+        PathBuf::new(),
+    );
+    assert!(resolve_configured_state_dir(&default_state_dir, "../outside").as_os_str().is_empty());
+}
+
+#[test]
+fn configured_relative_state_dir_rejects_a_symlink_escape() {
+    let root = tempfile::tempdir().unwrap();
+    let state_root = root.path().join("state");
+    let outside = root.path().join("project");
+    fs::create_dir_all(&state_root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &state_root.join("project-link")).unwrap();
+
+    assert!(
+        resolve_configured_state_dir(&state_root.join("pnpm"), "project-link")
+            .as_os_str()
+            .is_empty(),
+    );
 }
 
 /// The `home_dir` and `current_dir` capability impls call
@@ -99,11 +139,27 @@ fn test_default_store_dir_falls_back_to_home_dir() {
     }
     let store_dir = default_store_dir::<NoEnvWithHome>();
     let expected = match std::env::consts::OS {
-        "linux" => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
         "macos" => format!("/home/test-user/Library/pnpm/store/{STORE_VERSION}"),
-        other => panic!("unexpected target OS in test: {other}"),
+        _ => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);
+}
+
+/// Calls [`store_dir_for_os`] rather than [`default_store_dir`] so the
+/// Unix fallback is pinned for OS strings no CI runner builds on.
+#[test]
+fn test_store_dir_for_os_unix_fallback_covers_freebsd() {
+    let home = PathBuf::from("/home/test-user");
+    let unix = home.join(".local/share/pnpm/store");
+    assert_eq!(store_dir_for_os(&home, "freebsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "netbsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "linux"), unix);
+}
+
+#[test]
+fn test_store_dir_for_os_macos_keeps_library_layout() {
+    let home = PathBuf::from("/home/test-user");
+    assert_eq!(store_dir_for_os(&home, "macos"), home.join("Library/pnpm/store"));
 }
 
 /// The [`GetHomeDir`] impl is `unreachable!` because the
@@ -122,7 +178,10 @@ fn test_default_cache_dir_with_xdg_cache_home_env() {
         }
     }
     let cache_dir = default_cache_dir::<EnvWithXdgCacheHome>();
-    let display = cache_dir.display().to_string().replace('\\', "/");
+    let display = cache_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-cache-home/pnpm");
 }
 
@@ -168,7 +227,10 @@ fn test_default_config_dir_with_xdg_config_home_env() {
     }
     let config_dir =
         default_config_dir::<EnvWithXdgConfigHome>().expect("XDG_CONFIG_HOME bypasses home_dir");
-    let display = config_dir.display().to_string().replace('\\', "/");
+    let display = config_dir
+        .display()
+        .to_string()
+        .replace('\\', "/");
     assert_eq!(display, "/tmp/xdg-config-home/pnpm");
 }
 
@@ -324,7 +386,7 @@ fn default_unsafe_perm_on_cygwin_is_always_true() {
 #[cfg(windows)]
 #[test]
 fn test_should_get_the_correct_drive_letter() {
-    let current_dir = Path::new("C:\\Users\\user\\project");
+    let current_dir = Path::new(r"C:\Users\user\project");
     let drive_letter = get_drive_letter(current_dir);
     assert_eq!(drive_letter, Some('C'));
 }
@@ -332,21 +394,43 @@ fn test_should_get_the_correct_drive_letter() {
 #[cfg(windows)]
 #[test]
 fn test_default_store_dir_with_windows_diff_drive() {
-    let current_dir = Path::new("D:\\Users\\user\\project");
-    let home_dir = Path::new("C:\\Users\\user");
+    let current_dir = Path::new(r"D:\Users\user\project");
+    let home_dir = Path::new(r"C:\Users\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
     assert_eq!(store_dir, Path::new(r"D:\.pnpm-store"));
 }
 
+/// Compares the rendered string rather than the `Path`. On Windows
+/// `Path` equality is separator-insensitive — it compares components,
+/// so a value built by joining an `"a/b/c"` literal still satisfies an
+/// `assert_eq!` against the backslash form, while the forward slashes
+/// survive into `.modules.yaml` and `pnpm store path`.
 #[cfg(windows)]
 #[test]
 fn test_dynamic_default_store_dir_with_windows_same_drive() {
-    let current_dir = Path::new("C:\\Users\\user\\project");
-    let home_dir = Path::new("C:\\Users\\user");
+    let current_dir = Path::new(r"C:\Users\user\project");
+    let home_dir = Path::new(r"C:\Users\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
-    assert_eq!(store_dir, Path::new(r"C:\Users\user\AppData\Local\pnpm\store"));
+    assert_eq!(store_dir.to_str().unwrap(), r"C:\Users\user\AppData\Local\pnpm\store");
+}
+
+/// `default_virtual_store_dir` joins onto the current directory, so the
+/// separator it appends is what lands in the `virtualStoreDir` recorded
+/// in `.modules.yaml`. Compares the rendered string for the reason given
+/// in the Windows store-directory test above, through
+/// `display` so a working directory that is not valid Unicode renders
+/// lossily instead of panicking before the assertion.
+#[test]
+#[cfg_attr(not(windows), ignore = "only one path separator style is tested")]
+fn test_default_virtual_store_dir_uses_native_separators() {
+    let virtual_store_dir = default_virtual_store_dir();
+    let rendered = virtual_store_dir.display().to_string();
+    assert!(
+        rendered.ends_with(r"\node_modules\.pnpm"),
+        "virtual store dir {rendered:?} must end with a backslash-separated suffix",
+    );
 }
 
 #[test]
@@ -364,5 +448,21 @@ fn user_agent_default_matches_pnpm_format() {
     assert!(ua.starts_with(&prefix), "user-agent {ua:?} must start with {prefix:?}");
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
-    assert!(tail.iter().all(|token| !token.is_empty()), "platform/arch must be non-empty: {ua:?}");
+    assert!(
+        tail.iter()
+            .all(|token| !token.is_empty()),
+        "platform/arch must be non-empty: {ua:?}",
+    );
+}
+
+/// Both forms are asserted here rather than through
+/// `standalone_install_command`, whose branch a single-platform test run
+/// cannot cover.
+#[test]
+fn the_install_command_matches_the_host_shell() {
+    assert_eq!(
+        install_command_for(true),
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression",
+    );
+    assert_eq!(install_command_for(false), "curl -fsSL https://get.pnpm.io/install.sh | sh -");
 }

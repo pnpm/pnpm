@@ -1,16 +1,15 @@
 //! Ports `getUpdateChoices()` from
 //! `pnpm11/installing/commands/test/update/getUpdateChoices.test.ts`.
 //!
-//! The rendered padding is pacquet's own — pnpm lays its table out with
-//! `@zkochan/table` and fixed column widths — so these assert the shape
-//! the user sees: which groups appear, in what order, which packages sit
-//! in each, and that every column lines up.
+//! The layout follows the column widths pnpm gives `@zkochan/table`, so
+//! these assert the shape the user sees: which groups appear, in what
+//! order, which packages sit in each, and that every column lines up.
 
 use super::{ChoiceGroup, column_widths, pad_row, update_choices};
 use crate::cli_args::outdated::OutdatedPackage;
 use console::measure_text_width;
 use node_semver::Version;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -31,24 +30,35 @@ fn pkg(
         target: v(target),
         wanted: v(current),
         github_action: false,
-        deprecated: None,
-        homepage: None,
-        workspace: None,
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
+            deprecated: None,
+            homepage: None,
+            workspace: None,
+        },
     }
 }
 
 /// The package each selectable row of a group updates, in order.
 fn values(group: &ChoiceGroup) -> Vec<&str> {
-    group.rows.iter().filter_map(|row| row.value.as_deref()).collect()
+    group.rows
+        .iter()
+        .filter_map(|row| row.value.as_deref())
+        .collect()
 }
 
 /// The terminal column each selectable row's `❯` starts at, in order.
 fn arrow_offsets(group: &ChoiceGroup) -> Vec<usize> {
-    group
-        .rows
+    group.rows
         .iter()
         .skip(1)
-        .map(|row| measure_text_width(row.label.split('❯').next().expect("row has an arrow")))
+        .map(|row| {
+            measure_text_width(
+                row.label
+                    .split('❯')
+                    .next()
+                    .expect("row has an arrow"),
+            )
+        })
         .collect()
 }
 
@@ -63,8 +73,10 @@ fn groups_by_dependency_type_in_manifest_order() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
-    let rendered: Vec<(&str, Vec<&str>)> =
-        groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
+    let rendered: Vec<(&str, Vec<&str>)> = groups
+        .iter()
+        .map(|group| (group.message.as_str(), values(group)))
+        .collect();
     assert_eq!(
         rendered,
         vec![
@@ -134,8 +146,10 @@ fn github_actions_form_their_own_group() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
-    let rendered: Vec<(&str, Vec<&str>)> =
-        groups.iter().map(|group| (group.message.as_str(), values(group))).collect();
+    let rendered: Vec<(&str, Vec<&str>)> = groups
+        .iter()
+        .map(|group| (group.message.as_str(), values(group)))
+        .collect();
     assert_eq!(
         rendered,
         vec![("devDependencies", vec!["foo"]), ("GitHub Actions", vec!["actions/checkout"])],
@@ -183,6 +197,66 @@ fn columns_line_up_within_a_group() {
 
     let offsets = arrow_offsets(&groups[0]);
     assert_eq!(offsets[0], offsets[1]);
+}
+
+/// Each group is laid out on its own, so it is the minimum column widths
+/// that keep the `❯` of one group under the `❯` of the next when their
+/// names and versions differ in length — the misalignment the user sees
+/// otherwise, since the groups sit one above the other in the prompt.
+#[test]
+fn columns_line_up_across_groups() {
+    let packages = [
+        pkg(
+            "a-very-long-package-name",
+            "a-very-long-package-name",
+            "0.10.3",
+            "0.10.5",
+            DependencyGroup::Prod,
+        ),
+        pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Dev),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert_eq!(groups.len(), 2);
+    assert_eq!(arrow_offsets(&groups[0]), arrow_offsets(&groups[1]));
+}
+
+/// The header row is padded like the rows under it, so each column's
+/// title starts where the column does — `Current` being right-aligned,
+/// its title ends where its cells do.
+#[test]
+fn the_header_row_lines_up_with_its_rows() {
+    let mut package = pkg("a", "a", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.metadata.homepage = Some("https://example.test/".to_string());
+    package.metadata.workspace = Some("web".to_string());
+
+    let groups = update_choices(&[&package], true);
+
+    let header = &groups[0].rows[0].label;
+    let row = &groups[0].rows[1].label;
+    assert_eq!(
+        column_of(header, "Current") + "Current".len(),
+        column_of(row, "1.0.0") + "1.0.0".len(),
+        "Current is out of line:\n{header}\n{row}",
+    );
+    for (title, cell) in
+        [("Target", "2.0.0"), ("Workspace", "web"), ("URL", "https://example.test/")]
+    {
+        assert_eq!(
+            column_of(header, title),
+            column_of(row, cell),
+            "{title} is out of line:\n{header}\n{row}",
+        );
+    }
+}
+
+/// The terminal column `text` starts at in `line`.
+fn column_of(line: &str, text: &str) -> usize {
+    let start = line
+        .find(text)
+        .unwrap_or_else(|| panic!("{text:?} is missing from {line:?}"));
+    measure_text_width(&line[..start])
 }
 
 /// Padding is counted in terminal columns rather than in `char`s, so a
@@ -249,7 +323,7 @@ fn two_aliases_of_one_package_are_both_offered() {
 #[test]
 fn control_characters_in_registry_metadata_are_stripped() {
     let mut package = pkg("foo", "foo\u{1b}[31m", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    package.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
+    package.metadata.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
     let packages = [package];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
@@ -266,9 +340,9 @@ fn control_characters_in_registry_metadata_are_stripped() {
 #[test]
 fn a_workspace_run_names_the_project_each_row_came_from() {
     let mut in_app = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_app.workspace = Some("app".to_string());
+    in_app.metadata.workspace = Some("app".to_string());
     let mut in_lib = pkg("foo", "foo", "1.1.0", "2.0.0", DependencyGroup::Prod);
-    in_lib.workspace = Some("lib".to_string());
+    in_lib.metadata.workspace = Some("lib".to_string());
     let packages = [in_app, in_lib];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
@@ -283,7 +357,7 @@ fn a_workspace_run_names_the_project_each_row_came_from() {
 #[test]
 fn a_single_project_run_has_no_workspace_column() {
     let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    package.workspace = Some("solo".to_string());
+    package.metadata.workspace = Some("solo".to_string());
     let packages = [package];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
@@ -298,9 +372,9 @@ fn a_single_project_run_has_no_workspace_column() {
 #[test]
 fn a_collapsed_row_names_every_project_it_covers() {
     let mut in_web = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_web.workspace = Some("web".to_string());
+    in_web.metadata.workspace = Some("web".to_string());
     let mut in_tooling = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    in_tooling.workspace = Some("tooling".to_string());
+    in_tooling.metadata.workspace = Some("tooling".to_string());
     let packages = [in_web, in_tooling];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
@@ -313,9 +387,9 @@ fn a_collapsed_row_names_every_project_it_covers() {
 #[test]
 fn a_repeated_project_is_named_once() {
     let mut first = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    first.workspace = Some("web".to_string());
+    first.metadata.workspace = Some("web".to_string());
     let mut second = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    second.workspace = Some("web".to_string());
+    second.metadata.workspace = Some("web".to_string());
     let packages = [first, second];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);

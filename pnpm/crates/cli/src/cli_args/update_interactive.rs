@@ -12,26 +12,36 @@
 //! the [`TargetVersion`] they compare against: `update` targets the
 //! version a bump would move to (the `latest` tag under `--latest`,
 //! otherwise the highest in-range version). [`choices::update_choices`]
-//! turns that set into the grouped, column-aligned list the prompt — a
-//! `dialoguer` multi-select — renders.
+//! turns that set into the grouped, column-aligned list the prompt
+//! renders. Which prompt that is comes in as an [`UpdatePrompt`].
+
+pub(crate) use global::select_global_package_groups;
 
 use crate::{
+    checkbox_prompt::{
+        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+    },
     cli_args::{
-        outdated::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer},
+        global::has_pnpm_cli_dependency,
+        outdated::{
+            OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
+            collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+            ignored_dependencies_matcher,
+        },
         pipelines::InstallFamilySelection,
         sanitize::sanitize_inline,
     },
-    github_actions,
 };
-use dialoguer::MultiSelect;
+
 use miette::{IntoDiagnostic, miette};
 use owo_colors::{OwoColorize, Stream};
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::Reporter;
-use std::{collections::HashSet, path::Path};
+use pnpm_config::Config;
+use pnpm_github_actions as github_actions;
+use pnpm_lockfile::Lockfile;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,
@@ -42,113 +52,96 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
     pub latest: bool,
     pub include_direct: &'a [DependencyGroup],
     pub include_github_actions: bool,
+    pub prompt: UpdatePrompt,
 }
 
-pub(crate) async fn select_global_package_groups(
-    base_config: &'static Config,
-    packages: &[String],
-    latest: bool,
-) -> miette::Result<Option<HashSet<String>>> {
-    let global_pkg_dir = base_config.global_pkg_dir.clone().ok_or_else(|| {
-        miette!(code = "ERR_PNPM_NO_GLOBAL_BIN_DIR", "Unable to find the global packages directory")
-    })?;
-    let mut config = base_config.clone();
-    config.workspace_dir = None;
-    config.shared_workspace_lockfile = false;
-    // A group's lockfile is written unconditionally (`run_group_install`
-    // forces it) because it is where the installed versions are recorded, so
-    // reading it back must not depend on the caller's `lockfile` setting.
-    config.lockfile = true;
-    let config = Config::leak(config);
-    let query = OutdatedQuery {
-        target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
-        include_direct: &[DependencyGroup::Prod],
-        match_names: None,
-        include_deprecated: false,
-    };
-    let mut labels = Vec::new();
-    let mut hashes = Vec::new();
-    let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
-        .map_err(|err| miette!("failed to scan global packages: {err}"))?;
-    if global_packages.is_empty() {
-        println!("No global packages found");
-        return Ok(None);
-    }
-    // A global group is always updated as a whole, so the params select groups
-    // rather than dependencies, the same way `handle_global_update` reads them.
-    let matched_packages = if packages.is_empty() {
-        global_packages
-    } else {
-        let matched = global_packages
-            .into_iter()
-            .filter(|pkg| packages.iter().any(|param| pkg.has_alias(param)))
-            .collect::<Vec<_>>();
-        if matched.is_empty() {
-            println!("No matching global packages found");
-            return Ok(None);
+/// One row of the checkbox prompt.
+enum PromptRow {
+    /// A group heading or a group's column header: shown, never selected.
+    Separator(String),
+    /// Checking it selects `value`, which the confirmed answer names by
+    /// `short`.
+    Choice { label: String, short: String, value: String },
+}
+
+/// The look of the prompt: pnpm's own theme for the dependency list, the
+/// prompt library's default for the global package groups.
+#[derive(Clone, Copy)]
+enum PromptStyle {
+    Dependencies,
+    GlobalGroups,
+}
+
+/// How `update --interactive` asks which dependencies to update.
+///
+/// `clap` never sets it. It exists so a test can answer the prompt the
+/// way the upstream suite answers its own — by mocking
+/// `@inquirer/prompts` — which a prompt reading the terminal cannot offer.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) enum UpdatePrompt {
+    #[default]
+    Terminal,
+    #[cfg(test)]
+    Scripted,
+}
+
+impl UpdatePrompt {
+    /// The rows the user checked, by index, or [`None`] when the prompt
+    /// was cancelled with Ctrl-C.
+    fn select(
+        self,
+        message: &str,
+        rows: &[PromptRow],
+        style: PromptStyle,
+    ) -> miette::Result<Option<Vec<usize>>> {
+        match self {
+            Self::Terminal => {
+                let items = rows
+                    .iter()
+                    .enumerate()
+                    .map(|(index, row)| match row {
+                        PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
+                        PromptRow::Choice { label, short, .. } => {
+                            CheckboxItem::Choice(CheckboxChoice {
+                                name: label.clone(),
+                                short: short.clone(),
+                                value: index,
+                            })
+                        }
+                    })
+                    .collect();
+                let prompt = match style {
+                    PromptStyle::Dependencies => CheckboxPrompt::new(message, items)
+                        .required(true)
+                        .theme(CheckboxTheme {
+                            checked: "●".to_string(),
+                            unchecked: "○".to_string(),
+                            highlight_active: false,
+                        }),
+                    PromptStyle::GlobalGroups => CheckboxPrompt::new(message, items),
+                };
+                match prompt
+                    .interact()
+                    .into_diagnostic()
+                    .map_err(|err| miette!("interactive update selection failed: {err}"))?
+                {
+                    CheckboxAnswer::Selected(indices) => Ok(Some(indices)),
+                    CheckboxAnswer::Cancelled => Ok(None),
+                }
+            }
+            #[cfg(test)]
+            Self::Scripted => Ok(tests::answer_prompt(message, rows)),
         }
-        matched
-    };
-    for pkg in matched_packages {
-        let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
-            .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
-        let lockfile = state
-            .lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let outdated = collect_outdated_for_importer(
-            &state.manifest,
-            lockfile,
-            pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY,
-            config,
-            &state.http_client,
-            &query,
-        )
-        .await?;
-        if outdated.is_empty() {
-            continue;
-        }
-        labels.push(
-            outdated
-                .iter()
-                .map(|package| {
-                    format!(
-                        "{} {} → {}",
-                        sanitize_inline(&package.alias),
-                        package.current,
-                        package.target,
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
-        hashes.push(pkg.hash);
     }
-    if labels.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
-        return Ok(None);
-    }
-    let selected_indices = MultiSelect::new()
-        .with_prompt(
-            "Choose which global package groups to update (space to select, enter to confirm)",
-        )
-        .items(&labels)
-        .interact()
-        .into_diagnostic()
-        .map_err(|err| miette!("interactive update selection failed: {err}"))?;
-    let selected = selected_indices
-        .into_iter()
-        .filter_map(|index| hashes.get(index).cloned())
-        .collect::<HashSet<_>>();
-    if selected.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(selected))
+}
+
+/// pnpm's `globalInfo('Update canceled')`: leaving the prompt with Ctrl-C
+/// is how the user declines to update, not an error.
+fn report_cancelled<Reporter: self::Reporter>() {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: "Update canceled".to_string(),
+    }));
 }
 
 /// Gather outdated direct dependencies, prompt the user, and return the
@@ -161,7 +154,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     lockfile: Option<&Lockfile>,
     importer_id: &str,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
@@ -175,15 +168,14 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest,
-            config.update_config.github_actions_server.as_deref(),
-        )
-        .await?;
+        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
-    prompt_for_packages(&choices, options.latest, config.workspace_dir.is_some())
+    prompt_for_packages::<Reporter>(
+        &choices,
+        options.latest,
+        config.workspace_dir.is_some(),
+        options.prompt,
+    )
 }
 
 pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
@@ -191,16 +183,15 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     selection: &InstallFamilySelection,
     lockfile: Option<&Lockfile>,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let projects = selection
-        .projects
+    let projects = selection.projects
         .iter()
         .filter(|project| selection.selected_dirs.contains(&project.root_dir))
         .map(|project| InteractiveUpdateProject {
             manifest: &project.manifest,
-            importer_id: pacquet_workspace::importer_id_from_root_dir(
+            importer_id: pnpm_workspace::importer_id_from_root_dir(
                 &selection.workspace_root,
                 &project.root_dir,
             ),
@@ -216,28 +207,28 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     )
     .await?;
     if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest,
-            config.update_config.github_actions_server.as_deref(),
-        )
-        .await?;
+        append_github_actions::<Reporter>(&mut choices, root, options.latest, config).await?;
     }
-    prompt_for_packages(&choices, options.latest, true)
+    prompt_for_packages::<Reporter>(&choices, options.latest, true, options.prompt)
 }
 
 async fn append_github_actions<Reporter: self::Reporter>(
     choices: &mut Vec<OutdatedPackage>,
     root: &Path,
     latest: bool,
-    server_url: Option<&str>,
+    config: &Config,
 ) -> miette::Result<()> {
     choices.extend(
-        github_actions::find_outdated::<Reporter>(root, !latest, None, server_url)
-            .await?
-            .into_iter()
-            .map(OutdatedPackage::from),
+        github_actions::find_outdated::<Reporter>(
+            root,
+            !latest,
+            None,
+            config.update_config.github_actions_server.as_deref(),
+            crate::github_actions::release_age(config)?.as_ref(),
+        )
+        .await?
+        .into_iter()
+        .map(OutdatedPackage::from),
     );
     Ok(())
 }
@@ -246,28 +237,41 @@ async fn collect_choices(
     projects: &[InteractiveUpdateProject<'_>],
     lockfile: Option<&Lockfile>,
     config: &Config,
-    http_client: &ThrottledClient,
+    http_client: &Arc<ThrottledClient>,
     latest: bool,
     include_direct: &[DependencyGroup],
 ) -> miette::Result<Vec<OutdatedPackage>> {
     let target_version = if latest { TargetVersion::Latest } else { TargetVersion::WithinRange };
+    let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version,
         include_direct,
         match_names: None,
+        ignore_names: ignored.as_ref(),
         include_deprecated: false,
+        full_metadata: false,
     };
-    let choices = futures_util::future::join_all(projects.iter().map(|project| {
-        collect_outdated_for_importer(
-            project.manifest,
-            lockfile,
-            &project.importer_id,
-            config,
-            http_client,
-            &query,
-        )
-    }))
+    let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?;
+    let choices = futures_util::future::join_all(
+        projects
+            .iter()
+            .map(|project| {
+                collect_outdated_for_importer_in_run(
+                    project.manifest,
+                    lockfile,
+                    &project.importer_id,
+                    &query,
+                    &run,
+                )
+            }),
+    )
     .await;
+    unique_choices(choices)
+}
+
+fn unique_choices(
+    choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
+) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
     // survives to [`choices::update_choices`] — that is what lets a
     // collapsed row name every project it covers instead of the first.
@@ -280,7 +284,7 @@ async fn collect_choices(
                 choice.package_name.clone(),
                 choice.current.to_string(),
                 choice.target.to_string(),
-                choice.workspace.clone(),
+                choice.metadata.workspace.clone(),
             );
             if unique.insert(key) {
                 collected.push(choice);
@@ -290,64 +294,82 @@ async fn collect_choices(
     Ok(collected)
 }
 
-fn prompt_for_packages(
+fn print_up_to_date(latest: bool) {
+    let message = if latest {
+        "All of your dependencies are already up to date"
+    } else {
+        "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
+    };
+    println!("{message}");
+}
+
+fn prompt_for_packages<Reporter: self::Reporter>(
     choices: &[OutdatedPackage],
     latest: bool,
     workspaces_enabled: bool,
+    prompt: UpdatePrompt,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
+        print_up_to_date(latest);
         return Ok(None);
     }
 
     let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled);
-    let (labels, values) = flatten_groups(&groups);
+    let rows = flatten_groups(&groups);
 
-    let selected_indices = MultiSelect::new()
-        .with_prompt("Choose which dependencies to update (space to select, enter to confirm)")
-        .items(&labels)
-        .interact()
-        .into_diagnostic()
-        .map_err(|err| miette!("interactive update selection failed: {err}"))?;
+    let Some(selected_indices) =
+        prompt.select(&dependencies_prompt_message(), &rows, PromptStyle::Dependencies)?
+    else {
+        report_cancelled::<Reporter>();
+        return Ok(None);
+    };
 
-    let selected = selected_packages(&values, &selected_indices);
+    let selected = selected_packages(&rows, &selected_indices);
     if selected.is_empty() {
         return Ok(None);
     }
     Ok(Some(selected))
 }
 
-/// Flatten the groups into the one item list `dialoguer` takes, paired
-/// with the package each item updates. A group heading and a group's
-/// header row have no package: `dialoguer` cannot mark an item
-/// unselectable the way pnpm's prompt does, so [`selected_packages`]
-/// drops them from the answer instead.
-fn flatten_groups(groups: &[choices::ChoiceGroup]) -> (Vec<String>, Vec<Option<String>>) {
-    let mut labels = Vec::new();
-    let mut values = Vec::new();
-    for group in groups {
-        labels.push(bold(&group.message));
-        values.push(None);
-        for row in &group.rows {
-            labels.push(row.label.clone());
-            values.push(row.value.clone());
-        }
-    }
-    (labels, values)
+fn dependencies_prompt_message() -> String {
+    let space = cyan("<space>");
+    let all = cyan("<a>");
+    let invert = cyan("<i>");
+    format!(
+        "Choose which dependencies to update (Press {space} to select, {all} to toggle all, {invert} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.",
+    )
 }
 
-/// The packages behind `indices`, in the order the user checked them and
+/// Flatten the groups into the one item list the prompt takes: each
+/// group's heading, its column header, then its rows.
+fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
+    let mut rows = Vec::new();
+    for group in groups {
+        let heading = format!("── {} ──", group.message);
+        rows.push(PromptRow::Separator(bold(&heading)));
+        rows.extend(
+            group.rows
+                .iter()
+                .map(|row| match &row.value {
+                    None => PromptRow::Separator(format!("  {}", row.label)),
+                    Some(value) => PromptRow::Choice {
+                        label: row.label.clone(),
+                        short: sanitize_inline(value).into_owned(),
+                        value: value.clone(),
+                    },
+                }),
+        );
+    }
+    rows
+}
+
+/// The values behind `indices`, in the order the user checked them and
 /// without repeats — the same package can be offered by two importers.
-fn selected_packages(values: &[Option<String>], indices: &[usize]) -> Vec<String> {
+fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
     let mut selected = Vec::new();
     let mut seen = HashSet::new();
     for &index in indices {
-        let Some(value) = values.get(index).and_then(Option::as_ref) else { continue };
+        let Some(PromptRow::Choice { value, .. }) = rows.get(index) else { continue };
         if seen.insert(value.as_str()) {
             selected.push(value.clone());
         }
@@ -356,10 +378,16 @@ fn selected_packages(values: &[Option<String>], indices: &[usize]) -> Vec<String
 }
 
 fn bold(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    text.if_supports_color(Stream::Stdout, |text| text.bold()).to_string()
+}
+
+fn cyan(text: &str) -> String {
+    text.if_supports_color(Stream::Stdout, |text| text.cyan()).to_string()
 }
 
 mod choices;
 
 #[cfg(test)]
 mod tests;
+
+mod global;

@@ -1,8 +1,8 @@
 use super::{DirectByImporter, dedupe_injected_deps};
 use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
-use pacquet_deps_path::DepPath;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_deps_path::DepPath;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashSet as HashSet;
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -12,10 +12,6 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
         resolved_package_id: id.to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: None,
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: "stub".to_string(),
             }),
@@ -23,16 +19,25 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             normalized_bare_specifier: None,
             alias: None,
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: None,
+                non_deprecated_alternative: None,
+            },
         }),
-        children,
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: crate::ResolvedDependencyEdges {
+            children,
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 
@@ -56,7 +61,11 @@ fn rewrites_childless_injected_dep_to_link() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
@@ -76,8 +85,10 @@ fn rewrites_scoped_injected_dep_to_link() {
     graph.insert(injected.clone(), make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()));
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct
-        .insert("fixtures/host".to_string(), BTreeMap::from([("@test/pkg".to_string(), injected)]));
+    direct.insert(
+        "fixtures/host".to_string(),
+        BTreeMap::from([("@test/pkg".to_string(), injected)]),
+    );
     direct.insert("fixtures/host/pkg".to_string(), BTreeMap::new());
 
     let mut roots = BTreeMap::new();
@@ -86,7 +97,11 @@ fn rewrites_scoped_injected_dep_to_link() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("fixtures/host").unwrap().get("@test/pkg").unwrap();
+    let after = direct
+        .get("fixtures/host")
+        .unwrap()
+        .get("@test/pkg")
+        .unwrap();
     assert_eq!(after.as_str(), "link:pkg");
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
@@ -119,7 +134,11 @@ fn leaves_injected_dep_when_children_differ() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "file:project-1");
 }
 
@@ -152,7 +171,11 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(graph.contains_key(&lib));
     assert!(!graph.contains_key(&injected));
@@ -179,7 +202,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
         "debug@4.4.3(supports-color@8.1.1)",
         BTreeMap::from([("supports-color".to_string(), supports_color)]),
     );
-    debug_peer_node.resolved_peer_names.insert("supports-color".to_string());
+    debug_peer_node.edges.resolved_peer_names.insert("supports-color".to_string());
     graph.insert(debug_with_peer.clone(), debug_peer_node);
 
     let injected = DepPath::from("file:project-1".to_string());
@@ -189,8 +212,10 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct
-        .insert("project-1".to_string(), BTreeMap::from([("debug".to_string(), debug_with_peer)]));
+    direct.insert(
+        "project-1".to_string(),
+        BTreeMap::from([("debug".to_string(), debug_with_peer)]),
+    );
     direct.insert(
         "project-2".to_string(),
         BTreeMap::from([("project-1".to_string(), injected.clone())]),
@@ -202,7 +227,11 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get("project-2").unwrap().get("project-1").unwrap();
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
     assert!(!graph.contains_key(&injected), "deduped file: snapshot should be pruned");
 }
@@ -222,6 +251,10 @@ fn ignores_non_workspace_file_deps() {
 
     dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
 
-    let after = direct.get(".").unwrap().get("some-tarball").unwrap();
+    let after = direct
+        .get(".")
+        .unwrap()
+        .get("some-tarball")
+        .unwrap();
     assert_eq!(after.as_str(), "file:vendor/some-tarball.tgz");
 }

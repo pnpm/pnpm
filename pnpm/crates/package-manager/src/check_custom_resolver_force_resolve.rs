@@ -1,26 +1,21 @@
 //! Ask the pnpmfile's custom resolvers whether any lockfile entry must
 //! be re-resolved.
 
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use serde_json::Value;
 
-use pacquet_hooks::{CustomResolver, HookError, finder};
-use pacquet_lockfile::{Lockfile, PackageKey, SnapshotEntry};
+use pnpm_hooks::{CustomResolver, HookError, PnpmfileHooks};
+use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
 
-/// Load the pnpmfile at `lockfile_dir` (if any) and report whether its
-/// custom resolvers force re-resolution of `lockfile`. Used by the
-/// install dispatch to keep the frozen-path optimization from skipping
-/// a forced re-resolve — a `true` verdict forces a full resolution,
-/// which makes the frozen install path impossible.
+/// Whether the install's custom resolvers require a fresh resolution.
+/// A `true` result prevents the prefer-frozen-lockfile optimization.
 pub(crate) async fn force_resolve_from_pnpmfile(
     lockfile: &Lockfile,
-    lockfile_dir: &Path,
+    hook: Option<&dyn PnpmfileHooks>,
 ) -> Result<bool, HookError> {
-    let Some(hook) = finder::load_pnpmfile(lockfile_dir) else {
-        return Ok(false);
-    };
+    let Some(hook) = hook else { return Ok(false) };
     let custom_resolvers = hook.get_custom_resolvers().await?;
     check_custom_resolver_force_resolve(&custom_resolvers, lockfile).await
 }
@@ -50,10 +45,12 @@ pub(crate) async fn check_custom_resolver_force_resolve(
         .iter()
         .flat_map(|(dep_path, entry)| {
             let snapshot_json = merged_package_snapshot_json(lockfile, dep_path, entry);
-            hooks.iter().map(move |hook| {
-                let snapshot_json = snapshot_json.clone();
-                async move { hook.should_refresh_resolution(dep_path, snapshot_json).await }
-            })
+            hooks
+                .iter()
+                .map(move |hook| {
+                    let snapshot_json = snapshot_json.clone();
+                    async move { hook.should_refresh_resolution(dep_path, snapshot_json).await }
+                })
         })
         .collect();
     while let Some(refresh) = checks.next().await {
@@ -73,8 +70,7 @@ fn merged_package_snapshot_json(
     entry: &SnapshotEntry,
 ) -> Value {
     let mut merged = serde_json::Map::new();
-    if let Some(Value::Object(fields)) = lockfile
-        .packages
+    if let Some(Value::Object(fields)) = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
         .and_then(|metadata| serde_json::to_value(metadata).ok())

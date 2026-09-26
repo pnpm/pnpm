@@ -5,8 +5,9 @@ import { forceAbsoluteSymlink } from './forceAbsoluteSymlink.js'
 import { safeJoinModulesDir } from './safeJoinModulesDir.js'
 
 export { forceAbsoluteSymlink } from './forceAbsoluteSymlink.js'
-export { safeJoinModulesDir } from './safeJoinModulesDir.js'
+export { findCommonPathAncestor, prepareWorkspaceModulesDir, safeJoinModulesDir, safeJoinWorkspaceModulesDir, validateWorkspaceModulesDir } from './safeJoinModulesDir.js'
 export { symlinkDirectRootDependency } from './symlinkDirectRootDependency.js'
+export { symlinkDir, symlinkDirSync }
 
 export async function symlinkDependency (
   dependencyRealLocation: string,

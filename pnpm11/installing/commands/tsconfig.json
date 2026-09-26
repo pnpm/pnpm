@@ -112,6 +112,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {
@@ -154,7 +157,13 @@
       "path": "../../text/ordinal-comparator"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/injected-deps-syncer"
     },
     {
       "path": "../../workspace/project-manifest-reader"
@@ -179,6 +188,9 @@
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
     },
     {
       "path": "../../workspace/workspace-manifest-reader"

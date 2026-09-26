@@ -1,4 +1,4 @@
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{AuthHeaders, ThrottledClient};
 
 use super::{FetchAttestationOptions, fetch_attestation_published_at};
 

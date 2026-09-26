@@ -1,0 +1,283 @@
+// Exercises the `pnpm` placeholder bin the way a script-less install leaves it:
+// the install script never replaced it with the native binary, so it is what
+// runs — as an `sh` script, since it carries no shebang for the kernel to read.
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import process from 'node:process'
+import { after, describe, it } from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
+
+const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const WRAPPER_FILES = ['pnpm', 'native-binary.mjs', 'bin/pnpm.mjs']
+const FAKE_BINARY_OUTPUT = /^installed: --version\n$/
+
+const IS_UNIX = process.platform !== 'win32'
+// A shebang-less file runs only where something retries it under a shell after
+// the kernel answers ENOEXEC. Every shell does, and so does glibc's `execvp` —
+// but Apple's libc does not, and Windows has neither. So a shim or a shell
+// reaches the placeholder wherever `sh` exists, while a bare `spawn` of it
+// reaches it on Linux alone.
+const HAS_A_SHELL = !IS_UNIX && 'Windows has no sh'
+const SPAWNS_A_SHEBANGLESS_FILE = process.platform !== 'linux' &&
+  `${process.platform} does not retry a shebang-less file under a shell`
+
+describe('placeholder bin', () => {
+  // The constraint the whole file exists under: a bin shim generated from a
+  // shebang records that interpreter, and pnpm 11 generates the shim before it
+  // puts the native binary at this path.
+  it('carries no shebang', () => {
+    assert.doesNotMatch(fs.readFileSync(path.join(WRAPPER_DIR, 'pnpm'), 'utf8'), /^#!/)
+  })
+
+  it('parses as an sh script', { skip: HAS_A_SHELL }, async () => {
+    const result = await run('sh', ['-n', path.join(WRAPPER_DIR, 'pnpm')])
+    assert.equal(result.status, 0, result.stderr)
+  })
+
+  // Spawned with no shell in between, which only Linux resolves.
+  it('runs the installed native binary', { skip: SPAWNS_A_SHEBANGLESS_FILE }, async () => {
+    const fixture = createFixture()
+
+    const result = await run(fixture.placeholder, ['--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+    // Not a terminal, so no notice.
+    assert.equal(result.stderr, '')
+    assert.equal(fs.readFileSync(fixture.placeholder, 'utf8'), fs.readFileSync(path.join(WRAPPER_DIR, 'pnpm'), 'utf8'))
+  })
+
+  // How pnpm links a bin when it symlinks executables, which is what pnpm 10
+  // does for the version store it delegates a `packageManager` pin to. Started
+  // from a shell, as a user's `pnpm` is, so the symlink chain `$0` walks is
+  // exercised on macOS too.
+  it('runs from a symlink to itself', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    const binDir = path.join(fixture.dir, 'node_modules', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const link = path.join(binDir, 'pnpm')
+    fs.symlinkSync(path.relative(binDir, fixture.placeholder), link)
+
+    const result = await run('sh', [link, '--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // The kernel and the C library's PATH search hand the interpreter the path
+  // they resolved, so $0 is bare only when a shell is given the name itself.
+  it('runs as a bare name handed to sh', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), path.join(fixture.dir, 'pnpm-link'))
+
+    const result = await run('sh', ['pnpm-link', '--version'], { cwd: fixture.dir })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // pnpm/pnpm#14884: MSYS and Cygwin launch the placeholder with a native
+  // Windows path, which has no slash for `${self%/*}` to strip. The file `sh`
+  // opens is the one whose own name is that path, since a backslash is an
+  // ordinary character here, so the walk has to convert it to find the entry
+  // point. The alias bins' tests cover the gate that keeps a Unix path off this
+  // branch, and that every bin carrying the walk converts the same way.
+  it('runs from a native Windows $0', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture({ nestedUnder: ['C:', 'proj'] })
+    const arg0 = 'C:\\proj\\pnpm\\pnpm'
+    fs.copyFileSync(fixture.placeholder, path.join(fixture.dir, arg0))
+
+    const result = await run('sh', [arg0, '--version'], { cwd: fixture.dir })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // What a bin linker writes for a target with no shebang, and the shape pnpm 11
+  // leaves behind: an `exec` of the file itself, so the same shim keeps working
+  // once the native binary takes its place.
+  it('runs from a bin shim that execs it', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    const binDir = path.join(fixture.dir, 'node_modules', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const shim = path.join(binDir, 'pnpm')
+    fs.writeFileSync(shim, `#!/bin/sh\nbasedir=$(dirname "$0")\nexec "$basedir/${path.relative(binDir, fixture.placeholder)}" "$@"\n`, { mode: 0o755 })
+
+    const result = await run(shim, ['--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // A dependency's bins come before the system directories on `PATH`, so a
+  // `readlink` or `dirname` taken from there could report a directory of the
+  // attacker's choosing and hand the call to another `bin/pnpm.mjs`. The walk
+  // takes `readlink` from the system default path and needs no `dirname` at all.
+  it('does not use a readlink or dirname from the caller\'s PATH', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    const hijackDir = path.join(fixture.dir, 'hijack')
+    fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
+    const decoyDir = path.join(fixture.dir, 'decoy')
+    fs.mkdirSync(decoyDir, { recursive: true })
+    // Each decoy answers with what its real counterpart would be asked for, so
+    // either one alone is enough to redirect the walk into `hijackDir`.
+    writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
+    writeDecoy(path.join(decoyDir, 'dirname'), hijackDir)
+    // Relative, so the walk composes a directory with the link target and the
+    // `dirname` decoy is reachable too.
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+
+    const result = await run('sh', [link, '--version'], {
+      env: { PATH: [decoyDir, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // Where no default path is compiled in, as on Nix, `command -p` searches the
+  // caller's PATH. No test host behaves that way, so the placeholder's
+  // `command -p` is rewritten to the plain `command` such a shell amounts to.
+  it('does not use a readlink from a node_modules or relative PATH entry when command -p searches PATH', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
+    const hijackDir = path.join(fixture.dir, 'hijack')
+    fs.mkdirSync(path.join(hijackDir, 'bin'), { recursive: true })
+    fs.writeFileSync(path.join(hijackDir, 'bin', 'pnpm.mjs'), 'console.log("hijacked")\n')
+    fs.writeFileSync(path.join(hijackDir, 'pnpm'), '')
+    const decoyDir = path.join(fixture.dir, 'decoy')
+    fs.mkdirSync(decoyDir, { recursive: true })
+    writeDecoy(path.join(decoyDir, 'readlink'), path.join(hijackDir, 'pnpm'))
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+    const runWithPath = (entry, cwd) => run('sh', [link, '--version'], {
+      cwd,
+      env: { PATH: [entry, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) },
+    })
+
+    const hijacked = await runWithPath(decoyDir)
+    assert.match(hijacked.stdout, /^hijacked$/m, 'precondition: the rewritten placeholder resolves readlink through PATH')
+    const nodeModulesBin = path.join(fixture.dir, 'proj', 'node_modules', '.bin')
+    fs.mkdirSync(path.dirname(nodeModulesBin), { recursive: true })
+    fs.renameSync(decoyDir, nodeModulesBin)
+    for (const [entry, cwd] of [[nodeModulesBin], ['.bin', path.dirname(nodeModulesBin)]]) {
+      const result = await runWithPath(entry, cwd)
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, FAKE_BINARY_OUTPUT, `readlink came from the PATH entry ${entry}`)
+    }
+  })
+
+  // Without a readlink the walk stops on the symlink's own directory, which
+  // holds no entry point of ours. `command -p` is rewritten as above.
+  it('refuses to run when no readlink resolves its symlink', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture()
+    fs.writeFileSync(fixture.placeholder, fs.readFileSync(fixture.placeholder, 'utf8').replaceAll('command -p ', 'command '))
+    const link = path.join(fixture.dir, 'pnpm-link')
+    fs.symlinkSync(path.relative(fixture.dir, fixture.placeholder), link)
+    const nodeOnly = path.join(fixture.dir, 'node-only')
+    fs.mkdirSync(nodeOnly)
+    fs.symlinkSync(process.execPath, path.join(nodeOnly, 'node'))
+
+    const result = await run('/bin/sh', [link, '--version'], { env: { PATH: nodeOnly } })
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /could not resolve .* to a regular file/)
+  })
+
+  it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
+    const fixture = createFixture({ installPlatformPackage: false })
+
+    const result = await run('sh', [fixture.placeholder, '--version'], { env: { COREPACK_ENABLE_NETWORK: '0' } })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
+  })
+
+  // A project the wrapper sits under can hold anything under the platform
+  // package's name; only what was installed with the wrapper is its binary.
+  // Launched through the entry point, whose rule this is, so Windows is covered
+  // too — the placeholder cannot run there.
+  it('does not run a platform package from an ancestor node_modules', async () => {
+    const fixture = createFixture({ installPlatformPackage: false, nestedUnder: ['node_modules', 'tool', 'node_modules'] })
+    writePlatformPackage(path.join(fixture.dir, 'node_modules'))
+
+    const result = await run(process.execPath, [fixture.entryPoint, '--version'], { env: { COREPACK_ENABLE_NETWORK: '0' } })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
+    assert.doesNotMatch(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+})
+
+/**
+ * Spawn `command` with `args`. Resolves once the child has exited, with its
+ * exit status and decoded output; rejects only if it could not be spawned.
+ *
+ * @param {string} command Executable to spawn, as an absolute path or a name on `PATH`.
+ * @param {string[]} args Arguments to pass to it.
+ * @param {{env?: Record<string, string>, cwd?: string}} [options] `env` is
+ *   layered over `process.env`, which is inherited unchanged when omitted;
+ *   `cwd` defaults to the current directory.
+ * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
+ *   `status` is null when a signal ended the child.
+ */
+function run (command, args, { env, cwd } = {}) {
+  const child = spawn(command, args, { cwd, env: { ...process.env, ...env } })
+
+  let stdout = ''
+  let stderr = ''
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk })
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk })
+
+  return new Promise((resolve, reject) => {
+    child.on('error', reject)
+    child.on('close', (status) => { resolve({ status, stdout, stderr }) })
+  })
+}
+
+/** Write an executable at `binPath` that answers every call with `answer`. */
+function writeDecoy (binPath, answer) {
+  fs.writeFileSync(binPath, `#!/bin/sh\necho "${answer}"\n`)
+  fs.chmodSync(binPath, 0o755)
+}
+
+/**
+ * A wrapper directory as a script-less install leaves it: the placeholder still
+ * in place, and — unless told otherwise — the platform package that carries the
+ * binary installed in the wrapper's own `node_modules`, since only the scripts
+ * were skipped. `nestedUnder` places the wrapper that many directories below
+ * the fixture root, which then stands for a project the wrapper sits under.
+ */
+function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-placeholder-'))
+  after(() => fs.rmSync(dir, { force: true, recursive: true }))
+  const wrapperDir = path.join(dir, ...nestedUnder, nestedUnder.length > 0 ? 'pnpm' : '')
+
+  for (const file of WRAPPER_FILES) {
+    fs.mkdirSync(path.dirname(path.join(wrapperDir, file)), { recursive: true })
+    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapperDir, file))
+  }
+  fs.chmodSync(path.join(wrapperDir, 'pnpm'), 0o755)
+  fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0' }))
+
+  if (installPlatformPackage) {
+    writePlatformPackage(path.join(wrapperDir, 'node_modules'))
+  }
+
+  return { dir, placeholder: path.join(wrapperDir, 'pnpm'), entryPoint: path.join(wrapperDir, 'bin', 'pnpm.mjs') }
+}
+
+/**
+ * Create the host's `@pnpm/exe.<target>` package under `modulesDir` (created if
+ * missing): a manifest and the stand-in binary — an executable `sh` script on
+ * Unix, a copy of the running node on Windows. Filesystem errors propagate.
+ */
+function writePlatformPackage (modulesDir) {
+  const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
+  const packageDir = path.join(modulesDir, packageName)
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: packageName, version: '99.0.0' }))
+  if (IS_UNIX) {
+    fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
+  } else {
+    fs.copyFileSync(process.execPath, path.join(packageDir, binFile))
+  }
+}

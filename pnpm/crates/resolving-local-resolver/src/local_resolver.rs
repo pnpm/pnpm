@@ -3,15 +3,20 @@
 //! out of the archive for a tarball, off disk for a directory — once a
 //! [`LocalPackageSpec`] has been chosen.
 
-use std::path::PathBuf;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
-use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
-use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
-use pacquet_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
-use pacquet_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_package_manifest::{
+    PackageManifestError, safe_read_package_json_from_dir, safe_read_project_manifest_from_dir,
+};
+use pnpm_package_name::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
+use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
 
 use crate::parse_bare_specifier::{
     LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
@@ -43,6 +48,10 @@ pub struct LocalResolverOptions {
     /// to two states here because the local resolver only branches on
     /// truthy / falsy.
     pub update: LocalResolverUpdate,
+    /// `inject-workspace-packages` / `injectWorkspacePackages` config.
+    /// When set, a `workspace:` directory dep resolves to `file:` the same
+    /// way a per-dep `injected` flag does.
+    pub inject_workspace_packages: bool,
 }
 
 /// Lockfile-pinned slice the local resolver short-circuits on for
@@ -51,6 +60,7 @@ pub struct LocalResolverOptions {
 pub struct LocalCurrentPkg {
     pub id: PkgResolutionId,
     pub resolution: LockfileResolution,
+    pub manifest: Option<Arc<serde_json::Value>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -79,20 +89,23 @@ impl From<LocalResolveResult> for ResolveResult {
     fn from(result: LocalResolveResult) -> Self {
         ResolveResult {
             id: result.id,
-            // Local resolutions don't have a `name@version` shape —
-            // the canonical name lives in the fetched manifest, not
-            // the resolver-time signal. Leave `name_ver` empty so
-            // downstream consumers fall back to reading
-            // `result.manifest`.
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: result.manifest,
             resolution: result.resolution,
             resolved_via: result.resolved_via.to_string(),
             normalized_bare_specifier: result.normalized_bare_specifier,
             alias: None,
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                // Local resolutions don't have a `name@version` shape —
+                // the canonical name lives in the fetched manifest, not
+                // the resolver-time signal. Leave `name_ver` empty so
+                // downstream consumers fall back to reading
+                // `result.manifest`.
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: result.manifest,
+                non_deprecated_alternative: None,
+            },
         }
     }
 }
@@ -171,7 +184,10 @@ pub async fn resolve_from_local_scheme(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
+    let parse_opts = ParseOptions {
+        preserve_absolute_paths: ctx.preserve_absolute_paths,
+        inject_workspace_packages: opts.inject_workspace_packages,
+    };
     let spec = match parse_local_scheme(wanted_dependency, project_dir, lockfile_dir, parse_opts) {
         Ok(maybe) => maybe,
         Err(err) => {
@@ -189,7 +205,8 @@ pub async fn resolve_from_local_path(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
+    let parse_opts =
+        ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths, ..Default::default() };
     let spec = parse_local_path(wanted_dependency, project_dir, lockfile_dir, parse_opts);
     resolve_spec(spec, opts).await
 }
@@ -216,52 +233,7 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
-        // code the directory branch uses for a missing `file:` target,
-        // so both kinds of missing `file:` target share one error code.
-        let LocalTarballMetadata { integrity, manifest, has_manifest_entry } =
-            match read_local_tarball_metadata(&spec.fetch_spec).await {
-                Ok(metadata) => metadata,
-                Err(err) if is_missing_tarball(&err) => {
-                    return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                        path: spec.fetch_spec.display().to_string(),
-                    });
-                }
-                Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
-            };
-        // The bundled name prefixes the dep path and names the package's
-        // `node_modules` directory, so it has to be present and valid
-        // before it reaches either. An archive that ships no manifest at
-        // all is a different shape and stays tolerated here.
-        if has_manifest_entry {
-            match bundled_package_name(manifest.as_ref()) {
-                None => {
-                    return Err(ResolveLocalError::MissingPackageName {
-                        specifier: spec.normalized_bare_specifier,
-                    });
-                }
-                Some(name) if !is_valid_old_npm_package_name(name) => {
-                    let name = name.to_string();
-                    return Err(ResolveLocalError::InvalidPackageName {
-                        specifier: spec.normalized_bare_specifier,
-                        name,
-                    });
-                }
-                Some(_) => {}
-            }
-        }
-        return Ok(Some(LocalResolveResult {
-            id: spec.id.clone(),
-            manifest: manifest.map(std::sync::Arc::new),
-            normalized_bare_specifier: Some(spec.normalized_bare_specifier),
-            resolution: LockfileResolution::Tarball(TarballResolution {
-                tarball: spec.id.as_str().to_string(),
-                integrity: Some(integrity),
-                git_hosted: None,
-                path: None,
-            }),
-            resolved_via: "local-filesystem",
-        }));
+        return resolve_file_spec(&spec, opts).await.map(Some);
     }
 
     // Directory branch. Short-circuit when the lockfile already has
@@ -295,11 +267,105 @@ async fn resolve_spec(
     }))
 }
 
+async fn resolve_file_spec(
+    spec: &LocalPackageSpec,
+    opts: &LocalResolverOptions,
+) -> Result<LocalResolveResult, ResolveLocalError> {
+    match resolve_local_tarball(spec).await {
+        Ok(result) => Ok(result),
+        Err(ResolveLocalError::LinkedPkgDirNotFound { .. })
+            if opts.update == LocalResolverUpdate::Off
+                && opts.current_pkg
+                    .as_ref()
+                    .is_some_and(|current| {
+                        matches!(
+                            &current.resolution,
+                            LockfileResolution::Tarball(tarball)
+                                if tarball.integrity.is_some()
+                                    && (tarball.tarball == spec.id.as_str()
+                                        || current.id.as_str() == spec.id.as_str()),
+                        )
+                    }) =>
+        {
+            let current = opts.current_pkg.as_ref().unwrap();
+            Ok(LocalResolveResult {
+                id: spec.id.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
+                normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
+                resolution: current.resolution.clone(),
+                resolved_via: "local-filesystem",
+            })
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Resolve a `file:` specifier that names a tarball.
+async fn resolve_local_tarball(
+    spec: &LocalPackageSpec,
+) -> Result<LocalResolveResult, ResolveLocalError> {
+    // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
+    // code the directory branch uses for a missing `file:` target, so both
+    // kinds of missing `file:` target share one error code.
+    let LocalTarballMetadata {
+        integrity,
+        manifest,
+        has_manifest_entry,
+    } = match read_local_tarball_metadata(&spec.fetch_spec).await {
+        Ok(metadata) => metadata,
+        Err(err) if is_missing_tarball(&err) => {
+            return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                path: spec.fetch_spec.display().to_string(),
+            });
+        }
+        Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
+    };
+    if has_manifest_entry {
+        check_bundled_package_name(manifest.as_ref(), &spec.normalized_bare_specifier)?;
+    }
+    Ok(LocalResolveResult {
+        id: spec.id.clone(),
+        manifest: manifest.map(std::sync::Arc::new),
+        normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: spec.id.as_str().to_string(),
+            integrity: Some(integrity),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "local-filesystem",
+    })
+}
+
+/// The bundled name prefixes the dep path and names the package's
+/// `node_modules` directory, so it has to be present and valid before it
+/// reaches either. An archive that ships no manifest at all is a different
+/// shape and stays tolerated by the caller.
+fn check_bundled_package_name(
+    manifest: Option<&serde_json::Value>,
+    specifier: &str,
+) -> Result<(), ResolveLocalError> {
+    let Some(name) = bundled_package_name(manifest) else {
+        return Err(ResolveLocalError::MissingPackageName { specifier: specifier.to_string() });
+    };
+    if is_valid_old_npm_package_name(name) {
+        return Ok(());
+    }
+    Err(ResolveLocalError::InvalidPackageName {
+        specifier: specifier.to_string(),
+        name: name.to_string(),
+    })
+}
+
 /// Decide the fall-back when `package.json` is missing. For `file:`
 /// specs (copy-shaped) this throws `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` when the
 /// directory itself doesn't exist; for `link:` with a missing
 /// `package.json` it warns and substitutes a manifest with the
-/// directory basename and `version: '0.0.0'`.
+/// directory basename and no version: the version is unknown, so ranged
+/// `packageExtensions` and overrides selectors must not match it
+/// (<https://github.com/pnpm/pnpm/issues/15007>). The dependency resolver
+/// stamps the `0.0.0` identity default after the manifest hooks have run.
 fn synthesize_fallback_manifest(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
@@ -333,12 +399,36 @@ fn synthesize_fallback_manifest(
             path: spec.fetch_spec.display().to_string(),
         });
     }
-    let name = spec
-        .fetch_spec
+    if let Some(manifest) = find_parent_publish_manifest(&spec.fetch_spec)? {
+        return Ok(manifest);
+    }
+    let name = spec.fetch_spec
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    Ok(serde_json::json!({ "name": name, "version": "0.0.0" }))
+    Ok(serde_json::json!({ "name": name }))
+}
+
+fn find_parent_publish_manifest(
+    fetch_spec: &Path,
+) -> Result<Option<serde_json::Value>, ResolveLocalError> {
+    let normalized_target = pnpm_fs::lexical_normalize(fetch_spec);
+    for parent in normalized_target.ancestors().skip(1) {
+        let Some(manifest) =
+            safe_read_project_manifest_from_dir(parent).map_err(ResolveLocalError::ReadManifest)?
+        else {
+            continue;
+        };
+        let is_publish_dir = manifest
+            .get("publishConfig")
+            .and_then(|config| config.get("directory"))
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
+    }
+    Ok(None)
 }
 
 /// Map a [`PackageManifestError`] from
@@ -373,7 +463,10 @@ fn handle_manifest_read_failure(
 }
 
 fn bundled_package_name(manifest: Option<&serde_json::Value>) -> Option<&str> {
-    manifest?.get("name")?.as_str().filter(|name| !name.is_empty())
+    manifest?
+        .get("name")?
+        .as_str()
+        .filter(|name| !name.is_empty())
 }
 
 fn is_missing_tarball(err: &TarballError) -> bool {

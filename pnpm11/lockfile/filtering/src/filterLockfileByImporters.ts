@@ -1,5 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  pruneDanglingPeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
   PackageSnapshots,
@@ -20,6 +24,7 @@ export function filterLockfileByImporters (
     skipped: Set<DepPath>
     skipRuntimes?: boolean
     failOnMissingDependencies: boolean
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): LockfileObject {
   const importers = { ...lockfile.importers }
@@ -27,19 +32,23 @@ export function filterLockfileByImporters (
     importers[importerId] = filterImporter(lockfile.importers[importerId], opts.include, { skipRuntimes: opts.skipRuntimes })
   }
 
-  const packages = {} as PackageSnapshots
+  // Classified on the unfiltered importers: the filtered copy lacks the
+  // excluded dependency fields that decide whether an importer lists a peer.
+  const peerSatisfactionEdges = getPeerSatisfactionEdgesToSkip(lockfile, opts)
+  let packages = {} as PackageSnapshots
   if (lockfile.packages != null) {
     pkgAllDeps(
       lockfileWalker(
         { ...lockfile, importers },
         importerIds,
-        { include: opts.include, skipped: opts.skipped }
+        { include: opts.include, skipped: opts.skipped, peerSatisfactionEdges: peerSatisfactionEdges ?? new Map() }
       ).step,
       packages,
       {
         failOnMissingDependencies: opts.failOnMissingDependencies,
       }
     )
+    packages = pruneDanglingPeerSatisfactionEdges(packages, peerSatisfactionEdges)
   }
 
   return {

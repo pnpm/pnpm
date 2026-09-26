@@ -12,7 +12,9 @@ const SEP: char = ':';
 const SEP: char = ';';
 
 fn segments(path: &OsString) -> Vec<String> {
-    env::split_paths(path).map(|path| path.to_string_lossy().into_owned()).collect()
+    env::split_paths(path)
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect()
 }
 
 #[test]
@@ -20,7 +22,8 @@ fn node_gyp_comes_after_node_modules_dot_bin() {
     let wd = Path::new("/Users/x/project");
     let node_gyp = PathBuf::from("/lib/node-gyp-bin");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
+    let path =
+        extend_path(wd, None, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     let bin_idx = parts
         .iter()
@@ -48,7 +51,7 @@ fn node_gyp_comes_after_node_modules_dot_bin() {
 fn no_ancestors_when_wd_has_no_node_modules_segment() {
     let wd = Path::new("/home/me/project");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let path = extend_path(wd, None, None, None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     assert_eq!(parts.len(), 1, "expected exactly one .bin entry, got {parts:?}");
     assert!(parts[0].ends_with(".bin"), "must be a .bin path: {:?}", parts[0]);
@@ -64,7 +67,7 @@ fn no_ancestors_when_wd_has_no_node_modules_segment() {
 fn pnpm_virtual_store_layout_yields_three_bins_deepest_first() {
     let wd = Path::new("/proj/node_modules/.pnpm/foo@1.0.0/node_modules/foo");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let path = extend_path(wd, None, None, None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     assert_eq!(
         parts,
@@ -88,7 +91,7 @@ fn virtual_store_walk_orders_deepest_first() {
         .join("node_modules")
         .join("foo");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(&wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let path = extend_path(&wd, None, None, None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     assert_eq!(parts.len(), 3, "expected three bin paths, got {parts:?}");
     for window in parts.windows(2) {
@@ -99,6 +102,30 @@ fn virtual_store_walk_orders_deepest_first() {
     }
 }
 
+/// A scoped package contributes one path component per name segment.
+/// Pushed whole, `@scope/pkg` would leave its `/` inside a Windows path
+/// string — see [`pnpm_fs::push_slash_separated_path`].
+#[test]
+fn scoped_package_slot_bins_use_native_separators() {
+    let wd = Path::new("proj")
+        .join("node_modules")
+        .join(".pnpm")
+        .join("@scope+pkg@1.0.0")
+        .join("node_modules")
+        .join("@scope")
+        .join("pkg");
+    let extra: Vec<PathBuf> = vec![];
+    let path = extend_path(&wd, None, None, None, &extra, ScriptsPrependNodePath::Never, None);
+    let parts = segments(&path);
+    let foreign = if std::path::MAIN_SEPARATOR == '/' { '\\' } else { '/' };
+    assert!(
+        parts
+            .iter()
+            .all(|part| !part.contains(foreign)),
+        "no PATH entry may carry a {foreign:?} separator: {parts:?}",
+    );
+}
+
 /// Final PATH order is `[bins..., nodeGyp, ...extraBinPaths]`: the
 /// `.bin` directories come first, then the bundled node-gyp dir, then
 /// the caller-supplied extra paths.
@@ -107,15 +134,25 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let wd = Path::new("/proj");
     let node_gyp = PathBuf::from("/bundled/node-gyp-bin");
     let extra: Vec<PathBuf> = vec![PathBuf::from("/extra/one"), PathBuf::from("/extra/two")];
-    let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
+    let path =
+        extend_path(wd, None, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
-    let bin_idx =
-        parts.iter().position(|part| part.contains("proj") && part.ends_with(".bin")).unwrap();
-    let gyp_idx = parts.iter().position(|part| part.contains("node-gyp-bin")).unwrap();
-    let extra1_idx =
-        parts.iter().position(|part| part == "/extra/one" || part == r"\extra\one").unwrap();
-    let extra2_idx =
-        parts.iter().position(|part| part == "/extra/two" || part == r"\extra\two").unwrap();
+    let bin_idx = parts
+        .iter()
+        .position(|part| part.contains("proj") && part.ends_with(".bin"))
+        .unwrap();
+    let gyp_idx = parts
+        .iter()
+        .position(|part| part.contains("node-gyp-bin"))
+        .unwrap();
+    let extra1_idx = parts
+        .iter()
+        .position(|part| part == "/extra/one" || part == r"\extra\one")
+        .unwrap();
+    let extra2_idx = parts
+        .iter()
+        .position(|part| part == "/extra/two" || part == r"\extra\two")
+        .unwrap();
     assert!(
         bin_idx < gyp_idx && gyp_idx < extra1_idx && extra1_idx < extra2_idx,
         "expected order .bin < nodeGyp < extra1 < extra2; got {parts:?}",
@@ -133,7 +170,8 @@ fn original_path_is_appended_last() {
         text.push("/usr/bin");
         text
     };
-    let path = extend_path(wd, Some(&sys_path), None, &extra, ScriptsPrependNodePath::Never, None);
+    let path =
+        extend_path(wd, None, Some(&sys_path), None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     assert_eq!(parts.len(), 3, "1 bin + 2 sys = 3 entries, got {parts:?}");
     assert_eq!(parts[1], "/usr/local/bin");
@@ -145,10 +183,13 @@ fn scripts_prepend_node_path_always_appends_dirname_of_node() {
     let wd = Path::new("/proj");
     let node = PathBuf::from("/opt/node/bin/node");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Always, Some(&node));
+    let path =
+        extend_path(wd, None, None, None, &extra, ScriptsPrependNodePath::Always, Some(&node));
     let parts = segments(&path);
     assert!(
-        parts.iter().any(|part| part == "/opt/node/bin"),
+        parts
+            .iter()
+            .any(|part| part == "/opt/node/bin"),
         "expected dirname(node) in PATH, got {parts:?}",
     );
 }
@@ -170,6 +211,7 @@ fn separator_in_path_component_does_not_drop_other_entries() {
         wd,
         None,
         None,
+        None,
         std::slice::from_ref(&weird),
         ScriptsPrependNodePath::Never,
         None,
@@ -188,11 +230,94 @@ fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
     let node = PathBuf::from("/opt/node/bin/node");
     let extra: Vec<PathBuf> = vec![];
     for variant in [ScriptsPrependNodePath::Never, ScriptsPrependNodePath::WarnOnly] {
-        let path = extend_path(wd, None, None, &extra, variant, Some(&node));
+        let path = extend_path(wd, None, None, None, &extra, variant, Some(&node));
         let parts = segments(&path);
         assert!(
-            !parts.iter().any(|part| part == "/opt/node/bin"),
+            !parts
+                .iter()
+                .any(|part| part == "/opt/node/bin"),
             "variant {variant:?} must not prepend dirname(node), got {parts:?}",
         );
     }
+}
+
+#[test]
+fn wd_bin_dir_replaces_only_the_wds_own_bin() {
+    let root = std::path::absolute(Path::new("/proj")).expect("absolute project root");
+    let wd = root.join("node_modules").join("dep");
+    let wd_bin = wd.join("vendor").join(".bin");
+    let extra: Vec<PathBuf> = vec![];
+    let path =
+        extend_path(&wd, Some(&wd_bin), None, None, &extra, ScriptsPrependNodePath::Never, None);
+    assert_eq!(
+        segments(&path),
+        vec![
+            wd_bin.to_string_lossy().into_owned(),
+            root.join("node_modules")
+                .join(".bin")
+                .to_string_lossy()
+                .into_owned(),
+        ],
+    );
+}
+
+fn join_segments(parts: &[&str]) -> OsString {
+    OsString::from(parts.join(&SEP.to_string()))
+}
+
+#[test]
+fn nested_script_does_not_add_the_parent_scripts_entries_again() {
+    let wd = std::path::absolute(Path::new("/proj")).expect("absolute project root");
+    let node_gyp = PathBuf::from("node_gyp");
+    let extra = vec![PathBuf::from("extra")];
+    let original = join_segments(&["user", "user", "system"]);
+    let extend = |original: &OsString| {
+        extend_path(
+            &wd,
+            None,
+            Some(original),
+            Some(&node_gyp),
+            &extra,
+            ScriptsPrependNodePath::Never,
+            None,
+        )
+    };
+    let outer = extend(&original);
+    assert_eq!(extend(&outer), outer);
+    assert_eq!(
+        segments(&outer),
+        vec![
+            wd.join("node_modules")
+                .join(".bin")
+                .to_string_lossy()
+                .into_owned(),
+            "node_gyp".to_string(),
+            "extra".to_string(),
+            "user".to_string(),
+            "user".to_string(),
+            "system".to_string(),
+        ],
+    );
+}
+
+#[test]
+fn inherited_entry_that_pnpm_adds_keeps_the_position_pnpm_gives_it() {
+    let wd = std::path::absolute(Path::new("/proj")).expect("absolute project root");
+    let bin = wd
+        .join("node_modules")
+        .join(".bin")
+        .to_string_lossy()
+        .into_owned();
+    let node_gyp = PathBuf::from("node_gyp");
+    let original = join_segments(&["system", &bin]);
+    let path = extend_path(
+        &wd,
+        None,
+        Some(&original),
+        Some(&node_gyp),
+        &[],
+        ScriptsPrependNodePath::Never,
+        None,
+    );
+    assert_eq!(segments(&path), vec![bin, "node_gyp".to_string(), "system".to_string()]);
 }

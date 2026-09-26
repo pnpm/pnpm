@@ -5,10 +5,10 @@ use crate::{
     resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
     resolved_tree::{DependenciesTreeNode, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::FxHashMap as HashMap;
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
@@ -17,7 +17,12 @@ pub(super) fn tree_node(
     children: BTreeMap<String, NodeId>,
     depth: i32,
 ) -> DependenciesTreeNode {
-    DependenciesTreeNode::new(pkg_id.to_string(), TreeChildren::Realized(children), depth, true)
+    DependenciesTreeNode::new(
+        Arc::from(pkg_id.to_string()),
+        TreeChildren::Realized(Arc::new(children)),
+        depth,
+        true,
+    )
 }
 
 pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
@@ -37,8 +42,10 @@ pub(super) fn package(
     peer_dependencies: &[(&str, &str)],
     is_leaf: bool,
 ) -> ResolvedPackage {
-    let peer_dependencies: Vec<_> =
-        peer_dependencies.iter().map(|(name, version)| (*name, *version, false)).collect();
+    let peer_dependencies: Vec<_> = peer_dependencies
+        .iter()
+        .map(|(name, version)| (*name, *version, false))
+        .collect();
     package_with_peer_dependencies(name, version, &peer_dependencies, is_leaf)
 }
 
@@ -55,7 +62,7 @@ pub(super) fn package_with_peer_dependencies(
         })
         .collect();
     ResolvedPackage {
-        id: format!("{name}@{version}"),
+        id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
         peer_dependencies,
         optional: false,
@@ -65,13 +72,9 @@ pub(super) fn package_with_peer_dependencies(
 
 pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedPackage {
     ResolvedPackage {
-        id: id.to_string(),
+        id: Arc::from(id.to_string()),
         result: Arc::new(ResolveResult {
             id: PkgResolutionId::from(id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: directory.to_string(),
             }),
@@ -79,6 +82,13 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
             normalized_bare_specifier: None,
             alias: Some(name.to_string()),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
+                non_deprecated_alternative: None,
+            },
         }),
         peer_dependencies: BTreeMap::new(),
         optional: false,
@@ -93,13 +103,10 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
     );
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: Some(version.to_string()),
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -107,5 +114,12 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some(version.to_string()),
+            published_at: None,
+            manifest: None,
+            non_deprecated_alternative: None,
+        },
     }
 }

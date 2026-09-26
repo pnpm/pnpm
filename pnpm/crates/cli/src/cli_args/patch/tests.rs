@@ -1,9 +1,12 @@
 use super::{
     DialoguerPatchPrompt, PatchCandidate, PatchCandidateSet, PatchError, PatchPrompt, PatchTarget,
-    checked_existing_patch_file_path, default_edit_dir_name, reject_non_empty_custom_edit_dir,
-    reject_non_empty_edit_dir, render_success, select_patch_target,
-    select_patch_target_with_prompt,
+    reject_non_empty_custom_edit_dir, reject_non_empty_edit_dir, render_success,
+    select_patch_target, select_patch_target_with_prompt,
 };
+#[cfg(unix)]
+use crate::cli_args::patch::paths::checked_existing_patch_file_path;
+use crate::cli_args::patch::paths::{default_edit_dir_name, find_existing_patch_file};
+use indexmap::IndexMap;
 use std::{io::IsTerminal, path::Path};
 use tempfile::tempdir;
 
@@ -221,6 +224,27 @@ fn default_edit_dir_name_falls_back_to_alias_then_requested_package() {
     assert_eq!(default_edit_dir_name("chalk@npm:chalk@5.3.0", &target), "chalk@npm:chalk@5.3.0");
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/9699>.
+#[test]
+fn existing_patch_file_of_a_git_hosted_package_is_found_by_version() {
+    let tarball = "https://codeload.github.com/example/hi/tar.gz/deadbeef";
+    let target = PatchTarget {
+        alias: "hi".to_string(),
+        version: "1.0.0".to_string(),
+        bare_specifier: tarball.to_string(),
+        apply_to_all: false,
+        git_tarball_url: Some(tarball.to_string()),
+        package_key: format!("hi@{tarball}").parse().expect("package key"),
+    };
+    let patched_dependencies =
+        IndexMap::from([("hi@1.0.0".to_string(), "patches/hi@1.0.0.patch".to_string())]);
+
+    assert_eq!(
+        find_existing_patch_file(&patched_dependencies, &target).map(String::as_str),
+        Some("patches/hi@1.0.0.patch"),
+    );
+}
+
 struct FakePrompt {
     selected: usize,
     apply_to_all: bool,
@@ -249,6 +273,10 @@ fn prompt_candidate_set() -> PatchCandidateSet {
 
 fn prompt_candidate(key: &str) -> PatchCandidate {
     let package_key = key.parse().expect("package key");
-    let version = key.rsplit('@').next().expect("version").to_string();
+    let version = key
+        .rsplit('@')
+        .next()
+        .expect("version")
+        .to_string();
     PatchCandidate { name: "chalk".to_string(), version, git_tarball_url: None, package_key }
 }

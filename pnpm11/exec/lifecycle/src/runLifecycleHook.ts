@@ -3,12 +3,14 @@ import path from 'node:path'
 
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
+import { lifecycle } from '@pnpm/exec.npm-lifecycle'
 import { globalWarn } from '@pnpm/logger'
-import { lifecycle } from '@pnpm/npm-lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
+
+import { trackChildProcess } from './trackChildProcess.js'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -20,12 +22,18 @@ export interface RunLifecycleHookOptions {
   initCwd?: string
   optional?: boolean
   pkgRoot: string
+  raiseOnInterrupt?: boolean
   rootModulesDir: string
+  /**
+   * The `.bin` holding `pkgRoot`'s own executables, when `modulesDir` puts
+   * them somewhere other than `<pkgRoot>/node_modules/.bin`.
+   */
+  wdBinDir?: string
   scriptShell?: string
   silent?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   shellEmulator?: boolean
-  stdio?: string
+  stdio?: 'inherit' | 'pipe'
   unsafePerm: boolean
   userAgent?: string
 }
@@ -83,14 +91,14 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       }
       break
     case 'install':
-      if (!m.scripts.install && !m.scripts.preinstall) {
+      if (!m.scripts.install && !m.scripts.preinstall && m.gypfile !== false) {
         checkBindingGyp(opts.pkgRoot, m.scripts)
       }
       break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
-    const escapedArgs = isWindows()
+    const escapedArgs = isWindows() && !opts.shellEmulator
       ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
       : shellQuote(opts.args)
     m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
@@ -113,8 +121,8 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     ? 'silent'
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
-    config: {},
     dir: opts.rootModulesDir,
+    wdBinDir: opts.wdBinDir,
     extraBinPaths: opts.extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
@@ -135,6 +143,8 @@ Please unset the scriptShell option, or configure it to a .exe instead.
         globalWarn(msg.join(' '))
       },
     },
+    onSpawn: trackChildProcess,
+    raiseOnInterrupt: opts.raiseOnInterrupt,
     runConcurrently: true,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -175,8 +185,12 @@ Please unset the scriptShell option, or configure it to a .exe instead.
 }
 
 /**
- * Run node-gyp when binding.gyp is available. Only do this when there are no
- * `install` and `preinstall` scripts (see `npm help scripts`).
+ * Set `scripts.install` to `node-gyp rebuild` when `root` holds a binding.gyp.
+ *
+ * The caller decides whether the synthesized script applies: only when the
+ * manifest declares no `install` or `preinstall` script and does not opt out
+ * with `gypfile: false` (see `npm help scripts` and
+ * https://docs.npmjs.com/cli/v12/configuring-npm/package-json#gypfile).
  */
 function checkBindingGyp (
   root: string,

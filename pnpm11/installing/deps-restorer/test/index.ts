@@ -15,7 +15,7 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -301,15 +301,12 @@ test('installing only optional deps', async () => {
   const prefix = f.prepare('simple')
 
   await headlessInstall(await testDefaults({
-    development: false,
     include: {
       dependencies: false,
       devDependencies: false,
       optionalDependencies: true,
     },
     lockfileDir: prefix,
-    optional: true,
-    production: false,
   }))
 
   const project = assertProject(prefix)
@@ -536,7 +533,7 @@ test('installing using passed in lockfile files', async () => {
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
-    wantedLockfile,
+    wantedLockfile: wantedLockfile ?? undefined,
   }))
 
   const project = assertProject(prefix)
@@ -570,7 +567,7 @@ test('installing with hoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: ['*'] }))
 
   const project = assertProject(prefix)
   expect(project.requireModule('is-positive')).toBeTruthy()
@@ -625,11 +622,36 @@ test('installing with hoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
 })
 
+test('headless install preserves registry hoist links when the current lockfile is missing', async () => {
+  const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, hoistPattern: ['*'] }))
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  const registryLink = path.join(prefix, 'node_modules/.pnpm/node_modules/balanced-match')
+  const target = fs.realpathSync(registryLink)
+  fs.unlinkSync(path.join(prefix, 'node_modules/.pnpm/lock.yaml'))
+
+  const unlink = jest.spyOn(fs.promises, 'unlink')
+  try {
+    await headlessInstall(await testDefaults({
+      lockfileDir: prefix,
+      hoistPattern: ['*'],
+      currentHoistPattern: ['*'],
+      hoistedDependencies: modules!.hoistedDependencies,
+    }))
+    expect(unlink).not.toHaveBeenCalledWith(registryLink)
+    expect(fs.realpathSync(registryLink)).toBe(target)
+    const updatedModules = await readModulesManifest(path.join(prefix, 'node_modules'))
+    expect(updatedModules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
+  } finally {
+    unlink.mockRestore()
+  }
+})
+
 test('installing with publicHoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
 
-  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: '*' }))
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter, publicHoistPattern: ['*'] }))
 
   const project = assertProject(prefix)
   expect(project.requireModule('is-positive')).toBeTruthy()
@@ -687,6 +709,55 @@ test('installing with publicHoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'public' })
 })
 
+test.each(['renamed', 'removed'])('headless install removes a %s workspace project from the private hoist directory', async (change) => {
+  const prefix = tempDir()
+  const projectDir = path.join(prefix, 'project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'old-name', version: '1.0.0' }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), [
+    "lockfileVersion: '9.0'",
+    'settings:',
+    '  autoInstallPeers: true',
+    '  excludeLinksFromLockfile: false',
+    'importers:',
+    '  .: {}',
+    '  project: {}',
+    '',
+  ].join('\n'))
+
+  const projects = [prefix, projectDir]
+  await headlessInstall(await testDefaults({
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+  }))
+  const privateHoistDir = path.join(prefix, 'node_modules/.pnpm/node_modules')
+  expect(fs.realpathSync(path.join(privateHoistDir, 'old-name'))).toBe(projectDir)
+
+  const wantedLockfile = (await readWantedLockfile(prefix, { ignoreIncompatible: false }))!
+  if (change === 'removed') {
+    fs.rmSync(projectDir, { recursive: true })
+    delete wantedLockfile.importers['project' as ProjectId]
+    projects.pop()
+  } else {
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'new-name', version: '1.0.0' }))
+  }
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  await headlessInstall(await testDefaults({
+    hoistedDependencies: modules!.hoistedDependencies,
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+    wantedLockfile,
+  }))
+
+  expect(() => fs.lstatSync(path.join(privateHoistDir, 'old-name'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
+  if (change === 'renamed') {
+    expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+  }
+})
+
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
   const lockfileDir = f.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
@@ -694,7 +765,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
   await headlessInstall(await testDefaults({
     lockfileDir,
     projects: [prefix],
-    publicHoistPattern: '*',
+    publicHoistPattern: ['*'],
   }))
 
   const project = assertProject(lockfileDir)
@@ -703,7 +774,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
+test.each([['isolated'], ['hoisted']] as const)('using side effects cache with nodeLinker=%s', async (nodeLinker) => {
   let prefix = prepareFixtureWithIntegrity('side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -764,7 +835,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
-    hoistPattern: '*',
+    hoistPattern: ['*'],
     lockfileDir,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -842,7 +913,7 @@ test('installing with no symlinks but with PnP', async () => {
     symlink: false,
   }))
 
-  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
   expect([...fs.readdirSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)

@@ -58,6 +58,143 @@ test('updateProjectManifest preserves catalog specifier precedence', async () =>
   expect(manifest?.dependencies?.foo).toBe('catalog:')
 })
 
+test('does not add dependencies injected by a readPackage hook to the original manifest', async () => {
+  const hookAddedWantedDependency: WantedDependency = {
+    alias: 'hook-added',
+    bareSpecifier: '^1.0.0',
+    dev: false,
+    optional: false,
+    updateSpec: true,
+  }
+  const [manifest, originalManifest] = await updateProjectManifest({
+    ...createImporter('^1.0.0'),
+    manifest: {
+      dependencies: {
+        foo: '^1.0.0',
+        'hook-added': '^1.0.0',
+      },
+    },
+    originalManifest: {
+      dependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    wantedDependencies: [
+      fooWantedDependency('^1.0.0'),
+      hookAddedWantedDependency,
+    ],
+  }, {
+    directDependencies: [
+      createDirectDependency('^1.0.0'),
+      {
+        alias: 'hook-added',
+        dev: false,
+        name: 'hook-added',
+        normalizedBareSpecifier: '^2.0.0',
+        optional: false,
+        pkgId: 'hook-added@2.0.0' as PkgResolutionId,
+        resolution: { tarball: 'https://registry.example/hook-added-2.0.0.tgz' },
+        version: '2.0.0',
+        wantedDependency: hookAddedWantedDependency,
+      },
+    ],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(manifest?.dependencies?.['hook-added']).toBe('^1.0.0')
+  expect(originalManifest?.dependencies).not.toHaveProperty('hook-added')
+})
+
+test('adds an explicitly requested dependency to the original manifest', async () => {
+  const newWantedDependency: WantedDependency = {
+    alias: 'new-dependency',
+    bareSpecifier: '^1.0.0',
+    dev: false,
+    isNew: true,
+    optional: false,
+    updateSpec: true,
+  }
+  const [, originalManifest] = await updateProjectManifest({
+    ...createImporter('^1.0.0'),
+    originalManifest: {
+      dependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    wantedDependencies: [
+      fooWantedDependency('^1.0.0'),
+      newWantedDependency,
+    ],
+  }, {
+    directDependencies: [
+      createDirectDependency('^1.0.0'),
+      {
+        alias: 'new-dependency',
+        dev: false,
+        name: 'new-dependency',
+        optional: false,
+        pkgId: 'new-dependency@1.0.0' as PkgResolutionId,
+        resolution: { tarball: 'https://registry.example/new-dependency.tgz' },
+        version: '1.0.0',
+        wantedDependency: newWantedDependency,
+      },
+    ],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(originalManifest?.dependencies?.['new-dependency']).toBe('^1.0.0')
+})
+
+test('updates an empty specifier declared in the original manifest', async () => {
+  const wantedDependency: WantedDependency = {
+    alias: 'empty-specifier',
+    bareSpecifier: '',
+    dev: false,
+    optional: false,
+    updateSpec: true,
+  }
+  const [, originalManifest] = await updateProjectManifest({
+    ...createImporter('^1.0.0'),
+    manifest: {
+      dependencies: {
+        foo: '^1.0.0',
+        'empty-specifier': '',
+      },
+    },
+    originalManifest: {
+      dependencies: {
+        foo: '^1.0.0',
+        'empty-specifier': '',
+      },
+    },
+    wantedDependencies: [
+      fooWantedDependency('^1.0.0'),
+      wantedDependency,
+    ],
+  }, {
+    directDependencies: [
+      createDirectDependency('^1.0.0'),
+      {
+        alias: 'empty-specifier',
+        dev: false,
+        name: 'empty-specifier',
+        normalizedBareSpecifier: '^1.0.0',
+        optional: false,
+        pkgId: 'empty-specifier@1.0.0' as PkgResolutionId,
+        resolution: { tarball: 'https://registry.example/empty-specifier.tgz' },
+        version: '1.0.0',
+        wantedDependency,
+      },
+    ],
+    preserveWorkspaceProtocol: false,
+    saveWorkspaceProtocol: false,
+  })
+
+  expect(originalManifest?.dependencies?.['empty-specifier']).toBe('^1.0.0')
+})
+
 test('does not update an unrelated dependency when an optional dependency update fails to resolve', async () => {
   // `react-dom` is the failed optional update, so it is absent from
   // `directDependencies`.
@@ -143,12 +280,16 @@ test('updates manifest for GitHub shorthand dependencies without aliases', async
 })
 
 test('updates manifest for aliasless dependencies whose specifier does not resemble the resolution (jsr)', async () => {
-  const wantedDependency = aliaslessWantedDependency('jsr:@foo/bar')
-  const [manifest] = await updateProjectManifest({
+  const wantedDependency = {
+    ...aliaslessWantedDependency('jsr:@foo/bar'),
+    isNew: true,
+  }
+  const [manifest, originalManifest] = await updateProjectManifest({
     binsDir: '/project/node_modules/.bin',
     id: '.' as ProjectId,
     manifest: {},
     modulesDir: '/project/node_modules',
+    originalManifest: {},
     rootDir: '/project' as ProjectRootDir,
     updatePackageManifest: true,
     wantedDependencies: [wantedDependency],
@@ -175,6 +316,7 @@ test('updates manifest for aliasless dependencies whose specifier does not resem
       '@foo/bar': 'jsr:^0.1.0',
     },
   })
+  expect(originalManifest).toStrictEqual(manifest)
 })
 
 test('updates an aliasless selector that resolves to an alias already present in the manifest', async () => {

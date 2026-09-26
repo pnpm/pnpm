@@ -11,7 +11,7 @@ import { tempDir } from '@pnpm/prepare'
 // Simulate what the real resolvePackageManagerIntegrities does that this test
 // cares about: record the resolved pnpm version under
 // packageManagerDependencies and persist the lockfile to disk.
-const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, registries?: unknown, rootDir: string, save?: boolean }) => Promise<EnvLockfile>>(
+const resolvePackageManagerIntegrities = jest.fn<(version: string, opts: { envLockfile?: EnvLockfile, registries?: unknown, rootDir: string, save?: boolean, frozenLockfile?: boolean }) => Promise<EnvLockfile>>(
   async (version, opts) => {
     const lockfile = opts.envLockfile ?? ({ lockfileVersion: '9.0', importers: { '.': { configDependencies: {} } }, packages: {}, snapshots: {} } as EnvLockfile)
     lockfile.importers['.'].packageManagerDependencies = {
@@ -27,7 +27,12 @@ const createStoreController = jest.fn<(opts: object) => Promise<{ ctrl: { close:
   dir: '/store',
 }))
 
+// Imported before the module is mocked, so the real check runs: which packages
+// a pnpm version pins is exactly what these tests exercise.
+const { isPackageManagerResolved } = await import('@pnpm/installing.env-installer')
+
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
+  isPackageManagerResolved,
   resolvePackageManagerIntegrities,
 }))
 
@@ -50,7 +55,7 @@ function makeContext (rootDir: string, overrides: Partial<ConfigContext> = {}): 
   } as ConfigContext
 }
 
-const baseConfig = { registries: { default: 'https://registry.npmjs.org/' } } as unknown as Config
+const baseConfig = { registriesByScope: { default: 'https://registry.npmjs.org/' } } as unknown as Config
 
 test('no-op when wantedPackageManager is undefined', async () => {
   const dir = tempDir()
@@ -68,16 +73,25 @@ test('no-op when wantedPackageManager is not pnpm', async () => {
 
 test('no-op when shouldPersistLockfile is false (legacy packageManager < v12)', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '11.0.0' },
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
 })
 
+test('no-op when lockfile is disabled (#14728)', async () => {
+  const dir = tempDir()
+  await syncEnvLockfile({ ...baseConfig, useLockfile: false }, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true, onFail: 'download' },
+  }))
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
 test('no-op when running pnpm does not satisfy wanted range', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: '0.0.1', fromDevEngines: true },
   }))
@@ -114,16 +128,41 @@ test('writes packageManagerDependencies when env lockfile exists but lacks pnpm 
 
 test('no-op when lockfile already records a satisfying version', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, packageManager.version)
+  writeEnvLockfileWithPnpmEntry(dir, packageManager.version)
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
 })
 
+test('updates the lockfile when the recorded pnpm satisfies but a sibling entry is stale', async () => {
+  const dir = tempDir()
+  writeEnvLockfileWithStaleExeEntry(dir, packageManager.version)
+  await syncEnvLockfile(baseConfig, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledTimes(1)
+  const updated = await readEnvLockfile(dir)
+  expect(updated!.importers['.'].packageManagerDependencies?.['@pnpm/exe']).toEqual({
+    specifier: packageManager.version,
+    version: packageManager.version,
+  })
+})
+
+test('forwards frozen-lockfile to the resolver, which refuses to update the lockfile', async () => {
+  const dir = tempDir()
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
+  await syncEnvLockfile({ ...baseConfig, frozenLockfile: true }, makeContext(dir, {
+    wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
+  }))
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
+    frozenLockfile: true,
+  }))
+})
+
 test('updates the lockfile when locked version no longer satisfies wanted version', async () => {
   const dir = tempDir()
-  writeStaleEnvLockfile(dir, '9.0.0')
+  writeEnvLockfileWithPnpmEntry(dir, '9.0.0')
   await syncEnvLockfile(baseConfig, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
   }))
@@ -164,7 +203,7 @@ test('uses trusted package-manager registries instead of project registries', as
     noProxy: 'project.internal',
     packageManagerRegistries,
     packageManagerNetworkConfig,
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
@@ -175,14 +214,14 @@ test('uses trusted package-manager registries instead of project registries', as
     httpProxy: packageManagerNetworkConfig.httpProxy,
     httpsProxy: packageManagerNetworkConfig.httpsProxy,
     noProxy: packageManagerNetworkConfig.noProxy,
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
     strictSsl: packageManagerNetworkConfig.strictSsl,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: packageManagerRegistries,
+    registriesByScope: packageManagerRegistries,
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 })
 
@@ -200,7 +239,7 @@ test('defaults package-manager registries to npmjs instead of project registries
     httpProxy: 'http://project-http-proxy.example.com:8080',
     httpsProxy: 'http://project-https-proxy.example.com:8080',
     noProxy: 'project.internal',
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
     strictSsl: false,
   } as unknown as Config, makeContext(dir, {
     wantedPackageManager: { name: 'pnpm', version: packageManager.version, fromDevEngines: true },
@@ -211,18 +250,18 @@ test('defaults package-manager registries to npmjs instead of project registries
     httpProxy: undefined,
     httpsProxy: undefined,
     noProxy: undefined,
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
     strictSsl: undefined,
   }))
   expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   }))
   expect(resolvePackageManagerIntegrities).not.toHaveBeenCalledWith(packageManager.version, expect.objectContaining({
-    registries: projectRegistries,
+    registriesByScope: projectRegistries,
   }))
 })
 
-function writeStaleEnvLockfile (dir: string, pnpmVersion: string): void {
+function writeEnvLockfileWithPnpmEntry (dir: string, pnpmVersion: string): void {
   // readEnvLockfile expects a multi-document YAML file beginning with `---\n`,
   // where the env lockfile is the first document.
   const envYaml = `lockfileVersion: '9.0'
@@ -230,6 +269,30 @@ importers:
   '.':
     configDependencies: {}
     packageManagerDependencies:
+      pnpm:
+        specifier: ${pnpmVersion}
+        version: ${pnpmVersion}
+packages:
+  pnpm@${pnpmVersion}:
+    resolution:
+      integrity: sha512-pnpm
+snapshots:
+  pnpm@${pnpmVersion}: {}
+`
+  fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `---\n${envYaml}\n---\n`)
+}
+
+// No pnpm version pins this entry set: `@pnpm/exe` is either not pinned at
+// all, or pinned at the same version as `pnpm`.
+function writeEnvLockfileWithStaleExeEntry (dir: string, pnpmVersion: string): void {
+  const envYaml = `lockfileVersion: '9.0'
+importers:
+  '.':
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 0.0.1
+        version: 0.0.1
       pnpm:
         specifier: ${pnpmVersion}
         version: ${pnpmVersion}

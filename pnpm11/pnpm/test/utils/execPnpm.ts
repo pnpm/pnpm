@@ -64,11 +64,14 @@ export async function execPnpm (
 export function spawnPnpm (
   args: string[],
   opts?: {
+    /** Start pnpm in a session of its own, without the test's terminal. */
+    detached?: boolean
     env?: Record<string, string>
     storeDir?: string
   }
 ): NodeChildProcess {
   return crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+    detached: opts?.detached ?? false,
     env: {
       ...createEnv(opts),
       ...opts?.env,
@@ -220,7 +223,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
+export function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
@@ -241,15 +244,11 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
 
   const env: Record<string, string> = {
     // Only `PATH` survives the whitelist below, and a pnpm 12 on the
-    // machine puts its context-aware `node` ahead of the real one there —
-    // a shim on POSIX, a dispatcher executable on Windows. That `node`
-    // runs whatever the project under test pins in `devEngines.runtime`,
-    // which several fixtures deliberately set to an unresolvable version.
+    // machine puts its context-aware `node` ahead of the real one there.
+    // That `node` runs whatever the project under test pins in
+    // `devEngines.runtime`, which several fixtures deliberately set to an
+    // unresolvable version.
     PNPM_SHIM_BYPASS: '1',
-    // `PATH` is inherited below, so a pnpm 12 installed on the machine puts
-    // its context-aware `node` shim ahead of the real one. That shim runs
-    // the version the project under test pins in `devEngines.runtime`,
-    // which several fixtures deliberately set to an unresolvable one.
     // Isolate the metadata cache per test, alongside the store. The mock
     // registry serves fixture packuments without cache-control headers, so a
     // shared cache lets one test's packument (e.g. a default `latest` dist-tag)

@@ -22,3 +22,11 @@ export function verifyEnvLockfile (envLockfile: EnvLockfile): void {
     }
   }
 }
+
+// The env lockfile is verified before it is written, but a migrated config
+// dependency is resolved against the registry first, so its name and version
+// are checked here, before they reach the resolver.
+export function assertValidMigratedConfigDep (name: string, version: string): void {
+  assertValidDependencyAliases({ [name]: version }, 'The configDependencies in pnpm-workspace.yaml')
+  assertValidConfigDepVersion(name, version)
+}

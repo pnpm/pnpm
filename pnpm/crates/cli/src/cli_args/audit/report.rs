@@ -14,6 +14,12 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
     NoLockfile,
 
+    #[display(
+        r#"pnpm-lock.yaml has no entry for these selected workspace projects: {importer_ids}. Run "pnpm install" to update it."#
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_MISSING_IMPORTERS))]
+    MissingImporters { importer_ids: String },
+
     #[display("No installed packages found to audit")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_PACKAGES))]
     NoPackages,
@@ -124,6 +130,13 @@ impl AuditVulnerabilityCounts {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the npm audit advisory JSON format."
+    )
+)]
 pub(crate) struct AuditAdvisory {
     pub(crate) findings: Vec<AuditFinding>,
     pub(crate) id: u64,
@@ -131,6 +144,11 @@ pub(crate) struct AuditAdvisory {
     pub(crate) module_name: String,
     pub(crate) vulnerable_versions: String,
     pub(crate) patched_versions: Option<String>,
+    /// True when `patched_versions` was inferred but then dropped because no
+    /// published version satisfies it. Distinguishes "no fix shipped yet"
+    /// from "no fix could be inferred" in the report.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) patched_versions_unpublished: Option<bool>,
     pub(crate) severity: ConfigAuditLevel,
     pub(crate) cwe: String,
     pub(crate) github_advisory_id: String,
@@ -268,6 +286,7 @@ pub(crate) fn normalize_advisory(
         module_name,
         vulnerable_versions: raw.vulnerable_versions.clone(),
         patched_versions: infer_patched_versions(&raw.vulnerable_versions),
+        patched_versions_unpublished: None,
         severity,
         cwe: raw.cwe.map_or_else(String::new, Cwe::into_string),
         github_advisory_id: derive_github_advisory_id(&url),

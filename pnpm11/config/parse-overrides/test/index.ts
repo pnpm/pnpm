@@ -53,6 +53,24 @@ test('parseOverrides() throws an exception on invalid selector', () => {
   expect(() => parseOverrides({ 'foo > bar': '2' }, {})).toThrow('Cannot parse the "foo > bar" selector')
 })
 
+test('parseOverrides() trims leading and trailing whitespace on selectors', () => {
+  expect(parseOverrides({
+    'minimist ': '1.2.6',
+    ' minimist': '1.2.6',
+    '  minimist@^1.2.6  ': '1.2.6',
+    '  bar>foo  ': '2',
+    '  bar@1>foo@2  ': '2',
+    '  foo@  ': '1.2.3',
+  }, {})).toEqual([
+    { selector: 'minimist', newBareSpecifier: '1.2.6', targetPkg: { name: 'minimist' } },
+    { selector: 'minimist', newBareSpecifier: '1.2.6', targetPkg: { name: 'minimist' } },
+    { selector: 'minimist@^1.2.6', newBareSpecifier: '1.2.6', targetPkg: { name: 'minimist', bareSpecifier: '^1.2.6' } },
+    { selector: 'bar>foo', newBareSpecifier: '2', parentPkg: { name: 'bar' }, targetPkg: { name: 'foo' } },
+    { selector: 'bar@1>foo@2', newBareSpecifier: '2', parentPkg: { name: 'bar', bareSpecifier: '1' }, targetPkg: { name: 'foo', bareSpecifier: '2' } },
+    { selector: 'foo@', newBareSpecifier: '1.2.3', targetPkg: { name: 'foo', bareSpecifier: '' }, converge: true },
+  ])
+})
+
 test.each([
   ['foo@', '1.2.3'],
   ['@scope/foo@', '2.0.0-beta.1'],

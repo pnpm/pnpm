@@ -3,6 +3,7 @@ import type { LogLevel, StreamParser } from '@pnpm/logger'
 import createDiffer from 'ansi-diff'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
+import stringLength from 'string-length'
 
 import { EOL } from './constants.js'
 import { mergeOutputs } from './mergeOutputs.js'
@@ -46,7 +47,10 @@ export function initDefaultReporter (
   }
 ): () => void {
   const proc = opts.context.process ?? process
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
+  // At least one column: `columns - 2` is zero on a two-column terminal, and a
+  // caller may pass zero outright. A zero width would make every wrap
+  // calculation — the differ's and `renderedRows`' — meaningless.
+  const outputMaxWidth = Math.max(1, opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80)
   const output$ = toOutput$({
     ...opts,
     reportingOptions: {
@@ -72,11 +76,20 @@ export function initDefaultReporter (
   }
   const stream = opts.useStderr ? proc.stderr : proc.stdout
   const write = stream.write.bind(stream)
-  const newDiffer = (): ReturnType<typeof createDiffer> => createDiffer({
-    height: stream.rows,
-    width: stream.columns ?? outputMaxWidth,
-  })
+  // The width the live differ wraps its frame at, so a resize can be noticed.
+  let differWidth = 0
+  const newDiffer = (): ReturnType<typeof createDiffer> => {
+    differWidth = Math.max(1, stream.columns ?? outputMaxWidth)
+    return createDiffer({ height: stream.rows, width: differWidth })
+  }
   let diff = newDiffer()
+  // How many leading lines of the view have scrolled out of the differ's frame
+  // and been committed to the scrollback, how many rows the frame the differ is
+  // holding takes up, and whether it already outgrew the terminal it was drawn
+  // on. See `commitOverflow`.
+  let committedLines = 0
+  let renderedFrameRows = 0
+  let renderedFrameOutgrewTerminal = false
   // Hold redraws while an interactive prompt owns the terminal (see PromptMessage).
   let promptActive = false
   const onLog = (log: logs.Log): void => {
@@ -104,6 +117,11 @@ export function initDefaultReporter (
     // Without a new line the prompt will be joined with the previous output.
     // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
+    const lines = view.slice(0, -EOL.length).split(EOL)
+    const committed = commitOverflow(lines)
+    // The lines from `committedLines` on are already laid out contiguously in
+    // the view, so the visible frame is a slice of it rather than a second copy.
+    const frame = view.slice(viewOffsetOfLine(view, lines, committedLines))
     // `\r` resets the column to 0 in case an external process (e.g. an SSH
     // passphrase prompt) left the cursor mid-line. `ansi-diff` then writes
     // only the differential — the characters that actually changed between
@@ -112,12 +130,102 @@ export function initDefaultReporter (
     // tick. `\x1b[K` erases trailing characters on the current line;
     // `\x1b[0J` erases anything an external process wrote below the
     // rendered frame.
-    write(`\r${diff.update(view)}\x1b[K${ERASE_TO_END_OF_DISPLAY}`)
+    write(`\r${committed}${diff.update(frame)}\x1b[K${ERASE_TO_END_OF_DISPLAY}`)
+  }
+  /**
+   * Hands the lines that no longer fit on screen over to the scrollback and
+   * restarts the differ below them, returning the differential that performs
+   * the handover.
+   *
+   * `ansi-diff` redraws by moving the cursor up from the end of its frame, so
+   * it can only reach lines that are still on screen. A frame taller than the
+   * terminal has scrolled its top away, and every later redraw then lands that
+   * many rows too low — overwriting output above the frame instead of updating
+   * it (pnpm/pnpm#14270). Committing the overflow keeps the frame within the
+   * terminal, at the cost of no longer being able to revise what was committed.
+   */
+  function commitOverflow (lines: string[]): string {
+    if (Math.max(1, stream.columns ?? outputMaxWidth) !== differWidth) {
+      // The terminal was resized. The frame on screen has reflowed at the new
+      // width, so every position the differ tracked against the old one is
+      // wrong: start over below what is already there.
+      diff = newDiffer()
+    }
+    if (lines.length <= committedLines) {
+      // The view no longer reaches past what was committed — an error frame
+      // replaces it rather than extending it. Render it whole, below.
+      committedLines = 0
+      diff = newDiffer()
+      return ''
+    }
+    const rows = stream.rows
+    if (!rows) return ''
+    const width = differWidth
+    // One row is left over for the cursor line that the trailing EOL puts
+    // below the frame.
+    const maxRows = Math.max(rows - 1, 1)
+    let uncommittedRows = 0
+    for (let i = committedLines; i < lines.length; i++) {
+      uncommittedRows += renderedRows(lines[i], width)
+    }
+    // The last line always stays in the frame — there would be nothing left to
+    // redraw otherwise — so the walk upwards starts one line above it.
+    let firstVisible = lines.length - 1
+    let frameRows = renderedRows(lines[firstVisible], width)
+    for (let i = firstVisible - 1; i >= committedLines; i--) {
+      const lineRows = renderedRows(lines[i], width)
+      if (frameRows + lineRows > maxRows) break
+      frameRows += lineRows
+      firstVisible = i
+    }
+    // A frame taller than the terminal has scrolled its own top away — whether
+    // because a line outgrew the screen or because the window shrank under it —
+    // so no cursor move reaches back into it, and growing the window again does
+    // not bring it back. Start afresh below instead, reprinting rather than
+    // revising, and leave the commit for the next frame, whose layout is one
+    // this differ laid out itself.
+    const cannotRevise = renderedFrameOutgrewTerminal || renderedFrameRows > maxRows
+    if (cannotRevise || firstVisible === committedLines) {
+      renderedFrameRows = uncommittedRows
+      renderedFrameOutgrewTerminal = uncommittedRows > maxRows
+      if (cannotRevise || renderedFrameOutgrewTerminal) diff = newDiffer()
+      return ''
+    }
+    renderedFrameRows = frameRows
+    renderedFrameOutgrewTerminal = false
+    // Shrinking the frame to just the overflow leaves those lines untouched
+    // where they already are, erases the rest of the frame below them, and
+    // parks the cursor on the next line — where the fresh differ starts.
+    const handover = diff.update(`${lines.slice(committedLines, firstVisible).join(EOL)}${EOL}`).toString()
+    diff = newDiffer()
+    committedLines = firstVisible
+    return handover
   }
   return () => {
     subscription.unsubscribe()
     opts.streamParser.removeListener('data', onLog)
   }
+}
+
+/**
+ * Where the `index`-th of `lines` starts in the `view` they were split from.
+ * Measured from the end, so a long committed prefix costs nothing.
+ */
+function viewOffsetOfLine (view: string, lines: string[], index: number): number {
+  let trailing = 0
+  for (let i = lines.length - 1; i >= index; i--) {
+    trailing += lines[i].length + EOL.length
+  }
+  return view.length - trailing
+}
+
+/**
+ * How many terminal rows `line` occupies once wrapped at `width`, counting the
+ * escape sequences in it as zero-width. Never zero: an empty line still takes a
+ * row. `width` is the terminal's own column count, clamped to at least one.
+ */
+function renderedRows (line: string, width: number): number {
+  return Math.max(1, Math.ceil(stringLength(line) / width))
 }
 
 export function toOutput$ (

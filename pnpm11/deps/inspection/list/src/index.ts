@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
-import type { DependenciesField, Finder, Registries } from '@pnpm/types'
+import type { DependenciesField, Finder, RegistriesByScope } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 
 import { renderDependentsJson, renderDependentsParseable, renderDependentsTree } from './renderDependentsTree.js'
@@ -26,7 +26,7 @@ const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
   long: false,
-  registries: undefined,
+  registriesByScope: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
 }
@@ -75,8 +75,11 @@ export async function searchForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
-    registries?: Registries
-    namedRegistries?: Record<string, string>
+    workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -92,8 +95,11 @@ export async function searchForPackages (
       lockfileDir: opts.lockfileDir,
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
-      registries: opts.registries,
-      namedRegistries: opts.namedRegistries,
+      workspaceProjectDirs: opts.workspaceProjectDirs,
+      workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
+      registriesByScope: opts.registriesByScope,
+      registriesByPrefix: opts.registriesByPrefix,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       search,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
@@ -124,9 +130,12 @@ export async function listForPackages (
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
+    workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
-    registries?: Registries
-    namedRegistries?: Record<string, string>
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
@@ -148,30 +157,53 @@ export async function listForPackages (
   })
 }
 
+export interface ListOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeerDependencies?: boolean
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
+  reportAs?: 'parseable' | 'tree' | 'json'
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  resolvePeersFromWorkspaceRoot?: boolean
+  showExtraneous?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+  finders?: Finder[]
+  showSummary?: boolean
+}
+
 export async function list (
   projectPaths: string[],
-  maybeOpts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeerDependencies?: boolean
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    onlyProjects?: boolean
-    reportAs?: 'parseable' | 'tree' | 'json'
-    registries?: Registries
-    namedRegistries?: Record<string, string>
-    showExtraneous?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Finder[]
-    showSummary?: boolean
-  }
+  maybeOpts: ListOptions
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
+  const pkgs = await getPackagesForListing(projectPaths, opts)
 
-  const pkgs = await Promise.all(
+  const print = getPrinter(opts.reportAs)
+  return print(pkgs, {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
+    long: opts.long,
+    search: false,
+    showExtraneous: opts.showExtraneous,
+    showSummary: opts.showSummary,
+  })
+}
+
+export async function getPackagesForListing (
+  projectPaths: string[],
+  maybeOpts: ListOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const opts = { ...DEFAULTS, ...maybeOpts }
+
+  return Promise.all(
     Object.entries(
       opts.depth === -1
         ? projectPaths.reduce((acc, projectPath) => {
@@ -185,8 +217,11 @@ export async function list (
           lockfileDir: maybeOpts?.lockfileDir,
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
-          registries: opts.registries,
-          namedRegistries: opts.namedRegistries,
+          workspaceProjectDirs: maybeOpts?.workspaceProjectDirs,
+          workspaceProjectPublishDirs: maybeOpts?.workspaceProjectPublishDirs,
+          registriesByScope: opts.registriesByScope,
+          registriesByPrefix: opts.registriesByPrefix,
+          resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         })
@@ -203,16 +238,6 @@ export async function list (
         } as PackageDependencyHierarchy
       })
   )
-
-  const print = getPrinter(opts.reportAs)
-  return print(pkgs, {
-    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth,
-    long: opts.long,
-    search: false,
-    showExtraneous: opts.showExtraneous,
-    showSummary: opts.showSummary,
-  })
 }
 
 type Printer = (packages: PackageDependencyHierarchy[], opts: {
@@ -241,9 +266,10 @@ export async function whyForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     long?: boolean
-    registries?: Registries
-    namedRegistries?: Record<string, string>
+    registriesByScope?: RegistriesByScope
+    registriesByPrefix?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     finders?: Finder[]
   }
@@ -277,11 +303,12 @@ export async function whyForPackages (
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     finders: opts.finders,
     importerInfoMap,
     lockfile,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
   })
 
   switch (reportAs) {

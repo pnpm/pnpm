@@ -10,7 +10,7 @@ use crate::cli_args::{
 };
 use console::measure_text_width;
 use node_semver::Version;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_package_manifest::DependencyGroup;
 use std::collections::HashMap;
 
 /// One line of a [`ChoiceGroup`].
@@ -19,9 +19,7 @@ pub(crate) struct ChoiceRow {
     /// The rendered, column-aligned line shown in the prompt.
     pub label: String,
     /// The package name selecting this row updates. `None` marks the
-    /// group's header row, which carries no selection — pnpm renders it
-    /// as a disabled entry, and `dialoguer` has no such notion, so
-    /// [`super::prompt_for_packages`] drops it from the result instead.
+    /// group's header row, which carries no selection.
     pub value: Option<String>,
 }
 
@@ -99,20 +97,18 @@ pub(crate) fn update_choices(
             &package.target,
             package.github_action,
         );
-        let index = *seen.entry(key).or_insert_with(|| {
-            let index = choices.len();
-            choices.push(Choice { package, workspaces: Vec::new() });
-            let kind = ChoiceGroupKind::of(package);
-            match grouped.iter_mut().find(|(group, _)| *group == kind) {
-                Some((_, indices)) => indices.push(index),
-                None => grouped.push((kind, vec![index])),
-            }
-            index
-        });
+        let index = *seen
+            .entry(key)
+            .or_insert_with(|| {
+                let index = choices.len();
+                choices.push(Choice { package, workspaces: Vec::new() });
+                group_choice(&mut grouped, package, index);
+                index
+            });
         // Collect every project the collapsed entries came from, so the
         // `Workspace` column names all of them rather than whichever was
         // seen first — selecting the row updates the package in each.
-        if let Some(workspace) = &package.workspace
+        if let Some(workspace) = &package.metadata.workspace
             && !choices[index].workspaces.contains(workspace)
         {
             choices[index].workspaces.push(workspace.clone());
@@ -124,11 +120,29 @@ pub(crate) fn update_choices(
         .map(|(kind, indices)| ChoiceGroup {
             message: kind.message().to_string(),
             rows: render_rows(
-                &indices.into_iter().map(|index| &choices[index]).collect::<Vec<_>>(),
+                &indices
+                    .into_iter()
+                    .map(|index| &choices[index])
+                    .collect::<Vec<_>>(),
                 workspaces_enabled,
             ),
         })
         .collect()
+}
+
+fn group_choice(
+    grouped: &mut Vec<(ChoiceGroupKind, Vec<usize>)>,
+    package: &OutdatedPackage,
+    index: usize,
+) {
+    let kind = ChoiceGroupKind::of(package);
+    match grouped
+        .iter_mut()
+        .find(|(group, _)| *group == kind)
+    {
+        Some((_, indices)) => indices.push(index),
+        None => grouped.push((kind, vec![index])),
+    }
 }
 
 /// One offered dependency, with every workspace project it was found in.
@@ -150,43 +164,20 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    for choice in choices {
-        let package = choice.package;
-        // The name, workspaces, and homepage are read out of manifests
-        // and registry metadata, so they are stripped of control
-        // characters before reaching the terminal: an escape sequence
-        // would corrupt the prompt's redraw, and a newline would break
-        // the row apart.
-        let mut row = vec![
-            sanitize_inline(&package.package_name).into_owned(),
-            package.current.to_string(),
-            "❯".to_string(),
-            colorize_target(package),
-        ];
-        if workspaces_enabled {
-            row.push(
-                choice
-                    .workspaces
-                    .iter()
-                    .map(|workspace| sanitize_inline(workspace))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-        }
-        row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
-        cells.push(row);
-    }
+    cells.extend(choices.iter().map(|choice| choice_cells(choice, workspaces_enabled)));
 
     let widths = column_widths(&cells);
-    let mut rows =
-        cells.into_iter().map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
+    let mut rows = cells
+        .into_iter()
+        .map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
-            rows.zip(choices).map(|(row, choice)| ChoiceRow {
-                value: Some(choice.package.alias.clone()),
-                ..row
-            }),
+            rows.zip(choices)
+                .map(|(row, choice)| ChoiceRow {
+                    value: Some(choice.package.alias.clone()),
+                    ..row
+                }),
         )
         .collect()
 }
@@ -195,7 +186,11 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
 /// escapes `colorize_target` embeds do not inflate the padding and a name
 /// made of wide characters is not measured as narrower than it renders.
 fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
-    let column_count = cells.iter().map(Vec::len).max().unwrap_or_default();
+    let column_count = cells
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or_default();
     (0..column_count)
         .map(|column| {
             cells
@@ -212,14 +207,36 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
 /// of a group end at the same offset, as pnpm aligns it.
 const CURRENT_COLUMN: usize = 1;
 
+/// The least width of the `Package`, `Current`, arrow, and `Target`
+/// columns — the widths pnpm fixes them at. Every group is laid out on
+/// its own, so these are what line one group's columns up with the
+/// next's. A cell wider than the minimum widens its column rather than
+/// wrapping.
+const MIN_COLUMN_WIDTHS: [usize; 4] = [50, 15, 0, 15];
+
+/// The columns after `Target` — `Workspace` and `URL` — are set off by
+/// two more spaces than the rest, as pnpm pads them.
+const FIRST_WIDE_GAP_COLUMN: usize = 4;
+
 fn pad_row(row: &[String], widths: &[usize]) -> String {
     let mut line = String::new();
     for (index, cell) in row.iter().enumerate() {
-        if index > 0 {
+        if index >= FIRST_WIDE_GAP_COLUMN {
+            line.push_str("   ");
+        } else if index > 0 {
             line.push(' ');
         }
-        let padding =
-            widths.get(index).copied().unwrap_or_default().saturating_sub(measure_text_width(cell));
+        let width = widths
+            .get(index)
+            .copied()
+            .unwrap_or_default()
+            .max(
+                MIN_COLUMN_WIDTHS
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+            );
+        let padding = width.saturating_sub(measure_text_width(cell));
         if index == CURRENT_COLUMN {
             line.extend(std::iter::repeat_n(' ', padding));
             line.push_str(cell);
@@ -237,3 +254,35 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
+    let package = choice.package;
+    // The name, workspaces, and homepage are read out of manifests
+    // and registry metadata, so they are stripped of control
+    // characters before reaching the terminal: an escape sequence
+    // would corrupt the prompt's redraw, and a newline would break
+    // the row apart.
+    let mut row = vec![
+        sanitize_inline(&package.package_name).into_owned(),
+        package.current.to_string(),
+        "❯".to_string(),
+        colorize_target(package),
+    ];
+    if workspaces_enabled {
+        row.push(
+            choice.workspaces
+                .iter()
+                .map(|workspace| sanitize_inline(workspace))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+    row.push(
+        package.metadata.homepage
+            .as_deref()
+            .map(sanitize_inline)
+            .unwrap_or_default()
+            .into_owned(),
+    );
+    row
+}

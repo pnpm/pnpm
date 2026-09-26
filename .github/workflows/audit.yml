@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read # to fetch code (actions/checkout)
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   audit:
     name: Audit dependencies
@@ -22,7 +26,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
         install: false
     - name: Audit

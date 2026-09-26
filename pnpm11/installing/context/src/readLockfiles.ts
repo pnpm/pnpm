@@ -3,16 +3,19 @@ import path from 'node:path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
+  checkPatchedDepPaths,
   createLockfileObject,
   existsNonEmptyWantedLockfile,
   isEmptyLockfile,
   type LockfileObject,
+  type PatchedDepPathsStatus,
+  type ProjectSnapshot,
   readCurrentLockfile,
-  readWantedLockfile,
-  readWantedLockfileAndAutofixConflicts,
+  readWantedLockfileWithMergeInfo,
 } from '@pnpm/lockfile.fs'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import { logger } from '@pnpm/logger'
-import type { ProjectId, ProjectRootDir } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependenciesField, type ProjectId, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import { clone, equals } from 'ramda'
 
 export interface PnpmContext {
@@ -33,6 +36,7 @@ export async function readLockfiles (
     frozenLockfile: boolean
     projects: Array<{
       id: ProjectId
+      manifest: ProjectManifest
       rootDir: ProjectRootDir
     }>
     lockfileDir: string
@@ -51,6 +55,7 @@ export async function readLockfiles (
   wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   lockfileHadConflicts: boolean
+  patchedDepPathsStatus: PatchedDepPathsStatus
 }> {
   const wantedLockfileVersion = LOCKFILE_VERSION
   // On CI, avoid breaking builds due to incompatible lockfiles by default.
@@ -64,6 +69,9 @@ export async function readLockfiles (
   }
   const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
   let lockfileHadConflicts: boolean = false
+  let patchedDepPathsStatus: PatchedDepPathsStatus = 'up-to-date'
+  let shouldCheckPatchedDepPaths = false
+  let preMergeImporters: LockfileObject['importers'] | undefined
   let wantedLockfileFileExists = false
   if (opts.useLockfile) {
     wantedLockfileFileExists = await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)
@@ -71,9 +79,20 @@ export async function readLockfiles (
       fileReads.push(
         (async () => {
           try {
-            const { lockfile, hadConflicts } = await readWantedLockfileAndAutofixConflicts(opts.lockfileDir, lockfileOpts)
-            lockfileHadConflicts = hadConflicts
-            return lockfile
+            const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, { ...lockfileOpts, autofixMergeConflicts: true })
+            lockfileHadConflicts = read.hadConflicts
+            preMergeImporters = read.preMergeImporters
+            // A conflicted lockfile already forces a resolution, and autofixing the conflict can
+            // itself leave a partially rewritten set of suffixes, so checking would only risk
+            // reporting a patch-hash cause for a merge the user already knows about. A lockfile
+            // that is absent carries no suffixes at all, and its absence is `NO_LOCKFILE`'s to
+            // report.
+            if (lockfileHadConflicts) {
+              patchedDepPathsStatus = 'indeterminate'
+            } else {
+              shouldCheckPatchedDepPaths = read.lockfile != null
+            }
+            return read.lockfile
           } catch (err: any) { // eslint-disable-line
             logger.warn({
               message: `Ignoring broken lockfile at ${opts.lockfileDir}: ${err.message as string}`,
@@ -84,7 +103,15 @@ export async function readLockfiles (
         })()
       )
     } else {
-      fileReads.push(readWantedLockfile(opts.lockfileDir, lockfileOpts))
+      fileReads.push(
+        (async () => {
+          const read = await readWantedLockfileWithMergeInfo(opts.lockfileDir, lockfileOpts)
+          preMergeImporters = read.preMergeImporters
+          // A frozen install installs an autofixed lockfile as it is, so its suffixes are checked too.
+          shouldCheckPatchedDepPaths = read.lockfile != null
+          return read.lockfile
+        })()
+      )
     }
   } else {
     if (await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)) {
@@ -129,7 +156,7 @@ export async function readLockfiles (
   }
   const existsWantedLockfile = files[0] != null
   const existsCurrentLockfile = files[1] != null
-  const wantedLockfile = files[0] ??
+  let wantedLockfile = files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
   // Cloning the current lockfile means the disk copy of the wanted lockfile is
@@ -143,6 +170,31 @@ export async function readLockfiles (
       }
     }
   }
+  // The merge takes the union of the two lockfiles' keys, so a dependency the
+  // manifests no longer declare comes back with it, and the manifests are the
+  // only record that it is gone. Entries the read file already carried are
+  // left alone: that drift is the frozen check's to report, not the merge's
+  // to repair.
+  if (preMergeImporters != null) {
+    let prunedAnyImporter = false
+    for (const project of opts.projects) {
+      prunedAnyImporter = pruneMergedDependencies({
+        importer: wantedLockfile.importers[project.id],
+        preMergeImporter: preMergeImporters[project.id],
+        manifest: project.manifest,
+        autoInstallPeers: opts.autoInstallPeers,
+      }) || prunedAnyImporter
+    }
+    if (prunedAnyImporter) {
+      wantedLockfile = pruneSharedLockfile(wantedLockfile)
+    }
+  }
+  // After the merge and its pruning, not on the file as read: a git branch lockfile can
+  // contribute a patched dependency the manifests no longer declare, and judging the suffix of an
+  // entry that is about to be pruned away would report a lockfile the install never installs.
+  if (shouldCheckPatchedDepPaths || (!opts.frozenLockfile && !existsWantedLockfile && existsCurrentLockfile && !lockfileHadConflicts)) {
+    patchedDepPathsStatus = checkPatchedDepPaths(wantedLockfile)
+  }
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
@@ -152,5 +204,65 @@ export async function readLockfiles (
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,
+    patchedDepPathsStatus,
   }
+}
+
+function pruneMergedDependencies (
+  opts: {
+    importer: ProjectSnapshot
+    preMergeImporter: ProjectSnapshot | undefined
+    manifest: ProjectManifest
+    autoInstallPeers: boolean
+  }
+): boolean {
+  const { importer, preMergeImporter } = opts
+  const declaredDepNames = declaredDepNamesByField(opts.manifest, opts.autoInstallPeers)
+  let pruned = false
+  for (const depField of DEPENDENCIES_FIELDS) {
+    const deps = importer[depField]
+    if (deps == null) continue
+    for (const depName of Object.keys(deps)) {
+      if (!declaredDepNames[depField].has(depName) && preMergeImporter?.[depField]?.[depName] == null) {
+        delete deps[depName]
+        pruned = true
+      }
+    }
+    if (Object.keys(deps).length === 0) {
+      delete importer[depField]
+    }
+  }
+  for (const depName of Object.keys(importer.specifiers)) {
+    if (
+      DEPENDENCIES_FIELDS.every((depField) => !declaredDepNames[depField].has(depName)) &&
+      preMergeImporter?.specifiers?.[depName] == null
+    ) {
+      delete importer.specifiers[depName]
+    }
+  }
+  return pruned
+}
+
+// Mirrors how satisfiesPackageManifest assigns a manifest entry to a lockfile
+// field, so that pruning to the manifest hands the frozen-lockfile check the
+// same fields it derives for itself.
+function declaredDepNamesByField (
+  manifest: ProjectManifest,
+  autoInstallPeers: boolean
+): Record<DependenciesField, Set<string>> {
+  const optionalDependencies = new Set(Object.keys(manifest.optionalDependencies ?? {}))
+  const dependencies = new Set(Object.keys(manifest.dependencies ?? {})
+    .filter((depName) => !optionalDependencies.has(depName)))
+  const devDependencies = new Set(Object.keys(manifest.devDependencies ?? {})
+    .filter((depName) => !optionalDependencies.has(depName) && !dependencies.has(depName)))
+  if (autoInstallPeers) {
+    // A peer another field declares is not auto-installed, so it stays where
+    // that field puts it.
+    for (const depName of Object.keys(manifest.peerDependencies ?? {})) {
+      if (!optionalDependencies.has(depName) && !devDependencies.has(depName)) {
+        dependencies.add(depName)
+      }
+    }
+  }
+  return { dependencies, devDependencies, optionalDependencies }
 }

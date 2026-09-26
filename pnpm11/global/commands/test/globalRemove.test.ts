@@ -1,14 +1,19 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
-import { expect, jest, test } from '@jest/globals'
+import { beforeEach, expect, jest, test } from '@jest/globals'
 
 const removeBin = jest.fn<(cmd: string) => Promise<void>>().mockResolvedValue(undefined)
 
 jest.unstable_mockModule('@pnpm/bins.remover', () => ({ removeBin }))
 
 const { handleGlobalRemove } = await import('../src/globalRemove.js')
+
+beforeEach(() => {
+  removeBin.mockClear()
+})
 
 // A malicious global package whose manifest declares reserved bin keys must not
 // reach the deletion sink: `path.join(globalBinDir, '.')` is the bin directory
@@ -45,3 +50,365 @@ test('global remove ignores reserved manifest bin names', async () => {
   expect(removeBin).toHaveBeenCalledTimes(1)
   expect(removeBin).toHaveBeenCalledWith(path.join(globalBinDir, 'good'))
 })
+
+test('global remove checks every target before deleting any group', async () => {
+  const globalDir = createTemporaryRoot('global-remove-target-preflight-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const readable = createGlobalGroup({
+    globalDir,
+    hash: 'readable-hash',
+    alias: 'readable',
+    dependencyManifest: {
+      name: 'readable',
+      version: '1.0.0',
+      bin: { readable: 'bin/readable.js' },
+    },
+  })
+  const incomplete = createGlobalGroup({ globalDir, hash: 'incomplete-hash', alias: 'incomplete' })
+  const readableSlot = path.join(globalBinDir, 'readable')
+  fs.writeFileSync(readableSlot, 'readable shim\n')
+  const before = snapshotFilesystem(globalDir)
+  const assertFailedAttempt = async (attempt: number): Promise<void> => {
+    const failure = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['readable', 'incomplete']
+    ))
+    expect({ attempt, errorCode: getErrorCode(failure) }).toStrictEqual({ attempt, errorCode: 'ENOENT' })
+    expect(snapshotFilesystem(globalDir)).toStrictEqual(before)
+    expect(removeBin).not.toHaveBeenCalled()
+  }
+
+  try {
+    await assertFailedAttempt(1)
+    await assertFailedAttempt(2)
+
+    writeDependencyManifest(incomplete, {
+      name: 'incomplete',
+      version: '1.0.0',
+    })
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['readable', 'incomplete'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(readableSlot)
+    expect(fs.existsSync(readable.hashLink)).toBe(false)
+    expect(fs.existsSync(readable.installDir)).toBe(false)
+    expect(fs.existsSync(incomplete.hashLink)).toBe(false)
+    expect(fs.existsSync(incomplete.installDir)).toBe(false)
+
+    const afterSuccess = snapshotFilesystem(globalDir)
+    const repeatError = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['readable', 'incomplete']
+    ))
+    expect(getErrorCode(repeatError)).toBe('ERR_PNPM_GLOBAL_PKG_NOT_FOUND')
+    expect(snapshotFilesystem(globalDir)).toStrictEqual(afterSuccess)
+    expect(removeBin).toHaveBeenCalledTimes(1)
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
+test('global remove recovers a group whose node_modules is wholly missing', async () => {
+  const globalDir = createTemporaryRoot('global-remove-missing-modules-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const healthy = createGlobalGroup({
+    globalDir,
+    hash: 'healthy-hash',
+    alias: 'healthy',
+    dependencyManifest: {
+      name: 'healthy',
+      version: '1.0.0',
+      bin: { healthy: 'bin/healthy.js' },
+    },
+  })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'missing-modules-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { target: 'bin/target.js' },
+    },
+  })
+  fs.rmSync(path.join(target.installDir, 'node_modules'), { recursive: true, force: true })
+  const healthySlot = path.join(globalBinDir, 'healthy')
+  const straySlot = path.join(globalBinDir, 'target')
+  fs.writeFileSync(healthySlot, 'healthy shim\n')
+  fs.writeFileSync(straySlot, 'stray shim\n')
+
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['healthy', 'target'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(healthySlot)
+    expect(fs.existsSync(healthy.hashLink)).toBe(false)
+    expect(fs.existsSync(healthy.installDir)).toBe(false)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.readFileSync(straySlot, 'utf8')).toBe('stray shim\n')
+
+    const repeatError = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['target']
+    ))
+    expect(getErrorCode(repeatError)).toBe('ERR_PNPM_GLOBAL_PKG_NOT_FOUND')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
+// A survivor whose node_modules is gone can no longer claim the shared bin,
+// so removing the target takes the shim with it. Nothing that worked stops
+// working: the survivor's own tree is already unusable.
+test('global remove stops protecting a bin of a survivor whose node_modules is gone', async () => {
+  const globalDir = createTemporaryRoot('global-remove-damaged-survivor-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivor = createGlobalGroup({
+    globalDir,
+    hash: 'survivor-hash',
+    alias: 'survivor',
+    dependencyManifest: {
+      name: 'survivor',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  fs.rmSync(path.join(survivor.installDir, 'node_modules'), { recursive: true })
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  fs.writeFileSync(sharedSlot, 'shared shim\n')
+
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(sharedSlot)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.existsSync(survivor.hashLink)).toBe(true)
+    expect(fs.readFileSync(survivor.marker, 'utf8')).toBe('survivor install\n')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
+// A survivor whose package directory is a link into a store that no longer
+// holds it is unusable in the same way as one without node_modules, so it
+// cannot claim the shared bin either.
+test('global remove stops protecting a bin of a survivor whose package link dangles', async () => {
+  const globalDir = createTemporaryRoot('global-remove-dangling-survivor-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivor = createGlobalGroup({
+    globalDir,
+    hash: 'survivor-hash',
+    alias: 'survivor',
+    dependencyManifest: {
+      name: 'survivor',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivorDepDir = path.dirname(survivor.dependencyManifestPath)
+  fs.rmSync(survivorDepDir, { recursive: true })
+  fs.symlinkSync(
+    path.join(globalDir, 'store/links/pruned/node_modules/survivor'),
+    survivorDepDir,
+    process.platform === 'win32' ? 'junction' : 'dir'
+  )
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  fs.writeFileSync(sharedSlot, 'shared shim\n')
+
+  try {
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+
+    expect(removeBin).toHaveBeenCalledTimes(1)
+    expect(removeBin).toHaveBeenCalledWith(sharedSlot)
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.existsSync(survivor.hashLink)).toBe(true)
+    expect(fs.readFileSync(survivor.marker, 'utf8')).toBe('survivor install\n')
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
+test('global remove checks surviving ownership before deleting a target', async () => {
+  const globalDir = createTemporaryRoot('global-remove-survivor-preflight-')
+  const globalBinDir = path.join(globalDir, 'bin')
+  fs.mkdirSync(globalBinDir, { recursive: true })
+  const target = createGlobalGroup({
+    globalDir,
+    hash: 'target-hash',
+    alias: 'target',
+    dependencyManifest: {
+      name: 'target',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    },
+  })
+  const survivor = createGlobalGroup({ globalDir, hash: 'survivor-hash', alias: 'survivor' })
+  const sharedSlot = path.join(globalBinDir, 'shared')
+  fs.writeFileSync(sharedSlot, 'shared shim\n')
+  const before = snapshotFilesystem(globalDir)
+  const assertFailedAttempt = async (attempt: number): Promise<void> => {
+    const failure = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['target']
+    ))
+    expect({ attempt, errorCode: getErrorCode(failure) }).toStrictEqual({ attempt, errorCode: 'ENOENT' })
+    expect(snapshotFilesystem(globalDir)).toStrictEqual(before)
+    expect(removeBin).not.toHaveBeenCalled()
+  }
+
+  try {
+    await assertFailedAttempt(1)
+    await assertFailedAttempt(2)
+
+    writeDependencyManifest(survivor, {
+      name: 'survivor',
+      version: '1.0.0',
+      bin: { shared: 'bin/shared.js' },
+    })
+    await handleGlobalRemove({ globalPkgDir: globalDir, bin: globalBinDir }, ['target'])
+
+    expect(removeBin).not.toHaveBeenCalled()
+    expect(fs.existsSync(target.hashLink)).toBe(false)
+    expect(fs.existsSync(target.installDir)).toBe(false)
+    expect(fs.existsSync(survivor.hashLink)).toBe(true)
+    expect(fs.realpathSync(survivor.hashLink)).toBe(fs.realpathSync(survivor.installDir))
+    expect(fs.readFileSync(survivor.marker, 'utf8')).toBe('survivor install\n')
+    expect(fs.readFileSync(sharedSlot, 'utf8')).toBe('shared shim\n')
+
+    const afterSuccess = snapshotFilesystem(globalDir)
+    const repeatError = await captureError(() => handleGlobalRemove(
+      { globalPkgDir: globalDir, bin: globalBinDir },
+      ['target']
+    ))
+    expect(getErrorCode(repeatError)).toBe('ERR_PNPM_GLOBAL_PKG_NOT_FOUND')
+    expect(snapshotFilesystem(globalDir)).toStrictEqual(afterSuccess)
+    expect(removeBin).not.toHaveBeenCalled()
+  } finally {
+    fs.rmSync(globalDir, { recursive: true, force: true })
+  }
+})
+
+interface GlobalGroupFixture {
+  dependencyManifestPath: string
+  hashLink: string
+  installDir: string
+  marker: string
+}
+
+interface GlobalGroupSpec {
+  globalDir: string
+  hash: string
+  alias: string
+  dependencyManifest?: Record<string, unknown>
+}
+
+function createGlobalGroup (
+  { globalDir, hash, alias, dependencyManifest }: GlobalGroupSpec
+): GlobalGroupFixture {
+  const installDir = path.join(globalDir, `${hash}-install`)
+  const depDir = path.join(installDir, 'node_modules', alias)
+  const dependencyManifestPath = path.join(depDir, 'package.json')
+  const hashLink = path.join(globalDir, hash)
+  const marker = path.join(installDir, 'marker')
+  assertPathInside(globalDir, installDir)
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(marker, `${alias} install\n`)
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({
+    name: `${alias}-global-group`,
+    version: '1.0.0',
+    dependencies: { [alias]: '1.0.0' },
+  }))
+  if (dependencyManifest != null) {
+    fs.writeFileSync(dependencyManifestPath, JSON.stringify(dependencyManifest))
+  }
+  fs.symlinkSync(installDir, hashLink, process.platform === 'win32' ? 'junction' : 'dir')
+  return { dependencyManifestPath, hashLink, installDir, marker }
+}
+
+function writeDependencyManifest (fixture: GlobalGroupFixture, manifest: Record<string, unknown>): void {
+  fs.writeFileSync(fixture.dependencyManifestPath, JSON.stringify(manifest))
+}
+
+async function captureError (run: () => Promise<void>): Promise<unknown> {
+  try {
+    await run()
+    return undefined
+  } catch (err) {
+    return err
+  }
+}
+
+function getErrorCode (err: unknown): unknown {
+  return util.types.isNativeError(err) && 'code' in err ? err.code : undefined
+}
+
+interface FilesystemEntry {
+  content?: string
+  kind: 'directory' | 'file' | 'symlink'
+  path: string
+  target?: string
+}
+
+function snapshotFilesystem (root: string): FilesystemEntry[] {
+  const result: FilesystemEntry[] = []
+  visit(root, '')
+  return result
+
+  function visit (dir: string, relativeDir: string): void {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const absolutePath = path.join(dir, name)
+      const relativePath = path.join(relativeDir, name)
+      const stat = fs.lstatSync(absolutePath)
+      if (stat.isSymbolicLink()) {
+        result.push({ kind: 'symlink', path: relativePath, target: fs.readlinkSync(absolutePath) })
+      } else if (stat.isDirectory()) {
+        result.push({ kind: 'directory', path: relativePath })
+        visit(absolutePath, relativePath)
+      } else {
+        result.push({ content: fs.readFileSync(absolutePath).toString('base64'), kind: 'file', path: relativePath })
+      }
+    }
+  }
+}
+
+// The resolved path matters: an install directory is only deleted when
+// `isSubdir` places it under the global dir, and macOS reports a temporary
+// directory under a prefix that is itself a symlink.
+function createTemporaryRoot (prefix: string): string {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)))
+  expect(path.dirname(root)).toBe(fs.realpathSync(os.tmpdir()))
+  return root
+}
+
+function assertPathInside (root: string, candidate: string): void {
+  const relative = path.relative(root, candidate)
+  expect(path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)).toBe(false)
+}

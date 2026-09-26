@@ -10,6 +10,7 @@ import { readIniFileSync } from 'read-ini-file'
 
 import { isNpmrcReadableKey } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
+import { parseCAFileContents } from './parseCAFileContents.js'
 
 export interface NpmrcConfigResult {
   /**
@@ -31,6 +32,14 @@ export interface NpmrcConfigResult {
   warnings: string[]
   /** Parsed `_auth` (env var + global config yaml). See {@link JsonAuthResult}. */
   jsonAuth: JsonAuthResult
+  /**
+   * Scope→URL routes the `.npmrc` files declared through `registry=` and
+   * `@scope:registry=`, keyed like `registriesByScope`. The builtin defaults
+   * are not declarations, so they are absent.
+   */
+  declaredRegistries: Record<string, string>
+  /** The same routes from the non-project `.npmrc` files, for the package-manager bootstrap. */
+  trustedDeclaredRegistries: Record<string, string>
 }
 
 /**
@@ -38,16 +47,23 @@ export interface NpmrcConfigResult {
  *
  * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
  *   ready to merge into the existing auth-config pipeline.
- * - `registries` — trusted scope→URL routes inferred from the same
- *   value. `"default"` is set by the `"@"` scope; `"@org"` by a package
- *   scope. Because both the credential and its destination host arrive
- *   in one trusted value, repo-controlled `pnpm-workspace.yaml` /
- *   project `.npmrc` cannot redirect these tokens to a different host.
+ * - `registries` — trusted scope→URL routes inferred from the `_auth`
+ *   **environment variable**. `"default"` is set by the `"@"` scope;
+ *   `"@org"` by a package scope. The environment is the operator's
+ *   channel — a CI runner pointed at a mandated proxy — so these outrank
+ *   what any config file declares, and repo-controlled
+ *   `pnpm-workspace.yaml` / project `.npmrc` cannot redirect them.
  *   Merged above workspace yaml but below CLI flags.
+ * - `fallbackRegistries` — the same routes inferred from the `_auth` of
+ *   the global config **file**. That file is the user's own store rather
+ *   than a mandate, so a `registries` / `registry` declared in a yaml or
+ *   an `.npmrc` outranks it and it only fills in what nothing else declares.
  */
 export interface JsonAuthResult {
   auth: Record<string, string>
   registries: Record<string, string>
+  fallbackRegistries: Record<string, string>
+  defaultCandidates?: string[]
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -134,7 +150,12 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
-    registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
+    registries: envJsonAuth.registries,
+    fallbackRegistries: globalConfigJsonAuth.registries,
+    defaultCandidates: envJsonAuth.defaultCandidates,
+  }
+  for (const [key, value] of Object.entries(jsonAuth.auth)) {
+    jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
   }
 
   // Read pnpm builtin rc + inline defaults
@@ -201,7 +222,28 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     localPrefix,
     warnings,
     jsonAuth,
+    declaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig, workspaceNpmrc]),
+    trustedDeclaredRegistries: readDeclaredRegistries([userConfig, pnpmAuthConfig]),
   }
+}
+
+/**
+ * The scope→URL routes `sources` declare through `registry=` and
+ * `@scope:registry=`, a later source overriding an earlier one. Whether a
+ * registry was declared is a question about the key, not its value, so one
+ * pinned to the builtin default is declared too. A value that is not a
+ * string is not a route and is skipped.
+ */
+function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Record<string, string> {
+  const registries: Record<string, string> = {}
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value !== 'string' || !isRegistryKey(key)) continue
+      const scope = key === 'registry' ? 'default' : key.slice(0, -':registry'.length)
+      registries[scope] = normalizeRegistryUrl(value)
+    }
+  }
+  return registries
 }
 
 // Matches `npm_config_//…` and `pnpm_config_//…` env var names. The prefix is
@@ -241,7 +283,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
 
 function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
-  if (value == null) return { auth: {}, registries: {} }
+  if (value == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
 
   let parsed: unknown
   try {
@@ -268,6 +310,7 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
 
   const auth: Record<string, string> = {}
   const registries: Record<string, string> = {}
+  const defaultCandidates: string[] = []
   for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
     const registry = parseJsonAuthRegistry(url, index + 1, source)
     if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
@@ -284,15 +327,22 @@ function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
       auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
       // Infer a registry route from the same entry (see JsonAuthResult.registries).
       // Last write wins on a duplicate scope, matching yaml/CLI.
-      registries[scope === '@' ? 'default' : scope] = registry.normalized
+      if (scope === '@') {
+        defaultCandidates.push(registry.normalized)
+      } else {
+        registries[scope] = registry.normalized
+      }
     }
   }
-  return { auth, registries }
+  if (defaultCandidates.length > 0) {
+    registries.default = defaultCandidates[defaultCandidates.length - 1]
+  }
+  return { auth, registries, fallbackRegistries: {}, defaultCandidates }
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
 function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
-  if (globalConfigAuth == null) return { auth: {}, registries: {} }
+  if (globalConfigAuth == null) return { auth: {}, registries: {}, fallbackRegistries: {} }
   return parseJsonAuth(globalConfigAuth, '_auth')
 }
 
@@ -429,7 +479,7 @@ function readAndFilterNpmrc (
       warnIgnoredAuthValueEnv(filePath, rawKey, warnings)
       continue
     }
-    const key = substituteEnv(rawKey, env, warnings)
+    const key = substituteEnv(rawKey, env, { warnings, key: rawKey })
     if (!expandRequestDestinationEnv && hasEnvPlaceholder(rawKey) && isRequestDestinationKey(key)) {
       warnIgnoredRequestDestinationEnv(filePath, rawKey, warnings)
       continue
@@ -448,7 +498,7 @@ function readAndFilterNpmrc (
         warnIgnoredAuthValueEnv(filePath, key, warnings)
         continue
       }
-      value = substituteEnv(rawValue, env, warnings)
+      value = substituteEnv(rawValue, env, { warnings, key })
     }
 
     // Only keep auth/registry related keys
@@ -490,25 +540,10 @@ function hasEnvPlaceholder (value: string): boolean {
 
 const DOCS_URL = 'https://pnpm.io/npmrc'
 
-// The key embedded in the suggested `pnpm config set` command comes from a
-// repository-controlled .npmrc. A shell expands `$(...)`, backticks and `$VAR`
-// even inside double quotes, so suggesting a runnable command built from an
-// arbitrary key would turn this warning into a copy-paste command-injection
-// vector. Only emit the runnable example for keys made up entirely of
-// shell-inert characters — which covers every real registry/auth key
-// (`//host/:_authToken`, `@scope:registry`, `registry`, `https-proxy`, …).
-const SHELL_SAFE_KEY = /^[\w@.:/-]+$/
-
-function configSetExample (key: string): string {
-  return SHELL_SAFE_KEY.test(key) ? ` (for example, run: pnpm config set "${key}" <value>)` : ''
-}
-
 function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
   warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
     'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
-    'Move this setting to a trusted source that pnpm still expands — put it in your user-level ~/.npmrc, ' +
-    `or set it with pnpm config set${configSetExample(key)}. ` +
     `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
 }
 
@@ -516,8 +551,7 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
   warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
-    'Move this credential to a trusted source that pnpm still expands — put the line in your user-level ~/.npmrc, ' +
-    `or set it with pnpm config set${configSetExample(key)}. See ${DOCS_URL}`)
+    `See ${DOCS_URL}`)
 }
 
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped
@@ -584,12 +618,42 @@ function rescopeUnscopedCreds (
 // an auth value would be sent verbatim as a bearer token. Resolvable
 // placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
 // in the same string still expand normally.
-function substituteEnv (value: string, env: Record<string, string | undefined>, warnings: string[]): string {
-  const { value: substituted, unresolved } = envReplaceLossy(value, env)
+function substituteEnv (value: string, env: Record<string, string | undefined>, opts: { warnings: string[], key: string, context?: string }): string {
+  const { warnings, key } = opts
+  const authKey = AUTH_VALUE_KEYS.find(name => key === name || key.endsWith(`:${name}`))
+  const context = opts.context ?? (authKey ? ` in .npmrc key "${authKey}"` : '')
+  const { value: substituted, unresolved } = envReplaceLossy(value, withOptionalEnvPlaceholders(value, env))
   for (const placeholder of unresolved) {
-    warnings.push(`Failed to replace env in config: ${placeholder}`)
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
+  }
+  for (const placeholder of findEmptyEnvPlaceholders(value, env)) {
+    warnings.push(`Failed to replace env in config: ${placeholder}${context}`)
   }
   return substituted
+}
+
+// npm's `${VAR?}` expands to VAR, or to '' without a warning when VAR is
+// unset. envReplaceLossy reads the whole `VAR?` body as the variable name, so
+// the lookup table gets a `VAR?` entry for each such placeholder. A name
+// ending in `-` is left to envReplaceLossy's `${VAR-fallback}` form.
+function withOptionalEnvPlaceholders (value: string, env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const names = Array.from(value.matchAll(/\$\{([^${}?]*[^${}?-])\?\}/g), ([, name]) => name)
+  if (names.length === 0) return env
+  const envWithOptional = { ...env }
+  for (const name of names) {
+    envWithOptional[`${name}?`] = env[name] ?? ''
+  }
+  return envWithOptional
+}
+
+function findEmptyEnvPlaceholders (value: string, env: Record<string, string | undefined>): string[] {
+  const placeholders: string[] = []
+  for (const match of value.matchAll(/(?<!\\)(\\*)\$\{([^${}]+)\}/g)) {
+    const [, escapes, name] = match
+    if ((escapes.length % 2) !== 0 || name.includes(':-') || name.includes('-')) continue
+    if (env[name] === '') placeholders.push(`\${${name}}`)
+  }
+  return placeholders
 }
 
 function normalizePath (p: string | undefined): string | undefined {
@@ -677,11 +741,7 @@ function loadCAFile (layers: Array<Record<string, unknown>>): void {
 
   try {
     const contents = fs.readFileSync(cafile, 'utf8')
-    const delim = '-----END CERTIFICATE-----'
-    const cas = contents
-      .split(delim)
-      .filter(ca => ca.trim().length > 0)
-      .map(ca => `${ca.trimStart()}${delim}`)
+    const cas = parseCAFileContents(contents)
     if (cas.length === 0) return
     for (const layer of layers) {
       if (typeof layer.cafile === 'string') {

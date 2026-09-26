@@ -1,45 +1,29 @@
 use crate::{
-    DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
-    WorkspaceInstallSelection,
+    CommandLockfile, Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects,
+    UpdateSeedPolicy,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, write_workspace_catalogs, write_workspace_catalogs_selected,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
+    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
+    package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_config::Config;
-use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_network::ThrottledClient;
-use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pacquet_tarball::MemCache;
-use std::{collections::HashSet, fmt::Write as _, sync::Arc};
+use pipe_trait::Pipe;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_network::ThrottledClient;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_tarball::MemCache;
+use std::{collections::HashSet, fmt::Write as _, path::PathBuf, sync::Arc};
 
 #[must_use]
 pub struct Remove<'a> {
-    pub tarball_mem_cache: Arc<MemCache>,
-    pub resolved_packages: &'a ResolvedPackages,
-    pub http_client: &'a ThrottledClient,
-    pub http_client_arc: Arc<ThrottledClient>,
-    pub config: &'static Config,
     pub manifest: &'a mut PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a std::path::Path>,
-    /// Names to remove.
-    pub package_names: &'a [String],
-    /// Dependency field to restrict removal to, or `None` to remove from
-    /// any field. Derived from the `--save-prod` / `--save-dev` /
-    /// `--save-optional` flags via pnpm's `getSaveType`.
-    pub save_type: Option<DependencyGroup>,
-    /// CLI-merged `supportedArchitectures` forwarded to the follow-up
-    /// `Install` run. See [`Install::supported_architectures`].
-    pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    /// `--lockfile-only`: rewrite `pnpm-lock.yaml` (and the manifest) but
-    /// skip materializing `node_modules`. Forwarded to the follow-up
-    /// `Install` run. See [`Install::lockfile_only`].
-    pub lockfile_only: bool,
+    pub options: RemoveOptions<'a>,
+    pub resources: RemoveResources,
 }
 
 /// The up-front validation failures of `pacquet remove`, raised before
@@ -73,7 +57,7 @@ pub enum RemoveError {
     #[display("Failed to save the manifest file: {_0}")]
     SaveManifest(#[error(source)] PackageManifestError),
 
-    /// The `cleanupUnusedCatalogs` pass on `pnpm-workspace.yaml` failed.
+    /// The `catalogPrune` pass on `pnpm-workspace.yaml` failed.
     #[diagnostic(transparent)]
     WriteWorkspaceManifest(#[error(source)] WriteWorkspaceCatalogsError),
 
@@ -83,185 +67,248 @@ pub enum RemoveError {
 
 impl Remove<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), RemoveError> {
-        let Remove {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
+        let Self {
+            options: remove,
+            resources: owned,
             manifest,
-            lockfile,
-            lockfile_path,
-            package_names,
-            save_type,
-            resolved_packages,
-            supported_architectures,
-            lockfile_only,
         } = self;
+        validate_removable(manifest, remove.package_names, remove.save_type)
+            .map_err(RemoveError::Validation)?;
+        prepare_manifest::<Reporter>(manifest, remove.package_names, remove.save_type);
 
-        validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
-        prepare_manifest::<Reporter>(manifest, package_names, save_type);
-
-        Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
-            manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            // `pnpm remove`'s `include` defaults to every dependency
-            // group (`production`/`dev`/`optional` !== false), so the
-            // re-resolve walks all three.
-            dependency_groups: DIRECT_GROUPS,
-            frozen_lockfile: false,
-            // `pacquet remove` mutates the manifest, so the lockfile is
-            // necessarily stale — short-circuit the prefer-frozen fast
-            // path so the install always re-resolves. See the parallel
-            // comment in `add.rs`.
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            // `pacquet remove` is a partial install (an
-            // `uninstallSome` mutation), so the root project's own
-            // lifecycle scripts must not run — they fire only on a full
-            // install.
-            mutation: ProjectMutation::NoInstall,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: false,
-            // Removing a dependency must not bump the survivors: keep
-            // every remaining lockfile pin in the preferred-versions
-            // seed, same as `install` / `add`.
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-            package_provider: config.package_provider.clone(),
-        }
-        .run::<Reporter>()
-        .await
-        .map_err(RemoveError::Install)?;
+        let ignored_builds = remove_install(remove, owned, manifest)
+            .run::<Reporter>()
+            .await
+            .pipe(defer_ignored_builds)
+            .map_err(RemoveError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
 
-        write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
+        write_workspace_catalogs(remove.config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
+        post_install_prune(remove.config, None, manifest)
+            .map_err(RemoveError::WriteWorkspaceManifest)?;
+
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
-        projects: &mut [pacquet_workspace::Project],
-        ordered_groups: &[Vec<std::path::PathBuf>],
-        ordered_dirs: &[std::path::PathBuf],
-        selected_dirs: &HashSet<std::path::PathBuf>,
-        active_manifest_is_standin: bool,
+        selected: SelectedProjects<'_>,
     ) -> Result<(), RemoveError> {
-        let Remove {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
+        let Self {
+            options: remove,
+            resources: owned,
             manifest,
-            lockfile,
-            lockfile_path,
-            package_names,
-            save_type,
-            resolved_packages,
-            supported_architectures,
-            lockfile_only,
         } = self;
-        let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
+        let selected_indices = selected_project_indices(
+            selected.projects,
+            selected.ordered_dirs,
+            selected.selected_dirs,
+        );
         if selected_indices.is_empty() {
             return Ok(());
         }
 
-        validate_selected_remove(package_names).map_err(RemoveError::Validation)?;
-        prepare_selected_manifests::<Reporter>(
-            projects,
+        let edited_dirs = prepare_selected_removal::<Reporter>(
+            selected.projects,
             &selected_indices,
-            package_names,
-            save_type,
-        );
-        let workspace_root = config.workspace_dir.clone().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
-        });
+            remove.package_names,
+            remove.save_type,
+        )?;
+        let workspace_root = removal_workspace_root(remove.config, manifest);
 
-        Install {
-            tarball_mem_cache,
-            http_client,
-            http_client_arc,
-            config,
+        let ignored_builds = remove_install(remove, owned, manifest)
+            .run_selected::<Reporter>(crate::WorkspaceInstallSelection {
+                edited_dirs: Some(&edited_dirs),
+                ..selected.selection()
+            })
+            .await
+            .pipe(defer_ignored_builds)
+            .map_err(RemoveError::Install)?;
+
+        finalize_selected_remove::<Reporter>(
+            selected.projects,
+            &selected_indices,
+            remove.config,
+            &workspace_root,
             manifest,
-            emit_initial_manifest: false,
-            lockfile: MaybeLazyLockfile::Loaded(lockfile),
-            lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::NoInstall,
-            installs_only: false,
-            resolved_packages,
-            supported_architectures,
-            node_linker: config.node_linker,
-            lockfile_only,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            package_provider: config.package_provider.clone(),
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+        )?;
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
         }
-        .run_selected::<Reporter>(WorkspaceInstallSelection {
-            all_projects: projects,
-            ordered_groups,
-            ordered_dirs,
-            selected_dirs,
-            active_manifest_is_standin,
-        })
-        .await
-        .map_err(RemoveError::Install)?;
-
-        persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
-
-        write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
         Ok(())
     }
 }
 
-fn validate_selected_remove(package_names: &[String]) -> Result<(), RemoveValidationError> {
+/// The removal's borrowed and `Copy` inputs, as one value every step reads.
+#[derive(Clone, Copy)]
+pub struct RemoveOptions<'a> {
+    pub resolved_packages: &'a ResolvedPackages,
+    pub http_client: &'a ThrottledClient,
+    pub config: &'static Config,
+    /// The wanted lockfile, as the command reads it and as the
+    /// install it runs needs it.
+    pub lockfile: CommandLockfile<'a>,
+    /// Names to remove.
+    pub package_names: &'a [String],
+    /// Dependency field to restrict removal to, or `None` to remove from
+    /// any field. Derived from the `--save-prod` / `--save-dev` /
+    /// `--save-optional` flags via pnpm's `getSaveType`.
+    pub save_type: Option<DependencyGroup>,
+    /// `--lockfile-only`: rewrite `pnpm-lock.yaml` (and the manifest) but
+    /// skip materializing `node_modules`. Forwarded to the follow-up
+    /// `Install` run. See [`crate::InstallExecution::lockfile_only`].
+    pub lockfile_only: bool,
+}
+
+/// The removal's owned inputs, consumed by the install it runs.
+pub struct RemoveResources {
+    pub tarball_mem_cache: Arc<MemCache>,
+    pub http_client_arc: Arc<ThrottledClient>,
+    /// CLI-merged `supportedArchitectures` forwarded to the follow-up
+    /// `Install` run. See [`crate::InstallProjects::supported_architectures`].
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+}
+
+/// `pnpm remove`'s `include` defaults to every dependency
+/// group (`production`/`dev`/`optional` !== false), so the
+/// re-resolve walks all three.
+/// The manifest was just edited, but the drift is exactly the
+/// deleted importer edges, which the removal handler of the
+/// lockfile fast path absorbs without resolving. When it
+/// declines, the freshness check fails and the install
+/// re-resolves as it always did.
+/// `pacquet remove` is a partial install (an
+/// `uninstallSome` mutation), so the root project's install
+/// stages must not run; it runs the uninstall stages instead.
+/// Removing a dependency must not bump the survivors: keep
+/// every remaining lockfile pin in the preferred-versions
+/// seed, same as `install` / `add`.
+fn remove_install<'i>(
+    remove: RemoveOptions<'i>,
+    owned: RemoveResources,
+    manifest: &'i PackageManifest,
+) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
+    Install {
+        lockfile_policy: crate::InstallLockfilePolicy::plain(remove.config),
+        execution: remove.install_execution(),
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: remove.http_client,
+            config: remove.config,
+            manifest,
+            emit_initial_manifest: false,
+            lockfile: remove.lockfile.source,
+            lockfile_path: remove.lockfile.path,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: owned.tarball_mem_cache,
+            http_client_arc: owned.http_client_arc,
+            resolved_packages: remove.resolved_packages,
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: included_direct_groups(remove.config.optional),
+            supported_architectures: owned.supported_architectures,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
+    }
+}
+
+fn validate_selected_remove(
+    projects: &[pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<(), RemoveValidationError> {
     if package_names.is_empty() {
         return Err(RemoveValidationError::MustRemoveSomething);
     }
-    Ok(())
+    let mut available_lookup = HashSet::new();
+    let mut available_dependencies = Vec::new();
+    for &index in selected_indices {
+        let manifest = &projects[index].manifest;
+        let peer_dependencies = manifest
+            .dependencies([DependencyGroup::Peer])
+            .filter(|_| save_type.is_none())
+            .map(|(name, _)| name.to_string());
+        for dep in manifest
+            .available_dependency_names(save_type)
+            .into_iter()
+            .chain(peer_dependencies)
+        {
+            if available_lookup.insert(dep.clone()) {
+                available_dependencies.push(dep);
+            }
+        }
+    }
+    available_dependencies.sort();
+    let non_matched_dependencies: Vec<&String> = package_names
+        .iter()
+        .filter(|name| !available_lookup.contains(name.as_str()))
+        .collect();
+    if non_matched_dependencies.is_empty() {
+        return Ok(());
+    }
+    Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
+}
+
+fn edited_project_dirs(
+    projects: &[pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> HashSet<PathBuf> {
+    selected_indices
+        .iter()
+        .map(|&index| &projects[index])
+        .filter(|project| {
+            let manifest = &project.manifest;
+            let peer_dependencies = manifest
+                .dependencies([DependencyGroup::Peer])
+                .map(|(name, _)| name.to_string());
+            let listed: HashSet<String> = manifest
+                .available_dependency_names(save_type)
+                .into_iter()
+                .chain(peer_dependencies)
+                .collect();
+            package_names
+                .iter()
+                .any(|name| listed.contains(name))
+        })
+        .map(|project| project.root_dir.clone())
+        .collect()
+}
+
+/// Returns the projects that listed a removed package, read before the edit.
+fn prepare_selected_removal<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<HashSet<PathBuf>, RemoveError> {
+    validate_selected_remove(projects, selected_indices, package_names, save_type)
+        .map_err(RemoveError::Validation)?;
+    let edited_dirs = edited_project_dirs(projects, selected_indices, package_names, save_type);
+    prepare_selected_manifests::<Reporter>(projects, selected_indices, package_names, save_type);
+    Ok(edited_dirs)
 }
 
 fn prepare_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
     package_names: &[String],
     save_type: Option<DependencyGroup>,
@@ -280,8 +327,23 @@ fn prepare_manifest<Reporter: self::Reporter>(
     manifest.remove_dependencies(package_names, save_type);
 }
 
+fn finalize_selected_remove<Reporter: self::Reporter>(
+    projects: &mut [pnpm_workspace::Project],
+    selected_indices: &[usize],
+    config: &'static Config,
+    workspace_root: &std::path::Path,
+    manifest: &PackageManifest,
+) -> Result<(), RemoveError> {
+    persist_selected_manifests::<Reporter>(projects, selected_indices)?;
+    write_workspace_catalogs_selected(config, workspace_root, &Catalogs::new(), projects)
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
+    post_install_prune(config, Some(workspace_root), manifest)
+        .map_err(RemoveError::WriteWorkspaceManifest)?;
+    Ok(())
+}
+
 fn persist_selected_manifests<Reporter: self::Reporter>(
-    projects: &mut [pacquet_workspace::Project],
+    projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
 ) -> Result<(), RemoveError> {
     for &index in selected_indices {
@@ -313,10 +375,14 @@ fn validate_removable(
         return Err(RemoveValidationError::MustRemoveSomething);
     }
     let available_dependencies = manifest.available_dependency_names(save_type);
-    let available_lookup: HashSet<&str> =
-        available_dependencies.iter().map(String::as_str).collect();
-    let non_matched_dependencies: Vec<&String> =
-        package_names.iter().filter(|name| !available_lookup.contains(name.as_str())).collect();
+    let available_lookup: HashSet<&str> = available_dependencies
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let non_matched_dependencies: Vec<&String> = package_names
+        .iter()
+        .filter(|name| !available_lookup.contains(name.as_str()))
+        .collect();
     if non_matched_dependencies.is_empty() {
         return Ok(());
     }
@@ -354,5 +420,30 @@ fn cannot_remove_missing_deps(
     RemoveValidationError::CannotRemoveMissingDeps { message, hint: Some(hint) }
 }
 
+fn removal_workspace_root(config: &Config, manifest: &PackageManifest) -> std::path::PathBuf {
+    config.workspace_dir
+        .clone()
+        .unwrap_or_else(|| {
+            manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+                .to_path_buf()
+        })
+}
+
 #[cfg(test)]
 mod tests;
+
+impl RemoveOptions<'_> {
+    fn install_execution(self) -> crate::InstallExecution {
+        crate::InstallExecution {
+            skip_runtimes: self.config.skip_runtimes,
+            mutation: ProjectMutation::UninstallSome,
+            installs_only: false,
+            node_linker: self.config.node_linker,
+            lockfile_only: self.lockfile_only,
+            dry_run: false,
+        }
+    }
+}

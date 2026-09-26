@@ -1,12 +1,25 @@
+use crate::_utils::{
+    append_line_script, has_link, importer_has_group_dependency, pacquet_in, read_lockfile,
+};
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
+
+const PROD: &str = "@pnpm.e2e/pkg-with-1-dep";
+const FILTERED: &str = "@pnpm.e2e/hello-world-js-bin";
+const ORDER_FILE: &str = "order.txt";
 
 #[test]
 fn prune_writes_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -22,7 +35,10 @@ fn prune_writes_lockfile() {
     .expect("write package.json");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_arg("prune").assert().success();
+    pacquet
+        .with_arg("prune")
+        .assert()
+        .success();
 
     assert!(lockfile_path.exists(), "prune must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -36,8 +52,13 @@ fn prune_writes_lockfile() {
 
 #[test]
 fn prune_from_workspace_member_writes_the_workspace_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
         .expect("write root package.json");
@@ -51,7 +72,11 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
     )
     .expect("write member package.json");
 
-    pacquet.with_current_dir(&member).with_arg("prune").assert().success();
+    pacquet
+        .with_current_dir(&member)
+        .with_arg("prune")
+        .assert()
+        .success();
 
     assert!(workspace.join("pnpm-lock.yaml").is_file());
     assert!(!member.join("pnpm-lock.yaml").exists());
@@ -59,115 +84,181 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
     drop((root, mock_instance));
 }
 
-#[test]
-fn prune_with_prod_only_omits_dev_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+/// `pnpm prune` is `pnpm install` plus direct-dependency pruning, so a
+/// group filter reaches `node_modules` and leaves `pnpm-lock.yaml`
+/// describing the whole manifest (pnpm/pnpm#14912).
+///
+/// The manifest declares [`PROD`] in `dependencies` and [`FILTERED`] in
+/// `filtered_group`; `unlinked` names the one `filter` drops.
+fn assert_prune_filter_reaches_node_modules_only(
+    filter: &str,
+    filtered_group: &str,
+    unlinked: &str,
+) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let manifest_path = workspace.join("package.json");
     fs::write(
-        &manifest_path,
+        workspace.join("package.json"),
         serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
-            },
-            "devDependencies": {
-                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
-            }
+            "dependencies": { PROD: "100.0.0" },
+            filtered_group: { FILTERED: "1.0.0" },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--prod"]).assert().success();
+    pacquet
+        .with_args(["prune", filter])
+        .assert()
+        .success();
 
-    assert!(lockfile_path.exists(), "prune --prod must create pnpm-lock.yaml");
-    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    dbg!(&lockfile);
+    let root_importer = pnpm_lockfile::Lockfile::ROOT_IMPORTER_KEY;
     assert!(
-        lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
-        "prune --prod must include prod dependencies:\n{lockfile}",
+        importer_has_group_dependency(&lockfile, root_importer, "dependencies", PROD),
+        "`prune {filter}` dropped dependencies from the lockfile",
     );
     assert!(
-        !lockfile.contains("@pnpm.e2e/hello-world-js-bin"),
-        "prune --prod must NOT include dev dependencies:\n{lockfile}",
+        importer_has_group_dependency(&lockfile, root_importer, filtered_group, FILTERED),
+        "`prune {filter}` dropped {filtered_group} from the lockfile",
     );
+    let linked = if unlinked == PROD { FILTERED } else { PROD };
+    assert!(has_link(&workspace, linked), "`prune {filter}` must keep the installed group linked");
+    assert!(!has_link(&workspace, unlinked), "`prune {filter}` must unlink the group it excludes");
 
     drop((root, mock_instance));
 }
 
 #[test]
-fn prune_with_dev_only_includes_dev_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+fn prune_with_prod_only_unlinks_dev_deps() {
+    assert_prune_filter_reaches_node_modules_only("--prod", "devDependencies", FILTERED);
+}
+
+#[test]
+fn prune_with_prod_only_and_no_lockfile_unlinks_dev_deps() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let manifest_path = workspace.join("package.json");
     fs::write(
-        &manifest_path,
+        workspace.join("package.json"),
         serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
-            },
-            "devDependencies": {
-                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
-            }
+            "dependencies": { PROD: "100.0.0" },
+            "devDependencies": { FILTERED: "1.0.0" },
         })
         .to_string(),
     )
     .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write pnpm-workspace.yaml");
 
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--dev"]).assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "install must not write a lockfile");
+    assert!(has_link(&workspace, PROD));
+    assert!(has_link(&workspace, FILTERED));
 
-    assert!(lockfile_path.exists(), "prune --dev must create pnpm-lock.yaml");
-    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert!(
-        !lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
-        "prune --dev must NOT include prod dependencies:\n{lockfile}",
-    );
-    assert!(
-        lockfile.contains("@pnpm.e2e/hello-world-js-bin"),
-        "prune --dev must include dev dependencies:\n{lockfile}",
-    );
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+    assert!(has_link(&workspace, PROD));
+    assert!(!has_link(&workspace, FILTERED));
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "prune must not write a lockfile");
 
     drop((root, mock_instance));
 }
 
 #[test]
-fn prune_with_no_optional_excludes_optional_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+fn prune_with_dev_only_unlinks_prod_deps() {
+    assert_prune_filter_reaches_node_modules_only("--dev", "devDependencies", PROD);
+}
+
+#[test]
+fn prune_with_no_optional_unlinks_optional_deps() {
+    assert_prune_filter_reaches_node_modules_only(
+        "--no-optional",
+        "optionalDependencies",
+        FILTERED,
+    );
+}
+
+/// `prepare` needs a devDependency, like a `husky` git-hooks setup, so
+/// running it after `prune --prod` unlinked that dependency would fail
+/// the prune (pnpm/pnpm#4770).
+#[test]
+fn prune_with_prod_only_does_not_run_prepare_scripts() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let manifest_path = workspace.join("package.json");
+    let prepare = format!(
+        r#"node -e "require('is-negative')" && {}"#,
+        append_line_script("prepare", ORDER_FILE),
+    );
     fs::write(
-        &manifest_path,
+        workspace.join("package.json"),
         serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            "name": "prune-prod-skips-prepare",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+            "scripts": {
+                "preinstall": append_line_script("preinstall", ORDER_FILE),
+                "install": append_line_script("install", ORDER_FILE),
+                "postinstall": append_line_script("postinstall", ORDER_FILE),
+                "preprepare": append_line_script("preprepare", ORDER_FILE),
+                "prepare": prepare,
+                "postprepare": append_line_script("postprepare", ORDER_FILE),
             },
-            "optionalDependencies": {
-                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
-            }
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
-    pacquet.with_args(["prune", "--no-optional"]).assert().success();
+    let order_path = workspace.join(ORDER_FILE);
+    let read_stages = || {
+        fs::read_to_string(&order_path)
+            .expect("read order.txt")
+            .lines()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
 
-    assert!(lockfile_path.exists(), "prune --no-optional must create pnpm-lock.yaml");
-    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert!(
-        lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
-        "prune --no-optional must include prod dependencies:\n{lockfile}",
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
     );
-    assert!(
-        !lockfile.contains("@pnpm.e2e/hello-world-js-bin"),
-        "prune --no-optional must exclude optional dependencies:\n{lockfile}",
+    fs::remove_file(&order_path).expect("remove order.txt");
+
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        read_stages(),
+        ["preinstall", "install", "postinstall"],
+        "prepare lifecycle scripts must not run during prune --prod",
+    );
+    assert_eq!(
+        (has_link(&workspace, "is-positive"), has_link(&workspace, "is-negative")),
+        (true, false),
+        "prune --prod must keep the prod dependency linked and unlink the dev dependency",
     );
 
     drop((root, mock_instance));

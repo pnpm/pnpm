@@ -1,6 +1,6 @@
 use super::LogoutArgs;
-use pacquet_config::Config;
-use pacquet_reporter::SilentReporter;
+use pnpm_config::Config;
+use pnpm_reporter::SilentReporter;
 
 /// `Config::default()` leaves `config_dir` as `None`; `run` must reject
 /// that before touching the network, since it cannot locate `auth.ini`.

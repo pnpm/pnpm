@@ -7,7 +7,7 @@ import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import type { ResolvedDependencies } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { createNpmResolver } from '@pnpm/resolving.npm-resolver'
-import type { DependencyManifest, Registries } from '@pnpm/types'
+import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 type ResolveFromNpm = ReturnType<typeof createNpmResolver>['resolveFromNpm']
@@ -15,7 +15,7 @@ type ResolveFromNpm = ReturnType<typeof createNpmResolver>['resolveFromNpm']
 export interface ResolveOptionalSubdepsOpts {
   envLockfile: EnvLockfile
   lockfileDir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   resolveFromNpm: ResolveFromNpm
 }
 
@@ -85,14 +85,14 @@ export async function resolveOptionalSubdeps (
       )
     }
     const subdepVersion = resolution.manifest.version
-    const registry = pickRegistryForPackage(opts.registries, subdepName)
+    const registry = pickRegistryForPackage(opts.registriesByScope, subdepName)
     const subdepKey = `${subdepName}@${subdepVersion}`
 
     opts.envLockfile.packages[subdepKey] = {
       resolution: toLockfileResolution(
         { name: subdepName, version: subdepVersion },
         resolution.resolution,
-        registry
+        { registry }
       ),
       ...pickPlatformFields(resolution.manifest),
     }

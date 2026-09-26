@@ -47,7 +47,7 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registries: {
+      registriesByScope: {
         default: REGISTRY_URL,
       },
     }, ['ls', '@pnpm/test'])
@@ -60,7 +60,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['ls'])
@@ -76,7 +76,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['ls', 'nonexistent-pkg-12345'])
@@ -92,7 +92,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['ls', '@pnpm/test'])
@@ -108,7 +108,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['ls', '@pnpm/test'])
@@ -124,7 +124,7 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registries: {
+      registriesByScope: {
         default: REGISTRY_URL,
       },
     }, ['add', '@pnpm/test', 'newowner'])
@@ -136,7 +136,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['add'])
@@ -147,7 +147,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['add', '@pnpm/test'])
@@ -162,7 +162,7 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registries: {
+      registriesByScope: {
         default: REGISTRY_URL,
       },
     }, ['rm', '@pnpm/test', 'newowner'])
@@ -174,7 +174,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['rm'])
@@ -185,7 +185,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['rm', '@pnpm/test'])
@@ -201,7 +201,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: 'https://registry.npmjs.org/',
         },
       }, ['add', '@pnpm/test', 'newowner'])
@@ -217,7 +217,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: 'https://registry.npmjs.org/',
         },
       }, ['add', '@pnpm/test', 'newowner'])
@@ -233,7 +233,7 @@ describe('owner command', () => {
     await expect(async () => {
       await owner.handler({
         cliOptions: {},
-        registries: {
+        registriesByScope: {
           default: REGISTRY_URL,
         },
       }, ['rm', 'nonexistent-pkg-12345', 'oldowner'])
@@ -250,7 +250,7 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registries: {
+      registriesByScope: {
         default: REGISTRY_URL,
       },
     }, ['@pnpm/test'])
@@ -268,7 +268,7 @@ describe('owner command', () => {
 
     const result = await owner.handler({
       cliOptions: {},
-      registries: {
+      registriesByScope: {
         default: REGISTRY_URL,
       },
     }, ['list', '@pnpm/test'])

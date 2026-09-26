@@ -9,5 +9,6 @@
   ],
   "libc": [
     "glibc"
-  ]
+  ],
+  "license": "MIT"
 }

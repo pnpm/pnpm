@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.audit",
-  "version": "1101.0.30",
+  "version": "1101.0.38",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",
@@ -37,6 +37,7 @@
     "@pnpm/fetching.types": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",

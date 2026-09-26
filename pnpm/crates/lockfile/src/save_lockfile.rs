@@ -1,13 +1,16 @@
 use crate::{
-    Lockfile, serialize_yaml,
+    EnvLockfile, Lockfile,
+    git_merge_file::MERGE_CONFLICT_OURS,
+    serialize_yaml,
     yaml_documents::{
         YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
         normalize_lockfile_content,
     },
 };
 use derive_more::{Display, Error};
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
 use std::{
+    borrow::Cow,
     env,
     fs::{self, OpenOptions},
     io::{self, Write},
@@ -30,6 +33,18 @@ pub enum SaveLockfileError {
     #[display("Failed to write lockfile content: {_0}")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_WRITE_FILE))]
     WriteFile(io::Error),
+
+    #[display(
+        "The lockfile at \"{}\" still has Git conflict markers in its leading document, which records the config dependencies. Its two sides cannot be merged.",
+        path.display()
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_LOCKFILE),
+        help(
+            "Resolve the conflict in the first YAML document of the lockfile by hand, then run the command again."
+        )
+    )]
+    UnmergeableEnvDocument { path: PathBuf },
 
     #[display("Failed to create virtual-store directory {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_CREATE_DIR))]
@@ -87,7 +102,10 @@ pub fn save_value_to_path<Document: serde::Serialize>(
         Err(error) => return Err(SaveLockfileError::WriteFile(error)),
     };
     let output = match existing.as_deref().and_then(extract_env_document) {
-        Some(env) => format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}"),
+        Some(env) => {
+            let env = preserved_env_document(&env, path)?;
+            format!("{YAML_DOCUMENT_START}{env}{YAML_DOCUMENT_SEPARATOR}{content}")
+        }
         None => content,
     };
     if existing.as_deref() == Some(output.as_str()) {
@@ -95,6 +113,45 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     }
     ensure_lockfile_is_not_symlink(path).map_err(SaveLockfileError::WriteFile)?;
     write_atomic(path, output.as_bytes())
+}
+
+/// The env document to re-prepend, as text.
+///
+/// Normally the bytes that were already there: the document is the
+/// env-installer's to write, and reserializing it here would mean every
+/// main-lockfile write round-tripped a document it does not own.
+///
+/// A document Git left conflicted is the exception. Copying it forward
+/// would carry the markers into a file the caller is writing precisely to
+/// replace a conflicted one, and leave the next `EnvLockfile::read`
+/// failing on a lockfile that looks repaired. Merge the two sides
+/// instead.
+///
+/// A conflicted document whose sides do not merge is an error rather
+/// than something to copy. The write would otherwise produce a file that
+/// is still conflicted, after an install that has already reported the
+/// merge it made in the main document.
+fn preserved_env_document<'a>(
+    env: &'a str,
+    path: &Path,
+) -> Result<Cow<'a, str>, SaveLockfileError> {
+    // Skips the parse for the documents that plainly carry no marker,
+    // which is all of them but the conflicted few. A false positive —
+    // a marker inside a comment or a scalar — costs a parse that then
+    // finds nothing to merge, and the document is written back as it is.
+    if !env.contains(MERGE_CONFLICT_OURS) {
+        return Ok(Cow::Borrowed(env));
+    }
+    let Ok(parsed) = EnvLockfile::parse_conflicted_document(env, path) else {
+        return Err(SaveLockfileError::UnmergeableEnvDocument { path: path.to_path_buf() });
+    };
+    let merged_conflict_files = parsed.merged_conflict_files;
+    let Some(merged) = parsed.value.filter(|_| merged_conflict_files > 0) else {
+        // Nothing was merged, so the document parsed as it stands: the
+        // markers are inside a comment or a scalar. Preserve its bytes.
+        return Ok(Cow::Borrowed(env));
+    };
+    serialize_yaml::to_string(&merged).map(Cow::Owned).map_err(SaveLockfileError::SerializeYaml)
 }
 
 /// Refuses a symlinked lockfile before a write, which would land on the link's
@@ -158,9 +215,11 @@ impl Lockfile {
                 Err(error) => Err(SaveLockfileError::RemoveFile { path: target, error }),
             }
         } else {
-            fs::create_dir_all(virtual_store_dir).map_err(|error| {
-                SaveLockfileError::CreateDir { dir: virtual_store_dir.to_path_buf(), error }
-            })?;
+            fs::create_dir_all(virtual_store_dir)
+                .map_err(|error| SaveLockfileError::CreateDir {
+                    dir: virtual_store_dir.to_path_buf(),
+                    error,
+                })?;
             let content = self.to_yaml_string()?;
             write_atomic(&target, content.as_bytes())
         }
@@ -205,7 +264,7 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
 /// truncate a file an attacker (or a crashed prior install) pre-seeded
 /// at our predicted temp path. On `AlreadyExists` we advance the
 /// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
-/// the hardening already in `pacquet_fs::ensure_file::write_atomic`
+/// the hardening already in `pnpm_fs::ensure_file::write_atomic`
 /// (per-call review on [#442](https://github.com/pnpm/pacquet/pull/442)).
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
     /// Sixteen fresh counter values is plenty — under benign
@@ -225,13 +284,24 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
+        // Registered before the create so a signal landing between the two
+        // cannot leave the fresh temp file behind. A failed create means
+        // the path was never ours, so the guard releases the slot without
+        // unlinking anything.
+        let pending_temp = pnpm_fs::track_temp_file(&tmp);
 
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed
-                // at the colliding path. Don't touch whatever is there;
-                // retry with a fresh counter.
+                // at the colliding path. Release the registration before
+                // anything else, so an interrupt cannot unlink a file this
+                // process never created, and retry with a fresh counter.
+                drop(pending_temp);
                 last_already_exists = Some(error);
                 continue;
             }
@@ -249,12 +319,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
         // the rename commits the dirent change.
         drop(file);
 
-        return fs::rename(&tmp, target).map_err(|error| {
-            // Best-effort cleanup so a failed rename doesn't leak temp
-            // files in the virtual store.
-            let _ = fs::remove_file(&tmp);
-            SaveLockfileError::RenameFile { tmp, target: target.to_path_buf(), error }
-        });
+        return commit_temp_file(tmp, target);
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
@@ -265,6 +330,20 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             "exhausted temp-path attempts for atomic lockfile write",
         )
     })))
+}
+
+/// Rename the temp file over `target`. On Windows, another process holding
+/// `target` open without delete sharing (an editor, an indexer, antivirus)
+/// fails the rename until it lets go, so transient lock errors are retried
+/// with the policy of [`pnpm_fs::rename_with_retry`].
+fn commit_temp_file(tmp: PathBuf, target: &Path) -> Result<(), SaveLockfileError> {
+    pnpm_fs::rename_with_retry(&tmp, target)
+        .map_err(|error| {
+            // Best-effort cleanup so a failed rename doesn't leak temp
+            // files in the virtual store.
+            let _ = fs::remove_file(&tmp);
+            SaveLockfileError::RenameFile { tmp, target: target.to_path_buf(), error }
+        })
 }
 
 #[cfg(test)]

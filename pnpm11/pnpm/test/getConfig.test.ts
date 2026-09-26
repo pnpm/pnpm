@@ -49,6 +49,28 @@ afterEach(() => {
   jest.mocked(console.warn).mockRestore()
 })
 
+test.each([undefined, '', 'dummy-token'])('emit trusted auth environment warnings for %p', async (token) => {
+  prepare()
+  const originalToken = process.env.PNPM_TEST_AUTH_TOKEN
+  const originalAuthFile = process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+  fs.writeFileSync('auth.npmrc', '//registry.example/:_authToken=${PNPM_TEST_AUTH_TOKEN}')
+  process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = path.resolve('auth.npmrc')
+  if (token === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+  else process.env.PNPM_TEST_AUTH_TOKEN = token
+  try {
+    await getConfig({ json: false }, { workspaceDir: '.', excludeReporter: false })
+    const warning = expect.stringContaining('Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken"')
+    if (token) expect(console.warn).not.toHaveBeenCalledWith(warning)
+    else expect(console.warn).toHaveBeenCalledWith(warning)
+    expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('dummy-token'))
+  } finally {
+    if (originalToken === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+    else process.env.PNPM_TEST_AUTH_TOKEN = originalToken
+    if (originalAuthFile === undefined) delete process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+    else process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = originalAuthFile
+  }
+})
+
 test('console a warning when a project-level .npmrc has an unresolved env variable in an expanded setting', async () => {
   prepare()
 
@@ -266,10 +288,181 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
   })
 
+  test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+    for (const plugin of ['pnpm-plugin-a', 'pnpm-plugin-b']) {
+      const pluginDir = path.join('node_modules/.pnpm-config', plugin)
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.cjs'), `
+        module.exports = { hooks: { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), '${plugin}'] }) } }
+      `)
+    }
+    fs.writeFileSync(defaultPnpmfile, `
+      const hooks = { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), 'project'] }) }
+      ${defaultPnpmfile.endsWith('.mjs') ? 'export { hooks }' : 'module.exports = { hooks }'}
+    `)
+
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    config.configDependencies = {
+      'pnpm-plugin-b': '1.0.0+sha512-abc',
+      'pnpm-plugin-a': '1.0.0+sha512-abc',
+    }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect((result.config as unknown as { order: string[] }).order).toStrictEqual(['pnpm-plugin-a', 'pnpm-plugin-b', 'project'])
+  })
+
+  test('an updateConfig hook that drops the default and @jsr routes falls back to the configured registry and the built-in @jsr route', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({ ...config, registriesByScope: { '@acme': 'https://acme.example' } }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://mirror.example/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@acme': 'https://acme.example/',
+    })
+    expect(result.config.registry).toBe('https://mirror.example/')
+  })
+
+  test('the default route an updateConfig hook sets becomes the registry', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({
+            ...config,
+            registriesByScope: { default: 'https://other-mirror.example/', '@jsr': 'https://jsr-mirror.example/' },
+          }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://other-mirror.example/',
+      '@jsr': 'https://jsr-mirror.example/',
+    })
+    expect(result.config.registry).toBe('https://other-mirror.example/')
+  })
+
+  test('a scope an updateConfig hook sets to undefined is removed', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registriesByScope: { ...config.registriesByScope, '@acme': undefined },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://mirror.example/',
+      '@jsr': 'https://npm.jsr.io/',
+    })
+  })
+
+  test.each([
+    ['a null route', '{ ...config.registriesByScope, \'@acme\': null }'],
+    ['a non-object map', '\'https://acme.example/\''],
+    ['a Map instance', 'new Map([[\'@acme\', \'https://acme.example/\']])'],
+  ])('an updateConfig hook that sets registriesByScope to %s fails', async (_, registriesByScope) => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({ ...config, registriesByScope: ${registriesByScope} })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    await expect(installConfigDepsAndLoadHooks(config, context)).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_UPDATE_CONFIG_RESULT',
+    })
+  })
+
+  test('the registry an updateConfig hook sets becomes the default route', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => {
+      config.registry = 'https://other-mirror.example'
+      return config
+    }`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://other-mirror.example/')
+    expect(result.config.registry).toBe('https://other-mirror.example/')
+  })
+
+  test('the registry an updateConfig hook sets wins over the default route it sets', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registry: 'https://registry-mirror.example/',
+      registriesByScope: { default: 'https://route-mirror.example/' },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://registry-mirror.example/')
+    expect(result.config.registry).toBe('https://registry-mirror.example/')
+  })
+
+  test('an updateConfig hook that removes both the registry and the default route keeps the configured registry', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registry: undefined,
+      registriesByScope: { '@acme': 'https://acme.example/' },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://mirror.example/')
+    expect(result.config.registry).toBe('https://mirror.example/')
+  })
+
+  test('an updateConfig hook that sets the registry to null restores the default registry', async () => {
+    prepare()
+
+    writeUpdateConfigHook('(config) => ({ ...config, registry: null })')
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+    expect(result.config.registry).toBe('https://registry.npmjs.org/')
+  })
+
+  function writeUpdateConfigHook (updateConfig: string): void {
+    fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig: ${updateConfig} } }`)
+  }
+
   function buildPnpmfileConfig (): { config: Config, context: ConfigContext } {
     const { config, context } = buildBaseConfig()
     config.ignorePnpmfile = false
     delete (config as { configDependencies?: unknown }).configDependencies
+    config.registry = 'https://mirror.example/'
+    config.registriesByScope = { default: 'https://mirror.example/', '@jsr': 'https://npm.jsr.io/' }
     return { config, context }
   }
 

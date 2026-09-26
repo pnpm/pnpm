@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use pacquet_lockfile::LockfileResolution;
-use pacquet_network::ThrottledClient;
-use pacquet_resolving_resolver_base::{LatestQuery, ResolveOptions, Resolver, WantedDependency};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::ThrottledClient;
+use pnpm_resolving_resolver_base::{LatestQuery, ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
 use crate::TarballResolver;
@@ -26,7 +26,10 @@ async fn non_http_bare_specifier_returns_none_so_the_chain_falls_through() {
         bare_specifier: Some("git+ssh://git@github.com/foo/bar.git".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
@@ -34,14 +37,21 @@ async fn non_http_bare_specifier_returns_none_so_the_chain_falls_through() {
 async fn missing_bare_specifier_returns_none() {
     let resolver = build_resolver();
     let wanted = WantedDependency { alias: Some("foo".to_string()), ..WantedDependency::default() };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
 #[tokio::test]
 async fn mutable_response_stores_normalized_request_url() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("HEAD", "/pkg-1.0.0.tgz").with_status(200).create_async().await;
+    let _mock = server
+        .mock("HEAD", "/pkg-1.0.0.tgz")
+        .with_status(200)
+        .create_async()
+        .await;
     let url = format!("{}/pkg-1.0.0.tgz", server.url());
 
     let resolver = build_resolver();
@@ -50,8 +60,11 @@ async fn mutable_response_stores_normalized_request_url() {
         bare_specifier: Some(url.clone()),
         ..WantedDependency::default()
     };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claim");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claim");
 
     assert_eq!(result.id.to_string(), url);
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some(url.as_str()));
@@ -76,8 +89,11 @@ async fn immutable_response_without_redirect_keeps_the_requested_url() {
         bare_specifier: Some(url.clone()),
         ..WantedDependency::default()
     };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claim");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claim");
 
     assert_eq!(tarball_url(&result.resolution), url);
 }
@@ -107,8 +123,11 @@ async fn immutable_response_after_redirect_records_the_final_url() {
         bare_specifier: Some(requested_url.clone()),
         ..WantedDependency::default()
     };
-    let result =
-        resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().expect("claim");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .expect("claim");
 
     assert_eq!(result.id.to_string(), requested_url);
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
@@ -145,6 +164,9 @@ async fn resolve_latest_returns_none_for_non_http_specifiers() {
         },
         compatible: false,
     };
-    let info = resolver.resolve_latest(&query, &ResolveOptions::default()).await.unwrap();
+    let info = resolver
+        .resolve_latest(&query, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(info.is_none());
 }

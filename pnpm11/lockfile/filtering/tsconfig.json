@@ -28,6 +28,12 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../fs"
+    },
+    {
+      "path": "../peer-edges"
+    },
+    {
       "path": "../types"
     },
     {

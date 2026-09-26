@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1100.4.8",
+  "version": "1101.1.4",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -46,9 +46,13 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/engine.runtime.commands": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "@pnpm/fs.dir-lock": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/log.group": "catalog:",
@@ -61,6 +65,7 @@
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
     "execa": "catalog:",
@@ -70,6 +75,7 @@
     "render-help": "catalog:",
     "symlink-dir": "catalog:",
     "which": "catalog:",
+    "write-file-atomic": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
@@ -77,7 +83,6 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/engine.runtime.system-version": "workspace:*",
     "@pnpm/exec.commands": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -87,6 +92,7 @@
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
+    "@types/write-file-atomic": "catalog:",
     "is-windows": "catalog:",
     "write-yaml-file": "catalog:"
   },

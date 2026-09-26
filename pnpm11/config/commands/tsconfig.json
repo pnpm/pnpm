@@ -37,6 +37,9 @@
       "path": "../../workspace/workspace-manifest-writer"
     },
     {
+      "path": "../normalize-registries"
+    },
+    {
       "path": "../reader"
     }
   ]

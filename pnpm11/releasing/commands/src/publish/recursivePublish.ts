@@ -2,11 +2,13 @@ import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
-import type { ProjectRootDir, Registries } from '@pnpm/types'
-import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
+import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
@@ -14,7 +16,8 @@ import { writeJsonFile } from 'write-json-file'
 import { publishedName } from '../publishedNames.js'
 import { batchPublishPackages } from './batchPublish.js'
 import { publish } from './publish.js'
-import type { PublishPackedPkgOptions, PublishSummary } from './publishPackedPkg.js'
+import { getPublishConfigRegistry, type PublishPackedPkgOptions, type PublishSummary } from './publishPackedPkg.js'
+import { parseSupportedRegistryUrl } from './registryConfigKeys.js'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
 | 'bin'
@@ -22,7 +25,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'dir'
 | 'pnpmHomeDir'
 | 'configByUri'
-| 'registries'
+| 'registriesByScope'
 | 'workspaceDir'
 >> &
 Required<Pick<ConfigContext,
@@ -48,7 +51,6 @@ Partial<Pick<Config,
 | 'localAddress'
 | 'lockfileDir'
 | 'noProxy'
-| 'npmPath'
 | 'offline'
 | 'strictSsl'
 | 'unsafePerm'
@@ -57,6 +59,7 @@ Partial<Pick<Config,
 | 'versioning'
 >> &
 Partial<Pick<ConfigContext,
+| 'allProjects'
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
 | 'prodAllProjectsGraph'
@@ -76,26 +79,37 @@ export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<ConfigContext, 'selectedProjectsGraph'>>
 ): Promise<{ exitCode: number, publishedPackages: RecursivePublishedPackage[] }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-  const { resolve } = createResolver({
-    ...opts,
-    configByUri: opts.configByUri,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-  })
+  const resolverByRegistries = new Map<string, ResolveFunction>()
+  const getResolver = (registriesByScope: RegistriesByScope): ResolveFunction => {
+    const key = JSON.stringify(registriesByScope)
+    let resolve = resolverByRegistries.get(key)
+    if (resolve == null) {
+      resolve = createResolver({
+        ...opts,
+        configByUri: opts.configByUri,
+        registriesByScope,
+        retry: {
+          factor: opts.fetchRetryFactor,
+          maxTimeout: opts.fetchRetryMaxtimeout,
+          minTimeout: opts.fetchRetryMintimeout,
+          retries: opts.fetchRetries,
+        },
+        timeout: opts.fetchTimeout,
+      }).resolve
+      resolverByRegistries.set(key, resolve)
+    }
+    return resolve
+  }
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     if (opts.force) return true
+    const targetName = publishedName(pkg.manifest)!
+    const registriesByScope = routeToPublishConfigRegistry(opts.registriesByScope, targetName, getPublishConfigRegistry(pkg.manifest.publishConfig, targetName))
     return !(await isAlreadyPublished({
       dir: pkg.rootDir,
       lockfileDir: opts.lockfileDir ?? pkg.rootDir,
-      registries: opts.registries,
-      resolve,
-    }, publishedName(pkg.manifest)!, pkg.manifest.version))
+      resolve: getResolver(registriesByScope),
+    }, targetName, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set<ProjectRootDir>(pkgsToPublish.map(({ rootDir }) => rootDir))
   const publishedPackages: RecursivePublishedPackage[] = []
@@ -118,58 +132,66 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortFilteredProjects(opts)
+    const projectDependencies = filteredProjectsDependencies(opts)
     const tag = opts.tag ?? 'latest'
     if (opts.batch) {
-      const sortedPkgs = chunks
-        .flat()
+      const sortedPkgs = graphSequencer(projectDependencies).order
         .filter((pkgDir) => publishedPkgDirs.has(pkgDir))
         .map((pkgDir) => opts.selectedProjectsGraph[pkgDir].package)
       publishedPackages.push(...await batchPublishPackages(sortedPkgs, { ...opts, tag }))
     } else {
       const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
-      for (const chunk of chunks) {
-        // We can't run publish concurrently due to the npm CLI asking for OTP.
-        // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
-        // Otherwise, publishing will consume too much resources.
-        // See related issue: https://github.com/pnpm/pnpm/issues/6968
-        for (const pkgDir of chunk) {
-          if (!publishedPkgDirs.has(pkgDir)) continue
-          const pkg = opts.selectedProjectsGraph[pkgDir].package
-          // The registry is picked by scope, so a `publishConfig.name` that
-          // moves the package to another scope has to route by the new one.
-          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, publishedName(pkg.manifest)!)
-          // eslint-disable-next-line no-await-in-loop
-          const publishResult = await publish({
-            ...opts,
-            dir: pkg.rootDir,
-            argv: {
-              original: [
-                ...commandArgs,
-                '--tag',
-                tag,
-                '--registry',
-                registry,
-                ...appendedArgs,
-              ],
-            },
-            gitChecks: false,
-            recursive: false,
-          }, [pkg.rootDir])
-          if (publishResult?.publishSummary != null) {
-            publishedPackages.push(publishResult.publishSummary)
-          } else {
+      let firstError: unknown
+      let exitCode = 0
+      await scheduleGraph(projectDependencies, {
+        bail: true,
+        concurrency: 1,
+        runNode: async (pkgDir): Promise<TaskCompletion> => {
+          try {
+            if (!publishedPkgDirs.has(pkgDir)) return 'passed'
+            const pkg = opts.selectedProjectsGraph[pkgDir].package
+            const targetName = publishedName(pkg.manifest)!
+            const registry = getPublishConfigRegistry(pkg.manifest.publishConfig, targetName) ?? pickRegistryForPackage(opts.registriesByScope, targetName)
+
+            const publishResult = await publish({
+              ...opts,
+              dir: pkg.rootDir,
+              argv: {
+                original: [
+                  ...commandArgs,
+                  '--tag',
+                  tag,
+                  '--registry',
+                  registry,
+                  ...appendedArgs,
+                ],
+              },
+              gitChecks: false,
+              recursive: false,
+            }, [pkg.rootDir])
+            if (publishResult?.publishSummary != null) {
+              publishedPackages.push(publishResult.publishSummary)
+            } else {
             // Fallback for paths that don't produce a full PublishSummary (e.g. dry run via the
             // legacy npm-CLI bridge, or future call sites that bypass publishPackedPkg).
-            const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
-            if (publishedManifest != null) {
-              publishedPackages.push(pick(['name', 'version'], publishedManifest))
-            } else if (publishResult?.exitCode) {
-              return { exitCode: publishResult.exitCode, publishedPackages }
+              const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
+              if (publishedManifest != null) {
+                publishedPackages.push(pick(['name', 'version'], publishedManifest))
+              } else if (publishResult?.exitCode) {
+                exitCode = publishResult.exitCode
+                return 'aborted'
+              }
             }
+            return 'passed'
+          } catch (error: unknown) {
+            firstError ??= error
+            return 'aborted'
           }
-        }
-      }
+        },
+        onNodeSkipped: () => {},
+      })
+      if (firstError != null) throw firstError
+      if (exitCode !== 0) return { exitCode, publishedPackages }
     }
   }
   if (opts.reportSummary) {
@@ -178,11 +200,24 @@ export async function recursivePublish (
   return { exitCode: 0, publishedPackages }
 }
 
+/**
+ * Routes `pkgName` to its `publishConfig` registry, so the already-published
+ * probe reads the registry the publish writes to.
+ */
+function routeToPublishConfigRegistry (
+  registriesByScope: RegistriesByScope,
+  pkgName: string,
+  publishConfigRegistry: string | undefined
+): RegistriesByScope {
+  if (publishConfigRegistry == null) return registriesByScope
+  const scope = pkgName.startsWith('@') ? pkgName.slice(0, pkgName.indexOf('/')) : 'default'
+  return { ...registriesByScope, [scope]: parseSupportedRegistryUrl(publishConfigRegistry)?.normalizedUrl ?? publishConfigRegistry }
+}
+
 async function isAlreadyPublished (
   opts: {
     dir: string
     lockfileDir: string
-    registries: Registries
     resolve: ResolveFunction
   },
   pkgName: string,

@@ -22,6 +22,7 @@ export const pnpmConfigFileKeys = [
   'fetch-warn-timeout-ms',
   'fetch-min-speed-ki-bps',
   'fetching-concurrency',
+  'force-ignores-platform',
   'frozen-store',
   'git-checks',
   'git-shallow-hosts',
@@ -43,6 +44,7 @@ export const pnpmConfigFileKeys = [
   'minimum-release-age-ignore-missing-time',
   'minimum-release-age-strict',
   'network-concurrency',
+  'node-download-mirrors',
   'node-experimental-package-map',
   'node-package-map-type',
   'noproxy',
@@ -76,6 +78,7 @@ export const pnpmConfigFileKeys = [
   'verify-store-integrity',
   'virtual-store-dir',
   'virtual-store-dir-max-length',
+  'virtual-store-type',
 ] as const satisfies readonly PnpmKey[]
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 
@@ -86,6 +89,7 @@ export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 export const structuredConfigFileKeys = [
   'named-registries',
   'registries',
+  'remote-side-effects-cache',
 ] as const
 export type StructuredConfigFileKey = typeof structuredConfigFileKeys[number]
 

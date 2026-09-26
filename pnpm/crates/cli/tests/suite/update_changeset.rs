@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::{Value, json};
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -330,7 +330,10 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
     // Windows CI splits the long temp path — and the `config.json` within it —
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
-    let unwrapped: String = stderr.chars().filter(|&c| !c.is_whitespace() && c != '│').collect();
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
     assert!(
         unwrapped.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG")
             && unwrapped.contains("config.json"),
@@ -354,7 +357,7 @@ fn update_changeset_refuses_a_symlinked_changeset_directory() {
     let outside_changeset_dir = root.path().join("outside-changeset");
     fs::create_dir(&outside_changeset_dir).expect("create outside changeset directory");
     fs::write(outside_changeset_dir.join("config.json"), "{}").expect("write changeset config");
-    pacquet_fs::symlink_dir(&outside_changeset_dir, &workspace.join(".changeset"))
+    pnpm_fs::symlink_dir(&outside_changeset_dir, &workspace.join(".changeset"))
         .expect("link changeset directory outside workspace");
 
     let output =

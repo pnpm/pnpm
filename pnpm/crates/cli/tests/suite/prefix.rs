@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -18,7 +18,10 @@ fn prefix_prints_the_local_prefix_dir() {
     fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
         .expect("write package.json");
 
-    let output = pacquet.with_args(["prefix"]).output().expect("run pacquet prefix");
+    let output = pacquet
+        .with_args(["prefix"])
+        .output()
+        .expect("run pacquet prefix");
     dbg!(&output);
     assert!(output.status.success(), "pacquet prefix should succeed");
 
@@ -139,4 +142,37 @@ fn prefix_resolves_from_a_workspace_subdir() {
     assert_eq!(String::from_utf8_lossy(&pacquet_out.stdout), expected);
 
     drop(root);
+}
+
+/// pnpm v12 manages Cargo and Python packages, whose members carry no
+/// `package.json`, so their manifests bound the prefix walk too. Without
+/// this a `pnpm add crate:...` from such a member would edit the manifest
+/// of whatever directory above it holds a `package.json`.
+#[test]
+fn prefix_stops_at_an_ecosystem_manifest() {
+    for (manifest, contents) in [
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), r#"{ "name": "outer" }"#)
+            .expect("write the outer package.json");
+        let member = workspace.join("member");
+        fs::create_dir_all(&member).expect("create the member dir");
+        fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
+
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&member)
+            .with_args(["prefix"])
+            .output()
+            .expect("run pacquet prefix in the member");
+        dbg!(&output);
+        assert!(output.status.success(), "pacquet prefix should succeed in the {manifest} member");
+
+        let expected = format!("{}\n", canonicalize(&member).display());
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
+
+        drop(root);
+    }
 }

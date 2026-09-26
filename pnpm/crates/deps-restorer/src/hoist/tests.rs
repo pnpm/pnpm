@@ -9,14 +9,14 @@ use super::{
     build_direct_deps_by_importer, build_hoist_graph, get_hoisted_dependencies,
 };
 use indexmap::IndexMap;
-use pacquet_config::matcher::create_matcher;
-use pacquet_lockfile::{
+use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ProjectSnapshot,
     RegistryResolution, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
     SnapshotEntry,
 };
-use pacquet_modules_yaml::HoistKind;
-use pacquet_package_manifest::DependencyGroup;
+use pnpm_matcher::create_matcher;
+use pnpm_modules_yaml::HoistKind;
+use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::{HashMap, HashSet};
@@ -41,7 +41,10 @@ fn integrity() -> Integrity {
 
 fn metadata(has_bin: bool) -> PackageMetadata {
     PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution { integrity: integrity() }),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(),
+            revision: None,
+        }),
         version: None,
         engines: None,
         cpu: None,
@@ -57,7 +60,10 @@ fn metadata(has_bin: bool) -> PackageMetadata {
 }
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
-    patterns.iter().map(std::string::ToString::to_string).collect()
+    patterns
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect()
 }
 
 /// `(alias, dep_name, dep_version)` triple describing one entry in
@@ -288,8 +294,7 @@ fn traversal_matches_pnpm_graph_walker_ownership() {
     })
     .expect("non-empty graph");
 
-    let choices: Vec<_> = result
-        .hoisted_dependencies
+    let choices: Vec<_> = result.hoisted_dependencies
         .keys()
         .filter(|key| key.starts_with("chosen-through-"))
         .map(String::as_str)
@@ -324,7 +329,10 @@ fn traversal_includes_alias_collisions_from_every_importer() {
     })
     .expect("non-empty graph");
 
-    let hoisted_keys: Vec<_> = result.hoisted_dependencies.keys().map(String::as_str).collect();
+    let hoisted_keys: Vec<_> = result.hoisted_dependencies
+        .keys()
+        .map(String::as_str)
+        .collect();
     dbg!(&hoisted_keys);
     assert!(hoisted_keys.contains(&"from-one@1.0.0"));
     assert!(hoisted_keys.contains(&"from-two@1.0.0"));
@@ -399,7 +407,7 @@ fn skipped_snapshot_is_excluded() {
 #[test]
 fn symlink_skips_dropped_nodes() {
     use crate::VirtualStoreLayout;
-    use pacquet_lockfile::PkgName;
+    use pnpm_lockfile::PkgName;
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
@@ -416,8 +424,10 @@ fn symlink_skips_dropped_nodes() {
     let dropped_key = key("dropped", "1.0.0");
     let mut hoisted: HashMap<PackageKey, HashMap<String, HoistKind>> = HashMap::new();
     hoisted.insert(kept_key.clone(), HashMap::from([("kept".to_string(), HoistKind::Private)]));
-    hoisted
-        .insert(dropped_key.clone(), HashMap::from([("dropped".to_string(), HoistKind::Private)]));
+    hoisted.insert(
+        dropped_key.clone(),
+        HashMap::from([("dropped".to_string(), HoistKind::Private)]),
+    );
 
     let mut graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
     graph.insert(
@@ -445,7 +455,7 @@ fn symlink_skips_dropped_nodes() {
     // to create a link pointing at it.
     let layout = VirtualStoreLayout::legacy(
         &virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     std::fs::create_dir_all(layout.slot_dir(&kept_key).join("node_modules/kept")).unwrap();
 
@@ -483,7 +493,7 @@ fn symlink_skips_dropped_nodes() {
 #[test]
 fn symlink_rejects_traversal_node_name() {
     use crate::VirtualStoreLayout;
-    use pacquet_lockfile::PkgName;
+    use pnpm_lockfile::PkgName;
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();
@@ -509,7 +519,7 @@ fn symlink_rejects_traversal_node_name() {
 
     let layout = VirtualStoreLayout::legacy(
         &virtual_store_dir,
-        pacquet_config::default_virtual_store_dir_max_length() as usize,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let skipped: HashSet<PackageKey> = HashSet::new();
 
@@ -527,6 +537,234 @@ fn symlink_rejects_traversal_node_name() {
         "a traversal hoisted node name must be rejected; got {result:?}",
     );
     assert!(!dir.path().join("escaped").exists(), "no hoist link may be created outside the store");
+}
+
+#[test]
+fn symlink_rejects_traversal_workspace_alias() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases =
+        vec![("../outside/project".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))),
+        "a traversal workspace alias must be rejected; got {result:?}",
+    );
+    assert!(
+        !virtual_store_dir.join("outside").exists(),
+        "no workspace hoist parent may be created outside node_modules",
+    );
+}
+
+#[test]
+fn symlink_rejects_workspace_alias_with_symlinked_parent() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&private_hoisted).unwrap();
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &private_hoisted.join("nested")).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("nested/inner".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })),
+        "a symlinked workspace hoist parent must be rejected; got {result:?}",
+    );
+    assert!(
+        !outside.join("inner").exists(),
+        "no workspace hoist may be created through a symlinked parent",
+    );
+}
+
+#[test]
+fn symlink_rejects_workspace_aliases_with_conflicting_destinations() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let first_project = dir.path().join("packages/first");
+    let second_project = dir.path().join("packages/second");
+    std::fs::create_dir_all(&first_project).unwrap();
+    std::fs::create_dir_all(&second_project).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![
+        ("nested".to_string(), HoistKind::Private, first_project),
+        ("nested/inner".to_string(), HoistKind::Private, second_project),
+    ];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))),
+        "conflicting workspace destinations must be rejected; got {result:?}",
+    );
+    assert!(!private_hoisted.exists(), "a rejected plan must not create {private_hoisted:?}");
+}
+
+#[test]
+fn symlink_creates_fresh_multi_component_hoist_roots() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let layout_root = dir.path().join("fresh/nested");
+    let virtual_store_dir = layout_root.join("private/store");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = layout_root.join("public/node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
+    super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    )
+    .unwrap();
+
+    assert!(private_hoisted.join("project").exists());
+    assert!(public_hoisted.is_dir());
+}
+
+#[test]
+fn symlink_rejects_symlinked_hoist_root() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    for store_path in ["virtual-store", "node_modules/.pnpm"] {
+        let dir = tempdir().unwrap();
+        let virtual_store_dir = dir.path().join(store_path);
+        let private_hoisted = virtual_store_dir.join("node_modules");
+        let public_hoisted = dir.path().join("node_modules");
+        let project_dir = dir.path().join("packages/project");
+        let outside = dir.path().join("outside");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        pnpm_fs::symlink_dir(&outside, &public_hoisted).unwrap();
+
+        let layout = VirtualStoreLayout::legacy(
+            &virtual_store_dir,
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        );
+        let workspace_aliases = vec![("project".to_string(), HoistKind::Public, project_dir)];
+        let result = super::symlink_hoisted_dependencies(
+            &HashMap::new(),
+            &workspace_aliases,
+            &HashMap::new(),
+            &layout,
+            &private_hoisted,
+            &public_hoisted,
+            &HashSet::new(),
+        );
+
+        assert!(
+            matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })),
+            "symlinked hoist root must be rejected for {store_path}; got {result:?}",
+        );
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn symlink_rejects_symlinked_private_hoist_ancestor() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let public_hoisted = dir.path().join("node_modules");
+    let virtual_store_dir = public_hoisted.join(".pacquet");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&public_hoisted).unwrap();
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &virtual_store_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })),
+        "symlinked private hoist ancestor must be rejected; got {result:?}",
+    );
+    assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 0);
 }
 
 #[test]
@@ -549,8 +787,10 @@ fn private_hoist_with_bins_collected_for_bin_link() {
     })
     .expect("non-empty graph");
 
-    let bin_aliases: Vec<&str> =
-        result.hoisted_aliases_with_bins.iter().map(|(alias, _)| alias.as_str()).collect();
+    let bin_aliases: Vec<&str> = result.hoisted_aliases_with_bins
+        .iter()
+        .map(|(alias, _)| alias.as_str())
+        .collect();
     dbg!(&bin_aliases);
     assert!(bin_aliases.contains(&"with-bin"));
     assert!(!bin_aliases.contains(&"no-bin"));
@@ -633,11 +873,15 @@ fn build_hoist_graph_walks_dependencies() {
         ("b", "1.0.0", &[], false),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
-    let a_node = graph.get(&key("a", "1.0.0")).expect("a node");
+    let a_node = graph
+        .get(&key("a", "1.0.0"))
+        .expect("a node");
     assert_eq!(a_node.children.get("b"), Some(&key("b", "1.0.0")));
     assert!(a_node.has_bin);
 
-    let b_node = graph.get(&key("b", "1.0.0")).expect("b node");
+    let b_node = graph
+        .get(&key("b", "1.0.0"))
+        .expect("b node");
     assert!(b_node.children.is_empty());
     assert!(!b_node.has_bin);
 }
@@ -659,22 +903,25 @@ fn update_stale_hoist_symlink_replaces_virtual_store_resident_symlink() {
     let stale_target = virtual_store_dir.join("old-dep/node_modules/old-dep");
     std::fs::create_dir_all(stale_target.parent().unwrap()).unwrap();
     std::fs::create_dir_all(&stale_target).unwrap();
-    pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
+    pnpm_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(
+    crate::hoist::symlinks::update_stale_hoist_symlink(
         &dep_dir,
         &dest,
         &virtual_store_dir,
         &internal_pnpm_dir,
-        pacquet_fs::symlink_dir,
     )
     .expect("should replace virtual-store-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
-    let new_target_abs =
-        pacquet_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    let new_target_abs = pnpm_fs::lexical_normalize(
+        &dest
+            .parent()
+            .unwrap()
+            .join(&new_target_raw),
+    );
     assert!(
-        pacquet_fs::is_subdir(&virtual_store_dir, &new_target_abs),
+        pnpm_fs::is_subdir(&virtual_store_dir, &new_target_abs),
         "stale symlink should be replaced with new target under virtual store dir; \
          readlink returned {new_target_raw:?} → {new_target_abs:?}, expected under {virtual_store_dir:?}",
     );
@@ -697,22 +944,25 @@ fn update_stale_hoist_symlink_replaces_internal_pnpm_symlink() {
     let stale_target = internal_pnpm_dir.join("old-pkg/node_modules/old-pkg");
     std::fs::create_dir_all(stale_target.parent().unwrap()).unwrap();
     std::fs::create_dir_all(&stale_target).unwrap();
-    pacquet_fs::symlink_dir(&stale_target, &dest).unwrap();
+    pnpm_fs::symlink_dir(&stale_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(
+    crate::hoist::symlinks::update_stale_hoist_symlink(
         &dep_dir,
         &dest,
         &virtual_store_dir,
         &internal_pnpm_dir,
-        pacquet_fs::symlink_dir,
     )
     .expect("should replace internal-pnpm-resident symlink");
 
     let new_target_raw = std::fs::read_link(&dest).unwrap();
-    let new_target_abs =
-        pacquet_fs::lexical_normalize(&dest.parent().unwrap().join(&new_target_raw));
+    let new_target_abs = pnpm_fs::lexical_normalize(
+        &dest
+            .parent()
+            .unwrap()
+            .join(&new_target_raw),
+    );
     assert!(
-        pacquet_fs::is_subdir(&virtual_store_dir, &new_target_abs),
+        pnpm_fs::is_subdir(&virtual_store_dir, &new_target_abs),
         "stale symlink should be replaced with new target under virtual store dir; \
          readlink returned {new_target_raw:?} → {new_target_abs:?}, expected under {virtual_store_dir:?}",
     );
@@ -735,22 +985,20 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
     let external_target = dir.path().join("some-project/node_modules/external-pkg");
     std::fs::create_dir_all(external_target.parent().unwrap()).unwrap();
     std::fs::create_dir_all(&external_target).unwrap();
-    pacquet_fs::symlink_dir(&external_target, &dest).unwrap();
+    pnpm_fs::symlink_dir(&external_target, &dest).unwrap();
 
-    super::update_stale_hoist_symlink(
+    crate::hoist::symlinks::update_stale_hoist_symlink(
         &dep_dir,
         &dest,
         &virtual_store_dir,
         &internal_pnpm_dir,
-        pacquet_fs::symlink_dir,
     )
     .expect("should preserve external symlink");
 
     let target = std::fs::read_link(&dest).unwrap();
     let target_abs = dest.parent().unwrap().join(&target);
     assert!(
-        pacquet_fs::lexical_normalize(&target_abs)
-            == pacquet_fs::lexical_normalize(&external_target),
+        pnpm_fs::lexical_normalize(&target_abs) == pnpm_fs::lexical_normalize(&external_target),
         "external symlink must be preserved unchanged",
     );
 }
@@ -771,12 +1019,11 @@ fn update_stale_hoist_symlink_preserves_regular_directory() {
 
     std::fs::create_dir(&dest).unwrap();
 
-    super::update_stale_hoist_symlink(
+    crate::hoist::symlinks::update_stale_hoist_symlink(
         &dep_dir,
         &dest,
         &virtual_store_dir,
         &internal_pnpm_dir,
-        pacquet_fs::symlink_dir,
     )
     .expect("should preserve directory");
 
@@ -799,16 +1046,15 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
     let dep_dir = virtual_store_dir.join("@scope/name/1.0.0/hash/node_modules/@scope/name");
     std::fs::create_dir_all(&dep_dir).unwrap();
     let dest = private_hoisted.join("already-correct-dep");
-    pacquet_fs::symlink_dir(&dep_dir, &dest).unwrap();
+    pnpm_fs::symlink_dir(&dep_dir, &dest).unwrap();
 
     let ino_before = std::fs::symlink_metadata(&dest).unwrap().ino();
 
-    super::update_stale_hoist_symlink(
+    crate::hoist::symlinks::update_stale_hoist_symlink(
         &dep_dir,
         &dest,
         &virtual_store_dir,
         &internal_pnpm_dir,
-        pacquet_fs::symlink_dir,
     )
     .expect("should leave an already-correct symlink untouched");
 
@@ -824,7 +1070,12 @@ fn update_stale_hoist_symlink_is_noop_when_already_correct() {
 fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
     let mut pairs: Vec<_> = map
         .get(key)
-        .map(|inner| inner.iter().map(|(pkg_key, v)| (pkg_key.clone(), *v)).collect())
+        .map(|inner| {
+            inner
+                .iter()
+                .map(|(pkg_key, v)| (pkg_key.clone(), *v))
+                .collect()
+        })
         .unwrap_or_default();
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     pairs
@@ -850,12 +1101,21 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
     let skipped = HashSet::new();
     let workspace_packages = IndexMap::from([
         // Free name → hoisted to the project dir.
-        ("pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
+        (
+            "pkg-a".to_string(),
+            ("packages/pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
+        ),
         // Name held by a root direct dep → never hoisted.
-        ("taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
+        (
+            "taken".to_string(),
+            ("packages/taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
+        ),
         // Same name as a transitive: the workspace package is placed
         // first (depth −1 beats depth 0) and claims the alias.
-        ("pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
+        (
+            "pkg-b".to_string(),
+            ("packages/pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
+        ),
     ]);
     let result = get_hoisted_dependencies(&HoistInputs {
         graph: &graph,
@@ -881,20 +1141,65 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
         ],
         "free names hoist to project dirs; a root direct dep's name never does",
     );
-    // The claimed alias blocks the transitive `pkg-b@9.9.9`, and no
-    // workspace package leaks into `.modules.yaml`'s map.
     assert!(
         !result.hoisted_dependencies.contains_key("pkg-b@9.9.9"),
         "workspace-claimed alias must block the transitive: {:?}",
         result.hoisted_dependencies.get("pkg-b@9.9.9"),
     );
-    for alias_map in result.hoisted_dependencies.values() {
-        assert!(!alias_map.contains_key("pkg-a") && !alias_map.contains_key("taken"));
-    }
+    assert_eq!(
+        kinds_for(&result.hoisted_dependencies, "packages/pkg-a"),
+        vec![("pkg-a".to_string(), HoistKind::Private)],
+    );
+    assert_eq!(
+        kinds_for(&result.hoisted_dependencies, "packages/pkg-b"),
+        vec![("pkg-b".to_string(), HoistKind::Private)],
+    );
+    assert!(!result.hoisted_dependencies.contains_key("packages/taken"));
     // The transitive `shadowed@1.0.0` (a's child) still hoists — the
     // workspace pass doesn't disturb ordinary hoisting.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "shadowed@1.0.0"),
         vec![("shadowed".to_string(), HoistKind::Private)],
     );
+}
+
+#[test]
+fn workspace_packages_with_conflicting_destinations_are_not_hoisted() {
+    let graph = HashMap::new();
+    let direct = DirectDepsByImporter::new();
+    let skipped = HashSet::new();
+    let workspace_packages = IndexMap::from([
+        ("nested".to_string(), ("parent".to_string(), std::path::PathBuf::from("/ws/nested"))),
+        (
+            "nested/inner".to_string(),
+            ("child".to_string(), std::path::PathBuf::from("/ws/nested/inner")),
+        ),
+        (
+            "nested/other".to_string(),
+            ("sibling".to_string(), std::path::PathBuf::from("/ws/nested/other")),
+        ),
+        (
+            "nested-other".to_string(),
+            ("unrelated".to_string(), std::path::PathBuf::from("/ws/nested-other")),
+        ),
+    ]);
+    let result = get_hoisted_dependencies(&HoistInputs {
+        graph: &graph,
+        direct_deps_by_importer: &direct,
+        skipped: &skipped,
+        private_pattern: create_matcher(&pats(["*"])),
+        public_pattern: create_matcher(&[]),
+        hoisted_workspace_packages: Some(&workspace_packages),
+    })
+    .expect("workspace projects are present");
+
+    assert_eq!(
+        result.hoisted_workspace_aliases,
+        vec![(
+            "nested-other".to_string(),
+            HoistKind::Private,
+            std::path::PathBuf::from("/ws/nested-other"),
+        )],
+    );
+    assert_eq!(result.hoisted_dependencies["unrelated"]["nested-other"], HoistKind::Private);
 }

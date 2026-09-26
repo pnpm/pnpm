@@ -3,6 +3,7 @@ import { expect, test } from '@jest/globals'
 import {
   depPathToFilename,
   getPkgIdWithPatchHash,
+  hasPatchHash,
   isAbsolute,
   isRuntimeDepPath,
   parse,
@@ -197,6 +198,23 @@ test('refToRelative() reconstructs registry-qualified dep paths', () => {
   expect(refToRelative('@acme/private@gh:2.1.0', 'aliased')).toBe('@acme/private@gh:2.1.0')
 })
 
+test('depPathToFilename() escapes trailing dots and spaces', () => {
+  expect(depPathToFilename('parent-pkg@file:..', 120)).toBe('parent-pkg@file+++_3cf6176c884f1541b42906b711973e2d')
+  expect(depPathToFilename('pkg@file:.', 120)).toBe('pkg@file++_f8a4bd4027dd0dda71549ddff4eb2bbb')
+  expect(depPathToFilename('pkg@file:../dir ', 120)).toBe('pkg@file+..+dir+_58ccd8dce4811ac686d72920d5724090')
+  expect(depPathToFilename('foo@1.0.0(pkg@file:..)', 120)).toBe('foo@1.0.0_pkg@file+++_532b5e0801878347427004a15da818ef')
+  expect(depPathToFilename('parent-pkg@file:++', 120)).toBe('parent-pkg@file+++')
+  expect(depPathToFilename('pkg@file:../project-2', 120)).toBe('pkg@file+..+project-2')
+  expect(depPathToFilename('Parent-pkg@file:..', 120)).not.toBe(depPathToFilename('Parent-pkg@file:++', 120))
+})
+
 test('depPathToFilename() escapes registry-qualified dep paths', () => {
   expect(depPathToFilename('foo@work:1.0.0', 120)).toBe('foo@work+1.0.0')
+})
+
+test('hasPatchHash()', () => {
+  expect(hasPatchHash('foo@1.0.0(patch_hash=abc)')).toBe(true)
+  expect(hasPatchHash('foo@1.0.0(patch_hash=abc)(bar@2.0.0)')).toBe(true)
+  expect(hasPatchHash('foo@1.0.0(bar@2.0.0(patch_hash=abc))')).toBe(false)
+  expect(hasPatchHash('foo@1.0.0')).toBe(false)
 })

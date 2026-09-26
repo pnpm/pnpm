@@ -80,10 +80,10 @@ export type RebuildCommandOpts = Pick<Config,
 | 'engineStrict'
 | 'lockfileDir'
 | 'nodeLinker'
-| 'registries'
+| 'registriesByScope'
 | 'scriptShell'
-| 'sideEffectsCache'
-| 'sideEffectsCacheReadonly'
+| 'sideEffectsCacheRead'
+| 'sideEffectsCacheWrite'
 | 'scriptsPrependNodePath'
 | 'shellEmulator'
 | 'workspaceDir'
@@ -116,8 +116,8 @@ export async function handler (
   }
   const store = await createStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
-    sideEffectsCacheRead: opts.sideEffectsCache ?? opts.sideEffectsCacheReadonly,
-    sideEffectsCacheWrite: opts.sideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
     storeController: store.ctrl,
     storeDir: store.dir,
   })

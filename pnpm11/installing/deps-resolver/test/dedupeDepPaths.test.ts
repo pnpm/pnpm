@@ -1,6 +1,7 @@
 import { expect, test } from '@jest/globals'
-import type { PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
 
+import { isCompatibleAndHasMoreDeps } from '../lib/depPathCompatibility.js'
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { DependenciesTreeNode } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
@@ -189,3 +190,218 @@ test('peer-dependent deduplication does not depend on importer order', async () 
   expect(quxFirst).toBeDefined()
   expect(bazFirst).toBe(quxFirst)
 })
+
+// The three `child` variants cannot all collapse in one round: `child(other)`
+// absorbs neither `child(optPeer)` nor the other way round, so the child group
+// still holds a leftover when the round ends and the graph's child edges are
+// never rewritten. The parents must therefore collapse on the strength of their
+// children being compatible variants of one package, not on their child
+// depPaths being equal. See https://github.com/pnpm/pnpm/issues/14800
+test('a package whose child carries an optional peer suffix absorbs the variant whose child does not', async () => {
+  const childPkg: PartialResolvedPackage = {
+    name: 'child',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      optPeer: { version: '1.0.0', optional: true },
+      other: { version: '1.0.0', optional: true },
+    },
+  }
+
+  const parentPkg: PartialResolvedPackage = {
+    name: 'parent',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'parent/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {},
+  }
+
+  const peerPkg = (name: string): PartialResolvedPackage => ({
+    name,
+    version: '1.0.0',
+    pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {},
+  })
+
+  const treeNode = (resolvedPackage: PartialResolvedPackage, children: Record<string, NodeId> = {}) => ({
+    children,
+    installable: true,
+    resolvedPackage,
+    depth: 0,
+  } as DependenciesTreeNode<PartialResolvedPackage>)
+
+  const projectIds = ['projectOptPeer', 'projectOther', 'projectBare'] as const
+  const parentNodeId = (projectId: string) => `>${projectId}>parent/1.0.0>` as NodeId
+  const childNodeId = (projectId: string) => `>${projectId}>parent/1.0.0>child/1.0.0>` as NodeId
+  const peerNodeId = (projectId: string, name: string) => `>${projectId}>${name}/1.0.0>` as NodeId
+
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
+  for (const projectId of projectIds) {
+    dependenciesTree.set(parentNodeId(projectId), treeNode(parentPkg, { child: childNodeId(projectId) }))
+    dependenciesTree.set(childNodeId(projectId), treeNode(childPkg))
+  }
+  dependenciesTree.set(peerNodeId('projectOptPeer', 'optPeer'), treeNode(peerPkg('optPeer')))
+  dependenciesTree.set(peerNodeId('projectOther', 'other'), treeNode(peerPkg('other')))
+
+  const { dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['optPeer', 'other']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', parentNodeId('projectOptPeer')],
+          ['optPeer', peerNodeId('projectOptPeer', 'optPeer')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectOptPeer' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', parentNodeId('projectOther')],
+          ['other', peerNodeId('projectOther', 'other')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectOther' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', parentNodeId('projectBare')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectBare' as PkgResolutionId,
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree,
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  expect(dependenciesByProjectId.projectOptPeer.get('parent')).toBe('parent/1.0.0(optPeer/1.0.0)')
+  expect(dependenciesByProjectId.projectOther.get('parent')).toBe('parent/1.0.0(other/1.0.0)')
+  expect(dependenciesByProjectId.projectBare.get('parent')).toBe('parent/1.0.0(other/1.0.0)')
+})
+
+// Chain longer than the call stack's budget, diverging at every level so the
+// compatibility walk has to reach the bottom. Compatibility stays answerable at
+// a depth the call stack cannot hold.
+test('a deep chain of peer-suffixed children does not overflow the call stack', () => {
+  const depth = 30_000
+  const depGraph: Record<string, unknown> = {}
+  for (let level = 0; level < depth; level++) {
+    const last = level + 1 === depth
+    const pkgIdWithPatchHash = `pkg${level}/1.0.0`
+    depGraph[`pkg${level}/1.0.0(peer/1.0.0)`] = {
+      pkgIdWithPatchHash,
+      children: last ? {} : { next: `pkg${level + 1}/1.0.0(peer/1.0.0)` },
+      resolvedPeerNames: new Set(['peer']),
+    }
+    depGraph[pkgIdWithPatchHash] = {
+      pkgIdWithPatchHash,
+      children: last ? {} : { next: `pkg${level + 1}/1.0.0` },
+      resolvedPeerNames: new Set(),
+    }
+  }
+
+  expect(isCompatibleAndHasMoreDeps(
+    depGraph as Parameters<typeof isCompatibleAndHasMoreDeps>[0],
+    'pkg0/1.0.0(peer/1.0.0)' as DepPath,
+    'pkg0/1.0.0' as DepPath
+  )).toBe(true)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/6200
+test('dependencies with peer dependencies do not resolve to peer versions from another workspace project when dedupePeerDependents is true', async () => {
+  const hostPkg: PartialResolvedPackage = {
+    name: 'host',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'host/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      peer: { version: '>=1.0.0' },
+    },
+  }
+
+  const dependentPkg: PartialResolvedPackage = {
+    name: 'dependent',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'dependent/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peerDependencies: {
+      host: { version: '1.0.0' },
+    },
+  }
+
+  const peerPkg = (version: string): PartialResolvedPackage => ({
+    name: 'peer',
+    version,
+    pkgIdWithPatchHash: `peer/${version}` as PkgIdWithPatchHash,
+    peerDependencies: {},
+    id: '' as PkgResolutionId,
+  })
+
+  const treeNode = (resolvedPackage: PartialResolvedPackage, children: Record<string, NodeId> = {}) => ({
+    children,
+    installable: true,
+    resolvedPackage,
+    depth: 0,
+  } as DependenciesTreeNode<PartialResolvedPackage>)
+
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>([
+    ['>project1>dependent/1.0.0>' as NodeId, treeNode(dependentPkg)],
+    ['>project1>host/1.0.0>' as NodeId, treeNode(hostPkg)],
+    ['>project1>peer/1.0.0>' as NodeId, treeNode(peerPkg('1.0.0'))],
+
+    ['>project2>dependent/1.0.0>' as NodeId, treeNode(dependentPkg)],
+    ['>project2>host/1.0.0>' as NodeId, treeNode(hostPkg)],
+    ['>project2>peer/2.0.0>' as NodeId, treeNode(peerPkg('2.0.0'))],
+  ])
+
+  const { dependenciesByProjectId } = await resolvePeers({
+    allPeerDepNames: new Set(['host', 'peer']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['dependent', '>project1>dependent/1.0.0>' as NodeId],
+          ['host', '>project1>host/1.0.0>' as NodeId],
+          ['peer', '>project1>peer/1.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project1' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['dependent', '>project2>dependent/1.0.0>' as NodeId],
+          ['host', '>project2>host/1.0.0>' as NodeId],
+          ['peer', '>project2>peer/2.0.0>' as NodeId],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'project2' as PkgResolutionId,
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree,
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  expect(dependenciesByProjectId.project1.get('host')).toBe('host/1.0.0(peer/1.0.0)')
+  expect(dependenciesByProjectId.project2.get('host')).toBe('host/1.0.0(peer/2.0.0)')
+  expect(dependenciesByProjectId.project1.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/1.0.0))')
+  expect(dependenciesByProjectId.project2.get('dependent')).toBe('dependent/1.0.0(host/1.0.0(peer/2.0.0))')
+})
+

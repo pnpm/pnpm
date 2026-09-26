@@ -1,7 +1,24 @@
-use super::try_fast_update_patched_dependencies;
+/// The composed pipeline restricted to `patchedDependencies` drift:
+/// every other input is neutral, so these tests exercise this handler
+/// alone.
+fn try_fast_update_patched_dependencies(lockfile: &Lockfile, config: &Config) -> Option<Lockfile> {
+    {
+        // As the caller does: an unreadable patch file declines the whole
+        // attempt rather than reading as no patches at all.
+        let hashes = config.patched_dependency_hashes().ok()?;
+        crate::fast_update_compose::try_compose_fast_updates(
+            lockfile,
+            &[],
+            &[],
+            config,
+            hashes.as_ref(),
+            false,
+        )
+    }
+}
 use indexmap::IndexMap;
-use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
 use std::{collections::BTreeMap, fs, path::Path};
 use tempfile::TempDir;
 
@@ -37,6 +54,18 @@ packages:
       integrity: sha512-deadbeef
 snapshots:
   foo@1.1.0(patch_hash=deadbeef): {}
+";
+
+const PATCHED_GIT_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .: {}
+packages:
+  foo@git+file:///repo#0123456789012345678901234567890123456789:
+    resolution: {type: git, repo: file:///repo, commit: '0123456789012345678901234567890123456789'}
+    version: 1.0.0
+snapshots:
+  foo@git+file:///repo#0123456789012345678901234567890123456789(patch_hash=PATCH_HASH): {}
 ";
 
 /// `foo` comes from a named registry, so the key's version slot holds
@@ -158,15 +187,23 @@ fn lockfile(source: &str) -> Lockfile {
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
 
 fn package_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -198,7 +235,9 @@ fn workspace(patches: &[&str]) -> TempDir {
 }
 
 fn write_patch(workspace_dir: &Path, key: &str, contents: &str) {
-    let path = workspace_dir.join("patches").join(patch_file_name(key));
+    let path = workspace_dir
+        .join("patches")
+        .join(patch_file_name(key));
     fs::write(path, contents).expect("write patch file");
 }
 
@@ -349,7 +388,11 @@ fn rekeys_around_a_tarball_resolution_no_patch_reaches() {
     )
     .expect("an untouched tarball resolution does not block the rest");
 
-    assert!(snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")));
+    assert!(
+        snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
+    );
     assert!(snapshot_keys(&updated).contains(&"foo@https://example.test/foo.tgz".to_string()));
 }
 
@@ -393,6 +436,30 @@ fn rejects_an_unused_patch_when_unused_patches_are_not_allowed() {
         .is_none(),
         "the resolver has to run so it can raise ERR_PNPM_UNUSED_PATCH",
     );
+}
+
+#[test]
+fn recognizes_a_git_patch_while_absorbing_unrelated_settings_drift() {
+    let dir = workspace(&["foo@1.0.0"]);
+    let config = Config {
+        exclude_links_from_lockfile: true,
+        allow_unused_patches: false,
+        ..config(dir.path(), &["foo@1.0.0"], false)
+    };
+    let patch_hashes = config
+        .patched_dependency_hashes()
+        .expect("hash the patch files")
+        .expect("a configured patch");
+    let hash = &patch_hashes["foo@1.0.0"];
+    let mut subject = lockfile(&PATCHED_GIT_LOCKFILE.replace("PATCH_HASH", hash));
+    subject.patched_dependencies = Some(patch_hashes.clone());
+    subject.settings =
+        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
+
+    let updated = try_fast_update_patched_dependencies(&subject, &config)
+        .expect("the git patch remains applied while the settings update is absorbed");
+
+    assert!(updated.settings.expect("settings").exclude_links_from_lockfile);
 }
 
 #[test]
@@ -448,5 +515,19 @@ fn rejects_a_missing_patch_file() {
         )
         .is_none(),
         "the resolver reports the unreadable patch file instead",
+    );
+}
+
+#[test]
+fn declines_a_lockfile_whose_paths_contradict_its_own_map_when_the_map_drifted() {
+    let dir = workspace(&["foo@1.1.0"]);
+    let mut lockfile = lockfile(PATCHED_LOCKFILE);
+    lockfile.patched_dependencies =
+        Some(BTreeMap::from([("foo@1.1.0".to_string(), "cafebabe".to_string())]));
+
+    assert!(
+        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true))
+            .is_none(),
+        "a path that disagrees with the lockfile's own map is the resolver's to rewrite",
     );
 }

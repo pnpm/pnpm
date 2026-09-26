@@ -1,9 +1,10 @@
 import path from 'node:path'
 
-import { normalizeNamedRegistries } from '@pnpm/config.normalize-registries'
+import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
+import { checkPackageInstallability } from '@pnpm/config.package-is-installable'
 import { PnpmError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import type { LockfileObject, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, LockfileResolution, TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import {
   lockfileWalkerGroupImporterSteps,
@@ -11,7 +12,7 @@ import {
 } from '@pnpm/lockfile.walker'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
 import { StoreIndex } from '@pnpm/store.index'
-import type { DependenciesField, ProjectId, Registries } from '@pnpm/types'
+import type { DependenciesField, ProjectId, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import { getPkgMetadata, type GetPkgMetadataOptions } from './getPkgMetadata.js'
@@ -38,10 +39,12 @@ export interface CollectSbomComponentsOptions {
   rootBugsUrl?: string
   sbomType?: SbomComponentType
   include?: { [dependenciesField in DependenciesField]: boolean }
-  registries: Registries
-  namedRegistries?: Record<string, string>
+  registriesByScope: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
   lockfileDir: string
   includedImporterIds?: ProjectId[]
+  resolvePeersFromWorkspaceRoot?: boolean
+  supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
   virtualStoreDirMaxLength?: number
@@ -55,7 +58,7 @@ export interface CollectSbomComponentsOptions {
 const IMPORTER_WALK_CONCURRENCY = 8
 
 export async function collectSbomComponents (opts: CollectSbomComponentsOptions): Promise<SbomResult> {
-  const depTypes = detectDepTypes(opts.lockfile)
+  const depTypes = detectDepTypes(opts.lockfile, opts)
   const importerIds = opts.includedImporterIds ?? Object.keys(opts.lockfile.importers) as ProjectId[]
 
   const componentsMap = new Map<string, SbomComponent>()
@@ -70,10 +73,11 @@ export async function collectSbomComponents (opts: CollectSbomComponentsOptions)
 
   // When excluding peers, walk each importer with its own `walked` set so one
   // importer's peer can't suppress another's real dependency.
+  const walkerOpts = { include: opts.include, resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot }
   const importerWalkers = opts.excludePeerNamesByImporter
     ? allImporterIds.flatMap((importerId) =>
-      lockfileWalkerGroupImporterSteps(opts.lockfile, [importerId], { include: opts.include }))
-    : lockfileWalkerGroupImporterSteps(opts.lockfile, allImporterIds, { include: opts.include })
+      lockfileWalkerGroupImporterSteps(opts.lockfile, [importerId], walkerOpts))
+    : lockfileWalkerGroupImporterSteps(opts.lockfile, allImporterIds, walkerOpts)
 
   const importerIdSet = new Set<string>(importerIds)
 
@@ -207,6 +211,24 @@ async function walkStep (
 
       if (!name || !version) return
 
+      // An optional dependency for another platform is in the lockfile but was
+      // never fetched, so the store holds no metadata to describe it with.
+      // `checkPackageInstallability`, not `packageIsInstallable`: the latter
+      // reports every skip through the install loggers, which reading a
+      // lockfile must not do.
+      if (!opts.lockfileOnly && pkgSnapshot.optional === true && checkPackageInstallability(pkgSnapshot.id ?? depPath, {
+        name,
+        version,
+        cpu: pkgSnapshot.cpu,
+        os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
+      }, {
+        optional: true,
+        supportedArchitectures: opts.supportedArchitectures,
+      }) != null) {
+        return
+      }
+
       // Resolve the alias before the purl is built. An unknown alias would
       // otherwise yield an unqualified purl that collides with the same
       // package from the default registry, and the `componentsMap.has(purl)`
@@ -215,11 +237,11 @@ async function walkStep (
       // artifact from a compliance document.
       const registryUrl = registryName == null
         ? undefined
-        : normalizeNamedRegistries(opts.namedRegistries)[registryName]
+        : normalizeRegistriesByPrefix(opts.registriesByPrefix)[registryName]
       if (registryName != null && registryUrl == null) {
         throw new PnpmError('MISSING_NAMED_REGISTRY',
-          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the namedRegistries setting.`,
-          { hint: `Add '${registryName}' to the namedRegistries setting in pnpm-workspace.yaml.` })
+          `Cannot describe package "${depPath}": it was resolved from the named registry '${registryName}:', which is not present in the registriesByPrefix setting.`,
+          { hint: `Add '${registryName}' to the registriesByPrefix setting in pnpm-workspace.yaml.` })
       }
 
       const purl = buildPurl({
@@ -233,13 +255,13 @@ async function walkStep (
 
       if (componentsMap.has(purl)) return
 
-      const integrity = (pkgSnapshot.resolution as TarballResolution).integrity
-      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries })
+      const integrity = verifiedIntegrity(pkgSnapshot.resolution)
+      const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix })
       const tarballUrl = (resolution as TarballResolution).tarball ?? gitDownloadUrl(resolution)
 
       let metadata: { license?: string, description?: string, author?: string, homepage?: string, repository?: string, bugsUrl?: string } = {}
       if (metadataOpts) {
-        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registries: opts.registries, namedRegistries: opts.namedRegistries }, metadataOpts)
+        metadata = await getPkgMetadata(depPath, pkgSnapshot, { registriesByScope: opts.registriesByScope, registriesByPrefix: opts.registriesByPrefix }, metadataOpts)
       }
 
       const component: SbomComponent = {
@@ -328,4 +350,22 @@ export function resolveWorkspaceDeps (
   }
 
   return { links, additionalImporterIds }
+}
+
+/**
+ * The resolution's integrity, but only where pnpm verifies the downloaded
+ * bytes against it: the tarball/registry hash and a `type: binary` runtime
+ * archive's. Nothing checks a git checkout against a hash, so an `integrity`
+ * recorded on one is not a checksum and is never published as one.
+ *
+ * Read from an untyped lockfile, so the shape is probed rather than trusted:
+ * reading a checksum out of a malformed resolution yields nothing instead of
+ * throwing, and a non-string integrity never reaches `ssri.parse` downstream.
+ * (A malformed resolution still fails the walk further along, in
+ * `pkgSnapshotToResolution` — this only keeps the checksum lookup total.)
+ */
+function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
+  const { type, integrity } = (resolution ?? {}) as { type?: string, integrity?: unknown }
+  if (typeof integrity !== 'string') return undefined
+  return (type === undefined || type === 'binary') ? integrity : undefined
 }

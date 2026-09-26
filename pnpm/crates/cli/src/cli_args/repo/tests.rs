@@ -1,15 +1,123 @@
-use super::{get_repo_url_from_current_project, pick_repo_url, redact_url, repository_to_web_url};
+use super::{
+    RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
+    redact_url, repository_to_web_url,
+};
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network_web_auth::OpenUrlAndWait;
+use pnpm_reporter::SilentReporter;
+use std::{collections::HashMap, io, sync::Mutex};
 
 #[test]
-fn test_opens_repository_url_from_local_manifest() {
+fn current_project_repo_uses_manifest_precedence() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("package.yaml"), "repository: https://example.test/yaml\n")
+        .unwrap();
+    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/yaml");
+    std::fs::write(dir.path().join("package.json5"), "{repository: 'https://example.test/json5'}")
+        .unwrap();
+    assert_eq!(
+        get_repo_url_from_current_project(dir.path()).unwrap(),
+        "https://example.test/json5",
+    );
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"repository":"https://example.test/json"}"#,
+    )
+    .unwrap();
+    assert_eq!(get_repo_url_from_current_project(dir.path()).unwrap(), "https://example.test/json");
+    std::fs::write(dir.path().join("package.json"), "{ invalid:").unwrap();
+    let error = get_repo_url_from_current_project(dir.path()).unwrap_err();
+    eprintln!("ERROR: {error:?}");
+    assert!(format!("{error:?}").contains("package.json"));
+}
+
+#[tokio::test]
+async fn test_registry_package_name_defaults_to_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/acme-1.0.0.tgz" },
+                "repository": "https://github.com/acme/repo.git"
+            },
+            "2.0.0": {
+                "name": "acme",
+                "version": "2.0.0",
+                "dist": { "tarball": "https://registry.example/acme-2.0.0.tgz" },
+                "repository": "https://github.com/acme/next.git"
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config { registry: format!("{}/", server.url()), ..Config::default() };
+    let http_client = ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("create HTTP client");
+    let registries = config
+        .resolved_registries()
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    let url = get_repo_url_from_registry(
+        &config,
+        "acme",
+        &http_client,
+        &registries,
+        &RetryOpts::default(),
+    )
+    .await
+    .expect("resolve repository URL");
+
+    assert_eq!(url, "https://github.com/acme/repo");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_opens_repository_url_from_local_manifest() {
+    static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    OPENED_URLS.lock().unwrap().clear();
+
+    struct RecordingBrowser;
+
+    impl OpenUrlAndWait for RecordingBrowser {
+        fn open_url_and_wait(url: &str) -> io::Result<()> {
+            OPENED_URLS
+                .lock()
+                .unwrap()
+                .push(url.to_owned());
+            Ok(())
+        }
+    }
+
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::write(
         dir.path().join("package.json"),
         r#"{"name": "test-pkg", "repository": "https://github.com/test/pkg"}"#,
     )
     .unwrap();
-    let url = get_repo_url_from_current_project(dir.path());
-    assert_eq!(url.unwrap(), "https://github.com/test/pkg");
+    RepoArgs { packages: Vec::new() }
+        .run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
+        .await
+        .expect("open repository URL");
+
+    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://github.com/test/pkg"]);
 }
 
 #[test]

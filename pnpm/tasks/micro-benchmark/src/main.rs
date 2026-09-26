@@ -1,4 +1,5 @@
 mod workspace_resolution;
+mod workspace_sort;
 
 use std::{fs, hint::black_box, path::Path, time::Duration};
 
@@ -7,11 +8,11 @@ use criterion::{Criterion, Throughput};
 use flate2::{Compression, write::GzEncoder};
 use futures_util::future;
 use mockito::ServerGuard;
-use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_registry::Package;
-use pacquet_store_dir::StoreDir;
-use pacquet_tarball::{DownloadTarballToStore, RetryOpts};
 use pipe_trait::Pipe;
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_registry::Package;
+use pnpm_store_dir::StoreDir;
+use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, RetryOpts};
 use project_root::get_project_root;
 use ssri::Integrity;
 use tar::{Builder, Header};
@@ -36,69 +37,59 @@ struct CliArgs {
 fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
     let mut group = criterion.benchmark_group("tarball");
     let file = fs::read(fixtures_folder.join("@fastify+error-3.3.0.tgz")).unwrap();
-    server.mock("GET", "/@fastify+error-3.3.0.tgz").with_status(201).with_body(&file).create();
+    server
+        .mock("GET", "/@fastify+error-3.3.0.tgz")
+        .with_status(201)
+        .with_body(&file)
+        .create();
 
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
 
     let url = &format!("{0}/@fastify+error-3.3.0.tgz", server.url());
     let package_integrity: Integrity = "sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==".parse().expect("parse integrity string");
 
+    let package = BatchPackage {
+        id: "fast-querystring@1.0.0".to_string(),
+        integrity: package_integrity,
+        unpacked_size: 16697,
+        url: url.clone(),
+        file_count: None,
+    };
     group.throughput(Throughput::Bytes(file.len() as u64));
     group.bench_function("download_dependency", |bencher| {
-        bencher.to_async(&rt).iter(|| async {
-            // NOTE: the tempdir is being leaked, meaning the cleanup would be postponed until the end of the benchmark
-            let dir = tempdir().unwrap();
-            let store_dir =
-                dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
-            let http_client = ThrottledClient::new_for_installs();
+        bencher
+            .to_async(&rt)
+            .iter(|| async {
+                // NOTE: the tempdir is being leaked, meaning the cleanup would be postponed until the end of the benchmark
+                let dir = tempdir().unwrap();
+                let store_dir = dir
+                    .path()
+                    .to_path_buf()
+                    .pipe(StoreDir::from)
+                    .pipe(Box::new)
+                    .pipe(Box::leak);
+                let http_client = ThrottledClient::new_for_installs();
 
-            let cas_map = DownloadTarballToStore {
-                http_client: &http_client,
-                store_dir,
-                store_index: None,
-                store_index_writer: None,
-                verify_store_integrity: true,
-                verified_files_cache: pacquet_store_dir::SharedVerifiedFilesCache::default(),
-                package_integrity: Some(&package_integrity),
-                package_unpacked_size: Some(16697),
-                package_file_count: None,
-                package_url: url,
-                package_id: "fast-querystring@1.0.0",
-                requester: "",
-                prefetched_cas_paths: None,
-                retry_opts: RetryOpts::default(),
-                auth_headers: &AuthHeaders::default(),
-                ignore_file_pattern: None,
-                offline: false,
-                progress_reported: None,
-                append_manifest: None,
-            }
-            .run_without_mem_cache::<pacquet_reporter::SilentReporter>()
-            .await
-            .unwrap();
-            cas_map.len()
-        });
+                let cas_map = ingest_benchmark_package(&package, &http_client, store_dir)
+                    .await
+                    .unwrap();
+                cas_map.len()
+            });
     });
 
     group.finish();
 }
 
 fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard) {
-    let packages = (0..BATCH_TARBALL_COUNT)
-        .map(|package_index| {
-            let tarball = create_benchmark_tarball(package_index);
-            let path = format!("/batch-package-{package_index}.tgz");
-            server.mock("GET", path.as_str()).with_status(200).with_body(tarball.clone()).create();
-            BatchPackage {
-                id: format!("batch-package-{package_index}@1.0.0"),
-                integrity: Integrity::from(tarball.as_slice()),
-                unpacked_size: BATCH_FILES_PER_TARBALL * benchmark_file(package_index, 0).len(),
-                url: format!("{}{path}", server.url()),
-            }
-        })
-        .collect::<Vec<_>>();
+    let packages = mock_batch_packages(server);
 
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let mut group = criterion.benchmark_group("tarball_batch");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(20));
@@ -107,48 +98,95 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
             .expect("benchmark file count fits u64"),
     ));
     group.bench_function("cold_store_many_medium_tarballs", |bencher| {
-        bencher.to_async(&rt).iter(|| async {
-            let dir = tempdir().unwrap();
-            let store_dir =
-                dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
-            let http_client = ThrottledClient::new_for_installs();
-            future::try_join_all(packages.iter().map(|package| async {
-                let auth_headers = AuthHeaders::default();
-                DownloadTarballToStore {
-                    http_client: &http_client,
-                    store_dir,
-                    store_index: None,
-                    store_index_writer: None,
-                    verify_store_integrity: true,
-                    verified_files_cache: pacquet_store_dir::SharedVerifiedFilesCache::default(),
-                    package_integrity: Some(&package.integrity),
-                    package_unpacked_size: Some(package.unpacked_size),
-                    package_file_count: Some(BATCH_FILES_PER_TARBALL),
-                    package_url: &package.url,
-                    package_id: &package.id,
-                    requester: "",
-                    prefetched_cas_paths: None,
-                    retry_opts: RetryOpts::default(),
-                    auth_headers: &auth_headers,
-                    ignore_file_pattern: None,
-                    offline: false,
-                    progress_reported: None,
-                    append_manifest: None,
-                }
-                .run_without_mem_cache::<pacquet_reporter::SilentReporter>()
+        bencher
+            .to_async(&rt)
+            .iter(|| async {
+                let dir = tempdir().unwrap();
+                let store_dir = dir
+                    .path()
+                    .to_path_buf()
+                    .pipe(StoreDir::from)
+                    .pipe(Box::new)
+                    .pipe(Box::leak);
+                let http_client = ThrottledClient::new_for_installs();
+                future::try_join_all(
+                    packages
+                        .iter()
+                        .map(|package| async {
+                            ingest_benchmark_package(package, &http_client, store_dir).await
+                        }),
+                )
                 .await
-            }))
-            .await
-            .unwrap()
-            .iter()
-            .map(std::collections::HashMap::len)
-            .sum::<usize>()
-        });
+                .unwrap()
+                .iter()
+                .map(std::collections::HashMap::len)
+                .sum::<usize>()
+            });
     });
     group.finish();
 }
 
+fn mock_batch_packages(server: &mut ServerGuard) -> Vec<BatchPackage> {
+    (0..BATCH_TARBALL_COUNT)
+        .map(|package_index| {
+            let tarball = create_benchmark_tarball(package_index);
+            let path = format!("/batch-package-{package_index}.tgz");
+            server
+                .mock("GET", path.as_str())
+                .with_status(200)
+                .with_body(tarball.clone())
+                .create();
+            BatchPackage {
+                id: format!("batch-package-{package_index}@1.0.0"),
+                integrity: Integrity::from(tarball.as_slice()),
+                unpacked_size: BATCH_FILES_PER_TARBALL * benchmark_file(package_index, 0).len(),
+                url: format!("{}{path}", server.url()),
+                file_count: Some(BATCH_FILES_PER_TARBALL),
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+async fn ingest_benchmark_package(
+    package: &BatchPackage,
+    http_client: &ThrottledClient,
+    store_dir: &'static StoreDir,
+) -> Result<std::collections::HashMap<String, std::path::PathBuf>, pnpm_tarball::TarballError> {
+    let auth_headers = AuthHeaders::default();
+    IngestTarballToStore {
+        fetching: pnpm_tarball::ArchiveFetchOptions {
+            http_client,
+            retry_opts: RetryOpts::default(),
+            auth_headers: &auth_headers,
+            offline: false,
+        },
+        store: pnpm_tarball::ArchiveStoreContext {
+            dir: store_dir,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+        package: pnpm_tarball::TarballPackage {
+            integrity: Some(&package.integrity),
+            unpacked_size: Some(package.unpacked_size),
+            file_count: package.file_count,
+            url: &package.url,
+            id: &package.id,
+        },
+        requester: "",
+        ignore_file_pattern: None,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+    }
+    .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
+    .await
+}
+
 struct BatchPackage {
+    file_count: Option<usize>,
     id: String,
     integrity: Integrity,
     unpacked_size: usize,
@@ -161,7 +199,9 @@ fn create_benchmark_tarball(package_index: usize) -> Vec<u8> {
     for file_index in 0..BATCH_FILES_PER_TARBALL {
         let content = benchmark_file(package_index, file_index);
         let mut header = Header::new_gnu();
-        header.set_path(format!("package/files/file-{file_index}.txt")).unwrap();
+        header
+            .set_path(format!("package/files/file-{file_index}.txt"))
+            .unwrap();
         header.set_size(u64::try_from(content.len()).expect("benchmark file size fits u64"));
         header.set_mode(0o644);
         header.set_cksum();
@@ -200,21 +240,20 @@ fn bench_packument(criterion: &mut Criterion, bytes: &[u8]) {
 }
 
 /// Isolate the lockfile-parse sink
-/// ([`pacquet_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
+/// ([`pnpm_lockfile::Lockfile::load_wanted_from_dir`], `serde-saphyr`). The
 /// per-iteration file read is page-cache-warm after the first pass, so the
 /// 12k-line YAML parse dominates the measurement.
 fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
     assert!(
-        pacquet_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
+        pnpm_lockfile::Lockfile::load_wanted_from_dir(dir).unwrap().is_some(),
         "fixture lockfile must parse to Some, else the bench measures nothing",
     );
-    let bytes = fs::metadata(dir.join(pacquet_lockfile::Lockfile::FILE_NAME)).unwrap().len();
+    let bytes = fs::metadata(dir.join(pnpm_lockfile::Lockfile::FILE_NAME)).unwrap().len();
     let mut group = criterion.benchmark_group("lockfile");
     group.throughput(Throughput::Bytes(bytes));
     group.bench_function("parse_pnpm_lock", |bencher| {
         bencher.iter(|| {
-            let lockfile =
-                pacquet_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
+            let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(black_box(dir)).unwrap();
             black_box(lockfile.is_some())
         });
     });
@@ -222,7 +261,10 @@ fn bench_lockfile(criterion: &mut Criterion, dir: &Path) {
 }
 
 pub fn main() -> Result<(), String> {
-    let CliArgs { save_baseline, full_workspace_resolution } = CliArgs::parse();
+    let CliArgs {
+        save_baseline,
+        full_workspace_resolution,
+    } = CliArgs::parse();
     if full_workspace_resolution {
         workspace_resolution::run_full_workspace_resolution();
         return Ok(());
@@ -236,7 +278,10 @@ pub fn main() -> Result<(), String> {
         criterion = criterion.save_baseline(baseline);
     }
 
-    let packument = fixtures_folder.join("lodash.json").pipe(fs::read).unwrap();
+    let packument = fixtures_folder
+        .join("lodash.json")
+        .pipe(fs::read)
+        .unwrap();
     let lockfile_dir = root.join("pnpm/tasks/integrated-benchmark/src/fixtures");
 
     bench_tarball(&mut criterion, &mut server, &fixtures_folder);
@@ -244,6 +289,7 @@ pub fn main() -> Result<(), String> {
     bench_packument(&mut criterion, &packument);
     bench_lockfile(&mut criterion, &lockfile_dir);
     workspace_resolution::bench_workspace_resolution(&mut criterion);
+    workspace_sort::bench_workspace_sort(&mut criterion);
 
     Ok(())
 }

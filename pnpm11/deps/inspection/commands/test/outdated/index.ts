@@ -36,7 +36,7 @@ const OUTDATED_OPTIONS = {
   networkConcurrency: 16,
   offline: false,
   configByUri: {},
-  registries: { default: REGISTRY_URL },
+  registriesByScope: { default: REGISTRY_URL },
   strictSsl: false,
   tag: 'latest',
   userAgent: '',
@@ -85,7 +85,7 @@ test('pnpm outdated: show details (using the public registry to verify that full
     dir: process.cwd(),
     long: true,
     configByUri: {},
-    registries: { default: 'https://registry.npmjs.org/' },
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
   })
 
   expect(exitCode).toBe(1)
@@ -538,4 +538,60 @@ test('pnpm outdated --long with only deprecated packages', async () => {
 │                      │         │            │ https://foo.bar/qar                      │
 └──────────────────────┴─────────┴────────────┴──────────────────────────────────────────┘
 `)
+})
+
+test('pnpm outdated should fail when a specified package is not in dependencies', async () => {
+  tempDir()
+
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  await expect(
+    outdated.handler({
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+    }, ['not-a-dep'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+    message: 'None of the specified packages were found in the dependencies.',
+  })
+
+  await expect(
+    outdated.handler({
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+    }, ['is-positive', 'not-a-dep'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+    message: 'None of the specified packages were found in the dependencies.',
+  })
+
+  await expect(
+    outdated.handler({
+      ...OUTDATED_OPTIONS,
+      dev: false,
+      dir: process.cwd(),
+    }, ['is-positive'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES',
+  })
+
+  const compoundResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['!not-a-dep', 'is-*'])
+  expect(compoundResult.exitCode).toBe(1)
+
+  const excludedOnlyResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['!is-*', '!@pnpm.e2e/*'])
+  expect(excludedOnlyResult.exitCode).toBe(0)
+
+  const cancelledResult = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, ['is-positive', '!is-positive'])
+  expect(cancelledResult.exitCode).toBe(0)
 })

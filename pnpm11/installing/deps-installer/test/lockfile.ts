@@ -166,7 +166,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
+  expect(fs.existsSync('node_modules')).toBe(false)
 })
 
 test('current lockfile removed when no deps in package.json', async () => {
@@ -192,7 +192,7 @@ test('current lockfile removed when no deps in package.json', async () => {
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
+  expect(fs.existsSync('node_modules')).toBe(false)
 })
 
 test('lockfile is fixed when it does not match package.json', async () => {
@@ -466,7 +466,7 @@ test('scoped module from different registry', async () => {
     '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}`,
     '@foo': `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registries }, { registries }))
+  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registriesByScope: registries }, { registriesByScope: registries }))
 
   project.has('@zkochan/foo')
 
@@ -1142,7 +1142,7 @@ test('tarball domain differs from registry domain', async () => {
       lockfileOnly: true,
       save: true,
     }, {
-      registries: {
+      registriesByScope: {
         default: 'https://registry.example.com',
       },
     })
@@ -1200,7 +1200,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
     ], testDefaults({
       fastUnpack: false,
       lockfileOnly: true,
-      registries: {
+      registriesByScope: {
         default: 'https://registry.npmjs.org/',
       },
       save: true,

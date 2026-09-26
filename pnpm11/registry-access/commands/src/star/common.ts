@@ -2,7 +2,7 @@ import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
-import type { Registries, RegistryConfig } from '@pnpm/types'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 
 import { normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes as commonRcOptionsTypes } from '../common.js'
 import { fetchWhoami } from '../whoami.js'
@@ -19,7 +19,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export interface StarOptions extends CreateFetchFromRegistryOptions {
   configByUri?: Record<string, RegistryConfig>
-  registries?: Registries
+  registriesByScope?: RegistriesByScope
 }
 
 interface StarActionArgs {
@@ -36,7 +36,7 @@ interface PackumentWithStars {
 export async function performStarAction (opts: StarOptions, { packageName, star }: StarActionArgs): Promise<void> {
   const { escapedName } = parsePackageSpec(packageName)
   const registryUrl = normalizeRegistryUrl(
-    pickRegistryForPackage(opts.registries ?? { default: 'https://registry.npmjs.org/' }, packageName)
+    pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
   )
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl, packageName)
   const action = star ? 'star' : 'unstar'

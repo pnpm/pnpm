@@ -44,8 +44,9 @@ impl<'de> Deserialize<'de> for LedgerEntry {
             type Value = LedgerEntry;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter
-                    .write_str(r#"a list of intent ids, or a mapping with "dir" and "intents""#)
+                formatter.write_str(
+                    r#"a list of intent ids, or a mapping with "dir" and "intents""#,
+                )
             }
 
             fn visit_unit<DeError>(self) -> Result<Self::Value, DeError> {
@@ -82,6 +83,16 @@ impl<'de> Deserialize<'de> for LedgerEntry {
 }
 
 impl LedgerEntry {
+    /// The released project's workspace-relative dir, as recorded. `None` for
+    /// a bare id list, which names no dir.
+    #[must_use]
+    pub fn dir(&self) -> Option<&str> {
+        match self {
+            LedgerEntry::Ids(_) => None,
+            LedgerEntry::Attributed { dir, .. } => Some(dir),
+        }
+    }
+
     #[must_use]
     pub fn intent_ids(&self) -> &[String] {
         match self {
@@ -122,8 +133,10 @@ pub fn append_to_ledger(
         return Ok(ledger);
     }
     for (key, (dir, ids)) in new_entries {
-        let mut merged: Vec<String> =
-            ledger.get(key).map(|entry| entry.intent_ids().to_vec()).unwrap_or_default();
+        let mut merged: Vec<String> = ledger
+            .get(key)
+            .map(|entry| entry.intent_ids().to_vec())
+            .unwrap_or_default();
         for id in ids {
             if !merged.contains(id) {
                 merged.push(id.clone());
@@ -148,34 +161,44 @@ pub fn append_to_ledger(
 /// released project directory and a two-space-indented id list. An empty id
 /// list renders as `[]` — a bare key would read back as null, not a list.
 fn render_ledger(ledger: &Ledger) -> String {
-    use std::fmt::Write as _;
     let mut output = String::new();
     for (key, entry) in ledger {
-        match entry {
-            LedgerEntry::Attributed { dir, intents } => {
-                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
-                writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
-                if intents.is_empty() {
-                    writeln!(output, "  intents: []").expect("write to string");
-                } else {
-                    writeln!(output, "  intents:").expect("write to string");
-                    for id in intents {
-                        writeln!(output, "    - {}", yaml_scalar(id)).expect("write to string");
-                    }
-                }
-            }
-            LedgerEntry::Ids(ids) if ids.is_empty() => {
-                writeln!(output, "{}: []", yaml_scalar(key)).expect("write to string");
-            }
-            LedgerEntry::Ids(ids) => {
-                writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
-                for id in ids {
-                    writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
-                }
+        render_ledger_entry(&mut output, key, entry);
+    }
+    output
+}
+
+fn render_ledger_entry(output: &mut String, key: &str, entry: &LedgerEntry) {
+    use std::fmt::Write as _;
+    match entry {
+        LedgerEntry::Attributed { dir, intents } => {
+            writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+            writeln!(output, "  dir: {}", yaml_scalar(dir)).expect("write to string");
+            render_intent_ids(output, intents, "  ");
+        }
+        LedgerEntry::Ids(ids) if ids.is_empty() => {
+            writeln!(output, "{}: []", yaml_scalar(key)).expect("write to string");
+        }
+        LedgerEntry::Ids(ids) => {
+            writeln!(output, "{}:", yaml_scalar(key)).expect("write to string");
+            for id in ids {
+                writeln!(output, "  - {}", yaml_scalar(id)).expect("write to string");
             }
         }
     }
-    output
+}
+
+/// The `intents:` key of an attributed entry.
+fn render_intent_ids(output: &mut String, intents: &[String], indent: &str) {
+    use std::fmt::Write as _;
+    if intents.is_empty() {
+        writeln!(output, "{indent}intents: []").expect("write to string");
+        return;
+    }
+    writeln!(output, "{indent}intents:").expect("write to string");
+    for id in intents {
+        writeln!(output, "{indent}  - {}", yaml_scalar(id)).expect("write to string");
+    }
 }
 
 /// Renders a string as a YAML scalar the way the TypeScript side's
@@ -259,50 +282,99 @@ pub fn build_consumption_index(
     let mut stable_ids_by_dir: HashMap<String, HashSet<String>> = HashMap::new();
     let mut prerelease_ids_by_dir: HashMap<String, HashSet<String>> = HashMap::new();
     for (key, entry) in ledger {
-        let Some(at_index) = key.rfind('@').filter(|&index| index > 0) else {
+        let Some((pkg_name, version)) = split_ledger_key(key) else {
             continue;
         };
-        let version = &key[at_index + 1..];
-        let dir = match entry {
-            LedgerEntry::Attributed { dir, .. } => normalize_project_dir(dir),
-            LedgerEntry::Ids(_) => {
-                let pkg_name = &key[..at_index];
-                let dirs = resolve_name_dirs(pkg_name);
-                match dirs.len() {
-                    0 => continue,
-                    1 => dirs.into_iter().next().expect("one element"),
-                    _ => {
-                        return Err(VersioningError::AmbiguousLedgerEntry {
-                            key: key.clone(),
-                            pkg_name: pkg_name.to_string(),
-                            dirs,
-                        });
-                    }
-                }
-            }
+        let Some(dir) = entry_project_dir(key, pkg_name, entry, &resolve_name_dirs)? else {
+            continue;
         };
-        // Build metadata (after "+") may itself contain hyphens and never
-        // makes a version a prerelease.
-        let is_prerelease = version.split('+').next().is_some_and(|core| core.contains('-'));
-        let by_dir =
-            if is_prerelease { &mut prerelease_ids_by_dir } else { &mut stable_ids_by_dir };
-        by_dir.entry(dir).or_default().extend(entry.intent_ids().iter().cloned());
+        let by_dir = if is_prerelease_version(version) {
+            &mut prerelease_ids_by_dir
+        } else {
+            &mut stable_ids_by_dir
+        };
+        by_dir
+            .entry(dir)
+            .or_default()
+            .extend(entry.intent_ids().iter().cloned());
     }
 
-    let names: HashSet<String> =
-        stable_ids_by_dir.keys().chain(prerelease_ids_by_dir.keys()).cloned().collect();
+    let names: HashSet<String> = stable_ids_by_dir
+        .keys()
+        .chain(prerelease_ids_by_dir.keys())
+        .cloned()
+        .collect();
     Ok(names
         .into_iter()
         .map(|dir| {
             let stable = stable_ids_by_dir.remove(&dir).unwrap_or_default();
             let prerelease = prerelease_ids_by_dir.remove(&dir).unwrap_or_default();
-            let consumption = PackageConsumption {
-                prerelease_only_ids: prerelease.difference(&stable).cloned().collect(),
-                all_ids: stable.into_iter().chain(prerelease).collect(),
-            };
+            let consumption = package_consumption(stable, prerelease);
             (dir, consumption)
         })
         .collect())
+}
+
+fn package_consumption(stable: HashSet<String>, prerelease: HashSet<String>) -> PackageConsumption {
+    PackageConsumption {
+        prerelease_only_ids: prerelease
+            .difference(&stable)
+            .cloned()
+            .collect(),
+        all_ids: stable
+            .into_iter()
+            .chain(prerelease)
+            .collect(),
+    }
+}
+
+/// The `name@version` halves of a ledger key.
+fn split_ledger_key(key: &str) -> Option<(&str, &str)> {
+    let at_index = key
+        .rfind('@')
+        .filter(|&index| index > 0)?;
+    Some((&key[..at_index], &key[at_index + 1..]))
+}
+
+/// The project directory a ledger entry belongs to: the attributed one, or
+/// the one directory `pkg_name` resolves to. `None` when the name resolves
+/// to no project.
+fn entry_project_dir(
+    key: &str,
+    pkg_name: &str,
+    entry: &LedgerEntry,
+    resolve_name_dirs: &impl Fn(&str) -> Vec<String>,
+) -> Result<Option<String>, VersioningError> {
+    let dir = match entry {
+        LedgerEntry::Attributed { dir, .. } => normalize_project_dir(dir),
+        LedgerEntry::Ids(_) => {
+            let dirs = resolve_name_dirs(pkg_name);
+            match dirs.len() {
+                0 => return Ok(None),
+                1 => dirs
+                    .into_iter()
+                    .next()
+                    .expect("one element"),
+                _ => {
+                    return Err(VersioningError::AmbiguousLedgerEntry {
+                        key: key.to_string(),
+                        pkg_name: pkg_name.to_string(),
+                        dirs,
+                    });
+                }
+            }
+        }
+    };
+    Ok(Some(dir))
+}
+
+/// Build metadata (after "+") may itself contain hyphens and never
+/// makes a version a prerelease.
+fn is_prerelease_version(version: &str) -> bool {
+    version
+        .split('+')
+        .next()
+        .is_some_and(|core| core.contains('-'))
 }
 
 /// The canonical spelling of a workspace-relative project directory:

@@ -317,6 +317,19 @@ test('getHoistableOptionalPeers picks the highest version that satisfies all the
   })
 })
 
+test('getHoistableOptionalPeers skips the candidates the importer rejects', () => {
+  const hoist = (acceptsCandidate: (name: string, version: string) => boolean) => getHoistableOptionalPeers({
+    foo: ['*'],
+  }, {
+    foo: {
+      '1.0.0': 'version',
+      '2.0.0': 'version',
+    },
+  }, [], acceptsCandidate)
+  expect(hoist((_, version) => version !== '2.0.0')).toStrictEqual({ foo: '1.0.0' })
+  expect(hoist(() => false)).toStrictEqual({})
+})
+
 test('getHoistableOptionalPeers handles version selector with weight', () => {
   expect(getHoistableOptionalPeers({
     jsdom: ['*'],
@@ -408,6 +421,31 @@ test('getHoistableOptionalPeers stays within the workspace root\'s range', () =>
   })
   expect(getHoistableOptionalPeers(allMissingOptionalPeers, allPreferredVersions)).toStrictEqual({
     postcss: '8.5.22',
+  })
+})
+
+test('getHoistableOptionalPeers ignores a workspace root specifier that a wanted range rejects', () => {
+  expect(getHoistableOptionalPeers({ 'date-fns': ['^4.0.0'] }, {
+    'date-fns': {
+      '2.30.0': 'version',
+      '4.4.0': 'version',
+    },
+  }, [
+    { alias: 'date-fns-v2', pkgName: 'date-fns', normalizedBareSpecifier: 'npm:date-fns@2.30.0' },
+  ])).toStrictEqual({
+    'date-fns': '4.4.0',
+  })
+})
+
+test('getHoistableOptionalPeers ignores a workspace root specifier that only one wanted range accepts', () => {
+  expect(getHoistableOptionalPeers({ foo: ['>=1.0.0 <3.0.0', '>=2.0.0 <4.0.0'] }, {
+    foo: {
+      '2.0.0': 'version',
+    },
+  }, [
+    { alias: 'foo', pkgName: 'foo', normalizedBareSpecifier: '1.0.0' },
+  ])).toStrictEqual({
+    foo: '2.0.0',
   })
 })
 

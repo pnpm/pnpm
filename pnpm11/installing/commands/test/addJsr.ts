@@ -11,8 +11,8 @@ import { DEFAULT_OPTS } from './utils/index.js'
 const createOptions = (jsr: string = 'https://npm.jsr.io/') => ({
   ...DEFAULT_OPTS,
   configByUri: {},
-  registries: {
-    ...DEFAULT_OPTS.registries,
+  registriesByScope: {
+    ...DEFAULT_OPTS.registriesByScope,
     '@jsr': jsr,
   },
   dir: process.cwd(),

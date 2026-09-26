@@ -3,7 +3,7 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 
 const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
@@ -48,6 +48,11 @@ export interface GlobalPackageInfo {
   dependencies: Record<string, string>
 }
 
+export interface GlobalPackageBinSnapshot {
+  info: GlobalPackageInfo
+  binNames: string[]
+}
+
 export interface InstalledGlobalPackage {
   alias: string
   version: string
@@ -59,9 +64,7 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return []
-    }
+    if (isNotFound(err)) return []
     throw err
   }
   const result: GlobalPackageInfo[] = []
@@ -147,15 +150,34 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
   }
 }
 
+/**
+ * The bin names installed by a group (deduplicated).
+ *
+ * A group whose `node_modules` is wholly absent owns no bins, and neither
+ * does a declared dependency whose directory under `node_modules` is absent,
+ * a link left dangling by a pruned store included: no bin can resolve
+ * through a directory that is not there. Every dependency directory that
+ * does exist must hold a readable, valid manifest: returning a partial set
+ * would make destructive callers mistake unknown ownership for an unowned
+ * bin.
+ */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
   const bins = new Set<string>()
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
+  if (!await dirExists(modulesDir)) return []
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await safeReadPackageJsonFromDir(depDir)
-      if (!manifest) return
+      let manifest: PackageManifest
+      try {
+        manifest = await readPackageJsonFromDir(depDir)
+      } catch (err) {
+        // Probing after the read rather than before also covers a link
+        // pruned while the scan runs.
+        if (isNotFound(err) && !await dirExists(depDir)) return
+        throw err
+      }
       const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
       for (const bin of binsOfPkg) {
         bins.add(bin.name)
@@ -163,4 +185,22 @@ export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<st
     })
   )
   return [...bins]
+}
+
+/**
+ * Only ENOENT reads as absent; every other error surfaces, so unreadable
+ * ownership is never mistaken for unowned.
+ */
+async function dirExists (dir: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(dir)
+    return true
+  } catch (err) {
+    if (isNotFound(err)) return false
+    throw err
+  }
+}
+
+function isNotFound (err: unknown): boolean {
+  return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
 }

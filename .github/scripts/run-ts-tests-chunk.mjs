@@ -5,10 +5,15 @@ import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
+import { readTestDurations, selectChunk, taskWeight } from './ts-test-chunks.mjs'
+
 const rootDir = process.cwd()
 const pnpmCommand = resolveCommand('pn')
 const WINDOWS_SHELL_COMMAND_LENGTH_LIMIT = 7000
 const DEFAULT_COMMAND_LENGTH_LIMIT = 100000
+// Nothing in CI reads the coverage that the shared Jest config collects, and
+// collecting it made package test runs up to 20% slower.
+const JEST_CI_ARGS = ['--coverage=false']
 const { chunk, chunks, dryRun, script, summary } = parseArgs(process.argv.slice(2))
 
 if (!dryRun) {
@@ -17,6 +22,7 @@ if (!dryRun) {
 }
 
 const packages = await listSelectedPackages(script)
+const durations = readTestDurations()
 const tasks = await listTestTasks(packages)
 const selectedTasks = selectChunk(tasks, { chunk, chunks })
 const selectedPackages = groupJestTasksByPackage(selectedTasks)
@@ -56,25 +62,28 @@ async function listTestTasks (packages) {
   const tasks = []
   for (const pkg of packages) {
     if (!usesJest(pkg.manifest.scripts)) {
-      tasks.push({
+      const task = {
         id: normalizePath(path.relative(rootDir, pkg.path)),
         kind: 'script',
         packagePath: pkg.path,
-        weight: 1,
-      })
+      }
+      task.weight = taskWeight(task, durations)
+      tasks.push(task)
       continue
     }
 
     const testFiles = await findJestTestFiles(pkg.path)
     tasks.push(...await Promise.all(testFiles.map(async (file) => {
       const fileStat = await stat(file)
-      return {
+      const task = {
         file,
         id: normalizePath(path.relative(rootDir, file)),
         kind: 'jest',
         packagePath: pkg.path,
-        weight: Math.max(1, fileStat.size),
+        size: fileStat.size,
       }
+      task.weight = taskWeight(task, durations)
+      return task
     })))
   }
   return tasks
@@ -92,18 +101,6 @@ function readRegistryMockPort (scripts) {
     if (match != null) return match[1]
   }
   return undefined
-}
-
-function selectChunk (tasks, opts) {
-  const groups = Array.from({ length: opts.chunks }, () => ({ tasks: [], weight: 0 }))
-  for (const task of [...tasks].sort(compareTasksByWeight)) {
-    const group = groups.reduce((best, candidate) => (
-      candidate.weight < best.weight ? candidate : best
-    ))
-    group.tasks.push(task)
-    group.weight += task.weight
-  }
-  return groups[opts.chunk - 1].tasks.sort((a, b) => a.id.localeCompare(b.id))
 }
 
 function groupJestTasksByPackage (tasks) {
@@ -154,7 +151,7 @@ async function runJestPackage (pkg, selectedPackage) {
       if (batches.length > 1) {
         console.log(`Running batch ${index + 1}/${batches.length} (${files.length} Jest file(s)) in ${relDir}`)
       }
-      await runPnpm(['--dir', pkg.path, 'exec', 'jest', '--runTestsByPath', ...files], { env })
+      await runPnpm(['--dir', pkg.path, 'exec', 'jest', ...JEST_CI_ARGS, '--runTestsByPath', ...files], { env })
     }
   } catch (err) {
     status = 'failure'
@@ -178,10 +175,13 @@ async function runScriptTask (pkg) {
   try {
     if (pkg.manifest.name === 'pd') {
       await runCommand('node', ['pd.js', '--version'], { cwd: pkg.path })
+    } else if (pkg.manifest.name === '@pnpm/bins.cmd-shim') {
+      await runCommand('node', ['--test', 'test/test.js', 'test/e2e.test.js'], { cwd: pkg.path })
     } else {
       throw new Error(`Unsupported non-Jest .test script in ${relDir}: ${pkg.manifest.scripts['.test']}`)
     }
   } catch (err) {
+    console.error(err)
     status = 'failure'
     exitCode = err.exitCode ?? 1
   }
@@ -248,9 +248,6 @@ function readFileSyncUtf8 (file) {
   return readFileSync(file, 'utf8')
 }
 
-function compareTasksByWeight (a, b) {
-  return b.weight - a.weight || a.id.localeCompare(b.id)
-}
 
 function withJestNodeOptions (current = '') {
   const options = current.split(/\s+/).filter(Boolean)
@@ -299,7 +296,7 @@ function getExplicitJestFiles (scripts) {
 
 function splitJestFilesByCommandLength (pkg, files) {
   const limit = process.platform === 'win32' ? WINDOWS_SHELL_COMMAND_LENGTH_LIMIT : DEFAULT_COMMAND_LENGTH_LIMIT
-  const baseArgs = [pnpmCommand, '--dir', pkg.path, 'exec', 'jest', '--runTestsByPath']
+  const baseArgs = [pnpmCommand, '--dir', pkg.path, 'exec', 'jest', ...JEST_CI_ARGS, '--runTestsByPath']
   const chunks = []
   let currentChunk = []
   let currentLength = estimateCommandLength(baseArgs)
@@ -443,9 +440,9 @@ function normalizePath (file) {
 }
 
 function parseArgs (args) {
-  let chunk
-  let chunks
-  let script
+  let chunk = Number(process.env.TEST_CHUNK)
+  let chunks = Number(process.env.TEST_CHUNK_TOTAL)
+  let script = process.env.TEST_SCRIPT
   let summary = 'pnpm-exec-summary.json'
   let dryRun = false
 
@@ -479,5 +476,6 @@ function parseArgs (args) {
 function usage (message) {
   console.error(message)
   console.error('Usage: run-ts-tests-chunk.mjs --script <ci:test-all|ci:test-branch> --chunk <n> --chunks <n> [--summary <file>] [--dry-run]')
+  console.error('--script, --chunk and --chunks default to $TEST_SCRIPT, $TEST_CHUNK and $TEST_CHUNK_TOTAL.')
   process.exit(1)
 }

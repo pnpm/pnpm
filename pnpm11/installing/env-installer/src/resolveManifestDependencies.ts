@@ -14,12 +14,12 @@ import type {
   ProjectId,
   ProjectManifest,
   ProjectRootDir,
-  Registries,
+  RegistriesByScope,
 } from '@pnpm/types'
 
 export interface ResolveManifestDependenciesOpts {
   dir: string
-  registries: Registries
+  registriesByScope: RegistriesByScope
   storeController: StoreController
   storeDir: string
 }
@@ -72,7 +72,7 @@ export async function resolveManifestDependencies (
       pnpmVersion: '',
       preferWorkspacePackages: false,
       preserveWorkspaceProtocol: false,
-      registries: opts.registries,
+      registriesByScope: opts.registriesByScope,
       saveWorkspaceProtocol: false,
       storeController: opts.storeController,
       tag: 'latest',

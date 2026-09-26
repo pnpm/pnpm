@@ -60,7 +60,7 @@ export function help (): string {
 export type PatchCommandOptions = Pick<Config,
 | 'dir'
 | 'patchedDependencies'
-| 'registries'
+| 'registriesByScope'
 | 'tag'
 | 'storeDir'
 | 'lockfileDir'
@@ -133,7 +133,7 @@ To commit your changes, run:
 
 function tryPatchWithExistingPatchFile (
   {
-    patchedDep: { applyToAll, alias, bareSpecifier },
+    patchedDep: { applyToAll, alias, bareSpecifier, version },
     patchedDir,
     patchedDependencies,
     lockfileDir,
@@ -148,6 +148,9 @@ function tryPatchWithExistingPatchFile (
   let existingPatchFile: string | undefined
   if (bareSpecifier) {
     existingPatchFile = patchedDependencies[`${alias}@${bareSpecifier}`]
+  }
+  if (!existingPatchFile && version) {
+    existingPatchFile = patchedDependencies[`${alias}@${version}`]
   }
   if (!existingPatchFile && applyToAll) {
     existingPatchFile = patchedDependencies[alias]

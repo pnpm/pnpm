@@ -27,27 +27,12 @@ export interface PreparePackageOptions {
   userAgent?: string
 }
 
-export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
+export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string, ignoredBuild?: boolean }> {
   const pkgDir = safeJoinPath(gitRootDir, subDir)
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
-  if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
-  // Check if the package is allowed to run build scripts
-  // If allowBuild is undefined or returns false, block the build.
-  // The depPath is synthesized from the resolution id rather than read from
-  // a lockfile; resolution ids of git and tarball artifacts are never
-  // semver-shaped, so the policy derives an untrusted package identity.
-  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (!opts.allowBuild?.(depPath)) {
-    throw new PnpmError(
-      'GIT_DEP_PREPARE_NOT_ALLOWED',
-      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
-      {
-        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
-allowBuilds:
-  ${depPath}: true`,
-      }
-    )
+  if (opts.ignoreScripts || !resolvePackageBuildPermission(opts, manifest)) {
+    return { shouldBeBuilt: true, pkgDir, ignoredBuild: true }
   }
   const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
@@ -82,6 +67,26 @@ allowBuilds:
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
   return { shouldBeBuilt: true, pkgDir }
+}
+
+export function resolvePackageBuildPermission (
+  opts: Pick<PreparePackageOptions, 'allowBuild' | 'pkgResolutionId'>,
+  manifest: Partial<PackageManifest>
+): boolean {
+  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
+  const allowed = opts.allowBuild?.(depPath)
+  if (allowed == null) {
+    throw new PnpmError(
+      'GIT_DEP_PREPARE_NOT_ALLOWED',
+      `The git-hosted package "${manifest.name}@${manifest.version}" needs to execute build scripts but is not in the "allowBuilds" allowlist.`,
+      {
+        hint: `Add the package to "allowBuilds" in your project's pnpm-workspace.yaml to allow it to run scripts. For example:
+allowBuilds:
+  ${depPath}: true`,
+      }
+    )
+  }
+  return allowed
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {

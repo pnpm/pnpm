@@ -1,5 +1,5 @@
 import { createShortHash } from '@pnpm/crypto.hash'
-import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, Registries } from '@pnpm/types'
+import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -117,6 +117,14 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
+/**
+ * Whether the package at `depPath` is itself patched. A patched peer nested in
+ * the peers suffix does not count.
+ */
+export function hasPatchHash (depPath: string): boolean {
+  return indexOfDepPathSuffix(depPath).patchHashIndex !== -1
+}
+
 export function removePeersSuffix (relDepPath: string): string {
   const { peersIndex } = indexOfDepPathSuffix(relDepPath)
   if (peersIndex !== -1) {
@@ -147,10 +155,10 @@ export function tryGetPackageId (relDepPath: DepPath): PkgId {
   return pkgId as PkgId
 }
 
-export function getRegistryByPackageName (registries: Registries, packageName: string): string {
-  if (packageName[0] !== '@') return registries.default
+export function getRegistryByPackageName (registriesByScope: RegistriesByScope, packageName: string): string {
+  if (packageName[0] !== '@') return registriesByScope.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
-  return registries[scope] || registries.default
+  return registriesByScope[scope] || registriesByScope.default
 }
 
 export function refToRelative (
@@ -245,8 +253,17 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
       .replace(/\)$/, '')
       .replace(/\)\(|\(|\)/g, '_')
   }
-  if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
-    return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`
+  // Windows strips trailing dots and spaces from path segments. Hashing
+  // the unescaped name keeps it apart from a literal `+` path.
+  const hashInput = filename
+  let end = filename.length
+  while (end > 0 && (filename[end - 1] === '.' || filename[end - 1] === ' ')) end--
+  const escapedTrailing = end < filename.length
+  if (escapedTrailing) {
+    filename = filename.substring(0, end) + '+'.repeat(filename.length - end)
+  }
+  if (escapedTrailing || filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+    return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(hashInput)}`
   }
   return filename
 }

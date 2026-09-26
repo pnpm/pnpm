@@ -2,6 +2,13 @@ import path from 'node:path'
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+  pruneDanglingPeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
 import type {
   DirectoryResolution,
   LockfileObject,
@@ -20,11 +27,12 @@ import type {
   ProjectManifest,
 } from '@pnpm/types'
 import normalizePath from 'normalize-path'
+import { pick } from 'ramda'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
 export interface CreateDeployFilesOptions {
-  allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
+  allProjects: Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
   deployDir: string
   include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
@@ -32,19 +40,29 @@ export interface CreateDeployFilesOptions {
   patchedDependencies?: PnpmSettings['patchedDependencies']
   selectedProjectManifest: ProjectManifest
   projectId: ProjectId
+  resolvePeersFromWorkspaceRoot?: boolean
   rootProjectManifestDir: string
   allowBuilds?: Record<string, boolean | string>
 }
 
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
+  autoInstallPeers: boolean
+  dedupePeers: boolean
+  excludeLinksFromLockfile: boolean
+  ignoredOptionalDependencies: string[]
+  injectWorkspacePackages: false
+  packages: ['.']
   patchedDependencies?: Record<string, string>
+  peersSuffixMaxLength: number
+  virtualStoreDir?: string
+  virtualStoreType: 'project'
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
   manifest: ProjectManifest
-  workspaceManifest?: DeployWorkspaceManifest
+  workspaceManifest: DeployWorkspaceManifest
 }
 
 export function createDeployFiles ({
@@ -56,6 +74,7 @@ export function createDeployFiles ({
   patchedDependencies,
   selectedProjectManifest,
   projectId,
+  resolvePeersFromWorkspaceRoot,
   rootProjectManifestDir,
   allowBuilds,
 }: CreateDeployFilesOptions): DeployFiles {
@@ -69,7 +88,16 @@ export function createDeployFiles ({
     devDependencies: {},
     optionalDependencies: {},
   }
+  const directDependencyNames = dependencyNames(selectedProjectManifest)
+  const peerOnlyDependencies = new Set(
+    Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+  )
 
+  // Classified on the workspace lockfile: the deploy lockfile keeps only the
+  // deployed project's included dependencies, so it no longer shows which
+  // importers list a peer.
+  const sourcePeerSatisfactionEdges = getPeerSatisfactionEdgesToSkip(lockfile, { include, resolvePeersFromWorkspaceRoot })
+  const peerSatisfactionEdges = new Map<DepPath, ReadonlySet<string>>()
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
@@ -81,6 +109,8 @@ export function createDeployFiles ({
     const outputDepPath = resolveResult
       ? createFileUrlDepPath(resolveResult, allProjects)
       : inputDepPath
+    const skippedAliases = sourcePeerSatisfactionEdges?.get(inputDepPath)
+    if (skippedAliases != null) peerSatisfactionEdges.set(outputDepPath, skippedAliases)
     targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
       allProjects,
       deployDir,
@@ -90,6 +120,18 @@ export function createDeployFiles ({
     })
   }
 
+  // Indexed under both spellings of each project's directory, so the importer
+  // loop below costs one lookup per importer rather than a scan of every
+  // project: the importer path is resolved lexically, while a project directory
+  // reached through a symlink has a different real path.
+  const peerBearingProjects = new Map<string, ProjectManifest>()
+  for (const project of allProjects) {
+    if (project.manifest.peerDependencies == null) continue
+    peerBearingProjects.set(project.rootDir, project.manifest)
+    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
+  }
+
+  const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
@@ -103,21 +145,32 @@ export function createDeployFiles ({
     })
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    if (manifest != null) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
   for (const field of DEPENDENCIES_FIELD) {
+    // An excluded group's direct dependencies are left out of both the
+    // deployed manifest and the deployed importer, because the graph filter
+    // below drops the packages they would point at. A runtime reference is
+    // the exception: the engines field that generates it survives in the
+    // deployed manifest and regenerates the edge on every read, so the
+    // importer keeps it. The deploy install skips it with the rest of its
+    // excluded group.
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const version = inputDependencies[name]
+      if (!include[field] && !peerOnlyDependencies.has(name) && !version.startsWith('runtime:')) continue
       const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
       if (!resolveResult) {
-        targetSpecifiers[name] = targetDependencies[name] = version
+        targetDependencies[name] = version
+        targetSpecifiers[name] = deployDependencySpecifier(name, version)
         continue
       }
 
@@ -130,9 +183,20 @@ export function createDeployFiles ({
   const deployPackageSnapshots = filterDeployPackageSnapshots(
     targetSnapshot,
     targetPackageSnapshots,
-    include
+    { include, peerSatisfactionEdges }
   )
+  bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
+  const workspaceManifest: DeployWorkspaceManifest = {
+    autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
+    dedupePeers: lockfile.settings?.dedupePeers ?? false,
+    excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
+    ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
+    injectWorkspacePackages: false,
+    packages: ['.'],
+    peersSuffixMaxLength: lockfile.settings?.peersSuffixMaxLength ?? 1000,
+    virtualStoreType: 'project',
+  }
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
@@ -151,12 +215,13 @@ export function createDeployFiles ({
       },
       packages: deployPackageSnapshots,
     },
-    manifest: {
+    manifest: omitPeersOfExcludedDependencies({
       ...selectedProjectManifest,
-      dependencies: targetSnapshot.dependencies,
-      devDependencies: targetSnapshot.devDependencies,
-      optionalDependencies: targetSnapshot.optionalDependencies,
-    },
+      dependencies: pick(Object.keys(targetSnapshot.dependencies ?? {}), targetSnapshot.specifiers),
+      devDependencies: pick(Object.keys(targetSnapshot.devDependencies ?? {}), targetSnapshot.specifiers),
+      optionalDependencies: pick(Object.keys(targetSnapshot.optionalDependencies ?? {}), targetSnapshot.specifiers),
+    }, selectedProjectManifest, targetSnapshot),
+    workspaceManifest,
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -167,38 +232,73 @@ export function createDeployFiles ({
       const relativePath = normalizePath(path.relative(deployDir, absolutePath))
       deployManifestPatchedDeps[name] = relativePath
     }
-    result.workspaceManifest = {
-      ...result.workspaceManifest,
-      patchedDependencies: deployManifestPatchedDeps,
-    }
+    workspaceManifest.patchedDependencies = deployManifestPatchedDeps
   }
 
   if (allowBuilds) {
-    result.workspaceManifest = {
-      ...result.workspaceManifest,
-      allowBuilds,
-    }
+    workspaceManifest.allowBuilds = allowBuilds
   }
 
   return result
 }
 
+function deployDependencySpecifier (alias: string, reference: string): string {
+  const depPath = dp.refToRelative(reference, alias)
+  if (depPath == null) return reference
+  const { name, version, registryName } = dp.parse(depPath)
+  if (version == null || registryName != null) return reference
+  return name === alias ? version : `npm:${name}@${version}`
+}
+
+function omitPeersOfExcludedDependencies (
+  manifest: ProjectManifest,
+  inputManifest: ProjectManifest,
+  targetSnapshot: ProjectSnapshot
+): ProjectManifest {
+  const includedDependencies = dependencyNames(targetSnapshot)
+  const excludedDependencies = new Set(
+    Array.from(dependencyNames(inputManifest)).filter(name => !includedDependencies.has(name))
+  )
+  if (excludedDependencies.size === 0) return manifest
+
+  return {
+    ...manifest,
+    peerDependencies: omitKeys(manifest.peerDependencies, excludedDependencies),
+    peerDependenciesMeta: omitKeys(manifest.peerDependenciesMeta, excludedDependencies),
+  }
+}
+
+function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string> {
+  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
+}
+
+function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+  if (record == null) return undefined
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
+}
+
+/** Takes ownership of `packages`: the retained snapshots are edited in place. */
 function filterDeployPackageSnapshots (
   importer: ProjectSnapshot,
   packages: PackageSnapshots,
-  include: CreateDeployFilesOptions['include']
+  opts: {
+    include: CreateDeployFilesOptions['include']
+    peerSatisfactionEdges: PeerSatisfactionEdges
+  }
 ): PackageSnapshots {
+  const { include, peerSatisfactionEdges } = opts
   const queue: DepPath[] = []
-  const enqueue = (dependencies: ResolvedDependencies | undefined) => {
+  const enqueue = (dependencies: ResolvedDependencies | undefined, parent?: DepPath) => {
     for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      if (parent != null && isPeerSatisfactionEdge(peerSatisfactionEdges, parent, alias)) continue
       const depPath = dp.refToRelative(reference, alias)
       if (depPath != null && packages[depPath] != null) queue.push(depPath)
     }
   }
 
-  if (include.dependencies) enqueue(importer.dependencies)
-  if (include.devDependencies) enqueue(importer.devDependencies)
-  if (include.optionalDependencies) enqueue(importer.optionalDependencies)
+  enqueue(importer.dependencies)
+  enqueue(importer.devDependencies)
+  enqueue(importer.optionalDependencies)
 
   const reachable = new Set<DepPath>()
   let head = 0
@@ -209,13 +309,101 @@ function filterDeployPackageSnapshots (
 
     const snapshot = packages[depPath]
     if (snapshot == null) continue
-    enqueue(snapshot.dependencies)
-    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies)
+    enqueue(snapshot.dependencies, depPath)
+    if (include.optionalDependencies) enqueue(snapshot.optionalDependencies, depPath)
   }
 
-  return Object.fromEntries(
-    Array.from(reachable, (depPath) => [depPath, packages[depPath]])
-  ) as PackageSnapshots
+  return pruneDanglingPeerSatisfactionEdges(Object.fromEntries(
+    Array.from(reachable, (depPath) => {
+      const snapshot = packages[depPath]
+      // A retained snapshot's optional edges point at packages this filter just dropped.
+      if (!include.optionalDependencies) snapshot.optionalDependencies = undefined
+      return [depPath, snapshot]
+    })
+  ) as PackageSnapshots, peerSatisfactionEdges)
+}
+
+/**
+ * Resolves the peer dependencies of linked workspace packages against the
+ * deployed graph, editing the snapshots in `packages` in place.
+ *
+ * A linked workspace package has no package snapshot in the shared lockfile, so
+ * the importer its deployed snapshot is synthesized from carries no peer
+ * bindings and they cannot be recovered afterwards. A peer already bound by
+ * either dependency map, or absent from the deployed graph entirely, is left
+ * alone.
+ *
+ * @throws PnpmError DEPLOY_AMBIGUOUS_PEER when the deployed graph offers more
+ * than one resolution for a peer, since choosing between them is precisely the
+ * decision injecting the package would have made.
+ */
+function bindSingletonPeers (
+  importer: ProjectSnapshot,
+  packages: PackageSnapshots,
+  linkedWorkspaceProjects: Map<DepPath, ProjectManifest>
+): void {
+  if (linkedWorkspaceProjects.size === 0) return
+
+  // Keyed by the resolved dependency path rather than the reference that
+  // spelled it, so an npm-aliased edge and a plain one that name the same
+  // package count once.
+  const references = new Map<string, Set<string>>()
+  const collect = (dependencies: ResolvedDependencies | undefined) => {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const depPath = dp.refToRelative(reference, alias)
+      if (depPath == null) continue
+      const { name } = dp.parse(depPath)
+      if (name == null) continue
+      let referencesOfName = references.get(name)
+      if (referencesOfName == null) references.set(name, referencesOfName = new Set())
+      referencesOfName.add(depPath.slice(name.length + 1))
+    }
+  }
+  collect(importer.dependencies)
+  collect(importer.devDependencies)
+  collect(importer.optionalDependencies)
+  for (const snapshot of Object.values(packages)) {
+    collect(snapshot.dependencies)
+    collect(snapshot.optionalDependencies)
+  }
+
+  for (const [depPath, manifest] of linkedWorkspaceProjects) {
+    const snapshot = packages[depPath]
+    if (snapshot == null) continue
+    for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
+      // Consult the manifest, not just the snapshot: the graph prune clears the
+      // optional map before this runs, so a peer the package depends on
+      // optionally is invisible in the snapshot under `--no-optional`, and
+      // binding it there would resurrect a dependency the flag excluded.
+      if (declaresDependency(manifest, peerName)) continue
+      if (declaresDependency(snapshot, peerName)) continue
+      const candidates = references.get(peerName)
+      // A peer the deployed graph does not provide at all stays unresolved,
+      // exactly as it is in the workspace this deploy was taken from.
+      if (candidates == null) continue
+      if (candidates.size > 1) {
+        throw new PnpmError('DEPLOY_AMBIGUOUS_PEER', `Workspace package '${manifest.name ?? depPath}' declares a peer dependency on '${peerName}', which resolves to more than one version (${Array.from(candidates).sort().join(', ')}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to.`, {
+          hint: `Pin '${peerName}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.`,
+        })
+      }
+      snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
+    }
+  }
+}
+
+/**
+ * Whether `source` binds `name` through one of its runtime dependency maps.
+ *
+ * Own keys only: a package may legitimately be named `constructor` or
+ * `toString`, and a plain property read would find those on `Object.prototype`
+ * and report a binding that does not exist.
+ */
+function declaresDependency (
+  source: Pick<ProjectManifest, 'dependencies' | 'optionalDependencies'> | Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies'>,
+  name: string
+): boolean {
+  return (source.dependencies != null && Object.hasOwn(source.dependencies, name)) ||
+    (source.optionalDependencies != null && Object.hasOwn(source.optionalDependencies, name))
 }
 
 interface ConvertOptions {

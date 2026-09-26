@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals'
 import {
+  createOtpSession,
   type OtpContext,
   OtpNonInteractiveError,
   OtpSecondChallengeError,
@@ -512,5 +513,88 @@ describe('SyntheticOtpError.fromUnknownBody', () => {
   it('returns empty body when body has no authUrl or doneUrl', () => {
     const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, { something: 'else' })
     expect(err.body).toEqual({})
+  })
+})
+
+describe('createOtpSession', () => {
+  it('reuses the one-time password it obtained across later operations', async () => {
+    const input = jest.fn(async () => '123456')
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== '123456') throw new SyntheticOtpError(undefined)
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, '123456', '123456'])
+    expect(input).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for a new one-time password once the registry stops accepting the one it holds', async () => {
+    const passwords = ['first-otp', 'second-otp']
+    const input = jest.fn(async () => passwords.shift())
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    let acceptedOtp = 'first-otp'
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== acceptedOtp) throw new SyntheticOtpError(undefined)
+      // The password expires right after the operation it was obtained for.
+      acceptedOtp = 'second-otp'
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, 'first-otp', 'first-otp', 'second-otp'])
+    expect(input).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws OtpSecondChallengeError when a freshly obtained password is challenged again', async () => {
+    const context = createOtpMockContext()
+    const session = createOtpSession({ context, fetchOptions })
+    await expect(session.run(async () => {
+      throw new SyntheticOtpError(undefined)
+    })).rejects.toThrow(OtpSecondChallengeError)
+  })
+})
+
+describe('SyntheticOtpError.fromUnauthorizedBody', () => {
+  it('recognizes a body carrying both web-auth URLs', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({
+      error: 'one-time pass required',
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    }))
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toEqual({
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    })
+  })
+
+  it('drops a non-string URL but still reports a challenge', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({ authUrl: 42, doneUrl: 'https://auth.example/done' }))
+    expect(error?.body).toEqual({ authUrl: undefined, doneUrl: 'https://auth.example/done' })
+  })
+
+  it('recognizes the classic "one-time pass" wording as a challenge without a body', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody('{"error":"You must provide a One-Time Pass. Upgrade your client to npm@latest in order to use 2FA."}')
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toBeUndefined()
+  })
+
+  it('returns undefined for a plain authentication failure', () => {
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"error":"unauthorized"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"authUrl":"https://auth.example/login"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('Bad token')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('')).toBeUndefined()
   })
 })

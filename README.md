@@ -53,6 +53,20 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://notion.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion"></a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -95,15 +109,6 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
-            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
@@ -112,8 +117,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -123,6 +126,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -131,6 +136,9 @@ To quote the [Rush](https://rushjs.io/) team:
             <img src="https://pnpm.io/img/users/nx.svg" width="50" alt="Nx" />
           </picture>
         </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
       </td>
     </tr>
   </tbody>

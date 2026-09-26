@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 
 /// What a real install would change, derived from two lockfiles.
 ///
@@ -144,7 +144,10 @@ pub fn diff_lockfiles(
 
     let mut diff = LockfileDiff::default();
 
-    let mut importer_ids: BTreeSet<&str> = new.importers.keys().map(String::as_str).collect();
+    let mut importer_ids: BTreeSet<&str> = new.importers
+        .keys()
+        .map(String::as_str)
+        .collect();
     if let Some(old) = old {
         importer_ids.extend(old.importers.keys().map(String::as_str));
     }
@@ -188,7 +191,11 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
             Some(_) => {}
         }
     }
-    for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
+    for key in old_snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         if new_snapshots.is_none_or(|snapshots| !snapshots.contains_key(key)) {
             diff.removed_packages.push(key.to_string());
         }
@@ -295,40 +302,49 @@ pub fn render_dry_run_report(diff: &LockfileDiff) -> String {
         String::new(),
     ];
 
-    if !diff.importers.is_empty() {
-        lines.push("Importers".to_string());
-        for importer in &diff.importers {
-            lines.push(importer.id.clone());
-            for (alias, version) in &importer.added {
-                lines.push(format!("  + {alias} {version}"));
-            }
-            for (alias, version) in &importer.removed {
-                lines.push(format!("  - {alias} {version}"));
-            }
-            for (alias, old, new) in &importer.updated {
-                lines.push(format!("  {alias} {old} -> {new}"));
-            }
-        }
-        lines.push(String::new());
-    }
-
-    if !diff.added_packages.is_empty()
-        || !diff.removed_packages.is_empty()
-        || !diff.updated_packages.is_empty()
-    {
-        lines.push("Packages".to_string());
-        for key in &diff.added_packages {
-            lines.push(format!("+ {key}"));
-        }
-        for key in &diff.removed_packages {
-            lines.push(format!("- {key}"));
-        }
-        for package in &diff.updated_packages {
-            lines.push(format!("~ {}", package.id));
-        }
-    }
+    push_importer_lines(&mut lines, diff);
+    push_package_lines(&mut lines, diff);
 
     lines.join("\n")
+}
+
+fn push_importer_lines(lines: &mut Vec<String>, diff: &LockfileDiff) {
+    if diff.importers.is_empty() {
+        return;
+    }
+    lines.push("Importers".to_string());
+    for importer in &diff.importers {
+        lines.push(importer.id.clone());
+        for (alias, version) in &importer.added {
+            lines.push(format!("  + {alias} {version}"));
+        }
+        for (alias, version) in &importer.removed {
+            lines.push(format!("  - {alias} {version}"));
+        }
+        for (alias, old, new) in &importer.updated {
+            lines.push(format!("  {alias} {old} -> {new}"));
+        }
+    }
+    lines.push(String::new());
+}
+
+fn push_package_lines(lines: &mut Vec<String>, diff: &LockfileDiff) {
+    if diff.added_packages.is_empty()
+        && diff.removed_packages.is_empty()
+        && diff.updated_packages.is_empty()
+    {
+        return;
+    }
+    lines.push("Packages".to_string());
+    for key in &diff.added_packages {
+        lines.push(format!("+ {key}"));
+    }
+    for key in &diff.removed_packages {
+        lines.push(format!("- {key}"));
+    }
+    for package in &diff.updated_packages {
+        lines.push(format!("~ {}", package.id));
+    }
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use super::try_fast_update_catalog_versions;
-use pacquet_catalogs_types::Catalogs;
-use pacquet_lockfile::{Lockfile, LockfileResolution, TarballResolution};
-use pacquet_resolving_resolver_base::{
+use pnpm_catalogs_types::Catalogs;
+use pnpm_lockfile::{Lockfile, LockfileResolution, TarballResolution};
+use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
@@ -27,20 +27,25 @@ impl Resolver for StubResolver {
         Box::pin(async move {
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(format!("{name}@{version}")),
-                name_ver: Some(format!("{name}@{version}").parse().expect("name and version")),
-                latest: Some(version),
-                published_at: None,
-                manifest: Some(manifest),
                 resolution: LockfileResolution::Tarball(TarballResolution {
                     tarball: "https://registry.npmjs.org/target/-/target-2.0.0.tgz".to_string(),
                     integrity: Some("sha512-dGFyZ2V0LTI=".parse().expect("integrity")),
+                    revision: None,
                     git_hosted: None,
                     path: None,
                 }),
                 resolved_via: "npm-registry".to_string(),
                 normalized_bare_specifier: None,
-                alias: Some(name),
+
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(format!("{name}@{version}").parse().expect("name and version")),
+                    latest: Some(version),
+                    published_at: None,
+                    manifest: Some(manifest),
+                    non_deprecated_alternative: None,
+                },
+                alias: Some(name),
             }))
         })
     }
@@ -106,6 +111,7 @@ async fn try_update(lockfile: &Lockfile, catalogs: &Catalogs, manifest: Value) -
             resolve_options: &resolve_options,
             manifest_hook: None,
             registries: &registries,
+            registry_options_by_url: &std::collections::BTreeMap::new(),
             lockfile_include_tarball_url: false,
         },
         catalogs,
@@ -114,8 +120,12 @@ async fn try_update(lockfile: &Lockfile, catalogs: &Catalogs, manifest: Value) -
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -174,10 +184,14 @@ async fn falls_back_when_an_importer_depends_on_the_package_directly() {
 #[tokio::test]
 async fn falls_back_when_a_package_depends_on_the_catalog_package() {
     let mut lockfile = lockfile();
-    lockfile.snapshots.as_mut().expect("snapshots").insert(
-        "parent@1.0.0".parse().expect("snapshot key"),
-        serde_json::from_value(json!({ "dependencies": { "target": "1.0.0" } })).expect("snapshot"),
-    );
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .insert(
+            "parent@1.0.0".parse().expect("snapshot key"),
+            serde_json::from_value(json!({ "dependencies": { "target": "1.0.0" } }))
+                .expect("snapshot"),
+        );
 
     assert!(
         try_update(&lockfile, &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
@@ -210,20 +224,25 @@ async fn falls_back_when_a_catalog_reference_has_no_recorded_entry() {
 #[tokio::test]
 async fn falls_back_when_two_catalogs_move_the_same_alias() {
     let mut subject = lockfile();
-    subject.catalogs.as_mut().expect("catalogs").insert(
-        "other".to_string(),
-        serde_json::from_value(json!({
-            "target": { "specifier": "1.0.0", "version": "1.0.0" }
-        }))
-        .expect("catalog"),
-    );
+    subject.catalogs
+        .as_mut()
+        .expect("catalogs")
+        .insert(
+            "other".to_string(),
+            serde_json::from_value(json!({
+                "target": { "specifier": "1.0.0", "version": "1.0.0" }
+            }))
+            .expect("catalog"),
+        );
     let catalogs = Catalogs::from([
         ("default".to_string(), BTreeMap::from([("target".to_string(), "2.0.0".to_string())])),
         ("other".to_string(), BTreeMap::from([("target".to_string(), "3.0.0".to_string())])),
     ]);
 
     assert!(
-        try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0")).await.is_none(),
+        try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "no single catalog is the sole reference once both name it",
     );
 }
@@ -231,11 +250,16 @@ async fn falls_back_when_two_catalogs_move_the_same_alias() {
 #[tokio::test]
 async fn absorbs_a_range_only_entry_alongside_an_exact_move() {
     let mut subject = lockfile();
-    subject.catalogs.as_mut().expect("catalogs").get_mut("default").expect("default").insert(
-        "child".to_string(),
-        serde_json::from_value(json!({ "specifier": "1.1.0", "version": "1.1.0" }))
-            .expect("catalog entry"),
-    );
+    subject.catalogs
+        .as_mut()
+        .expect("catalogs")
+        .get_mut("default")
+        .expect("default")
+        .insert(
+            "child".to_string(),
+            serde_json::from_value(json!({ "specifier": "1.1.0", "version": "1.1.0" }))
+                .expect("catalog entry"),
+        );
     let catalogs = Catalogs::from([(
         "default".to_string(),
         BTreeMap::from([

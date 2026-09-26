@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.walker",
-  "version": "1100.0.19",
+  "version": "1100.0.25",
   "description": "Walk over all the dependencies in a lockfile",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

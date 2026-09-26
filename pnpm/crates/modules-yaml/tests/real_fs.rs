@@ -5,8 +5,8 @@
 //! direct unit tests guard the behavior.
 
 use indexmap::IndexSet;
-use pacquet_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pipe_trait::Pipe;
+use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::{fs, path::Path};
@@ -47,7 +47,10 @@ fn read_preserves_absolute_virtual_store_dir() {
 #[test]
 fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
-    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let modules_dir = temp_dir
+        .path()
+        .join("project")
+        .join("node_modules");
     let absolute_store = temp_dir.path().join(".pnpm-store");
     let manifest = manifest_from_json(json!({
         "layoutVersion": 5,
@@ -69,7 +72,10 @@ fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
 #[test]
 fn write_relativizes_non_descendant_virtual_store_dir() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
-    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let modules_dir = temp_dir
+        .path()
+        .join("project")
+        .join("node_modules");
     let sibling_store = temp_dir.path().join(".pnpm-store");
     let manifest = manifest_from_json(json!({
         "layoutVersion": 5,
@@ -147,7 +153,9 @@ fn dep_path_serializes_transparently() {
         "publicHoistPattern": [],
     }));
     assert_eq!(
-        manifest.hoisted_aliases.as_ref().and_then(|map| map.keys().next()),
+        manifest.hoisted_aliases
+            .as_ref()
+            .and_then(|map| map.keys().next()),
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =
@@ -194,7 +202,10 @@ fn hoisted_locations_round_trips() {
         },
     }));
     assert_eq!(
-        manifest.hoisted_locations.as_ref().expect("present").get("/accepts/1.3.7"),
+        manifest.hoisted_locations
+            .as_ref()
+            .expect("present")
+            .get("/accepts/1.3.7"),
         Some(&vec!["node_modules/accepts".to_string()]),
     );
 

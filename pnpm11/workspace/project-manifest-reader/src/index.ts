@@ -10,11 +10,13 @@ import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import pLimit from 'p-limit'
-import { readYamlFile } from 'read-yaml-file'
+import { readYamlFile, readYamlFileSync } from 'read-yaml-file'
 
 import {
   readJson5File,
+  readJson5FileSync,
   readJsonFile,
+  readJsonFileSync,
 } from './readFile.js'
 
 export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
@@ -32,6 +34,31 @@ export async function safeReadProjectManifestOnly (projectDir: string): Promise<
       throw err
     }
   })
+}
+export async function safeReadPublishManifest (projectDir: string): Promise<ProjectManifest | null> {
+  return (await safeReadProjectManifestOnly(projectDir)) ?? safeReadParentPublishManifest(projectDir)
+}
+
+/**
+ * Finds the manifest of a project whose `publishConfig.directory` is `publishDir`,
+ * searching the ancestors of `publishDir`.
+ */
+export async function safeReadParentPublishManifest (publishDir: string): Promise<ProjectManifest | null> {
+  const normalizedTarget = path.resolve(publishDir)
+  let searchDir = path.dirname(normalizedTarget)
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop
+    const parentManifest = await safeReadProjectManifestOnly(searchDir)
+    if (
+      parentManifest?.publishConfig?.directory &&
+      path.resolve(searchDir, parentManifest.publishConfig.directory) === normalizedTarget
+    ) {
+      return parentManifest
+    }
+    const next = path.dirname(searchDir)
+    if (next === searchDir) return null
+    searchDir = next
+  }
 }
 
 export async function readProjectManifest (projectDir: string): Promise<{
@@ -64,11 +91,13 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(data)
     return {
       fileName: 'package.json',
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
+        emptyDependencyFields,
         initialManifest: data,
         manifestPath,
       }),
@@ -79,11 +108,13 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(data)
     return {
       fileName: 'package.json5',
       manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
+        emptyDependencyFields,
         initialManifest: data,
         manifestPath,
       }),
@@ -94,10 +125,11 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   try {
     const manifestPath = path.join(projectDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
+    const emptyDependencyFields = findEmptyDependencyFields(manifest)
     return {
       fileName: 'package.yaml',
       manifest: convertManifestAfterRead(manifest),
-      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
@@ -127,6 +159,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
 
 interface FileFormattingAndComments {
   comments?: CommentSpecifier[]
+  crlf: boolean
   indent: string
   insertFinalNewline: boolean
 }
@@ -135,18 +168,21 @@ function detectFileFormattingAndComments (text: string): FileFormattingAndCommen
   const { comments, text: newText, hasFinalNewline } = extractComments(text)
   return {
     comments,
+    crlf: text.includes('\r\n'),
     indent: detectIndent(newText).indent,
     insertFinalNewline: hasFinalNewline,
   }
 }
 
 interface FileFormatting {
+  crlf: boolean
   indent: string
   insertFinalNewline: boolean
 }
 
 function detectFileFormatting (text: string): FileFormatting {
   return {
+    crlf: text.includes('\r\n'),
     indent: detectIndent(text).indent,
     insertFinalNewline: text.endsWith('\n'),
   }
@@ -162,10 +198,12 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   switch (base) {
     case 'package.json': {
       const { data, text } = await readJsonFile(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormatting(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -173,10 +211,12 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
     }
     case 'package.json5': {
       const { data, text } = await readJson5File(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
       return {
         manifest: convertManifestAfterRead(data),
         writeProjectManifest: createManifestWriter({
           ...detectFileFormattingAndComments(text),
+          emptyDependencyFields,
           initialManifest: data,
           manifestPath,
         }),
@@ -184,9 +224,51 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
     }
     case 'package.yaml': {
       const manifest = await readPackageYaml(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(manifest)
       return {
         manifest: convertManifestAfterRead(manifest),
-        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+        writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
+      }
+    }
+  }
+  throw new Error(`Not supported manifest name "${base}"`)
+}
+
+export function readExactProjectManifestSync (manifestPath: string): ReadExactProjectManifestResult {
+  const base = path.basename(manifestPath).toLowerCase()
+  switch (base) {
+    case 'package.json': {
+      const { data, text } = readJsonFileSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormatting(text),
+          emptyDependencyFields,
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
+    }
+    case 'package.json5': {
+      const { data, text } = readJson5FileSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(data)
+      return {
+        manifest: convertManifestAfterRead(data),
+        writeProjectManifest: createManifestWriter({
+          ...detectFileFormattingAndComments(text),
+          emptyDependencyFields,
+          initialManifest: data,
+          manifestPath,
+        }),
+      }
+    }
+    case 'package.yaml': {
+      const manifest = readPackageYamlSync(manifestPath)
+      const emptyDependencyFields = findEmptyDependencyFields(manifest)
+      return {
+        manifest: convertManifestAfterRead(manifest),
+        writeProjectManifest: createManifestWriter({ emptyDependencyFields, initialManifest: manifest, manifestPath }),
       }
     }
   }
@@ -204,25 +286,41 @@ async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   }
 }
 
+function readPackageYamlSync (filePath: string): ProjectManifest {
+  try {
+    return readYamlFileSync<ProjectManifest>(filePath)
+  } catch (err: any) { // eslint-disable-line
+    if (err.name !== 'YAMLException') throw err
+    err.message = `${err.message as string}\nin ${filePath}`
+    err.code = 'ERR_PNPM_YAML_PARSE'
+    throw err
+  }
+}
+
 function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest
+    emptyDependencyFields?: ReadonlySet<string>
     comments?: CommentSpecifier[]
+    crlf?: boolean
     indent?: string | number | undefined
     insertFinalNewline?: boolean
     manifestPath: string
   }
 ): WriteProjectManifest {
-  let initialManifest = normalize(opts.initialManifest)
+  let emptyDependencyFields = opts.emptyDependencyFields ?? findEmptyDependencyFields(opts.initialManifest)
+  let initialManifest = normalize(opts.initialManifest, emptyDependencyFields)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
-    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest))
+    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest, emptyDependencyFields))
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
+        crlf: opts.crlf,
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })
-      initialManifest = normalize(updatedManifest)
+      emptyDependencyFields = findEmptyDependencyFields(updatedManifest)
+      initialManifest = normalize(updatedManifest, emptyDependencyFields)
       return Promise.resolve(undefined)
     }
     return Promise.resolve(undefined)
@@ -230,15 +328,34 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  convertEnginesRuntimeToDependencies(manifest, 'devEngines', 'devDependencies')
-  convertEnginesRuntimeToDependencies(manifest, 'engines', 'dependencies')
-  return manifest
+  const cloned = cloneManifestForRuntimeConversion(manifest)
+  convertEnginesRuntimeToDependencies(cloned, 'devEngines', 'devDependencies')
+  convertEnginesRuntimeToDependencies(cloned, 'engines', 'dependencies')
+  return cloned
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  convertDependenciesToEnginesRuntime(manifest, 'devDependencies', 'devEngines')
-  convertDependenciesToEnginesRuntime(manifest, 'dependencies', 'engines')
-  return manifest
+  const cloned = cloneManifestForRuntimeConversion(manifest)
+  convertDependenciesToEnginesRuntime(cloned, 'devDependencies', 'devEngines')
+  convertDependenciesToEnginesRuntime(cloned, 'dependencies', 'engines')
+  return cloned
+}
+
+function cloneManifestForRuntimeConversion (manifest: ProjectManifest): ProjectManifest {
+  const cloned: ProjectManifest = { ...manifest }
+  if (manifest.dependencies != null && typeof manifest.dependencies === 'object' && !Array.isArray(manifest.dependencies)) {
+    cloned.dependencies = { ...manifest.dependencies }
+  }
+  if (manifest.devDependencies != null && typeof manifest.devDependencies === 'object' && !Array.isArray(manifest.devDependencies)) {
+    cloned.devDependencies = { ...manifest.devDependencies }
+  }
+  if (manifest.engines != null && typeof manifest.engines === 'object' && !Array.isArray(manifest.engines)) {
+    cloned.engines = { ...manifest.engines }
+  }
+  if (manifest.devEngines != null && typeof manifest.devEngines === 'object' && !Array.isArray(manifest.devEngines)) {
+    cloned.devEngines = { ...manifest.devEngines }
+  }
+  return cloned
 }
 
 function convertDependenciesToEnginesRuntime (
@@ -278,7 +395,7 @@ function convertDependenciesToEnginesRuntime (
         ]
       }
       delete dependencies[runtimeName]
-    } else {
+    } else if (dep === undefined) {
       removeManagedRuntimeEntry(manifest[enginesFieldName], runtimeName)
     }
   }
@@ -327,7 +444,28 @@ const dependencyKeys = new Set([
   'peerDependencies',
 ])
 
-function normalize (manifest: ProjectManifest): ProjectManifest {
+/**
+ * The dependency fields the manifest declares as empty objects. A write
+ * keeps these in place; it only drops a field that pnpm itself emptied.
+ */
+function findEmptyDependencyFields (manifest: ProjectManifest): Set<string> {
+  const fields = new Set<string>()
+  for (const key of dependencyKeys) {
+    if (isEmptyDependencyObject(manifest[key as keyof ProjectManifest])) {
+      fields.add(key)
+    }
+  }
+  return fields
+}
+
+function isEmptyDependencyObject (value: unknown): boolean {
+  return typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+}
+
+function normalize (manifest: ProjectManifest, keepEmptyDependencyFields: ReadonlySet<string>): ProjectManifest {
   const result: Record<string, unknown> = {}
   for (const key in manifest) {
     if (Object.hasOwn(manifest, key)) {
@@ -349,6 +487,8 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
             sortedValue[k] = value[k]
           }
           result[key] = sortedValue
+        } else if (keepEmptyDependencyFields.has(key)) {
+          result[key] = {}
         }
       }
     }

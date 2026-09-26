@@ -6,8 +6,11 @@ import {
   FetchError,
   type FetchErrorRequest,
   type FetchErrorResponse,
+  FetchTimeoutError,
+  isFetchTimeoutError,
   PnpmError,
   redactUrlCredentials,
+  redactUrlForDisplay,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -16,6 +19,7 @@ import * as retry from '@zkochan/retry'
 import semver from 'semver'
 
 import { clearMeta } from './clearMeta.js'
+import { dropIncompletePublishTimes } from './publishTimes.js'
 
 /**
  * Content type of an abbreviated (install-oriented) package metadata document.
@@ -189,7 +193,9 @@ export async function fetchMetadataFromFromRegistry (
           if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
           if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
         }
-        reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
+        reject(isFetchTimeoutError(error)
+          ? new FetchTimeoutError('META_FETCH_FAIL', uri, fetchOpts.timeout, { attempts: attempt, cause: error })
+          : new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
       }
       if (response.status === 304) {
@@ -214,18 +220,20 @@ export async function fetchMetadataFromFromRegistry (
       try {
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
+        dropIncompletePublishTimes(meta)
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
-          globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
+          globalWarn(`Request took ${elapsedMs}ms: ${redactUrlForDisplay(uri)}`)
         }
         resolve({
           ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
           etag: response.headers.get('etag') ?? undefined,
         })
       } catch (error: any) { // eslint-disable-line
-        const timeout = op.retry(
-          new PnpmError('BROKEN_METADATA_JSON', error.message)
+        const timeout = op.retry(isFetchTimeoutError(error)
+          ? new FetchTimeoutError('META_FETCH_FAIL', uri, fetchOpts.timeout, { attempts: attempt, cause: error })
+          : new PnpmError('BROKEN_METADATA_JSON', error.message)
         )
         if (timeout === false) {
           reject(op.mainError())
@@ -238,6 +246,11 @@ export async function fetchMetadataFromFromRegistry (
           message: error.message,
           code: error.code,
           errno: error.errno,
+          // undici wraps the actual network error in a cause property
+          cause: error.cause ? {
+            code: error.cause.code,
+            errno: error.cause.errno,
+          } : undefined,
         }
         requestRetryLogger.debug({
           attempt,
@@ -273,7 +286,7 @@ export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
  * carry the megabytes of install-irrelevant data (scripts, exports, readme,
  * custom fields) that a full document contains.
  *
- * Registries that honor the header (e.g. the npm registry) echo the abbreviated
+ * RegistriesByScope that honor the header (e.g. the npm registry) echo the abbreviated
  * `Content-Type`, so this is a no-op for them: no re-serialization, no field
  * stripping — the happy path pays nothing.
  */

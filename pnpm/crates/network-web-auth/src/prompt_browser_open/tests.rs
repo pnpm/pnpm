@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pretty_assertions::assert_eq;
 use tokio::{sync::oneshot, task::LocalSet};
 
@@ -221,7 +221,9 @@ async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
 
             assert_eq!(open_calls(), vec![AUTH_URL.to_owned()]);
 
-            poll_tx.send(Ok("token-after-enter".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("token-after-enter".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
 
             assert_eq!(token, "token-after-enter");
@@ -248,13 +250,17 @@ async fn warns_and_continues_polling_when_open_fails() {
             tokio::task::yield_now().await;
 
             assert!(
-                warns().iter().any(|message| message.contains("xdg-open not found")),
+                warns()
+                    .iter()
+                    .any(|message| message.contains("xdg-open not found")),
                 "open failure should warn, got {:?}",
                 warns(),
             );
             assert!(infos().contains(&"Please open the URL shown above manually.".to_owned()));
 
-            poll_tx.send(Ok("tok".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("tok".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
             assert_eq!(token, "tok");
         })
@@ -276,7 +282,9 @@ async fn warns_and_falls_back_to_plain_poll_when_listen_fails() {
 
     assert_eq!(token, "fallback-token");
     assert!(
-        warns().iter().any(|message| message.contains("setRawMode not supported")),
+        warns()
+            .iter()
+            .any(|message| message.contains("setRawMode not supported")),
         "listener setup failure should warn, got {:?}",
         warns(),
     );

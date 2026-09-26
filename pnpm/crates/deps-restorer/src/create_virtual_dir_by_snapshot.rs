@@ -1,15 +1,18 @@
+#[cfg(test)]
+pub mod tests;
+
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
+    DirCloneCache, ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER,
     SymlinkPackageError, VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
     import_indexed_dir::marker_present,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_config::PackageImportMethod;
-use pacquet_fs::{is_subdir, remove_symlink_dir};
-use pacquet_lockfile::{PackageKey, PkgName, SnapshotEntry};
-use pacquet_reporter::{
+use pnpm_config::PackageImportMethod;
+use pnpm_fs::{is_subdir, remove_symlink_dir};
+use pnpm_lockfile::{PackageKey, PkgName};
+use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
     Reporter,
 };
@@ -17,7 +20,6 @@ use std::{
     collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
 };
 
 /// This subroutine creates the virtual-store slot for one package and then
@@ -30,6 +32,9 @@ use std::{
 /// install's critical-path tail.
 #[must_use]
 pub struct CreateVirtualDirBySnapshot<'a> {
+    pub dependencies: crate::SnapshotDependencyLinks<'a>,
+    pub import: crate::PackageImportOptions<'a>,
+    pub source: crate::SlotImportSource<'a>,
     /// Per-install precomputed slot-directory mapping. The layout
     /// holds the root and knows how to resolve a per-snapshot slot
     /// (legacy `<root>/<flat-name>` vs GVS-shaped
@@ -38,54 +43,17 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// [`crate::VirtualStoreLayout`] for how it's built.
     pub layout: &'a VirtualStoreLayout,
     pub cas_paths: &'a HashMap<String, PathBuf>,
-    pub import_method: PackageImportMethod,
-    /// Install-scoped dedupe state for `pnpm:package-import-method`.
-    /// See the comment on `link_file::log_method_once` for why this
-    /// is install-scoped rather than module-static.
-    pub logged_methods: &'a AtomicU8,
-    /// Install root, threaded into `pnpm:progress` `imported`'s
-    /// `requester`. Same value as the `prefix` in
-    /// [`pacquet_reporter::StageLog`].
-    pub requester: &'a str,
     /// Stable identifier for the package, e.g. `"{name}@{version}"`.
     /// Currently unused by `imported` (whose payload doesn't carry
     /// `packageId`) but kept here so future progress channels (e.g.
     /// per-package counts) can read it without rethreading.
     pub package_id: &'a str,
-    pub package_key: &'a PackageKey,
-    pub snapshot: &'a SnapshotEntry,
-    /// Whether this package's file map points at mutable local source
-    /// (a `file:` / [`pacquet_lockfile::LockfileResolution::Directory`]
-    /// resolution) rather than immutable CAS entries. pnpm's `file:` is
-    /// a copy taken at install time — unlike `link:`, which symlinks —
-    /// so the slot has to be rebuilt on every install: the source can
-    /// change without the lockfile changing, and the completion-marker
-    /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
-    /// leave the previous install's copy in place forever.
-    pub source_is_mutable: bool,
-    /// Whether links from the snapshot's `optionalDependencies` map
-    /// participate in the slot layout.
-    pub include_optional_dependencies: bool,
-    /// Whether dependency links inside the slot should be created.
-    /// `symlink: false` still imports the package itself but leaves its
-    /// `node_modules` free of graph links for `PnP` resolution.
-    pub symlink: bool,
-    /// Snapshots whose slots were not materialized on this host —
-    /// platform-mismatched optionals, `--no-optional` exclusions, and
-    /// swallowed optional fetch failures. `create_symlink_layout`
-    /// uses this to skip dangling symlinks to absent slots: an
-    /// uninstallable optional snapshot is never linked.
-    pub skipped: &'a SkippedSnapshots,
-    /// Child aliases that were linked by a previous install but are no
-    /// longer in this snapshot's dependency set. Their stale symlinks
-    /// are unlinked from the slot before the progress event fires, so
-    /// a warm reinstall that drops a dependency (e.g. via an override)
-    /// doesn't leave a dangling child behind. Empty for fresh packages
-    /// and for survivors whose dependency set only changed by addition.
-    pub removed_aliases: &'a [PkgName],
-    /// Empty source file imported as `.pnpm-needs-build` before the package's
-    /// atomic completion marker when the package needs a build or patch.
-    pub needs_build_marker_source: Option<&'a Path>,
+    /// macOS directory-clone materialization cache
+    /// ([`crate::dir_clone_cache`]). `None` when the install isn't
+    /// eligible ([`DirCloneCache::eligible`]) or when the caller's
+    /// per-slot qualification says this slot must take the per-file
+    /// import.
+    pub dir_clone_cache: Option<&'a DirCloneCache<'a>>,
     #[cfg(test)]
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
@@ -93,9 +61,17 @@ pub struct CreateVirtualDirBySnapshot<'a> {
 /// Error type of [`CreateVirtualDirBySnapshot`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualDirError {
-    #[display("Failed to recursively create node_modules directory at {dir:?}: {error}")]
+    #[display("Failed to create node_modules directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_NODE_MODULES_DIR))]
     CreateNodeModulesDir {
+        dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to create virtual store slot directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_SLOT_DIR))]
+    CreateSlotDir {
         dir: PathBuf,
         #[error(source)]
         error: io::Error,
@@ -125,128 +101,46 @@ pub enum CreateVirtualDirError {
 impl CreateVirtualDirBySnapshot<'_> {
     /// Execute the subroutine.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), CreateVirtualDirError> {
-        let CreateVirtualDirBySnapshot {
-            layout,
-            cas_paths,
-            import_method,
-            logged_methods,
-            requester,
-            package_id: _package_id,
-            package_key,
-            snapshot,
-            source_is_mutable,
-            include_optional_dependencies,
-            symlink,
-            skipped,
-            removed_aliases,
-            needs_build_marker_source,
-            #[cfg(test)]
-            link_concurrency_probe,
-        } = self;
-
         #[cfg(test)]
         let _link_concurrency_guard =
-            link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
+            self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let virtual_node_modules_dir = layout.slot_dir(package_key).join("node_modules");
-        fs::create_dir_all(&virtual_node_modules_dir).map_err(|error| {
-            CreateVirtualDirError::CreateNodeModulesDir {
-                dir: virtual_node_modules_dir.clone(),
-                error,
-            }
-        })?;
+        let (slot, _slot_lock, interrupted_build) = self.open_slot()?;
+        let marked_cas_paths = cas_paths_with_build_marker(
+            self.cas_paths,
+            &slot.save_path,
+            self.source.build_marker,
+            (interrupted_build, self.source.force),
+        );
+        let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
-        let save_path =
-            safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
-                .map_err(CreateVirtualDirError::InvalidAlias)?;
-
-        let interrupted_build = save_path.join(NEEDS_BUILD_MARKER).is_file();
-        let should_mark_build = needs_build_marker_source.is_some()
-            && (interrupted_build || !marker_present(&save_path, cas_paths));
-        let marked_cas_paths;
-        let cas_paths = if should_mark_build {
-            marked_cas_paths = {
-                let mut paths = cas_paths.clone();
-                paths.insert(
-                    NEEDS_BUILD_MARKER.to_string(),
-                    needs_build_marker_source.expect("checked above").to_path_buf(),
-                );
-                paths
-            };
-            &marked_cas_paths
-        } else {
-            cas_paths
-        };
-        // Mutable sources can reuse a slot for different contents, so a complete import may be stale.
-        let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
-        let import_opts = if interrupted_build || source_is_mutable {
-            ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip }
-        } else {
-            ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
-        };
-
-        let import_package = || {
-            import_indexed_dir::<Reporter>(
-                logged_methods,
-                import_method,
-                &save_path,
-                cas_paths,
-                import_opts,
-            )
-            .map_err(CreateVirtualDirError::ImportIndexedDir)
-        };
-        if symlink {
+        let import_package =
+            || self.import_slot::<Reporter>(&slot.save_path, cas_paths, interrupted_build);
+        if self.dependencies.symlink {
             // `rayon::join` runs both closures in parallel on rayon's pool,
             // returning only once both finish. `import_indexed_dir` is itself
             // a rayon par_iter over CAS entries; `create_symlink_layout` is
             // a small serial loop over dep refs.
-            let (cas_result, symlink_result) = rayon::join(import_package, || {
-                create_symlink_layout(
-                    snapshot.dependencies.as_ref(),
-                    snapshot.optional_dependencies.as_ref(),
-                    include_optional_dependencies,
-                    &package_key.name,
-                    skipped,
-                    layout,
-                    &virtual_node_modules_dir,
-                )
-                .map_err(CreateVirtualDirError::SymlinkPackage)
-            });
+            let (cas_result, symlink_result) =
+                rayon::join(import_package, || self.link_children(&slot.node_modules));
             cas_result?;
             symlink_result?;
-            if !include_optional_dependencies {
-                for alias in snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias)
-                {
-                    if *alias != package_key.name {
-                        remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-                    }
-                }
+            if !self.dependencies.include_optional {
+                self.remove_optional_children(&slot.node_modules)?;
             }
         } else {
             import_package()?;
-            for alias in
-                snapshot.dependencies.iter().flat_map(|dependencies| dependencies.keys()).chain(
-                    snapshot
-                        .optional_dependencies
-                        .iter()
-                        .flat_map(|dependencies| dependencies.keys()),
-                )
-            {
-                if *alias != package_key.name {
-                    remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-                }
-            }
+            self.remove_all_children(&slot.node_modules)?;
         }
 
         // Unlink children the package no longer depends on after the
         // package has materialized. The removed aliases are disjoint
         // from the package's own `node_modules/<self>` directory.
-        for alias in removed_aliases {
-            if *alias == package_key.name {
-                continue;
-            }
-            remove_obsolete_child(&virtual_node_modules_dir, alias)?;
-        }
+        remove_obsolete_children(
+            &slot.node_modules,
+            &self.dependencies.package_key.name,
+            self.dependencies.removed_aliases,
+        )?;
 
         // `pnpm:progress imported` fires one event per (resolved +
         // fetched) package once its CAFS import has finished. `to` is
@@ -254,22 +148,268 @@ impl CreateVirtualDirBySnapshot<'_> {
         // inside the virtual store. `method` is best-effort — pacquet
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
-        // optimistic value the configured method would resolve to in
-        // a non-degraded environment (`Auto`/`CloneOrCopy` → `clone`,
-        // explicit settings as-is). Refining to per-package resolution
+        // optimistic value this slot's import method would resolve to in
+        // a non-degraded environment (`Auto` → its platform ladder's
+        // head, `CloneOrCopy` → `clone`, explicit settings as-is).
+        // Refining to per-package resolution
         // would require threading the resolved method back from
         // `link_file`; tracked under <https://github.com/pnpm/pacquet/issues/347>.
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
-                method: optimistic_wire_method(import_method),
-                requester: requester.to_owned(),
-                to: save_path.to_string_lossy().into_owned(),
+                method: optimistic_wire_method(self.import_method()),
+                requester: self.import.requester.to_owned(),
+                to: slot.save_path.to_string_lossy().into_owned(),
             },
         }));
 
         Ok(())
     }
+
+    /// The slot's directories, and whether it carries a `.pnpm-needs-build`
+    /// marker. The marker is also there while another install builds the
+    /// slot, which a forced re-import would clobber, so a marked slot is
+    /// returned with its lock held.
+    fn open_slot(
+        &self,
+    ) -> Result<(SlotPaths, Option<pnpm_fs::DirLock>, bool), CreateVirtualDirError> {
+        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
+        let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
+        if !marker.is_file() {
+            return Ok((slot, None, false));
+        }
+        let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
+            self.layout,
+            self.dependencies.package_key,
+        );
+        let interrupted_build = marker.is_file();
+        Ok((slot, lock, interrupted_build))
+    }
+
+    /// The method this slot's files are imported with — the configured one,
+    /// unless a build or patch is still going to write them.
+    fn import_method(&self) -> PackageImportMethod {
+        effective_import_method(self.import.method, self.source.needs_build)
+    }
+
+    fn import_slot<Reporter: self::Reporter>(
+        &self,
+        save_path: &Path,
+        cas_paths: &HashMap<String, PathBuf>,
+        interrupted_build: bool,
+    ) -> Result<(), CreateVirtualDirError> {
+        // An interrupted build and a forced import both re-import with
+        // `force`, which the cache's fresh-destination clone cannot serve.
+        // For the forced one that is also a correctness bar, not just a
+        // capability one: `DirCloneCache::canonical_slot_ready` materializes
+        // the canonical slot with `force: false`, so cloning from it could
+        // reproduce the very stale bytes `--force` is meant to replace. Both
+        // callers already withhold the cache through `dir_clone_cacheable`;
+        // repeating it here keeps the guarantee off a caller's memory.
+        if !interrupted_build
+            && !self.source.force
+            && let Some(cache) = self.dir_clone_cache
+            && cache.try_import::<Reporter>(
+                self.import.logged_methods,
+                self.import_method(),
+                self.dependencies.package_key,
+                save_path,
+                cas_paths,
+            )
+        {
+            return Ok(());
+        }
+        import_indexed_dir::<Reporter>(
+            self.import.logged_methods,
+            self.import_method(),
+            save_path,
+            cas_paths,
+            slot_import_opts(
+                self.layout,
+                (interrupted_build, self.source.is_mutable, self.source.force),
+            ),
+        )
+        .map_err(CreateVirtualDirError::ImportIndexedDir)
+    }
+
+    fn link_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        create_symlink_layout(
+            self.dependencies.snapshot.dependencies.as_ref(),
+            self.dependencies.snapshot.optional_dependencies.as_ref(),
+            self.dependencies.include_optional,
+            &self.dependencies.package_key.name,
+            self.dependencies.skipped,
+            self.layout,
+            node_modules,
+        )
+        .map_err(CreateVirtualDirError::SymlinkPackage)
+    }
+
+    fn remove_optional_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        remove_obsolete_children(
+            node_modules,
+            &self.dependencies.package_key.name,
+            self.dependencies.snapshot.optional_dependencies
+                .iter()
+                .flatten()
+                .map(|(alias, _)| alias),
+        )
+    }
+
+    fn remove_all_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        remove_obsolete_children(
+            node_modules,
+            &self.dependencies.package_key.name,
+            self.dependencies.snapshot.dependencies
+                .iter()
+                .flat_map(|dependencies| dependencies.keys())
+                .chain(
+                    self.dependencies.snapshot.optional_dependencies
+                        .iter()
+                        .flat_map(|deps| deps.keys()),
+                ),
+        )
+    }
+}
+
+/// The slot's directories, created.
+struct SlotPaths {
+    node_modules: PathBuf,
+    save_path: PathBuf,
+}
+
+impl SlotPaths {
+    fn create(
+        layout: &VirtualStoreLayout,
+        package_key: &PackageKey,
+    ) -> Result<Self, CreateVirtualDirError> {
+        let slot_dir = layout.slot_dir(package_key);
+        let node_modules = slot_dir.join("node_modules");
+        // Two direct `mkdir`s instead of one `create_dir_all` on the
+        // deepest path: the recursive form probes bottom-up with a
+        // failing `mkdir` per missing ancestor before creating them
+        // top-down, which on the APFS-serialized metadata path costs a
+        // large install ~3 extra syscalls per slot. The virtual-store
+        // root exists (steady state) — only its absence falls back to
+        // the recursive form.
+        create_slot_dirs(&slot_dir, &node_modules)?;
+        let save_path = safe_join_modules_dir(&node_modules, &package_key.name.to_string())
+            .map_err(CreateVirtualDirError::InvalidAlias)?;
+        Ok(Self { node_modules, save_path })
+    }
+}
+
+/// Two direct `mkdir`s instead of one `create_dir_all` on the deepest path:
+/// the recursive form probes bottom-up with a failing `mkdir` per missing
+/// ancestor before creating them top-down, which on the APFS-serialized
+/// metadata path costs a large install ~3 extra syscalls per slot. The
+/// virtual-store root exists (steady state) — only its absence falls back to
+/// the recursive form.
+fn create_slot_dirs(
+    slot_dir: &Path,
+    virtual_node_modules_dir: &Path,
+) -> Result<(), CreateVirtualDirError> {
+    match fs::create_dir(slot_dir) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            fs::create_dir_all(slot_dir)
+                .map_err(|error| CreateVirtualDirError::CreateSlotDir {
+                    dir: slot_dir.to_path_buf(),
+                    error,
+                })?;
+        }
+        Err(error) => {
+            return Err(CreateVirtualDirError::CreateSlotDir {
+                dir: slot_dir.to_path_buf(),
+                error,
+            });
+        }
+    }
+    match fs::create_dir(virtual_node_modules_dir) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(CreateVirtualDirError::CreateNodeModulesDir {
+            dir: virtual_node_modules_dir.to_path_buf(),
+            error,
+        }),
+    }
+}
+
+/// The CAS paths plus a `.pnpm-needs-build` marker, when the slot has to carry
+/// one it does not already have.
+///
+/// A finished slot's completion marker is normally proof that its build
+/// ran too, so the marker is left out. Two cases break that and have to
+/// carry it anyway: a build this install interrupted, and a forced
+/// re-import, which replaces the slot's files with the pristine base map
+/// and so undoes whatever the build did to them. Without the marker
+/// [`slot_carries_overlay`](crate::build_modules::slot_carries_overlay) would read the re-imported files as a
+/// cache hit and skip the rebuild.
+fn cas_paths_with_build_marker(
+    cas_paths: &HashMap<String, PathBuf>,
+    save_path: &Path,
+    needs_build_marker_source: Option<&Path>,
+    forced: (bool, bool),
+) -> Option<HashMap<String, PathBuf>> {
+    let (interrupted_build, force_import) = forced;
+    let source = needs_build_marker_source?;
+    if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
+        return None;
+    }
+    let mut paths = cas_paths.clone();
+    paths.insert(NEEDS_BUILD_MARKER.to_string(), source.to_path_buf());
+    Some(paths)
+}
+
+fn slot_import_opts(
+    layout: &crate::VirtualStoreLayout,
+    slot: (bool, bool, bool),
+) -> ImportIndexedDirOpts {
+    let (interrupted_build, source_is_mutable, force_import) = slot;
+    // Mutable sources can reuse a slot for different contents, so a complete
+    // import may be stale.
+    let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
+    if interrupted_build || source_is_mutable || force_import {
+        return ImportIndexedDirOpts {
+            force: true,
+            keep_modules_dir: true,
+            safe_to_skip,
+            preserve_symlinks: source_is_mutable,
+        };
+    }
+    ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
+}
+
+/// Unlink every child but the package's own `node_modules/<self>` directory.
+fn remove_obsolete_children<'a>(
+    virtual_node_modules_dir: &Path,
+    own_name: &PkgName,
+    aliases: impl IntoIterator<Item = &'a PkgName>,
+) -> Result<(), CreateVirtualDirError> {
+    for alias in aliases {
+        if alias != own_name {
+            remove_obsolete_child(virtual_node_modules_dir, alias)?;
+        }
+    }
+    Ok(())
+}
+
+/// The import method a slot's files are actually materialized with.
+///
+/// A package that a lifecycle script or a patch is still going to write must
+/// not share inodes with the source its files were imported from: a hard link
+/// carries those writes back into the workspace directory of an injected
+/// package, or into the content-addressable store for a registry package.
+/// `clone-or-copy` gives the build private inodes and still lets a reflink
+/// avoid a byte-for-byte copy. pnpm v11 applies the same override to
+/// `willBeBuilt` packages in `createPackageImporter`.
+#[must_use]
+pub fn effective_import_method(
+    configured: PackageImportMethod,
+    needs_build: bool,
+) -> PackageImportMethod {
+    if needs_build { PackageImportMethod::CloneOrCopy } else { configured }
 }
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value
@@ -279,9 +419,8 @@ impl CreateVirtualDirBySnapshot<'_> {
 #[must_use]
 pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
     match method {
-        PackageImportMethod::Auto
-        | PackageImportMethod::Clone
-        | PackageImportMethod::CloneOrCopy => WireImportMethod::Clone,
+        PackageImportMethod::Auto => crate::link_file::auto_optimistic_wire_method(),
+        PackageImportMethod::Clone | PackageImportMethod::CloneOrCopy => WireImportMethod::Clone,
         PackageImportMethod::Hardlink => WireImportMethod::Hardlink,
         PackageImportMethod::Copy => WireImportMethod::Copy,
     }
@@ -294,14 +433,14 @@ pub fn optimistic_wire_method(method: PackageImportMethod) -> WireImportMethod {
 /// when another scoped sibling keeps it populated). `remove_symlink_dir`
 /// unlinks the symlink itself, never its target package.
 ///
-/// `is_subdir` is the traversal guard: `PkgName` parsing accepts shapes
-/// such as `..` that would resolve outside the slot, so an alias that
-/// doesn't stay within `node_modules` is skipped rather than removed.
+/// Invalid npm dependency names are ignored.
 fn remove_obsolete_child(
     virtual_node_modules_dir: &Path,
     alias: &PkgName,
 ) -> Result<(), CreateVirtualDirError> {
-    let child_path = virtual_node_modules_dir.join(alias.to_string());
+    let Ok(child_path) = safe_join_modules_dir(virtual_node_modules_dir, &alias.to_string()) else {
+        return Ok(());
+    };
     if !is_subdir(virtual_node_modules_dir, &child_path) {
         return Ok(());
     }
@@ -317,6 +456,3 @@ fn remove_obsolete_child(
     }
     Ok(())
 }
-
-#[cfg(test)]
-pub mod tests;

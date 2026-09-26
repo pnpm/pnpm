@@ -86,7 +86,9 @@ fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
     assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
 
     let prompt = DialoguerPatchRemovePrompt;
-    let err = prompt.select_patches(&["pkg".to_string()]).expect_err("prompt should cancel");
+    let err = prompt
+        .select_patches(&["pkg".to_string()])
+        .expect_err("prompt should cancel");
 
     assert!(matches!(err, PatchRemoveError::Canceled));
 }
@@ -124,22 +126,22 @@ async fn run_rejects_configured_patches_dir_outside_project() {
     let tmp = tempfile::tempdir().expect("temp dir");
     std::fs::write(tmp.path().join("package.json"), "{}").expect("write package.json");
 
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(tmp.path().to_path_buf());
     config.patches_dir = Some("../patches".to_string());
     config.patched_dependencies =
         Some(IndexMap::from([("pkg@1.0.0".to_string(), "patches/pkg.patch".to_string())]));
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let state = State {
-        tarball_mem_cache: std::sync::Arc::new(pacquet_tarball::MemCache::default()),
-        http_client: std::sync::Arc::new(pacquet_network::ThrottledClient::default()),
+        tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
+        http_client: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
         config,
-        manifest: pacquet_package_manifest::PackageManifest::from_path(
+        manifest: pnpm_package_manifest::PackageManifest::from_path(
             tmp.path().join("package.json"),
         )
         .expect("package manifest"),
-        lockfile: pacquet_lockfile::LazyLockfile::disabled(),
-        resolved_packages: pacquet_package_manager::ResolvedPackages::new(),
+        lockfile: pnpm_lockfile::LazyLockfile::disabled(),
+        resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
     };
 
     let err = PatchRemoveArgs { patches: vec!["pkg@1.0.0".to_string()] }
@@ -159,23 +161,23 @@ async fn run_keeps_patch_file_still_used_by_remaining_entries() {
         .expect("create patches dir");
     std::fs::write(&patch_file, "shared patch").expect("write shared patch");
 
-    let mut config = pacquet_config::Config::new();
+    let mut config = pnpm_config::Config::new();
     config.workspace_dir = Some(tmp.path().to_path_buf());
     config.patched_dependencies = Some(IndexMap::from([
         ("first@1.0.0".to_string(), "patches/shared.patch".to_string()),
         ("second@1.0.0".to_string(), "patches/shared.patch".to_string()),
     ]));
-    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let state = State {
-        tarball_mem_cache: std::sync::Arc::new(pacquet_tarball::MemCache::default()),
-        http_client: std::sync::Arc::new(pacquet_network::ThrottledClient::default()),
+        tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
+        http_client: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
         config,
-        manifest: pacquet_package_manifest::PackageManifest::from_path(
+        manifest: pnpm_package_manifest::PackageManifest::from_path(
             tmp.path().join("package.json"),
         )
         .expect("package manifest"),
-        lockfile: pacquet_lockfile::LazyLockfile::disabled(),
-        resolved_packages: pacquet_package_manager::ResolvedPackages::new(),
+        lockfile: pnpm_lockfile::LazyLockfile::disabled(),
+        resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
     };
 
     PatchRemoveArgs { patches: vec!["first@1.0.0".to_string()] }
@@ -234,7 +236,9 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
 
     assert_eq!(
         join_setting_path(tmp.path(), "./patches/./nested"),
-        tmp.path().join("patches").join("nested"),
+        tmp.path()
+            .join("patches")
+            .join("nested"),
     );
 
     #[cfg(unix)]
@@ -274,9 +278,15 @@ fn unlink_patch_if_exists_reports_remove_errors() {
 #[test]
 fn remove_empty_patch_dirs_removes_empty_dirs_and_ignores_missing_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
     std::fs::create_dir_all(&empty).expect("create empty patch dir");
-    let missing = tmp.path().join("patches").join("missing");
+    let missing = tmp
+        .path()
+        .join("patches")
+        .join("missing");
 
     remove_empty_patch_dirs(&[
         PatchRemovalTarget {
@@ -317,7 +327,10 @@ fn remove_empty_patch_dirs_reports_read_errors() {
 #[test]
 fn remove_empty_patch_dirs_reports_remove_errors() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let empty = tmp.path().join("patches").join("nested");
+    let empty = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     let result = remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {
@@ -335,7 +348,10 @@ fn remove_empty_patch_dirs_reports_remove_errors() {
 #[test]
 fn remove_empty_patch_dirs_keeps_non_empty_dirs() {
     let tmp = tempfile::tempdir().expect("temp dir");
-    let parent = tmp.path().join("patches").join("nested");
+    let parent = tmp
+        .path()
+        .join("patches")
+        .join("nested");
 
     remove_empty_patch_dirs_with_fs(
         &[PatchRemovalTarget {

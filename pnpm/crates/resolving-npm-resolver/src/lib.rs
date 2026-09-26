@@ -3,17 +3,76 @@
 //! Two surfaces:
 //!
 //! - **Resolver.** [`NpmResolver`] implements the
-//!   [`Resolver`](pacquet_resolving_resolver_base::Resolver) trait:
-//!   takes a [`WantedDependency`](pacquet_resolving_resolver_base::WantedDependency),
+//!   [`Resolver`](pnpm_resolving_resolver_base::Resolver) trait:
+//!   takes a [`WantedDependency`](pnpm_resolving_resolver_base::WantedDependency),
 //!   runs [`parse_bare_specifier()`], picks a version through
 //!   [`pick_package()`], and returns the
-//!   [`ResolveResult`](pacquet_resolving_resolver_base::ResolveResult)
+//!   [`ResolveResult`](pnpm_resolving_resolver_base::ResolveResult)
 //!   the install layer consumes.
 //! - **Verifier.** [`create_npm_resolution_verifier()`] is the
-//!   [`ResolutionVerifier`](pacquet_resolving_resolver_base::ResolutionVerifier)
+//!   [`ResolutionVerifier`](pnpm_resolving_resolver_base::ResolutionVerifier)
 //!   the lockfile-verification gate uses. Re-applies
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
 //!   npm-resolved lockfile entry the install loads.
+
+pub mod mirror;
+
+pub use calc_specifier::{calc_prefixed_specifier, calc_specifier, calc_version_range};
+pub use calc_specifier_for_workspace_dep::{
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
+};
+pub use create_npm_resolution_verifier::{
+    CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
+    VerificationArtifacts, VerificationMetadataClient, VerificationReleaseAgeOptions,
+    VerificationTrustOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+};
+pub use errors::{
+    FetchMetadataError, InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
+};
+pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
+pub use fetch_full_metadata::{
+    FetchFullMetadataOptions, FetchFullMetadataOutcome, MetadataHttpClient, fetch_full_metadata,
+};
+pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
+pub use infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
+pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
+pub use named_registry::{
+    BUILTIN_REGISTRIES_BY_PREFIX, MergeNamedRegistriesError, merge_named_registries,
+    named_registry_tarball_prefixes, pick_registry_for_version,
+};
+pub use named_registry_resolver::NamedRegistryResolver;
+pub use npm_resolver::{
+    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, normalize_tarball_url,
+};
+pub use parse_bare_specifier::{
+    JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
+    parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
+    parse_named_registry_specifier_to_registry_package_spec,
+};
+pub use pick_package::{
+    CachedPackument, InMemoryPackageMetaCache, MetadataCachePolicy, MetadataPickRequest,
+    MetadataRequestContext, MirrorPersistError, PackageMetaCache, PackagePickPolicy,
+    PackumentFetchLocker, PickPackageContext, PickPackageError, PickPackageOptions,
+    PickPackageResult, PickedManifestCache, persist_meta_to_mirror, pick_package,
+    shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+};
+pub use pick_package_from_meta::{
+    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
+    RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+    filter_pkg_metadata_by_publish_date, pick_lowest_version_by_version_range,
+    pick_package_from_meta, pick_version_by_version_range,
+};
+pub use pnpm_lockfile::pick_registry_for_package;
+pub use registry_url::to_registry_url;
+pub use resolve_from_workspace::{
+    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
+    resolve_workspace_package_dir, try_resolve_from_workspace,
+};
+pub use trust_checks::{
+    TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
+};
+pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
+pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
 
 mod calc_specifier;
 mod calc_specifier_for_workspace_dep;
@@ -24,7 +83,6 @@ mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
 mod infer_range_spec_style;
 mod lookup_context;
-pub mod mirror;
 mod named_registry;
 mod named_registry_resolver;
 mod npm_resolver;
@@ -36,52 +94,5 @@ mod registry_url;
 mod resolve_from_workspace;
 mod trust_checks;
 mod violation_codes;
+mod warn_once;
 mod workspace_pref_to_npm;
-
-pub use calc_specifier::{calc_prefixed_specifier, calc_specifier};
-pub use calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
-pub use create_npm_resolution_verifier::{
-    CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
-    create_npm_resolution_verifier, observed_dist_stats_sink,
-};
-pub use errors::{FetchMetadataError, InvalidTarballIntegrityError};
-pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
-pub use fetch_full_metadata::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
-};
-pub use fetch_full_metadata_cached::{FetchFullMetadataCachedOptions, fetch_full_metadata_cached};
-pub use infer_range_spec_style::infer_range_spec_style;
-pub use mirror::{ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR};
-pub use named_registry::{
-    BUILTIN_NAMED_REGISTRIES, MergeNamedRegistriesError, merge_named_registries,
-    named_registry_tarball_prefixes, pick_registry_for_version,
-};
-pub use named_registry_resolver::NamedRegistryResolver;
-pub use npm_resolver::NpmResolver;
-pub use pacquet_lockfile::pick_registry_for_package;
-pub use parse_bare_specifier::{
-    JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
-    parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
-    parse_named_registry_specifier_to_registry_package_spec,
-};
-pub use pick_package::{
-    CachedPackument, InMemoryPackageMetaCache, MirrorPersistError, PackageMetaCache,
-    PackumentFetchLocker, PickPackageContext, PickPackageError, PickPackageOptions,
-    PickPackageResult, PickedManifestCache, persist_meta_to_mirror, pick_package,
-    shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,
-};
-pub use pick_package_from_meta::{
-    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
-};
-pub use registry_url::to_registry_url;
-pub use resolve_from_workspace::{
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, pick_matching_local_version_or_null,
-    try_resolve_from_workspace,
-};
-pub use trust_checks::{
-    TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
-};
-pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
-pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};

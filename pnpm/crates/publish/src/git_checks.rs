@@ -1,20 +1,26 @@
 //! The git precondition checks `pnpm publish` runs: refuse to publish from an
 //! unclean tree, the wrong branch, or behind the remote.
 
-use std::{fs, path::Path};
+use std::path::Path;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_git_utils::{
+    get_current_branch, is_git_repo, is_head_detached, is_remote_history_clean,
+    is_working_tree_clean,
+};
 
 use crate::capabilities::{ConfirmPrompt, RunCommand};
 
 const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 
 /// Run the publish git checks for `cwd`. A no-op when `git_checks_enabled` is
-/// false or `cwd` is not a git repository.
+/// false or `cwd` is not a git repository. A detached HEAD is allowed in CI
+/// after checking that the working tree is clean.
 pub fn run_git_checks<Sys>(
     cwd: &Path,
     git_checks_enabled: bool,
     publish_branch: Option<&str>,
+    ci: bool,
 ) -> Result<(), GitCheckError>
 where
     Sys: RunCommand + ConfirmPrompt,
@@ -31,20 +37,13 @@ where
         Some(branch) => vec![branch.to_owned()],
         None => vec!["master".to_owned(), "main".to_owned()],
     };
-    let branches_display = branches.join("|");
-
-    let Some(current_branch) = get_current_branch::<Sys>(cwd) else {
-        return Err(GitCheckError::UnknownBranch { branches: branches_display });
+    let current_branch = match get_current_branch::<Sys>(cwd) {
+        Some(branch) => branch,
+        None if ci && is_head_detached::<Sys>(cwd) => return Ok(()),
+        None => return Err(GitCheckError::UnknownBranch { branches: branches.join("|") }),
     };
 
-    if !branches.contains(&current_branch) {
-        let message = format!(
-            r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
-        );
-        if !Sys::confirm(&message) {
-            return Err(GitCheckError::NotCorrectBranch { branches: branches_display });
-        }
-    }
+    check_publish_branch::<Sys>(&current_branch, &branches)?;
 
     if !is_remote_history_clean::<Sys>(cwd) {
         return Err(GitCheckError::NotLatest);
@@ -53,93 +52,24 @@ where
     Ok(())
 }
 
-/// Whether `cwd` is inside a git repository.
-#[must_use]
-pub fn is_git_repo<Sys: RunCommand>(cwd: &Path) -> bool {
-    git_ok::<Sys>(&["rev-parse", "--git-dir"], cwd)
-}
-
-/// Whether the working tree has no uncommitted changes.
-#[must_use]
-pub fn is_working_tree_clean<Sys: RunCommand>(cwd: &Path) -> bool {
-    match Sys::run("git", &["status", "--porcelain"], Some(cwd)) {
-        Ok(output) if output.success => output.stdout.is_empty(),
-        _ => false,
+fn check_publish_branch<Sys: ConfirmPrompt>(
+    current_branch: &str,
+    branches: &[String],
+) -> Result<(), GitCheckError> {
+    if branches
+        .iter()
+        .any(|branch| branch == current_branch)
+    {
+        return Ok(());
     }
-}
-
-/// Whether the local branch is not behind its upstream (a missing upstream is
-/// treated as clean).
-#[must_use]
-pub fn is_remote_history_clean<Sys: RunCommand>(cwd: &Path) -> bool {
-    match Sys::run("git", &["rev-list", "--count", "--left-only", "@{u}...HEAD"], Some(cwd)) {
-        Ok(output) if output.success => {
-            output.stdout.trim() == "0" || output.stdout.trim().is_empty()
-        }
-        _ => true,
+    let branches_display = branches.join("|");
+    let message = format!(
+        r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
+    );
+    if !Sys::confirm(&message) {
+        return Err(GitCheckError::NotCorrectBranch { branches: branches_display });
     }
-}
-
-/// The current branch name, or `None` when HEAD is detached. Reads `.git/HEAD`
-/// first, then falls back to `git symbolic-ref`.
-#[must_use]
-pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
-    match read_branch_from_head_file(cwd) {
-        HeadBranch::Branch(branch) => Some(branch),
-        HeadBranch::Detached => None,
-        HeadBranch::Unknown => {
-            match Sys::run("git", &["symbolic-ref", "--short", "HEAD"], Some(cwd)) {
-                Ok(output) if output.success => Some(output.stdout.trim().to_owned()),
-                _ => None,
-            }
-        }
-    }
-}
-
-/// The three outcomes of reading `.git/HEAD`: a branch name, a detached HEAD,
-/// or "could not determine — fall back to `git symbolic-ref`".
-enum HeadBranch {
-    Branch(String),
-    Detached,
-    Unknown,
-}
-
-/// Read the branch name from `.git/HEAD` without spawning git, including the
-/// worktree/submodule `.git` file indirection.
-fn read_branch_from_head_file(cwd: &Path) -> HeadBranch {
-    let dot_git = cwd.join(".git");
-    let Ok(metadata) = fs::symlink_metadata(&dot_git) else {
-        return HeadBranch::Unknown;
-    };
-    let git_dir = if metadata.is_dir() {
-        dot_git
-    } else if metadata.is_file() {
-        let Ok(content) = fs::read_to_string(&dot_git) else {
-            return HeadBranch::Unknown;
-        };
-        match content.trim().strip_prefix("gitdir:").map(str::trim) {
-            Some(path) if Path::new(path).is_absolute() => Path::new(path).to_path_buf(),
-            Some(path) => cwd.join(path),
-            None => return HeadBranch::Unknown,
-        }
-    } else {
-        return HeadBranch::Unknown;
-    };
-
-    match fs::read_to_string(git_dir.join("HEAD")) {
-        Ok(head) => match head.trim().strip_prefix("ref:").map(str::trim) {
-            Some(reference) => match reference.strip_prefix("refs/heads/") {
-                Some(branch) => HeadBranch::Branch(branch.to_owned()),
-                None => HeadBranch::Detached,
-            },
-            None => HeadBranch::Detached,
-        },
-        Err(_) => HeadBranch::Unknown,
-    }
-}
-
-fn git_ok<Sys: RunCommand>(args: &[&str], cwd: &Path) -> bool {
-    Sys::run("git", args, Some(cwd)).is_ok_and(|output| output.success)
+    Ok(())
 }
 
 /// The git working-tree precondition that failed. Each variant is an

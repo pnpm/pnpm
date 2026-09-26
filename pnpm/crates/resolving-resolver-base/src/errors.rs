@@ -13,8 +13,8 @@ use std::fmt::{self, Write as _};
 use chrono::{Local, TimeDelta, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::hide_auth_information;
-use pacquet_registry::Package;
+use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_registry::Package;
 
 /// `ERR_PNPM_NO_MATCHING_VERSION`: the registry served the package's
 /// packument, but none of the published versions satisfied the request.
@@ -57,8 +57,10 @@ fn describe_published_versions(meta: &Package) -> String {
     }
     // The tags arrive in a `HashMap`, so they are sorted to keep the message
     // stable across runs rather than left in iteration order.
-    let mut other_tags: Vec<_> =
-        meta.dist_tags.iter().filter(|(tag, _)| tag.as_str() != "latest").collect();
+    let mut other_tags: Vec<_> = meta.dist_tags
+        .iter()
+        .filter(|(tag, _)| tag.as_str() != "latest")
+        .collect();
     other_tags.sort_by_key(|(tag, _)| *tag);
     if !other_tags.is_empty() {
         out.push_str("\nOther releases are:\n");
@@ -113,7 +115,9 @@ impl Diagnostic for RegistryResponseError {
     }
 
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        self.hint.as_ref().map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
+        self.hint
+            .as_ref()
+            .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
     }
 }
 
@@ -133,8 +137,13 @@ pub struct RegistryResponseErrorOptions<'a> {
 impl RegistryResponseError {
     #[must_use]
     pub fn new(opts: RegistryResponseErrorOptions<'_>) -> Self {
-        let RegistryResponseErrorOptions { url, status, status_text, pkg_name, auth_header_value } =
-            opts;
+        let RegistryResponseErrorOptions {
+            url,
+            status,
+            status_text,
+            pkg_name,
+            auth_header_value,
+        } = opts;
         let mut hint = String::new();
         if status == 404 {
             write!(
@@ -204,7 +213,9 @@ fn strip_trailing_semver_suffix(pkg_name: &str) -> Option<&str> {
     if end == before_minor || end == 0 || !is_semver(&pkg_name[end..]) {
         return None;
     }
-    let prefix = pkg_name[..end].strip_suffix('@').unwrap_or(&pkg_name[..end]);
+    let prefix = pkg_name[..end]
+        .strip_suffix('@')
+        .unwrap_or(&pkg_name[..end]);
     (!prefix.is_empty()).then_some(prefix)
 }
 
@@ -218,6 +229,91 @@ fn consume_trailing_digits(bytes: &[u8], end: usize) -> usize {
 
 fn is_semver(candidate: &str) -> bool {
     candidate.parse::<node_semver::Version>().is_ok()
+}
+
+/// `ERR_PNPM_GIT_RESOLVE_FAILED`: a git specifier's `git ls-remote` failed —
+/// the remote was unreachable, refused the request, or git could not be run —
+/// so the committish cannot be pinned to a commit.
+///
+/// Distinct from the failures that describe the refs a remote *did* serve (an
+/// unknown ref, an ambiguous commit-ish): those already name the repository
+/// they came from and need no remediation.
+///
+/// [`Diagnostic`] is implemented by hand because the help is conditional.
+#[derive(Debug, Display, Error)]
+#[display("Failed to resolve git dependency {specifier:?}: {detail}")]
+pub struct GitResolveError {
+    #[error(not(source))]
+    pub specifier: String,
+    /// What git reported, redacted.
+    pub detail: String,
+    pub hint: Option<String>,
+}
+
+impl Diagnostic for GitResolveError {
+    fn code(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        Some(Box::new("ERR_PNPM_GIT_RESOLVE_FAILED"))
+    }
+
+    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
+        self.hint
+            .as_ref()
+            .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
+    }
+}
+
+impl GitResolveError {
+    /// `repo` is the remote the resolution went to; `detail` is git's own
+    /// account of the failure, which can echo back a URL carrying
+    /// `user:pass@` credentials and is redacted here.
+    #[must_use]
+    pub fn new(specifier: &str, repo: &str, detail: &str) -> Self {
+        Self {
+            specifier: redact_and_sanitize(specifier),
+            detail: redact_and_sanitize_multiline(detail),
+            hint: https_transport_hint(repo),
+        }
+    }
+}
+
+/// Guidance for a specifier that resolved over HTTPS on a machine whose git
+/// cannot use that transport, or `None` when the resolution already went over
+/// SSH — there, the transport that failed is the one the specifier asked for.
+///
+/// Substituting the transport is git's job rather than pnpm's: the URL pnpm
+/// records has to work for every machine that installs the lockfile, while
+/// `insteadOf` rewrites it for this one only.
+fn https_transport_hint(repo: &str) -> Option<String> {
+    let (scheme, authority) = repo.split_once("://")?;
+    if scheme != "https" && scheme != "http" {
+        return None;
+    }
+    let host = authority
+        .split('/')
+        .next()
+        .unwrap_or(authority);
+    let host = host.rsplit_once('@').map_or(host, |(_userinfo, host)| host);
+    if host.is_empty() {
+        return None;
+    }
+    // A bracketed IPv6 literal is full of colons, so the port has to be looked
+    // for after the closing bracket rather than at the first colon.
+    let hostname = match host.split_once(']') {
+        Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
+        _ => host.split_once(':').map_or(host, |(hostname, _port)| hostname),
+    };
+    // The scheme's own port is dropped from the `insteadOf` prefix, matching
+    // what git and the TypeScript CLI's `URL` both normalize the remote to.
+    let default_port = if scheme == "https" { ":443" } else { ":80" };
+    let host = host.strip_suffix(default_port).unwrap_or(host);
+    let (host, hostname) = (redact_and_sanitize(host), redact_and_sanitize(hostname));
+    Some(format!(
+        r#"pnpm resolves this specifier over HTTPS because it does not ask for SSH, and the URL it records has to work on every machine that installs the lockfile.
+
+If git can only reach {hostname} over SSH here, substitute the transport locally, leaving the recorded URL alone:
+
+    git config --global url."git@{hostname}:".insteadOf "{scheme}://{host}/""#,
+    ))
 }
 
 #[cfg(test)]

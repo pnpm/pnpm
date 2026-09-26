@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../core/types"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {

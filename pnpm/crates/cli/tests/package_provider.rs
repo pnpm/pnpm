@@ -7,7 +7,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::Value;
 use std::{
     fs,
@@ -146,15 +146,26 @@ fn virtual_store_entries(workspace: &Path) -> Vec<String> {
     }
     fs::read_dir(virtual_store)
         .expect("read node_modules/.pnpm")
-        .map(|entry| entry.expect("read dir entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("read dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect()
 }
 
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn packages_are_materialized_through_the_provider_and_symlinked() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, provider_dir) = write_provider(root.path(), FAKE_PROVIDER);
     set_package_provider(&workspace, &provider_bin);
@@ -168,23 +179,34 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
     )
     .expect("write package.json");
 
-    install.with_arg("install").assert().success();
+    install
+        .with_arg("install")
+        .assert()
+        .success();
 
     // The direct dependency resolves into the provider's store,
     // through an absolute symlink (provider directories outlive the
     // project location).
-    let direct_link =
-        fs::read_link(workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep"))
-            .expect("read direct dep symlink");
+    let direct_link = fs::read_link(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("pkg-with-1-dep"),
+    )
+    .expect("read direct dep symlink");
     assert!(direct_link.is_absolute(), "direct dep link: {}", direct_link.display());
     let real_dir = realpath(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     assert_in_provider_store(&real_dir, &provider_dir);
 
     // The transitive dependency is reachable as a sibling inside the
     // provider's store.
-    let transitive =
-        fs::canonicalize(real_dir.join("../..").join("@pnpm.e2e").join("dep-of-pkg-with-1-dep"))
-            .expect("canonicalize transitive dep");
+    let transitive = fs::canonicalize(
+        real_dir
+            .join("../..")
+            .join("@pnpm.e2e")
+            .join("dep-of-pkg-with-1-dep"),
+    )
+    .expect("canonicalize transitive dep");
     assert_in_provider_store(&transitive, &provider_dir);
 
     // Hoisted links are absolute as well.
@@ -204,8 +226,10 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
     assert_eq!(request["protocol"], 1);
     let gc_root = Path::new(request["gcRootDir"].as_str().expect("gcRootDir string"));
     assert!(gc_root.ends_with("node_modules/.pnpm-nix"), "gcRootDir: {}", gc_root.display());
-    let workspace_from_gc_root =
-        gc_root.parent().and_then(Path::parent).expect("gcRootDir has two ancestors");
+    let workspace_from_gc_root = gc_root
+        .parent()
+        .and_then(Path::parent)
+        .expect("gcRootDir has two ancestors");
     assert_eq!(
         fs::canonicalize(workspace_from_gc_root).expect("canonicalize gcRootDir workspace"),
         fs::canonicalize(&workspace).expect("canonicalize workspace"),
@@ -215,9 +239,23 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
         .values()
         .find(|node| node["name"] == "@pnpm.e2e/pkg-with-1-dep")
         .expect("direct dep node");
-    assert!(direct_node["tarball"].as_str().is_some_and(|url| !url.is_empty()));
-    assert!(direct_node["integrity"].as_str().expect("integrity").starts_with("sha"));
-    assert!(direct_node["engine"].as_str().expect("engine").contains(";node"));
+    assert!(
+        direct_node["tarball"]
+            .as_str()
+            .is_some_and(|url| !url.is_empty())
+    );
+    assert!(
+        direct_node["integrity"]
+            .as_str()
+            .expect("integrity")
+            .starts_with("sha")
+    );
+    assert!(
+        direct_node["engine"]
+            .as_str()
+            .expect("engine")
+            .contains(";node")
+    );
     let dep_alias = &direct_node["deps"]["@pnpm.e2e/dep-of-pkg-with-1-dep"];
     let dep_path = dep_alias["depPath"].as_str().expect("dep depPath");
     assert_eq!(nodes[dep_path]["name"], "@pnpm.e2e/dep-of-pkg-with-1-dep");
@@ -225,7 +263,11 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
     // Nothing was imported into the virtual store.
     let entries = virtual_store_entries(&workspace);
     dbg!(&entries);
-    assert!(!entries.iter().any(|entry| entry.contains("pkg-with-1-dep")));
+    assert!(
+        !entries
+            .iter()
+            .any(|entry| entry.contains("pkg-with-1-dep"))
+    );
 
     // The lockfile is written as usual.
     let lockfile =
@@ -245,8 +287,14 @@ fn a_repeat_install_keeps_resolving_from_the_provider() {
     set_package_provider(&workspace, &provider_bin);
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-    pacquet(&workspace).with_args(["add", "@pnpm.e2e/foo@100.0.0"]).assert().success();
-    pacquet(&workspace).with_args(["add", "@pnpm.e2e/bar@100.0.0"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["add", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_args(["add", "@pnpm.e2e/bar@100.0.0"])
+        .assert()
+        .success();
 
     for entry in ["@pnpm.e2e/foo", "@pnpm.e2e/bar"] {
         let real_dir = realpath(&workspace, entry);
@@ -259,8 +307,13 @@ fn a_repeat_install_keeps_resolving_from_the_provider() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn patched_dependencies_are_sent_with_their_patch_content() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, provider_dir) = write_provider(root.path(), FAKE_PROVIDER);
     set_package_provider(&workspace, &provider_bin);
@@ -281,7 +334,10 @@ fn patched_dependencies_are_sent_with_their_patch_content() {
         "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
     );
 
-    install.with_arg("install").assert().success();
+    install
+        .with_arg("install")
+        .assert()
+        .success();
 
     let request = read_request(&provider_dir);
     dbg!(&request);
@@ -291,8 +347,17 @@ fn patched_dependencies_are_sent_with_their_patch_content() {
         .values()
         .find(|node| node["name"] == "is-positive")
         .expect("is-positive node");
-    assert!(node["patch"]["content"].as_str().expect("patch content").contains("patched"));
-    assert!(node["patch"]["hash"].as_str().is_some_and(|hash| !hash.is_empty()));
+    assert!(
+        node["patch"]["content"]
+            .as_str()
+            .expect("patch content")
+            .contains("patched")
+    );
+    assert!(
+        node["patch"]["hash"]
+            .as_str()
+            .is_some_and(|hash| !hash.is_empty())
+    );
 
     drop((root, mock_instance));
 }
@@ -300,8 +365,13 @@ fn patched_dependencies_are_sent_with_their_patch_content() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn a_frozen_install_materializes_through_the_provider() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, provider_dir) = write_provider(root.path(), FAKE_PROVIDER);
     set_package_provider(&workspace, &provider_bin);
@@ -315,24 +385,42 @@ fn a_frozen_install_materializes_through_the_provider() {
     )
     .expect("write package.json");
 
-    install.with_arg("install").assert().success();
+    install
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
-    let direct_link =
-        fs::read_link(workspace.join("node_modules").join("@pnpm.e2e").join("pkg-with-1-dep"))
-            .expect("read direct dep symlink");
+    let direct_link = fs::read_link(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("pkg-with-1-dep"),
+    )
+    .expect("read direct dep symlink");
     assert!(direct_link.is_absolute(), "direct dep link: {}", direct_link.display());
     let real_dir = realpath(&workspace, "@pnpm.e2e/pkg-with-1-dep");
     assert_in_provider_store(&real_dir, &provider_dir);
-    let transitive =
-        fs::canonicalize(real_dir.join("../..").join("@pnpm.e2e").join("dep-of-pkg-with-1-dep"))
-            .expect("canonicalize transitive dep");
+    let transitive = fs::canonicalize(
+        real_dir
+            .join("../..")
+            .join("@pnpm.e2e")
+            .join("dep-of-pkg-with-1-dep"),
+    )
+    .expect("canonicalize transitive dep");
     assert_in_provider_store(&transitive, &provider_dir);
     let entries = virtual_store_entries(&workspace);
     dbg!(&entries);
-    assert!(!entries.iter().any(|entry| entry.contains("pkg-with-1-dep")));
+    assert!(
+        !entries
+            .iter()
+            .any(|entry| entry.contains("pkg-with-1-dep"))
+    );
 
     drop((root, mock_instance));
 }
@@ -340,8 +428,13 @@ fn a_frozen_install_materializes_through_the_provider() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn local_directory_dependencies_are_sent_as_absolute_directories() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, provider_dir) = write_provider(root.path(), FAKE_PROVIDER);
     set_package_provider(&workspace, &provider_bin);
@@ -361,7 +454,10 @@ fn local_directory_dependencies_are_sent_as_absolute_directories() {
     )
     .expect("write package.json");
 
-    install.with_arg("install").assert().success();
+    install
+        .with_arg("install")
+        .assert()
+        .success();
 
     let request = read_request(&provider_dir);
     dbg!(&request);
@@ -387,8 +483,13 @@ fn local_directory_dependencies_are_sent_as_absolute_directories() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn optional_packages_the_provider_cannot_build_are_skipped() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, provider_dir) = write_provider(root.path(), FAKE_PROVIDER);
     set_package_provider(&workspace, &provider_bin);
@@ -403,10 +504,25 @@ fn optional_packages_the_provider_cannot_build_are_skipped() {
     )
     .expect("write package.json");
 
-    install.with_arg("install").assert().success();
+    install
+        .with_arg("install")
+        .assert()
+        .success();
 
-    assert!(workspace.join("node_modules").join("@pnpm.e2e").join("foo").exists());
-    assert!(!workspace.join("node_modules").join("@pnpm.e2e").join("bar").exists());
+    assert!(
+        workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("foo")
+            .exists()
+    );
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join("@pnpm.e2e")
+            .join("bar")
+            .exists()
+    );
 
     let request = read_request(&provider_dir);
     dbg!(&request);
@@ -431,8 +547,13 @@ fn optional_packages_the_provider_cannot_build_are_skipped() {
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "the fake provider is a Unix shebang script")]
 fn the_install_aborts_when_the_provider_fails() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let (provider_bin, _provider_dir) =
         write_provider(root.path(), "#!/usr/bin/env node\nprocess.exit(1)\n");
@@ -447,22 +568,31 @@ fn the_install_aborts_when_the_provider_fails() {
     )
     .expect("write package.json");
 
-    let output = install.with_arg("install").output().expect("spawn pacquet install");
+    let output = install
+        .with_arg("install")
+        .output()
+        .expect("spawn pacquet install");
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "the install must abort when the provider fails");
     assert!(stderr.contains("ERR_PNPM_PACKAGE_PROVIDER_FAILED"));
     // miette wraps the message, so match the two halves separately.
     assert!(stderr.contains("The package provider at"));
-    assert!(stderr.contains("with code 1"));
+    assert!(stderr.contains("exited with"));
+    assert!(stderr.contains("code 1"));
 
     drop((root, mock_instance));
 }
 
 #[test]
 fn package_provider_requires_the_isolated_node_linker() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     append_workspace_yaml(
         &workspace,
@@ -478,7 +608,10 @@ fn package_provider_requires_the_isolated_node_linker() {
     )
     .expect("write package.json");
 
-    let output = install.with_arg("install").output().expect("spawn pacquet install");
+    let output = install
+        .with_arg("install")
+        .output()
+        .expect("spawn pacquet install");
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success());
@@ -490,8 +623,13 @@ fn package_provider_requires_the_isolated_node_linker() {
 
 #[test]
 fn package_provider_conflicts_with_the_global_virtual_store() {
-    let CommandTempCwd { pacquet: install, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet: install,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
@@ -508,7 +646,10 @@ fn package_provider_conflicts_with_the_global_virtual_store() {
     )
     .expect("write package.json");
 
-    let output = install.with_arg("install").output().expect("spawn pacquet install");
+    let output = install
+        .with_arg("install")
+        .output()
+        .expect("spawn pacquet install");
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success());

@@ -54,6 +54,16 @@ pub fn detect() -> Option<Implementation> {
     detect_implementation()
 }
 
+#[must_use]
+pub fn glibc_version() -> Option<(u32, u32)> {
+    use std::sync::LazyLock;
+
+    static CACHED: LazyLock<Option<(u32, u32)>> = LazyLock::new(|| {
+        matches!(detect(), Some(Implementation::Glibc)).then(command::glibc_version).flatten()
+    });
+    *CACHED
+}
+
 fn is_linux() -> bool {
     cfg!(target_os = "linux")
 }
@@ -98,6 +108,17 @@ pub fn host_arch() -> &'static str {
         "loongarch64" => "loong64",
         other => other,
     }
+}
+
+/// The architecture this build runs on, spelled as the Rust target
+/// triple of the machine spells it.
+///
+/// [`host_arch`] reports the name Node and a package manifest use, which
+/// is one name for both POWER endiannesses. Naming the platform the
+/// install runs on needs the two told apart, so that reads this instead.
+#[must_use]
+pub fn host_target_arch() -> &'static str {
+    std::env::consts::ARCH
 }
 
 #[cfg(test)]

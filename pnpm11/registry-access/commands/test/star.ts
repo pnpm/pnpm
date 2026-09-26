@@ -29,7 +29,7 @@ describe('star', () => {
 
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['foo'])).resolves.toBeUndefined()
   })
 
@@ -58,20 +58,20 @@ describe('star', () => {
 
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['foo'])).resolves.toBeUndefined()
   })
 
   it('throws when no package name is given', async () => {
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, [])).rejects.toThrow('Package name is required')
   })
 
   it('throws when not logged in', async () => {
     await expect(star.handler({
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['foo'])).rejects.toThrow('You must be logged in to star')
   })
 
@@ -84,7 +84,7 @@ describe('star', () => {
 
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: `${REGISTRY}/custom-prefix` },
+      registriesByScope: { default: `${REGISTRY}/custom-prefix` },
     }, ['foo'])).resolves.toBeUndefined()
   })
 
@@ -98,14 +98,14 @@ describe('star', () => {
 
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['@scope/pkg'])).resolves.toBeUndefined()
   })
 
   it('throws a helpful error for invalid package specs', async () => {
     await expect(star.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['@@invalid'])).rejects.toThrow('Invalid package spec')
   })
 })
@@ -128,14 +128,14 @@ describe('unstar', () => {
 
     await expect(unstar.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['foo'])).resolves.toBeUndefined()
   })
 
   it('throws when no package name is given', async () => {
     await expect(unstar.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, [])).rejects.toThrow('Package name is required')
   })
 })
@@ -162,7 +162,7 @@ describe('stars', () => {
 
     const result = await stars.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, [])
 
     expect(result).toBe('foo\nbar')
@@ -177,7 +177,7 @@ describe('stars', () => {
 
     const result = await stars.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['bob'])
 
     expect(result.split('\n').sort()).toEqual(['bar', 'foo'])
@@ -185,7 +185,7 @@ describe('stars', () => {
 
   it('throws when no user is given and the user is not logged in', async () => {
     await expect(stars.handler({
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, [])).rejects.toThrow('You must be logged in')
   })
 
@@ -202,7 +202,7 @@ describe('stars', () => {
 
     await expect(stars.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: REGISTRY_URL },
+      registriesByScope: { default: REGISTRY_URL },
     }, ['bob'])).rejects.toThrow('User "bob" not found')
   })
 
@@ -215,7 +215,7 @@ describe('stars', () => {
 
     const result = await stars.handler({
       configByUri: CONFIG_BY_URI,
-      registries: { default: `${REGISTRY}/custom-prefix` },
+      registriesByScope: { default: `${REGISTRY}/custom-prefix` },
     }, ['bob'])
 
     expect(result).toBe('foo')

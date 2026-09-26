@@ -1,11 +1,13 @@
 import { promises as fs } from 'node:fs'
 
 import { packageManager } from '@pnpm/cli.meta'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { registrySupportsTimeField } from '@pnpm/config.normalize-registries'
+import { type Config, type ConfigContext, parseCAFileContents } from '@pnpm/config.reader'
 import { type ClientOptions, createClient } from '@pnpm/installing.client'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 import { type CafsLocker, createPackageStore, type StoreController } from '@pnpm/store.controller'
 import { ReadOnlyStoreIndex, StoreIndex } from '@pnpm/store.index'
+import type { RegistryContext } from '@pnpm/types'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -19,9 +21,11 @@ type CreateResolverOptions = Pick<Config,
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
 | 'ca'
+| 'cafile'
 | 'cert'
 | 'engineStrict'
 | 'force'
+| 'forceIgnoresPlatform'
 | 'frozenStore'
 | 'nodeDownloadMirrors'
 | 'nodeVersion'
@@ -45,8 +49,9 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'packageImportMethod'
 | 'preferOffline'
 | 'preserveAbsolutePaths'
-| 'registries'
-| 'namedRegistries'
+| 'registriesByScope'
+| 'registriesByPrefix'
+| 'registryOptionsByUrl'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'saveWorkspaceProtocol'
@@ -73,11 +78,12 @@ export async function createNewStoreController (
     await fs.mkdir(opts.storeDir, { recursive: true })
   }
   const storeIndex = opts.frozenStore ? new ReadOnlyStoreIndex(opts.storeDir) : new StoreIndex(opts.storeDir)
+  const ca = await getCA(opts)
   const { resolve, fetchers, clearResolutionCache, resolutionVerifiers } = createClient({
     customResolvers: opts.hooks?.customResolvers,
     customFetchers: opts.hooks?.customFetchers,
     unsafePerm: opts.unsafePerm,
-    ca: opts.ca,
+    ca,
     cacheDir: opts.cacheDir,
     storeDir: opts.storeDir,
     cert: opts.cert,
@@ -85,7 +91,8 @@ export async function createNewStoreController (
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
-    filterMetadata: fullMetadata,
+    filterMetadata: shouldFilterMetadata(opts),
+    needsFullMetadataFor: needsFullMetadataForRegistry(opts),
     httpProxy: opts.httpProxy,
     httpsProxy: opts.httpsProxy,
     ignoreScripts: opts.ignoreScripts,
@@ -96,8 +103,8 @@ export async function createNewStoreController (
     offline: opts.offline,
     preferOffline: opts.preferOffline,
     configByUri: opts.configByUri,
-    registries: opts.registries,
-    namedRegistries: opts.namedRegistries,
+    registriesByScope: opts.registriesByScope,
+    registriesByPrefix: opts.registriesByPrefix,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -131,6 +138,7 @@ export async function createNewStoreController (
       cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
+      forceIgnoresPlatform: opts.forceIgnoresPlatform,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: packageManager.version,
       ignoreFile: opts.ignoreFile,
@@ -174,17 +182,74 @@ export async function createNewStoreController (
  *   `time` field in abbreviated metadata.
  */
 export function shouldFetchFullMetadata (
-  opts: Pick<CreateNewStoreControllerOptions,
-  | 'fetchFullMetadata'
-  | 'registrySupportsTimeField'
-  | 'resolutionMode'
-  | 'supportedArchitectures'
-  | 'trustPolicy'
-  >
+  opts: FullMetadataPolicyOptions
 ): boolean {
+  return fullMetadataPolicy(opts, opts.registrySupportsTimeField ?? false)
+}
+
+export type FullMetadataPolicyOptions = Pick<CreateNewStoreControllerOptions,
+| 'fetchFullMetadata'
+| 'registrySupportsTimeField'
+| 'resolutionMode'
+| 'supportedArchitectures'
+| 'trustPolicy'
+> & Pick<RegistryContext, 'registryOptionsByUrl'>
+
+function fullMetadataPolicy (opts: FullMetadataPolicyOptions, supportsTimeField: boolean): boolean {
   return opts.fetchFullMetadata ?? (
     opts.supportedArchitectures?.libc != null ||
     opts.trustPolicy === 'no-downgrade' ||
-    (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
+    (opts.resolutionMode === 'time-based' && !supportsTimeField)
   )
+}
+
+/**
+ * Whether a full packument, once fetched, is stored and read in pnpm's
+ * filtered form rather than verbatim.
+ *
+ * Answered for the most demanding registry — one that carries no `time` —
+ * because {@link needsFullMetadataForRegistry} can ask for a full document at
+ * a registry that {@link shouldFetchFullMetadata} would have left on
+ * abbreviated metadata, and both have to agree on which mirror that document
+ * lands in. It is consulted only when a full document is actually fetched, so
+ * answering for the demanding case costs the others nothing.
+ */
+export function shouldFilterMetadata (opts: FullMetadataPolicyOptions): boolean {
+  return fullMetadataPolicy(opts, false)
+}
+
+/**
+ * The same policy, asked of one registry: a registry that declares
+ * `supportsTimeField` answers for itself, so a time-based resolution reads
+ * abbreviated metadata from the registries that carry `time` and full metadata
+ * only from the ones that do not.
+ *
+ * A registry with no declaration answers exactly what
+ * {@link shouldFetchFullMetadata} does.
+ *
+ * Memoized because the resolver asks once per package and a project has a
+ * handful of registries.
+ */
+export function needsFullMetadataForRegistry (
+  opts: FullMetadataPolicyOptions
+): (registry: string) => boolean {
+  const answers = new Map<string, boolean>()
+  return (registry: string): boolean => {
+    let answer = answers.get(registry)
+    if (answer == null) {
+      answer = fullMetadataPolicy(opts, registrySupportsTimeField(opts, registry))
+      answers.set(registry, answer)
+    }
+    return answer
+  }
+}
+
+async function getCA (opts: Pick<CreateNewStoreControllerOptions, 'ca' | 'cafile'>): Promise<string | string[] | undefined> {
+  if (opts.ca != null || !opts.cafile) return opts.ca
+  try {
+    const cafileCA = parseCAFileContents(await fs.readFile(opts.cafile, 'utf8'))
+    return cafileCA.length > 0 ? cafileCA : undefined
+  } catch {
+    return undefined
+  }
 }

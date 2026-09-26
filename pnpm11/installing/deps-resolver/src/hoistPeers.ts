@@ -1,5 +1,5 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import semver from 'semver'
 
@@ -14,6 +14,11 @@ export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
+    /**
+     * Whether the running update targets the peer. The lockfile's pins of a
+     * targeted peer are not reused, so the peer re-resolves.
+     */
+    isUpdateTarget?: (peerName: string) => boolean
     workspaceRootDeps: HoistableRootDep[]
     /**
      * Applies `overrides` to a peer nobody declares as a dependency. Such a
@@ -46,10 +51,13 @@ export function hoistPeers (
       dependencies[peerName] = rootBareSpecifier
       continue
     }
-    if (opts.allPreferredVersions![peerName]) {
+    const preferredSelectors = opts.isUpdateTarget?.(peerName)
+      ? omitLockfilePins(opts.allPreferredVersions![peerName])
+      : opts.allPreferredVersions![peerName]
+    if (preferredSelectors) {
       const versions: string[] = []
       const nonVersions: string[] = []
-      for (const [spec, selector] of Object.entries(opts.allPreferredVersions![peerName])) {
+      for (const [spec, selector] of Object.entries(preferredSelectors)) {
         const specType = typeof selector === 'string' ? selector : selector.selectorType
         if (specType === 'version') {
           versions.push(spec)
@@ -95,10 +103,28 @@ export function hoistPeers (
   return dependencies
 }
 
+/**
+ * Keeps the versions resolved during this install. The lockfile's pins are the
+ * weighted selectors `getPreferredVersionsFromLockfileAndManifests` seeds;
+ * resolving a version records it as a plain selector.
+ */
+function omitLockfilePins (selectors: VersionSelectors | undefined): VersionSelectors | undefined {
+  if (selectors == null) return undefined
+  const resolvedSelectors = Object.fromEntries(
+    Object.entries(selectors).filter(([, selector]) => typeof selector === 'string')
+  ) as VersionSelectors
+  return Object.keys(resolvedSelectors).length > 0 ? resolvedSelectors : undefined
+}
+
 export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
   allPreferredVersions: PreferredVersions,
-  workspaceRootDeps: HoistableRootDep[] = []
+  workspaceRootDeps: HoistableRootDep[] = [],
+  /**
+   * Rejects a candidate that cannot be installed at the importer, such as one
+   * whose own peers the importer provides at versions outside their ranges.
+   */
+  acceptsCandidate: (name: string, version: string) => boolean = () => true
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
@@ -112,7 +138,11 @@ export function getHoistableOptionalPeers (
     // version body getPeerVersionRange extracts; one with no version body
     // yields `*` and leaves them unbounded.
     const rootBareSpecifier = findWorkspaceRootDep(workspaceRootDeps, missingOptionalPeerName)?.normalizedBareSpecifier
-    const rootRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
+    const rootSpecifierRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
+    // A disjoint specifier would bound them down to none, and the importer would then fall back to the root's own out-of-range version.
+    const rootRange = rootSpecifierRange != null && ranges.every(range => semver.validRange(range) != null && semver.intersects(rootSpecifierRange, range))
+      ? rootSpecifierRange
+      : null
 
     let maxSatisfyingVersion: string | undefined
     for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {
@@ -121,7 +151,8 @@ export function getHoistableOptionalPeers (
         specType === 'version' &&
         (rootRange == null || semver.satisfies(version, rootRange)) &&
         ranges.every(range => semver.satisfies(version, range)) &&
-        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion))
+        (!maxSatisfyingVersion || semver.gt(version, maxSatisfyingVersion)) &&
+        acceptsCandidate(missingOptionalPeerName, version)
       ) {
         maxSatisfyingVersion = version
       }

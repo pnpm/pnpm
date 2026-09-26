@@ -1,17 +1,19 @@
-use flate2::{Compression, write::GzEncoder};
-use pretty_assertions::assert_eq;
-use serde_json::json;
-
 use super::{
     StageError, is_uuid, parse_package_filter, render_stage_item, render_stage_publish_summary,
     render_tarball_summary, require_stage_id,
     summarize_tarball::{create_tarball_filename, summarize_tarball},
 };
+use flate2::{Compression, write::GzEncoder};
+use pretty_assertions::assert_eq;
+use serde_json::json;
 
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
 
 fn params(values: &[&str]) -> Vec<String> {
-    values.iter().map(|value| (*value).to_owned()).collect()
+    values
+        .iter()
+        .map(|value| (*value).to_owned())
+        .collect()
 }
 
 #[test]
@@ -142,7 +144,10 @@ fn summarize_tarball_reads_the_manifest_files_and_digests() {
     assert_eq!(summary.filename, "scope-pkg-1.0.0.tgz");
     assert_eq!(summary.entry_count, 3);
     assert_eq!(summary.size, tarball.len() as u64);
-    let paths: Vec<&str> = summary.files.iter().map(|file| file.path.as_str()).collect();
+    let paths: Vec<&str> = summary.files
+        .iter()
+        .map(|file| file.path.as_str())
+        .collect();
     assert_eq!(paths, ["lib/index.js", "package.json", "README.md"]);
     assert!(summary.integrity.starts_with("sha512-"), "integrity: {}", summary.integrity);
     assert_eq!(summary.shasum.len(), 40);
@@ -173,7 +178,10 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
     let missing = summarize_tarball(&gzipped_tarball(&[("package/index.js", "")]))
         .expect_err("no manifest at all");
     assert_eq!(
-        missing.code().map(|code| code.to_string()).as_deref(),
+        missing
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND"),
     );
 
@@ -181,17 +189,66 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
         summarize_tarball(&gzipped_tarball(&[("package/package.json", r#"{"version":"1.0.0"}"#)]))
             .expect_err("a manifest without a name");
     assert_eq!(
-        nameless.code().map(|code| code.to_string()).as_deref(),
+        nameless
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND"),
     );
+}
+
+#[test]
+fn summarize_tarball_uses_the_final_duplicate_manifest() {
+    let tarball = gzipped_tarball(&[
+        ("package/package.json", "{"),
+        ("package/package.json", r#"{"name":"pkg","version":"2.0.0"}"#),
+    ]);
+
+    let summary = summarize_tarball(&tarball).expect("the final manifest is valid");
+
+    assert_eq!(summary.name, "pkg");
+    assert_eq!(summary.version, "2.0.0");
+}
+
+#[test]
+fn summarize_tarball_accepts_a_utf8_bom_before_the_manifest() {
+    let tarball = gzipped_tarball(&[(
+        "package/package.json",
+        "\u{feff}{\"name\":\"pkg\",\"version\":\"1.0.0\"}",
+    )]);
+
+    let summary = summarize_tarball(&tarball).expect("a manifest prefixed by a UTF-8 BOM");
+
+    assert_eq!(summary.name, "pkg");
+    assert_eq!(summary.version, "1.0.0");
+}
+
+#[test]
+fn summarize_tarball_validates_the_manifest_identity() {
+    let invalid_name = summarize_tarball(&gzipped_tarball(&[(
+        "package/package.json",
+        r#"{"name":"__proto__","version":"1.0.0"}"#,
+    )]))
+    .expect_err("an invalid package name");
+    assert!(matches!(invalid_name.downcast_ref(), Some(StageError::InvalidPackageName { .. })));
+
+    let invalid_version = summarize_tarball(&gzipped_tarball(&[(
+        "package/package.json",
+        r#"{"name":"pkg","version":"not a version"}"#,
+    )]))
+    .expect_err("an invalid package version");
+    assert!(matches!(
+        invalid_version.downcast_ref(),
+        Some(StageError::InvalidPackageVersion { .. })
+    ));
 }
 
 #[test]
 fn render_tarball_summary_matches_the_pnpm_layout() {
     let mut summary = sample_summary("pkg", "1.0.0");
     summary.files = vec![
-        pacquet_publish::PublishSummaryFile { path: "index.js".to_owned() },
-        pacquet_publish::PublishSummaryFile { path: "package.json".to_owned() },
+        pnpm_publish::PublishSummaryFile { path: "index.js".to_owned() },
+        pnpm_publish::PublishSummaryFile { path: "package.json".to_owned() },
     ];
     summary.entry_count = 2;
     let rendered = render_tarball_summary(&summary);
@@ -203,8 +260,8 @@ fn render_tarball_summary_matches_the_pnpm_layout() {
     );
 }
 
-fn sample_summary(name: &str, version: &str) -> pacquet_publish::PublishSummary {
-    pacquet_publish::PublishSummary {
+fn sample_summary(name: &str, version: &str) -> pnpm_publish::PublishSummary {
+    pnpm_publish::PublishSummary {
         id: format!("{name}@{version}"),
         name: name.to_owned(),
         version: version.to_owned(),

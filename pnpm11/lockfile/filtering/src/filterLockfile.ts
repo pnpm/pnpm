@@ -9,6 +9,7 @@ export function filterLockfile (
     include: { [dependenciesField in DependenciesField]: boolean }
     skipped: Set<DepPath>
     skipRuntimes?: boolean
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): LockfileObject {
   return filterLockfileByImporters(lockfile, Object.keys(lockfile.importers) as ProjectId[], {

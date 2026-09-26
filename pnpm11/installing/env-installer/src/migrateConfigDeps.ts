@@ -4,14 +4,14 @@ import { PnpmError } from '@pnpm/error'
 import { createEnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { ConfigDependencies, ConfigDependencySpecifiers, Registries } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers, RegistriesByScope } from '@pnpm/types'
 
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 interface MigrateOpts {
-  registries: Registries
+  registriesByScope: RegistriesByScope
   rootDir: string
 }
 
@@ -34,7 +34,7 @@ export async function migrateConfigDepsToLockfile (
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
-    const registry = pickRegistryForPackage(opts.registries, pkgName)
+    const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
 
     if (typeof pkgSpec === 'object') {
       const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
@@ -50,7 +50,7 @@ export async function migrateConfigDepsToLockfile (
         resolution: toLockfileResolution(
           { name: pkgName, version },
           { integrity, tarball },
-          registry
+          { registry }
         ),
       }
       envLockfile.snapshots[pkgKey] = {}

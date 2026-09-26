@@ -31,6 +31,9 @@
       "path": "../../deps/path"
     },
     {
+      "path": "../../exec/prepare-package"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {

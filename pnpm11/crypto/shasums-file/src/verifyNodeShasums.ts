@@ -46,6 +46,20 @@ export async function fetchVerifiedNodeShasums (
   shasumsUrl: string,
   trustedKeys: readonly ArmoredKey[] = NODE_RELEASE_KEYS
 ): Promise<string> {
+  const { body } = await fetchVerifiedNodeShasumsWithSignature(fetch, shasumsUrl, trustedKeys)
+  return body
+}
+
+/**
+ * {@link fetchVerifiedNodeShasums}, additionally returning the verified
+ * detached signature so the disk cache can persist it as the entry's
+ * verification evidence.
+ */
+export async function fetchVerifiedNodeShasumsWithSignature (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
+  trustedKeys: readonly ArmoredKey[] = NODE_RELEASE_KEYS
+): Promise<{ body: string, signature: Uint8Array }> {
   const [shasumsBytes, signatureBytes] = await Promise.all([
     fetchBytes(fetch, shasumsUrl, 'SHASUMS256.txt'),
     fetchBytes(fetch, `${shasumsUrl}.sig`, 'SHASUMS256.txt.sig'),
@@ -59,7 +73,25 @@ export async function fetchVerifiedNodeShasums (
     )
   }
 
-  return Buffer.from(shasumsBytes).toString('utf8')
+  return { body: Buffer.from(shasumsBytes).toString('utf8'), signature: signatureBytes }
+}
+
+/**
+ * Whether `signatureBytes` is a valid detached signature of `content` under
+ * the trusted keys, reporting any unreadable input as `false` rather than
+ * throwing. This is the read-side check for persisted cache evidence, where
+ * any failure just means a cache miss.
+ */
+export async function nodeShasumsSignatureVerifies (
+  content: Uint8Array,
+  signatureBytes: Uint8Array,
+  trustedKeys: readonly ArmoredKey[] = NODE_RELEASE_KEYS
+): Promise<boolean> {
+  try {
+    return await isSignedByTrustedKey(content, signatureBytes, trustedKeys)
+  } catch {
+    return false
+  }
 }
 
 async function isSignedByTrustedKey (

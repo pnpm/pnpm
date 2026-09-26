@@ -24,7 +24,8 @@ import { execSync } from 'node:child_process'
 // Note that most pnpm dependencies are baked into the large pnpm.mjs file by
 // esbuild. This script handles other dependencies the pnpm bundle config
 // declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
-// and @reflink/reflink (all platform variants, installed via --force).
+// and @reflink/reflink (all platform variants, installed via --force under
+// forceIgnoresPlatform).
 //
 // Strategy
 // --------
@@ -90,15 +91,27 @@ function createDistNodeModules () {
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
-    // --force installs all optional dependencies regardless of platform, so that
-    // all @reflink/reflink-* platform packages end up in dist/node_modules.
+    // --force under forceIgnoresPlatform installs all optional dependencies
+    // regardless of platform, so that all @reflink/reflink-* platform packages
+    // end up in dist/node_modules.
+    '--config.force-ignores-platform=true',
     '--force',
     '--filter=pnpm',
     '--prod',
     'deploy',
     DEPLOY_DIR
   ].join(' ')
-  execSync(pnpmDeploy, { cwd: WORKSPACE_DIR, stdio: 'inherit' })
+  execSync(pnpmDeploy, {
+    cwd: WORKSPACE_DIR,
+    stdio: 'inherit',
+    // The hoisted node linker turns preferSymlinkedExecutables on, which makes
+    // node_modules/.bin a directory of symlinks — and a symlink cannot travel
+    // inside an npm tarball, so every bin would silently disappear from the
+    // published dist/node_modules/.bin. Shell shims survive packing. Passed
+    // through the environment rather than as `--config.` because the release-
+    // pinned pnpm ignores that flag for this setting.
+    env: { ...process.env, pnpm_config_prefer_symlinked_executables: 'false' },
+  })
 
   cleanupNodeModules(DEPLOY_DIR)
 

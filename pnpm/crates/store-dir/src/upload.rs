@@ -63,6 +63,22 @@ pub fn upload(
     Ok(())
 }
 
+pub fn upload_with_diff(
+    store_dir: &StoreDir,
+    built_pkg_location: &Path,
+    files_index_file: &str,
+    side_effects_cache_key: &str,
+    writer: &StoreIndexWriter,
+) -> Result<Option<SideEffectsDiff>, UploadError> {
+    let added =
+        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    Ok(writer.queue_side_effects_upload_with_result(
+        files_index_file.to_string(),
+        side_effects_cache_key.to_string(),
+        added.files,
+    ))
+}
+
 /// Set-difference over file digests + modes.
 ///
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
@@ -83,7 +99,11 @@ pub fn calculate_diff(
     // separately by `SideEffectsDiff.added`'s sorted-map
     // serializer (see `serialize_sorted_map_opt` in `store_index.rs`),
     // since `HashMap` iteration on its own remains unordered.
-    let all_files: BTreeSet<&str> = base.keys().chain(current.keys()).map(String::as_str).collect();
+    let all_files: BTreeSet<&str> = base
+        .keys()
+        .chain(current.keys())
+        .map(String::as_str)
+        .collect();
     for file in all_files {
         match (base.get(file), current.get(file)) {
             (Some(_), None) => deleted.push(file.to_string()),
@@ -99,6 +119,7 @@ pub fn calculate_diff(
     SideEffectsDiff {
         added: (!added.is_empty()).then_some(added),
         deleted: (!deleted.is_empty()).then_some(deleted),
+        remote_origin: None,
     }
 }
 

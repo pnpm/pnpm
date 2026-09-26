@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { cmdShim } from '@zkochan/cmd-shim'
+import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { familySync } from 'detect-libc'
 
 // @ts-expect-error — JS helper without type declarations
@@ -25,6 +25,17 @@ const hasPlatformBinary = fs.existsSync(platformBin)
 // (existence + inode only), but the -v test actually executes the SEA, which
 // loads dist/pnpm.mjs from next to the binary and would fail here.
 const hasStagedBundle = fs.existsSync(path.join(exeDir, 'dist', 'pnpm.mjs'))
+// Each alias bin, the text prepare.js appends to its pnpm call, and the argv
+// that text produces: `pnpx` and `pnx` are `pnpm dlx`.
+const ALIASES = [
+  { name: 'pn', shell: '', argv: [] as string[] },
+  { name: 'pnpx', shell: ' dlx', argv: ['dlx'] },
+  { name: 'pnx', shell: ' dlx', argv: ['dlx'] },
+]
+
+// Read before the tests below run prepare.js in this directory, which overwrites
+// the committed copies with whatever the generator produces now.
+const COMMITTED_ALIASES = new Map(ALIASES.map(({ name }) => [name, fs.readFileSync(path.join(exeDir, name), 'utf8')]))
 
 describe('exePlatformPkgName', () => {
   test('uses linuxstatic- prefix for linux + musl libc family', () => {
@@ -55,18 +66,34 @@ test('prepare writes correct content for all bin files', () => {
   // pnpm is a placeholder (replaced by setup.js with a hardlink)
   expect(fs.readFileSync(path.join(exeDir, 'pnpm'), 'utf8')).toBe('This file intentionally left blank')
 
-  // pn, pnpx, and pnx should be real shell scripts
-  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
-    expect(fs.readFileSync(path.join(exeDir, name), 'utf8')).toBe(`#!/bin/sh\nexec ${command} "$@"\n`)
+  // pn, pnpx, and pnx should be real shell scripts that hand over to the pnpm
+  // beside them; what they do with it is covered by 'alias bins' below.
+  for (const { name, shell } of ALIASES) {
+    const script = fs.readFileSync(path.join(exeDir, name), 'utf8')
+    expect(script.startsWith('#!/bin/sh\n')).toBe(true)
+    expect(script).toContain(`exec "$pnpm"${shell} "$@"\n`)
     if (!isWindows) {
       expect(fs.statSync(path.join(exeDir, name)).mode & 0o111).not.toBe(0)
     }
   }
 
-  // Windows wrappers should exist
-  for (const [name, command] of [['pn', 'pnpm'], ['pnpx', 'pnpm dlx'], ['pnx', 'pnpm dlx']]) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\n${command} %*\n`)
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`${command} @args\n`)
+  // Windows wrappers should exist. setup.js hardlinks the binary onto
+  // pn.exe/pnpx.exe/pnx.exe and points `bin` at those, so these only run when
+  // setup.js did not — where there is no sibling binary and PATH is all they have.
+  for (const { name, shell } of ALIASES) {
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\nexit /b %errorlevel%\n`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\nexit $LASTEXITCODE\n`)
+  }
+});
+
+// prepare.js rewrites the alias scripts on every install, so an edit made to a
+// committed copy alone lasts only until the next one.
+test('the committed alias scripts are what prepare.js writes', () => {
+  const sandbox = buildAliasSandbox()
+
+  for (const { name } of ALIASES) {
+    const generated = fs.readFileSync(path.join(sandbox, name), 'utf8')
+    expect({ name, script: COMMITTED_ALIASES.get(name) }).toEqual({ name, script: generated })
   }
 });
 
@@ -91,6 +118,127 @@ test('prepare writes correct content for all bin files', () => {
   const stdout = execFileSync(pnpmBin, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
   expect(stdout).toMatch(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/)
 })
+
+const npmShimTest = isWindows ? test : test.skip
+
+npmShimTest('npm global PowerShell shim waits for the standalone executable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, ['--global'])
+    expectShimsRunTheExecutable(prefix)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// `--location=global` leaves npm_config_global unset and sets npm's project
+// prefix to the global prefix, so only npm_config_location marks it global.
+npmShimTest('npm global shims name the standalone executable with --location=global', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, ['--location=global'])
+    expectShimsRunTheExecutable(prefix)
+    expect(fs.existsSync(path.join(prefix, 'node_modules', '.bin'))).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+npmShimTest('npm project shims name the standalone executable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-npm-shim-'))
+  try {
+    const prefix = installExeFixtureWithNpm(root, [])
+    expectShimsRunTheExecutable(path.join(prefix, 'node_modules', '.bin'))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+/**
+ * Install a minimal @pnpm/exe, whose platform package carries node.exe as the
+ * standalone executable, with npm into `<root>/prefix` and return that prefix.
+ * Without a `--global` or `--location` flag the prefix is a project, and the
+ * shims land in its `node_modules/.bin`. Throws when npm fails.
+ */
+function installExeFixtureWithNpm (root: string, npmFlags: string[]): string {
+  const nativePackageDir = path.join(root, 'native-package')
+  fs.mkdirSync(nativePackageDir)
+  const nativePackageName = exePlatformPkgName(platform, process.arch, familySync())
+  fs.writeFileSync(path.join(nativePackageDir, 'package.json'), JSON.stringify({
+    name: nativePackageName,
+    version: '1.0.0',
+  }))
+  const nativeBinary = path.join(nativePackageDir, 'pnpm.exe')
+  try {
+    fs.linkSync(process.execPath, nativeBinary)
+  } catch (err) {
+    // EPERM is a same-volume link the process may not create, such as
+    // node.exe under Program Files.
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'EXDEV' && code !== 'EPERM') throw err
+    fs.copyFileSync(process.execPath, nativeBinary)
+  }
+
+  const fixtureDir = path.join(root, 'wrapper')
+  fs.mkdirSync(fixtureDir)
+  for (const name of ['setup.js', 'platform-pkg-name.js']) {
+    fs.copyFileSync(path.join(exeDir, name), path.join(fixtureDir, name))
+  }
+  for (const name of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+    fs.writeFileSync(path.join(fixtureDir, name), 'placeholder')
+  }
+  const exeManifest = JSON.parse(fs.readFileSync(path.join(exeDir, 'package.json'), 'utf8')) as {
+    scripts: { preinstall: string, postinstall?: string },
+  }
+  fs.writeFileSync(path.join(fixtureDir, 'package.json'), JSON.stringify({
+    name: '@pnpm/exe',
+    version: '1.0.0',
+    type: 'module',
+    bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    scripts: {
+      preinstall: exeManifest.scripts.preinstall,
+      postinstall: exeManifest.scripts.postinstall,
+    },
+    dependencies: {
+      'detect-libc': `file:${fs.realpathSync(path.join(exeDir, 'node_modules', 'detect-libc'))}`,
+    },
+    optionalDependencies: { [nativePackageName]: `file:${nativePackageDir}` },
+  }))
+
+  const npmCli = execFileSync('where.exe', ['npm.cmd'], { encoding: 'utf8' })
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(launcher => path.join(path.dirname(launcher), 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+    .find(candidate => fs.existsSync(candidate))
+  expect(npmCli).toBeDefined()
+  const prefix = path.join(root, 'prefix')
+  fs.mkdirSync(prefix)
+  if (!npmFlags.some(flag => flag.startsWith('--global') || flag.startsWith('--location'))) {
+    fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'project', version: '1.0.0' }))
+  }
+  execFileSync(process.execPath, [
+    npmCli!, 'install', ...npmFlags, '--install-links=true', '--dangerously-allow-all-scripts',
+    '--prefix', prefix, fixtureDir,
+  ], { cwd: root, stdio: 'pipe', timeout: 60_000 })
+  return prefix
+}
+
+function expectShimsRunTheExecutable (binDir: string): void {
+  for (const name of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+    for (const ext of ['cmd', 'ps1']) {
+      expect(fs.readFileSync(path.join(binDir, `${name}.${ext}`), 'utf8')).toContain(`${name}.exe`)
+    }
+  }
+  const shim = path.join(binDir, 'pnpm.ps1')
+  expect(execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', shim, '--version'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  }).trim()).toBe(process.version)
+  const failure = spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', shim, '-e', 'process.exit(7)',
+  ], { encoding: 'utf8', timeout: 10_000 })
+  expect(failure.status).toBe(7)
+}
 
 // Stand up a minimal sandbox that mimics @pnpm/exe with NO platform package
 // installed: setup.js + platform-pkg-name.js + a package.json (so Node loads
@@ -240,7 +388,7 @@ winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into inte
   const pkg = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
 
   // Mirror what `pnpm self-update` does in the global bin: feed each bin
-  // entry into @zkochan/cmd-shim and let it write the Bash / cmd / pwsh
+  // entry into @pnpm/bins.cmd-shim and let it write the Bash / cmd / pwsh
   // shims. Using cmd-shim here (the same lib pnpm's bin linker uses) is what
   // lets this repro the real-world chain rather than just asserting the
   // package.json shape.
@@ -277,3 +425,306 @@ winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into inte
     })
   }
 })
+
+// A PATH with no pnpm on it, so a lookup there finds nothing but the decoys the
+// tests plant. `readlink` and `dirname` still have to be reachable.
+const BARE_PATH = '/usr/bin:/bin'
+// The alias scripts are `sh` scripts, and Windows has no `sh`. It never runs
+// them anyway: setup.js replaces them with hardlinks of the native binary, which
+// the winSetupTest above covers.
+const aliasTest = isWindows ? test.skip : test
+
+describe('alias bins', () => {
+  for (const { name, argv } of ALIASES) {
+    const expected = `sibling: ${[...argv, 'add', 'foo'].join(' ')}\n`
+
+    // The native binary sits next to the alias, so it is reachable even where
+    // the directory holding both is not on PATH — as node_modules/.bin is not,
+    // outside a `pnpm run`.
+    aliasTest(`${name} runs the pnpm beside it with no pnpm on PATH`, () => {
+      const sandbox = buildAliasSandbox()
+
+      const result = runAlias(path.join(sandbox, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout, stderr: result.stderr })
+        .toEqual({ status: 0, stdout: expected, stderr: '' })
+    })
+
+    // Any other pnpm on PATH — a different major installed globally, or a
+    // wrapper of one — would otherwise take over the call, and say nothing.
+    aliasTest(`${name} ignores an unrelated pnpm earlier on PATH`, () => {
+      const sandbox = buildAliasSandbox()
+      const decoyDir = path.join(sandbox, 'decoy')
+      writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
+
+      const result = runAlias(path.join(sandbox, name), `${decoyDir}:${BARE_PATH}`)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // A bin directory links the alias from this package while its own pnpm comes
+    // from elsewhere, or is missing. The alias belongs to the package it was
+    // linked from, so that is the pnpm it has to reach.
+    aliasTest(`${name} resolves past a symlink to the package it was linked from`, () => {
+      const sandbox = buildAliasSandbox()
+      const binDir = path.join(sandbox, 'global-bin')
+      writeStub(path.join(binDir, 'pnpm'), 'decoy')
+      fs.symlinkSync(path.join(sandbox, name), path.join(binDir, name))
+
+      const result = runAlias(path.join(binDir, name), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // pnpm/pnpm#14884: MSYS and Cygwin launch the alias with a native Windows
+    // path, which has no slash for ${self%/*} to strip. Only a drive letter or a
+    // UNC prefix marks one, since a backslash is an ordinary character in a Unix
+    // file name. Each test below plants the alias and its sibling pnpm where the
+    // path resolves to, and hands sh the file whose own name is that path.
+    aliasTest(`${name} resolves a drive-letter $0`, () => {
+      const sandbox = buildAliasSandbox()
+      const arg0 = `C:\\proj\\${name}`
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'C:', 'proj')), path.join(sandbox, arg0))
+
+      const result = runNativeAlias(sandbox, arg0)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // A UNC path converts to one starting with //, which Linux and macOS read as
+    // /, so the share stands in for the sandbox directory itself. `shareDir` is
+    // absolute, so its own leading separator is the second of the two backslashes
+    // that mark the path as UNC.
+    aliasTest(`${name} resolves a UNC $0`, () => {
+      const sandbox = buildAliasSandbox()
+      const shareDir = path.join(sandbox, 'share')
+      const arg0 = `\\${shareDir}/${name}`.replaceAll('/', '\\')
+      fs.copyFileSync(plantAliasAndPnpm(sandbox, name, shareDir), path.join(sandbox, arg0))
+
+      const result = runNativeAlias(sandbox, arg0)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    // The other side of the gate: neither prefix is there, so the backslash stays
+    // part of the directory name rather than becoming a separator.
+    aliasTest(`${name} leaves a Unix path holding a backslash alone`, () => {
+      const sandbox = buildAliasSandbox()
+
+      const result = runAlias(plantAliasAndPnpm(sandbox, name, path.join(sandbox, 'proj\\dir')), BARE_PATH)
+      expect({ status: result.status, stdout: result.stdout }).toEqual({ status: 0, stdout: expected })
+    })
+
+    aliasTest(`${name} reports a skipped install script rather than failing to exec the placeholder`, () => {
+      const sandbox = buildAliasSandbox({ installBinary: false })
+
+      const result = runAlias(path.join(sandbox, name), BARE_PATH)
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain(`${name}: pnpm's native binary was not installed next to this script.`)
+    })
+  }
+})
+
+const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
+
+const winCmdTest = isWindows ? test : test.skip
+
+const powershellCommand = (() => {
+  if (isWindows) {
+    const probe = spawnSync('powershell', ['-NoProfile', '-Command', 'exit 0'], {
+      encoding: 'utf8',
+      timeout: 5_000,
+      env: { ...process.env, PATH: `${POWERSHELL_DIR};${SYSTEM32};${process.env.PATH ?? ''}` },
+    })
+    if (probe.status === 0) return 'powershell'
+    const probePwsh = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0'], { encoding: 'utf8', timeout: 5_000 })
+    if (probePwsh.status === 0) return 'pwsh'
+    return null
+  }
+  const probe = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { encoding: 'utf8', timeout: 5_000 })
+  return probe.status === 0 ? 'pwsh' : null
+})()
+const powershellTest = powershellCommand != null ? test : test.skip
+
+describe('Windows fallback wrappers', () => {
+  for (const { name, argv } of ALIASES) {
+    const expected = `stub: ${[...argv, 'add', 'foo'].join(' ')}`
+
+    winCmdTest(`${name}.cmd propagates non-zero exit status from pnpm on PATH`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync('cmd.exe', ['/d', '/c', path.join(sandbox, `${name}.cmd`), 'fail'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    winCmdTest(`${name}.cmd propagates successful exit status and arguments`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync('cmd.exe', ['/d', '/c', path.join(sandbox, `${name}.cmd`), 'add', 'foo'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
+          status: 0,
+          stdout: expected,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    powershellTest(`${name}.ps1 propagates non-zero exit status from pnpm on PATH`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync(powershellCommand!, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(sandbox, `${name}.ps1`), 'fail'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stderr: result.stderr }).toEqual({
+          status: 42,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+
+    powershellTest(`${name}.ps1 propagates successful exit status and arguments`, () => {
+      const { sandbox, stubDir } = buildFallbackSandbox()
+      try {
+        const result = spawnSync(powershellCommand!, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(sandbox, `${name}.ps1`), 'add', 'foo'], {
+          cwd: sandbox,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: getWindowsFallbackEnv(stubDir),
+        })
+        expect({ status: result.status, stdout: result.stdout.trim(), stderr: result.stderr }).toEqual({
+          status: 0,
+          stdout: expected,
+          stderr: '',
+        })
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true })
+      }
+    })
+  }
+})
+
+/**
+ * An @pnpm/exe directory as prepare.js leaves it, with `pnpm` replaced by a
+ * stand-in that reports the arguments it was handed — which is all the aliases
+ * have to get right, and what setup.js's hardlink of the native binary occupies.
+ * `installBinary: false` leaves prepare.js's placeholder there instead, standing
+ * for an install whose scripts were skipped.
+ */
+function buildAliasSandbox ({ installBinary = true } = {}): string {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-alias-'))
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({ name: '@pnpm/exe', type: 'module' }))
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+  if (installBinary) {
+    writeStub(path.join(sandbox, 'pnpm'), 'sibling')
+  }
+  return sandbox
+}
+
+function plantAliasAndPnpm (sandbox: string, name: string, targetDir: string): string {
+  fs.mkdirSync(targetDir, { recursive: true })
+  const file = path.join(targetDir, name)
+  fs.copyFileSync(path.join(sandbox, name), file)
+  fs.chmodSync(file, 0o755)
+  writeStub(path.join(targetDir, 'pnpm'), 'sibling')
+  return file
+}
+
+/**
+ * An executable stand-in for pnpm at `file` that echoes `label` and its
+ * arguments. chmod separately: `writeFileSync`'s `mode` applies only when it
+ * creates the file, and here it overwrites prepare.js's non-executable placeholder.
+ */
+function writeStub (file: string, label: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
+  fs.chmodSync(file, 0o755)
+}
+
+function runAlias (alias: string, pathEnv: string) {
+  return spawnSync(alias, ['add', 'foo'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: { ...process.env, PATH: pathEnv },
+  })
+}
+
+function runNativeAlias (cwd: string, arg0: string) {
+  return spawnSync('sh', [arg0, 'add', 'foo'], {
+    cwd,
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: { ...process.env, PATH: BARE_PATH },
+  })
+}
+
+function buildFallbackSandbox (): { sandbox: string, stubDir: string } {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-fallback-'))
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({ name: '@pnpm/exe', type: 'module' }))
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+
+  const stubDir = path.join(sandbox, 'stub')
+  fs.mkdirSync(stubDir, { recursive: true })
+
+  // Use an executable binary stand-in (node) for pnpm, so on Windows cmd.exe executes
+  // an .exe via CreateProcess and regains control in the wrapper rather than transferring
+  // execution to a chained .cmd batch file.
+  const stubJs = path.join(stubDir, 'stub.cjs')
+  fs.writeFileSync(
+    stubJs,
+    `const path = require('path')
+const args = process.argv.slice(1).map((arg) => {
+  const base = path.basename(arg)
+  return ['dlx', 'fail', 'add', 'foo'].includes(base) ? base : arg
+})
+if (args.includes('fail')) {
+  process.exit(42)
+}
+console.log('stub: ' + args.join(' '))
+process.exit(0)
+`
+  )
+
+  const pnpmBin = path.join(stubDir, isWindows ? 'pnpm.exe' : 'pnpm')
+  try {
+    fs.linkSync(process.execPath, pnpmBin)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(process.execPath, pnpmBin)
+  }
+
+  return { sandbox, stubDir }
+}
+
+function getWindowsFallbackEnv (stubDir: string): NodeJS.ProcessEnv {
+  const pathParts = isWindows
+    ? [stubDir, POWERSHELL_DIR, SYSTEM32, process.env.PATH]
+    : [stubDir, process.env.PATH]
+  const stubJs = path.join(stubDir, 'stub.cjs').replace(/\\/g, '/')
+  const prevNodeOptions = process.env.NODE_OPTIONS ?? ''
+  return {
+    ...process.env,
+    PATH: pathParts.filter(Boolean).join(path.delimiter),
+    NODE_OPTIONS: `${prevNodeOptions} --require "${stubJs}"`.trim(),
+  }
+}

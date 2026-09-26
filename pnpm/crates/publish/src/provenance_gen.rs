@@ -14,9 +14,9 @@
 
 use std::time::Duration;
 
-use pacquet_diagnostics::miette::{self, Diagnostic};
-use pacquet_network::{RetryOpts, redact_url_credentials};
-use pacquet_reporter::Reporter;
+use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
@@ -121,10 +121,11 @@ impl SignProvenance for Host {
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
-                let bundle =
-                    context.signer(token.clone()).sign_raw_statement(statement).await.map_err(
-                        |source| ProvenanceGenError::Sign { source: source.to_string() },
-                    )?;
+                let bundle = context
+                    .signer(token.clone())
+                    .sign_raw_statement(statement)
+                    .await
+                    .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
                 let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
                 Ok(SignedProvenance { media_type: bundle.media_type, data })
             })
@@ -186,7 +187,7 @@ where
             Err(error) if attempt < retry_opts.retries => {
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
-                    target: "pacquet_publish::provenance",
+                    target: "pnpm_publish::provenance",
                     error = %redact_url_credentials(&error.to_string()),
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
@@ -205,8 +206,9 @@ where
 /// (`pkg:npm/<name>@<version>`), with only a leading scope `@`
 /// percent-encoded to `%40` (the `/` is left intact).
 fn npm_purl(name: &str, version: &str) -> String {
-    let encoded =
-        name.strip_prefix('@').map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
+    let encoded = name
+        .strip_prefix('@')
+        .map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
     format!("pkg:npm/{encoded}@{version}")
 }
 
@@ -229,10 +231,12 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
     let workflow_ref = env::<Sys>("GITHUB_WORKFLOW_REF");
     // GITHUB_WORKFLOW_REF is `owner/repo/path@ref`; strip the `owner/repo/`
     // prefix, then split the remainder on `@` into path and ref.
-    let relative_ref =
-        workflow_ref.strip_prefix(&format!("{repository}/")).unwrap_or(&workflow_ref);
-    let (workflow_path, workflow_ref_only) =
-        relative_ref.split_once('@').unwrap_or((relative_ref, ""));
+    let relative_ref = workflow_ref
+        .strip_prefix(&format!("{repository}/"))
+        .unwrap_or(&workflow_ref);
+    let (workflow_path, workflow_ref_only) = relative_ref
+        .split_once('@')
+        .unwrap_or((relative_ref, ""));
 
     json!({
         "_type": IN_TOTO_STATEMENT_V1_TYPE,
@@ -260,18 +264,22 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
                     "digest": { "gitCommit": env::<Sys>("GITHUB_SHA") },
                 }],
             },
-            "runDetails": {
-                "builder": {
-                    "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
-                },
-                "metadata": {
-                    "invocationId": format!(
-                        "{server_url}/{repository}/actions/runs/{}/attempts/{}",
-                        env::<Sys>("GITHUB_RUN_ID"),
-                        env::<Sys>("GITHUB_RUN_ATTEMPT"),
-                    ),
-                },
-            },
+            "runDetails": github_run_details::<Sys>(&server_url, &repository),
+        },
+    })
+}
+
+fn github_run_details<Sys: EnvVar>(server_url: &str, repository: &str) -> Value {
+    json!({
+        "builder": {
+            "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
+        },
+        "metadata": {
+            "invocationId": format!(
+                "{server_url}/{repository}/actions/runs/{}/attempts/{}",
+                env::<Sys>("GITHUB_RUN_ID"),
+                env::<Sys>("GITHUB_RUN_ATTEMPT"),
+            ),
         },
     })
 }
@@ -397,7 +405,6 @@ pub enum ProvenanceGenError {
     #[display("invalid id-token request URL: {_0}")]
     InvalidRequestUrl(url::ParseError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 
     #[display("invalid sigstore identity token: {source}")]

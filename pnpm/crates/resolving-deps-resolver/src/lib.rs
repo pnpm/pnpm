@@ -13,7 +13,7 @@
 //!
 //! 1. **Tree pass** ([`fn@resolve_dependency_tree`]). Walks a project
 //!    manifest's direct dependencies through a
-//!    [`Resolver`](pacquet_resolving_resolver_base::Resolver) chain
+//!    [`Resolver`](pnpm_resolving_resolver_base::Resolver) chain
 //!    and recurses on every resolved package's own manifest
 //!    dependencies. Produces:
 //!
@@ -62,14 +62,53 @@
 //!   resolver is fed each child's manifest range verbatim. Lockfile-
 //!   seeded preferred versions arrive via the orchestrator's
 //!   `all_preferred_versions` option — callers pre-seed with the
-//!   `pacquet-lockfile-preferred-versions` crate.
+//!   `pnpm-lockfile-preferred-versions` crate.
+
+pub use dependencies_graph::{
+    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
+    PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
+};
+pub use hoist_peers::{
+    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
+    get_hoistable_optional_peers, hoist_peers,
+};
+pub use node_id::NodeId;
+pub use parent_pkg_aliases::ParentPkgAliases;
+pub use pnpm_deps_path::DepPath;
+pub use pnpm_package_name::is_valid_dependency_alias;
+pub use resolve_dependency_tree::{
+    Deprecation, DeprecationLogFn, FinalizedChild, FinalizedPackage, FinalizedPackageFn,
+    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
+    SkippedOptionalDependency, SkippedOptionalDependencyParent, SkippedOptionalLogFn, TreeCtx,
+    UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine, WorkspaceTreeCtx, extend_tree,
+    real_package_name_of, resolve_dependency_tree,
+};
+pub use resolve_importer::{
+    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
+    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+    resolve_importer_with_workspace,
+};
+pub use resolve_peers::{
+    HoistMissingScope, ImporterPeerInput, PeerResolutionScope, ResolvePeersOptions,
+    ResolvePeersResult, WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
+};
+pub use resolve_workspace::{
+    ResolveWorkspaceResult, ResolvedWorkspaceDependencies, WorkspaceImporter,
+    WorkspaceLockfileReuse, WorkspacePeerResolutionOptions, WorkspaceResolveHooks,
+    WorkspaceResolveOptions, WorkspaceVersionResolution, resolve_workspace,
+    resolve_workspace_dependencies,
+};
+pub use resolved_tree::{
+    AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
+    ResolvedPackage, ResolvedTree, TreeChildren,
+};
 
 mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
 mod dep_path_compatibility;
 mod dependencies_graph;
 mod hoist_peers;
-mod include_prerelease_range;
+mod link_target;
 mod lockfile_reuse;
 mod node_id;
 mod parent_pkg_aliases;
@@ -78,41 +117,6 @@ mod resolve_importer;
 mod resolve_peers;
 mod resolve_workspace;
 mod resolved_tree;
-mod validate_dependency_alias;
-
-pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
-    PeerDependencyIssue, PeerDependencyIssues,
-};
-pub use hoist_peers::{
-    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-    get_hoistable_optional_peers, hoist_peers,
-};
-pub use node_id::NodeId;
-pub use pacquet_deps_path::DepPath;
-pub use parent_pkg_aliases::ParentPkgAliases;
-pub use resolve_dependency_tree::{
-    Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
-    ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, extend_tree,
-    resolve_dependency_tree,
-};
-pub use resolve_importer::{
-    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
-    resolve_importer_with_workspace,
-};
-pub use resolve_peers::{
-    HoistMissingScope, ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
-    WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
-};
-pub use resolve_workspace::{
-    ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace,
-};
-pub use resolved_tree::{
-    AncestorIds, ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep,
-    ResolvedPackage, ResolvedTree, TreeChildren,
-};
-pub use validate_dependency_alias::is_valid_dependency_alias;
 
 #[cfg(test)]
 mod tests;

@@ -38,7 +38,7 @@ test('remove the default catalog if it is empty', async () => {
     },
   })
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(fs.existsSync(filePath)).toBeFalsy()
@@ -73,7 +73,7 @@ test('remove the unused default catalog', async () => {
   }, { tempDir: dir })
   const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -116,7 +116,7 @@ test('remove the unused default catalog with catalogs', async () => {
   }, { tempDir: dir })
   const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -159,7 +159,7 @@ test('remove the unused named catalog', async () => {
   }, { tempDir: dir })
   const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -211,7 +211,7 @@ test('remove all unused named catalogs', async () => {
   const allProjects = await findPackages(dir)
 
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -231,7 +231,7 @@ test('remove all unused named catalogs', async () => {
   }, { tempDir: dir })
   const _allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects: _allProjects,
   })
   expect(fs.existsSync(filePath)).toBeFalsy()
@@ -282,7 +282,7 @@ test('same pkg with different version', async () => {
   }, { tempDir: dir })
   const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -343,7 +343,7 @@ test('update catalogs and remove catalog', async () => {
         ghi: '7.9.9',
       },
     },
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -401,7 +401,7 @@ test('when allProjects is undefined should not cleanup unused catalogs', async (
         ghi: '7.9.9',
       },
     },
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects: undefined,
   })
   expect(readYamlFileSync(filePath)).toStrictEqual({
@@ -443,7 +443,7 @@ test('keep catalogs referenced only in workspace overrides', async () => {
   const allProjects = await findPackages(dir)
 
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
 
@@ -491,7 +491,7 @@ test('remove catalogs unused by dependencies and workspace overrides', async () 
   const allProjects = await findPackages(dir)
 
   await updateWorkspaceManifest(dir, {
-    cleanupUnusedCatalogs: true,
+    catalogPrune: true,
     allProjects,
   })
 

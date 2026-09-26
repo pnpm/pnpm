@@ -1,4 +1,4 @@
-use pacquet_store_dir::StoreDir;
+use pnpm_store_dir::StoreDir;
 
 /// Best-effort eager CAFS-shard bootstrap at install start. Delegates
 /// to [`StoreDir::init`] on the blocking pool and degrades every
@@ -6,7 +6,7 @@ use pacquet_store_dir::StoreDir;
 /// `io::Error` (init itself failed: permission denied, disk full,
 /// non-directory at `v11/files`, ...) — to a single `warn!`. The lazy
 /// per-shard fallback inside
-/// [`StoreDir::write_cas_file`][pacquet_store_dir::StoreDir::write_cas_file]
+/// [`StoreDir::write_cas_file`][pnpm_store_dir::StoreDir::write_cas_file]
 /// handles whatever `init` didn't, so there's no correctness reason to
 /// fail the install on a bootstrap miss.
 ///

@@ -4,6 +4,7 @@
 #![cfg(unix)]
 
 use super::ScriptShortcutArgs;
+use crate::cli_args::reporter::ReporterType;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -30,7 +31,7 @@ fn stop_runs_declared_script() {
     );
     let config = test_config();
     ScriptShortcutArgs { args: vec![] }
-        .run("stop", false, dir, &config, true)
+        .run("stop", false, dir, &config, ReporterType::Silent)
         .expect("stop should succeed");
     assert!(marker.exists(), "stop script should have run");
 }
@@ -43,7 +44,7 @@ fn stop_with_if_present_skips_missing_script() {
     setup_project(dir, &json!({}));
     let config = test_config();
     ScriptShortcutArgs { args: vec![] }
-        .run("stop", true, dir, &config, true)
+        .run("stop", true, dir, &config, ReporterType::Silent)
         .expect("--if-present should succeed when script is missing");
 }
 
@@ -54,7 +55,8 @@ fn stop_fails_on_missing_script_without_if_present() {
     let dir = tmp.path();
     setup_project(dir, &json!({}));
     let config = test_config();
-    let res = ScriptShortcutArgs { args: vec![] }.run("stop", false, dir, &config, true);
+    let res =
+        ScriptShortcutArgs { args: vec![] }.run("stop", false, dir, &config, ReporterType::Silent);
     assert!(res.is_err(), "should fail because script is missing");
 }
 
@@ -63,9 +65,9 @@ fn stop_fails_on_missing_script_without_if_present() {
 /// would spawn `current_exe()` — the test harness binary — as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
-fn test_config() -> pacquet_config::Config {
-    pacquet_config::Config {
-        verify_deps_before_run: pacquet_config::VerifyDepsBeforeRun::False,
-        ..pacquet_config::Config::default()
+fn test_config() -> pnpm_config::Config {
+    pnpm_config::Config {
+        verify_deps_before_run: pnpm_config::VerifyDepsBeforeRun::False,
+        ..pnpm_config::Config::default()
     }
 }

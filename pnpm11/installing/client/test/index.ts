@@ -14,7 +14,7 @@ test('createClient()', () => {
   const client = createClient({
     configByUri: {},
     cacheDir: '',
-    registries: {
+    registriesByScope: {
       default: 'https://reigstry.npmjs.org/',
     },
     storeDir: '.store',
@@ -27,7 +27,7 @@ test('createResolver()', () => {
   const { resolve } = createResolver({
     configByUri: {},
     cacheDir: '',
-    registries: {
+    registriesByScope: {
       default: 'https://reigstry.npmjs.org/',
     },
     storeDir: '.store',

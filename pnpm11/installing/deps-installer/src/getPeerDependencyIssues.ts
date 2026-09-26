@@ -1,4 +1,4 @@
-import { DEFAULT_REGISTRIES } from '@pnpm/config.normalize-registries'
+import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { createDependencyOverrider, createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/installing.context'
@@ -40,7 +40,7 @@ export async function getPeerDependencyIssues (
     extraBinPaths: [],
     lockfileDir,
     nodeLinker: opts.nodeLinker ?? 'isolated',
-    registries: DEFAULT_REGISTRIES,
+    registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
     useLockfile: true,
     allProjects: projects,
     ...opts,
@@ -52,7 +52,8 @@ export async function getPeerDependencyIssues (
   }))
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
     ctx.wantedLockfile.packages,
-    Object.values(ctx.projects).map(({ manifest }) => manifest)
+    Object.values(ctx.projects).map(({ manifest }) => manifest),
+    { catalogs: opts.catalogs }
   )
   const overrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
   const {
@@ -89,7 +90,7 @@ export async function getPeerDependencyIssues (
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preferredVersions,
       preserveWorkspaceProtocol: false,
-      registries: ctx.registries,
+      registriesByScope: ctx.registriesByScope,
       saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
       storeController: opts.storeController,
       tag: 'latest',

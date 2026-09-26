@@ -1,4 +1,4 @@
-use pacquet_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 use pretty_assertions::assert_eq;
 
 use super::get_version_selector_type;
