@@ -459,7 +459,9 @@ test('a failed clone over SSH names the package and how to re-record it', async 
   expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
   expect(err.message).toContain('Failed to fetch "@scope/pkg" from the git repository "git@github.com:pnpm-e2e/this-repository-does-not-exist.git"')
   expect(err.hint).toContain('needs an SSH key for github.com')
+  expect(err.hint).toContain('ssh-add -l')
   expect(err.hint).toContain('pnpm update @scope/pkg')
+  expect(err.hint).toContain('do not re-resolve git dependencies')
 })
 
 test('a failed clone over HTTPS carries no SSH remediation', async () => {
@@ -543,6 +545,32 @@ test('credentials in the repository URL are redacted from the failure', async ()
 
   expect(err.message).not.toContain('s3cr3t-t0ken')
   expect(err.message).toContain('https://github.com/pnpm-e2e/this-repository-does-not-exist.git')
+})
+
+test('a publickey refusal on an SSH clone names ssh-agent and how to re-record HTTPS', async () => {
+  const storeDir = temporaryDirectory()
+  const fetch = createGitFetcher({ storeIndex: createStoreIndex(storeDir) }).git
+  failGit(Object.assign(new Error('git clone failed'), {
+    stderr: 'git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.',
+  }))
+  const err = await fetchFailure(fetch(
+    createCafsStore(storeDir),
+    {
+      commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',
+      repo: 'git@github.com:acme/widget.git',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(storeDir, 'index.json'),
+      pkg: { name: '@scope/pkg', version: '1.0.0' },
+    }
+  ))
+
+  expect(err.code).toBe('ERR_PNPM_GIT_FETCH_FAILED')
+  expect(err.message).toContain('Permission denied (publickey)')
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('pnpm update @scope/pkg')
+  expect(err.hint).toContain('do not re-resolve git dependencies')
 })
 
 test('git runs with terminal and ssh prompts disabled, so a passphrase prompt cannot block the fetch', async () => {

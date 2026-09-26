@@ -15,6 +15,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_registry::Package;
+use url::Url;
 
 /// `ERR_PNPM_NO_MATCHING_VERSION`: the registry served the package's
 /// packument, but none of the published versions satisfied the request.
@@ -271,7 +272,7 @@ impl GitResolveError {
         Self {
             specifier: redact_and_sanitize(specifier),
             detail: redact_and_sanitize_multiline(detail),
-            hint: https_transport_hint(repo),
+            hint: https_transport_hint(repo).or_else(|| ssh_publickey_hint(repo, detail)),
         }
     }
 }
@@ -314,6 +315,118 @@ If git can only reach {hostname} over SSH here, substitute the transport locally
 
     git config --global url."git@{hostname}:".insteadOf "{scheme}://{host}/""#,
     ))
+}
+
+/// Guidance when `git ls-remote` of an SSH remote fails with
+/// `Permission denied (publickey)`, or `None` for any other failure.
+///
+/// The specifier asked for SSH, so the hint is how to authenticate that
+/// transport, plus a local HTTPS rewrite that leaves the recorded URL alone.
+/// A lockfile clone is a different failure: resolution is skipped while the
+/// lockfile is up to date, and the git fetcher reports it.
+fn ssh_publickey_hint(repo: &str, detail: &str) -> Option<String> {
+    if !is_publickey_refusal(detail) {
+        return None;
+    }
+    let SshRemote { hostname, instead_of } = parse_ssh_remote(repo)?;
+    let rewrite = instead_of
+        .map(|instead_of| {
+            format!(
+                r#" To reach {hostname} over HTTPS on this machine, leaving the recorded URL alone:
+
+    git config --global url."https://{hostname}/".insteadOf "{instead_of}""#,
+            )
+        })
+        .unwrap_or_default();
+    Some(format!(
+        r"Git refused the SSH key for {hostname} (Permission denied (publickey)).
+
+Make sure ssh-agent has a key for that host loaded:
+
+    ssh-add -l
+
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.{rewrite}",
+    ))
+}
+
+/// The host of an SSH remote, and the `insteadOf` prefix that matches it.
+struct SshRemote {
+    hostname: String,
+    /// `None` unless the remote logs in as `git`. The prefix has to repeat the
+    /// user to match, and userinfo is never copied into a hint, so a password
+    /// or a token used as the user name cannot reach it.
+    instead_of: Option<String>,
+}
+
+/// `None` when `repo` is not an SSH reference or its host is not
+/// [shell safe](is_shell_safe_host).
+fn parse_ssh_remote(repo: &str) -> Option<SshRemote> {
+    let ssh_url = repo.strip_prefix("git+").unwrap_or(repo);
+    if ssh_url.starts_with("ssh://") {
+        let url = Url::parse(ssh_url).ok()?;
+        let hostname = redact_and_sanitize(url.host_str()?);
+        if !is_shell_safe_host(&hostname) {
+            return None;
+        }
+        let port_suffix = url
+            .port()
+            .map(|port| format!(":{port}"))
+            .unwrap_or_default();
+        let instead_of =
+            (url.username() == "git").then(|| format!("ssh://git@{hostname}{port_suffix}/"));
+        return Some(SshRemote { hostname, instead_of });
+    }
+    if repo.contains("://") {
+        return None;
+    }
+    let (authority, _path) = repo.split_once(':')?;
+    let (user, hostname) = authority.rsplit_once('@')?;
+    let hostname = redact_and_sanitize(hostname);
+    if !is_shell_safe_host(&hostname) {
+        return None;
+    }
+    let instead_of = (user == "git").then(|| format!("git@{hostname}:"));
+    Some(SshRemote { hostname, instead_of })
+}
+
+/// A host safe to interpolate into the `git config` line of [`ssh_publickey_hint`].
+///
+/// That line is a command a user may paste, and the host comes from the
+/// specifier.
+fn is_shell_safe_host(hostname: &str) -> bool {
+    let bracketed = hostname.starts_with('[') && hostname.ends_with(']');
+    let body = if bracketed { &hostname[1..hostname.len() - 1] } else { hostname };
+    if body.is_empty()
+        || body.starts_with('-')
+        || body.starts_with('.')
+        || body.ends_with('-')
+        || body.ends_with('.')
+    {
+        return false;
+    }
+    body.bytes()
+        .all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || byte == b'.'
+                || byte == b'-'
+                || byte == b'_'
+                || (bracketed && byte == b':')
+        })
+}
+
+/// Whether git's stderr carries OpenSSH's `Permission denied (...)` list of
+/// refused methods with `publickey` among them. The detail also echoes the
+/// host, so the word alone could be part of a host name.
+fn is_publickey_refusal(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    detail
+        .split("permission denied (")
+        .skip(1)
+        .any(|rest| {
+            rest.split(')')
+                .next()
+                .is_some_and(|methods| methods.contains("publickey"))
+        })
 }
 
 #[cfg(test)]

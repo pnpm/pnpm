@@ -786,6 +786,8 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
         .to_string();
     dbg!(&help);
     assert!(help.contains("needs an SSH key for github.com"), "{help}");
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("Permission denied (publickey)"), "{help}");
     assert!(help.contains("pnpm update @scope/pkg"), "{help}");
     assert!(help.contains("do not re-resolve git dependencies"), "{help}");
 }

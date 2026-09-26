@@ -215,7 +215,7 @@ function gitResolveError (err: Error, bareSpecifier: string, repo: string): Erro
   return new PnpmError(
     'GIT_RESOLVE_FAILED',
     `Failed to resolve git dependency "${redactAndSanitize(bareSpecifier)}": ${err.message}`,
-    { hint: httpsTransportHint(repo) }
+    { hint: httpsTransportHint(repo) ?? sshPublicKeyHint(repo, err.message) }
   )
 }
 
@@ -244,6 +244,112 @@ function httpsTransportHint (repo: string): string | undefined {
 If git can only reach ${hostname} over SSH here, substitute the transport locally, leaving the recorded URL alone:
 
     git config --global url."git@${hostname}:".insteadOf "${url.protocol}//${host}/"`
+}
+
+/**
+ * Guidance when `git ls-remote` of an SSH remote fails with
+ * `Permission denied (publickey)`, or `undefined` for any other failure.
+ *
+ * The specifier asked for SSH, so the hint is how to authenticate that
+ * transport, plus a local HTTPS rewrite that leaves the recorded URL alone.
+ * It does not apply to a lockfile clone: resolution is skipped while the
+ * lockfile is up to date, and that failure is reported by the git fetcher.
+ */
+function sshPublicKeyHint (repo: string, detail: string): string | undefined {
+  if (!isPublicKeyRefusal(detail)) return undefined
+  const remote = parseSshRemote(repo)
+  if (remote == null) return undefined
+  const rewrite = remote.insteadOf == null
+    ? ''
+    : ` To reach ${remote.hostname} over HTTPS on this machine, leaving the recorded URL alone:
+
+    git config --global url."https://${remote.hostname}/".insteadOf "${remote.insteadOf}"`
+  return `Git refused the SSH key for ${remote.hostname} (Permission denied (publickey)).
+
+Make sure ssh-agent has a key for that host loaded:
+
+    ssh-add -l
+
+If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.${rewrite}`
+}
+
+/**
+ * Whether git's stderr carries OpenSSH's `Permission denied (...)` list of
+ * refused methods with `publickey` among them. The detail also echoes the
+ * host, so the word alone could be part of a host name.
+ */
+function isPublicKeyRefusal (detail: string): boolean {
+  return detail.toLowerCase()
+    .split('permission denied (')
+    .slice(1)
+    .some((rest) => rest.split(')')[0].includes('publickey'))
+}
+
+interface SshRemote {
+  hostname: string
+  /**
+   * `undefined` unless the remote logs in as `git`. The prefix has to repeat
+   * the user to match, and userinfo is never copied into a hint, so a
+   * password or a token used as the user name cannot reach it.
+   */
+  insteadOf?: string
+}
+
+/**
+ * `undefined` when `repo` is not an SSH reference or its host is not
+ * {@link isShellSafeHost | shell safe}.
+ */
+function parseSshRemote (repo: string): SshRemote | undefined {
+  const sshUrl = repo.startsWith('git+') ? repo.slice('git+'.length) : repo
+  if (sshUrl.startsWith('ssh://')) {
+    let url: URL
+    try {
+      url = new URL(sshUrl)
+    } catch {
+      return undefined
+    }
+    const hostname = redactAndSanitize(url.hostname)
+    if (!isShellSafeHost(hostname)) return undefined
+    const port = url.port === '' ? '' : `:${url.port}`
+    return {
+      hostname,
+      insteadOf: url.username === 'git' ? `ssh://git@${hostname}${port}/` : undefined,
+    }
+  }
+  if (repo.includes('://')) return undefined
+  const colonPos = repo.indexOf(':')
+  if (colonPos === -1) return undefined
+  const authority = repo.slice(0, colonPos)
+  const atPos = authority.lastIndexOf('@')
+  if (atPos === -1) return undefined
+  const hostname = redactAndSanitize(authority.slice(atPos + 1))
+  if (!isShellSafeHost(hostname)) return undefined
+  return {
+    hostname,
+    insteadOf: authority.slice(0, atPos) === 'git' ? `git@${hostname}:` : undefined,
+  }
+}
+
+/**
+ * A host safe to interpolate into the `git config` line of {@link sshPublicKeyHint}.
+ *
+ * The line is a command a user may paste, and the host comes from the
+ * specifier.
+ */
+function isShellSafeHost (hostname: string): boolean {
+  const bracketed = hostname.startsWith('[') && hostname.endsWith(']')
+  const body = bracketed ? hostname.slice(1, -1) : hostname
+  if (body === '' || body.startsWith('-') || body.startsWith('.') || body.endsWith('-') || body.endsWith('.')) return false
+  for (const char of body) {
+    const code = char.charCodeAt(0)
+    const digit = code >= 48 && code <= 57
+    const upper = code >= 65 && code <= 90
+    const lower = code >= 97 && code <= 122
+    if (digit || upper || lower || char === '.' || char === '-' || char === '_') continue
+    if (bracketed && char === ':') continue
+    return false
+  }
+  return true
 }
 
 function isSsh (gitSpec: string): boolean {

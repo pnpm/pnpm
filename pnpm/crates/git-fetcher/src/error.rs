@@ -125,6 +125,10 @@ pub enum GitFetcherError {
         help(
             r#"The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for {host}.
 
+If git reported "Permission denied (publickey)", the host was reached and refused the key. Make sure ssh-agent has a key loaded:
+
+    ssh-add -l
+
 If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
 
     pnpm update {package}
