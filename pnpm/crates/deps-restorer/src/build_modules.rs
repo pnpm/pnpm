@@ -331,9 +331,11 @@ impl BuildModules<'_> {
     }
 
     /// The project directories every dependency build script gets on `PATH`
-    /// after the ones walked up from its own package: the privately hoisted
-    /// `node_modules/.bin`, the configured extra bin paths (the workspace
-    /// root's `node_modules/.bin`), and the root project's runtime `node`.
+    /// after the ones walked up from its own package: the root project's
+    /// runtime `node`, the privately hoisted `node_modules/.bin`, and the
+    /// configured extra bin paths (the workspace root's `node_modules/.bin`).
+    /// The runtime comes first so a hoisted package's `node` bin cannot
+    /// replace the Node.js whose version keys the slot.
     ///
     /// A global virtual store slot has no `node_modules` ancestor inside the
     /// project, so without these its scripts would miss them. They are given
@@ -346,10 +348,10 @@ impl BuildModules<'_> {
             .then_some(self.scripts.patched_engines.virtual_store_dir)
             .flatten()
             .map(|virtual_store_dir| virtual_store_dir.join("node_modules").join(".bin"));
-        hoisted_bin_dir
+        self.runtime_node_bin_dir(snapshots)
             .into_iter()
+            .chain(hoisted_bin_dir)
             .chain(self.scripts.path.extra_bin_paths.iter().cloned())
-            .chain(self.runtime_node_bin_dir(snapshots))
             .collect()
     }
 

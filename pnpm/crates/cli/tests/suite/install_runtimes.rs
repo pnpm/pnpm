@@ -520,10 +520,33 @@ fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_vi
         .to_string(),
     )
     .unwrap();
+    // A hoisted package that publishes a `node` bin must not shadow the
+    // runtime whose version keys the slot.
+    let fake_node = workspace.join("fake-node");
+    fs::create_dir(&fake_node).unwrap();
+    fs::write(
+        fake_node.join("package.json"),
+        json!({ "name": "fake-node", "version": "1.0.0", "bin": { "node": "node.sh" } }).to_string(
+        ),
+    )
+    .unwrap();
+    fs::write(fake_node.join("node.sh"), "#!/bin/sh\nprintf ran > fake-node-ran\n").unwrap();
+    let wrapper = workspace.join("wrapper");
+    fs::create_dir(&wrapper).unwrap();
+    fs::write(
+        wrapper.join("package.json"),
+        json!({
+            "name": "wrapper",
+            "version": "1.0.0",
+            "dependencies": { "fake-node": "file:../fake-node" },
+        })
+        .to_string(),
+    )
+    .unwrap();
     fs::write(
         workspace.join("package.json"),
         json!({
-            "dependencies": { "dependency": "file:dependency" },
+            "dependencies": { "dependency": "file:dependency", "wrapper": "file:wrapper" },
             "devEngines": {
                 "runtime": { "name": "node", "version": version, "onFail": "download" },
             },
@@ -542,6 +565,14 @@ fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_vi
         .success();
     let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
     assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+    // The hoisted bins are linked after the first build, so build again.
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["rebuild", "dependency"])
+        .assert()
+        .success();
+    let fake_node_marker = workspace.join("node_modules/dependency/fake-node-ran");
+    assert!(!fake_node_marker.exists(), "the hoisted `node` bin shadowed the runtime");
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
     command(&workspace)

@@ -62,7 +62,7 @@ skipOnWindows('dependency builds in the global virtual store run the root projec
         name: 'root',
         version: '1.0.0',
         private: true,
-        dependencies: { dep: 'file:dep' },
+        dependencies: { dep: 'file:dep', wrapper: 'file:wrapper' },
         devEngines: {
           runtime: {
             name: 'node',
@@ -76,7 +76,18 @@ skipOnWindows('dependency builds in the global virtual store run the root projec
       location: 'dep',
       package: { name: 'dep', version: '1.0.0', scripts: { postinstall: recordNodeVersion } },
     },
+    // A hoisted package that publishes a `node` bin must not replace the
+    // runtime whose version keys the slot.
+    {
+      location: 'fake-node',
+      package: { name: 'fake-node', version: '1.0.0', bin: { node: 'node.sh' } },
+    },
+    {
+      location: 'wrapper',
+      package: { name: 'wrapper', version: '1.0.0', dependencies: { 'fake-node': 'file:../fake-node' } },
+    },
   ])
+  fs.writeFileSync('fake-node/node.sh', '#!/bin/sh\nprintf fake > node-version\n')
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowBuilds: { 'dep@file:dep': true },
     enableGlobalVirtualStore: true,
@@ -85,7 +96,14 @@ skipOnWindows('dependency builds in the global virtual store run the root projec
 
   await execPnpm(['install', '--lockfile-only'])
   await execPnpm(['install', '--frozen-lockfile', '--prefer-offline'], { env: { PATH: '' } })
-  expect(fs.readFileSync(path.join(fs.realpathSync('node_modules/dep'), 'node-version'), 'utf8')).toBe('v22.19.0')
+  const nodeVersionFile = path.join(fs.realpathSync('node_modules/dep'), 'node-version')
+  expect(fs.readFileSync(nodeVersionFile, 'utf8')).toBe('v22.19.0')
+
+  // The hoisted bins are in place for any later build. The runtime must win
+  // over both the hoisted `node` bin and the system Node.js.
+  fs.rmSync(nodeVersionFile)
+  await execPnpm(['rebuild', 'dep'])
+  expect(fs.readFileSync(nodeVersionFile, 'utf8')).toBe('v22.19.0')
 })
 
 // A filtered install that leaves the root project out still builds
@@ -158,7 +176,7 @@ test('dependency build scripts in the global virtual store see the workspace roo
     },
     {
       location: 'dep',
-      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: 'gvs-root-tool && gvs-hoisted-tool' } },
+      package: { name: 'dep', version: '1.0.0', scripts: { postinstall: '(gvs-root-tool || true) && (gvs-hoisted-tool || true)' } },
     },
   ])
   fs.writeFileSync('tool/cli.js', "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n")
@@ -168,12 +186,14 @@ test('dependency build scripts in the global virtual store see the workspace roo
     enableGlobalVirtualStore: true,
   })
 
-  await execPnpm(['install', '--ignore-scripts'])
-  // The first install builds before it links the root's bins, so build once
-  // they are in place.
-  await execPnpm(['rebuild', 'dep'])
-
+  await execPnpm(['install'])
   const depDir = fs.realpathSync('node_modules/dep')
+  expect(fs.existsSync(path.join(depDir, 'hoisted-tool-ran'))).toBe(true)
+
+  // The first install builds before it links the root's bins, so build again
+  // once they are in place.
+  fs.rmSync(path.join(depDir, 'hoisted-tool-ran'))
+  await execPnpm(['rebuild', 'dep'])
   expect(fs.existsSync(path.join(depDir, 'root-tool-ran'))).toBe(true)
   expect(fs.existsSync(path.join(depDir, 'hoisted-tool-ran'))).toBe(true)
 })
