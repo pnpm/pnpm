@@ -453,6 +453,33 @@ impl ThrottledClient {
         self.fetch_min_speed_ki_bps
     }
 
+    /// Drop the in-flight request cap to one connection when this caller
+    /// still holds its permit and at least one other request is running.
+    ///
+    /// Configured `networkConcurrency` is unchanged for a link that keeps
+    /// up. A timeout while peers are still in flight retires the extra
+    /// slots so the retry, and every later acquire, waits until a single
+    /// request remains. Already-granted permits finish. A lone timeout, or
+    /// a pool that is already one connection, does not change the cap.
+    ///
+    /// Returns whether this call performed the downscale.
+    pub fn downscale_while_peers_active(&self) -> bool {
+        let downscaled = self.semaphore.downscale_while_peers_active();
+        if downscaled {
+            tracing::warn!(
+                target: "pnpm_network::retry",
+                "Fetch timed out while other requests were still in flight; lowering network concurrency to 1",
+            );
+        }
+        downscaled
+    }
+
+    /// Current in-flight cap. Test hook for [`Self::downscale_while_peers_active`].
+    #[cfg(test)]
+    pub(crate) fn concurrency_limit(&self) -> usize {
+        self.semaphore.concurrency_limit()
+    }
+
     /// Acquire a permit and return a guard granting access to the
     /// underlying [`Client`]. The permit is released when the guard
     /// is dropped, so callers control how long the request "counts"

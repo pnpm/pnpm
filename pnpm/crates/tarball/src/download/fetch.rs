@@ -162,7 +162,15 @@ impl TarballDownload<'_> {
         let expected_size = response.content_length();
         let mut stream = response.bytes_stream();
         let mut progress = BodyProgress::new(expected_size, self.package_id);
-        let prefix = read_gzip_prefix(&mut stream, self.package_url).await?;
+        let prefix = match read_gzip_prefix(&mut stream, self.package_url).await {
+            Ok(prefix) => prefix,
+            Err(error) => {
+                if error.is_fetch_timeout() {
+                    self.http_client.downscale_while_peers_active();
+                }
+                return Err(error);
+            }
+        };
         let is_gzip = starts_with_gzip_magic(&prefix.chunks);
         // Retries remain buffered to preserve whole-archive decode diagnostics.
         if is_gzip

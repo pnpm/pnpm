@@ -1,9 +1,11 @@
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { redactUrlForDisplay } from '@pnpm/error'
+import { isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Dispatcher, fetch as undiciFetch, getGlobalDispatcher } from 'undici'
+
+import type { NetworkConcurrencyGate } from './networkConcurrencyGate.js'
 
 export { type RetryTimeoutOptions }
 
@@ -63,6 +65,11 @@ export interface RequestInit extends globalThis.RequestInit {
    */
   timeout?: number
   dispatcher?: Dispatcher
+  /**
+   * Shared with every request from one `createFetchFromRegistry` client.
+   * Absent for callers that build a request directly.
+   */
+  concurrencyGate?: NetworkConcurrencyGate
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -81,7 +88,9 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
     return await new Promise((resolve, reject) => {
       op.attempt(async (attempt) => {
         const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
-        const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
+        const { retry: _retry, timeout, dispatcher, concurrencyGate, ...fetchOpts } = opts
+        if (concurrencyGate != null) await concurrencyGate.acquire()
+        let handedOff = false
         try {
           // undici's Response type differs slightly from globalThis.Response (iterator types),
           // requiring the double cast. This is a known TypeScript/undici compatibility issue.
@@ -92,10 +101,18 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
-          } else {
+          }
+          if (concurrencyGate == null) {
             resolve(res)
+          } else {
+            handedOff = true
+            resolve(holdPermitUntilBodySettles(res, concurrencyGate))
           }
         } catch (error: unknown) {
+          if (concurrencyGate != null && !handedOff) {
+            if (isFetchTimeoutError(error)) concurrencyGate.downscaleIfPeersActive()
+            concurrencyGate.release()
+          }
           if (isNonRetryableError(error)) {
             // undici's "fetch failed" wrapper hides the TLS reason.
             const cause = (error as { cause?: unknown }).cause
@@ -143,6 +160,80 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
     }
     throw err
   }
+}
+
+/**
+ * Keeps the concurrency permit until the caller finishes the body, so a
+ * stalled download still counts as in flight. `text` / `json` /
+ * `arrayBuffer` / `blob` read the original body and then release. A body
+ * that nobody reads releases on the next turn so a HEAD or an abandoned
+ * redirect cannot pin the slot.
+ */
+function holdPermitUntilBodySettles (res: Response, gate: NetworkConcurrencyGate): Response {
+  const body = res.body
+  if (body == null) {
+    gate.release()
+    return res
+  }
+  let released = false
+  let timer: NodeJS.Timeout | undefined
+  const release = (error?: unknown): void => {
+    if (released) return
+    released = true
+    if (timer != null) clearTimeout(timer)
+    if (isFetchTimeoutError(error)) gate.downscaleIfPeersActive()
+    gate.release()
+  }
+  timer = setTimeout(() => {
+    release()
+  }, 0)
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+  // Node fills a default highWaterMark of 1 as soon as the stream exists,
+  // which would lock the original body before text() or json() can read it.
+  const tracked = new ReadableStream<Uint8Array>({
+    async pull (controller) {
+      if (timer != null) clearTimeout(timer)
+      try {
+        reader ??= body.getReader()
+        const { done, value } = await reader.read()
+        if (done) {
+          release()
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error: unknown) {
+        release(error)
+        controller.error(error)
+      }
+    },
+    cancel (reason) {
+      release(reason)
+      return reader != null ? reader.cancel(reason) : body.cancel(reason)
+    },
+  }, { highWaterMark: 0 })
+  return new Proxy(res, {
+    get (target, prop) {
+      if (prop === 'body') return tracked
+      if (prop === 'text' || prop === 'json' || prop === 'arrayBuffer' || prop === 'blob') {
+        return async () => {
+          if (timer != null) clearTimeout(timer)
+          try {
+            const read = Reflect.get(target, prop, target) as () => Promise<unknown>
+            return await read.call(target)
+          } catch (error: unknown) {
+            release(error)
+            throw error
+          } finally {
+            release()
+          }
+        }
+      }
+      // Undici stores response state in private fields, which reject a proxy receiver.
+      const value: unknown = Reflect.get(target, prop, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
 }
 
 /**

@@ -71,6 +71,10 @@ impl Class {
 
 struct SemState {
     free: usize,
+    /// Cap on `in_flight`. Starts at the configured pool size. A fetch
+    /// timeout while another request is still running shrinks it to 1
+    /// so the install stops competing with itself on a slow link.
+    limit: usize,
     in_flight: InFlight,
     /// Minimum number of slots queued throughput work can always
     /// grow into, even while latency work is queued.
@@ -144,6 +148,7 @@ impl PrioritySemaphore {
         PrioritySemaphore {
             state: Arc::new(Mutex::new(SemState {
                 free: permits,
+                limit: permits,
                 in_flight: InFlight::default(),
                 throughput_reserve: permits
                     .div_ceil(2)
@@ -163,7 +168,7 @@ impl PrioritySemaphore {
         let class = Class::of(priority);
         let rx = {
             let mut state = self.state.lock().expect("priority semaphore lock poisoned");
-            if state.free > 0 {
+            if state.free > 0 && state.in_flight.total() < state.limit {
                 state.free -= 1;
                 *state.in_flight.count_mut(class) += 1;
                 return Permit { state: Arc::clone(&self.state), class, armed: true };
@@ -194,6 +199,30 @@ impl PrioritySemaphore {
     pub(crate) fn available_permits(&self) -> usize {
         self.state.lock().expect("priority semaphore lock poisoned").free
     }
+
+    /// The current cap on in-flight requests. Equals the pool size this
+    /// semaphore was created with until [`Self::downscale_while_peers_active`]
+    /// shrinks it.
+    #[cfg(test)]
+    pub(crate) fn concurrency_limit(&self) -> usize {
+        self.state.lock().expect("priority semaphore lock poisoned").limit
+    }
+
+    /// Shrink the pool to a single in-flight request when `in_flight > 1`.
+    ///
+    /// The caller must still hold its permit. Permits already granted run
+    /// to completion; further acquires wait until only one request remains.
+    /// A lone in-flight request, or a pool that is already one connection,
+    /// is left unchanged.
+    pub(crate) fn downscale_while_peers_active(&self) -> bool {
+        let mut state = self.state.lock().expect("priority semaphore lock poisoned");
+        if state.limit <= 1 || state.in_flight.total() <= 1 {
+            return false;
+        }
+        state.limit = 1;
+        state.free = 0;
+        true
+    }
 }
 
 impl InFlight {
@@ -203,6 +232,10 @@ impl InFlight {
             Class::Background => &mut self.background,
             Class::Throughput => &mut self.throughput,
         }
+    }
+
+    fn total(&self) -> usize {
+        self.latency + self.background + self.throughput
     }
 }
 
@@ -248,6 +281,12 @@ impl std::fmt::Debug for PrioritySemaphore {
 fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
     let mut state = state_arc.lock().expect("priority semaphore lock poisoned");
     *state.in_flight.count_mut(released) -= 1;
+    // Slots retired by a downscale are not handed out again. `free` was
+    // cleared when the limit dropped, and a release while still at the
+    // cap must not refill it.
+    if state.in_flight.total() >= state.limit {
+        return;
+    }
     loop {
         let Some((waiter, class)) = state.next_waiter() else {
             state.free += 1;
