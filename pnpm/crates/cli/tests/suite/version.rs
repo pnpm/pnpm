@@ -671,6 +671,21 @@ fn recursive_version_none_json_rejects_duplicate_package_names() {
 }
 
 #[test]
+fn recursive_version_none_json_resolves_directory_filters_from_the_member() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, _) = write_two_package_workspace(&workspace);
+
+    let output =
+        pacquet_recursive_version(&pkg_a, &["--filter", "./", "-r", "version", "none", "--json"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let versions: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("stdout must be JSON");
+    assert_eq!(versions, serde_json::json!({ "pkg-a": "1.0.0" }));
+    drop(root);
+}
+
+#[test]
 fn bumps_major_minor_and_patch() {
     for (bump, expected) in [("major", "2.0.0"), ("minor", "1.3.0"), ("patch", "1.2.4")] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
