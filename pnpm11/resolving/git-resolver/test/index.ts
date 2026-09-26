@@ -712,6 +712,15 @@ test('an unreachable SSH remote that is not a key refusal carries no auth hint',
   expect(err.hint).toBeUndefined()
 })
 
+test('a connection failure to a host named publickey carries no auth hint', async () => {
+  mockGit(async () => {
+    throw new Error('ssh: connect to host publickey.example.com port 22: Connection refused')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@publickey.example.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
 test('a publickey refusal does not offer a shell command for a host that cannot be pasted safely', async () => {
   mockGit(async () => {
     throw new Error('Permission denied (publickey)')

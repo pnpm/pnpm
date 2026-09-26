@@ -6181,6 +6181,7 @@ dependencies = [
  "serde_json",
  "ssri",
  "tokio",
+ "url",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
 use pnpm_registry::Package;
+use url::Url;
 
 /// `ERR_PNPM_NO_MATCHING_VERSION`: the registry served the package's
 /// packument, but none of the published versions satisfied the request.
@@ -324,7 +325,7 @@ If git can only reach {hostname} over SSH here, substitute the transport locally
 /// A lockfile clone is a different failure: resolution is skipped while the
 /// lockfile is up to date, and the git fetcher reports it.
 fn ssh_publickey_hint(repo: &str, detail: &str) -> Option<String> {
-    if !detail.to_ascii_lowercase().contains("publickey") {
+    if !is_publickey_refusal(detail) {
         return None;
     }
     let SshRemote { hostname, instead_of } = parse_ssh_remote(repo)?;
@@ -361,27 +362,18 @@ struct SshRemote {
 /// [shell safe](is_shell_safe_host).
 fn parse_ssh_remote(repo: &str) -> Option<SshRemote> {
     let ssh_url = repo.strip_prefix("git+").unwrap_or(repo);
-    if let Some(rest) = ssh_url.strip_prefix("ssh://") {
-        let authority = rest.split('/').next().unwrap_or(rest);
-        let (userinfo, hostport) = authority
-            .rsplit_once('@')
-            .unwrap_or(("", authority));
-        if hostport.is_empty() {
-            return None;
-        }
-        let (hostname, port) = ssh_host_and_port(hostport)?;
-        // Redact the host before building the prefix. Redacting
-        // `ssh://git@host/` afterwards would strip the `git@` it has to match.
-        let hostname = redact_and_sanitize(&hostname);
+    if ssh_url.starts_with("ssh://") {
+        let url = Url::parse(ssh_url).ok()?;
+        let hostname = redact_and_sanitize(url.host_str()?);
         if !is_shell_safe_host(&hostname) {
             return None;
         }
-        let user = userinfo
-            .split(':')
-            .next()
-            .unwrap_or(userinfo);
-        let port_suffix = if port.is_empty() { String::new() } else { format!(":{port}") };
-        let instead_of = (user == "git").then(|| format!("ssh://git@{hostname}{port_suffix}/"));
+        let port_suffix = url
+            .port()
+            .map(|port| format!(":{port}"))
+            .unwrap_or_default();
+        let instead_of =
+            (url.username() == "git").then(|| format!("ssh://git@{hostname}{port_suffix}/"));
         return Some(SshRemote { hostname, instead_of });
     }
     if repo.contains("://") {
@@ -422,27 +414,19 @@ fn is_shell_safe_host(hostname: &str) -> bool {
         })
 }
 
-/// Host and numeric port of an SSH authority.
-///
-/// A bracketed IPv6 literal keeps its brackets. A non-numeric tail after the
-/// colon is not a port. SCP-style references are rejected before this runs.
-fn ssh_host_and_port(hostport: &str) -> Option<(String, &str)> {
-    let (hostname, port) = match hostport.split_once(']') {
-        Some((address, after)) if hostport.starts_with('[') => {
-            let hostname = &hostport[..=address.len()];
-            let port = after.strip_prefix(':').unwrap_or("");
-            (hostname, port)
-        }
-        _ => match hostport.split_once(':') {
-            Some((hostname, port)) => (hostname, port),
-            None => (hostport, ""),
-        },
-    };
-    if hostname.is_empty() || (!port.is_empty() && !port.bytes().all(|byte| byte.is_ascii_digit()))
-    {
-        return None;
-    }
-    Some((hostname.to_string(), port))
+/// Whether git's stderr carries OpenSSH's `Permission denied (...)` list of
+/// refused methods with `publickey` among them. The detail also echoes the
+/// host, so the word alone could be part of a host name.
+fn is_publickey_refusal(detail: &str) -> bool {
+    let detail = detail.to_ascii_lowercase();
+    detail
+        .split("permission denied (")
+        .skip(1)
+        .any(|rest| {
+            rest.split(')')
+                .next()
+                .is_some_and(|methods| methods.contains("publickey"))
+        })
 }
 
 #[cfg(test)]

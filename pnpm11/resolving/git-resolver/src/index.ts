@@ -256,7 +256,7 @@ If git can only reach ${hostname} over SSH here, substitute the transport locall
  * lockfile is up to date, and that failure is reported by the git fetcher.
  */
 function sshPublicKeyHint (repo: string, detail: string): string | undefined {
-  if (!detail.toLowerCase().includes('publickey')) return undefined
+  if (!isPublicKeyRefusal(detail)) return undefined
   const remote = parseSshRemote(repo)
   if (remote == null) return undefined
   const rewrite = remote.insteadOf == null
@@ -271,6 +271,18 @@ Make sure ssh-agent has a key for that host loaded:
     ssh-add -l
 
 If the repository is public, use an HTTPS specifier so pnpm records a URL that installs without a key.${rewrite}`
+}
+
+/**
+ * Whether git's stderr carries OpenSSH's `Permission denied (...)` list of
+ * refused methods with `publickey` among them. The detail also echoes the
+ * host, so the word alone could be part of a host name.
+ */
+function isPublicKeyRefusal (detail: string): boolean {
+  return detail.toLowerCase()
+    .split('permission denied (')
+    .slice(1)
+    .some((rest) => rest.split(')')[0].includes('publickey'))
 }
 
 interface SshRemote {

@@ -320,6 +320,17 @@ fn an_ssh_failure_that_is_not_a_key_refusal_carries_no_auth_hint() {
 }
 
 #[test]
+fn a_host_named_publickey_is_not_a_key_refusal() {
+    let err = GitResolveError::new(
+        "git+ssh://git@publickey.example.com/foo/bar.git",
+        "git@publickey.example.com:foo/bar.git",
+        "ssh: connect to host publickey.example.com port 22: Connection refused",
+    );
+
+    assert!(err.help().is_none());
+}
+
+#[test]
 fn an_ssh_publickey_hint_redacts_a_password_and_keeps_the_ssh_port() {
     let err = GitResolveError::new(
         "ssh://git:s3cr3t-t0ken@git.example.com:2222/foo/bar.git",
