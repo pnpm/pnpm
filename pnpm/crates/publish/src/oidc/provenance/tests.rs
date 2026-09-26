@@ -1,6 +1,6 @@
 use super::{DetermineProvenanceError, ProvenanceError, determine_provenance};
 use crate::{
-    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -31,13 +31,20 @@ fn repository_visibility(value: &'static str) -> Payload {
     Payload { repository_visibility: Some(value), project_visibility: None }
 }
 
-macro_rules! github_sys {
-    ($name:ident, $fetch:expr) => {
+/// A payload declaring the given project visibility (the GitLab field).
+fn project_visibility(value: &'static str) -> Payload {
+    Payload { repository_visibility: None, project_visibility: Some(value) }
+}
+
+/// A host whose environment holds exactly `$env` and whose visibility fetch
+/// is answered by `$fetch`.
+macro_rules! ci_sys {
+    ($name:ident, [$(($key:literal, $value:literal)),* $(,)?], $fetch:expr) => {
         struct $name;
         impl EnvVar for $name {
             fn var(name: &str) -> Option<String> {
                 match name {
-                    "GITHUB_ACTIONS" => Some("true".to_owned()),
+                    $($key => Some($value.to_owned()),)*
                     _ => None,
                 }
             }
@@ -50,10 +57,27 @@ macro_rules! github_sys {
     };
 }
 
+macro_rules! github_sys {
+    ($name:ident, $fetch:expr) => {
+        ci_sys!($name, [("GITHUB_ACTIONS", "true")], $fetch);
+    };
+}
+
+/// Run [`determine_provenance`] for `pkg` against the npm registry.
+async fn determine<Sys: EnvVar + OidcFetch>(
+    id_token: &str,
+) -> Result<Option<bool>, DetermineProvenanceError> {
+    determine_provenance::<Sys>("auth", id_token, "pkg", REGISTRY, &OidcHttpOptions::default())
+        .await
+}
+
 #[tokio::test]
 async fn public_github_package_enables_provenance() {
     github_sys!(Sys, |request: OidcRequest<'_>| {
         assert_eq!(request.url, "https://registry.npmjs.org/-/package/@scope%2fpkg/visibility");
+        assert!(matches!(request.method, OidcMethod::Get));
+        assert_eq!(request.authorization, "Bearer auth");
+        assert_eq!(request.timeout_ms, Some(40_000));
         Ok(OidcResponse { ok: true, status: 200, body: r#"{"public":true}"#.to_owned() })
     });
 
@@ -63,7 +87,7 @@ async fn public_github_package_enables_provenance() {
         &token,
         "@scope/pkg",
         REGISTRY,
-        &OidcHttpOptions::default(),
+        &OidcHttpOptions { fetch_timeout: Some(40_000), ..OidcHttpOptions::default() },
     )
     .await
     .unwrap();
@@ -155,4 +179,116 @@ async fn fetch_rejection_is_a_hard_error() {
             .await
             .unwrap_err();
     assert!(matches!(err, DetermineProvenanceError::Fetch(_)));
+}
+
+#[tokio::test]
+async fn id_token_with_an_empty_payload_is_malformed() {
+    github_sys!(Sys, |_: OidcRequest<'_>| unreachable!("no request for a malformed token"));
+
+    let err = determine::<Sys>("header.").await.unwrap_err();
+    assert!(matches!(err, DetermineProvenanceError::Provenance(ProvenanceError::MalformedIdToken)));
+}
+
+#[tokio::test]
+async fn missing_public_field_yields_no_provenance() {
+    github_sys!(Sys, |_: OidcRequest<'_>| Ok(OidcResponse {
+        ok: true,
+        status: 200,
+        body: "{}".to_owned(),
+    }));
+
+    let result = determine::<Sys>(&id_token(&repository_visibility("public")))
+        .await
+        .unwrap();
+    assert_eq!(result, None);
+}
+
+#[tokio::test]
+async fn public_gitlab_project_enables_provenance() {
+    ci_sys!(Sys, [("GITLAB_CI", "true"), ("SIGSTORE_ID_TOKEN", "token")], |_: OidcRequest<'_>| Ok(
+        OidcResponse { ok: true, status: 200, body: r#"{"public":true}"#.to_owned() }
+    ));
+
+    let result = determine::<Sys>(&id_token(&project_visibility("public")))
+        .await
+        .unwrap();
+    assert_eq!(result, Some(true));
+}
+
+#[tokio::test]
+async fn private_gitlab_project_is_insufficient_information() {
+    ci_sys!(
+        Sys,
+        [("GITLAB_CI", "true"), ("SIGSTORE_ID_TOKEN", "token")],
+        |_: OidcRequest<'_>| unreachable!("visibility is not probed without public CI")
+    );
+
+    let err = determine::<Sys>(&id_token(&project_visibility("private"))).await.unwrap_err();
+    assert!(matches!(
+        err,
+        DetermineProvenanceError::Provenance(ProvenanceError::InsufficientInformation)
+    ));
+}
+
+#[tokio::test]
+async fn gitlab_without_sigstore_id_token_is_insufficient_information() {
+    ci_sys!(Sys, [("GITLAB_CI", "true")], |_: OidcRequest<'_>| unreachable!(
+        "visibility is not probed without SIGSTORE_ID_TOKEN"
+    ));
+
+    let err = determine::<Sys>(&id_token(&project_visibility("public"))).await.unwrap_err();
+    assert!(matches!(
+        err,
+        DetermineProvenanceError::Provenance(ProvenanceError::InsufficientInformation)
+    ));
+}
+
+/// A GitHub repository-visibility claim does not satisfy the GitLab check.
+#[tokio::test]
+async fn gitlab_ignores_the_github_visibility_claim() {
+    ci_sys!(
+        Sys,
+        [("GITLAB_CI", "true"), ("SIGSTORE_ID_TOKEN", "token")],
+        |_: OidcRequest<'_>| unreachable!("visibility is not probed without public CI")
+    );
+
+    let err = determine::<Sys>(&id_token(&repository_visibility("public")))
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        DetermineProvenanceError::Provenance(ProvenanceError::InsufficientInformation)
+    ));
+}
+
+#[test]
+fn visibility_failure_message_names_the_package_registry_and_reason() {
+    let message = |body: &str, status: u16| {
+        ProvenanceError::failed_to_fetch_visibility(
+            body,
+            status,
+            "@pnpm/test-package",
+            "https://registry.npmjs.org",
+        )
+        .to_string()
+    };
+    let prefix = "Failed to fetch visibility for package @pnpm/test-package from registry https://registry.npmjs.org due to";
+
+    assert_eq!(
+        message(r#"{"code":"NOT_FOUND","message":"Package not found"}"#, 404),
+        format!("{prefix} NOT_FOUND: Package not found (status code 404)"),
+    );
+    assert_eq!(
+        message(r#"{"code":"UNAUTHORIZED"}"#, 401),
+        format!("{prefix} UNAUTHORIZED (status code 401)"),
+    );
+    assert_eq!(
+        message(r#"{"message":"Internal server error"}"#, 500),
+        format!("{prefix} Internal server error (status code 500)"),
+    );
+    assert_eq!(message("{}", 503), format!("{prefix} an unknown error (status code 503)"));
+    assert_eq!(
+        message("<html>Bad Gateway</html>", 502),
+        format!("{prefix} an unknown error (status code 502)"),
+    );
 }
