@@ -79,7 +79,7 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
         })
 }
 
-/// An entry such as `%PNPM_HOME%in` reaching the process verbatim means
+/// An entry such as `%PNPM_HOME%\bin` reaching the process verbatim means
 /// Windows did not expand the variable it references: the variable is unset,
 /// or it is a user variable stored as `REG_EXPAND_SZ`, which Windows does not
 /// expand inside the user `Path`. Name that entry instead of suggesting a

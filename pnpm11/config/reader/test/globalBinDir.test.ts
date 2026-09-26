@@ -106,7 +106,7 @@ test('the error names a PATH entry with an unexpanded environment variable', asy
         dir: import.meta.dirname,
       },
       env: {
-        [pathName]: `${process.env[pathName]!}${path.delimiter}${unexpanded}`,
+        [pathName]: unexpanded,
       },
       packageManager: {
         name: 'pnpm',
