@@ -76,7 +76,6 @@ fn ci_rejects_an_outdated_lockfile_by_default() {
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-        eprintln!("STDERR:\n{stderr}\n");
         assert!(
             stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
             "CI install must report the outdated lockfile; got:\n{stderr}",
@@ -110,7 +109,6 @@ fn ci_values_enable_the_default_in_github_actions() {
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-        eprintln!("STDERR:\n{stderr}\n");
         assert!(
             stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
             "CI={ci_value} in GitHub Actions must report the outdated lockfile; got:\n{stderr}",
@@ -165,7 +163,6 @@ fn ci_honors_explicit_prefer_frozen_lockfile_values() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(
         stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
         "CI install with --prefer-frozen-lockfile must report outdated lockfile; got:\n{stderr}",
@@ -195,7 +192,6 @@ fn ci_honors_configured_prefer_frozen_lockfile_values() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(
         stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
         "CI install with prefer-frozen-lockfile=true must report outdated lockfile; got:\n{stderr}",
@@ -230,7 +226,6 @@ fn ci_honors_pnpmfile_prefer_frozen_lockfile_values() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(
         stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
             || stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"),
@@ -267,7 +262,6 @@ fn ci_honors_workspace_manifest_prefer_frozen_lockfile_values() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    eprintln!("STDERR:\n{stderr}\n");
     assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
     assert_eq!(
         fs::read_to_string(frozen_workspace.join("pnpm-lock.yaml"))
