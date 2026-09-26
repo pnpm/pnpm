@@ -54,15 +54,18 @@ fn anchor_files_entry(pattern: &str) -> String {
 }
 
 /// Whether `rel` matches the `files`-field allowlist, with exclusions on
-/// ancestor directories taking precedence.
+/// ancestor directories taking precedence. The ancestor scan runs only
+/// when some entry excludes anything.
 pub(super) fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
-    let path = Path::new(rel);
-    if path
-        .ancestors()
-        .skip(1)
-        .any(|ancestor| matcher.matched(ancestor, true).is_whitelist())
-    {
-        return false;
+    if matcher.num_whitelists() > 0 {
+        let path = Path::new(rel);
+        if path
+            .ancestors()
+            .skip(1)
+            .any(|ancestor| matcher.matched(ancestor, true).is_whitelist())
+        {
+            return false;
+        }
     }
     matcher.matched_path_or_any_parents(rel, false).is_ignore()
 }
