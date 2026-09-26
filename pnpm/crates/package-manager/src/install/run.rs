@@ -10,7 +10,7 @@ use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hoo
 mod wanted;
 use wanted::{Lockfiles, settle_wanted_lockfile};
 
-mod lockfile_load;
+pub(super) mod lockfile_load;
 use lockfile_load::{Loaded, load_lockfiles};
 
 mod workspace;

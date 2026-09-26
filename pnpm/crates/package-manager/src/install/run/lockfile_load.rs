@@ -42,7 +42,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         selection,
         loaded_workspace_projects,
     )?;
-    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
+    announce_manifest_load::<Reporter>(install);
     let (pnpmfile_hook, manifests) =
         load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
             .await?;
@@ -67,11 +67,7 @@ pub(super) struct StartedLockfiles<'a> {
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
 }
 // Publish the initial manifest before the context event that renders the install header.
-pub(super) fn announce_manifest_load<Reporter: self::Reporter>(
-    install: InstallView<'_>,
-    workspace_root: &Path,
-) {
-    register_workspace_in_store(install.context.config, workspace_root);
+pub(super) fn announce_manifest_load<Reporter: self::Reporter>(install: InstallView<'_>) {
     if install.context.emit_initial_manifest {
         emit_initial_package_manifest::<Reporter>(install.context.manifest);
     }
@@ -245,13 +241,15 @@ pub(super) fn needs_early_host_detection(
         })
 }
 /// Register the workspace root in the store's project registry, once per
-/// install, with or without the global virtual store. Store prune walks the
-/// workspace's `node_modules/.pnpm/` to find every installed package, so one
-/// entry per workspace is enough. A frozen store is read-only.
+/// install, with or without the global virtual store. Both repeat-install
+/// fast paths call it too, so a project installed unregistered still gets an
+/// entry. Store prune walks the workspace's `node_modules/.pnpm/` to find
+/// every installed package, so one entry per workspace is enough. A frozen
+/// store is read-only.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
 /// surfaced as `tracing::warn!` instead.
-pub(super) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
+pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
     if config.frozen_store {
         return;
     }
