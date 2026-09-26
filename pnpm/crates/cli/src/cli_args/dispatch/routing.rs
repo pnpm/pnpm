@@ -112,6 +112,7 @@ fn route_maintenance<'a>(
         CliCommand::List(args) => dispatch_query::list(ctx, args),
         CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
         CliCommand::Licenses(args) => dispatch_query::licenses(ctx, args),
+        CliCommand::Fund(args) => dispatch_query::fund(ctx, args),
         CliCommand::Why(args) => dispatch_query::why(ctx, args),
         CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Doctor(args) => dispatch_query::doctor(ctx, args),
