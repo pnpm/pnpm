@@ -251,4 +251,56 @@ describe('installedModulesMatchLockfile', () => {
     } as CheckDepsStatusOptions)
     expect(result).toBe(false)
   })
+
+  it('returns false when dedupePeers setting has changed', async () => {
+    const lockfile: LockfileObject = {
+      ...makeLockfile(),
+      settings: { dedupePeers: false },
+    }
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue({
+      isDirectory: () => true,
+    } as Stats)
+
+    const result = await installedModulesMatchLockfile({
+      ...baseOpts,
+      rootProjectManifest: manifest,
+      rootProjectManifestDir: '/workspace' as ProjectRootDir,
+      lockfileDir: '/workspace',
+      dedupePeers: true,
+    } as CheckDepsStatusOptions)
+    expect(result).toBe(false)
+  })
+
+  it('returns false when an optional-only project lacks a node_modules directory', async () => {
+    const lockfile: LockfileObject = {
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: {
+        ['.' as ProjectId]: {
+          specifiers: { foo: '^1.0.0' },
+          optionalDependencies: { foo: '1.0.0' },
+        },
+      },
+    }
+    jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue(lockfile)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue(lockfile)
+    jest.mocked(fsUtils.safeStat).mockResolvedValue(undefined)
+
+    const optionalManifest = {
+      name: 'test-project',
+      version: '1.0.0',
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    }
+
+    const result = await installedModulesMatchLockfile({
+      ...baseOpts,
+      rootProjectManifest: optionalManifest,
+      rootProjectManifestDir: '/workspace' as ProjectRootDir,
+      lockfileDir: '/workspace',
+    } as CheckDepsStatusOptions)
+    expect(result).toBe(false)
+  })
 })

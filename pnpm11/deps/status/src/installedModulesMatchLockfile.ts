@@ -142,6 +142,7 @@ async function lockfileSettingsUpToDate (
   const outdatedLockfileSettingName = getOutdatedLockfileSetting(wantedLockfile, {
     catalogs: opts.catalogs,
     autoInstallPeers: opts.autoInstallPeers,
+    dedupePeers: opts.dedupePeers,
     injectWorkspacePackages: opts.injectWorkspacePackages,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     peersSuffixMaxLength: opts.peersSuffixMaxLength ?? DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
@@ -178,11 +179,14 @@ async function checkProjectsHaveModulesDir (
     modulesDirStats: await statModulesDir(project),
   })))
 
+  const includedDeps = (manifest: ProjectToCheck['manifest']) => ({
+    ...(opts.include?.dependencies !== false ? manifest.dependencies : {}),
+    ...(opts.include?.devDependencies !== false ? manifest.devDependencies : {}),
+    ...(opts.include?.optionalDependencies !== false ? manifest.optionalDependencies : {}),
+  })
+
   const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
-    modulesDirStats?.isDirectory() !== true && !isEmpty({
-      ...project.manifest.dependencies,
-      ...project.manifest.devDependencies,
-    }))
+    modulesDirStats?.isDirectory() !== true && !isEmpty(includedDeps(project.manifest)))
 
   if (withoutModulesDir.length === 0) return true
 
