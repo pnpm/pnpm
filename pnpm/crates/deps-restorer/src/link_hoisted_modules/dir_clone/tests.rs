@@ -172,7 +172,7 @@ fn local_tarball_imports_updated_content_despite_an_existing_canonical() {
     fs::write(&updated, b"updated").expect("updated CAS");
     let cas_index = HashMap::from([(
         node.package.pkg_id_with_patch_hash.clone(),
-        Arc::new(HashMap::from([("index.js".to_string(), updated)])),
+        Arc::new(HashMap::from([("index.js".to_string(), updated)])).into(),
     )]);
     let opts = LinkHoistedModulesOpts {
         dir_clone_cache: Some(&cache),
@@ -289,7 +289,8 @@ fn occupied_hoisted_parent_falls_back_without_losing_nested_dependencies() {
     fs::create_dir_all(nested.parent().expect("nested parent")).expect("nested directory");
     fs::write(&nested, b"nested dependency").expect("nested file");
     fs::write(node.dir.join("package.json"), b"stale").expect("stale manifest");
-    let cas_index = HashMap::from([(node.package.pkg_id_with_patch_hash.clone(), Arc::new(cas))]);
+    let cas_index =
+        HashMap::from([(node.package.pkg_id_with_patch_hash.clone(), Arc::new(cas).into())]);
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
         dir_clone_cache: Some(&cache),

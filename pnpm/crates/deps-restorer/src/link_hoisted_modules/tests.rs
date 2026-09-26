@@ -6,7 +6,9 @@ use super::{
 use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_lockfile::{
+    DirectoryResolution, LockfileResolution, PkgIdWithPatchHash, TarballResolution,
+};
 use pnpm_modules_yaml::DepPath;
 use pnpm_reporter::{
     LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
@@ -82,13 +84,13 @@ fn plant_package(
     cas_root: &Path,
     pkg_id: &str,
     files: &[(&str, &[u8])],
-) -> Arc<HashMap<String, PathBuf>> {
+) -> crate::HoistedPackageFiles {
     let mut combined = HashMap::new();
     for (rel, contents) in files {
         let single = plant_cas_file(cas_root, pkg_id, rel, contents);
         combined.extend(single);
     }
-    Arc::new(combined)
+    Arc::new(combined).into()
 }
 
 /// `(rel_path, contents)` describing one file to plant for a
@@ -159,6 +161,57 @@ fn import_pass_creates_package_directory() {
         .join("index.js");
     assert!(installed.exists(), "imported file at {installed:?}");
     assert_eq!(fs::read(&installed).unwrap(), b"module.exports = 1;");
+}
+
+/// A custom fetcher can delegate a non-directory lockfile entry to a
+/// directory, so the linker must take mutability from the fetched files,
+/// not from the node's resolution.
+#[test]
+fn isolated_mutable_source_is_not_hard_linked() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (mut graph, hierarchy, mut cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("index.js", b"1")])],
+    );
+    let dir = lockfile_dir.join("node_modules/a");
+    graph.get_mut(&dir).expect("node").package.resolution = TarballResolution {
+        tarball: "file:a.tgz".to_string(),
+        integrity: None,
+        revision: None,
+        git_hosted: None,
+        path: None,
+    }
+    .into();
+    let files = cas_paths
+        .get_mut(&PkgIdWithPatchHash::from("a@1.0.0"))
+        .expect("files");
+    files.source_is_mutable = true;
+    let source = files.cas_paths["index.js"].clone();
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: true,
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    fs::write(&source, b"2").expect("edit the source in place");
+
+    assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");
 }
 
 #[test]

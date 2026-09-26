@@ -55,7 +55,24 @@ use std::{
 /// directories (version conflict → some dirs nest under siblings)
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
-pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, Arc<HashMap<String, PathBuf>>>;
+pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
+
+/// One package's entry in [`CasPathsByPkgId`].
+#[derive(Debug, Clone)]
+pub struct HoistedPackageFiles {
+    pub cas_paths: Arc<HashMap<String, PathBuf>>,
+    /// Whether [`Self::cas_paths`] points at mutable local source, taken
+    /// from the fetch's effective resolution. See
+    /// [`crate::SlotImportSource::is_mutable`].
+    pub source_is_mutable: bool,
+}
+
+impl From<Arc<HashMap<String, PathBuf>>> for HoistedPackageFiles {
+    /// Content-addressed files, which are never mutable.
+    fn from(cas_paths: Arc<HashMap<String, PathBuf>>) -> Self {
+        HoistedPackageFiles { cas_paths, source_is_mutable: false }
+    }
+}
 
 /// A package directory on disk that the hoisting plan does not place.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -541,7 +558,7 @@ fn import_node<Reporter: self::Reporter>(
     if node.present {
         return Ok(false);
     }
-    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
+    let Some(files) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
         if node.optional {
             return Ok(false);
         }
@@ -551,7 +568,8 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
-    let import_method = opts.import.method_for(is_directory_dependency(node), false);
+    let cas_paths = &*files.cas_paths;
+    let import_method = opts.import.method_for(files.source_is_mutable, false);
     if !opts.dir_clone_cache.is_some_and(|cache| {
         cache.try_import::<Reporter>(node, opts.import, cas_paths)
     }) {
@@ -589,13 +607,9 @@ fn hoisted_import_opts(node: &DependenciesGraphNode) -> ImportIndexedDirOpts {
     ImportIndexedDirOpts {
         force: true,
         keep_modules_dir: true,
-        preserve_symlinks: is_directory_dependency(node),
+        preserve_symlinks: matches!(node.package.resolution, LockfileResolution::Directory(_)),
         ..ImportIndexedDirOpts::default()
     }
-}
-
-fn is_directory_dependency(node: &DependenciesGraphNode) -> bool {
-    matches!(node.package.resolution, LockfileResolution::Directory(_))
 }
 
 #[cfg(test)]
