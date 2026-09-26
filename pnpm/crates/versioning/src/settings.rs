@@ -63,8 +63,8 @@ pub struct EpicSettings {
 }
 
 /// Settings for native workspace release management, declared under the
-/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript
-/// `VersioningSettings` type, plus `includePrivatePackages`.
+/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript settings
+/// of the same name, and adds `includePrivatePackages`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VersioningSettings {
