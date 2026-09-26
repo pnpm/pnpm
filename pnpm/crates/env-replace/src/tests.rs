@@ -1,4 +1,4 @@
-use super::{EnvVar, env_replace_lossy};
+use super::{EnvVar, UnresolvedEnvVar, env_replace, env_replace_lossy};
 use pretty_assertions::assert_eq;
 
 /// Empty env: no variable is ever set. Used by tests that only
@@ -264,4 +264,23 @@ fn dash_default_distinguishes_missing_and_empty_variables() {
     ] {
         assert_eq!(replace_clean::<TestEnv>(template), expected);
     }
+}
+
+#[test]
+fn env_replace_substitutes_when_resolved() {
+    struct TestEnv;
+    impl EnvVar for TestEnv {
+        fn var(name: &str) -> Option<String> {
+            (name == "VAR").then(|| "resolved".to_owned())
+        }
+    }
+    assert_eq!(env_replace::<TestEnv>("prefix-${VAR}").unwrap(), "prefix-resolved");
+    assert_eq!(env_replace::<NoEnv>("${MISSING:-default}").unwrap(), "default");
+}
+
+#[test]
+fn env_replace_errors_on_unresolved_placeholder() {
+    let err = env_replace::<NoEnv>("prefix-${MISSING}-suffix").unwrap_err();
+    assert_eq!(err, UnresolvedEnvVar { placeholder: "${MISSING}".to_owned() });
+    assert_eq!(err.to_string(), "Failed to replace env in config: ${MISSING}");
 }
