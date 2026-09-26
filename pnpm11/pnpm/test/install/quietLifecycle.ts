@@ -109,15 +109,27 @@ test('explicit silent and NDJSON reporters retain their install contracts', () =
   expect(records.some(record => record.name.startsWith('pnpm:'))).toBe(true)
 })
 
-test('dependency NDJSON output remains structured at quiet log levels', () => {
-  prepare({ dependencies: { [failure]: '1.0.0' } })
-  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { [failure]: true } })
+test.each([false, true])('dependency NDJSON output remains structured at quiet log levels (trailing spaces: %s)', (trailingSpaces) => {
+  const dependency = trailingSpaces ? 'ndjson-failure' : failure
+  const specifier = trailingSpaces ? 'file:dependency' : '1.0.0'
+  prepare({ dependencies: { [dependency]: specifier } })
+  if (trailingSpaces) {
+    fs.mkdirSync('dependency')
+    fs.writeFileSync('dependency/package.json', JSON.stringify({ name: dependency, version: '1.0.0', scripts: { postinstall: 'node diagnostics.cjs' } }))
+    fs.writeFileSync('dependency/diagnostics.cjs', "console.log('hello '); console.log('world '); process.exit(1)")
+  }
+  const approval = trailingSpaces ? `${dependency}@${specifier}` : dependency
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { [approval]: true } })
   const result = execPnpmSync(['install', '--loglevel=warn', '--reporter=ndjson'], { env: reporterEnv })
   expect(result.status).toBe(1)
   const records = result.stdout.toString().trim().split('\n').map(line => JSON.parse(line))
-  expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: 'hello' }))
-  expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: 'world' }))
+  expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: expect.stringMatching(/^hello[ \t]*$/) }))
+  expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: expect.stringMatching(/^world[ \t]*$/) }))
   expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', exitCode: 1 }))
+  if (trailingSpaces) {
+    expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: 'hello ' }))
+    expect(records).toContainEqual(expect.objectContaining({ name: 'pnpm:lifecycle', line: 'world ' }))
+  }
 })
 
 test.each(['warn', 'error'])('direct run still streams successful script output at %s', (level) => {
