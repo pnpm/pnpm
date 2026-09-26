@@ -99,7 +99,7 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
+    FetchMetadataError, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
@@ -190,7 +190,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    if (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
+    // An online lowest-version pick must not reuse a mirror the registry
+    // marked uncacheable. Offline and prefer-offline still may.
+    let online_lowest_must_refetch = opts.pick_lowest_version
+        && !ctx.cache_policy.offline
+        && !ctx.cache_policy.prefer_offline
+        && state.mirror_is_uncacheable().await;
+    if !online_lowest_must_refetch
+        && (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);
@@ -358,7 +365,12 @@ impl<'a> PickState<'a> {
             if let Some(reloaded) = self.pkg_mirror
                 .as_deref()
                 .and_then(|path| {
-                    persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
+                    persist_upgraded_to_mirror(
+                        path,
+                        &meta,
+                        self.use_filtered_full_metadata,
+                        upgrade.uncacheable,
+                    )
                 })
             {
                 meta = Arc::new(reloaded);
@@ -437,7 +449,12 @@ impl<'a> PickState<'a> {
                 && let Some(reloaded) = self.pkg_mirror
                     .as_deref()
                     .and_then(|path| {
-                        persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
+                        persist_upgraded_to_mirror(
+                            path,
+                            &meta,
+                            self.use_filtered_full_metadata,
+                            upgrade.uncacheable,
+                        )
                     })
             {
                 meta = Arc::new(reloaded);
@@ -541,7 +558,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.request.dry_run {
         if let Some(reloaded) = pkg_mirror.and_then(|path| {
-            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata)
+            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata, upgrade.uncacheable)
         }) {
             meta = Arc::new(reloaded);
         }

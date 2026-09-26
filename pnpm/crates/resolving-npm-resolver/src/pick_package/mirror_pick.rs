@@ -16,6 +16,14 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
+        // A registry that forbade caching must not be answered from the
+        // mirror on an online pick. Offline and prefer-offline still may.
+        if !ctx.cache_policy.offline
+            && !ctx.cache_policy.prefer_offline
+            && self.mirror_is_uncacheable().await
+        {
+            return None;
+        }
         if let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta).await {
             return Some(result);
         }
@@ -57,6 +65,12 @@ impl PickState<'_> {
         };
         self.promote_unverified(ctx, opts, &meta);
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
+    }
+
+    /// `true` when the mirror's header line says the last response forbade caching.
+    pub(super) async fn mirror_is_uncacheable(&self) -> bool {
+        crate::mirror::load_meta_headers_async(self.pkg_mirror.as_deref()).await
+            .is_some_and(|headers| headers.uncacheable)
     }
 
     /// The mirror, loaded once and reused by every fast path.

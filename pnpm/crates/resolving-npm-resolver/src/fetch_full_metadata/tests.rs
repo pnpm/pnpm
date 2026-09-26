@@ -3,8 +3,40 @@ use std::time::Duration;
 
 use super::{
     ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
-    FetchFullMetadataOutcome, fetch_full_metadata, warn_if_request_is_slow,
+    FetchFullMetadataOutcome, fetch_full_metadata, metadata_response_is_uncacheable,
+    warn_if_request_is_slow,
 };
+
+#[test]
+fn any_cache_control_field_can_forbid_reuse() {
+    use reqwest::header::{CACHE_CONTROL, HeaderMap, HeaderValue};
+
+    let mut headers = HeaderMap::new();
+    headers.append(CACHE_CONTROL, HeaderValue::from_static("public"));
+    headers.append(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    assert!(metadata_response_is_uncacheable(&headers));
+
+    let mut cacheable = HeaderMap::new();
+    cacheable.append(CACHE_CONTROL, HeaderValue::from_static("public, max-age=300"));
+    assert!(!metadata_response_is_uncacheable(&cacheable));
+}
+
+#[test]
+fn cache_control_directives_match_the_typescript_parser() {
+    use reqwest::header::{CACHE_CONTROL, HeaderMap, HeaderValue};
+
+    let is_uncacheable = |value: &'static str| {
+        let mut headers = HeaderMap::new();
+        headers.insert(CACHE_CONTROL, HeaderValue::from_static(value));
+        metadata_response_is_uncacheable(&headers)
+    };
+    assert!(is_uncacheable("max-age=0, private, must-revalidate"));
+    assert!(is_uncacheable("MAX-AGE = 00"));
+    assert!(is_uncacheable("No-Store"));
+    assert!(!is_uncacheable(r#"no-cache="set-cookie""#));
+    assert!(!is_uncacheable("public, max-age=300"));
+    assert!(!metadata_response_is_uncacheable(&HeaderMap::new()));
+}
 
 #[test]
 fn warns_when_metadata_request_exceeds_configured_timeout() {

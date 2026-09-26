@@ -64,6 +64,11 @@ export function clearMeta (pkg: PackageMeta): PackageMeta {
   if (pkg.etag != null) {
     condensed.etag = pkg.etag
   }
+  // Mirror-only, like `etag`: condensing must not drop the signal that the
+  // next online lookup has to refetch.
+  if (pkg.uncacheable === true) {
+    condensed.uncacheable = true
+  }
   condensedPackuments.set(pkg, condensed)
   condensedPackuments.set(condensed, condensed)
   return condensed

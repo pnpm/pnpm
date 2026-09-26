@@ -51,6 +51,11 @@ export interface FetchMetadataResult {
    */
   jsonText: string | undefined
   etag?: string
+  /**
+   * The response `Cache-Control` said this document is already stale
+   * (`max-age=0`, `no-cache`, or `no-store`).
+   */
+  uncacheable?: boolean
   notModified?: false
 }
 
@@ -182,6 +187,18 @@ export async function fetchMetadataFromFromRegistry (
               'cache-control': 'no-cache',
             },
           }) as RegistryResponse
+        } else if (response.status === 304 && hasValidator && metadataResponseIsUncacheable(response.headers.get('cache-control'))) {
+          // A mirror without the uncacheable flag still sends validators, and
+          // a stale intermediary can answer them with a 304. Ask once without
+          // validators; a second 304 still serves the mirror.
+          response = await fetchOpts.fetch(uri, {
+            ...requestOptions,
+            ifNoneMatch: undefined,
+            ifModifiedSince: undefined,
+            headers: {
+              'cache-control': 'no-cache',
+            },
+          }) as RegistryResponse
         }
       } catch (error: any) { // eslint-disable-line
         // Redact credentials embedded in the URL from the cause as well, not
@@ -221,6 +238,8 @@ export async function fetchMetadataFromFromRegistry (
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
         dropIncompletePublishTimes(meta)
+        // Only the response headers decide cacheability, never the body.
+        delete meta.uncacheable
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
@@ -229,6 +248,7 @@ export async function fetchMetadataFromFromRegistry (
         resolve({
           ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
           etag: response.headers.get('etag') ?? undefined,
+          uncacheable: metadataResponseIsUncacheable(response.headers.get('cache-control')),
         })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(isFetchTimeoutError(error)
@@ -326,4 +346,17 @@ function toUri (pkgName: string, registry: string): string {
   }
 
   return new url.URL(encodedName, registry.endsWith('/') ? registry : `${registry}/`).toString()
+}
+
+/**
+ * `true` when `Cache-Control` says the metadata document is already stale.
+ * A positive `max-age` stays cacheable.
+ */
+export function metadataResponseIsUncacheable (cacheControl: string | null): boolean {
+  if (cacheControl == null) return false
+  return cacheControl.split(',').some((directive) => {
+    const [name, value] = directive.split('=', 2).map((part) => part.trim().toLowerCase())
+    if (value == null) return name === 'no-cache' || name === 'no-store'
+    return name === 'max-age' && /^\d+$/.test(value) && Number(value) === 0
+  })
 }

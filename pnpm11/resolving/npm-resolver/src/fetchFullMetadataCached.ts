@@ -7,7 +7,15 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { getPkgMirrorPath, legacyMirrorHint, loadMeta, loadMetaHeaders, prepareJsonForDisk, saveMeta } from './pickPackage.js'
+import {
+  discardMirrorAfterFailedUncacheableWrite,
+  getPkgMirrorPath,
+  legacyMirrorHint,
+  loadMeta,
+  loadMetaHeaders,
+  prepareJsonForDisk,
+  saveMeta,
+} from './pickPackage.js'
 
 export interface FetchMetadataCachedOptions {
   registry: string
@@ -80,12 +88,14 @@ async function fetchMetadataCached (
   }
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
+  const uncacheable = cacheHeaders?.uncacheable === true
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
+    cacheBypass: uncacheable,
     fullMetadata: opts.fullMetadata,
-    etag: cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
+    etag: uncacheable ? undefined : cacheHeaders?.etag,
+    modified: uncacheable ? undefined : cacheHeaders?.modified,
   })
   if (!conditional.notModified) return persistAndReturn(conditional)
 
@@ -117,7 +127,9 @@ async function fetchMetadataCached (
   // the speedup.
   function persistAndReturn (fetched: FetchMetadataResult): PackageMeta {
     if (pkgMirror != null) {
-      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched.jsonText)).catch(() => {})
+      saveMeta(pkgMirror, prepareJsonForDisk(fetched.meta, fetched.etag, fetched)).catch(() => {
+        return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
+      })
     }
     return fetched.meta
   }

@@ -3,7 +3,7 @@ use super::{
     PACKAGE_BODY, PickPackageContext, RetryOpts, STALE_PACKAGE_BODY, TempDir, ThrottledClient,
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
     assert_eq, default_opts, persist_meta_to_mirror, pick_package, range_spec,
-    shared_packument_fetch_locker,
+    shared_packument_fetch_locker, version_spec,
 };
 use crate::pick_package::metadata_cache::PackageMetaCache;
 
@@ -274,4 +274,130 @@ async fn pick_lowest_version_picks_min() {
     opts.pick_lowest_version = true;
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+}
+
+#[tokio::test]
+async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let first = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("etag", r#"W/"old""#)
+        .with_header("cache-control", "max-age=0, private, must-revalidate")
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let spec = version_spec("acme", "1.0.0");
+    let opts = default_opts(&registry);
+    let pick_in_new_install = async || {
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            cache_policy: crate::MetadataCachePolicy {
+                offline: false,
+                prefer_offline: false,
+                ignore_missing_time_field: false,
+            },
+            metadata: crate::MetadataRequestContext {
+                meta_cache: &meta_cache,
+                fetch_locker: &fetch_locker,
+                cache_dir: Some(cache_dir.path()),
+                http: crate::MetadataHttpClient {
+                    http_client: &http_client,
+                    auth_headers: &auth_headers,
+                    retry_opts: RetryOpts::default(),
+                },
+            },
+        };
+        pick_package(&ctx, &spec, &opts).await.expect("first pick");
+        // The rest of the install reuses the document it fetched itself.
+        pick_package(&ctx, &spec, &opts).await.expect("second pick");
+    };
+
+    pick_in_new_install().await;
+    first.assert_async().await;
+    first.remove_async().await;
+
+    let refetch = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .match_header("if-modified-since", mockito::Matcher::Missing)
+        .match_header("cache-control", "no-cache")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("cache-control", "public, max-age=300")
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    pick_in_new_install().await;
+    refetch.assert_async().await;
+}
+
+#[tokio::test]
+async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header("if-none-match", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_header("cache-control", "public, max-age=300")
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let pkg: pnpm_registry::Package = serde_json::from_str(PACKAGE_BODY).expect("parse");
+    let path = crate::mirror::get_pkg_mirror_path(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        &registry,
+        "acme",
+    )
+    .expect("path");
+    crate::mirror::save_meta_indexed(&path, &pkg, Some(r#"W/"old""#), true)
+        .expect("seed uncacheable mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+    let mut opts = default_opts(&registry);
+    opts.pick_lowest_version = true;
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("refetch");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
 }
