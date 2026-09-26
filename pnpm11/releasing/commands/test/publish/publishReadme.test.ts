@@ -41,9 +41,9 @@ afterEach(async () => {
   await once(server, 'close')
 })
 
-test('publish sends the readme to the registry as metadata (embed-readme off)', async () => {
+test.each(['README.md', 'README', 'readme.markdown'])('publish sends %s to the registry as metadata (embed-readme off)', async (filename) => {
   prepare({ name: 'publish-readme-off', version: '1.0.0' })
-  fs.writeFileSync('README.md', '# Hello\n')
+  fs.writeFileSync(filename, '# Hello\n')
 
   await runPublish(process.cwd(), false)
 

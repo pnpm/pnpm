@@ -100,7 +100,7 @@ export async function createExportableManifest (
 }
 
 // `O_NOFOLLOW` makes the open itself refuse a symlink at the final path component, closing the
-// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for README.md
+// TOCTOU window between the `readdir` type check and the read: a symlink swapped in for a README
 // after the check can't redirect the read outside the project and leak its target into the
 // published manifest. Windows lacks the flag (and requires privileges to create symlinks), so it
 // falls back to a plain read.
@@ -108,8 +108,9 @@ const README_READ_FLAGS = fs.constants.O_RDONLY | (process.platform === 'win32' 
 
 export async function readReadmeFile (projectDir: string): Promise<string | undefined> {
   const entries = await fs.promises.readdir(projectDir, { withFileTypes: true })
-  // Only embed a regular README.md file — a symlink is skipped (see README_READ_FLAGS).
-  const readmeEntry = entries.find((entry) => entry.isFile() && /^readme\.md$/i.test(entry.name))
+  const readmeEntry = entries
+    .filter((entry) => entry.isFile() && getReadmeFilePriority(entry.name) > 0)
+    .sort((a, b) => getReadmeFilePriority(b.name) - getReadmeFilePriority(a.name))[0]
   if (readmeEntry == null) return undefined
   let handle: fs.promises.FileHandle | undefined
   try {
@@ -121,6 +122,16 @@ export async function readReadmeFile (projectDir: string): Promise<string | unde
     throw err
   } finally {
     await handle?.close()
+  }
+}
+
+/** Higher values take precedence; zero means the filename is not a supported README. */
+export function getReadmeFilePriority (filename: string): number {
+  switch (filename.toLowerCase()) {
+    case 'readme.md': return 3
+    case 'readme.markdown': return 2
+    case 'readme': return 1
+    default: return 0
   }
 }
 

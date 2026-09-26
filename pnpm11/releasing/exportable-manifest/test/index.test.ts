@@ -168,8 +168,9 @@ test('the original publishConfig is not mutated', async () => {
   })
 })
 
-test('readme added to published manifest', async () => {
+test.each(['README.md', 'README', 'readme.markdown'])('%s added to published manifest', async (filename) => {
   await withTempProjectReadme('readme content', async (projectDir) => {
+    await fs.promises.rename(path.join(projectDir, 'README.md'), path.join(projectDir, filename))
     expect(await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
@@ -184,14 +185,26 @@ test('readme added to published manifest', async () => {
   })
 })
 
-;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
+test('prefers README.md, then readme.markdown, over README', async () => {
+  await withTempProjectReadme('md content', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'README'), 'plain content')
+    await fs.promises.writeFile(path.join(projectDir, 'readme.markdown'), 'markdown content')
+    const manifest = { name: 'foo', version: '1.0.0' }
+    const opts = { ...defaultOpts, embedReadme: true }
+    expect((await createExportableManifest(projectDir, manifest, opts)).readme).toBe('md content')
+    await fs.promises.unlink(path.join(projectDir, 'README.md'))
+    expect((await createExportableManifest(projectDir, manifest, opts)).readme).toBe('markdown content')
+  })
+})
+
+;(process.platform === 'win32' ? test.skip : test).each(['README.md', 'README', 'readme.markdown'])('readme is not embedded when %s is a symlink pointing outside the project', async (filename) => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
     const secretFile = path.join(tmpDir, 'secret.txt')
     await fs.promises.writeFile(secretFile, 'secret content', 'utf8')
     const projectDir = path.join(tmpDir, 'project')
     await fs.promises.mkdir(projectDir)
-    await fs.promises.symlink(secretFile, path.join(projectDir, 'README.md'))
+    await fs.promises.symlink(secretFile, path.join(projectDir, filename))
 
     expect(await createExportableManifest(projectDir, {
       name: 'foo',

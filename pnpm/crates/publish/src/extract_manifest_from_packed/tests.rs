@@ -98,16 +98,42 @@ fn errors_when_manifest_missing() {
 
 #[test]
 fn publish_manifest_fills_readme_from_the_tarball_readme() {
-    let dir = TempDir::new().unwrap();
-    let path = write_tarball(
-        &dir,
-        &[
-            ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
-            ("package/README.md", "# Hello"),
-        ],
-    );
-    let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "# Hello");
+    for filename in ["README.md", "README", "readme.markdown"] {
+        let dir = TempDir::new().unwrap();
+        let path = write_tarball(
+            &dir,
+            &[
+                ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+                (&format!("package/{filename}"), "# Hello"),
+            ],
+        );
+        let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+        assert_eq!(manifest["readme"], "# Hello", "{filename}");
+    }
+}
+
+#[test]
+fn markdown_readmes_take_precedence_regardless_of_tarball_entry_order() {
+    for (first, second, expected) in [
+        ("README", "readme.markdown", "readme.markdown"),
+        ("readme.markdown", "README", "readme.markdown"),
+        ("README", "README.md", "README.md"),
+        ("README.md", "README", "README.md"),
+        ("readme.markdown", "README.md", "README.md"),
+        ("README.md", "readme.markdown", "README.md"),
+    ] {
+        let dir = TempDir::new().unwrap();
+        let path = write_tarball(
+            &dir,
+            &[
+                ("package/package.json", r#"{"name":"foo","version":"1.0.0"}"#),
+                (&format!("package/{first}"), first),
+                (&format!("package/{second}"), second),
+            ],
+        );
+        let manifest = extract_publish_manifest_from_packed(&path).unwrap();
+        assert_eq!(manifest["readme"], expected);
+    }
 }
 
 #[test]
