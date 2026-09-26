@@ -194,14 +194,35 @@ fi
 # Determine push remote (after checkout, since gh pr checkout may add the fork remote)
 REMOTE="origin"
 if [ "$HEAD_OWNER" != "pnpm" ]; then
+  # The fork's full name, not just its owner: a fork can be renamed, and an owner alone
+  # does not say which repository the push has to land in.
+  HEAD_REPO=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepository --jq '.headRepository.nameWithOwner // empty')
+  if [ -z "$HEAD_REPO" ]; then
+    HEAD_REPO="$HEAD_OWNER/pnpm"
+  fi
+
   if git remote get-url "$HEAD_OWNER" &>/dev/null; then
     REMOTE="$HEAD_OWNER"
   else
     # Try to auto-add the fork remote from the PR's clone URL
-    FORK_URL="https://github.com/$HEAD_OWNER/pnpm.git"
+    FORK_URL="https://github.com/$HEAD_REPO.git"
     echo "Adding remote '$HEAD_OWNER' -> $FORK_URL"
     git remote add "$HEAD_OWNER" "$FORK_URL"
     REMOTE="$HEAD_OWNER"
+  fi
+
+  # A remote named after the head owner is not proof that it points at the fork. `gh pr
+  # checkout` is what normally creates it, and --continue never runs it, so a stale or
+  # reused remote with that name would receive this branch's force-push instead.
+  REMOTE_URL=$(git remote get-url "$REMOTE")
+  REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed -e 's|^.*github\.com[:/]||' -e 's|\.git$||' | tr '[:upper:]' '[:lower:]')
+  FORK_SLUG=$(printf '%s' "$HEAD_REPO" | tr '[:upper:]' '[:lower:]')
+  if [ "$REMOTE_SLUG" != "$FORK_SLUG" ]; then
+    echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
+    echo "  Current $REMOTE: $REMOTE_URL"
+    echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
+    echo "  Refusing to push: the rebased commits would go somewhere other than the PR's fork."
+    exit 1
   fi
 fi
 

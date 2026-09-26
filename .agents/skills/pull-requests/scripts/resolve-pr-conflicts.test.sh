@@ -25,6 +25,17 @@ set -euo pipefail
 printf 'git %s\n' "$*" >> "$STUB_LOG"
 case "$*" in
   'remote get-url origin') echo 'https://github.com/pnpm/pnpm.git' ;;
+  'remote get-url '*)
+    if [ -f "$STUB_GIT_DIR/remote-$3" ]; then
+      cat "$STUB_GIT_DIR/remote-$3"
+    elif [ "${STUB_REMOTE_EXISTS:-1}" = "0" ]; then
+      exit 1
+    else
+      echo "${STUB_REMOTE_URL:-https://github.com/$STUB_HEAD_OWNER/pnpm.git}"
+    fi
+    ;;
+  # A remote that was added is there afterwards, which is what the script re-reads.
+  'remote add '*) printf '%s\n' "$4" > "$STUB_GIT_DIR/remote-$3" ;;
   'rev-parse --abbrev-ref HEAD')
     if [ -f "$STUB_GIT_DIR/checked-out" ]; then
       echo "$STUB_HEAD_BRANCH"
@@ -66,6 +77,7 @@ case "$*" in
     touch "$STUB_GIT_DIR/checked-out"
     ;;
   *'--json headRepositoryOwner'*) echo "$STUB_HEAD_OWNER" ;;
+  *'--json headRepository'*) echo "${STUB_HEAD_REPO:-$STUB_HEAD_OWNER/pnpm}" ;;
   *'--json headRefName'*) echo "$STUB_HEAD_BRANCH" ;;
   *'--json baseRefName'*) echo 'main' ;;
   *'--json mergeable'*) echo 'MERGEABLE' ;;
@@ -112,7 +124,7 @@ start_rebase_apply() {
 
 reset_state() {
   rm -rf "$git_dir/rebase-merge" "$git_dir/rebase-apply" "$git_dir/checked-out" \
-    "$git_dir/resolve-pr-conflicts.state"
+    "$git_dir/resolve-pr-conflicts.state" "$git_dir"/remote-*
 }
 
 no_rebase() {
@@ -342,5 +354,60 @@ expect_status 2
 expect_output 'PR_NUMBER must be a number'
 expect_no_call '^git '
 expect_no_call '^gh '
+
+# A PR from a fork pushes to the remote named after its head owner, and that remote has to
+# point at the fork: --continue never runs `gh pr checkout`, which is what creates it.
+no_rebase
+export STUB_HEAD_OWNER='some-fork'
+export STUB_HEAD_REPO='some-fork/pnpm'
+on_pr_branch
+run_case 'fork-push-validated' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+
+# The same remote name can point somewhere else, and this push is a force-push: a stale or
+# reused remote is refused instead of being trusted because of its name.
+export STUB_REMOTE_URL='https://github.com/someone-else/pnpm.git'
+run_case 'fork-push-wrong-remote' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git push'
+
+# The --continue path is the one that skips `gh pr checkout`, so it is checked there too,
+# before the rebase is finished.
+start_rebase 'fix/example'
+write_identity 4242 some-fork fix/example
+detached_head
+run_case 'continue-fork-wrong-remote' 4242 --continue
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git rebase --continue'
+expect_no_call '^git push'
+
+# SSH remotes and case differences in the owner are the same fork.
+export STUB_REMOTE_URL='git@github.com:some-fork/pnpm.git'
+run_case 'continue-fork-ssh-remote' 4242 --continue
+expect_status 0
+expect_call '^git push some-fork HEAD:fix/example --force-with-lease$'
+export STUB_REMOTE_URL='https://github.com/Some-Fork/pnpm.git'
+start_rebase 'fix/example'
+write_identity 4242 some-fork fix/example
+detached_head
+run_case 'continue-fork-owner-case' 4242 --continue
+expect_status 0
+
+# A fork that was renamed is pushed to its own repository rather than to <owner>/pnpm, and
+# the remote for it is added with that repository's URL.
+export STUB_HEAD_REPO='some-fork/pnpm-fork'
+export STUB_REMOTE_EXISTS=0
+unset STUB_REMOTE_URL
+no_rebase
+on_pr_branch
+run_case 'fork-push-renamed-fork' 4242 --no-push
+expect_status 0
+expect_call '^git remote add some-fork https://github.com/some-fork/pnpm-fork.git$'
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+unset STUB_HEAD_OWNER STUB_HEAD_REPO STUB_REMOTE_URL STUB_REMOTE_EXISTS
+export STUB_HEAD_OWNER='pnpm'
 
 echo 'resolve-pr-conflicts.sh: all cases passed'
