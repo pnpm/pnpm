@@ -139,9 +139,10 @@ export async function handler (
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
-  const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts)
+  const projects = await getImportedProjects(opts)
+  const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts, projects)
   const patchedDependencies = await importYarnPatches({
-    projects: await getImportedProjects(opts),
+    projects,
     yarnRootDir: opts.dir,
     workspaceDir: opts.workspaceDir ?? opts.dir,
     patchedDependencies: opts.patchedDependencies,
@@ -339,10 +340,10 @@ const IMPORTED_VERSION_SELECTOR = {
 } as const
 
 async function nestedYarnLockPreferredVersions (
-  opts: ImportCommandOptions
+  opts: ImportCommandOptions,
+  projects: ImportedProject[]
 ): Promise<Record<string, PreferredVersions> | undefined> {
   if (opts.workspaceDir == null) return undefined
-  const projects = await getImportedProjects(opts)
   const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
   const byImporterId: Record<string, PreferredVersions> = Object.create(null)
   await Promise.all(projects.map(async (project) => {

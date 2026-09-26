@@ -160,9 +160,6 @@ function overlayProjectVersionPins (
   projectPins: PreferredVersions
 ): PreferredVersions {
   const preferredVersions: PreferredVersions = Object.assign(Object.create(null), shared)
-  for (const name of Object.keys(preferredVersions)) {
-    preferredVersions[name] = Object.assign(Object.create(null), preferredVersions[name])
-  }
   for (const [name, pins] of Object.entries(projectPins)) {
     const selectors: VersionSelectors = Object.assign(Object.create(null), preferredVersions[name])
     for (const [selector, info] of Object.entries(selectors)) {
