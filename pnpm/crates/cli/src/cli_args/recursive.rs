@@ -250,15 +250,6 @@ pub struct RecursiveSelection<'a> {
     pub prod_only_selected: HashSet<PathBuf>,
 }
 
-impl<'a> RecursiveSelection<'a> {
-    /// The full graph the sort resolves transitive edges through: `all` when
-    /// present, otherwise `selected`. See the `all` field for why `selected`
-    /// suffices when nothing narrowed the run.
-    pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
-        self.all.as_ref().unwrap_or(&self.selected)
-    }
-}
-
 /// Build the `--filter`-selected workspace projects the recursive command
 /// runs over, together with the graphs [`filtered_projects_dependencies`] resolves
 /// order through. `prefix` is where path selectors resolve; `auto_exclude_root`
