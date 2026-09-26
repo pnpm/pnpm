@@ -67,6 +67,13 @@ export interface Options {
    * {@link getShShimDir} returns it. Computed when omitted.
    */
   shShimDir?: string
+
+  /**
+   * Name the target with a normalized absolute path, with `.` and `..`
+   * segments removed. Unset, the target stays relative to the shim so a
+   * project bin keeps working after its directory moves.
+   */
+  absolute?: boolean
 }
 
 export interface GetShShimDirOptions {
@@ -501,7 +508,7 @@ async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, 
  * @return The content of shim.
  */
 function generateCmdShim (src: string, to: string, opts: InternalOptions): string {
-  const shTarget = path.relative(path.dirname(to), src)
+  const shTarget = shimTargetPath(src, to, opts.absolute)
   let target = cmdEscape(shTarget.split('/').join('\\'))
   const quotedPathToTarget = path.isAbsolute(target) ? `"${target}"` : `"%~dp0\\${target}"`
   let longProg
@@ -563,7 +570,7 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
  * @return The content of shim.
  */
 function generateShShim (src: string, to: string, opts: InternalOptions): string {
-  let shTarget = path.relative(opts.shShimDir ?? path.dirname(to), src)
+  let shTarget = shimTargetPath(src, to, opts.absolute, opts.shShimDir)
   let shProg = opts.prog && opts.prog.split('\\').join('/')
   let shLongProg: string | undefined
   let shLongProgExe = ''
@@ -779,7 +786,7 @@ function indentShellBlock (script: string): string {
  * @return The content of shim.
  */
 function generatePwshShim (src: string, to: string, opts: InternalOptions): string {
-  let shTarget = path.relative(path.dirname(to), src)
+  let shTarget = shimTargetPath(src, to, opts.absolute)
   const shProg = opts.prog && opts.prog.split('\\').join('/')
   let pwshProg = shProg && `"${shProg}$exe"`
   let pwshLongProg
@@ -933,4 +940,15 @@ function shSingleQuote (text: string): string {
 
 function shimTarget (src: string): string {
   return `cmd-shim-target=${src.split('\\').join('/')}`
+}
+
+function shimTargetPath (src: string, to: string, absolute?: boolean, fromDir?: string): string {
+  return absolute ? path.resolve(src) : path.relative(fromDir ?? path.dirname(to), src)
+}
+
+/** A shim whose exec path climbs out of its directory with `..`. */
+export function shimClimbsWithDotDot (shimContent: string): boolean {
+  return shimContent.includes('$basedir/../') ||
+    shimContent.includes('$basedir_abs/../') ||
+    shimContent.includes('%~dp0\\..\\')
 }

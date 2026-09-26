@@ -1,4 +1,7 @@
-use super::{NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target};
+use super::{
+    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, normalized_absolute_target,
+    relative_target,
+};
 
 /// Generate the cross-shell PowerShell `.ps1` shim contents for
 /// `target_path`, minus the `prependToPath`/`nodeExecPath`/`progArgs`
@@ -13,7 +16,17 @@ pub fn generate_pwsh_shim(
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
 ) -> String {
-    let quoted_target = quoted_pwsh_target(target_path, shim_path);
+    generate_pwsh_shim_in(target_path, shim_path, runtime, node_path, false)
+}
+
+pub(crate) fn generate_pwsh_shim_in(
+    target_path: &Path,
+    shim_path: &Path,
+    runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
+    absolute: bool,
+) -> String {
+    let quoted_target = quoted_pwsh_target(target_path, shim_path, absolute);
 
     use std::fmt::Write;
     let node_path_header = pwsh_node_path_header(node_path);
@@ -72,8 +85,12 @@ fn write_pwsh_exit(pwsh: &mut String, restore_node_path: Option<&str>, exit_code
     writeln!(pwsh, "exit {exit_code}").unwrap();
 }
 
-fn quoted_pwsh_target(target_path: &Path, shim_path: &Path) -> String {
-    let sh_target = relative_target(target_path, shim_path);
+fn quoted_pwsh_target(target_path: &Path, shim_path: &Path, absolute: bool) -> String {
+    let sh_target = if absolute {
+        normalized_absolute_target(target_path, false)
+    } else {
+        relative_target(target_path, shim_path)
+    };
     if Path::new(&sh_target).is_absolute() {
         format!(r#""{sh_target}""#)
     } else {

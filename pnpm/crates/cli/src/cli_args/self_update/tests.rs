@@ -9,6 +9,7 @@ use crate::{
     },
     shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target},
 };
+use pnpm_cmd_shim::generate_sh_shim;
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
 use std::{
@@ -157,6 +158,39 @@ fn self_update_replaces_the_engine_installed_under_the_other_alias() {
             vec![("typescript".to_string(), "6.0.0".to_string())],
         ],
     );
+}
+
+#[test]
+fn self_update_rewrites_the_home_shim_without_parent_segments() {
+    let root = tempfile::tempdir().unwrap();
+    let global_dir = root.path().join("global");
+    let install_dir = seed_engine_install_dir(&global_dir, "pnpm", "12.4.0", true);
+    let package_dir = install_pnpm::package_dir(&install_dir, "pnpm");
+    fs::write(
+        package_dir.join("package.json"),
+        r#"{"name":"pnpm","version":"12.4.0","bin":{"pnpm":"pnpm"}}"#,
+    )
+    .unwrap();
+    let bin = root.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    let shim_path = bin.join("pnpm");
+    fs::write(&shim_path, generate_sh_shim(&executable, &shim_path, None, &[], None)).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir,
+        package_name: "pnpm",
+        already_existed: false,
+    };
+    let config =
+        Config { global_bin: Some(bin), global_pkg_dir: Some(global_dir), ..Config::default() };
+
+    link_into_global_bin(&config, &installed, "12.4.0").unwrap();
+
+    let shim = fs::read_to_string(&shim_path).unwrap();
+    let expected = executable.to_string_lossy().replace('\\', "/");
+    assert!(shim.contains(&format!("\"{expected}\"")), "{shim}");
+    assert!(!shim.contains("$basedir/../"), "{shim}");
+    assert!(!shim.contains("/../"), "{shim}");
 }
 
 #[test]

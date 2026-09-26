@@ -1,6 +1,8 @@
 pub use powershell::generate_pwsh_shim;
+pub(crate) use powershell::generate_pwsh_shim_in;
 pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
+pub(crate) use sh::generate_sh_shim_in;
 pub use sh::{
     generate_sh_shim, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
 };
@@ -217,7 +219,21 @@ pub fn generate_cmd_shim(
     runtime: Option<&ScriptRuntime>,
     node_path: &[String],
 ) -> String {
-    let cmd_target_rel = cmd_escape(&relative_target_windows(target_path, shim_path));
+    generate_cmd_shim_in(target_path, shim_path, runtime, node_path, false)
+}
+
+pub(crate) fn generate_cmd_shim_in(
+    target_path: &Path,
+    shim_path: &Path,
+    runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
+    absolute: bool,
+) -> String {
+    let cmd_target_rel = cmd_escape(&if absolute {
+        normalized_absolute_target(target_path, true)
+    } else {
+        relative_target_windows(target_path, shim_path)
+    });
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
         format!(r#""{cmd_target_rel}""#)
     } else {
@@ -264,6 +280,12 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);
     rel.to_string_lossy().replace('/', r"\")
+}
+
+pub(crate) fn normalized_absolute_target(path: &Path, windows_separators: bool) -> String {
+    let normalized = lexical_normalize(path);
+    let text = normalized.to_string_lossy();
+    if windows_separators { text.replace('/', "\\") } else { text.replace('\\', "/") }
 }
 
 /// Compute the relative path from `shim_path`'s parent directory to

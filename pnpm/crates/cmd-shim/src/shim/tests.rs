@@ -1,11 +1,11 @@
 use super::{
-    ScriptRuntime, extension_program, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-    is_sh_shim_hardened, is_shim_pointing_at, parse_shebang, parse_shebang_from_bytes,
-    read_head_filled, relative_target, search_script_runtime,
+    ScriptRuntime, extension_program, generate_cmd_shim, generate_cmd_shim_in, generate_pwsh_shim,
+    generate_sh_shim, is_sh_shim_hardened, is_shim_pointing_at, parse_shebang,
+    parse_shebang_from_bytes, read_head_filled, relative_target, search_script_runtime,
     sh::{
         SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
-        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches, strip_exe_suffix,
-        write_sh_node_path,
+        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, escape_msys_cmd_switches,
+        generate_sh_shim_in, strip_exe_suffix, write_sh_node_path,
     },
 };
 use crate::{
@@ -63,6 +63,44 @@ fn relative_target_traverses_into_sibling_package() {
     let target = Path::new("/proj/node_modules/foo/bin/cli.js");
     let shim = Path::new("/proj/node_modules/.bin/cli");
     assert_eq!(relative_target(target, shim), "../foo/bin/cli.js");
+}
+
+#[test]
+fn absolute_home_shim_drops_parent_segments() {
+    let root = if cfg!(windows) {
+        PathBuf::from(r"C:\Users\user\.local\share\pnpm")
+    } else {
+        PathBuf::from("/home/user/.local/share/pnpm")
+    };
+    let target = root.join("global/v11/3253/node_modules/@pnpm/exe/pnpm");
+    let shim = root.join("bin/pnpm");
+    let relative = generate_sh_shim(&target, &shim, None, &[], None);
+    assert!(relative.contains("$basedir_abs/../global/"), "{relative}");
+
+    let absolute = generate_sh_shim_in(&target, &shim, None, &[], None, true);
+    let expected = super::normalized_absolute_target(&target, false);
+    assert!(absolute.contains(&format!("exec \"{expected}\"")), "{absolute}");
+    assert!(!absolute.contains("$basedir/../"), "{absolute}");
+    assert!(!absolute.contains("/../"), "{absolute}");
+
+    let cmd_shim = root.join("bin/pnpm.cmd");
+    let relative_cmd = generate_cmd_shim(&target, &cmd_shim, None, &[]);
+    assert!(relative_cmd.contains(r"%~dp0\..\"), "{relative_cmd}");
+    let absolute_cmd = generate_cmd_shim_in(&target, &cmd_shim, None, &[], true);
+    let expected_win = super::normalized_absolute_target(&target, true);
+    assert!(absolute_cmd.contains(&expected_win), "{absolute_cmd}");
+    assert!(!absolute_cmd.contains(r"..\"), "{absolute_cmd}");
+    if Path::new(&expected_win).is_absolute() {
+        assert!(!absolute_cmd.contains("%~dp0"), "{absolute_cmd}");
+    }
+
+    let ps1 = root.join("bin/pnpm.ps1");
+    let relative_ps1 = generate_pwsh_shim(&target, &ps1, None, &[]);
+    assert!(relative_ps1.contains("$basedir/../"), "{relative_ps1}");
+    let absolute_ps1 = super::powershell::generate_pwsh_shim_in(&target, &ps1, None, &[], true);
+    assert!(absolute_ps1.contains(&format!("\"{expected}\"")), "{absolute_ps1}");
+    assert!(!absolute_ps1.contains("$basedir/../"), "{absolute_ps1}");
+    assert!(!absolute_ps1.contains("/../"), "{absolute_ps1}");
 }
 
 /// `is_sh_shim_hardened` decides whether a warm reinstall replaces a shim an

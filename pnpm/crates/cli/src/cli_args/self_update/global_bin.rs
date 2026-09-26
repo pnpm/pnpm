@@ -27,7 +27,7 @@ pub(super) fn link_into_global_bin(
         &pkgs,
         &global_bin,
         &HashSet::new(),
-        &LinkBinsOptions::default(),
+        &LinkBinsOptions { absolute_bin_paths: true, ..LinkBinsOptions::default() },
     )
     .map_err(miette::Report::new)
     .wrap_err("link the updated pnpm bins")?;

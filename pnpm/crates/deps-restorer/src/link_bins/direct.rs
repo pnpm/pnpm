@@ -52,6 +52,7 @@ pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOp
         installed_modules_dir: (config.modules_dir_name() != "node_modules").then(|| {
             config.modules_dir.clone()
         }),
+        absolute_bin_paths: false,
     }
 }
 /// Read the `package.json` of every direct dependency under `modules_dir`

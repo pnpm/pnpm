@@ -1,7 +1,7 @@
 use super::{
     DirCreation, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable, FsWrite,
     LinkBinsError, LinkBinsOptions, Path, PathBuf, ScriptRuntime, ShimTargetCache,
-    chmod_tolerating_removal, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, io,
+    chmod_tolerating_removal, generate_cmd_shim_in, generate_pwsh_shim_in, generate_sh_shim_in, io,
     is_node_bin_name, is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
     link_node_bin, link_symlinked_executable, linking_paths::LinkingPaths,
     symlink_already_points_at, target_requires_shim,
@@ -53,12 +53,13 @@ impl ShimSpec<'_> {
     }
 
     fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> Result<String, LinkBinsError> {
-        Ok(generate_sh_shim(
+        Ok(generate_sh_shim_in(
             self.target_path,
             &self.paths.sh_shim_path(self.target_path, self.shim_path)?,
             runtime,
             self.node_path,
             self.relocatable_root(),
+            self.options.absolute_bin_paths,
         ))
     }
 }
@@ -235,10 +236,22 @@ fn windows_shim_bodies(
 ) -> Option<WindowsShims> {
     cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(spec.shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(spec.target_path, &cmd_path, runtime, spec.node_path);
+        let cmd_body = generate_cmd_shim_in(
+            spec.target_path,
+            &cmd_path,
+            runtime,
+            spec.node_path,
+            spec.options.absolute_bin_paths,
+        );
         let powershell = spec.make_powershell_shim.then(|| {
             let ps1_path = with_extension_appended(spec.shim_path, "ps1");
-            let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
+            let ps1_body = generate_pwsh_shim_in(
+                spec.target_path,
+                &ps1_path,
+                runtime,
+                spec.node_path,
+                spec.options.absolute_bin_paths,
+            );
             (ps1_path, ps1_body)
         });
         WindowsShims { cmd_path, cmd_body, powershell }
@@ -251,10 +264,11 @@ fn windows_shim_bodies(
 /// [`is_shim_pointing_at`] reads. When a `NODE_PATH` block is expected the
 /// marker alone cannot prove the shim carries the right (or any) block, so
 /// byte equality is required. Relocatable shims also require equality so their
-/// physical directory anchor is upgraded. The marker-only branch rejects a
-/// stale `NODE_PATH` block when none is expected. The probe looks for the
-/// exact export the block opens with, so a target path that merely mentions
-/// `NODE_PATH` cannot force a rewrite.
+/// physical directory anchor is upgraded. Absolute bin paths require equality
+/// too: the marker still names the same file when the exec line climbs with
+/// `..`. The marker-only branch rejects a stale `NODE_PATH` block when none is
+/// expected. The probe looks for the exact export the block opens with, so a
+/// target path that merely mentions `NODE_PATH` cannot force a rewrite.
 ///
 /// The marker says nothing about the header, so the marker-only branch also
 /// requires [`is_sh_shim_hardened`]. A shim an older version wrote still points
@@ -265,7 +279,10 @@ fn shim_body_matches(existing: Option<&str>, sh_body: &str, spec: &ShimSpec<'_>)
     let Some(existing) = existing else {
         return false;
     };
-    if !spec.node_path.is_empty() || spec.relocatable_root().is_some() {
+    if spec.options.absolute_bin_paths
+        || !spec.node_path.is_empty()
+        || spec.relocatable_root().is_some()
+    {
         return existing == sh_body;
     }
     is_shim_pointing_at(existing, spec.shim_path, spec.target_path)
@@ -359,11 +376,23 @@ where
         // The Windows siblings keep the replace shape: a missing
         // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
         let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
+        let cmd_body = generate_cmd_shim_in(
+            target_path,
+            &cmd_path,
+            runtime.as_ref(),
+            node_path,
+            spec.options.absolute_bin_paths,
+        );
         replace_shim::<Sys>(&cmd_path, cmd_body.as_bytes())?;
         if make_powershell_shim {
             let ps1_path = with_extension_appended(shim_path, "ps1");
-            let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
+            let ps1_body = generate_pwsh_shim_in(
+                target_path,
+                &ps1_path,
+                runtime.as_ref(),
+                node_path,
+                spec.options.absolute_bin_paths,
+            );
             replace_shim::<Sys>(&ps1_path, ps1_body.as_bytes())?;
         }
     }

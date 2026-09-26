@@ -15,6 +15,7 @@ import {
   isShimPointingAt,
   readShNodePath,
   readShRelativeTarget,
+  shimClimbsWithDotDot,
 } from '@pnpm/bins.cmd-shim'
 
 /**
@@ -62,6 +63,69 @@ describe('isShimPointingAt', () => {
     const content = await fs.promises.readFile(to, 'utf8')
     // src without the last path segment — must not match
     assert.equal(isShimPointingAt(content, path.dirname(src)), false)
+  })
+})
+
+describe('absolute target', () => {
+  const src = path.join(fixtures, 'global', 'v11', '3253', 'node_modules', '@pnpm', 'exe', 'pnpm')
+  const to = path.join(fixtures, 'bin', 'pnpm')
+
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, 'This file intentionally left blank\n')
+  })
+
+  test('names the resolved path and does not climb with ..', async () => {
+    await cmdShim(src, to, { absolute: true, createCmdFile: false, createPwshFile: false, fs })
+    const content = await fs.promises.readFile(to, 'utf8')
+    const expected = path.resolve(src).replaceAll('\\', '/')
+    assert.ok(content.includes(`exec "${expected}"`), content)
+    assert.equal(shimClimbsWithDotDot(content), false)
+    assert.equal(content.includes('/../'), false)
+  })
+
+  test('cmd and pwsh shims name the resolved path and do not climb', async () => {
+    const relTo = path.join(fixtures, 'bin', 'pnpm-rel')
+    const absTo = path.join(fixtures, 'bin', 'pnpm-abs')
+    await cmdShim(src, relTo, { createCmdFile: true, createPwshFile: true, fs })
+    await cmdShim(src, absTo, { absolute: true, createCmdFile: true, createPwshFile: true, fs })
+    const relCmd = await fs.promises.readFile(`${relTo}${cmdExtension}`, 'utf8')
+    const absCmd = await fs.promises.readFile(`${absTo}${cmdExtension}`, 'utf8')
+    const relPwsh = await fs.promises.readFile(`${relTo}.ps1`, 'utf8')
+    const absPwsh = await fs.promises.readFile(`${absTo}.ps1`, 'utf8')
+    const expectedPosix = path.resolve(src).replaceAll('\\', '/')
+    const expectedWin = path.resolve(src).replaceAll('/', '\\')
+
+    assert.equal(shimClimbsWithDotDot(relCmd), true, relCmd)
+    assert.equal(shimClimbsWithDotDot(absCmd), false, absCmd)
+    assert.equal(absCmd.includes(expectedWin), true, absCmd)
+    assert.equal(absCmd.includes('..\\'), false, absCmd)
+    if (path.isAbsolute(expectedWin)) {
+      assert.equal(absCmd.includes('%~dp0'), false, absCmd)
+    }
+    assert.equal(shimClimbsWithDotDot(relPwsh), true, relPwsh)
+    assert.equal(absPwsh.includes(`"${expectedPosix}"`), true, absPwsh)
+    assert.equal(shimClimbsWithDotDot(absPwsh), false, absPwsh)
+    assert.equal(absPwsh.includes('/../'), false, absPwsh)
+  })
+})
+
+describe('shimClimbsWithDotDot', () => {
+  test('matches an old $basedir climb', () => {
+    assert.equal(shimClimbsWithDotDot('exec "$basedir/../global/pnpm" "$@"\n'), true)
+  })
+
+  test('matches a $basedir_abs climb', () => {
+    assert.equal(shimClimbsWithDotDot('exec "$basedir_abs/../global/pnpm" "$@"\n'), true)
+  })
+
+  test('matches a cmd %~dp0 climb', () => {
+    assert.equal(shimClimbsWithDotDot(String.raw`@"%~dp0\..\global\pnpm" %*`), true)
+  })
+
+  test('does not match a resolved absolute target', () => {
+    assert.equal(shimClimbsWithDotDot('exec "/home/user/.local/share/pnpm/global/pnpm" "$@"\n'), false)
   })
 })
 

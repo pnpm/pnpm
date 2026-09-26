@@ -602,6 +602,48 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
     assert!(body.contains(r#""$basedir_abs/../foo/cli.js""#), "body was:\n{body}");
 }
 
+/// An old home shim climbs with `$basedir/../` and has no `$basedir_abs`
+/// anchor, so the relative-target read misses it. Absolute linking still has
+/// to replace it: the marker names the same file either way.
+#[test]
+fn a_reinstall_replaces_a_home_shim_that_climbs_through_basedir() {
+    use crate::shim::{generate_sh_shim, normalized_absolute_target};
+
+    let manifest = json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join("bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let mut outdated = String::new();
+    for line in generate_sh_shim(&target, &shim, None, &[], None).lines() {
+        if line.starts_with("basedir_abs=") || line == r#"basedir="$basedir_abs""# {
+            continue;
+        }
+        outdated.push_str(&line.replace("$basedir_abs/", "$basedir/"));
+        outdated.push('\n');
+    }
+    write_file(&shim, &outdated).unwrap();
+    assert!(outdated.contains("$basedir/../"), "precondition, body was:\n{outdated}");
+    assert!(!outdated.contains("basedir_abs"), "precondition, body was:\n{outdated}");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions { absolute_bin_paths: true, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    let expected = normalized_absolute_target(&target, false);
+    assert!(body.contains(&format!("\"{expected}\"")), "{body}");
+    assert!(!body.contains("$basedir/../"), "{body}");
+    assert!(!body.contains("/../"), "{body}");
+}
+
 /// A POSIX shim climbs to its target from its physical directory, so the
 /// relative target has to be computed from there too. Linked through a bin
 /// directory that is a symlink one level deeper, a target computed from the
