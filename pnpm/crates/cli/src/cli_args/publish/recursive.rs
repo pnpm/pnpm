@@ -51,7 +51,7 @@ struct RecursivePublishContext<'a> {
     project_dependencies: &'a indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
     workspace_packages:
         &'a Arc<std::collections::HashMap<String, pnpm_pack::WorkspacePackageManifest>>,
-    bumped: Option<&'a HashSet<String>>,
+    bumped: Option<&'a Arc<HashSet<String>>>,
 }
 
 fn order_publish_roots(
@@ -146,7 +146,7 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        bumped: Option<&HashSet<String>>,
+        bumped: Option<&Arc<HashSet<String>>>,
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set

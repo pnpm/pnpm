@@ -121,7 +121,7 @@ impl PublishedPackages {
 /// the installed copies at pack time.
 struct WorkspacePackingInputs<'a> {
     packages: Option<&'a Arc<HashMap<String, WorkspacePackageManifest>>>,
-    bumped: Option<&'a HashSet<String>>,
+    bumped: Option<&'a Arc<HashSet<String>>>,
 }
 
 impl PublishArgs {
@@ -210,7 +210,7 @@ impl PublishArgs {
         config: &Config,
         stage: bool,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        bumped: Option<&HashSet<String>>,
+        bumped: Option<&Arc<HashSet<String>>>,
     ) -> miette::Result<PublishSummary> {
         let opts = self.publish_options(
             config,

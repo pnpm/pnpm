@@ -14,7 +14,7 @@ use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::is_tarball_path;
 use serde_json::Value;
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 /// Errors of the `--new-version` flag.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -53,7 +53,7 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
-    ) -> miette::Result<Option<HashSet<String>>> {
+    ) -> miette::Result<Option<Arc<HashSet<String>>>> {
         let Some(raw) = &self.flags.manifest.new_version else { return Ok(None) };
         let new_version = parse_new_version(raw)?;
         let mut bumped = HashSet::new();
@@ -64,7 +64,7 @@ impl PublishArgs {
             if let Some(name) = set_package_version(&project_dir, &new_version)? {
                 bumped.insert(name);
             }
-            return Ok(Some(bumped));
+            return Ok(Some(Arc::new(bumped)));
         }
         let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let (projects, _) = discover_workspace_projects(&base, config)?;
@@ -75,7 +75,7 @@ impl PublishArgs {
                 bumped.insert(name);
             }
         }
-        Ok(Some(bumped))
+        Ok(Some(Arc::new(bumped)))
     }
 }
 
