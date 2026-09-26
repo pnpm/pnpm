@@ -170,12 +170,25 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
 /// — so this cutoff makes 1.1.0 the only immature version.
 #[must_use]
 pub fn bravo_dep_mature_up_to_1_0_1_minimum_release_age() -> u64 {
-    const CUTOFF_UNIX_SECS: u64 = 1_646_092_800; // 2022-03-01T00:00:00Z
+    minutes_since(1_646_092_800) // 2022-03-01T00:00:00Z
+}
+
+/// Minutes elapsed since 2022-04-15T00:00:00Z, for [`set_minimum_release_age`].
+///
+/// The mocked registry publishes `@pnpm.e2e/bravo@1.0.0` on 2022-04-01 and
+/// `@pnpm.e2e/bravo-dep@1.1.0` on 2022-05-01, so this cutoff admits the
+/// former and not the latter.
+#[must_use]
+pub fn bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age() -> u64 {
+    minutes_since(1_649_980_800) // 2022-04-15T00:00:00Z
+}
+
+fn minutes_since(cutoff_unix_secs: u64) -> u64 {
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock after epoch")
         .as_secs();
-    (now_secs - CUTOFF_UNIX_SECS) / 60
+    (now_secs - cutoff_unix_secs) / 60
 }
 
 /// Append a top-level `key: value` line to the `pnpm-workspace.yaml` the
