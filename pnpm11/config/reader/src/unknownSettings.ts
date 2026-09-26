@@ -97,6 +97,7 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'useStoreServer',
   'userConfig',
   'workspaceDir',
+  'workspaceManifestFound',
   'workspacePackagePatterns',
   'workspacePrefix',
 ] as const satisfies ReadonlyArray<keyof ConfigWithDeprecatedSettings>

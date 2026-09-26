@@ -560,6 +560,7 @@ export async function getConfig (opts: {
 
     if (pnpmConfig.workspaceDir != null) {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      pnpmConfig.workspaceManifestFound = workspaceManifest != null
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
@@ -616,6 +617,10 @@ export async function getConfig (opts: {
           workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
+    } else {
+      // No workspace directory: there is no pnpm-workspace.yaml, so no
+      // catalogs stand behind the config either (pnpm/pnpm#10551).
+      pnpmConfig.workspaceManifestFound = false
     }
   }
 

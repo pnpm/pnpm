@@ -355,6 +355,12 @@ fn check_frozen_settings(
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
+            // A client with no catalogs to send has no `pnpm-workspace.yaml`
+            // behind them, so the lockfile's own snapshot is the only
+            // configuration there is (pnpm/pnpm#10551). A workspace that
+            // emptied its catalog still reaches this check through the
+            // client, which compares before delegating.
+            ignore_recorded_catalogs: request.catalogs.is_none(),
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,

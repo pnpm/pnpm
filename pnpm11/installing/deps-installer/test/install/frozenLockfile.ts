@@ -484,3 +484,50 @@ test('frozen-lockfile: installation fails if the value of auto-install-peers cha
     install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })
+
+test('frozen-lockfile: a lockfile with catalogs installs when no pnpm-workspace.yaml supplies them', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': 'catalog:',
+    },
+  }
+
+  await install(manifest, testDefaults({
+    catalogs: { default: { 'is-positive': '3.0.0' } },
+    lockfileOnly: true,
+  }))
+
+  // A production artifact copies only package.json and the lockfile: no
+  // pnpm-workspace.yaml exists, so the catalogs the lockfile records are the
+  // only catalog configuration there is (pnpm/pnpm#10551).
+  await install(manifest, testDefaults({
+    catalogs: {},
+    frozenLockfile: true,
+    ignoreRecordedCatalogs: true,
+  }))
+
+  project.has('is-positive')
+})
+
+test('frozen-lockfile: a workspace that drops the catalog still fails the frozen install', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': 'catalog:',
+    },
+  }
+
+  await install(manifest, testDefaults({
+    catalogs: { default: { 'is-positive': '3.0.0' } },
+    lockfileOnly: true,
+  }))
+
+  await expect(
+    install(manifest, testDefaults({
+      catalogs: {},
+      frozenLockfile: true,
+      lockfileOnly: true,
+    }))
+  ).rejects.toThrow('Cannot proceed with the frozen installation. The current "catalogs" configuration doesn\'t match the value found in the lockfile')
+})

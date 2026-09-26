@@ -38,6 +38,13 @@ export interface LockfileSettingsInput {
    * that run only, so the checksum the lockfile records still stands.
    */
   ignorePnpmfileChecksum?: boolean
+  /**
+   * Skips comparing `catalogs`, for an install whose directory has no
+   * `pnpm-workspace.yaml`: the catalogs the lockfile records are then the
+   * only catalog configuration there is, and a frozen install resolves
+   * from the lockfile anyway (pnpm/pnpm#10551).
+   */
+  ignoreRecordedCatalogs?: boolean
   injectWorkspacePackages?: boolean
 }
 
@@ -78,10 +85,11 @@ function * outdatedLockfileSettings (
     peersSuffixMaxLength,
     pnpmfileChecksum,
     ignorePnpmfileChecksum,
+    ignoreRecordedCatalogs,
     injectWorkspacePackages,
   }: LockfileSettingsInput
 ): Generator<ChangedField> {
-  if (!allCatalogsAreUpToDate(catalogs ?? {}, lockfile.catalogs)) {
+  if (!ignoreRecordedCatalogs && !allCatalogsAreUpToDate(catalogs ?? {}, lockfile.catalogs)) {
     yield 'catalogs'
   }
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {

@@ -115,6 +115,26 @@ fn check_settings_returns_drift_when_catalog_snapshot_entry_is_removed_from_conf
 }
 
 #[test]
+fn check_settings_skips_catalog_comparison_when_recorded_catalogs_are_ignored() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "catalogs:"
+        "  default:"
+        "    react:"
+        "      specifier: ^18.2.0"
+        "      version: 18.2.0"
+    })
+    .expect("parse lockfile with catalogs");
+    // No `pnpm-workspace.yaml` beside the lockfile: the config reads as
+    // empty, and the snapshot the lockfile carries is the only catalog
+    // configuration there is (pnpm/pnpm#10551).
+    let catalogs = Catalogs::new();
+    let check =
+        LockfileSettingsCheck { ignore_recorded_catalogs: true, ..settings_check(&catalogs) };
+    assert!(check_lockfile_settings(&lockfile, check).is_ok());
+}
+
+#[test]
 fn check_settings_passes_when_inject_workspace_packages_both_false() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"

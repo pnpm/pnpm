@@ -929,6 +929,7 @@ export async function mutateModules (
       changedLockfileSettings = getOutdatedLockfileSettings(ctx.wantedLockfile, {
         ...lockfileSettings,
         ignorePnpmfileChecksum: pnpmfileChecksumIgnored,
+        ignoreRecordedCatalogs: opts.ignoreRecordedCatalogs,
         overrides: overridesMap,
       })
       if (frozenLockfile && changedLockfileSettings.length > 0) {
