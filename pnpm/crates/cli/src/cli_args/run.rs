@@ -130,9 +130,9 @@ impl RunError {
     /// `--filter` there selected no projects.
     fn no_script(script_name: &str, args: &[String]) -> Self {
         let not_found = format!(r#"Command "{script_name}" not found."#);
-        let hint = if has_filter_option(args) {
+        let hint = if let Some(filter_option) = filter_option(args) {
             format!(
-                r#"{not_found} Options after the script name are passed to the script. To select workspace projects, put --filter before it: "pnpm --filter <selector> run {script_name}"."#,
+                r#"{not_found} Options after the script name are passed to the script. To select workspace projects, put {filter_option} before it: "pnpm {filter_option} <selector> run {script_name}"."#,
             )
         } else {
             not_found
@@ -141,15 +141,17 @@ impl RunError {
     }
 }
 
-fn has_filter_option(args: &[String]) -> bool {
+fn filter_option(args: &[String]) -> Option<&'static str> {
     args.iter()
         .take_while(|arg| *arg != "--")
-        .any(|arg| {
-            arg == "-F"
-                || arg == "--filter"
-                || arg == "--filter-prod"
-                || arg.starts_with("--filter=")
-                || arg.starts_with("--filter-prod=")
+        .find_map(|arg| {
+            if arg == "-F" || arg == "--filter" || arg.starts_with("--filter=") {
+                Some("--filter")
+            } else if arg == "--filter-prod" || arg.starts_with("--filter-prod=") {
+                Some("--filter-prod")
+            } else {
+                None
+            }
         })
 }
 
