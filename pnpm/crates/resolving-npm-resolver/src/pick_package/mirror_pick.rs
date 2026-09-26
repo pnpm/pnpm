@@ -54,6 +54,9 @@ impl PickState<'_> {
         else {
             return None;
         };
+        if picked_meta.versions.has_corrupt_mirror_fragment() {
+            return None;
+        }
         self.promote_unverified(ctx, opts, &meta);
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
@@ -93,6 +96,9 @@ impl PickState<'_> {
         else {
             return None;
         };
+        if picked_meta.versions.has_corrupt_mirror_fragment() {
+            return None;
+        }
         if picked.version.to_string() != stable_version {
             return None;
         }
@@ -149,6 +155,9 @@ impl PickState<'_> {
         else {
             return None;
         };
+        if picked_meta.versions.has_corrupt_mirror_fragment() {
+            return None;
+        }
         // Same rationale as the version-spec fast path — promote the
         // disk-loaded packument into the install-scoped in-memory cache.
         if !opts.request.dry_run {
@@ -193,12 +202,16 @@ impl PickState<'_> {
                     pkg_mirror: self.pkg_mirror.clone().unwrap_or_default(),
                 });
             };
-            // `maybe_upgrade_abbreviated_meta_for_release_age` short-circuits
-            // when offline, so a later cache hit returns this same meta
-            // without any network access.
-            self.promote_unverified(ctx, opts, &meta);
             let (meta, picked) =
                 pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
+            if meta.versions.has_corrupt_mirror_fragment() {
+                return Err(PickPackageError::NoOfflineMeta {
+                    spec_name: spec.name.clone(),
+                    spec_fetch_spec: spec.fetch_spec.clone(),
+                    pkg_mirror: self.pkg_mirror.clone().unwrap_or_default(),
+                });
+            }
+            self.promote_unverified(ctx, opts, &meta);
             return Ok(Some(PickPackageResult { meta, picked_package: picked }));
         }
 
@@ -207,14 +220,13 @@ impl PickState<'_> {
         let meta = self.upgraded_meta(ctx, spec, opts, meta).await?;
         let (picked_meta, picked) =
             pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
-        if picked.is_some() {
+        let corrupt_mirror = picked_meta.versions.has_corrupt_mirror_fragment();
+        if picked.is_some() && !corrupt_mirror {
             return Ok(Some(PickPackageResult { meta: picked_meta, picked_package: picked }));
         }
-        // Fall through to fetch when disk had the meta but no version
-        // satisfied the spec — the disk copy may be stale. Restore the
-        // (possibly upgraded) meta for later paths that reuse the in-store
-        // load.
-        *disk_meta = Some(meta);
+        if !corrupt_mirror {
+            *disk_meta = Some(meta);
+        }
         Ok(None)
     }
 }

@@ -485,22 +485,33 @@ function nonDeprecatedPick (
   versionRange: string
 ): string | null {
   if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
-  const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
   if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
     const pickedParsed = parseSemverLoose(picked)
     if (pickedParsed != null) {
-      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
+      const sameReleasePrereleases = candidates.filter((version) => {
+        if (version === picked) return false
         const parsed = parseSemverLoose(version)
-        return parsed != null &&
-          parsed.major === pickedParsed.major &&
-          parsed.minor === pickedParsed.minor &&
-          parsed.patch === pickedParsed.patch
+        if (
+          parsed == null ||
+          parsed.major !== pickedParsed.major ||
+          parsed.minor !== pickedParsed.minor ||
+          parsed.patch !== pickedParsed.patch
+        ) return false
+        const manifest = meta.versions[version]
+        return manifest != null && !manifest.deprecated
       })
       const sameRelease = maxVersionLoose(sameReleasePrereleases)
       if (sameRelease != null) return sameRelease
     }
   }
 
+  // Filter by the range before touching manifests, so a lazily-loaded
+  // packument hydrates only the actual candidates instead of every version.
+  const nonDeprecatedVersions = candidates.filter((version) => {
+    if (version === picked || !semverSatisfiesLoose(version, versionRange)) return false
+    const manifest = meta.versions[version]
+    return manifest != null && !manifest.deprecated
+  })
   return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
 }
 

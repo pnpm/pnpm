@@ -1,6 +1,6 @@
 use super::{
     Arc, DerivedPackuments, File, MAX_FRAGMENT_LEN, MAX_HEADERS_LEN, MAX_INDEX_LEN, MetaHeaders,
-    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_mirror_magic,
+    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_format_line,
     raise_open_file_limit_once,
 };
 
@@ -51,7 +51,7 @@ pub(super) fn mirror_layout(prefix: &[u8]) -> Option<Option<MirrorLayout>> {
         .iter()
         .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&prefix[..newline]).ok()?;
-    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+    let Some((headers_len, index_len)) = parse_format_line(line) else {
         return Some(None);
     };
     if headers_len > MAX_HEADERS_LEN || index_len > MAX_INDEX_LEN {

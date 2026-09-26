@@ -180,8 +180,11 @@ impl CacheCommand {
         let mut meta_files_by_path = IndexMap::new();
         for (file_path, full_path) in meta_file_paths {
             let Some(meta_object) = load_meta(&full_path) else { continue };
-            let (cached_versions, non_cached_versions) =
-                split_cached_versions(&meta_object, store_index.as_deref());
+            let Some((cached_versions, non_cached_versions)) =
+                split_cached_versions(&meta_object, store_index.as_deref())
+            else {
+                continue;
+            };
 
             // The output groups versions per registry.
             meta_files_by_path.insert(
@@ -496,13 +499,20 @@ fn walk_metadata_files(
 fn split_cached_versions(
     meta_object: &pnpm_registry::Package,
     store_index: Option<&StoreIndex>,
-) -> (Vec<String>, Vec<String>) {
+) -> Option<(Vec<String>, Vec<String>)> {
     let mut cached = Vec::new();
     let mut non_cached = Vec::new();
     for (version, json_frag) in meta_object.versions.fragments() {
-        let Some(integrity) = version_integrity(json_frag.as_ref()) else { continue };
+        let manifest = serde_json::from_str::<serde_json::Value>(json_frag.as_ref()).ok()?;
+        let Some(integrity) = manifest
+            .get("dist")
+            .and_then(|dist| dist.get("integrity"))
+            .and_then(|integrity_value| integrity_value.as_str())
+        else {
+            continue;
+        };
         let key = pnpm_store_dir::store_index_key(
-            &integrity,
+            integrity,
             &format!("{}@{}", meta_object.name, version),
         );
         let is_cached = store_index.is_some_and(|index| index.contains_key(&key).unwrap_or(false));
@@ -512,14 +522,5 @@ fn split_cached_versions(
             non_cached.push(version.clone());
         }
     }
-    (cached, non_cached)
-}
-
-fn version_integrity(json_frag: &str) -> Option<String> {
-    let manifest = serde_json::from_str::<serde_json::Value>(json_frag).ok()?;
-    manifest
-        .get("dist")?
-        .get("integrity")?
-        .as_str()
-        .map(ToOwned::to_owned)
+    Some((cached, non_cached))
 }

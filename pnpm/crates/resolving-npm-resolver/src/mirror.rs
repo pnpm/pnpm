@@ -17,7 +17,7 @@
 //! Pacquet's indexed format:
 //!
 //! ```text
-//! pacquet-meta-v1 <headers_len> <index_len>\n
+//! pnpm-meta-v1 <headers_len> <index_len>\n
 //! <headers JSON>           # MetaHeaders: etag, modified
 //! <index JSON>             # MirrorIndex: name, dist-tags, time,
 //!                          #   homepage, versions: [version, off, len]
@@ -78,13 +78,13 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache.
-pub const ABBREVIATED_META_DIR: &str = "v11/metadata";
+pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
 
 /// Mirror directory for the **full** metadata cache.
-pub const FULL_META_DIR: &str = "v11/metadata-full";
+pub const FULL_META_DIR: &str = "v12/metadata-full";
 
 /// Mirror directory for the filtered full metadata cache.
-pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
+pub const FULL_FILTERED_META_DIR: &str = "v12/metadata-full-filtered";
 
 /// Cached headers persisted as the mirror's first line. The cached
 /// metadata fetcher feeds these into `If-None-Match` /
@@ -150,25 +150,25 @@ const MAX_FRAGMENT_LEN: u32 = 16 * 1024 * 1024;
 
 /// Mirror root for descriptor-scoped private metadata. A
 /// [`MetadataCacheScope::Private`] route stores its packuments under
-/// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
+/// `<cache_dir>/v12/metadata-private/<descriptor-id>/<meta-suffix>/...`
 /// so one caller's private metadata never lands in the global mirror
 /// every other caller reads.
-const PRIVATE_META_ROOT: &str = "v11/metadata-private";
+const PRIVATE_META_ROOT: &str = "v12/metadata-private";
 
 /// The mirror directory `base_meta_dir` resolves to under `scope`.
 ///
 /// * [`MetadataCacheScope::Public`] keeps the global directory unchanged
 ///   (the CLI and public routes).
 /// * [`MetadataCacheScope::Private`] relocates it under
-///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
+///   `v12/metadata-private/<descriptor-id>/` keyed by the descriptor id,
 ///   preserving the abbreviated/full/filtered split via the suffix after
-///   `v11/`.
+///   `v12/`.
 #[must_use]
 pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
     match scope {
         MetadataCacheScope::Public => base_meta_dir.to_string(),
         MetadataCacheScope::Private { descriptor_id } => {
-            let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
+            let suffix = base_meta_dir.strip_prefix("v12/").unwrap_or(base_meta_dir);
             format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
         }
     }
@@ -192,7 +192,7 @@ pub fn get_pkg_mirror_path(
 
 /// Magic + format version. The trailing space separates it from the
 /// two record lengths on the same line.
-const MIRROR_MAGIC: &str = "pacquet-meta-v1";
+const MIRROR_FORMAT_ID: &str = "pnpm-meta-v1";
 
 /// Top-level packument fields persisted in the mirror's index record.
 /// Everything else a registry serves at the top level is neither read
@@ -267,7 +267,7 @@ pub fn save_meta_indexed(
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
     let mut contents = String::with_capacity(headers.len() + index.len() + 64);
-    let _ = writeln!(contents, "{MIRROR_MAGIC} {} {}", headers.len(), index.len());
+    let _ = writeln!(contents, "{MIRROR_FORMAT_ID} {} {}", headers.len(), index.len());
     contents.push_str(&headers);
     contents.push_str(&index);
     let mut bytes = contents.into_bytes();
@@ -398,10 +398,10 @@ fn raise_open_file_limit_once() {
 #[cfg(not(unix))]
 fn raise_open_file_limit_once() {}
 
-/// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
+/// Parse the `pnpm-meta-v1 <headers_len> <index_len>` line.
 /// `None` for anything else, including pnpm's NDJSON format.
-fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
-    let rest = line.strip_prefix(MIRROR_MAGIC)?.strip_prefix(' ')?;
+pub(super) fn parse_format_line(line: &str) -> Option<(usize, usize)> {
+    let rest = line.strip_prefix(MIRROR_FORMAT_ID)?.strip_prefix(' ')?;
     let (headers_len, index_len) = rest.split_once(' ')?;
     Some((headers_len.parse().ok()?, index_len.parse().ok()?))
 }
@@ -418,7 +418,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         .iter()
         .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
-    let Some((headers_len, _)) = parse_mirror_magic(line) else {
+    let Some((headers_len, _)) = parse_format_line(line) else {
         return serde_json::from_str(line).ok();
     };
     if headers_len > MAX_HEADERS_LEN {

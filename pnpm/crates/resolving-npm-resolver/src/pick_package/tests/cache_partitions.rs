@@ -448,7 +448,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 
     let scoped = get_pkg_mirror_path(
         cache_dir.path(),
-        "v11/metadata-private/deadbeef/metadata",
+        "v12/metadata-private/deadbeef/metadata",
         &registry,
         "acme",
     )

@@ -26,12 +26,12 @@ fn scoped_meta_dir_private_namespaces_by_descriptor() {
     let scope = MetadataCacheScope::Private { descriptor_id: "abc123".to_string() };
     assert_eq!(
         scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
-        "v11/metadata-private/abc123/metadata",
+        "v12/metadata-private/abc123/metadata",
     );
-    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full");
+    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v12/metadata-private/abc123/metadata-full");
     assert_eq!(
         scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
-        "v11/metadata-private/abc123/metadata-full-filtered",
+        "v12/metadata-private/abc123/metadata-full-filtered",
     );
     // Distinct descriptors never share a directory.
     let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
@@ -402,7 +402,7 @@ fn get_pkg_mirror_path_composes_full_path() {
         .expect("compose");
     assert_eq!(
         got,
-        PathBuf::from("/cache/v11/metadata-full/https%3A+registry.npmjs.org/lodash.jsonl"),
+        PathBuf::from("/cache/v12/metadata-full/https%3A+registry.npmjs.org/lodash.jsonl"),
     );
 }
 
@@ -410,9 +410,9 @@ fn get_pkg_mirror_path_composes_full_path() {
 /// Any drift would silently fork the cache layout from pnpm's.
 #[test]
 fn constants_match_upstream() {
-    assert_eq!(FULL_META_DIR, "v11/metadata-full");
-    assert_eq!(FULL_FILTERED_META_DIR, "v11/metadata-full-filtered");
-    assert_eq!(ABBREVIATED_META_DIR, "v11/metadata");
+    assert_eq!(FULL_META_DIR, "v12/metadata-full");
+    assert_eq!(FULL_FILTERED_META_DIR, "v12/metadata-full-filtered");
+    assert_eq!(ABBREVIATED_META_DIR, "v12/metadata");
 }
 
 /// Build a minimal `Package` fixture for the round-trip tests.
@@ -522,7 +522,7 @@ fn load_meta_past_the_hold_cap_buffers_fragments_instead_of_missing() {
 fn load_meta_rejects_oversized_declared_record_lengths() {
     let dir = TempDir::new().expect("tmp dir");
     let mirror = dir.path().join("acme.jsonl");
-    std::fs::write(&mirror, "pacquet-meta-v1 128 999999999999\n{}{}").expect("write");
+    std::fs::write(&mirror, "pnpm-meta-v1 128 999999999999\n{}{}").expect("write");
     assert!(load_meta(&mirror).is_none());
 }
 
@@ -556,7 +556,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         fragment.len(),
     );
     let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+        format!("pnpm-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     let file = std::fs::OpenOptions::new()
         .write(true)
@@ -585,7 +585,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
         32 * 1024 * 1024,
     );
     let contents =
-        format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
+        format!("pnpm-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.

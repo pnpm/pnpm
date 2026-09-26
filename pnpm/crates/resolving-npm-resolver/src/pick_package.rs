@@ -62,6 +62,8 @@ mod options;
 
 mod mirror_pick;
 
+mod fetch_pick;
+
 mod mirror_persistence;
 use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 
@@ -96,7 +98,8 @@ use tokio::sync::Semaphore;
 
 use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
-    FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
+    FetchMetadataError, fetch_full_metadata,
+    fetch_full_metadata_cached::{fetch_full_metadata_bypassing_cache, fetch_full_metadata_cached},
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
@@ -142,6 +145,20 @@ pub enum PickPackageError {
     #[display("Failed to resolve {spec_name}@{spec_fetch_spec} in package mirror {pkg_mirror:?}")]
     #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
     NoOfflineMeta {
+        #[error(not(source))]
+        spec_name: String,
+        spec_fetch_spec: String,
+        pkg_mirror: PathBuf,
+    },
+    /// `ERR_PNPM_CORRUPT_METADATA_MIRROR`: a bypassing refetch — the
+    /// last available remedy for a mirror fragment that fails to
+    /// decode — rewrote the mirror and the fragment is still
+    /// undecodable.
+    #[display(
+        "Metadata mirror for {spec_name}@{spec_fetch_spec} is still unreadable after a bypassing refetch ({pkg_mirror:?})"
+    )]
+    #[diagnostic(code(ERR_PNPM_CORRUPT_METADATA_MIRROR))]
+    CorruptMetadataMirror {
         #[error(not(source))]
         spec_name: String,
         spec_fetch_spec: String,
@@ -363,7 +380,7 @@ impl<'a> PickState<'a> {
 
     /// Run the release-age upgrade check over a packument, persisting and
     /// caching the upgraded document when one was fetched.
-    async fn upgraded_meta<Cache: PackageMetaCache>(
+    pub(super) async fn upgraded_meta<Cache: PackageMetaCache>(
         &self,
         ctx: &PickPackageContext<'_, Cache>,
         spec: &RegistryPackageSpec,
@@ -381,8 +398,6 @@ impl<'a> PickState<'a> {
         .await?;
         let mut meta = upgrade.meta;
         if !upgrade.upgraded {
-            // A cache hit re-runs the release-age upgrade check, so serving
-            // this meta from memory can't bypass the upgrade.
             self.promote_unverified(ctx, opts, &meta);
             return Ok(meta);
         }
@@ -395,134 +410,9 @@ impl<'a> PickState<'a> {
             {
                 meta = Arc::new(reloaded);
             }
-            // The upgrade fetched a registry-validated document; don't
-            // downgrade it to an unverified marking.
             ctx.metadata.meta_cache.set(self.cache_key.clone(), Arc::clone(&meta));
         }
         Ok(meta)
-    }
-
-    /// The network fetch via the cached fetcher (step 5). The cached
-    /// fetcher handles conditional headers + 200 cache write internally; on
-    /// a 304 it re-reads the mirror body. On the error path, a fetch failure
-    /// with a disk fallback uses it; otherwise the error propagates.
-    async fn fetch_and_pick<Cache: PackageMetaCache>(
-        &self,
-        ctx: &PickPackageContext<'_, Cache>,
-        spec: &RegistryPackageSpec,
-        opts: &PickPackageOptions<'_>,
-        disk_meta: Option<Arc<Package>>,
-    ) -> Result<PickPackageResult, PickPackageError> {
-        let fetch_opts = self.cached_fetch_options(ctx, opts.registry);
-
-        let meta = match fetch_full_metadata_cached(&spec.name, &fetch_opts).await {
-            Ok(meta) => Arc::new(meta),
-            Err(error) => {
-                let Some(disk) = self.disk_fallback(&error, disk_meta).await else {
-                    return Err(error.into());
-                };
-                tracing::debug!(
-                    target: "pnpm_resolving_npm_resolver::pick_package",
-                    ?error,
-                    pkg_name = %spec.name,
-                    "metadata fetch failed; falling back to on-disk mirror",
-                );
-                let (meta, picked) =
-                    pick_from_meta(&self.picker_opts, spec, disk, opts.blocked_versions)?;
-                return Ok(PickPackageResult { meta, picked_package: picked });
-            }
-        };
-
-        let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
-            ctx,
-            spec,
-            opts,
-            self.full_metadata,
-            &self.cache_key,
-            meta,
-        )
-        .await?;
-        let meta = self.persist_release_age_upgrade(ctx, opts, upgrade);
-
-        // Worth flagging: a dry-run is meant to gate the on-disk save, but
-        // `fetch_full_metadata_cached` already wrote the response body to
-        // the mirror by the time it returned, so `opts.dry_run` only
-        // suppresses the in-memory cache write. A future refactor that
-        // threads `dry_run` into the fetcher can restore a fully
-        // no-disk-side-effect dry-run.
-        if !opts.request.dry_run {
-            ctx.metadata.meta_cache.set(self.cache_key.clone(), Arc::clone(&meta));
-        }
-        let (meta, picked) = pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
-        Ok(PickPackageResult { meta, picked_package: picked })
-    }
-
-    fn persist_release_age_upgrade<Cache: PackageMetaCache>(
-        &self,
-        ctx: &PickPackageContext<'_, Cache>,
-        opts: &PickPackageOptions<'_>,
-        upgrade: UpgradeOutcome,
-    ) -> Arc<Package> {
-        let mut meta = upgrade.meta;
-        if upgrade.upgraded {
-            if !opts.request.dry_run
-                && let Some(reloaded) = self.pkg_mirror
-                    .as_deref()
-                    .and_then(|path| {
-                        persist_upgraded_to_mirror(path, &meta, self.use_filtered_full_metadata)
-                    })
-            {
-                meta = Arc::new(reloaded);
-            }
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(&self.cache_key, &meta);
-        }
-
-        meta
-    }
-
-    fn cached_fetch_options<'ctx, Cache: PackageMetaCache>(
-        &self,
-        ctx: &PickPackageContext<'ctx, Cache>,
-        registry: &'ctx str,
-    ) -> FetchFullMetadataCachedOptions<'ctx> {
-        FetchFullMetadataCachedOptions {
-            registry,
-            cache_dir: ctx.metadata.cache_dir,
-            full_metadata: self.full_metadata,
-            filter_metadata: self.use_filtered_full_metadata,
-            offline: ctx.cache_policy.offline,
-            priority: pnpm_network::UNPRIORITIZED,
-            http: ctx.metadata.http,
-        }
-    }
-
-    /// The mirror a failed fetch may fall back to.
-    ///
-    /// The fetcher already saved a 200 to disk before it returned (when it
-    /// returned Ok). If it returned Err, an existing mirror is good enough
-    /// to pick from, even if the latest sync failed.
-    ///
-    /// A private route must fail closed on a `401`/`403`/private-`404`: a
-    /// revoked credential or a hidden private package must not keep serving
-    /// the last cached packument, even from its own (same-namespace) mirror.
-    /// Only a transport failure (`5xx`/timeout/network) falls back, and only
-    /// within the scoped mirror `pkg_mirror` already points at. A public
-    /// route (the CLI / public registries) keeps the original
-    /// fall-back-on-any-error behavior.
-    async fn disk_fallback(
-        &self,
-        error: &FetchMetadataError,
-        disk_meta: Option<Arc<Package>>,
-    ) -> Option<Arc<Package>> {
-        let allow_fallback =
-            matches!(self.scope, MetadataCacheScope::Public) || !error.is_access_denied();
-        if !allow_fallback {
-            return None;
-        }
-        match disk_meta {
-            Some(meta) => Some(meta),
-            None => load_meta_async(self.pkg_mirror.as_deref()).await.map(Arc::new),
-        }
     }
 }
 
@@ -532,11 +422,12 @@ impl<'a> PickState<'a> {
 /// re-fetching). Extracting it keeps the two call sites identical so
 /// the upgrade-and-persist side-effects can't drift.
 ///
-/// Returns `Ok(None)` when the hit must not be terminal: the entry is
-/// a registry-unverified disk promotion (see
-/// [`PackageMetaCache::set_unverified`]) whose pick failed, and the
-/// resolver isn't offline. The caller then falls through to the disk +
-/// network flow, whose fetch replaces the entry with a verified one.
+/// Returns `Ok(None)` when the hit must not be terminal, and the caller
+/// falls through to the disk + network flow that replaces the entry:
+/// either the entry is a registry-unverified disk promotion (see
+/// [`PackageMetaCache::set_unverified`]) whose pick failed and the
+/// resolver isn't offline, or the pick hydrated a damaged fragment of
+/// the mirror the entry came from.
 ///
 /// The argument list is wide because the helper consumes everything
 /// the per-call frame already computed (cache key, derived
@@ -583,6 +474,9 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
+    if meta.versions.has_corrupt_mirror_fragment() {
+        return Ok(None);
+    }
     if !ctx.cache_policy.offline
         && !registry_verified
         && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())

@@ -178,7 +178,7 @@ impl NpmResolutionVerifier {
     ///    fetched, so a recent `modified` does not have to escalate to
     ///    the per-version fallbacks below.
     /// 3. **On-disk full-meta mirror.** If a previous verification
-    ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
+    ///    populated `<cache_dir>/v12/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
     /// 4. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache

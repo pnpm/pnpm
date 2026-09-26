@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { decodeRegistry, encodeRegistry, type PackageMeta } from '@pnpm/resolving.npm-resolver'
+import { decodeRegistry, encodeRegistry, loadMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { glob } from 'tinyglobby'
 
@@ -21,24 +21,14 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   const metaFilesByPath: Record<string, CachedVersions> = {}
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
-    for (const filePath of metaFilePaths) {
-      let metaObject: PackageMeta | null
+    const entries = await Promise.all(metaFilePaths.map(async (filePath) => {
       const fullPath = path.join(opts.cacheDir, filePath)
-      let mtime: Date | undefined
-      try {
-        const raw = fs.readFileSync(fullPath, 'utf8')
-        mtime = fs.statSync(fullPath).mtime
-        const newlineIdx = raw.indexOf('\n')
-        if (newlineIdx !== -1) {
-          // NDJSON format: line 1 = headers, line 2 = metadata
-          metaObject = JSON.parse(raw.slice(newlineIdx + 1)) as PackageMeta
-        } else {
-          metaObject = JSON.parse(raw) as PackageMeta
-        }
-      } catch {
-        continue
-      }
-      if (!metaObject) continue
+      // Every version is read below, so hydrate up front: the loader then
+      // reports a damaged mirror as a miss instead of throwing partway
+      // through, and the entry is skipped like an unreadable file.
+      const metaObject = await loadMeta(fullPath, { hydrateEagerly: true })
+      if (!metaObject) return null
+      const mtime = statMtime(fullPath)
       const cachedVersions: string[] = []
       const nonCachedVersions: string[] = []
       for (const [version, manifest] of Object.entries(metaObject.versions)) {
@@ -54,15 +44,31 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
       while (path.dirname(registryName) !== '.') {
         registryName = path.dirname(registryName)
       }
-      metaFilesByPath[decodeRegistry(registryName)] = {
-        cachedVersions,
-        nonCachedVersions,
-        cachedAt: mtime?.toString(),
-        distTags: metaObject['dist-tags'],
+      return {
+        key: decodeRegistry(registryName),
+        value: {
+          cachedVersions,
+          nonCachedVersions,
+          cachedAt: mtime?.toString(),
+          distTags: metaObject['dist-tags'],
+        },
+      }
+    }))
+    for (const entry of entries) {
+      if (entry != null) {
+        metaFilesByPath[entry.key] = entry.value
       }
     }
   } finally {
     storeIndex.close()
   }
   return JSON.stringify(metaFilesByPath, null, 2)
+}
+
+function statMtime (filePath: string): Date | undefined {
+  try {
+    return fs.statSync(filePath).mtime
+  } catch {
+    return undefined
+  }
 }
