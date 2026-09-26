@@ -378,3 +378,99 @@ fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
         drop((root, mock_instance));
     }
 }
+
+fn git(work: &Path, args: &[&str]) {
+    let status = std::process::Command::new("git")
+        .args(args)
+        .current_dir(work)
+        .env("GIT_AUTHOR_NAME", "test")
+        .env("GIT_AUTHOR_EMAIL", "test@example.com")
+        .env("GIT_COMMITTER_NAME", "test")
+        .env("GIT_COMMITTER_EMAIL", "test@example.com")
+        .status()
+        .expect("run git");
+    assert!(status.success(), "git {args:?} failed");
+}
+
+/// A detached HEAD names no branch, but the checked-out commit still
+/// belongs to the branches whose history includes it. A frozen install at
+/// a branch tip must read that branch's lockfile instead of failing on the
+/// absent shared one (pnpm/pnpm#7672).
+#[test]
+fn a_detached_head_reads_the_lockfile_of_the_branch_containing_the_commit() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    git(&workspace, &["init", "-q", "-b", "main", "--template="]);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    git(&workspace, &["add", "-A"]);
+    git(&workspace, &["commit", "-qm", "main"]);
+
+    git(&workspace, &["checkout", "-qb", "feature"]);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.2.0" }));
+    git(&workspace, &["add", "-A"]);
+    git(&workspace, &["commit", "-qm", "feature"]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pnpm-lock.feature.yaml").exists(),
+        "the branch install writes the branch lockfile",
+    );
+
+    git(&workspace, &["checkout", "-q", "--detach"]);
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the shared lockfile stays unwritten on a detached frozen install",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A detached HEAD whose commit belongs to branches that have no lockfile
+/// of their own leaves the read nothing to fall back to, and the frozen
+/// install still reports the absent shared one.
+#[test]
+fn a_detached_head_without_branch_lockfiles_still_fails_a_frozen_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    git(&workspace, &["init", "-q", "-b", "main", "--template="]);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    git(&workspace, &["add", "-A"]);
+    git(&workspace, &["commit", "-qm", "main"]);
+    git(&workspace, &["checkout", "-q", "--detach"]);
+
+    let assert = pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_NO_LOCKFILE"),
+        "a detached HEAD with no containing branch keeps the failure; got:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}

@@ -1,4 +1,6 @@
-use super::{CommandOutput, RunCommand, get_current_branch, is_head_detached};
+use super::{
+    CommandOutput, RunCommand, get_branches_containing_head, get_current_branch, is_head_detached,
+};
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
 
@@ -169,4 +171,74 @@ fn a_failed_head_verification_is_not_detached() {
         !is_head_detached::<GitFails>(repo.path()),
         "a failed Git query must not confirm detachment",
     );
+}
+
+/// Providers answering `git for-each-ref` the way a detached HEAD's
+/// repository would, failing every other invocation.
+struct GitSaysFeatureAndMain;
+
+impl RunCommand for GitSaysFeatureAndMain {
+    fn run(program: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        assert_eq!(program, "git");
+        assert_eq!(
+            args,
+            ["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"],
+        );
+        Ok(CommandOutput {
+            success: true,
+            stdout: "main\nfeature\n".to_string(),
+            stderr: String::new(),
+        })
+    }
+}
+
+struct GitSaysNothing;
+
+impl RunCommand for GitSaysNothing {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Ok(CommandOutput { success: true, stdout: String::new(), stderr: String::new() })
+    }
+}
+
+struct GitFailsForEachRef;
+
+impl RunCommand for GitFailsForEachRef {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
+    }
+}
+
+#[test]
+fn lists_the_local_branches_containing_head_sorted() {
+    assert_eq!(
+        get_branches_containing_head::<GitSaysFeatureAndMain>(std::path::Path::new(".")),
+        ["feature", "main"],
+    );
+}
+
+#[test]
+fn a_failed_branch_listing_is_empty() {
+    assert!(
+        get_branches_containing_head::<GitFailsForEachRef>(std::path::Path::new(".")).is_empty(),
+    );
+}
+
+// A provider whose git spawn itself fails, which is what a machine
+// without git looks like.
+struct GitUnspawnable;
+
+impl RunCommand for GitUnspawnable {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Err(io::Error::new(io::ErrorKind::NotFound, "no git"))
+    }
+}
+
+#[test]
+fn a_failing_git_spawn_yields_no_branches() {
+    assert!(get_branches_containing_head::<GitUnspawnable>(std::path::Path::new(".")).is_empty());
+}
+
+#[test]
+fn a_branch_listing_with_no_matches_is_empty() {
+    assert!(get_branches_containing_head::<GitSaysNothing>(std::path::Path::new(".")).is_empty());
 }

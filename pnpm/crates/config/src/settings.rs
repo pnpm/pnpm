@@ -580,6 +580,16 @@ pub struct Config {
     /// `pnpm-lock.yaml`.
     pub git_branch_lockfile_name: Option<String>,
 
+    /// The `pnpm-lock.<branch>.yaml` files a detached HEAD's install reads
+    /// before `pnpm-lock.yaml`: the lockfiles of the branches containing
+    /// the checked-out commit. Empty unless
+    /// [`Self::use_git_branch_lockfile`] is on and HEAD is detached with
+    /// containing branches. The write target stays
+    /// [`Self::git_branch_lockfile_name`] — `None` here too, so a detached
+    /// install still writes the shared lockfile, as under
+    /// [`Self::merge_git_branch_lockfiles`].
+    pub git_branch_lockfile_candidates: Vec<String>,
+
     /// Refuse network requests during install. The `offline` flag gates
     /// the metadata-fetch path with `ERR_PNPM_NO_OFFLINE_META` when no
     /// cached metadata exists for a spec. Pacquet doesn't have a
