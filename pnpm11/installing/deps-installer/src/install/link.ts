@@ -156,6 +156,68 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     failOnMissingDependencies: true,
     skipped: new Set(),
   })
+
+  let linkedToRoot = 0
+  let dedupeLinkedDirectDeps = async () => {}
+  if (opts.symlink && !opts.virtualStoreOnly) {
+    const projectsToLink = Object.fromEntries(await Promise.all(
+      projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
+        const deps = opts.dependenciesByProjectId[id]
+        const importerFromLockfile = newCurrentLockfile.importers[id]
+        const publishDir = (manifest.publishConfig?.directory != null && manifest.publishConfig.linkDirectory !== false)
+          ? manifest.publishConfig.directory
+          : (importerFromLockfile?.publishDirectory != null && importerFromLockfile?.linkDirectory !== false)
+            ? importerFromLockfile.publishDirectory
+            : undefined
+        return [id, {
+          dir: rootDir,
+          modulesDir,
+          publishDir,
+          dependencies: await Promise.all([
+            ...Array.from(deps.entries())
+              .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
+              .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
+              .filter(({ depGraphNode }) => depGraphNode)
+              .map(async ({ rootAlias, depGraphNode }) => {
+                const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+                const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
+                return {
+                  alias: rootAlias,
+                  name: depGraphNode.name,
+                  version: depGraphNode.version,
+                  dir: depGraphNode.dir,
+                  id: depGraphNode.id,
+                  dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+                  latest: opts.outdatedDependencies[depGraphNode.id],
+                  isExternalLink: false,
+                }
+              }),
+            ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
+              const dir = resolvePath(rootDir, linkedDependency.resolution.directory)
+              return {
+                alias: linkedDependency.alias,
+                name: linkedDependency.name,
+                version: linkedDependency.version,
+                dir,
+                id: linkedDependency.resolution.directory,
+                dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+                isExternalLink: true,
+              }
+            }),
+          ]),
+        }]
+      }))
+    )
+    const dedupe = opts.dedupeDirectDeps
+    const _linkDirectDeps = linkDirectDeps.bind(null, projectsToLink, { dedupe })
+    linkedToRoot = await _linkDirectDeps()
+    if (dedupe) {
+      dedupeLinkedDirectDeps = async () => {
+        await _linkDirectDeps()
+      }
+    }
+  }
+
   const { newDepPaths, added } = await linkNewPackages(
     filterLockfileByImporters(opts.currentLockfile, projectIds, {
       ...filterOpts,
@@ -297,59 +359,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       ...retainedHoistedDependencies,
       ...nextHoistedDependencies,
     }
-  }
-
-  let linkedToRoot = 0
-  if (opts.symlink && !opts.virtualStoreOnly) {
-    const projectsToLink = Object.fromEntries(await Promise.all(
-      projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
-        const deps = opts.dependenciesByProjectId[id]
-        const importerFromLockfile = newCurrentLockfile.importers[id]
-        const publishDir = (manifest.publishConfig?.directory != null && manifest.publishConfig.linkDirectory !== false)
-          ? manifest.publishConfig.directory
-          : (importerFromLockfile?.publishDirectory != null && importerFromLockfile?.linkDirectory !== false)
-            ? importerFromLockfile.publishDirectory
-            : undefined
-        return [id, {
-          dir: rootDir,
-          modulesDir,
-          publishDir,
-          dependencies: await Promise.all([
-            ...Array.from(deps.entries())
-              .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
-              .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
-              .filter(({ depGraphNode }) => depGraphNode)
-              .map(async ({ rootAlias, depGraphNode }) => {
-                const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-                const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
-                return {
-                  alias: rootAlias,
-                  name: depGraphNode.name,
-                  version: depGraphNode.version,
-                  dir: depGraphNode.dir,
-                  id: depGraphNode.id,
-                  dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
-                  latest: opts.outdatedDependencies[depGraphNode.id],
-                  isExternalLink: false,
-                }
-              }),
-            ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
-              const dir = resolvePath(rootDir, linkedDependency.resolution.directory)
-              return {
-                alias: linkedDependency.alias,
-                name: linkedDependency.name,
-                version: linkedDependency.version,
-                dir,
-                id: linkedDependency.resolution.directory,
-                dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
-                isExternalLink: true,
-              }
-            }),
-          ]),
-        }]
-      }))
-    )
-    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
+    await dedupeLinkedDirectDeps()
   }
 
   return {
