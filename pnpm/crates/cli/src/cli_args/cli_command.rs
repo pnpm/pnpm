@@ -29,6 +29,7 @@ use super::{
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
+    fund::FundArgs,
     ignored_builds::IgnoredBuildsArgs,
     import::ImportArgs,
     init::InitArgs,
