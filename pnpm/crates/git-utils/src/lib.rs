@@ -74,6 +74,34 @@ pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
         .is_ok_and(|output| output.success && output.stdout.trim() == "HEAD")
 }
 
+/// The local branches that contain HEAD, sorted, or empty when git cannot
+/// answer — a repository without commits, or no repository at all.
+///
+/// An attached HEAD is contained in its own branch and every ancestor branch,
+/// so a caller that wants "the branch HEAD is on" must ask
+/// [`get_current_branch`] first and use this only when that answers `None`.
+#[must_use]
+pub fn get_branches_containing_head<Sys: RunCommand>(cwd: &Path) -> Vec<String> {
+    let Ok(output) = Sys::run(
+        "git",
+        &["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"],
+        Some(cwd),
+    ) else {
+        return Vec::new();
+    };
+    if !output.success {
+        return Vec::new();
+    }
+    let mut branches: Vec<String> = output.stdout
+        .lines()
+        .map(str::trim)
+        .filter(|branch| !branch.is_empty())
+        .map(String::from)
+        .collect();
+    branches.sort();
+    branches
+}
+
 /// The outcomes of reading `.git/HEAD`.
 enum HeadBranch {
     Branch(String),

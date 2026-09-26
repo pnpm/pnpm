@@ -2,7 +2,7 @@ use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
     Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, WantedLockfileSelection,
     WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
-    esm_node_path_loader, get_current_branch, store_path,
+    esm_node_path_loader, get_branches_containing_head, get_current_branch, store_path,
 };
 
 impl Config {
@@ -411,6 +411,7 @@ impl Config {
         WantedLockfileSelection {
             file_name: self.wanted_lockfile_name().to_owned(),
             merge_git_branch_lockfiles: self.merge_git_branch_lockfiles,
+            branch_lockfile_candidates: self.git_branch_lockfile_candidates.clone(),
         }
     }
 
@@ -419,6 +420,13 @@ impl Config {
     /// `gitBranchLockfile` uses, and whether
     /// `mergeGitBranchLockfilesBranchPattern` puts this branch in merge
     /// mode.
+    ///
+    /// A detached HEAD names no branch. The checked-out commit still belongs
+    /// to the branches whose history includes it, so their lockfiles join
+    /// the read path through [`Self::git_branch_lockfile_candidates`] — the
+    /// read tries each before `pnpm-lock.yaml`. The write target stays
+    /// `pnpm-lock.yaml`, the same behavior as `mergeGitBranchLockfiles`,
+    /// because a branch containing HEAD need not have HEAD at its tip.
     ///
     /// The branch is read from the process's working directory, which is
     /// where pnpm reads it from too — not from the workspace root, which
@@ -433,7 +441,17 @@ impl Config {
             return;
         }
         let Ok(cwd) = Sys::current_dir() else { return };
-        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
+        let Some(branch) = get_current_branch::<GitHost>(&cwd) else {
+            let branches = get_branches_containing_head::<GitHost>(&cwd);
+            if branches.is_empty() {
+                return;
+            }
+            self.git_branch_lockfile_candidates = branches
+                .iter()
+                .map(|branch| Lockfile::git_branch_file_name(branch))
+                .collect();
+            return;
+        };
         if pattern_decides {
             self.merge_git_branch_lockfiles =
                 create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);

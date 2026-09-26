@@ -74,7 +74,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_git_utils::{Host as GitHost, get_current_branch};
+use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_matcher::create_matcher;
 use pnpm_patching::{
