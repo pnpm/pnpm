@@ -238,6 +238,17 @@ function cacheDiskLoadedMeta (metaCache: PackageMetaCache, cacheKey: string, met
 }
 
 /**
+ * Offline and prefer-offline may serve a mirror the registry marked
+ * uncacheable. Every other online path has to refetch it.
+ */
+function canServeCachedMeta (
+  ctx: { offline?: boolean, preferOffline?: boolean },
+  meta: PackageMeta
+): boolean {
+  return ctx.offline === true || ctx.preferOffline === true || meta.uncacheable !== true
+}
+
+/**
  * The form in which a packument is retained in memory (see {@link clearMeta}
  * for why). Full documents reach even a plain install via optional
  * dependencies (fetched full for `libc`), release-age `time` upgrades, and
@@ -357,7 +368,7 @@ export async function pickPackage (
       ctx.offline === true ||
       !unverified ||
       (pickedPackage != null && unverifiedPickIsSafe)
-    if (cacheResultCanReturn) {
+    if (cacheResultCanReturn && canServeCachedMeta(ctx, metaForCache)) {
       return {
         meta: metaForCache,
         pickedPackage,
@@ -416,7 +427,7 @@ export async function pickPackage (
           ctx.metaCache.set(cacheKey, diskMeta)
         }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
-        if (pickedPackage) {
+        if (pickedPackage && canServeCachedMeta(ctx, diskMeta)) {
           // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
           // serving this meta from memory can't bypass the release-age
           // upgrade. When the upgrade branch above already cached the
@@ -437,7 +448,11 @@ export async function pickPackage (
       diskMeta = diskMeta ?? await limit(loadMetaCondensed)
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
-      if ((diskMeta?.versions?.[spec.fetchSpec]) != null) {
+      if (
+        diskMeta != null &&
+        canServeCachedMeta(ctx, diskMeta) &&
+        (diskMeta.versions?.[spec.fetchSpec]) != null
+      ) {
         try {
           const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
           if (pickedPackage) {
@@ -467,7 +482,7 @@ export async function pickPackage (
             preferredVersionSelectors: opts.preferredVersionSelectors,
             versionRange: spec.fetchSpec,
           })
-          if (stableVersion != null) {
+          if (stableVersion != null && canServeCachedMeta(ctx, diskMeta)) {
             // Strict dominance makes the preferred tier a singleton, so the
             // highest-version picker used by the proof and the normal picker
             // agree even if pickLowestVersion reaches this code in the future.
@@ -490,7 +505,7 @@ export async function pickPackage (
         if (diskMeta != null) {
           try {
             const pickedPackage = pickMatchingVersionFast(pickerOpts, spec, diskMeta)
-            if (pickedPackage) {
+            if (pickedPackage && canServeCachedMeta(ctx, diskMeta)) {
               return {
                 meta: diskMeta,
                 pickedPackage,
@@ -508,13 +523,19 @@ export async function pickPackage (
       // This avoids reading and parsing the full metadata file (which can be megabytes)
       // when the registry returns 200 and the old metadata would be discarded anyway.
       const cacheHeaders = diskMeta != null
-        ? { etag: diskMeta.etag, modified: diskMeta.modified ?? diskMeta.time?.modified }
+        ? {
+          etag: diskMeta.etag,
+          modified: diskMeta.modified ?? diskMeta.time?.modified,
+          uncacheable: diskMeta.uncacheable,
+        }
         : await limit(async () => loadMetaHeaders(pkgMirror))
+      const uncacheable = cacheHeaders?.uncacheable === true
       const conditional = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
+        cacheBypass: uncacheable,
         fullMetadata,
-        etag: cacheHeaders?.etag,
-        modified: cacheHeaders?.modified,
+        etag: uncacheable ? undefined : cacheHeaders?.etag,
+        modified: uncacheable ? undefined : cacheHeaders?.modified,
         registry: opts.registry,
       })
       // `return await` (not `return`) so a failure inside persistFreshMeta lands
@@ -605,7 +626,7 @@ export async function pickPackage (
         if (!isModifiedValid || modifiedDate > opts.publishedBy) {
           // Save the abbreviated metadata to the abbreviated cache before re-fetching full.
           if (!opts.dryRun) {
-            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText))
+            saveMetaBestEffort(pkgMirror, prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText, resultToSave.uncacheable), resultToSave.uncacheable === true)
           }
           attemptedReleaseAgeUpgrade = true
           const fullFetchResult = await ctx.fetch(spec.name, {
@@ -635,11 +656,12 @@ export async function pickPackage (
         // describes what is written — see `prepareJsonForDisk`.
         const etagForDisk = resultToSave === fetched ? fetched.etag : undefined
         const jsonForDisk = writeCondensed
-          ? prepareJsonForDisk(meta, etagForDisk)
-          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave.jsonText)
-        saveMetaBestEffort(pkgMirror, jsonForDisk)
+          ? prepareJsonForDisk(meta, etagForDisk, undefined, resultToSave.uncacheable)
+          : prepareJsonForDisk(resultToSave.meta, etagForDisk, resultToSave.jsonText, resultToSave.uncacheable)
+        saveMetaBestEffort(pkgMirror, jsonForDisk, resultToSave.uncacheable === true)
       }
       meta.etag = resultToSave.etag
+      if (resultToSave.uncacheable === true) meta.uncacheable = true
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(cacheKey, meta)
       return {
@@ -770,10 +792,11 @@ function persistUpgradedMeta (
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
+  if (upgradedFrom.uncacheable === true) metaForCache.uncacheable = true
   const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom.jsonText)
-    : prepareJsonForDisk(metaForCache, undefined)
-  saveMetaBestEffort(pkgMirror, jsonForDisk)
+    ? prepareJsonForDisk(upgradedFrom.meta, undefined, upgradedFrom.jsonText, upgradedFrom.uncacheable)
+    : prepareJsonForDisk(metaForCache, undefined, undefined, upgradedFrom.uncacheable)
+  saveMetaBestEffort(pkgMirror, jsonForDisk, upgradedFrom.uncacheable === true)
   return metaForCache
 }
 
@@ -781,14 +804,24 @@ function persistUpgradedMeta (
  * The mirror is an optimization, so a write failure only gets a debug log
  * with the mirror path and the install continues.
  */
-function saveMetaBestEffort (pkgMirror: string, json: string): void {
+function saveMetaBestEffort (pkgMirror: string, json: string, uncacheable = false): void {
   void runLimited(pkgMirror, (limit) => limit(async () => {
     try {
       await saveMeta(pkgMirror, json)
     } catch (err: unknown) {
       logger.debug({ message: `Failed to write the package metadata mirror at ${pkgMirror}`, err })
+      await discardMirrorAfterFailedUncacheableWrite(pkgMirror, uncacheable)
     }
   }))
+}
+
+/**
+ * A failed uncacheable write leaves the previous header in place. The next
+ * fetch would send that header's validators and can accept a stale 304.
+ */
+export async function discardMirrorAfterFailedUncacheableWrite (pkgMirror: string, uncacheable: boolean): Promise<void> {
+  if (!uncacheable) return
+  await fs.rm(pkgMirror, { force: true }).catch(() => undefined)
 }
 
 export function encodePkgName (pkgName: string): string {
@@ -893,10 +926,15 @@ function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: st
  * `time.modified`, which both representations report identically, so the next
  * request is still conditional through `If-Modified-Since`.
  */
-export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string): string {
+export function prepareJsonForDisk (meta: PackageMeta, etag: string | undefined, jsonText?: string, uncacheable?: boolean): string {
   const modified = meta.modified ?? meta.time?.modified
-  const headers = JSON.stringify({ etag, modified })
-  const body = jsonText ?? JSON.stringify(meta.etag == null ? meta : { ...meta, etag: undefined })
+  const headers = JSON.stringify(uncacheable === true
+    ? { etag, modified, uncacheable: true }
+    : { etag, modified })
+  const bodyMeta = meta.etag == null && meta.uncacheable == null
+    ? meta
+    : { ...meta, etag: undefined, uncacheable: undefined }
+  const body = jsonText ?? JSON.stringify(bodyMeta)
   return `${headers}\n${body}`
 }
 
@@ -949,6 +987,7 @@ async function getFileMtime (filePath: string): Promise<Date | null> {
 interface MetaHeaders {
   etag?: string
   modified?: string
+  uncacheable?: boolean
 }
 
 /**
@@ -990,6 +1029,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
     dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
+    if (headers.uncacheable === true) meta.uncacheable = true
     return meta
   } catch {
     return null

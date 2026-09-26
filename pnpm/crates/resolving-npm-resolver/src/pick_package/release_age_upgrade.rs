@@ -1,9 +1,10 @@
 use super::{
     Arc, FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError, Package,
     PackageMetaCache, PackumentFetchLocker, Path, PickPackageContext, PickPackageError,
-    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta,
-    fetch_full_metadata, load_meta, parse_packument_timestamp, save_meta_indexed, save_meta_ndjson,
+    PickPackageOptions, PolicyMatch, RegistryPackageSpec, Semaphore, clear_meta, load_meta,
+    parse_packument_timestamp, save_meta_indexed_with_policy, save_meta_ndjson_with_policy,
 };
+use crate::fetch_full_metadata::fetch_metadata_document;
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`].
 pub(super) struct UpgradeOutcome {
@@ -14,6 +15,10 @@ pub(super) struct UpgradeOutcome {
     /// `true` when the orchestrator should persist `meta` to the
     /// abbreviated mirror and write it back to the in-memory cache.
     pub(super) upgraded: bool,
+    /// `true` when the upgraded response forbade caching. Meaningless
+    /// unless `upgraded` is set; the caller already knows the
+    /// abbreviated response's policy.
+    pub(super) uncacheable: bool,
 }
 
 pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
@@ -25,7 +30,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     mut meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
-        return Ok(UpgradeOutcome { meta, upgraded: false });
+        return Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false });
     }
     let limit = release_age_upgrade_limit(ctx.metadata.fetch_locker, cache_key);
     let _permit =
@@ -42,7 +47,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     if ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
         || meta.time.is_some()
     {
-        return Ok(UpgradeOutcome { meta, upgraded: false });
+        return Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false });
     }
     // An entity tag and a `Last-Modified` date describe one representation, and
     // `meta` holds the abbreviated one. A registry that reuses them across both
@@ -54,10 +59,15 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         modified: None,
         http: ctx.metadata.http,
     };
-    match fetch_full_metadata(&spec.name, &fetch_opts).await {
-        Ok(FetchFullMetadataOutcome::Modified(upgraded)) => {
-            Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
-        }
+    match fetch_metadata_document(&spec.name, &fetch_opts).await {
+        Ok(fetched) => match fetched.outcome {
+            FetchFullMetadataOutcome::Modified(upgraded) => Ok(UpgradeOutcome {
+                meta: Arc::new(*upgraded),
+                upgraded: true,
+                uncacheable: fetched.uncacheable,
+            }),
+            FetchFullMetadataOutcome::NotModified => declined_upgrade(ctx, opts, cache_key, meta),
+        },
         Err(error) if !matches!(error, FetchMetadataError::NotModifiedWithoutCache { .. }) => {
             Err(error.into())
         }
@@ -69,20 +79,27 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         // that cannot happen must not fail an install that would otherwise
         // succeed: the maturity check falls back to the warn-or-error gate
         // `minimum_release_age_ignore_missing_time` already governs.
-        Ok(FetchFullMetadataOutcome::NotModified) | Err(_) => {
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
-            // A `Modified` outcome is marked by the caller instead: it persists
-            // the response to the mirror and may hand back a reloaded document,
-            // so only the caller knows the `Arc` that ends up in the cache.
-            // Both outcomes must be marked — a registry whose full form is no
-            // more complete than its abbreviated one would otherwise be
-            // re-asked once per dependency edge.
-            if !opts.request.dry_run {
-                ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
-            }
-            Ok(UpgradeOutcome { meta, upgraded: false })
-        }
+        Err(_) => declined_upgrade(ctx, opts, cache_key, meta),
     }
+}
+
+fn declined_upgrade<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    opts: &PickPackageOptions<'_>,
+    cache_key: &str,
+    meta: Arc<Package>,
+) -> Result<UpgradeOutcome, PickPackageError> {
+    ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+    // A `Modified` outcome is marked by the caller instead: it persists
+    // the response to the mirror and may hand back a reloaded document,
+    // so only the caller knows the `Arc` that ends up in the cache.
+    // Both outcomes must be marked — a registry whose full form is no
+    // more complete than its abbreviated one would otherwise be
+    // re-asked once per dependency edge.
+    if !opts.request.dry_run {
+        ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+    }
+    Ok(UpgradeOutcome { meta, upgraded: false, uncacheable: false })
 }
 
 /// Upgrade abbreviated metadata to full when the maturity check needs
@@ -116,7 +133,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
 ///   boundary on purpose, matching the per-version `<=` filter in
 ///   [`filter_pkg_metadata_by_publish_date`](crate::filter_pkg_metadata_by_publish_date).
 ///
-/// On upgrade the call uses the network-only [`fetch_full_metadata()`]
+/// On upgrade the call uses the network-only [`crate::fetch_full_metadata()`]
 /// (not the cached variant) so the response writes back to the
 /// abbreviated mirror via [`persist_upgraded_to_mirror`], which
 /// intentionally updates the *abbreviated* cache file with full data so
@@ -158,7 +175,8 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
 /// Write the upgraded full metadata back to `pkg_mirror` (which
 /// points at the abbreviated cache because the picker is in
 /// abbreviated mode). A write failure logs at debug and the install
-/// proceeds — the next install simply re-triggers the upgrade fetch.
+/// proceeds. An uncacheable failure also deletes the previous mirror,
+/// so the next lookup cannot revalidate that older header.
 ///
 /// An `ETag` identifies one representation, so the full document's tag
 /// cannot describe the abbreviated slot this writes into and is dropped.
@@ -176,37 +194,44 @@ pub(super) fn persist_upgraded_to_mirror(
     pkg_mirror: &Path,
     meta: &Package,
     filter_metadata: bool,
+    uncacheable: bool,
 ) -> Option<Package> {
     let save_result = if filter_metadata {
-        let meta_for_cache = match clear_meta(meta) {
-            Ok(meta_for_cache) => meta_for_cache,
-            Err(error) => {
-                tracing::debug!(
-                    target: "pnpm_resolving_npm_resolver::pick_package",
-                    ?error,
-                    path = %pkg_mirror.display(),
-                    "could not filter upgraded mirror metadata",
-                );
-                return None;
+        match clear_meta(meta) {
+            Ok(meta_for_cache) => {
+                save_meta_ndjson_with_policy(pkg_mirror, &meta_for_cache, None, uncacheable)
             }
-        };
-        save_meta_ndjson(pkg_mirror, &meta_for_cache, None)
+            Err(error) => {
+                return failed_uncacheable_upgrade_persist(pkg_mirror, uncacheable, &error);
+            }
+        }
     } else {
-        save_meta_indexed(pkg_mirror, meta, None)
+        save_meta_indexed_with_policy(pkg_mirror, meta, None, uncacheable)
     };
     match save_result {
         Ok(()) if !filter_metadata => load_meta(pkg_mirror),
         Ok(()) => None,
-        Err(error) => {
-            tracing::debug!(
-                target: "pnpm_resolving_npm_resolver::pick_package",
-                ?error,
-                path = %pkg_mirror.display(),
-                "could not write upgraded meta to mirror; skipping persist",
-            );
-            None
-        }
+        Err(error) => failed_uncacheable_upgrade_persist(pkg_mirror, uncacheable, &error),
     }
+}
+
+/// A failed uncacheable upgrade must not leave the previous header, whose
+/// validators the next online fetch would send.
+fn failed_uncacheable_upgrade_persist(
+    pkg_mirror: &Path,
+    uncacheable: bool,
+    error: &dyn std::fmt::Debug,
+) -> Option<Package> {
+    tracing::debug!(
+        target: "pnpm_resolving_npm_resolver::pick_package",
+        ?error,
+        path = %pkg_mirror.display(),
+        "could not persist upgraded meta to the mirror",
+    );
+    if uncacheable {
+        let _ = std::fs::remove_file(pkg_mirror);
+    }
+    None
 }
 
 /// Coalesce concurrent upgrades separately from the packument fetch permit,

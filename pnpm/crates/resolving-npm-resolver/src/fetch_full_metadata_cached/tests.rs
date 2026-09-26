@@ -4,6 +4,9 @@ mod metadata_cache_body_read_failure_retries;
 
 mod metadata_cache_cold_cache_writes_mirror;
 
+#[cfg(unix)]
+mod metadata_cache_filtered_write_failure;
+
 use mockito::Matcher;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use tempfile::TempDir;

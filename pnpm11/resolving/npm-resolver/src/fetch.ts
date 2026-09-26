@@ -30,6 +30,20 @@ import { dropIncompletePublishTimes } from './publishTimes.js'
  */
 const ABBREVIATED_META_CONTENT_TYPE = 'application/vnd.npm.install-v1+json'
 
+/**
+ * `true` when `Cache-Control` says the metadata document is already stale.
+ * A positive `max-age` stays cacheable.
+ */
+export function metadataResponseIsUncacheable (cacheControl: string | null): boolean {
+  if (cacheControl == null) return false
+  return cacheControl.split(',').some((directive) => {
+    const trimmed = directive.trim()
+    if (/^no-cache$/i.test(trimmed) || /^no-store$/i.test(trimmed)) return true
+    const match = /^max-age\s*=\s*(\d+)$/i.exec(trimmed)
+    return match?.[1] === '0'
+  })
+}
+
 interface RegistryResponse {
   status: number
   statusText: string
@@ -51,6 +65,11 @@ export interface FetchMetadataResult {
    */
   jsonText: string | undefined
   etag?: string
+  /**
+   * The response `Cache-Control` said this document is already stale
+   * (`max-age=0`, `no-cache`, or `no-store`).
+   */
+  uncacheable?: boolean
   notModified?: false
 }
 
@@ -229,6 +248,7 @@ export async function fetchMetadataFromFromRegistry (
         resolve({
           ...normalizeAbbreviatedResponse({ fullMetadata, meta, jsonText, response }),
           etag: response.headers.get('etag') ?? undefined,
+          uncacheable: metadataResponseIsUncacheable(response.headers.get('cache-control')),
         })
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(isFetchTimeoutError(error)

@@ -31,6 +31,13 @@ test('clearMeta carries the etag over so a condensed document can still answer c
   expect(clearMeta(fullMeta()).etag).toBeUndefined()
 })
 
+test('clearMeta carries uncacheable so an online lookup cannot treat a condensed mirror as reusable', () => {
+  const forbidden = fullMeta()
+  forbidden.uncacheable = true
+  expect(clearMeta(forbidden).uncacheable).toBe(true)
+  expect(clearMeta(fullMeta()).uncacheable).toBeUndefined()
+})
+
 test('retainsFullMeta only holds for full-metadata resolvers without filterMetadata', () => {
   expect(retainsFullMeta({ fullMetadata: true })).toBe(true)
   expect(retainsFullMeta({ fullMetadata: true, filterMetadata: true })).toBe(false)

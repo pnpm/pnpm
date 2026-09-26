@@ -11,6 +11,12 @@ export interface PackageMeta {
   time?: PackageMetaTime
   modified?: string
   etag?: string
+  /**
+   * Set when the registry response forbade caching this document.
+   * Not part of the registry document. The metadata mirror stores it
+   * on the cache-headers line and reattaches it on read.
+   */
+  uncacheable?: boolean
 }
 
 export interface PackageMetaWithTime extends PackageMeta {

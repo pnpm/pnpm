@@ -476,6 +476,7 @@
     "typeflag",
     "TYPELESS",
     "unallowed",
+    "uncacheable",
     "unconfigured",
     "undeprecate",
     "underperformance",
