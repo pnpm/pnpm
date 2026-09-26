@@ -93,6 +93,7 @@ mod lockfile_verification;
 mod login;
 mod loglevel;
 mod logout;
+mod metadata_cache;
 mod minimum_release_age;
 mod modules_dir;
 mod modules_dir_with_subdirectory;

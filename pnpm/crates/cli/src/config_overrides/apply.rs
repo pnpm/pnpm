@@ -177,6 +177,7 @@ impl ConfigOverrides {
             self,
             config,
             side_effects_cache_readonly => "sideEffectsCacheReadonly",
+            metadata_cache => "metadataCache",
             optimistic_repeat_install => "optimisticRepeatInstall",
             trust_lockfile => "trustLockfile",
         );

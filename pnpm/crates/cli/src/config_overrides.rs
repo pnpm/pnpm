@@ -94,6 +94,7 @@ pub struct ConfigOverrides {
     minimum_release_age_ignore_missing_time: Option<bool>,
     minimum_release_age_strict: Option<bool>,
     merge_git_branch_lockfiles: Option<bool>,
+    metadata_cache: Option<bool>,
     node_experimental_package_map: Option<bool>,
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
@@ -275,6 +276,7 @@ impl ConfigOverrides {
             "merge-git-branch-lockfiles" => {
                 self.merge_git_branch_lockfiles = parse_bool(value);
             }
+            "metadata-cache" => self.metadata_cache = parse_bool(value),
             "offline" => self.offline = parse_bool(value),
             "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),

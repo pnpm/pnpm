@@ -13,7 +13,7 @@
 //! The verifier list is built from the install's config fields just
 //! before the lockfile-resolution gate runs over it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -114,7 +114,7 @@ pub fn build_resolution_verifiers(
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             http_client,
             auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
-            cache_dir: Some(config.cache_dir.clone()),
+            cache_dir: config.metadata_cache_dir().map(Path::to_path_buf),
             meta_cache,
             offline: config.offline,
             retry_opts: retry_opts_from_config(config),

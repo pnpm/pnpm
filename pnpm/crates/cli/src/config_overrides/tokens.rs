@@ -156,7 +156,7 @@ pub(super) enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
+pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 40] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("dangerously-allow-all-builds", SettingArity::Boolean),
@@ -175,6 +175,7 @@ pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("lockfile", SettingArity::Boolean),
     ("lockfile-include-tarball-url", SettingArity::Boolean),
     ("merge-git-branch-lockfiles", SettingArity::Boolean),
+    ("metadata-cache", SettingArity::Boolean),
     ("modules-dir", SettingArity::Text),
     ("node-experimental-package-map", SettingArity::Boolean),
     ("offline", SettingArity::Boolean),
