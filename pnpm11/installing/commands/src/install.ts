@@ -351,6 +351,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferWorkspacePackages'
 | 'production'
 | 'registriesByScope'
+| 'runtime'
 | 'save'
 | 'saveDev'
 | 'saveExact'
