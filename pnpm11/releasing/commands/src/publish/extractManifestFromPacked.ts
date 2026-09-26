@@ -3,7 +3,7 @@ import path from 'node:path'
 import { createGunzip } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
-import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import { type ExportedManifest, getReadmeFilePriority } from '@pnpm/releasing.exportable-manifest'
 import tar from 'tar-stream'
 
 const TARBALL_SUFFIXES = ['.tar.gz', '.tgz'] as const
@@ -41,7 +41,7 @@ interface PackedEntries {
 
 /**
  * Scan the tarball for `package/package.json` and, when `wantReadme` is set, the root
- * `README.md`. The manifest-only path (`wantReadme` false) resolves as soon as the manifest
+ * README. The manifest-only path (`wantReadme` false) resolves as soon as the manifest
  * entry is read and stops decompressing the rest of the archive; the publish path scans on
  * because a README can appear after the manifest.
  */
@@ -65,6 +65,7 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
     let settled = false
     let manifest: string | undefined
     let readme: string | undefined
+    let readmePriority = 0
 
     function handleError (error: unknown): void {
       cleanup()
@@ -88,7 +89,10 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
     extract.on('entry', (header, stream, next) => {
       const normalizedPath = path.normalize(header.name).replaceAll('\\', '/')
       const isManifest = normalizedPath === 'package/package.json'
-      const isReadme = wantReadme && /^package\/readme\.md$/i.test(normalizedPath)
+      const priority = wantReadme && normalizedPath.startsWith('package/')
+        ? getReadmeFilePriority(normalizedPath.slice('package/'.length))
+        : 0
+      const isReadme = priority > readmePriority
 
       if (!isManifest && !isReadme) {
         stream.once('end', next)
@@ -107,10 +111,11 @@ async function extractEntriesFromPacked (tarballPath: TarballPath, wantReadme: b
           manifest = text
         } else {
           readme = text
+          readmePriority = priority
         }
         // Stop early once every wanted entry has been captured, so the manifest-only
         // path doesn't stream and decompress the remainder of the tarball.
-        if (manifest != null && (!wantReadme || readme != null)) {
+        if (manifest != null && (!wantReadme || readmePriority === getReadmeFilePriority('README.md'))) {
           settle()
           return
         }

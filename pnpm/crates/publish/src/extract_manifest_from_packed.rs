@@ -6,6 +6,7 @@ use std::{fs::File, io::Read, path::Path};
 
 use flate2::read::GzDecoder;
 use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_pack::readme_file_priority;
 use pnpm_package_manifest::parse_manifest;
 use serde_json::Value;
 
@@ -65,16 +66,17 @@ pub fn extract_publish_manifest_from_packed(
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let entries = archive.entries().map_err(read_err)?;
-
     let mut manifest_text: Option<String> = None;
     let mut readme: Option<String> = None;
-    for entry in entries {
+    let mut readme_priority = 0;
+    for entry in archive.entries().map_err(read_err)? {
         let mut entry = entry.map_err(read_err)?;
         let normalized = normalize_entry_path(&entry.path().map_err(read_err)?);
+        let priority = normalized.strip_prefix("package/").map_or(0, readme_file_priority);
         let target = if normalized == "package/package.json" {
             &mut manifest_text
-        } else if is_root_readme(&normalized) {
+        } else if priority > readme_priority {
+            readme_priority = priority;
             &mut readme
         } else {
             continue;
@@ -112,14 +114,6 @@ fn attach_readme(manifest: &mut Value, readme: String) {
     {
         object.insert("readme".to_string(), Value::String(readme));
     }
-}
-
-/// Whether a normalized tar entry path names the package's root README,
-/// matching pnpm's `/^package\/readme\.md$/i`.
-fn is_root_readme(normalized: &str) -> bool {
-    normalized
-        .strip_prefix("package/")
-        .is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
