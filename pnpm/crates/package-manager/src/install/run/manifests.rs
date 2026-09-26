@@ -225,17 +225,7 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
     let root_defines = |stage: &str| {
         root_manifest.is_none_or(|manifest| matches!(manifest.script(stage, true), Ok(Some(_))))
     };
-    if scope.scripts.include_dev
-        && !scope.ignore_manifest_check
-        && !dev_preinstall_already_ran()
-        && root_defines(DEV_PREINSTALL_STAGE)
-    {
-        run_root_hook(
-            scope.config,
-            scope.workspace_root,
-            pnpm_executor::run_dev_preinstall_hook::<Reporter>,
-        )?;
-    }
+    run_dev_preinstall_if_needed::<Reporter>(scope, &normalized_root, &root_defines)?;
     if root_preinstall_already_ran() {
         return Ok(true);
     }
@@ -250,6 +240,29 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
         )?;
     }
     Ok(true)
+}
+
+fn run_dev_preinstall_if_needed<Reporter: self::Reporter>(
+    scope: &RootHooksScope<'_>,
+    normalized_root: &Path,
+    root_defines: &impl Fn(&str) -> bool,
+) -> Result<(), InstallError> {
+    let is_workspace_root = scope.config.workspace_dir
+        .as_deref()
+        .is_none_or(|ws| pnpm_fs::lexical_normalize(ws) == normalized_root);
+    if is_workspace_root
+        && scope.scripts.include_dev
+        && !scope.ignore_manifest_check
+        && !dev_preinstall_already_ran()
+        && root_defines(DEV_PREINSTALL_STAGE)
+    {
+        run_root_hook(
+            scope.config,
+            scope.workspace_root,
+            pnpm_executor::run_dev_preinstall_hook::<Reporter>,
+        )?;
+    }
+    Ok(())
 }
 /// Whether the root project's `preinstall` is this run's to fire: a
 /// removal runs the uninstall stages only, and `virtual_store_only` links

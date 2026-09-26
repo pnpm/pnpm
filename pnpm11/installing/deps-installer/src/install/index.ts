@@ -715,7 +715,7 @@ export async function mutateModules (
   }
 
   let ignoredBuilds = result.ignoredBuilds
-  if (!opts.ignoreScripts && ignoredBuilds?.size) {
+  if (!opts.ignoreScripts && !opts.ignoreDepScripts && ignoredBuilds?.size) {
     ignoredBuilds = await runUnignoredDependencyBuilds(opts, ignoredBuilds, ctx.wantedLockfile, allowBuild)
   }
   let revokedBuilds = false
@@ -828,6 +828,7 @@ export async function mutateModules (
       .map((project) => project.rootDir))
     if (
       !opts.ignoreScripts &&
+      !opts.ignoreDepScripts &&
       !opts.ignorePackageManifest &&
       !opts.lockfileOnly &&
       !isCheckOnlyInstall(opts) &&
@@ -1291,7 +1292,7 @@ export async function mutateModules (
           catalogsConfig: opts.catalogs,
         })
       }
-      if (opts.ignoreScripts && project.manifest?.scripts &&
+      if ((opts.ignoreScripts || opts.ignoreDepScripts) && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall != null ||
           project.manifest.scripts.install != null ||
           project.manifest.scripts.postinstall != null ||
@@ -2343,9 +2344,16 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
  * leaves out `devDependencies`, such as `pnpm install --prod`, skips it.
  */
 function installRunsDevPreinstall (
-  opts: { ignoreScripts?: boolean, ignorePackageManifest?: boolean, include?: IncludedDependencies }
+  opts: {
+    ignoreScripts?: boolean
+    ignorePackageManifest?: boolean
+    include?: IncludedDependencies
+    lockfileDir?: string
+    workspaceDir?: string
+  }
 ): boolean {
-  return !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
+  const isWorkspaceRoot = !opts.workspaceDir || path.resolve(opts.lockfileDir ?? '') === path.resolve(opts.workspaceDir)
+  return isWorkspaceRoot && !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
 }
 
 /**
@@ -2358,6 +2366,7 @@ function rootProjectRunsPreinstallEarly (
   projects: Array<{ rootDir: ProjectRootDir, mutation: MutatedProject['mutation'] }>,
   opts: {
     ignoreScripts?: boolean
+    ignoreDepScripts?: boolean
     ignorePackageManifest?: boolean
     lockfileCheck?: unknown
     lockfileDir: string
@@ -2366,7 +2375,7 @@ function rootProjectRunsPreinstallEarly (
     virtualStoreOnly?: boolean
   }
 ): boolean {
-  return !opts.ignoreScripts && !opts.ignorePackageManifest && !opts.virtualStoreOnly &&
+  return !opts.ignoreScripts && !opts.ignoreDepScripts && !opts.ignorePackageManifest && !opts.virtualStoreOnly &&
     !opts.lockfileOnly && !isCheckOnlyInstall(opts) &&
     projects.some((project) => project.rootDir === opts.lockfileDir && project.mutation === 'install')
 }
@@ -2865,14 +2874,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
 
     if (result.newDepPaths?.length) {
-      if (opts.ignoreScripts) {
+      if (opts.ignoreScripts || opts.ignoreDepScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
         ctx.pendingBuilds = ctx.pendingBuilds
           .concat(
             result.newDepPaths.filter((depPath) => dependenciesGraph[depPath].requiresBuild)
           )
       }
-      if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+      if ((!opts.ignoreScripts && !opts.ignoreDepScripts) || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
         // postinstall hooks
         const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
@@ -2892,7 +2901,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
           }
         }
-        if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
+        if (!opts.ignoreScripts && !opts.ignoreDepScripts && !opts.virtualStoreOnly) {
           await linkRuntimeBinsOfImporters({
             dependenciesByProjectId,
             dependenciesGraph,
@@ -2918,7 +2927,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraBinPaths: ctx.extraBinPaths,
           extraNodePaths: ctx.extraNodePaths,
           extraEnv,
-          ignoreScripts: opts.ignoreScripts,
+          ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
           lockfileDir: ctx.lockfileDir,
           nodeVersion: findLockedRootNodeRuntime(newLockfile)?.version,
           optional: opts.include.optionalDependencies,
@@ -3080,7 +3089,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       newLockfile,
       resolutionPolicyViolations,
     })
-    if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
+    if (!opts.ignoreScripts && !opts.ignoreDepScripts && !opts.virtualStoreOnly) {
       if (opts.enablePnp) {
         opts.scriptsOpts.extraEnv = {
           ...opts.scriptsOpts.extraEnv,

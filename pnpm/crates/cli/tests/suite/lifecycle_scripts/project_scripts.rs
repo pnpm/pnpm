@@ -889,6 +889,59 @@ mod dev_preinstall {
 
         drop((root, mock_instance));
     }
+
+    #[test]
+    fn runs_when_shared_workspace_lockfile_is_false() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(
+            &yaml_path,
+            format!(
+                "{}\npackages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\n",
+                yaml.trim_end(),
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        let manifest = |name: &str| {
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "scripts": { "pnpm:devPreinstall": append_order_script(name) },
+            })
+            .to_string()
+        };
+        fs::write(workspace.join("package.json"), manifest("root"))
+            .expect("write the root package.json");
+        let member_dir = workspace.join("packages").join("member");
+        fs::create_dir_all(&member_dir).expect("create the member dir");
+        fs::write(member_dir.join("package.json"), manifest("member"))
+            .expect("write the member package.json");
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        assert_eq!(order.lines().collect::<Vec<&str>>(), ["root"]);
+        assert!(
+            !member_dir.join("order.txt").exists(),
+            "member order.txt exists with: {:?}",
+            fs::read_to_string(member_dir.join("order.txt")),
+        );
+
+        drop((root, mock_instance));
+    }
 }
 
 /// The root project's `preinstall` runs before any dependency is
