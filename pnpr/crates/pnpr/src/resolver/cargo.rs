@@ -43,6 +43,7 @@ use pnpr_policy::Identity;
 use pnpr_route::{Footprint, url_has_inline_credentials};
 
 use crate::server::StripedLocks;
+use locked_entry::LockedEntry;
 
 use super::{
     Resolver, json_error,
@@ -279,11 +280,11 @@ impl IndexFetcher {
         // that decides which callers can read each other's entry, so two
         // callers on different private scopes fetch in parallel rather than
         // queueing for a result neither could reuse.
-        let _fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
-        if let Some(cached) = Self::cached_or_evict(&cache_path, self.ttl).await {
+        let entry = LockedEntry::lock(&self.locks, cache_path).await;
+        if let Some(cached) = entry.cached_or_evict(self.ttl).await {
             return self.hold(name, cached);
         }
-        self.fetch_and_store(name, &url, &auth, cache_path).await
+        self.fetch_and_store(name, &url, &auth, entry).await
     }
 
     async fn fetch_and_store(
@@ -291,7 +292,7 @@ impl IndexFetcher {
         name: &str,
         url: &str,
         auth: &AuthHeaders,
-        cache_path: PathBuf,
+        entry: LockedEntry<'_>,
     ) -> Result<String, String> {
         // Nothing more is fetched once the budget is spent, so the entries
         // still in flight bound how far past it the resolve can reach.
@@ -311,7 +312,7 @@ impl IndexFetcher {
         // Charged before it is cached, so an entry that spends the last of
         // the budget is not left behind for the next resolve to read.
         let contents = self.hold(name, contents)?;
-        Self::store(cache_path, contents.clone()).await;
+        Self::store(entry.path().to_path_buf(), contents.clone()).await;
         Ok(contents)
     }
 
@@ -384,14 +385,6 @@ impl IndexFetcher {
         Self::cached_entry(path, self.ttl, false).await
     }
 
-    /// [`Self::cached_entry`], removing a stale entry so resolving the same
-    /// crates past their TTL replaces entries instead of accumulating them.
-    /// Only the holder of the entry's fetch lock may call this, or it could
-    /// remove an entry another caller has just refreshed.
-    async fn cached_or_evict(path: &Path, ttl: Duration) -> Option<String> {
-        Self::cached_entry(path, ttl, true).await
-    }
-
     /// The cached index file when it is younger than the TTL. Every failure
     /// (absent, unreadable, stale) is a miss: the registry is the source of
     /// truth and refetching is always correct.
@@ -422,6 +415,8 @@ impl IndexFetcher {
         .await;
     }
 }
+
+mod locked_entry;
 
 #[cfg(test)]
 mod tests;
