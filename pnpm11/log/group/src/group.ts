@@ -1,5 +1,9 @@
 import CI, { isCI } from 'ci-info'
 
+// GitLab hides a section marker only when it is wrapped in these bytes:
+// https://docs.gitlab.com/ci/jobs/job_logs/
+const ERASE_LINE = '\x1b[0K'
+
 let id = 0
 
 export function groupStart (groupName: string): (() => void) | undefined {
@@ -23,8 +27,8 @@ function getLabels (groupName: string) {
   } else if (CI.GITLAB) {
     id++
     return {
-      start: `section_start:${Math.floor(Date.now() / 1000)}:${id}\\r\\e[0K${groupName}\r\n`,
-      end: `section_end:${Math.floor(Date.now() / 1000)}:${id}\\r\\e[0K`,
+      start: `${ERASE_LINE}section_start:${Math.floor(Date.now() / 1000)}:${id}\r${ERASE_LINE}${groupName}\r\n`,
+      end: `${ERASE_LINE}section_end:${Math.floor(Date.now() / 1000)}:${id}\r${ERASE_LINE}\r\n`,
     }
   } else if (CI.TRAVIS) {
     return {

@@ -36,17 +36,17 @@ test('groups for GitHub', () => {
   expect(process.stdout.write).toHaveBeenCalledTimes(2)
 })
 
-// cspell:ignore Kfoo
 test('groups for GitLab', () => {
+  const ERASE_LINE = '\x1b[0K'
   CI.GITLAB = true
   const DATE_NOW_MOCK = new Date('2023-10-20T12:00:00Z').getTime()
   const timestamp = Math.floor(DATE_NOW_MOCK / 1000)
   jest.spyOn(Date, 'now').mockImplementation(() => DATE_NOW_MOCK)
   const groupEnd = groupStart('foo')!
-  expect(process.stdout.write).toHaveBeenCalledWith(`section_start:${timestamp}:1\\r\\e[0Kfoo\r\n`)
+  expect(process.stdout.write).toHaveBeenCalledWith(`${ERASE_LINE}section_start:${timestamp}:1\r${ERASE_LINE}foo\r\n`)
   expect(process.stdout.write).toHaveBeenCalledTimes(1)
   groupEnd()
-  expect(process.stdout.write).toHaveBeenCalledWith(`section_end:${timestamp}:1\\r\\e[0K`)
+  expect(process.stdout.write).toHaveBeenCalledWith(`${ERASE_LINE}section_end:${timestamp}:1\r${ERASE_LINE}\r\n`)
   expect(process.stdout.write).toHaveBeenCalledTimes(2)
 })
 
