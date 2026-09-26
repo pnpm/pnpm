@@ -9,6 +9,8 @@ export interface TarballResolutionRecord {
   etag?: string
   cacheControl?: string
   fetchedAt: number
+  age?: number
+  date?: number
 }
 
 const CACHE_DIR_NAME = 'v11/tarball-resolutions'
@@ -38,6 +40,8 @@ export function loadTarballResolution (cacheDir: string, url: string): TarballRe
     etag: typeof parsed.etag === 'string' ? parsed.etag : undefined,
     cacheControl: typeof parsed.cacheControl === 'string' ? parsed.cacheControl : undefined,
     fetchedAt: typeof parsed.fetchedAt === 'number' ? parsed.fetchedAt : 0,
+    age: nonNegativeInteger(parsed.age),
+    date: typeof parsed.date === 'number' && Number.isFinite(parsed.date) ? parsed.date : undefined,
   }
 }
 
@@ -57,6 +61,8 @@ export function storeTarballResolution (cacheDir: string, record: TarballResolut
       etag: record.etag ?? null,
       cacheControl: record.cacheControl ?? null,
       fetchedAt: record.fetchedAt,
+      age: record.age ?? null,
+      date: record.date ?? null,
     }))
     fs.renameSync(tmp, file)
   } catch {
@@ -83,7 +89,20 @@ export function tarballFreshness (record: TarballResolutionRecord, now = Date.no
   if (hasDirective(header, 'no-store')) return 'unusable'
   const maxAge = maxAgeSeconds(header)
   if (hasDirective(header, 'no-cache') || maxAge == null) return 'revalidate'
-  return now - record.fetchedAt < maxAge * 1000 ? 'fresh' : 'revalidate'
+  return currentAgeMs(record, now) < maxAge * 1000 ? 'fresh' : 'revalidate'
+}
+
+export function tarballRecordTimestamp (
+  headers: { get (name: string): string | null },
+  previous?: TarballResolutionRecord,
+  now = Date.now()
+): Pick<TarballResolutionRecord, 'fetchedAt' | 'age' | 'date'> {
+  const age = parseDeltaSeconds(headers.get('age'))
+  const date = parseHttpDate(headers.get('date'))
+  if (age == null && date == null && previous) {
+    return { fetchedAt: now, age: Math.floor(currentAgeMs(previous, now) / 1000), date: undefined }
+  }
+  return { fetchedAt: now, age, date }
 }
 
 function shouldStore (record: TarballResolutionRecord): boolean {
@@ -100,10 +119,49 @@ function maxAgeSeconds (header: string): number | undefined {
   for (const part of header.split(',')) {
     const [name, value] = part.trim().split('=')
     if (name?.trim().toLowerCase() !== 'max-age' || value == null) continue
-    const parsed = Number(value.trim().replace(/"/g, ''))
-    if (Number.isFinite(parsed)) return parsed
+    return parseDeltaSeconds(value)
   }
   return undefined
+}
+
+function currentAgeMs (record: TarballResolutionRecord, now: number): number {
+  const residentMs = Math.max(0, now - record.fetchedAt)
+  const ageHeaderMs = record.age != null ? record.age * 1000 : 0
+  const apparentMs = record.date != null ? Math.max(0, record.fetchedAt - record.date) : 0
+  return Math.max(ageHeaderMs, apparentMs) + residentMs
+}
+
+function parseDeltaSeconds (value: string | null | undefined): number | undefined {
+  if (value == null) return undefined
+  const digits = unquote(value)
+  if (!isDecimalDigits(digits)) return undefined
+  return nonNegativeInteger(Number(digits))
+}
+
+function isDecimalDigits (value: string): boolean {
+  if (value.length === 0) return false
+  for (const char of value) {
+    if (char < '0' || char > '9') return false
+  }
+  return true
+}
+
+function unquote (value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).trim()
+  }
+  return trimmed
+}
+
+function nonNegativeInteger (value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
+function parseHttpDate (value: string | null): number | undefined {
+  if (value == null) return undefined
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function tarballCachePath (cacheDir: string, url: string): string {

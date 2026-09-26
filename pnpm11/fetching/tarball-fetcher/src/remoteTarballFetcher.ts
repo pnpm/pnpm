@@ -20,6 +20,7 @@ import {
   loadTarballResolution,
   storeTarballResolution,
   tarballFreshness,
+  tarballRecordTimestamp,
 } from './httpCache.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -170,7 +171,7 @@ export function createDownloader (
             ...cached,
             etag: res.headers.get('etag') ?? cached.etag,
             cacheControl: res.headers.get('cache-control') ?? cached.cacheControl,
-            fetchedAt: Date.now(),
+            ...tarballRecordTimestamp(res.headers, cached),
           })
           return stored
         }
@@ -284,7 +285,7 @@ function rememberTarballResolution (
       integrity,
       etag: res.headers.get('etag') ?? undefined,
       cacheControl,
-      fetchedAt: Date.now(),
+      ...tarballRecordTimestamp(res.headers),
     })
   }
   if (!integrity) return
@@ -300,8 +301,10 @@ function rememberTarballResolution (
 
 function fetchResultFromStore (opts: DownloadOptions, integrity: string): FetchResult | undefined {
   const pkgId = opts.pkgId
-  const keys = pkgId ? [storeIndexKey(integrity, pkgId), opts.filesIndexFile] : [opts.filesIndexFile]
+  const integrityKey = pkgId ? storeIndexKey(integrity, pkgId) : undefined
+  const keys = integrityKey ? [integrityKey, opts.filesIndexFile] : [opts.filesIndexFile]
   for (const key of keys) {
+    if (integrityKey && key !== integrityKey && storedKeyIntegrity(key) !== integrity) continue
     const index = opts.storeIndex.get(key) as {
       files?: Map<string, { digest: string, mode: number }>
       manifest?: FetchResult['manifest']
@@ -323,6 +326,12 @@ function fetchResultFromStore (opts: DownloadOptions, integrity: string): FetchR
     }
   }
   return undefined
+}
+
+function storedKeyIntegrity (key: string): string | undefined {
+  const separator = key.indexOf('\t')
+  if (separator <= 0) return undefined
+  return key.slice(0, separator)
 }
 
 function getSecureNodeMirrorAuthHeader (

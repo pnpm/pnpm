@@ -32,6 +32,14 @@ impl TarballResolver {
                     .await)
             }
             Freshness::Revalidate => {
+                if self
+                    .reuse_resolution(wanted_dependency, normalized_bare_specifier, &record)
+                    .await
+                    .is_none()
+                {
+                    http_cache::remove(cache_dir, normalized_bare_specifier);
+                    return Ok(None);
+                }
                 self.revalidate_http_cache(
                     wanted_dependency,
                     normalized_bare_specifier,

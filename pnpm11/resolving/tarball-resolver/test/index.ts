@@ -122,6 +122,45 @@ test('a fresh Cache-Control record resolves an https tarball without a request',
   fs.rmSync(cacheDir, { recursive: true, force: true })
 })
 
+test('an invalid max-age stays subject to revalidation', async () => {
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-tarball-cache-'))
+  const url = 'https://example.com/pkg-from-tarball-1.0.0.tgz'
+  storeTarballResolution(cacheDir, {
+    url,
+    tarball: url,
+    integrity: 'sha512-abc',
+    etag: '"pkg-from-tarball"',
+    cacheControl: 'max-age=1e9',
+    fetchedAt: Date.now(),
+  })
+  const fetch = async () => {
+    throw new Error('an invalid max-age must not be treated as fresh')
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: url }, { cacheDir })
+  expect(resolutionResult?.resolution).toStrictEqual({ tarball: url })
+  fs.rmSync(cacheDir, { recursive: true, force: true })
+})
+
+test('a response whose Age has reached max-age is revalidated', async () => {
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-tarball-cache-'))
+  const url = 'https://example.com/pkg-from-tarball-1.0.0.tgz'
+  storeTarballResolution(cacheDir, {
+    url,
+    tarball: url,
+    integrity: 'sha512-abc',
+    etag: '"pkg-from-tarball"',
+    cacheControl: 'max-age=3600',
+    fetchedAt: Date.now(),
+    age: 3600,
+  })
+  const fetch = async () => {
+    throw new Error('a response at max-age must not be treated as fresh')
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: url }, { cacheDir })
+  expect(resolutionResult?.resolution).toStrictEqual({ tarball: url })
+  fs.rmSync(cacheDir, { recursive: true, force: true })
+})
+
 test('a stale Cache-Control record skips HEAD so the fetcher can revalidate', async () => {
   const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-tarball-cache-'))
   const url = 'https://example.com/pkg-from-tarball-1.0.0.tgz'
