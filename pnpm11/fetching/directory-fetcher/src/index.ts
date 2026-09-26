@@ -48,7 +48,7 @@ export function createDirectoryFetcher (
         return {
           local: true,
           filesMap: new Map(),
-          packageImportMethod: 'hardlink',
+          packageImportMethod,
           manifest,
           requiresBuild: false,
           sourceExists: false,

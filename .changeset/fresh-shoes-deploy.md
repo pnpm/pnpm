@@ -5,6 +5,8 @@
 "@pnpm/installing.client": patch
 "@pnpm/releasing.commands": patch
 "@pnpm/store.connection-manager": patch
+"@pnpm/store.create-cafs-store": patch
+"pacquet": patch
 ---
 
-Deploying a project from a shared lockfile now clones or copies workspace package dependencies into the deployed directory. Previously, workspace dependency files were hard-linked to the source packages [pnpm/pnpm#12176](https://github.com/pnpm/pnpm/issues/12176).
+`pnpm deploy` with a shared lockfile now copies workspace dependencies into the deploy directory, even when `packageImportMethod` is set to `hardlink`. Previously, their files were hard-linked to the workspace sources, so editing a source file also changed the deployed copy [pnpm/pnpm#12176](https://github.com/pnpm/pnpm/issues/12176).

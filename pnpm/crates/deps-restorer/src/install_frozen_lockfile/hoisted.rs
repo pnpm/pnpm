@@ -267,11 +267,11 @@ fn link_hoisted<Reporter: self::Reporter>(
         config.force,
     );
     let held_back_bins_dirs = link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
-        import: crate::PackageImportOptions {
-            method: config.package_import_method,
-            logged_methods: inputs.materialization.logged_methods,
-            requester: inputs.materialization.requester,
-        },
+        import: crate::PackageImportOptions::from_config(
+            config,
+            inputs.materialization.logged_methods,
+            inputs.materialization.requester,
+        ),
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
         hierarchy: &walked.hierarchy,

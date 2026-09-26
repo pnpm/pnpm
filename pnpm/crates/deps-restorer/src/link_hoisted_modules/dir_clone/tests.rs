@@ -27,6 +27,7 @@ fn import(logged: &AtomicU8) -> crate::PackageImportOptions<'_> {
         method: PackageImportMethod::Clone,
         logged_methods: logged,
         requester: "test",
+        isolate_mutable_sources: false,
     }
 }
 

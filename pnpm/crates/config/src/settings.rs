@@ -888,6 +888,16 @@ pub struct Config {
     /// `pnpm-workspace.yaml` / `.npmrc` setting.
     pub force: bool,
 
+    /// Whether packages resolved from a local directory are imported
+    /// with `clone-or-copy` whatever
+    /// [`package_import_method`](Self::package_import_method) says, so no
+    /// installed file shares an inode with its source directory.
+    ///
+    /// Set only by `pnpm deploy` with a shared lockfile, whose deployed
+    /// workspace dependencies must not change when the workspace sources
+    /// do. Not a `pnpm-workspace.yaml` / `.npmrc` setting.
+    pub isolate_local_directory_imports: bool,
+
     /// `forceIgnoresPlatform`. When `true`, [`force`](Self::force) also
     /// bypasses the per-snapshot installability check, so optional
     /// dependencies for foreign platforms are materialized instead of

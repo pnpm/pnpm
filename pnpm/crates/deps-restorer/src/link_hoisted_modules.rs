@@ -551,12 +551,13 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
+    let import_method = opts.import.method_for(is_directory_dependency(node), false);
     if !opts.dir_clone_cache.is_some_and(|cache| {
         cache.try_import::<Reporter>(node, opts.import, cas_paths)
     }) {
         import_indexed_dir::<Reporter>(
             opts.import.logged_methods,
-            opts.import.method,
+            import_method,
             &node.dir,
             cas_paths,
             hoisted_import_opts(node),
@@ -572,7 +573,7 @@ fn import_node<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {
-            method: crate::optimistic_wire_method(opts.import.method),
+            method: crate::optimistic_wire_method(import_method),
             requester: opts.import.requester.to_owned(),
             to: node.dir.to_string_lossy().into_owned(),
         },
@@ -588,9 +589,13 @@ fn hoisted_import_opts(node: &DependenciesGraphNode) -> ImportIndexedDirOpts {
     ImportIndexedDirOpts {
         force: true,
         keep_modules_dir: true,
-        preserve_symlinks: matches!(node.package.resolution, LockfileResolution::Directory(_)),
+        preserve_symlinks: is_directory_dependency(node),
         ..ImportIndexedDirOpts::default()
     }
+}
+
+fn is_directory_dependency(node: &DependenciesGraphNode) -> bool {
+    matches!(node.package.resolution, LockfileResolution::Directory(_))
 }
 
 #[cfg(test)]
