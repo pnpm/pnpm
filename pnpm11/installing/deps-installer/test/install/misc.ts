@@ -1543,6 +1543,25 @@ test('installing with no symlinks with PnP', async () => {
   expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeTruthy()
 })
 
+test('installing with symlink=false and the isolated linker without PnP is a config conflict', async () => {
+  prepareEmpty()
+  await expect(
+    addDependenciesToPackage(
+      {
+        name: 'project',
+        version: '0.0.0',
+      },
+      ['rimraf@2.7.1'],
+      testDefaults({
+        fastUnpack: false,
+        symlink: false,
+      })
+    )
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER',
+  })
+})
+
 test('installing with no modules directory', async () => {
   const project = prepareEmpty()
 

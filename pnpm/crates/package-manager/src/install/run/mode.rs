@@ -2,7 +2,7 @@ use super::{
     super::{effective_node_version, included_dependencies},
     InstallError, InstallOwned, InstallRunOptions, InstallView,
 };
-use pnpm_config::Config;
+use pnpm_config::{Config, NodeLinker};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::{io::IsTerminal, path::PathBuf};
@@ -119,6 +119,20 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
         && !config.enable_global_virtual_store
     {
         return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
+    }
+    reject_symlink_without_pnp(config)
+}
+
+/// `symlink: false` with the isolated linker and without `PnP` skips both
+/// the virtual-store graph links and the importer links. Fail fast rather
+/// than materializing a `node_modules` without direct dependencies.
+fn reject_symlink_without_pnp(config: &Config) -> Result<(), InstallError> {
+    if !config.symlink
+        && config.node_linker == NodeLinker::Isolated
+        && (config.enable_modules_dir || config.enable_global_virtual_store)
+        && !config.virtual_store_only
+    {
+        return Err(InstallError::ConfigConflictSymlinkWithIsolatedLinker);
     }
     Ok(())
 }

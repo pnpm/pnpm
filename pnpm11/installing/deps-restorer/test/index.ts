@@ -9,6 +9,7 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { streamParser } from '@pnpm/logger'
 import { tempDir } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
@@ -921,6 +922,26 @@ test('installing with no symlinks but with PnP', async () => {
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
   expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
+})
+
+test('installing with symlink=false and the isolated linker without PnP is a config conflict', async () => {
+  const prefix = f.prepare('simple')
+
+  const onSpy = jest.spyOn(streamParser, 'on')
+  const reporter = jest.fn()
+  try {
+    await expect(headlessInstall(await testDefaults({
+      lockfileDir: prefix,
+      symlink: false,
+      reporter,
+    }))).rejects.toMatchObject({
+      code: 'ERR_PNPM_CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER',
+    })
+
+    expect(onSpy).not.toHaveBeenCalled()
+  } finally {
+    onSpy.mockRestore()
+  }
 })
 
 test('installing with no modules directory', async () => {
