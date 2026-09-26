@@ -14,12 +14,15 @@ pub fn build_task_graph<SelectScripts>(
 where
     SelectScripts: Fn(&Path, &str) -> Vec<String>,
 {
-    build_task_graph_from_seeds(
-        options.project_dependencies,
-        &options.select_scripts,
-        std::slice::from_ref(&options.task_name),
-        options.tasks,
-    )
+    let options = SeededBuildOptions {
+        project_dependencies: options.project_dependencies,
+        select_scripts: &options.select_scripts,
+        task_names: std::slice::from_ref(&options.task_name),
+        requested_projects: None,
+        tasks: options.tasks,
+        is_selector_task: options.is_selector_task,
+    };
+    options.build()
 }
 
 /// [`build_task_graph`] for a `pnpm pipeline` invocation, which requests
@@ -36,27 +39,9 @@ where
         task_names: options.task_names,
         requested_projects: options.requested_projects,
         tasks: options.tasks,
+        is_selector_task: |_| false,
     };
     seeded.build()
-}
-
-fn build_task_graph_from_seeds<SelectScripts>(
-    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
-    select_scripts: &SelectScripts,
-    task_names: &[&str],
-    tasks: Option<&IndexMap<String, TaskSettings>>,
-) -> TaskGraph
-where
-    SelectScripts: Fn(&Path, &str) -> Vec<String>,
-{
-    let options = SeededBuildOptions {
-        project_dependencies,
-        select_scripts,
-        task_names,
-        requested_projects: None,
-        tasks,
-    };
-    options.build()
 }
 
 struct SeededBuildOptions<'a, SelectScripts>
@@ -68,6 +53,7 @@ where
     task_names: &'a [&'a str],
     requested_projects: Option<&'a [PathBuf]>,
     tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    is_selector_task: fn(&str) -> bool,
 }
 
 impl<SelectScripts> SeededBuildOptions<'_, SelectScripts>
@@ -84,7 +70,8 @@ where
                 continue;
             }
             let settings = self.task_settings(&task_name);
-            let dependencies = self.dependency_keys(&project, &task_name, settings);
+            let scripts = (self.select_scripts)(&project, &task_name);
+            let dependencies = self.dependency_keys(&project, &task_name, settings, &scripts);
             queue.extend(
                 dependencies
                     .iter()
@@ -92,7 +79,6 @@ where
                         (dependency.project.clone(), dependency.task_name.clone(), false)
                     }),
             );
-            let scripts = (self.select_scripts)(&project, &task_name);
             graph.insert(
                 key,
                 TaskNode {
@@ -136,9 +122,11 @@ where
         project: &Path,
         task_name: &str,
         settings: Option<&TaskSettings>,
+        scripts: &[String],
     ) -> Vec<TaskKey> {
         let entries: Vec<String> = match settings {
             Some(settings) => settings.depends_on.clone().unwrap_or_default(),
+            None if (self.is_selector_task)(task_name) => self.selector_entries(scripts),
             None => vec![format!("^{task_name}")],
         };
         let mut dependencies: Vec<TaskKey> = Vec::new();
@@ -151,6 +139,33 @@ where
             }
         }
         dependencies
+    }
+
+    /// The `dependsOn` entries of a `RegExp` selector task: the union of the
+    /// entries of every script it selected in the project. A selector task
+    /// runs its matched scripts as one unit, so a same-project entry naming
+    /// one of them cannot order anything and is dropped; `^` entries fan
+    /// out over the project graph as usual.
+    fn selector_entries(&self, scripts: &[String]) -> Vec<String> {
+        let mut entries: Vec<String> = Vec::new();
+        for script in scripts {
+            for entry in self.task_depends_on(script) {
+                if !entry.starts_with('^') && scripts.contains(&entry) {
+                    continue;
+                }
+                if !entries.contains(&entry) {
+                    entries.push(entry);
+                }
+            }
+        }
+        entries
+    }
+
+    fn task_depends_on(&self, task_name: &str) -> Vec<String> {
+        match self.task_settings(task_name) {
+            Some(settings) => settings.depends_on.clone().unwrap_or_default(),
+            None => vec![format!("^{task_name}")],
+        }
     }
 
     /// The tasks one `dependsOn` entry names: a `^`-prefixed entry fans out

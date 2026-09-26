@@ -1,3 +1,4 @@
+use super::super::listing::split_regex_literal;
 use super::{
     BuildTaskGraphOptions, Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, IntoDiagnostic,
     LogEvent, LogLevel, Path, PathBuf, PnpmLog, ProcessTracker, ProjectGraph, RecursiveRunError,
@@ -7,6 +8,13 @@ use super::{
     task_graph_to_json, task_run_execution_settings, throw_or_filter_hidden_scripts,
     write_recursive_summary,
 };
+
+/// Whether a task name addresses scripts by RegExp literal rather than by
+/// name: the graph resolves its `dependsOn` through the scripts it selects
+/// per project instead of through the name itself.
+fn is_selector_task(task_name: &str) -> bool {
+    split_regex_literal(task_name).is_some()
+}
 
 /// Before anything is dispatched: when no selected project has the
 /// script, the run is a user error, and the tasks `dependsOn` pulled in
@@ -282,6 +290,7 @@ pub(super) fn build_run_task_graph(
         select_scripts,
         task_name: script_name,
         tasks: (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks),
+        is_selector_task,
     });
     if args.workspace.reverse {
         task_graph = reverse_task_graph(&task_graph);

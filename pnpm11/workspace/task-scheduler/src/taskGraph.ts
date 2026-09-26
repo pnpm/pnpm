@@ -44,6 +44,11 @@ export interface BuildTaskGraphOptions {
   /** The script the invocation runs; every selected project gets a task named this. */
   taskName: string
   tasks?: WorkspaceTasks
+  /**
+   * Whether a task name is a RegExp selector (a `/pattern/` literal), whose
+   * selected scripts the `selectScripts` callback resolves per project.
+   */
+  isSelectorTaskName?: (taskName: string) => boolean
 }
 
 /**
@@ -70,8 +75,9 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       existing.requested ||= requested
       continue
     }
+    const scripts = opts.selectScripts(opts.scriptsByProject(project), taskName)
     const dependencies = new Set<TaskKey>()
-    for (const entry of taskDependsOn(opts.tasks, taskName)) {
+    for (const entry of taskDependsOnEntries(opts, taskName, scripts)) {
       if (entry.startsWith('^')) {
         const dependencyTaskName = entry.slice(1)
         for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
@@ -87,7 +93,7 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       project,
       taskName,
       concurrency: taskConcurrency(opts.tasks, taskName),
-      scripts: opts.selectScripts(opts.scriptsByProject(project), taskName),
+      scripts,
       requested,
       dependencies: [...dependencies],
     })
@@ -116,6 +122,36 @@ function taskDependsOn (tasks: WorkspaceTasks | undefined, taskName: string): st
     return tasks[taskName].dependsOn ?? []
   }
   return [`^${taskName}`]
+}
+
+/**
+ * The `dependsOn` entries of a task: those declared for its name, or — for a
+ * RegExp selector task — the union of the entries of every script it
+ * selected in the project. A selector task runs its matched scripts as one
+ * unit, so a same-project entry naming one of them cannot order anything
+ * and is dropped; `^` entries fan out over the project graph as usual.
+ */
+function taskDependsOnEntries (
+  opts: BuildTaskGraphOptions,
+  taskName: string,
+  scripts: string[]
+): string[] {
+  if (opts.tasks != null && Object.hasOwn(opts.tasks, taskName)) {
+    return opts.tasks[taskName].dependsOn ?? []
+  }
+  if (opts.isSelectorTaskName?.(taskName) === true) {
+    const entries: string[] = []
+    for (const script of scripts) {
+      for (const entry of taskDependsOn(opts.tasks, script)) {
+        if (!entry.startsWith('^') && scripts.includes(entry)) continue
+        if (!entries.includes(entry)) {
+          entries.push(entry)
+        }
+      }
+    }
+    return entries
+  }
+  return taskDependsOn(opts.tasks, taskName)
 }
 
 export interface SequenceTasksOptions {
