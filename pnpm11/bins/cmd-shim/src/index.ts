@@ -72,8 +72,10 @@ export interface Options {
 export interface GetShShimDirOptions {
   /** The shim directory with its symlinks resolved, when the caller already has it. */
   physicalDir?: string
-  realpath?: (path: string) => Promise<string>
+  fs?: ShimDirFs
 }
+
+export type ShimDirFs = Pick<typeof fs.promises, 'lstat' | 'realpath'>
 
 /**
  * @internal
@@ -85,7 +87,7 @@ type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPT
   requireSource?: boolean
 }
 
-type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
+type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'readFile' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
 
 /**
  * Callback functions to generate scripts for shims.
@@ -127,7 +129,7 @@ const extensionToProgramMap = new Map([
 
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = {...DEFAULT_OPTIONS, ...opts} as InternalOptions
-  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, realpath: fs.promises.realpath } as unknown as FsPromises)
+  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
   return opts_
 }
 
@@ -289,7 +291,7 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
   await writeShimsPreCommon(to, opts)
-  const shShimDir = opts.shShimDir ?? await getShShimDir(src, to, { realpath: async (dir) => opts.fs_.realpath(dir) })
+  const shShimDir = opts.shShimDir ?? await getShShimDir(src, to, { fs: opts.fs_ })
   return writeAllShims(src, to, srcRuntimeInfo, { ...opts, shShimDir })
 }
 
@@ -298,15 +300,13 @@ async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
  * the relative target is computed from there too. That is the shim's own
  * directory unless a symlink lies on the way. Then it is the physical
  * directory, placed under the lexical ancestor it shares with `src` when it
- * lies under that ancestor's physical path. Windows keeps the lexical
- * directory: `realpath` also resolves a `subst` drive, which the MSYS shell
- * does not.
+ * lies under that ancestor's physical path, which also keeps a `subst` drive
+ * on Windows.
  */
 export async function getShShimDir (src: string, to: string, opts: GetShShimDirOptions = {}): Promise<string> {
   const dir = path.dirname(to)
-  if (isWindows) return dir
-  const realpath = opts.realpath ?? fs.promises.realpath
-  const physicalDir = opts.physicalDir ?? await realpath(dir)
+  const fs_ = opts.fs ?? fs.promises
+  const physicalDir = opts.physicalDir ?? await getPhysicalShimDir(dir, fs_)
   if (physicalDir === dir) return dir
   let ancestor = dir
   while (!isSubdirOrEqual(ancestor, src)) {
@@ -314,10 +314,40 @@ export async function getShShimDir (src: string, to: string, opts: GetShShimDirO
     if (parent === ancestor) return physicalDir
     ancestor = parent
   }
-  const physicalAncestor = await realpath(ancestor)
+  const physicalAncestor = await fs_.realpath(ancestor)
   return isSubdirOrEqual(physicalAncestor, physicalDir)
     ? path.join(ancestor, path.relative(physicalAncestor, physicalDir))
     : physicalDir
+}
+
+/**
+ * `dir` with its symlinks resolved, as the shell shim's `cd -P` resolves them.
+ * On Windows `dir` is resolved only when a symlink or junction lies on its
+ * path, since `realpath` also resolves a `subst` drive, which the MSYS shell
+ * does not. A missing ancestor counts as no link. Rejects with the error of
+ * any other failed `lstat`, or of `realpath`.
+ */
+export async function getPhysicalShimDir (dir: string, fs_: ShimDirFs = fs.promises): Promise<string> {
+  if (isWindows && !await hasLinkOnPath(dir, fs_)) return dir
+  return fs_.realpath(dir)
+}
+
+async function hasLinkOnPath (dir: string, fs_: ShimDirFs): Promise<boolean> {
+  const ancestors = [dir]
+  for (let parent = path.dirname(dir); parent !== ancestors.at(-1); parent = path.dirname(parent)) {
+    ancestors.push(parent)
+  }
+  const isLink = await Promise.all(ancestors.map(async (ancestor) => isSymbolicLink(ancestor, fs_)))
+  return isLink.includes(true)
+}
+
+async function isSymbolicLink (file: string, fs_: ShimDirFs): Promise<boolean> {
+  try {
+    return (await fs_.lstat(file)).isSymbolicLink()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 function isSubdirOrEqual (parent: string, child: string): boolean {

@@ -381,6 +381,25 @@ test('linkBins() replaces a shim whose relative target does not match the physic
   expect(content).not.toContain('stale')
 })
 
+// The shell shim resolves its directory with `cd -P`, which follows a junction
+// in the MSYS shell as it follows a symlink in a POSIX shell.
+test('linkBins() computes a relative target from the physical bin directory when the bin directory is a link', async () => {
+  const root = temporaryDirectory()
+  const modulesDir = path.join(root, 'node_modules')
+  const pkgDir = path.join(modulesDir, 'tool')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'cli.js' }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'cli.js'), '#!/usr/bin/env node\n', 'utf8')
+  const physicalBinsDir = path.join(root, 'storage', 'deep', 'bin')
+  fs.mkdirSync(physicalBinsDir, { recursive: true })
+  const binsDir = path.join(root, 'bin')
+  fs.symlinkSync(physicalBinsDir, binsDir, 'junction')
+
+  await linkBins(modulesDir, binsDir, { warn: jest.fn() })
+
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain('"$basedir_abs/../../../node_modules/tool/cli.js"')
+})
+
 test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim size limit', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()

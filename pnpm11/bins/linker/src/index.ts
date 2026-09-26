@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, getPhysicalShimDir, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -176,7 +176,7 @@ async function _linkBins (
   for (const cmd of allCmds) opts.linkedCommandNames?.add(cmd.name)
 
   await fs.mkdir(binsDir, { recursive: true })
-  const physicalBinsDir = IS_WINDOWS ? binsDir : await fs.realpath(binsDir)
+  const physicalBinsDir = await getPhysicalShimDir(binsDir)
 
   // Removals finish before any shim is written: on Windows the siblings of a
   // removed bin `tool` include `tool.cmd`, which may be another bin's shim.
