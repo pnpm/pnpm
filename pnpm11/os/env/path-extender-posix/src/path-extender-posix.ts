@@ -212,6 +212,56 @@ interface UpdateShellResult {
   oldSettings: string
 }
 
+export async function updateShellConfig (
+  configFile: string,
+  newContent: string,
+  opts: AddDirToPosixEnvPathOpts
+): Promise<UpdateShellResult> {
+  await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
+  try {
+    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
+    return {
+      changeType: 'created',
+      oldSettings: '',
+    }
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') {
+      throw err
+    }
+  }
+  const configContent = await fs.promises.readFile(configFile, 'utf8')
+  const section = findSection(configContent, opts.configSectionName, opts.proxyVarName)
+  if (!section) {
+    await fs.promises.appendFile(configFile, `\n${newContent}\n`, 'utf8')
+    return {
+      changeType: 'appended',
+      oldSettings: '',
+    }
+  }
+  const oldSettings = section.inner
+  const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
+  if (normalizedFullMatch !== newContent) {
+    if (!opts.overwrite) {
+      throw new BadShellSectionError({
+        configSectionName: opts.configSectionName,
+        current: section.fullMatch,
+        wanted: newContent,
+        configFile,
+      })
+    }
+    const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
+    await writeFileAtomic(configFile, newConfigContent, 'utf8')
+    return {
+      changeType: 'modified',
+      oldSettings,
+    }
+  }
+  return {
+    changeType: 'skipped',
+    oldSettings,
+  }
+}
+
 export interface FoundSection {
   start: number
   end: number
@@ -225,11 +275,15 @@ export interface FoundSection {
  * A valid section is bounded by an opening `# <section>` line and a closing
  * `# <section> end` line with no intermediate `# <section>` or `# <section> end`
  * markers. If several valid sections exist, the last one whose non-comment
- * lines reference both `PATH` and `<SECTION>_HOME` wins, then the last one
- * referencing `<SECTION>_HOME`, then the last one referencing `PATH`, then the
- * last section.
+ * lines reference both `PATH` and `homeVar` wins, then the last one
+ * referencing `homeVar`, then the last one referencing `PATH`, then the last
+ * section. Returns `null` when the content holds no complete section.
  */
-export function findSection (content: string, section: string): FoundSection | null {
+export function findSection (
+  content: string,
+  section: string,
+  homeVar = `${section.toUpperCase()}_HOME`
+): FoundSection | null {
   if (!content) return null
   const startMarker = `# ${section}`
   const endMarker = `# ${section} end`
@@ -272,7 +326,6 @@ export function findSection (content: string, section: string): FoundSection | n
   if (sections.length === 0) return null
   if (sections.length === 1) return sections[0]
 
-  const homeVar = `${section.toUpperCase()}_HOME`
   const settings = sections.map(({ inner }) => stripComments(inner))
   const predicates: Array<(text: string) => boolean> = [
     (text) => text.includes('PATH') && text.includes(homeVar),
@@ -295,54 +348,4 @@ export function replaceSection (originalContent: string, newSection: string, sec
   const section = findSection(originalContent, sectionName)
   if (!section) return originalContent
   return originalContent.slice(0, section.start) + newSection + originalContent.slice(section.end)
-}
-
-export async function updateShellConfig (
-  configFile: string,
-  newContent: string,
-  opts: AddDirToPosixEnvPathOpts
-): Promise<UpdateShellResult> {
-  await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
-  try {
-    await fs.promises.writeFile(configFile, `${newContent}\n`, { encoding: 'utf8', flag: 'wx' })
-    return {
-      changeType: 'created',
-      oldSettings: '',
-    }
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') {
-      throw err
-    }
-  }
-  const configContent = await fs.promises.readFile(configFile, 'utf8')
-  const section = findSection(configContent, opts.configSectionName)
-  if (!section) {
-    await fs.promises.appendFile(configFile, `\n${newContent}\n`, 'utf8')
-    return {
-      changeType: 'appended',
-      oldSettings: '',
-    }
-  }
-  const oldSettings = section.inner
-  const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
-  if (normalizedFullMatch !== newContent) {
-    if (!opts.overwrite) {
-      throw new BadShellSectionError({
-        configSectionName: opts.configSectionName,
-        current: section.fullMatch,
-        wanted: newContent,
-        configFile,
-      })
-    }
-    const newConfigContent = configContent.slice(0, section.start) + newContent + configContent.slice(section.end)
-    await writeFileAtomic(configFile, newConfigContent, 'utf8')
-    return {
-      changeType: 'modified',
-      oldSettings,
-    }
-  }
-  return {
-    changeType: 'skipped',
-    oldSettings,
-  }
 }
