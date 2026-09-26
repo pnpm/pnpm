@@ -115,7 +115,7 @@ test('the error names a PATH entry with an unexpanded environment variable', asy
     })
   ).rejects.toMatchObject({
     code: 'ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH',
-    hint: `PATH contains "${unexpanded}", which was not expanded. On Windows, a variable referenced from the user Path must be set and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal.`,
+    hint: `PATH contains "${unexpanded}", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal.`,
   })
 })
 

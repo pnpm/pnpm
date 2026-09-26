@@ -35,7 +35,7 @@ export async function checkGlobalBinDir (
 function notInPathHint (pathEnv: string): string {
   const unexpanded = pathEnv.split(path.delimiter).find(hasUnexpandedEnvReference)
   if (unexpanded == null) return 'Run "pnpm setup" to update your shell configuration.'
-  return `PATH contains "${unexpanded}", which was not expanded. On Windows, a variable referenced from the user Path must be set and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal.`
+  return `PATH contains "${unexpanded}", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal.`
 }
 
 function hasUnexpandedEnvReference (dir: string): boolean {

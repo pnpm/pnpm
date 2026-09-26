@@ -71,7 +71,7 @@ fn not_in_path_names_an_unexpanded_entry() {
     };
     assert_eq!(
         hint,
-        r#"PATH contains "%PNPM_HOME%", which was not expanded. On Windows, a variable referenced from the user Path must be set and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
+        r#"PATH contains "%PNPM_HOME%", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
     );
 }
 

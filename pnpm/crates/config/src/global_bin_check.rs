@@ -90,7 +90,7 @@ fn not_in_path_hint(path_env: &str) -> String {
         .find(|dir| has_unexpanded_env_reference(dir));
     match unexpanded {
         Some(entry) => format!(
-            r#"PATH contains "{entry}", which was not expanded. On Windows, a variable referenced from the user Path must be set and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
+            r#"PATH contains "{entry}", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
         ),
         None => r#"Run "pnpm setup" to update your shell configuration."#.to_string(),
     }
