@@ -73,3 +73,31 @@ test('installs when dependency status is unavailable for an unexpected reason', 
     reporter: undefined,
   })
 })
+
+test('installs only the selected projects when a filter is set', async () => {
+  checkDepsStatus.mockResolvedValue({
+    upToDate: false,
+    issue: 'The workspace structure has changed since last install',
+    workspaceState: undefined,
+  })
+
+  await runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+    filter: ['project-b'],
+    filterProd: ['project-c'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install', '--filter=project-b', '--filter-prod=project-c'], {
+    cwd: process.cwd(),
+    reporter: undefined,
+  })
+})

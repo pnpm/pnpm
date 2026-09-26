@@ -649,6 +649,46 @@ test('filtered install', async () => {
   }
 })
 
+test('filtered exec installs only the selected projects', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const result = execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'exec', 'node', '-e', "console.log('exec-ok')"], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('exec-ok')
+  expect(fs.existsSync(path.resolve('foo/node_modules'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+})
+
 test('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
