@@ -219,6 +219,7 @@ impl WorkspaceSettings {
         string_field!(settings, Sys, modules_dir, "MODULES_DIR");
         enum_field!(settings, Sys, node_linker, "NODE_LINKER", NodeLinker);
         json_field!(settings, Sys, node_experimental_package_map, "NODE_EXPERIMENTAL_PACKAGE_MAP");
+        json_field!(settings, Sys, write_package_map, "WRITE_PACKAGE_MAP");
         enum_field!(
             settings,
             Sys,

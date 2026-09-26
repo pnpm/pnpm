@@ -95,6 +95,7 @@ pub struct ConfigOverrides {
     minimum_release_age_strict: Option<bool>,
     merge_git_branch_lockfiles: Option<bool>,
     node_experimental_package_map: Option<bool>,
+    write_package_map: Option<bool>,
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
     prefer_offline: Option<bool>,
@@ -313,6 +314,7 @@ impl ConfigOverrides {
             "node-experimental-package-map" => {
                 self.node_experimental_package_map = parse_bool(value);
             }
+            "write-package-map" => self.write_package_map = parse_bool(value),
             "pending" => self.pending = parse_bool(value),
             "progress" => self.progress = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),

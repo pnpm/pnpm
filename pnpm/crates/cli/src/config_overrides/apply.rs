@@ -206,6 +206,7 @@ impl ConfigOverrides {
             lockfile_include_tarball_url => "lockfileIncludeTarballUrl",
             merge_git_branch_lockfiles => "mergeGitBranchLockfiles",
             node_experimental_package_map => "nodeExperimentalPackageMap",
+            write_package_map => "writePackageMap",
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",

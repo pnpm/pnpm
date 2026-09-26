@@ -27,6 +27,12 @@ fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_hoisted_package_map(&config));
 
+    config.write_package_map = true;
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(crate::should_write_hoisted_package_map(&config));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
+
+    config.write_package_map = false;
     config.node_experimental_package_map = true;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));

@@ -144,10 +144,6 @@ pub fn script_thread_count(child_concurrency: u32, max_work_items: usize) -> usi
 
 /// Whether this install writes `node_modules/.package-map.json`.
 ///
-/// Nothing reads the map unless `nodeExperimentalPackageMap` is set:
-/// `package_map_path_for_execution` returns `None` without it, so
-/// `pnpm run` and `pnpm exec` never hand the file to Node.
-///
 /// Hoisted installs answer the same question through
 /// [`should_write_hoisted_package_map`], because they write the map
 /// from their own linker.
@@ -156,7 +152,7 @@ pub fn should_write_package_map(
     config: &pnpm_config::Config,
     node_linker: pnpm_config::NodeLinker,
 ) -> bool {
-    config.node_experimental_package_map
+    (config.node_experimental_package_map || config.write_package_map)
         && node_linker == pnpm_config::NodeLinker::Isolated
         && !config.virtual_store_only
 }
@@ -166,7 +162,7 @@ pub fn should_write_package_map(
 /// store and so has a writer of its own.
 #[must_use]
 pub fn should_write_hoisted_package_map(config: &pnpm_config::Config) -> bool {
-    config.node_experimental_package_map && !config.virtual_store_only
+    (config.node_experimental_package_map || config.write_package_map) && !config.virtual_store_only
 }
 
 mod build_options;
