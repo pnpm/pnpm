@@ -388,7 +388,8 @@ fn run_bin(
 
 /// Run the bin of a package that is already on disk, such as a workspace
 /// project, in place of installing one into the dlx cache. The package's
-/// own dependencies resolve from its directory, so they must be installed.
+/// own dependencies, and their bins, resolve from its directory, so they
+/// must be installed.
 pub(crate) fn run_local_package(
     pkg_name: String,
     project: &Project,
@@ -399,6 +400,9 @@ pub(crate) fn run_local_package(
 ) -> miette::Result<()> {
     let pkg_dir = &project.root_dir;
     let manifest = project.manifest.value();
+    let deps_bin_dir = pkg_dir
+        .join(config.modules_dir_name_for(pkg_dir, Some(&pkg_name)))
+        .join(".bin");
     let bin_name = choose_bin_name(manifest, pkg_dir, pkg_name)?;
     let bin_dir =
         tempfile::tempdir().into_diagnostic().wrap_err("create a temporary bin directory")?;
@@ -410,7 +414,7 @@ pub(crate) fn run_local_package(
     let status = run_bin(
         DlxProgram::Named(&bin_name),
         args,
-        vec![bin_dir.path().to_path_buf()],
+        vec![bin_dir.path().to_path_buf(), deps_bin_dir],
         &env.spawn(shell_mode),
     )?;
     drop(bin_dir);
