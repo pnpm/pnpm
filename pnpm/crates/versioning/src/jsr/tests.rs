@@ -90,3 +90,26 @@ fn a_failed_package_manifest_save_restores_the_jsr_manifests() {
     assert_eq!(saved_contents.into_inner(), "{\n  \"version\": \"2.0.0\" // released\n}\n");
     assert_eq!(fs::read_to_string(dir.path().join("jsr.jsonc")).expect("read jsr.jsonc"), original);
 }
+
+#[test]
+fn a_failed_restore_names_the_jsr_manifest_left_at_the_new_version() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let jsr_manifest = dir.path().join("jsr.json");
+    fs::write(&jsr_manifest, r#"{"version":"1.0.0"}"#).expect("write jsr.json");
+    let updates = jsr_manifest_updates(dir.path(), "2.0.0").expect("prepare the JSR update");
+
+    let result = save_with_jsr_manifests(&updates, || {
+        fs::remove_file(&jsr_manifest).expect("remove jsr.json");
+        fs::create_dir(&jsr_manifest).expect("block the restore with a directory");
+        Err(VersioningError::InvalidJsrManifest {
+            path: dir.path().join("package.json"),
+            reason: "simulated save failure".to_string(),
+        })
+    });
+
+    let Err(VersioningError::RestoreJsrManifest { path, interrupted_by, .. }) = result else {
+        panic!("expected a restore failure, got {result:?}");
+    };
+    assert_eq!(path, jsr_manifest);
+    assert!(interrupted_by.contains("simulated save failure"), "{interrupted_by}");
+}
