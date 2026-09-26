@@ -24,12 +24,12 @@ await addDirToEnvPath('C:\\pnpm', {
 //  Path=%PNPM_HOME%;C:\foo;C:\bar
 ```
 
-This prepends `C:\pnpm` to the `Path` (no additional environment variable is created:
+This prepends `C:\pnpm` to the `Path` without creating an additional environment variable:
 
 ```ts
 import { addDirToEnvPath } from '@pnpm/os.env.path-extender'
 
-await addDirToEnvPath('C:\\pnpm')
+await addDirToEnvPath('C:\\pnpm', { configSectionName: 'pnpm' })
 //> Path=C:\pnpm;C:\foo;C:\bar
 ```
 
