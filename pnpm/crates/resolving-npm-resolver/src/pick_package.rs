@@ -8,7 +8,7 @@
 //!    [`crate::mirror`].
 //! 3. Issuing a conditional GET against the registry when neither
 //!    cache satisfies the request, using
-//!    [`fetch_full_metadata_cached()`] which threads `If-None-Match`
+//!    [`crate::fetch_full_metadata_cached()`] which threads `If-None-Match`
 //!    and `If-Modified-Since` off the mirror's header line.
 //! 4. Handing the resolved packument to [`pick_package_from_meta`]
 //!    for the actual version pick.
@@ -16,7 +16,7 @@
 //! Full vs. abbreviated metadata is selected per call from
 //! `opts.optional || ctx.full_metadata`. The orchestrator wires the
 //! choice through to the
-//! mirror directory ([`ABBREVIATED_META_DIR`] vs. [`FULL_META_DIR`]),
+//! mirror directory ([`crate::mirror::ABBREVIATED_META_DIR`] vs. [`crate::mirror::FULL_META_DIR`]),
 //! the in-memory cache key (`:full` suffix when full), and the
 //! `Accept` header on the registry request. When `published_by` is
 //! active and the picker ends up with abbreviated metadata that
@@ -149,7 +149,7 @@ pub struct PickPackageResult {
 ///    conditional fetch.
 ///
 /// Cache-miss / forced-fetch goes through
-/// [`fetch_full_metadata_cached()`], which sends the conditional
+/// [`crate::fetch_full_metadata_cached()`], which sends the conditional
 /// `If-None-Match` / `If-Modified-Since` headers built from the
 /// mirror's first line. A 304 reuses the on-disk body.
 pub async fn pick_package<Cache: PackageMetaCache>(

@@ -1,20 +1,16 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
-};
-
-use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
-
-use pretty_assertions::assert_eq;
-use tempfile::TempDir;
-
 use super::{
     AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext, RetryOpts,
     ThrottledClient, default_opts, persist_meta_to_mirror, pick_package, range_spec,
     shared_packument_fetch_locker,
 };
-use crate::OfflineStoreView;
-use crate::mirror::ABBREVIATED_META_DIR;
+use crate::{OfflineStoreView, mirror::ABBREVIATED_META_DIR};
+use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
+use pretty_assertions::assert_eq;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
+use tempfile::TempDir;
 
 /// Offline mode resolves against the store: when the packument offers several
 /// versions but the store holds only an older one, the pick must land on the
