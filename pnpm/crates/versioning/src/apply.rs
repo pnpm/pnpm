@@ -10,7 +10,7 @@ use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
     intents::{ChangeIntent, IntentBumpType},
-    jsr::jsr_manifest_updates,
+    jsr::{jsr_manifest_updates, save_with_jsr_manifests},
     ledger::{
         Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
         normalize_project_dir,
@@ -111,10 +111,9 @@ fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, Version
             .map_err(VersioningError::Manifest)?;
         manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
         let jsr_updates = jsr_manifest_updates(&release.root_dir, &release.version.next)?;
-        manifest.save().map_err(VersioningError::Manifest)?;
-        for update in &jsr_updates {
-            update.write()?;
-        }
+        save_with_jsr_manifests(&jsr_updates, || {
+            manifest.save().map_err(VersioningError::Manifest)
+        })?;
         applied.push(AppliedRelease {
             name: release.name.clone(),
             current_version: release.version.current.clone(),
