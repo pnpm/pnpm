@@ -42,7 +42,9 @@ fn request_contains_closed_graph_over_installed_keys() {
 
     let request = fixture.build_json();
     assert_eq!(request["protocol"], 1);
-    assert_eq!(request["gcRootDir"], "/workspace/node_modules/.pnpm-nix");
+    let expected_gc_root =
+        pnpm_fs::lexical_normalize(Path::new("/workspace/node_modules/.pnpm-nix"));
+    assert_eq!(request["gcRootDir"], expected_gc_root.to_str().expect("expected string"));
 
     let nodes = request["nodes"].as_object().expect("nodes object");
     assert!(nodes.contains_key("foo@1.0.0"));
