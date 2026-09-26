@@ -126,7 +126,7 @@ pub(crate) fn discard_skipped_optional_dependency(
         return Ok(());
     }
     let virtual_store_dir = pkg_roots.layout.package_store_dir();
-    for pkg_dir in pkg_roots.all(key) {
+    for pkg_dir in pkg_roots.all_recorded(key) {
         if !is_contained_descendant(virtual_store_dir, &pkg_dir)
             && !is_contained_descendant(lockfile_dir, &pkg_dir)
         {
@@ -138,7 +138,14 @@ pub(crate) fn discard_skipped_optional_dependency(
             );
             continue;
         }
-        match pnpm_fs::remove_dir_all_with_retry(&pkg_dir) {
+        // A duplicate placement is recorded as a link to the location
+        // imported first; the link is unlinked itself, never followed.
+        let remove = if pnpm_fs::is_symlink_or_junction(&pkg_dir).unwrap_or(false) {
+            pnpm_fs::remove_symlink_dir
+        } else {
+            pnpm_fs::remove_dir_all_with_retry
+        };
+        match remove(&pkg_dir) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(source) => {
@@ -218,6 +225,23 @@ impl PkgRoots<'_> {
                 Some(dirs) => dedupe_aliased_dirs(dirs),
                 None => Vec::new(),
             },
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
+    }
+
+    /// Every recorded on-disk location of a snapshot's package, aliasing
+    /// included: a duplicate hoisted placement recorded as a link to
+    /// another location (see [`crate::symlink_package()`]) is listed as
+    /// itself, not collapsed into its target. Removal walks this list —
+    /// each alias has to be unlinked too, or it is left dangling over
+    /// the removed directory — while writes use [`Self::all`] to reach
+    /// each distinct directory once.
+    pub(crate) fn all_recorded(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => map
+                .get(key)
+                .cloned()
+                .unwrap_or_default(),
             None => vec![virtual_store_dir_for_key(self.layout, key)],
         }
     }

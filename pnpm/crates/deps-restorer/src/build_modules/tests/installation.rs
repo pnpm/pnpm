@@ -764,3 +764,41 @@ fn is_contained_descendant_rejects_traversal_and_escapes() {
     // A sibling that merely shares a name prefix is not contained.
     assert!(!is_contained_descendant(root, Path::new("/project/node_modules/.pnpm-evil/foo")));
 }
+
+/// A hoisted snapshot recorded at a real placement plus a link that
+/// aliases it loses both on an optional-build skip. Walking the deduped
+/// write list would remove only the real directory and leave the link
+/// dangling where the consumer must see the package as absent.
+#[test]
+fn discard_skipped_optional_dependency_unlinks_the_hoisted_alias_too() {
+    let dir = tempdir().unwrap();
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("store").into();
+    config.modules_dir = dir.path().join("node_modules");
+    config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
+    let config = config.leak();
+    let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
+
+    let placement = dir.path().join("node_modules/.pnpm/is-odd@3.0.0/node_modules/is-odd");
+    std::fs::create_dir_all(&placement).expect("create the real placement");
+    let alias = dir.path().join("packages/pkg-a/node_modules/is-odd");
+    std::fs::create_dir_all(alias.parent().expect("alias parent")).expect("create alias parent");
+    pnpm_fs::symlink_dir(&placement, &alias).expect("record the aliased duplicate placement");
+
+    let key: PackageKey = "/is-odd@3.0.0".parse().expect("parse key");
+    let map =
+        std::collections::HashMap::from([(key.clone(), vec![placement.clone(), alias.clone()])]);
+
+    super::super::discard_skipped_optional_dependency(
+        super::super::PkgRoots { layout: &layout, by_key: Some(&map) },
+        dir.path(),
+        &key,
+    )
+    .expect("discard the skipped optional dependency");
+
+    assert!(!placement.exists(), "the real placement must be removed");
+    assert!(
+        std::fs::symlink_metadata(&alias).is_err(),
+        "the aliasing link must be unlinked, not left dangling",
+    );
+}
