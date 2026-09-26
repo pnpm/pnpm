@@ -54,6 +54,55 @@ fn recursive_project_names(pacquet: Command, extra_args: &[&str]) -> BTreeSet<St
         .collect()
 }
 
+#[test]
+fn recursive_list_sorts_projects_by_workspace_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "a",
+                json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "workspace:*" } }),
+            ),
+            (
+                "b",
+                json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } }),
+            ),
+            ("c", json!({ "name": "c", "version": "1.0.0" })),
+        ],
+    );
+
+    for shared_lockfile in [true, false] {
+        if !shared_lockfile {
+            fs::write(
+                workspace.join("pnpm-workspace.yaml"),
+                "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+            )
+            .expect("write dedicated-lockfile workspace settings");
+        }
+
+        for (flags, expected) in [
+            (vec![], vec!["c", "b", "a"]),
+            (vec!["--prod", "--only-projects"], vec!["c", "b", "a"]),
+            (vec!["--no-sort"], vec!["a", "b", "c"]),
+            (vec!["--reverse"], vec!["a", "b", "c"]),
+        ] {
+            let mut args =
+                vec!["--filter", "./packages/*", "-r", "list", "--depth", "-1", "--json"];
+            args.extend(flags);
+            let output = run_ok(&workspace, &args);
+            let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+            let names: Vec<&str> = projects
+                .iter()
+                .map(|project| project["name"].as_str().expect("project name"))
+                .collect();
+            assert_eq!(names, expected, "shared lockfile: {shared_lockfile}, args: {args:?}");
+        }
+    }
+
+    drop(root);
+}
+
 /// Scaffold a project whose lockfile records exactly one dependency
 /// (`saved-dep`), with both that dependency and an unrecorded
 /// `extraneous` package materialized in `node_modules`.
