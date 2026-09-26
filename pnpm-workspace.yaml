@@ -25,9 +25,11 @@ packages:
   - pnpm11/global/*
   - pnpm11/hooks/*
   - pnpm11/lockfile/*
+  - pnpm11/log/*
   - pnpm11/network/*
   - pnpm11/modules-mounter/*
   - pnpm11/object/*
+  - pnpm11/os/env/*
   - pnpm11/core/*
   - pnpm11/bins/*
   - pnpm11/installing/*
@@ -226,14 +228,11 @@ catalog:
   '@npm/types': ^2.1.0
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^2.0.0
-  '@pnpm/config.env-replace': ^4.1.0
   '@pnpm/exec': ^4.0.0
-  '@pnpm/log.group': 4.0.1
   '@pnpm/logger': '^1100.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-package-arg': ^2.0.0
-  '@pnpm/os.env.path-extender': ^3.0.1
   '@pnpm/patch-package': 0.0.1
   '@pnpm/semver-diff': ^2.0.0
   '@pnpm/tabtab': ^0.5.4
@@ -294,6 +293,7 @@ catalog:
   '@zkochan/rimraf': ^4.0.0
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.6.1
+  agentkeepalive: ^4.6.0
   amaro: ^1.2.1
   ansi-diff: ^1.2.0
   archy: ^1.0.0
@@ -355,6 +355,8 @@ catalog:
   graceful-fs: ^4.2.11
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
+  http-proxy-agent: ^7.0.2
+  https-proxy-agent: ^7.0.6
   https-proxy-server-express: 0.1.2
   husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
@@ -423,6 +425,7 @@ catalog:
   pretty-bytes: ^7.1.3
   pretty-ms: ^9.3.1
   promise-share: ^2.0.1
+  proxy: ^4.1.0
   proxyquire: ^2.1.3
   ps-list: ^9.0.0
   qrcode-terminal: ^0.12.0
@@ -449,6 +452,7 @@ catalog:
   shx: ^0.4.0
   signal-exit: ^4.1.0
   socks: ^2.8.10
+  socks-proxy-agent: ^8.0.5
   sort-keys: ^6.0.1
   spdx-expression-parse: 5.0.0
   split-cmd: ^1.1.0

@@ -1,4 +1,7 @@
 ---
+"@pnpm/os.env.path-extender-windows": patch
+"@pnpm/os.env.path-extender": patch
+"pnpm": patch
 "pacquet": patch
 ---
 

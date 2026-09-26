@@ -73,6 +73,9 @@
       "path": "../../installing/commands"
     },
     {
+      "path": "../../log/group"
+    },
+    {
       "path": "../../pkg-manifest/reader"
     },
     {
