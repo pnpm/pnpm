@@ -3,7 +3,9 @@ pub(crate) use clean::clean_expired_dlx_cache;
 use crate::{
     State,
     cli_args::{
-        add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
+        add::{AllowBuildError, add_package},
+        catalogs::configured_catalogs,
+        exec::set_package_manager_env,
         supported_architectures::SupportedArchitecturesArgs,
     },
     engine_pm::{channel::PackageManager, provision::provision},
@@ -173,6 +175,9 @@ impl DlxArgs {
         let Some((bin_command, args)) = self.command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
+        if self.allow_build.iter().any(String::is_empty) {
+            return Err(AllowBuildError::MissingPackage.into());
+        }
 
         let env = SpawnEnv::from_config(config, dir);
         let spawn = env.spawn(self.shell_mode);
