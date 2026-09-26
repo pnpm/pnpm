@@ -159,7 +159,7 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
 }
 
 #[test]
-fn normal_install_accepts_missing_dependency_free_workspace_importer() {
+fn normal_install_restores_a_missing_dependency_free_workspace_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }),
         &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
@@ -181,13 +181,13 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
         .with_arg("install")
         .assert()
         .success();
-    let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
-        &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
+    let restored: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        &fs::read_to_string(&lockfile_path).expect("read restored pnpm-lock.yaml"),
     )
-    .expect("parse retained pnpm-lock.yaml");
+    .expect("parse restored pnpm-lock.yaml");
     assert!(
-        !retained.importers.contains_key("pkg-b"),
-        "dependency-free pkg-b should not force lockfile regeneration",
+        restored.importers.contains_key("pkg-b"),
+        "a normal install must restore the missing importer entry for a dependency-free project",
     );
 
     drop((root, mock_instance));

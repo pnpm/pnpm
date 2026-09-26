@@ -66,6 +66,28 @@ fn writes_a_new_project_importer_from_the_highest_locked_versions() {
     assert!(snapshot_optional(&updated, "opt@5.0.0"), "nothing else changed about the old path");
 }
 #[test]
+fn writes_an_empty_importer_for_a_new_project_with_no_dependencies() {
+    let added = manifest_from(json!({ "name": "pkg-b" }));
+    let [existing, locks_the_higher_child] = a_new_project_lockfile_projects(&added);
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(WITH_A_NEW_PROJECT),
+        &projects_of_a_new_project_lockfile(&existing, &locks_the_higher_child, &added),
+    )
+    .expect("a project with no dependencies needs no resolution");
+
+    let importer = updated.importers
+        .get("pkg-b")
+        .expect("a new dependency-free project must get an importer entry, as pnpm 11 writes");
+    assert!(
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .all(std::collections::HashMap::is_empty),
+        "the new importer records no dependencies",
+    );
+}
+#[test]
 fn clears_an_optional_flag_a_new_projects_plain_dependency_reaches() {
     let added = manifest_from(json!({ "dependencies": { "child": "3.0.0" } }));
     let [existing, locks_the_higher_child] = a_new_project_lockfile_projects(&added);

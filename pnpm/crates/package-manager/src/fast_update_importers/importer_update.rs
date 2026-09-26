@@ -78,7 +78,7 @@ pub(super) fn apply_one_importer_update(
         manifest_dependencies,
     } = *entry;
     let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
-    if records_nothing && !manifest_dependencies.is_empty() {
+    if records_nothing {
         let Some(new_importer) =
             importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {
@@ -87,8 +87,10 @@ pub(super) fn apply_one_importer_update(
         importers.insert(importer_id.clone(), new_importer);
         // The only edit that adds reachability, so a package that until
         // now only optional dependencies reached can have stopped being
-        // optional.
-        edits.optional_flags_are_stale = true;
+        // optional. A project with no dependencies adds none.
+        if !manifest_dependencies.is_empty() {
+            edits.optional_flags_are_stale = true;
+        }
         return true;
     }
     let Some(importer) = importers.get_mut(importer_id.as_str()) else {

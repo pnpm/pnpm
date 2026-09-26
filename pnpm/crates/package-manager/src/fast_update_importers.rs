@@ -190,11 +190,10 @@ fn importer_divergence(
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> ImporterDivergence {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return if manifest_dependencies.is_empty() {
-            ImporterDivergence::Clean
-        } else {
-            ImporterDivergence::Absorbable
-        };
+        // A project the lockfile has never seen, including one with no
+        // dependencies: the update has to add its importer entry so a later
+        // `--frozen-lockfile` finds it.
+        return ImporterDivergence::Absorbable;
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),
