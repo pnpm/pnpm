@@ -103,5 +103,5 @@ pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
 #[test]
 pub fn a_detached_head_skips_candidates_too_long_to_be_a_file_name() {
     let branches = ["a".repeat(250), "main".to_string()];
-    assert_eq!(crate::layout::detached_head_candidates(&branches), ["pnpm-lock.main.yaml"],);
+    assert_eq!(crate::layout::detached_head_candidates(&branches), ["pnpm-lock.main.yaml"]);
 }
