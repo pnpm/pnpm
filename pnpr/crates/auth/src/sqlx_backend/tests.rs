@@ -1,8 +1,7 @@
 use super::{
-    super::{MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
+    super::{MAX_USERNAME_CHARS, TokenRecord, UpsertOutcome},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
-use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
 use std::{
@@ -29,7 +28,6 @@ struct CappedBackend {
     reconcile_calls: Arc<AtomicU64>,
 }
 
-#[async_trait]
 impl AuthSqlBackend for CanonicalBackend {
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(Some(self.user.clone()))
@@ -73,7 +71,6 @@ impl AuthSqlBackend for CanonicalBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for SlowLookupBackend {
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
@@ -118,7 +115,6 @@ impl AuthSqlBackend for SlowLookupBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for SlowWriteBackend {
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
@@ -164,7 +160,6 @@ impl AuthSqlBackend for SlowWriteBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for CountingLookupBackend {
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         self.stored_user_calls.fetch_add(1, Ordering::SeqCst);
@@ -209,7 +204,6 @@ impl AuthSqlBackend for CountingLookupBackend {
     }
 }
 
-#[async_trait]
 impl AuthSqlBackend for CappedBackend {
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
