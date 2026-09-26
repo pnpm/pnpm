@@ -485,7 +485,7 @@ async function update (
       // `dry-run` turn `update` into a no-op check.
       dryRun: false,
     }, packageDependencies)
-    if (overrideMove?.updatedOverrides != null) {
+    if (overrideMove != null) {
       await writeSettings({
         ...opts,
         workspaceDir: opts.workspaceDir ?? (opts.rootProjectManifestDir || opts.dir),
@@ -515,11 +515,8 @@ interface OverrideMove {
    * already answers to the moved pins.
    */
   overrides: Record<string, string>
-  /**
-   * The moved entries, for the workspace-manifest write the update owes
-   * after a successful install. `undefined` when the update only warned.
-   */
-  updatedOverrides?: Record<string, string>
+  /** The moved entries, written back to the workspace manifest once the install succeeds. */
+  updatedOverrides: Record<string, string>
 }
 
 /**
@@ -551,21 +548,10 @@ async function planOverrideMove (
     rawOverrides[name] != null && projects.some((project) => guessDependencyType(name, project.manifest) != null))
   if (governed.length === 0) return undefined
   if (!opts.latest) {
-    for (const name of governed) {
-      const value = rawOverrides[name]
-      const style = movableOverrideRangeStyle(value)
-      if (style === 'patch' || style === 'exact') {
-        globalWarn(`Skipping "${name}": it is pinned to "${value}" by an override, which a compatible update cannot move. Use --latest or update the override in pnpm-workspace.yaml.`)
-      }
-    }
+    warnOverridesPinnedToOneVersion(governed, rawOverrides)
     return undefined
   }
   if (opts.save === false) return undefined
-  // Only bare range values are looked up in one batch: a value that names
-  // another dependency (`npm:`, `link:`, …) has no version of its own, and
-  // asking for one can fail resolution, so each of those is asked on its
-  // own below.
-  const movableNames = governed.filter((name) => movableOverrideRangeStyle(rawOverrides[name]) != null)
   const outdatedOpts = {
     ...opts,
     compatible: false,
@@ -579,48 +565,24 @@ async function planOverrideMove (
     },
     timeout: opts.fetchTimeout,
   } as const
-  const latest = new Map<string, string>()
-  if (movableNames.length > 0) {
-    for (const outdated of await outdatedDepsOfProjects(projects, movableNames, outdatedOpts)) {
-      for (const pkg of outdated) {
-        const version = pkg.latestManifest?.version
-        if (version != null && !latest.has(pkg.alias)) {
-          latest.set(pkg.alias, version)
-        }
-      }
-    }
-  }
-  const referencedLatest = new Map<string, string | undefined>()
-  const unresolvable = new Set<string>()
-  await Promise.all(governed.filter((name) => namesAnotherDependency(rawOverrides[name])).map(async (name) => {
-    try {
-      const [outdated] = await outdatedDepsOfProjects(projects, [name], outdatedOpts)
-      referencedLatest.set(name, outdated.find((pkg) => pkg.alias === name)?.latestManifest?.version)
-    } catch {
-      unresolvable.add(name)
-    }
-  }))
+  const { latestVersions, unresolvable } = await resolveLatestOverrideVersions(governed, rawOverrides, projects, outdatedOpts)
   const updatedOverrides: Record<string, string> = {}
   for (const name of governed) {
     const value = rawOverrides[name]
-    // A `catalog:`-valued override tracks the catalog entry it points at —
-    // the catalog update path owns that entry — and a bare value with no
-    // recoverable operator (a dist tag, a partial version) tracks a moving
-    // target the way a tag-tracking declaration does. Neither is the
-    // update's to rewrite.
+    // A `catalog:`-valued override tracks the catalog entry it points at,
+    // which the catalog update path owns; a bare value with no recoverable
+    // operator (a dist tag, a partial version) tracks a moving target.
+    // Neither is the update's to rewrite.
     if (value.startsWith('catalog:') || (!namesAnotherDependency(value) && movableOverrideRangeStyle(value) == null)) continue
     if (unresolvable.has(name)) {
       warnUnmovableOverride(name, value)
       continue
     }
-    const nextVersion = latest.get(name) ?? referencedLatest.get(name)
+    const nextVersion = latestVersions.get(name)
     if (nextVersion == null) continue // already up to date
-    const range = getRangeOfSpecifier(value)
-    if (range != null && semver.validRange(range) != null && semver.satisfies(nextVersion, range)) {
-      // The override already admits the version the update picked, so the
-      // resolution moves within it and the entry stands.
-      continue
-    }
+    // The override's range already admits the version the update picked,
+    // so the resolution moves within it and the entry stands.
+    if (overrideAdmits(value, nextVersion)) continue
     if (namesAnotherDependency(value)) {
       warnUnmovableOverride(name, value)
     } else {
@@ -638,6 +600,58 @@ async function planOverrideMove (
 }
 
 /**
+ * Warn about dependencies an override pins to one version, which a
+ * compatible update cannot move.
+ */
+function warnOverridesPinnedToOneVersion (governed: string[], rawOverrides: Record<string, string>): void {
+  for (const name of governed) {
+    const value = rawOverrides[name]
+    const style = movableOverrideRangeStyle(value)
+    if (style === 'patch' || style === 'exact') {
+      globalWarn(`Skipping "${name}": it is pinned to "${value}" by an override, which a compatible update cannot move. Use --latest or update the override in pnpm-workspace.yaml.`)
+    }
+  }
+}
+
+/**
+ * The version `--latest` picks for every governed override value that has
+ * one: bare range values are looked up in one batch, while values that name
+ * another dependency (`npm:`, `link:`, …) are resolved one by one, so a
+ * failed resolution cannot fail the rest. Names no resolver could answer
+ * land in `unresolvable`.
+ */
+async function resolveLatestOverrideVersions (
+  governed: string[],
+  rawOverrides: Record<string, string>,
+  projects: Parameters<typeof outdatedDepsOfProjects>[0],
+  outdatedOpts: Parameters<typeof outdatedDepsOfProjects>[2]
+): Promise<{ latestVersions: Map<string, string>, unresolvable: Set<string> }> {
+  const latestVersions = new Map<string, string>()
+  const unresolvable = new Set<string>()
+  const movableNames = governed.filter((name) => movableOverrideRangeStyle(rawOverrides[name]) != null)
+  if (movableNames.length > 0) {
+    for (const pkg of unnest(await outdatedDepsOfProjects(projects, movableNames, outdatedOpts))) {
+      const version = pkg.latestManifest?.version
+      if (version != null && !latestVersions.has(pkg.alias)) {
+        latestVersions.set(pkg.alias, version)
+      }
+    }
+  }
+  await Promise.all(governed.filter((name) => namesAnotherDependency(rawOverrides[name])).map(async (name) => {
+    try {
+      const [outdated] = await outdatedDepsOfProjects(projects, [name], outdatedOpts)
+      const version = outdated.find((pkg) => pkg.alias === name)?.latestManifest?.version
+      if (version != null) {
+        latestVersions.set(name, version)
+      }
+    } catch {
+      unresolvable.add(name)
+    }
+  }))
+  return { latestVersions, unresolvable }
+}
+
+/**
  * Whether an override value names a dependency of its own rather than
  * pinning a version of the one it overrides: a protocol reference (`npm:`,
  * `link:`, a named registry, ...) or a `$` reference to another dependency's
@@ -645,6 +659,12 @@ async function planOverrideMove (
  */
 function namesAnotherDependency (value: string): boolean {
   return !value.startsWith('catalog:') && (value.includes(':') || value.startsWith('$'))
+}
+
+/** Whether an override value's range already admits `version`. */
+function overrideAdmits (value: string, version: string): boolean {
+  const range = getRangeOfSpecifier(value)
+  return range != null && semver.validRange(range) != null && semver.satisfies(version, range)
 }
 
 function warnUnmovableOverride (name: string, value: string): void {

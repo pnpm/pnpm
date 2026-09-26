@@ -1,8 +1,8 @@
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, UpdateError, latest_specifier,
     overrides::{
-        override_governed, override_governed_compatible_rewrite, override_owned_latest_rewrite,
-        override_owned_rewrite,
+        override_governed, override_owned_latest_rewrite, override_owned_rewrite,
+        warn_pinned_override,
     },
     seed_policy::{UpdatePlan, UpdateScope},
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
@@ -90,10 +90,10 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     }
     saved_direct_rewrite::<Reporter>(scope, plan, inputs, declared, requested).await
 }
-/// The rewrite a saving update performs for a requested specifier: seed the
-/// requested version, resolve a dist tag, or bump within the declared range —
-/// unless an override governs the dependency, in which case the override
-/// decides what the update may touch.
+/// The rewrite a saving update performs: seed a requested version, resolve a
+/// dist tag, or bump within the declared range. A dependency an override
+/// governs is the override's to answer, not the declaration's, when the
+/// update names no version of its own.
 async fn saved_direct_rewrite<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
@@ -101,7 +101,7 @@ async fn saved_direct_rewrite<Reporter: self::Reporter>(
     declared: (&String, DependencyGroup, &String),
     requested: Option<String>,
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, _, previous) = declared;
+    let (name, group, previous) = declared;
     let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     if let Some(version) = requested.as_deref() {
         seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
@@ -122,10 +122,10 @@ async fn saved_direct_rewrite<Reporter: self::Reporter>(
         return Ok(MatchedRewrite::Target(rewritten));
     }
     if requested.is_none()
-        && let Some(rewrite) =
-            override_governed_compatible_rewrite::<Reporter>(rewrite_ctx, scope, name, declared.1)
+        && let Some(overridden) = override_governed(scope, name, group)
     {
-        return Ok(rewrite);
+        warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
+        return Ok(MatchedRewrite::Target(None));
     }
     Ok(requested_direct_rewrite(scope, plan, declared, requested))
 }

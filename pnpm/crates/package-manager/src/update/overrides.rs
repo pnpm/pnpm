@@ -13,7 +13,7 @@ use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, ra
 /// Whether an override value fixes the dependency to a single version, so a
 /// compatible update — one that moves the resolution inside the override's
 /// range — has no room to move.
-pub(super) fn override_pins_one_version(value: &str) -> bool {
+fn override_pins_one_version(value: &str) -> bool {
     movable_override_style(value)
         .is_some_and(|style| matches!(style, RangeSpecStyle::Patch | RangeSpecStyle::Exact))
 }
@@ -30,49 +30,25 @@ pub(super) fn override_governed<'scope>(
         .find(|item| item.name == name && item.group == group)
 }
 
-/// Report that a compatible update cannot move a dependency an override
-/// pins to one version.
-pub(super) fn warn_override_pins_compatible_update<Reporter: self::Reporter>(
-    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
-    name: &str,
-    pinned: &str,
-) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!(
-            r#"Skipping "{name}": it is pinned to "{pinned}" by an override, which a compatible update cannot move. Use --latest or update the override in pnpm-workspace.yaml."#,
-        ),
-        prefix: package_manifest_prefix(rewrite_ctx.manifest),
-    }));
-}
-
 /// Warn that a compatible update cannot move a dependency an override
 /// governs, when the override fixes it to a single version.
 pub(super) fn warn_pinned_override<Reporter: self::Reporter>(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
     overridden: &OverriddenDirect,
 ) {
+    let name = overridden.name.as_str();
     if let Some(pinned) = overridden.effective_specifier
         .as_deref()
         .filter(|effective| override_pins_one_version(effective))
     {
-        warn_override_pins_compatible_update::<Reporter>(rewrite_ctx, &overridden.name, pinned);
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: format!(
+                r#"Skipping "{name}": it is pinned to "{pinned}" by an override, which a compatible update cannot move. Use --latest or update the override in pnpm-workspace.yaml."#,
+            ),
+            prefix: package_manifest_prefix(rewrite_ctx.manifest),
+        }));
     }
-}
-
-/// The rewrite a compatible bump performs on a dependency an override
-/// governs, when it does: the override decides what resolves, so the
-/// declaration is not the update's to move. `None` when no override governs
-/// `name`.
-pub(super) fn override_governed_compatible_rewrite<Reporter: self::Reporter>(
-    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
-    scope: &UpdateScope<'_>,
-    name: &str,
-    group: DependencyGroup,
-) -> Option<MatchedRewrite> {
-    let overridden = override_governed(scope, name, group)?;
-    warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
-    Some(MatchedRewrite::Target(None))
 }
 
 /// What a `--no-save` update does with a requested specifier for a

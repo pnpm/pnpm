@@ -221,11 +221,9 @@ pub(super) async fn record_direct_update(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<(), UpdateError> {
     let (name, group, previous) = declared;
-    // A dependency an override governs keeps its declaration: the override
-    // owns the resolution, and a selector-less update is no request to move
-    // the override itself, so the update leaves the pair alone (the v11
-    // "update --latest preserves override-owned dependency resolutions"
-    // behavior).
+    // An override owns this dependency's resolution, and a selector-less
+    // update is no request to move the override, so the pair is left alone
+    // ("update --latest preserves override-owned dependency resolutions").
     if override_governed(scope, name, group).is_some() {
         plan.drop_targets.insert(name.clone(), None);
         return Ok(());
@@ -280,9 +278,9 @@ pub(super) fn name_matched_seed_policy<Reporter: self::Reporter>(
         if !matcher.matches(name) {
             continue;
         }
-        // The override owns an override-governed declaration, so a compatible
-        // bump leaves it alone; an override that fixes one version leaves the
-        // bump nowhere to go, which the user should hear about.
+        // An override-governed declaration is not the bump's to move, and one
+        // pinned to a single version has no room to move at all, which the
+        // user should hear about.
         if let Some(overridden) = override_governed(scope, name, *group) {
             warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
         } else if scope.version.save {
