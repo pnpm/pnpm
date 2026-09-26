@@ -70,12 +70,14 @@ function matcherFromPattern (pattern: string): Matcher {
     return () => true
   }
 
-  const escapedPattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
+  const escapedPattern = escapeStringRegexp(pattern)
+    .replace(/\\\*/g, '.*')
+    .replace(/\\\?/g, '.')
   if (escapedPattern === pattern) {
     return (input: string) => input === pattern
   }
 
-  const regexp = new RegExp(`^${escapedPattern}$`)
+  const regexp = new RegExp(`^${escapedPattern}$`, 'u')
   return (input: string) => regexp.test(input)
 }
 
