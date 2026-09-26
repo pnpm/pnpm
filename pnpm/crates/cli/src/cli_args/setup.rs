@@ -6,6 +6,7 @@
 //! (the shell rc file on POSIX, the registry on Windows).
 
 mod gh_actions_env;
+mod legacy_migration;
 mod path_extender;
 
 use clap::Args;
@@ -16,7 +17,11 @@ use path_extender::{
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
 use pnpm_fs::write_atomic;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -39,15 +44,18 @@ impl SetupArgs {
     }
 }
 
-fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+fn resolve_pnpm_home_dir() -> miette::Result<PathBuf> {
     let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
         miette::miette!(
             "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."
         )
     })?;
-    // Validate before any side effect: an unsafe `PNPM_HOME` must not reach
-    // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
+    Ok(pnpm_home_dir)
+}
+
+fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    let pnpm_home_dir = resolve_pnpm_home_dir()?;
     let bin_dir = pnpm_home_dir.join("bin");
     gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
 
@@ -58,6 +66,14 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
     install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    legacy_migration::finish_legacy_migration::<Reporter>(
+        dir,
+        legacy_migration::migrate_legacy_global_packages::<Reporter>(
+            &exec_path,
+            &pnpm_home_dir,
+            dir,
+        ),
+    );
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -80,6 +96,17 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     Ok(render_setup_output(&report))
 }
 
+fn ensure_temporary_manifest(exec_dir: &Path, exec_name: &str) -> miette::Result<bool> {
+    let pkg_json_path = exec_dir.join("package.json");
+    if pkg_json_path.exists() {
+        return Ok(false);
+    }
+    fs::write(&pkg_json_path, standalone_manifest(exec_name).to_string())
+        .into_diagnostic()
+        .wrap_err("write the temporary package.json next to the pnpm executable")?;
+    Ok(true)
+}
+
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
 /// placing it in the standard global directory alongside other globally
 /// installed packages.
@@ -97,44 +124,18 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .to_string_lossy()
         .into_owned();
     let pkg_json_path = exec_dir.join("package.json");
-
-    // Write a package.json if one doesn't already exist. (Updated tarballs
-    // ship with package.json already.)
-    let created_pkg_json = !pkg_json_path.exists();
-    if created_pkg_json {
-        fs::write(&pkg_json_path, standalone_manifest(&exec_name).to_string())
-            .into_diagnostic()
-            .wrap_err("write the temporary package.json next to the pnpm executable")?;
-    }
+    let created_pkg_json = ensure_temporary_manifest(exec_dir, &exec_name)?;
 
     info::<Reporter>(
         &prefix_dir.to_string_lossy(),
         &format!("Installing pnpm CLI globally from {}", exec_dir.display()),
     );
-
-    // The published `pnpm` package ships a preinstall/postinstall pair that
-    // hardlinks the platform-specific binary out of its optional platform
-    // packages. None of that applies here: this `file:` dependency is the
-    // standalone executable itself, the platform packages aren't installed
-    // alongside it, and the host may have no `node` to run the scripts.
-    // Skipping them also avoids a build-approval prompt for pnpm's own
-    // install.
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
-    // preserved verbatim rather than lost to a lossy string conversion.
-    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
-    path_value.push(separator);
-    if let Some(existing) = std::env::var_os("PATH") {
-        path_value.push(existing);
-    }
     let status = Command::new(exec_path)
         .args(["add", "-g", "--ignore-scripts", &format!("file:{}", exec_dir.display())])
         .env("PNPM_HOME", pnpm_home_dir)
-        .env("PATH", path_value)
+        .env("PATH", bin_prepended_path(pnpm_home_dir))
         .status();
 
-    // Always attempt the cleanup, but let the install error take precedence
-    // over a cleanup error.
     let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
@@ -316,6 +317,16 @@ fn write_windows_alias_wrappers(
         )
         .as_bytes(),
     )
+}
+
+pub(crate) fn bin_prepended_path(pnpm_home_dir: &Path) -> std::ffi::OsString {
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
+    path_value
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.

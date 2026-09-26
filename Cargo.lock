@@ -4672,6 +4672,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-injected-deps-syncer",
  "pnpm-install-coordinator",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pnpm-lockfile-import",
  "pnpm-lockfile-preferred-versions",
