@@ -386,8 +386,8 @@ checks, and working the review rounds. These rules hold whether or not it is loa
     left by a PR, refactors, performance work, v11/v12 parity gaps, CI, benchmark
     and test-harness work, and docs to update after a release. Feature ideas go to
     [Discussions](https://github.com/pnpm/pnpm/discussions/new?category=ideas).
-    Report a security vulnerability through a private security advisory, never
-    in a public issue in either repository.
+    Report a security vulnerability the way [SECURITY.md](./SECURITY.md)
+    directs, not as a task.
 -   **Sign all agent-authored content.** When posting a comment, creating an issue, or opening a PR, append a footer to the message indicating that it was written by an agent. The footer must include the name of the agent and the name of the model used. Example:
 
     ```markdown
