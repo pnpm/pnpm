@@ -13,7 +13,7 @@ use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::IngestTarballToStore;
+use pnpm_tarball::{IngestTarballToStore, local_file_tarball_path};
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
@@ -210,35 +210,17 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         .into());
     };
 
-    IngestTarballToStore {
-        fetching: args.archive_options(),
-        package: pnpm_tarball::TarballPackage {
-            integrity: integrity.as_ref(),
-            unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
-            file_count: manifest_file_count(resolved.package.manifest.as_deref()),
-            url: package_url,
-            id: &package_id,
-        },
-        store: pnpm_tarball::ArchiveStoreContext {
-            dir: &args.config.store_dir,
-            index: args.store.index,
-            index_writer: Some(Arc::clone(args.store.index_writer)),
-            verify_integrity: args.config.verify_store_integrity,
-            strict_pkg_content_check: args.config.strict_store_pkg_content_check,
-            verified_files_cache: args.store.verified_files_cache,
-            prefetched_cas_paths: None,
-        },
+    args.ingest::<Reporter>(package_url, integrity.as_ref(), &resolved, &package_id).await?;
 
-        requester: args.requester,
-
-        ignore_file_pattern: None,
-
-        progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
+    // A tarball downloaded by hand holds the same bytes the registry
+    // serves, so indexing it under its `name@version` too lets an install
+    // whose lockfile records that integrity take it from the store.
+    if local_file_tarball_path(package_url).is_some()
+        && let Some(registry_id) = registry_package_id(resolved.package.manifest.as_deref())
+        && registry_id != package_id
+    {
+        args.ingest::<Reporter>(package_url, integrity.as_ref(), &resolved, &registry_id).await?;
     }
-    .run_without_mem_cache::<Reporter>()
-    .await
-    .map_err(miette::Report::new)?;
 
     Ok(package_id)
 }
@@ -269,7 +251,58 @@ fn store_resolver(
     .map_err(miette::Report::new)
 }
 
+/// The id a registry resolution of this manifest's package would carry.
+fn registry_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
+    let manifest = manifest?;
+    let name = manifest.get("name")?.as_str()?;
+    let version = manifest.get("version")?.as_str()?;
+    Some(format!("{name}@{version}"))
+}
+
 impl<'a> AddOne<'a> {
+    async fn ingest<Reporter: self::Reporter>(
+        &self,
+        package_url: &str,
+        integrity: Option<&Integrity>,
+        resolved: &ResolveResult,
+        package_id: &str,
+    ) -> miette::Result<()> {
+        IngestTarballToStore {
+            fetching: self.archive_options(),
+            package: pnpm_tarball::TarballPackage {
+                integrity,
+                unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
+                file_count: manifest_file_count(resolved.package.manifest.as_deref()),
+                url: package_url,
+                id: package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: self.store.index.clone(),
+                index_writer: Some(Arc::clone(self.store.index_writer)),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: SharedVerifiedFilesCache::clone(
+                    &self.store.verified_files_cache,
+                ),
+                prefetched_cas_paths: None,
+            },
+
+            requester: self.requester,
+
+            ignore_file_pattern: None,
+
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+        .run_without_mem_cache::<Reporter>()
+        .await
+        .map_err(miette::Report::new)?;
+        Ok(())
+    }
+
     fn archive_options(&self) -> pnpm_tarball::ArchiveFetchOptions<'a> {
         pnpm_tarball::ArchiveFetchOptions {
             http_client: self.http_client,
