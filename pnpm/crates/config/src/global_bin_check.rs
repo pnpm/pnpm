@@ -83,14 +83,15 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
 /// Windows did not expand the variable it references: the variable is unset,
 /// or it is a user variable stored as `REG_EXPAND_SZ`, which Windows does not
 /// expand inside the user `Path`. Name that entry instead of suggesting a
-/// `PATH` change the user has seemingly already made.
+/// `PATH` change the user has seemingly already made. Elsewhere `%` is not
+/// expansion syntax, so the entry is taken literally.
 fn not_in_path_hint(path_env: &str) -> String {
     let unexpanded = std::env::split_paths(path_env)
         .map(|dir| dir.to_string_lossy().into_owned())
         .find(|dir| has_unexpanded_env_reference(dir));
-    match unexpanded {
+    match unexpanded.filter(|_| cfg!(windows)) {
         Some(entry) => format!(
-            r#"PATH contains "{entry}", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
+            r#"PATH contains "{entry}", which was not expanded. A variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
         ),
         None => r#"Run "pnpm setup" to update your shell configuration."#.to_string(),
     }

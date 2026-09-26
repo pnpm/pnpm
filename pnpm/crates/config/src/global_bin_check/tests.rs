@@ -57,7 +57,7 @@ fn not_in_path_suggests_setup_when_no_entry_is_unexpanded() {
 /// Windows leaves `%PNPM_HOME%` in the user `Path` verbatim when
 /// `PNPM_HOME` is a `REG_EXPAND_SZ` user variable (pnpm/pnpm#5283).
 #[test]
-fn not_in_path_names_an_unexpanded_entry() {
+fn not_in_path_names_an_unexpanded_entry_only_on_windows() {
     let tmp = tempfile::tempdir().unwrap();
     let bin = tmp.path().join("bin");
     let path_env = std::env::join_paths([tmp.path().join("other"), PathBuf::from("%PNPM_HOME%")])
@@ -69,10 +69,12 @@ fn not_in_path_names_an_unexpanded_entry() {
     else {
         panic!("expected NotInPath");
     };
-    assert_eq!(
-        hint,
-        r#"PATH contains "%PNPM_HOME%", which was not expanded. On Windows, a variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#,
-    );
+    let expected = if cfg!(windows) {
+        r#"PATH contains "%PNPM_HOME%", which was not expanded. A variable referenced from the user Path must be set to a full path, without references such as %LOCALAPPDATA%, and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal."#
+    } else {
+        r#"Run "pnpm setup" to update your shell configuration."#
+    };
+    assert_eq!(hint, expected);
 }
 
 #[test]
