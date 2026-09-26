@@ -1,8 +1,9 @@
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
-    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier, record_matched_direct_update,
+    WorkspaceLinkTarget, emit_latest_ignored, latest_specifier, override_governed,
+    record_matched_direct_update,
     selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
-    workspace_specifier,
+    warn_pinned_override, workspace_specifier,
 };
 use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
 use pnpm_config::Config;
@@ -43,6 +44,19 @@ pub(super) struct OverriddenDirect {
     pub(super) name: String,
     pub(super) group: DependencyGroup,
     pub(super) effective_specifier: Option<String>,
+    /// The override entry that governs the dependency when its selector is
+    /// the package's bare name — the one entry an update can move, because
+    /// moving it moves the resolution with no selector to reinterpret.
+    /// `None` when a range-scoped or parent-scoped selector governs, or the
+    /// matched dependency is not directly overridden at all.
+    pub(super) bare_override: Option<BareOverrideEntry>,
+}
+
+/// A `pnpm.overrides` entry keyed by the bare package name, as written in
+/// `pnpm-workspace.yaml`.
+pub(super) struct BareOverrideEntry {
+    pub(super) key: String,
+    pub(super) value: String,
 }
 /// What the branches accumulate on the way to a seed policy.
 #[derive(Default)]
@@ -51,6 +65,11 @@ pub(super) struct UpdatePlan {
     pub(super) drop_targets: UpdateTargets,
     /// Manifest declarations to rewrite: `(name, group, specifier)`.
     pub(super) rewrites: Vec<(String, DependencyGroup, String)>,
+    /// Override entries to move: `(key, new value)`, keyed by the bare
+    /// package name the override pins. The move happens when an update that
+    /// names the package has to change the override for the resolution to
+    /// follow (pnpm/pnpm#8701).
+    pub(super) updated_overrides: Vec<(String, String)>,
     /// A compatible bump cannot name its version before the resolve, so the
     /// matched names are collected here and the install reports back what it
     /// settled on.
@@ -115,7 +134,7 @@ pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
 
     let remaining_scope = UpdateScope { direct: &remaining_direct, ..*scope };
     if remaining_scope.use_name_matcher() {
-        return Ok(Some(name_matched_seed_policy(&remaining_scope, plan)));
+        return Ok(Some(name_matched_seed_policy::<Reporter>(&remaining_scope, plan, rewrite_ctx)));
     }
     let res = selector_seed_policy::<Reporter>(
         &remaining_scope,
@@ -202,6 +221,13 @@ pub(super) async fn record_direct_update(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<(), UpdateError> {
     let (name, group, previous) = declared;
+    // An override owns this dependency's resolution, and a selector-less
+    // update is no request to move the override, so the pair is left alone
+    // ("update --latest preserves override-owned dependency resolutions").
+    if override_governed(scope, name, group).is_some() {
+        plan.drop_targets.insert(name.clone(), None);
+        return Ok(());
+    }
     if scope.version.latest
         && scope.version.save
         && let Some(specifier) =
@@ -238,9 +264,10 @@ pub(super) fn widen_drop_targets_to_lockfile(
 }
 /// Bare-name selectors with a depth: every matching name updates, at any
 /// depth.
-pub(super) fn name_matched_seed_policy(
+pub(super) fn name_matched_seed_policy<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
 ) -> UpdateSeedPolicy {
     let patterns = scope.selectors
         .iter()
@@ -251,7 +278,12 @@ pub(super) fn name_matched_seed_policy(
         if !matcher.matches(name) {
             continue;
         }
-        if scope.version.save {
+        // An override-governed declaration is not the bump's to move, and one
+        // pinned to a single version has no room to move at all, which the
+        // user should hear about.
+        if let Some(overridden) = override_governed(scope, name, *group) {
+            warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
+        } else if scope.version.save {
             plan.bump_targets.push((name.clone(), *group, previous.clone()));
         }
         plan.drop_targets.insert(name.clone(), None);

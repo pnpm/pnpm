@@ -1,5 +1,9 @@
 use super::{
     CatalogCtx, LatestResolverChain, LatestRewriteCtx, UpdateError, latest_specifier,
+    overrides::{
+        override_governed, override_owned_latest_rewrite, override_owned_rewrite,
+        warn_pinned_override,
+    },
     seed_policy::{UpdatePlan, UpdateScope},
     selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
     tag_version,
@@ -65,17 +69,17 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     inputs: MatchedRewriteInputs<'_, '_, '_>,
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, _, previous) = declared;
+    let (name, _, _) = declared;
     // The two sources are exclusive: `--latest` rejects versioned selectors.
     if scope.version.latest {
-        return latest_direct_rewrite(scope, inputs, (name, previous)).await;
+        return latest_direct_rewrite::<Reporter>(scope, plan, inputs, declared).await;
     }
-    let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     let requested = scope.selectors
         .iter()
         .find(|selector| matcher_one(&selector.pattern).matches(name))
         .and_then(|selector| selector.version.clone());
     if !scope.version.save {
+        let MatchedRewriteInputs { rewrite_ctx, .. } = inputs;
         return Ok(no_save_direct_rewrite::<Reporter>(
             scope,
             plan,
@@ -84,6 +88,21 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
             requested.as_deref(),
         ));
     }
+    saved_direct_rewrite::<Reporter>(scope, plan, inputs, declared, requested).await
+}
+/// The rewrite a saving update performs: seed a requested version, resolve a
+/// dist tag, or bump within the declared range. A dependency an override
+/// governs is the override's to answer, not the declaration's, when the
+/// update names no version of its own.
+async fn saved_direct_rewrite<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    inputs: MatchedRewriteInputs<'_, '_, '_>,
+    declared: (&String, DependencyGroup, &String),
+    requested: Option<String>,
+) -> Result<MatchedRewrite, UpdateError> {
+    let (name, group, previous) = declared;
+    let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
     if let Some(version) = requested.as_deref() {
         seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
     }
@@ -102,9 +121,14 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
         .await?;
         return Ok(MatchedRewrite::Target(rewritten));
     }
+    if requested.is_none()
+        && let Some(overridden) = override_governed(scope, name, group)
+    {
+        warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
+        return Ok(MatchedRewrite::Target(None));
+    }
     Ok(requested_direct_rewrite(scope, plan, declared, requested))
 }
-
 fn no_save_direct_rewrite<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
@@ -113,10 +137,7 @@ fn no_save_direct_rewrite<Reporter: self::Reporter>(
     requested: Option<&str>,
 ) -> MatchedRewrite {
     let (name, group, previous) = declared;
-    if let Some(overridden) = scope.overridden_direct
-        .iter()
-        .find(|item| item.name == *name && item.group == group)
-    {
+    if let Some(overridden) = override_governed(scope, name, group) {
         return override_owned_rewrite::<Reporter>(
             rewrite_ctx,
             name,
@@ -134,43 +155,6 @@ fn no_save_direct_rewrite<Reporter: self::Reporter>(
     rewrite
 }
 
-fn override_owned_rewrite<Reporter: self::Reporter>(
-    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
-    name: &str,
-    requested: Option<&str>,
-    effective_specifier: Option<&str>,
-) -> MatchedRewrite {
-    let Some(effective_specifier) = effective_specifier else {
-        if let Some(requested) = requested {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    r#"Skipping "{name}@{requested}": an override removes it from the manifest."#,
-                ),
-                prefix: package_manifest_prefix(rewrite_ctx.manifest),
-            }));
-        }
-        return MatchedRewrite::Skipped;
-    };
-    if let Some(requested) = requested
-        && matches!(
-            judge_against_kept_range(requested, effective_specifier),
-            KeptRangeVerdict::Excluded,
-        )
-    {
-        return kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, effective_specifier);
-    }
-    if let Some(requested) = requested.filter(|requested| *requested != effective_specifier) {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: format!(
-                r#"Ignoring "{name}@{requested}": "{name}" is controlled by an override, so its specifier "{effective_specifier}" was used instead."#,
-            ),
-            prefix: package_manifest_prefix(rewrite_ctx.manifest),
-        }));
-    }
-    MatchedRewrite::Target(None)
-}
 pub(super) fn requested_direct_rewrite(
     scope: &UpdateScope<'_>,
     plan: &mut UpdatePlan,
@@ -375,12 +359,13 @@ pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRange
     };
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
-async fn latest_direct_rewrite(
+async fn latest_direct_rewrite<Reporter: self::Reporter>(
     scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
     inputs: MatchedRewriteInputs<'_, '_, '_>,
-    declared: (&str, &str),
+    declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
-    let (name, previous) = declared;
+    let (name, group, previous) = (declared.0.as_str(), declared.1, declared.2.as_str());
     let MatchedRewriteInputs {
         rewrite_ctx,
         latest_chain,
@@ -389,6 +374,16 @@ async fn latest_direct_rewrite(
     } = inputs;
     if !scope.version.save {
         return Ok(MatchedRewrite::Target(None));
+    }
+    if let Some(overridden) = override_governed(scope, name, group) {
+        return override_owned_latest_rewrite::<Reporter>(
+            plan,
+            rewrite_ctx,
+            latest_chain,
+            name,
+            overridden,
+        )
+        .await;
     }
     let specifier = latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
     Ok(MatchedRewrite::Target(specifier))

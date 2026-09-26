@@ -5,8 +5,10 @@ import { expect, jest, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
+import { loadJsonFileSync } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
@@ -590,3 +592,63 @@ test('interactive recursive workspace update allows updating external dependenci
   expect(lockfile.packages).toHaveProperty(['is-negative@1.0.1'])
 })
 
+
+test('interactive update to latest moves the override that pins the selected dependency', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  const overrides = {
+    '@pnpm.e2e/foo': '1.0.0',
+  }
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  })
+  const storeDir = path.resolve('pnpm-store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    overrides,
+    storeDir,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  mockCheckbox.mockResolvedValue(['@pnpm.e2e/foo'])
+
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    linkWorkspacePackages: true,
+    overrides,
+    storeDir,
+  })
+
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '^1.0.0',
+  })
+  expect(readYamlFileSync<{ overrides: Record<string, string> }>('pnpm-workspace.yaml').overrides).toStrictEqual({
+    '@pnpm.e2e/foo': '2.0.0',
+  })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '2.0.0',
+    version: '2.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    frozenLockfile: true,
+    linkWorkspacePackages: true,
+    overrides: {
+      '@pnpm.e2e/foo': '2.0.0',
+    },
+    storeDir,
+  })
+})

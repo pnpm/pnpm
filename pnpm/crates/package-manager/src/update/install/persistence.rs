@@ -18,6 +18,7 @@ use std::path::Path;
 
 pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
     update: UpdateOptions<'_>,
+    site: &UpdateSite,
     manifest: &mut PackageManifest,
     prepared: &UpdatePreparation,
     importer_id: &str,
@@ -33,9 +34,12 @@ pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(
             should_persist_manifest: prepared.persist_manifest,
             importer_id,
             applied: applied.as_ref(),
-            workspace_dir_for_catalogs: prepared.workspace_dir_for_catalogs.as_deref(),
+            workspace_dir_for_catalogs: prepared.catalogs
+                .workspace_dir_for_catalogs
+                .as_deref(),
         },
     )?;
+    set_moved_overrides(&site.workspace_root, &prepared.updated_overrides)?;
 
     if let Some(ignored_builds) = ignored_builds {
         return Err(UpdateError::Install(ignored_builds));
@@ -60,7 +64,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
         prepared.persist_indices,
     );
     persist_selected_manifests::<Reporter>(projects, &persist_indices)?;
-    let workspace_dir = site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref());
+    let workspace_dir = site.catalogs_dir(prepared.catalogs.workspace_dir_for_catalogs.as_deref());
     if update.version.save
         && let Some(applied) = applied
             .as_ref()
@@ -74,11 +78,30 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
     }
+    set_moved_overrides(&site.workspace_root, &prepared.updated_overrides)?;
     if update.version.save {
         post_install_prune(update.config, Some(workspace_dir), manifest)
             .map_err(UpdateError::WriteWorkspaceManifest)?;
     }
     Ok(())
+}
+/// Persist the override entries an update moved into the workspace
+/// manifest. Runs after the install succeeded under them, so a failed
+/// install leaves the manifest as it was.
+fn set_moved_overrides(
+    workspace_root: &Path,
+    updated_overrides: &[(String, String)],
+) -> Result<(), UpdateError> {
+    if updated_overrides.is_empty() {
+        return Ok(());
+    }
+    pnpm_workspace_manifest_writer::set_overrides(
+        workspace_root,
+        updated_overrides
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str())),
+    )
+    .map_err(UpdateError::WriteOverrides)
 }
 /// What deciding the post-install manifest writes depends on.
 #[derive(Clone, Copy)]
