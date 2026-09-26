@@ -64,6 +64,89 @@ async function writePackageTarball (tarballPath: string, manifest: ProjectManife
   })
 }
 
+test.each([
+  ['the default package import method', undefined],
+  ['packageImportMethod=hardlink', 'hardlink' as const],
+])('deploy with a shared lockfile copies workspace package files instead of hard-linking to source with %s', async (_, packageImportMethod) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      location: path.join('packages', 'foo'),
+      package: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: path.join('packages', 'bar'),
+      package: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          foo: 'workspace:*',
+        },
+      },
+    },
+  ])
+  fs.writeFileSync(path.join('packages', 'foo', 'index.js'), 'module.exports = 1')
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'bar' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    packageImportMethod,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    packageImportMethod,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, [path.resolve('deploy')])
+
+  const virtualStoreDir = path.resolve('deploy', 'node_modules', '.pnpm')
+  const fooName = fs.readdirSync(virtualStoreDir).find(name => name.startsWith('foo@'))
+  expect(fooName).toBeDefined()
+  const deployedFooDir = path.join(virtualStoreDir, fooName!, 'node_modules', 'foo')
+  const deployedFooManifest = path.join(deployedFooDir, 'package.json')
+
+  fs.writeFileSync(path.resolve('packages', 'foo', 'package.json'), JSON.stringify({
+    name: 'foo',
+    version: '9.9.9',
+  }, undefined, 2))
+  fs.writeFileSync(path.join('packages', 'foo', 'index.js'), 'module.exports = 2')
+
+  expect(JSON.parse(fs.readFileSync(deployedFooManifest, 'utf-8'))).toMatchObject({
+    name: 'foo',
+    version: '1.0.0',
+  })
+  expect(fs.readFileSync(path.join(deployedFooDir, 'index.js'), 'utf-8')).toBe('module.exports = 1')
+})
+
 test('deploy with a shared lockfile after full install', async () => {
   const projectNames = ['project-1', 'project-2', 'project-3', 'project-4', 'project-5'] as const
 

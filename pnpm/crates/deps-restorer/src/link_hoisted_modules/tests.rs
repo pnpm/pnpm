@@ -6,7 +6,9 @@ use super::{
 use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
+use pnpm_lockfile::{
+    DirectoryResolution, LockfileResolution, PkgIdWithPatchHash, TarballResolution,
+};
 use pnpm_modules_yaml::DepPath;
 use pnpm_reporter::{
     LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
@@ -82,13 +84,13 @@ fn plant_package(
     cas_root: &Path,
     pkg_id: &str,
     files: &[(&str, &[u8])],
-) -> Arc<HashMap<String, PathBuf>> {
+) -> crate::HoistedPackageFiles {
     let mut combined = HashMap::new();
     for (rel, contents) in files {
         let single = plant_cas_file(cas_root, pkg_id, rel, contents);
         combined.extend(single);
     }
-    Arc::new(combined)
+    Arc::new(combined).into()
 }
 
 /// `(rel_path, contents)` describing one file to plant for a
@@ -139,6 +141,7 @@ fn import_pass_creates_package_directory() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -158,6 +161,57 @@ fn import_pass_creates_package_directory() {
         .join("index.js");
     assert!(installed.exists(), "imported file at {installed:?}");
     assert_eq!(fs::read(&installed).unwrap(), b"module.exports = 1;");
+}
+
+/// A custom fetcher can delegate a non-directory lockfile entry to a
+/// directory, so the linker must take mutability from the fetched files,
+/// not from the node's resolution.
+#[test]
+fn isolated_mutable_source_is_not_hard_linked() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (mut graph, hierarchy, mut cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("index.js", b"1")])],
+    );
+    let dir = lockfile_dir.join("node_modules/a");
+    graph.get_mut(&dir).expect("node").package.resolution = TarballResolution {
+        tarball: "file:a.tgz".to_string(),
+        integrity: None,
+        revision: None,
+        git_hosted: None,
+        path: None,
+    }
+    .into();
+    let files = cas_paths
+        .get_mut(&PkgIdWithPatchHash::from("a@1.0.0"))
+        .expect("files");
+    files.source_is_mutable = true;
+    let source = files.cas_paths["index.js"].clone();
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: true,
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    fs::write(&source, b"2").expect("edit the source in place");
+
+    assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");
 }
 
 #[test]
@@ -191,6 +245,7 @@ fn orphan_directory_is_removed() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -257,6 +312,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -308,6 +364,7 @@ fn missing_cas_for_required_dep_errors() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -352,6 +409,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -405,6 +463,7 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -476,6 +535,7 @@ fn entries_that_are_not_packages_are_preserved() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -522,6 +582,7 @@ fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -571,6 +632,7 @@ fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -603,6 +665,7 @@ fn no_prev_graph_still_installs() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -656,6 +719,7 @@ fn orphan_already_removed_is_tolerated() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -692,6 +756,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -746,6 +811,7 @@ fn import_pass_emits_one_imported_event_per_node() {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,
@@ -842,6 +908,7 @@ fn bundled_bin_with_missing_target_is_held_back() {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
             requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
         },
         dir_clone_cache: None,
         graph: &graph,

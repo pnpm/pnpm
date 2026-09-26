@@ -38,9 +38,18 @@ pub(super) struct ColdCapture<'a> {
 }
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
-    for ColdCapture { snapshot_key, cas_paths: paths, .. } in cold_cas_paths {
+    for ColdCapture {
+        snapshot_key,
+        cas_paths: paths,
+        source_is_mutable,
+        ..
+    } in cold_cas_paths
+    {
         map.entry(cas_paths_key(snapshot_key))
-            .or_insert_with(|| Arc::new(paths));
+            .or_insert_with(|| crate::HoistedPackageFiles {
+                cas_paths: Arc::new(paths),
+                source_is_mutable,
+            });
     }
 }
 /// An optional snapshot whose fetch fails is dropped rather than aborting the

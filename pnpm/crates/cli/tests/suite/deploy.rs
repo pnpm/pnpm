@@ -1002,3 +1002,5 @@ mod target;
 mod dependency_groups;
 
 mod virtual_store;
+
+mod source_isolation;

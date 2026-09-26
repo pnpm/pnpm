@@ -21,6 +21,32 @@ pub struct PackageImportOptions<'a> {
     /// `requester`. Same value as the `prefix` in
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
+    /// Mirrors [`Config::isolate_local_directory_imports`].
+    pub isolate_mutable_sources: bool,
+}
+
+impl<'a> PackageImportOptions<'a> {
+    #[must_use]
+    pub fn from_config(config: &Config, logged_methods: &'a AtomicU8, requester: &'a str) -> Self {
+        PackageImportOptions {
+            method: config.package_import_method,
+            logged_methods,
+            requester,
+            isolate_mutable_sources: config.isolate_local_directory_imports,
+        }
+    }
+
+    /// The method a package's files are actually materialized with: `clone-or-copy`
+    /// when a build or patch will still write them, or when the source is a
+    /// mutable local directory this install must not share inodes with;
+    /// [`Self::method`] otherwise.
+    #[must_use]
+    pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
+        crate::effective_import_method(
+            self.method,
+            needs_build || (source_is_mutable && self.isolate_mutable_sources),
+        )
+    }
 }
 
 #[derive(Clone, Copy)]

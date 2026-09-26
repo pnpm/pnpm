@@ -26,8 +26,8 @@ fn warm_cas_paths_share_prefetch_maps_and_deduplicate_peer_variants() {
 
     dbg!(&map);
     assert_eq!(map.len(), 2);
-    assert!(Arc::ptr_eq(&map[&cas_paths_key(&plain)], &paths));
-    assert!(Arc::ptr_eq(&map[&cas_paths_key(&patched)], &patched_paths));
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&plain)].cas_paths, &paths));
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&patched)].cas_paths, &patched_paths));
 }
 
 #[test]
@@ -55,6 +55,6 @@ fn cold_cas_paths_preserve_warm_entries_and_add_missing_packages() {
 
     dbg!(&map);
     assert_eq!(map.len(), 2);
-    assert!(Arc::ptr_eq(&map[&cas_paths_key(&warm_key)], &warm_paths));
-    assert_eq!(map[&cas_paths_key(&cold_key)]["index.js"].to_str(), Some("cas/cold"));
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&warm_key)].cas_paths, &warm_paths));
+    assert_eq!(map[&cas_paths_key(&cold_key)].cas_paths["index.js"].to_str(), Some("cas/cold"));
 }

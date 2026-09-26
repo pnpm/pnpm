@@ -55,7 +55,24 @@ use std::{
 /// directories (version conflict → some dirs nest under siblings)
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
-pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, Arc<HashMap<String, PathBuf>>>;
+pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
+
+/// One package's entry in [`CasPathsByPkgId`].
+#[derive(Debug, Clone)]
+pub struct HoistedPackageFiles {
+    pub cas_paths: Arc<HashMap<String, PathBuf>>,
+    /// Whether [`Self::cas_paths`] points at mutable local source, taken
+    /// from the fetch's effective resolution. See
+    /// [`crate::SlotImportSource::is_mutable`].
+    pub source_is_mutable: bool,
+}
+
+impl From<Arc<HashMap<String, PathBuf>>> for HoistedPackageFiles {
+    /// Content-addressed files, which are never mutable.
+    fn from(cas_paths: Arc<HashMap<String, PathBuf>>) -> Self {
+        HoistedPackageFiles { cas_paths, source_is_mutable: false }
+    }
+}
 
 /// A package directory on disk that the hoisting plan does not place.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -541,7 +558,7 @@ fn import_node<Reporter: self::Reporter>(
     if node.present {
         return Ok(false);
     }
-    let Some(cas_paths) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
+    let Some(files) = opts.cas_paths_by_pkg_id.get(&node.package.pkg_id_with_patch_hash) else {
         if node.optional {
             return Ok(false);
         }
@@ -551,12 +568,14 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
+    let cas_paths = &*files.cas_paths;
+    let import_method = opts.import.method_for(files.source_is_mutable, false);
     if !opts.dir_clone_cache.is_some_and(|cache| {
         cache.try_import::<Reporter>(node, opts.import, cas_paths)
     }) {
         import_indexed_dir::<Reporter>(
             opts.import.logged_methods,
-            opts.import.method,
+            import_method,
             &node.dir,
             cas_paths,
             hoisted_import_opts(node),
@@ -572,7 +591,7 @@ fn import_node<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {
-            method: crate::optimistic_wire_method(opts.import.method),
+            method: crate::optimistic_wire_method(import_method),
             requester: opts.import.requester.to_owned(),
             to: node.dir.to_string_lossy().into_owned(),
         },
