@@ -1,3 +1,4 @@
+use crate::_utils::enable_gvs_in_workspace_yaml;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -141,4 +142,31 @@ fn up_to_date_dry_run_does_not_register_the_project() {
         .success();
 
     assert!(!store_dir.projects().exists());
+}
+
+#[test]
+fn frozen_store_install_with_global_virtual_store_registers_the_project() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    fs::remove_dir_all(store_dir.projects()).expect("clear the project registry");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--frozen-store", "--offline"])
+        .assert()
+        .success();
+
+    let projects: Vec<_> = pnpm_store_dir::get_registered_projects(&store_dir)
+        .expect("list registered projects")
+        .iter()
+        .map(|project| canonicalize(project))
+        .collect();
+    assert_eq!(projects, [canonicalize(&workspace)]);
 }

@@ -118,9 +118,9 @@ impl StoreDir {
         );
 
         let reachable = mark_reachable_slots(&links_dir, &projects);
-        // Projects without the global virtual store register too, and frozen
-        // store installs don't, so no link from any registered project leaves
-        // the slots' users as unknown as an empty registry does.
+        // Projects without the global virtual store register too, so no link
+        // from any registered project leaves the slots' users as unknown as
+        // an empty registry does.
         if reachable.is_empty() {
             eprintln!("No registered project uses the global virtual store");
             return Ok(());

@@ -131,12 +131,13 @@ pub(super) fn build_state_allows_short_circuit(
 /// fast paths call it before they short-circuit, so a project installed
 /// unregistered still gets an entry. Store prune walks the workspace's `node_modules/.pnpm/` to find
 /// every installed package, so one entry per workspace is enough. A frozen
-/// store is read-only.
+/// store is read-only, but a global virtual store install still registers,
+/// best-effort, because prune removes the slots of an unregistered project.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
 /// surfaced as `tracing::warn!` instead.
 pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
-    if config.frozen_store {
+    if config.frozen_store && !config.enable_global_virtual_store {
         return;
     }
     // Create the store root before calling `register_project` so its
