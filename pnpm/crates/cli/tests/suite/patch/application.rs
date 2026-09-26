@@ -64,6 +64,31 @@ fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
     );
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/7613>.
+#[test]
+fn install_reports_the_applied_patches() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let install = |args: &[&str]| {
+        let output = pacquet(&workspace, args).output().expect("run install");
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        eprintln!("{args:?}:\n{stdout}");
+        assert!(output.status.success(), "install failed");
+        stdout
+    };
+    let report = "Applied patches:\nis-positive@1.0.0 \u{2714}";
+
+    assert!(install(&["install"]).contains(report));
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    assert!(install(&["install", "--frozen-lockfile"]).contains(report));
+
+    assert!(!install(&["install"]).contains("Applied patches"));
+
+    drop((root, mock_instance));
+}
+
 /// Regression test for <https://github.com/pnpm/pnpm/issues/14648>.
 #[test]
 fn install_level_patch_that_adds_install_scripts_asks_for_approval() {

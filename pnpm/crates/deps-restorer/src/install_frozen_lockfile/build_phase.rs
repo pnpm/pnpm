@@ -1,11 +1,11 @@
 //! Running package build scripts once the tree is materialized.
 
 use super::{
-    BuildModules, BuildModulesError, Config, Diagnostic, Display, Error, ExtendedPatchInfo,
-    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
-    PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
-    SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
-    importer_root_dir, link_top_level_bins,
+    AppliedPatchesLog, BuildModules, BuildModulesError, Config, Diagnostic, Display, Error,
+    ExtendedPatchInfo, HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel,
+    OsStr, PackageKey, PackageMetadata, PatchKeyConflictError, Reporter,
+    ResolvePatchedDependenciesError, SkippedSnapshots, SnapshotEntry,
+    direct_dep_names_for_importer, get_patch_info, importer_root_dir, link_top_level_bins,
 };
 
 #[cfg(test)]
@@ -151,6 +151,12 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         package_names: build_output.ignored_builds.clone(),
         strict_dep_builds: config.strict_dep_builds,
     }));
+    if !build_output.applied_patches.is_empty() {
+        Reporter::emit(&LogEvent::AppliedPatches(AppliedPatchesLog {
+            level: LogLevel::Debug,
+            package_names: build_output.applied_patches.clone(),
+        }));
+    }
 
     // `virtual_store_only` links no importer bins, so there is nothing
     // for the pass below to re-resolve. Dependency *build* scripts still
@@ -204,6 +210,7 @@ fn build_or_defer<Reporter: self::Reporter>(
             });
         crate::BuildModulesOutput {
             ignored_builds: Vec::new(),
+            applied_patches: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
             mutated_slots: false,
         }

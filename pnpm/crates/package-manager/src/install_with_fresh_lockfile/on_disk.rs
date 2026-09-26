@@ -329,6 +329,7 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
     let crate::BuildModulesOutput {
         ignored_builds,
+        applied_patches: _,
         deferred_builds,
         mutated_slots: _,
     } = inputs.build::<Reporter>(&materialized, &linked, skipped).await?;

@@ -48,7 +48,9 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
 };
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::{
+    AppliedPatchesLog, IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog,
+};
 use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
