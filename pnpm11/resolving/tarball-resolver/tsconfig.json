@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../fetching/tarball-fetcher"
-    },
-    {
       "path": "../../fetching/types"
     },
     {

@@ -140,7 +140,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'userAgent' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex' | 'cacheDir'>
+  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'userAgent' | 'includeOnlyPackageFiles' | 'offline' | 'fetchMinSpeedKiBps' | 'storeIndex'>
 ): Fetchers {
   const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   return {

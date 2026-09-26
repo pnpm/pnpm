@@ -31,7 +31,6 @@ const {
   createDownloader,
   BadTarballError,
   TarballIntegrityError,
-  loadTarballResolution,
 } = await import('@pnpm/fetching.tarball-fetcher')
 
 let mockAgent: MockAgent
@@ -1154,54 +1153,4 @@ test.each([
     for (const socket of sockets) socket.destroy()
     server.close()
   }
-})
-
-test('revalidates stale tarball with If-None-Match and reuses stored content on 304', async () => {
-  const cacheDir = temporaryDirectory()
-  const customStoreDir = temporaryDirectory()
-  const customCafs = createCafsStore(customStoreDir)
-  const customStoreIndex = new StoreIndex(customStoreDir)
-  const customFilesIndexFile = path.join(customStoreDir, 'index.json')
-  const fetcher = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
-    storeIndex: customStoreIndex,
-    cacheDir,
-  })
-
-  const tarballContent = fs.readFileSync(tarballPath)
-  const mockPool = mockAgent.get(registry)
-
-  mockPool.intercept({ path: '/revalidate.tgz', method: 'GET' }).reply(200, tarballContent, {
-    headers: {
-      etag: '"initial-etag"',
-      'cache-control': 'public, max-age=0',
-    },
-  })
-
-  const url = `${registry}/revalidate.tgz`
-  const fetchOpts = { filesIndexFile: customFilesIndexFile, lockfileDir: customStoreDir, pkg }
-  const res1 = await fetcher.remoteTarball(customCafs, { tarball: url }, fetchOpts)
-  expect(res1.filesMap.size).toBeGreaterThan(0)
-
-  let ifNoneMatchSent: string | undefined
-  mockPool.intercept({ path: '/revalidate.tgz', method: 'GET' }).reply(({ headers }) => {
-    ifNoneMatchSent = (headers as Record<string, string>)['if-none-match']
-    return {
-      statusCode: 304,
-      data: '',
-      responseOptions: {
-        headers: {
-          etag: '"updated-etag"',
-          'cache-control': 'public, max-age=3600',
-        },
-      },
-    }
-  })
-
-  const res2 = await fetcher.remoteTarball(customCafs, { tarball: url }, fetchOpts)
-  expect(res2.integrity).toBe(res1.integrity)
-  expect(res2.filesMap.size).toBe(res1.filesMap.size)
-  expect(ifNoneMatchSent).toBe('"initial-etag"')
-
-  const record = loadTarballResolution(cacheDir, url)
-  expect(record?.etag).toBe('"updated-etag"')
 })

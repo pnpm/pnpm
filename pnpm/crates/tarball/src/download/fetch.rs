@@ -120,8 +120,7 @@ pub(crate) enum AttemptedFetch {
 fn empty_meta(package_url: &str) -> crate::archive_request::ArchiveResponseMeta {
     crate::archive_request::ArchiveResponseMeta {
         not_modified: false,
-        etag: None,
-        cache_control: None,
+        cache_headers: crate::CacheHeaders::default(),
         final_url: package_url.to_owned(),
     }
 }
@@ -276,6 +275,8 @@ impl TarballDownload<'_> {
             }
         };
         drop(stream);
+        // Release the network slot before the CPU-bound extraction gate.
+        // Gating buffering with that smaller semaphore would serialize downloads.
         drop(client);
         extract_tarball_buffer(
             buffer,

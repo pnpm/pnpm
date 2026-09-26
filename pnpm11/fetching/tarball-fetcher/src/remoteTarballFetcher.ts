@@ -8,20 +8,13 @@ import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
-import type { Cafs, FilesMap } from '@pnpm/store.cafs-types'
-import { type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import type { Cafs } from '@pnpm/store.cafs-types'
+import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 
 import { BadTarballError } from './errorTypes/index.js'
-import {
-  hasDirective,
-  loadTarballResolution,
-  storeTarballResolution,
-  tarballFreshness,
-  tarballRecordTimestamp,
-} from './httpCache.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -40,7 +33,6 @@ export type DownloadOptions = {
   retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
-  cacheDir?: string
   pkgId?: string
 } & Pick<FetchOptions, 'appendManifest' | 'readManifest' | 'filesIndexFile' | 'ignoreFilePattern'>
 
@@ -137,21 +129,10 @@ export function createDownloader (
     })
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
-      const cacheKey = opts.pkgId ?? url
-      const cached = opts.cacheDir && !authHeaderValue && !opts.getAuthHeaderByURI(url)
-        ? loadTarballResolution(opts.cacheDir, cacheKey)
-        : undefined
-      const freshness = cached ? tarballFreshness(cached) : undefined
-      const stored = cached ? fetchResultFromStore(opts, cached.integrity) : undefined
-      if (freshness === 'fresh' && stored) {
-        return stored
-      }
       let data: Buffer
-      let res: Response
       try {
-        res = await fetchFromRegistry(url, {
+        const res = await fetchFromRegistry(url, {
           authHeaderValue,
-          ifNoneMatch: freshness === 'revalidate' && stored ? cached?.etag : undefined,
           // Tarballs are already compressed; ask the server not to apply an additional
           // Content-Encoding so Content-Length matches the body we receive and we don't
           // waste CPU on round-trip re-compression. See https://github.com/pnpm/pnpm/issues/11506
@@ -166,15 +147,6 @@ export function createDownloader (
           timeout: gotOpts.timeout,
         })
 
-        if (res.status === 304 && cached && opts.cacheDir && stored) {
-          storeTarballResolution(opts.cacheDir, {
-            ...cached,
-            etag: res.headers.get('etag') ?? cached.etag,
-            cacheControl: res.headers.get('cache-control') ?? cached.cacheControl,
-            ...tarballRecordTimestamp(res.headers, cached),
-          })
-          return stored
-        }
         if (res.status !== 200) {
           throw new FetchError({ url, authHeaderValue }, res)
         }
@@ -250,7 +222,7 @@ export function createDownloader (
         })
         throw error
       }
-      const fetched = await addFilesFromTarball({
+      return addFilesFromTarball({
         buffer: data,
         storeDir: opts.cafs.storeDir,
         storeIndex: opts.storeIndex,
@@ -263,75 +235,8 @@ export function createDownloader (
         appendManifest: opts.appendManifest,
         ignoreFilePattern: opts.ignoreFilePattern,
       })
-      rememberTarballResolution(opts, cacheKey, url, res, fetched.integrity, authHeaderValue)
-      return fetched
     }
   }
-}
-
-function rememberTarballResolution (
-  opts: DownloadOptions,
-  cacheKey: string,
-  requestedUrl: string,
-  res: { url: string, headers: { get (name: string): string | null } },
-  integrity: string | undefined,
-  authHeaderValue?: string
-): void {
-  if (opts.cacheDir && integrity && !authHeaderValue && !opts.getAuthHeaderByURI(requestedUrl)) {
-    const cacheControl = res.headers.get('cache-control') ?? undefined
-    storeTarballResolution(opts.cacheDir, {
-      url: cacheKey,
-      tarball: cacheControl && hasDirective(cacheControl, 'immutable') ? res.url : requestedUrl,
-      integrity,
-      etag: res.headers.get('etag') ?? undefined,
-      cacheControl,
-      ...tarballRecordTimestamp(res.headers),
-    })
-  }
-  if (!integrity) return
-  opts.storeIndex.flush()
-  const raw = opts.storeIndex.getRaw(opts.filesIndexFile)
-  const pkgId = opts.pkgId
-  if (!raw || !pkgId) return
-  const key = storeIndexKey(integrity, pkgId)
-  if (key !== opts.filesIndexFile) {
-    opts.storeIndex.setRawMany([{ key, buffer: raw }])
-  }
-}
-
-function fetchResultFromStore (opts: DownloadOptions, integrity: string): FetchResult | undefined {
-  const pkgId = opts.pkgId
-  const integrityKey = pkgId ? storeIndexKey(integrity, pkgId) : undefined
-  const keys = integrityKey ? [integrityKey, opts.filesIndexFile] : [opts.filesIndexFile]
-  for (const key of keys) {
-    if (integrityKey && key !== integrityKey && storedKeyIntegrity(key) !== integrity) continue
-    const index = opts.storeIndex.get(key) as {
-      files?: Map<string, { digest: string, mode: number }>
-      manifest?: FetchResult['manifest']
-      requiresBuild?: boolean
-      requiresPrepare?: boolean
-    } | undefined
-    if (!index?.files) continue
-    const filesMap: FilesMap = new Map()
-    for (const [name, info] of index.files) {
-      filesMap.set(name, opts.cafs.getFilePathByModeInCafs(info.digest, info.mode))
-    }
-    return {
-      filesIndexFile: key,
-      filesMap,
-      manifest: index.manifest,
-      requiresBuild: index.requiresBuild === true,
-      requiresPrepare: index.requiresPrepare,
-      integrity,
-    }
-  }
-  return undefined
-}
-
-function storedKeyIntegrity (key: string): string | undefined {
-  const separator = key.indexOf('\t')
-  if (separator <= 0) return undefined
-  return key.slice(0, separator)
 }
 
 function getSecureNodeMirrorAuthHeader (

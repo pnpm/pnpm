@@ -2,15 +2,26 @@ use crate::{HttpStatusError, NetworkError, TarballError, auth_header_for_package
 use pnpm_network::{AuthHeaders, ThrottledClient, ThrottledClientGuard, is_permanent_error};
 use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, Reporter};
 
-/// Authorize and start one archive request. The returned permit must remain
-/// alive until the caller finishes consuming the body.
-pub(crate) struct ArchiveResponseMeta {
-    pub not_modified: bool,
+/// The HTTP caching headers of an archive response, kept verbatim so the
+/// caller can decide whether and for how long the response may be reused.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CacheHeaders {
     pub etag: Option<String>,
     pub cache_control: Option<String>,
+    pub age: Option<String>,
+    pub date: Option<String>,
+}
+
+pub(crate) struct ArchiveResponseMeta {
+    pub not_modified: bool,
+    pub cache_headers: CacheHeaders,
     pub final_url: String,
 }
 
+/// Authorize and start one archive request. The returned permit must remain
+/// alive until the caller finishes consuming the body. `if_none_match` makes
+/// the request conditional; a `304` answer is then returned as a success
+/// with [`ArchiveResponseMeta::not_modified`] set.
 #[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent request inputs; bundling them into a struct only moves the same fields into a wrapper"
@@ -37,6 +48,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     };
     let sent =
         send_archive_request(&client, package_url, package_id, auth_headers, if_none_match).await;
+    // Failed connects are attempts too; the reporter's counter starts at one.
     let size = sent
         .as_ref()
         .ok()
@@ -63,8 +75,12 @@ fn emit_started<Reporter: self::Reporter>(attempt: u32, package_id: &str, size: 
 fn response_meta(response: &reqwest::Response) -> ArchiveResponseMeta {
     ArchiveResponseMeta {
         not_modified: response.status() == reqwest::StatusCode::NOT_MODIFIED,
-        etag: header_string(response, reqwest::header::ETAG),
-        cache_control: header_string(response, reqwest::header::CACHE_CONTROL),
+        cache_headers: CacheHeaders {
+            etag: header_string(response, reqwest::header::ETAG),
+            cache_control: header_string(response, reqwest::header::CACHE_CONTROL),
+            age: header_string(response, reqwest::header::AGE),
+            date: header_string(response, reqwest::header::DATE),
+        },
         final_url: response.url().to_string(),
     }
 }

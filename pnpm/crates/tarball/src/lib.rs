@@ -1,4 +1,5 @@
 pub use archive_options::*;
+pub use archive_request::CacheHeaders;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{

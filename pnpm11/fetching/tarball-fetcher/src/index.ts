@@ -27,17 +27,6 @@ export { TarballIntegrityError }
 
 // Export individual fetcher factories for custom fetcher authors
 export { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
-export type {
-  TarballFreshness,
-  TarballResolutionRecord,
-} from './httpCache.js'
-export {
-  hasDirective,
-  loadTarballResolution,
-  removeTarballResolution,
-  storeTarballResolution,
-  tarballFreshness,
-} from './httpCache.js'
 export { createLocalTarballFetcher } from './localTarballFetcher.js'
 export { createDownloader, type CreateDownloaderOptions, type DownloadFunction } from './remoteTarballFetcher.js'
 
@@ -57,7 +46,6 @@ export function createTarballFetcher (
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
-    cacheDir?: string
   } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps'>
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
@@ -71,7 +59,6 @@ export function createTarballFetcher (
     getAuthHeaderByURI: getAuthHeader,
     offline: opts.offline,
     storeIndex: opts.storeIndex,
-    cacheDir: opts.cacheDir,
   }) as FetchFunction
   // Missing integrity is the only remote-tarball case that must fetch before store reuse.
   remoteTarballFetcher.resolutionNeedsFetch = (resolution) => {
@@ -91,7 +78,6 @@ async function fetchFromTarball (
     getAuthHeaderByURI: GetAuthHeader
     offline?: boolean
     storeIndex: StoreIndex
-    cacheDir?: string
   },
   cafs: Cafs,
   resolution: {
@@ -117,7 +103,6 @@ async function fetchFromTarball (
     registry: resolution.registry,
     filesIndexFile: opts.filesIndexFile,
     pkg: opts.pkg,
-    cacheDir: ctx.cacheDir,
     pkgId: opts.pkgResolutionId,
     redirect: resolution.revision == null ? undefined : 'manual',
     retry: resolution.revision == null ? undefined : { retries: 0 },

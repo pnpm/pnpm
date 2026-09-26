@@ -6187,7 +6187,10 @@ dependencies = [
 name = "pnpm-resolving-tarball-resolver"
 version = "0.0.1"
 dependencies = [
+ "httpdate",
  "mockito",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-network",
  "pnpm-reporter",
@@ -6197,7 +6200,6 @@ dependencies = [
  "pretty_assertions",
  "reqwest",
  "serde_json",
- "sha2",
  "ssri",
  "tokio",
 ]

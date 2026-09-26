@@ -2,7 +2,7 @@
 //! through the in-memory cache.
 
 use crate::{
-    CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
+    CacheHeaders, CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
     apply_placeholder_manifest, claim_cache_entry,
     download::{AttemptedFetch, fetch_and_extract_conditional},
     package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
@@ -25,17 +25,17 @@ use tokio::sync::{Notify, RwLock};
 pub struct ResolvedTarball {
     pub integrity: Integrity,
     pub manifest: Option<serde_json::Value>,
-    /// Validators from the response that produced this archive. Empty when
-    /// the bytes came from the in-memory cache rather than the network.
-    pub etag: Option<String>,
-    pub cache_control: Option<String>,
+    /// Caching headers of the response that produced this archive. Empty
+    /// when the bytes came from the in-memory cache rather than the network.
+    pub cache_headers: CacheHeaders,
+    /// The URL the archive was served from, after redirects.
     pub final_url: String,
 }
 
 /// A resolve-time fetch that may be satisfied by `304 Not Modified`.
 pub enum TarballResolutionFetch {
     Resolved(ResolvedTarball),
-    NotModified { etag: Option<String>, cache_control: Option<String> },
+    NotModified(CacheHeaders),
 }
 
 /// Download a remote tarball during *resolution*, settle its sha512
@@ -104,37 +104,24 @@ struct ExtractedTarball {
 
 struct ExtractedWithValidators {
     body: ExtractedTarball,
-    etag: Option<String>,
-    cache_control: Option<String>,
+    cache_headers: CacheHeaders,
     final_url: String,
 }
 
 impl ExtractedWithValidators {
     fn into_resolved(self) -> ResolvedTarball {
-        self.body.into_resolved(self.etag, self.cache_control, self.final_url)
+        ResolvedTarball {
+            integrity: self.body.integrity,
+            manifest: self.body.manifest,
+            cache_headers: self.cache_headers,
+            final_url: self.final_url,
+        }
     }
 }
 
 enum FetchedBody {
     Extracted(ExtractedWithValidators),
-    NotModified { etag: Option<String>, cache_control: Option<String> },
-}
-
-impl ExtractedTarball {
-    fn into_resolved(
-        self,
-        etag: Option<String>,
-        cache_control: Option<String>,
-        final_url: String,
-    ) -> ResolvedTarball {
-        ResolvedTarball {
-            integrity: self.integrity,
-            manifest: self.manifest,
-            etag,
-            cache_control,
-            final_url,
-        }
-    }
+    NotModified(CacheHeaders),
 }
 
 impl FetchTarballForResolution<'_> {
@@ -145,7 +132,7 @@ impl FetchTarballForResolution<'_> {
         let url = self.package.url.to_string();
         match self.run_with_cache::<Reporter>(mem_cache, None).await? {
             TarballResolutionFetch::Resolved(resolved) => Ok(resolved),
-            TarballResolutionFetch::NotModified { .. } => {
+            TarballResolutionFetch::NotModified(_) => {
                 Err(TarballError::HttpStatus(crate::HttpStatusError { url, status: 304 }))
             }
         }
@@ -200,8 +187,7 @@ impl FetchTarballForResolution<'_> {
         Ok(ResolvedTarball {
             integrity,
             manifest,
-            etag: None,
-            cache_control: None,
+            cache_headers: CacheHeaders::default(),
             final_url: self.package.url.to_owned(),
         })
     }
@@ -237,7 +223,7 @@ impl FetchTarballForResolution<'_> {
                 .await;
                 Ok(extracted.into_resolved())
             }
-            Ok(FetchedBody::NotModified { .. }) => {
+            Ok(FetchedBody::NotModified(_)) => {
                 Err(TarballError::HttpStatus(crate::HttpStatusError {
                     url: self.package.url.to_string(),
                     status: 304,
@@ -263,8 +249,8 @@ impl FetchTarballForResolution<'_> {
         if_none_match: Option<&str>,
     ) -> Result<TarballResolutionFetch, TarballError> {
         match self.fetch_extracted::<Reporter>(if_none_match).await? {
-            FetchedBody::NotModified { etag, cache_control } => {
-                Ok(TarballResolutionFetch::NotModified { etag, cache_control })
+            FetchedBody::NotModified(cache_headers) => {
+                Ok(TarballResolutionFetch::NotModified(cache_headers))
             }
             FetchedBody::Extracted(extracted) => {
                 if let Some(mem_cache) = mem_cache {
@@ -311,9 +297,7 @@ impl FetchTarballForResolution<'_> {
         )
         .await?;
         match fetched {
-            AttemptedFetch::NotModified(meta) => {
-                Ok(FetchedBody::NotModified { etag: meta.etag, cache_control: meta.cache_control })
-            }
+            AttemptedFetch::NotModified(meta) => Ok(FetchedBody::NotModified(meta.cache_headers)),
             AttemptedFetch::Extracted(extracted) => {
                 self.process_extracted(*extracted).await.map(FetchedBody::Extracted)
             }
@@ -341,8 +325,7 @@ impl FetchTarballForResolution<'_> {
                 manifest,
                 root_manifest,
             },
-            etag: extracted.meta.etag,
-            cache_control: extracted.meta.cache_control,
+            cache_headers: extracted.meta.cache_headers,
             final_url: extracted.meta.final_url,
         })
     }

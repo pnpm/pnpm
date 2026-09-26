@@ -105,10 +105,23 @@ impl TarballResolver {
             return Ok(None);
         }
 
+        // Round-trip through `Url::parse` to drop a redundant default
+        // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
+        // it reaches the lockfile.
         let normalized_bare_specifier = reqwest::Url::parse(bare)
             .map_err(|err| Box::new(err) as ResolveError)?
             .to_string();
 
+        // Warm-store reuse: when the prior
+        // lockfile recorded this exact tarball URL with an integrity and
+        // the content is already extracted in the store, reuse the cached
+        // integrity + bundled manifest instead of re-downloading. The
+        // bundled manifest carries the same dependency fields a fresh
+        // extraction would, so transitive resolution is unchanged. Done
+        // before the HEAD request so a hit needs no network at all (this
+        // is what lets a re-resolve succeed under `--offline`). Any miss
+        // (cold store, key drift, a row without a bundled manifest) falls
+        // through to the HEAD + download below.
         if let Some(reused) =
             self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
         {
@@ -131,6 +144,10 @@ impl TarballResolver {
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
 
+        // No store context (unit tests): keep the HEAD-only shape. The
+        // download below is what fills `manifest` + `integrity`; without
+        // a store to extract into there's nothing to fetch, so leave
+        // them unset.
         let Some(ctx) = self.fetch_context.as_ref() else {
             return Ok(Some(Self::head_only_result(
                 wanted_dependency,
@@ -141,6 +158,12 @@ impl TarballResolver {
             )));
         };
 
+        // Download the tarball, compute its sha512 integrity, extract it
+        // to the store, and read its bundled manifest. Warms `mem_cache`
+        // (keyed by `resolved_url`) so the install pass reuses the
+        // extraction. Silent reporter: the install pass owns the
+        // `resolved → found_in_store → imported` event ordering (see
+        // `prefetching_resolver.rs`).
         let resolved = self
             .tarball_fetch(ctx, &normalized_bare_specifier, &resolved_url)
             .run::<SilentReporter>(ctx.mem_cache.as_deref())
@@ -160,7 +183,7 @@ impl TarballResolver {
     /// The normalized specifier is the store package ID even when an immutable
     /// redirect changes the download URL: the lockfile and install pass key the
     /// store-index row by this ID. The manifest is at the tarball root.
-    pub(super) fn tarball_fetch<'a>(
+    fn tarball_fetch<'a>(
         &'a self,
         ctx: &'a TarballFetchContext,
         normalized_bare_specifier: &'a str,
@@ -259,7 +282,7 @@ impl TarballResolver {
     /// `name@<url>`, derived downstream from the manifest name);
     /// `integrity` and `manifest` are filled once the tarball is
     /// fetched.
-    pub(super) fn head_only_result(
+    fn head_only_result(
         wanted_dependency: &WantedDependency,
         normalized_bare_specifier: String,
         resolved_url: String,
