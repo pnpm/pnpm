@@ -421,6 +421,7 @@ interface FetchLock {
   fetching: Promise<PkgRequestFetchResult>
   filesIndexFile: string
   fetchRawManifest?: boolean
+  unblock?: () => void
 }
 
 interface GetFilesIndexFilePathResult {
@@ -511,12 +512,23 @@ function fetchToStore (
   if (!ctx.fetchingLocker.has(fetchingKey)) {
     const fetching = pDefer<PkgRequestFetchResult>()
 
-    doFetchToStore(filesIndexFile, fetching, target, resolution)
+    let blocker: Promise<void> | undefined
+    let unblock: (() => void) | undefined
+    if (resolution.type === 'directory') {
+      const blocked = pDefer<void>()
+      blocker = blocked.promise
+      unblock = () => {
+        blocked.resolve()
+      }
+    }
+
+    doFetchToStore(filesIndexFile, { fetching, target, resolution, blocker })
 
     ctx.fetchingLocker.set(fetchingKey, {
       fetching: removeKeyOnFail(fetching.promise),
       filesIndexFile,
       fetchRawManifest: opts.fetchRawManifest,
+      unblock,
     })
 
     // When files resolves, the cached result has to set fromStore to true, without
@@ -602,8 +614,13 @@ function fetchToStore (
     }))
     : result.fetching
 
+  const fetchLock = ctx.fetchingLocker.get(fetchingKey)!
+  const sharedFetching = pShare(fetching)
   return {
-    fetching: pShare(fetching),
+    fetching: () => {
+      fetchLock.unblock?.()
+      return sharedFetching()
+    },
     get filesIndexFile () {
       return filesIndexResult.filesIndexFile
     },
@@ -621,12 +638,21 @@ function fetchToStore (
     }
   }
 
+  interface DoFetchToStoreOptions {
+    fetching: DeferredPromise<PkgRequestFetchResult>
+    target: string
+    resolution: AtomicResolution
+    blocker?: Promise<void>
+  }
+
   async function doFetchToStore (
     filesIndexFile: string,
-    fetching: DeferredPromise<PkgRequestFetchResult>,
-    target: string,
-    resolution: AtomicResolution
+    fetchOpts: DoFetchToStoreOptions
   ) {
+    const { fetching, target, resolution, blocker } = fetchOpts
+    if (blocker != null) {
+      await blocker
+    }
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'

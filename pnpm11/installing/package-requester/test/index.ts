@@ -1989,3 +1989,63 @@ test('readPackageHook mutating engines in-place does not pollute shared manifest
   expect(secondResponse.body.manifest?.engines?.node).not.toBe('99.99.99')
 })
 
+test('directory dependency fetch is deferred until fetching() is invoked', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  let directoryFetcherCalled = false
+  const customFetchers = {
+    ...fetchers,
+    directory: (async () => {
+      directoryFetcherCalled = true
+      return {
+        local: true as const,
+        filesMap: new Map(),
+        packageImportMethod: 'hardlink' as const,
+        manifest: { name: 'local-pkg', version: '1.0.0' },
+        requiresBuild: false,
+      }
+    }) as unknown as typeof fetchers.directory,
+  }
+
+  const customResolve: typeof resolve = async () => ({
+    id: 'file:../local-pkg' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution: {
+      type: 'directory',
+      directory: '../local-pkg',
+    },
+    manifest: {
+      name: 'local-pkg',
+      version: '1.0.0',
+    },
+    resolvedVia: 'local-dir',
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers: customFetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const response = await requestPackage(
+    { alias: 'local-pkg', bareSpecifier: 'file:../local-pkg' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  await delay(50)
+  expect(directoryFetcherCalled).toBe(false)
+
+  await response.fetching!()
+  expect(directoryFetcherCalled).toBe(true)
+})
+
