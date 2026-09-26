@@ -105,6 +105,14 @@ upstreams: {}
 }
 
 #[test]
+fn max_users_from_explicit() {
+    assert_eq!(super::super::MaxUsers::from_explicit(-1), super::super::MaxUsers::Disabled);
+    assert_eq!(super::super::MaxUsers::from_explicit(-42), super::super::MaxUsers::Disabled);
+    assert_eq!(super::super::MaxUsers::from_explicit(0), super::super::MaxUsers::Limited(0));
+    assert_eq!(super::super::MaxUsers::from_explicit(100), super::super::MaxUsers::Limited(100));
+}
+
+#[test]
 fn registry_level_access_is_the_default_for_omitted_fields() {
     let yaml = "\
 storage: ./s
