@@ -434,11 +434,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     rebuildHandler: commands?.rebuild,
-    frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
-      opts.ci && !opts.lockfileOnly &&
-      typeof opts.frozenLockfile === 'undefined' &&
-      typeof opts.preferFrozenLockfile === 'undefined'
-    ),
+    frozenLockfileIfExists: shouldFreezeLockfileIfExists(opts),
     include,
     includeDirect: include,
     isInstallCommand: true,
@@ -494,3 +490,13 @@ function renderDryRunReport (dryRunResult: DryRunInstallResult): string {
     renderDedupeCheckIssues(issues),
   ].join('\n')
 }
+
+export function shouldFreezeLockfileIfExists (opts: InstallCommandOptions, onCI: boolean = opts.ci ?? false): boolean {
+  if (opts.frozenLockfileIfExists != null) {
+    return opts.frozenLockfileIfExists
+  }
+  return Boolean(onCI && !opts.lockfileOnly && !opts.resolutionOnly &&
+    opts.frozenLockfile !== false &&
+    opts.preferFrozenLockfile !== false)
+}
+
