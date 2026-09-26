@@ -1,14 +1,10 @@
 import path from 'node:path'
 
-export interface IParseResult {
-  buffer: ArrayBufferLike
-  files: Map<string, IFile>
-}
+export type OnTarballFile = (relativePath: string, mode: number, content: Buffer) => void
 
-export interface IFile {
-  offset: number
-  mode: number
-  size: number
+export interface TarballParser {
+  push: (chunk: Buffer) => void
+  end: () => void
 }
 
 const ZERO: number = '0'.charCodeAt(0)
@@ -22,60 +18,195 @@ const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
 const FILE_TYPE_PAX_GLOBAL_HEADER: number = 'g'.charCodeAt(0)
 const FILE_TYPE_LONGLINK: number = 'L'.charCodeAt(0)
 
+const BLOCK_SIZE = 512
 const MODE_OFFSET = 100
 const FILE_SIZE_OFFSET = 124
 const CHECKSUM_OFFSET = 148
 const FILE_TYPE_OFFSET = 156
 const PREFIX_OFFSET = 345
 
-// See TAR specification here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
-export function parseTarball (buffer: Buffer): IParseResult {
-  const files = new Map<string, IFile>()
+interface PendingEntry {
+  fileType: number
+  fileName: string
+  mode: number
+  size: number
+}
 
-  let pathTrimmed: boolean = false
+/**
+ * Parses a TAR archive fed to it in chunks of any size, calling `onFile` for
+ * every regular file (and hard link) in archive order. A later entry with the
+ * same path supersedes an earlier one, so callers must let the last call win.
+ *
+ * An entry's content is handed out as a zero-copy view when it lies within a
+ * single pushed chunk, so pushing a whole archive at once allocates nothing
+ * per file. Otherwise the parser holds at most one entry's content at a time.
+ *
+ * See the TAR specification: https://www.gnu.org/software/tar/manual/html_node/Standard.html
+ */
+export function createTarballParser (onFile: OnTarballFile): TarballParser {
+  const chunks: Buffer[] = []
+  let chunkOffset = 0
+  let available = 0
+  let consumed = 0
+  let finished = false
 
-  let mode: number = 0
-  let fileSize: number = 0
-  let fileType: number = 0
+  let entry: PendingEntry | undefined
+  let content: { buffer: Buffer, filled: number } | undefined
+  let bytesToSkip = 0
 
-  let prefix: string = ''
-  let fileName: string = ''
   let longLinkPath = ''
-
   // If a PAX extended header record is encountered and has a path field, it overrides the next entry's path.
-  let paxHeaderPath: string = ''
+  let paxHeaderPath = ''
   let paxHeaderFileSize: number | undefined
 
-  let blockBytes: number = 0
+  return { push, end }
 
-  let blockStart: number = 0
-  while (buffer[blockStart] !== 0) {
-    // Parse out a TAR header. header size is 512 bytes.
+  function push (chunk: Buffer): void {
+    if (finished || chunk.length === 0) return
+    chunks.push(chunk)
+    available += chunk.length
+    drain()
+  }
+
+  function end (): void {
+    if (!finished) {
+      throw new Error(`Unexpected end of TAR archive at offset ${consumed + available}`)
+    }
+  }
+
+  function drain (): void {
+    while (!finished) {
+      if (bytesToSkip > 0) {
+        const n = Math.min(bytesToSkip, available)
+        discard(n)
+        bytesToSkip -= n
+        if (bytesToSkip > 0) return
+        continue
+      }
+      if (entry != null) {
+        const entryContent = readContent(entry.size)
+        if (entryContent == null) return
+        handleEntryContent(entry, entryContent)
+        bytesToSkip = paddingOf(entry.size)
+        entry = undefined
+        continue
+      }
+      if (available === 0) return
+      // The archive ends with zero-filled blocks.
+      if (chunks[0][chunkOffset] === 0) {
+        finished = true
+        chunks.length = 0
+        available = 0
+        return
+      }
+      if (available < BLOCK_SIZE) return
+      const headerOffset = consumed
+      const header = take(BLOCK_SIZE)
+      const nextEntry = parseHeader(header, headerOffset)
+      if (nextEntry == null) continue
+      if (entryHasContent(nextEntry.fileType)) {
+        entry = nextEntry
+      } else {
+        bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
+      }
+    }
+  }
+
+  /**
+   * Returns the next `size` bytes once they have all arrived, copying them
+   * out of the pushed chunks as they come so that the chunks can be released.
+   */
+  function readContent (size: number): Buffer | undefined {
+    if (content == null) {
+      if (available >= size) return take(size)
+      content = { buffer: Buffer.allocUnsafe(size), filled: 0 }
+    }
+    while (available > 0 && content.filled < size) {
+      const chunk = chunks[0]
+      const n = Math.min(chunk.length - chunkOffset, size - content.filled)
+      chunk.copy(content.buffer, content.filled, chunkOffset, chunkOffset + n)
+      content.filled += n
+      discard(n)
+    }
+    if (content.filled < size) return undefined
+    const { buffer } = content
+    content = undefined
+    return buffer
+  }
+
+  function take (size: number): Buffer {
+    if (size === 0) return Buffer.alloc(0)
+    const chunk = chunks[0]
+    if (chunk.length - chunkOffset >= size) {
+      const view = chunk.subarray(chunkOffset, chunkOffset + size)
+      discard(size)
+      return view
+    }
+    const buffer = Buffer.allocUnsafe(size)
+    let filled = 0
+    while (filled < size) {
+      const current = chunks[0]
+      const n = Math.min(current.length - chunkOffset, size - filled)
+      current.copy(buffer, filled, chunkOffset, chunkOffset + n)
+      filled += n
+      discard(n)
+    }
+    return buffer
+  }
+
+  function discard (size: number): void {
+    chunkOffset += size
+    available -= size
+    consumed += size
+    while (chunks.length > 0 && chunkOffset >= chunks[0].length) {
+      chunkOffset -= chunks[0].length
+      chunks.shift()
+    }
+  }
+
+  function handleEntryContent ({ fileType, fileName, mode }: PendingEntry, entryContent: Buffer): void {
+    switch (fileType) {
+      case FILE_TYPE_PAX_HEADER:
+        parsePaxHeader(entryContent, false)
+        break
+      case FILE_TYPE_PAX_GLOBAL_HEADER:
+        parsePaxHeader(entryContent, true)
+        break
+      case FILE_TYPE_LONGLINK: {
+        longLinkPath = entryContent.toString('utf8').replace(/\0.*/, '')
+        // Remove the first path segment
+        const slashIndex = longLinkPath.indexOf('/')
+        if (slashIndex >= 0) {
+          longLinkPath = longLinkPath.slice(slashIndex + 1)
+        }
+        break
+      }
+      default:
+        onFile(fileName, mode, entryContent)
+    }
+  }
+
+  function parseHeader (header: Buffer, headerOffset: number): PendingEntry | undefined {
     // The file type is a single byte at offset 156 in the header
-    fileType = buffer[blockStart + FILE_TYPE_OFFSET]
+    const fileType = header[FILE_TYPE_OFFSET]
+    let fileSize: number
     if (paxHeaderFileSize !== undefined) {
       fileSize = paxHeaderFileSize
       paxHeaderFileSize = undefined
     } else {
       // The file size is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 12 characters.
-      fileSize = parseOctal(blockStart + FILE_SIZE_OFFSET, 12)
+      fileSize = parseOctal(header, FILE_SIZE_OFFSET, 12)
     }
 
-    // The total size will always be an integer number of 512 byte blocks.
-    // Also include 1 block for the header itself.
-    blockBytes = (fileSize & ~0x1ff) + (fileSize & 0x1ff ? 1024 : 512)
-
-    const expectedCheckSum: number = parseOctal(blockStart + CHECKSUM_OFFSET, 8)
-    const actualCheckSum: number = checkSum(blockStart)
+    const expectedCheckSum: number = parseOctal(header, CHECKSUM_OFFSET, 8)
+    const actualCheckSum: number = checkSum(header)
     if (expectedCheckSum !== actualCheckSum) {
       throw new Error(
-        `Invalid checksum for TAR header at offset ${blockStart}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
+        `Invalid checksum for TAR header at offset ${headerOffset}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
       )
     }
 
-    // Mark that the first path segment has not been removed.
-    pathTrimmed = false
-
+    let fileName: string
     if (longLinkPath) {
       fileName = longLinkPath
       longLinkPath = ''
@@ -85,23 +216,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
       // The PAX header only applies to the immediate next entry.
       paxHeaderPath = ''
     } else {
-      // The full file path is an optional prefix at offset 345, followed by the file name at offset 0, separated by a '/'.
-      // Both values are terminated by a NUL if not using the full length of the field.
-      prefix = parseString(blockStart + PREFIX_OFFSET, 155)
-
-      // If the prefix is present and did not contain a `/` or `\\`, then the prefix is the first path segment and should be dropped entirely.
-      if (prefix && !pathTrimmed) {
-        pathTrimmed = true
-        prefix = ''
-      }
-
-      // Get the base filename at offset 0, up to 100 characters (where the mode field begins).
-      fileName = parseString(blockStart, MODE_OFFSET)
-
-      if (prefix) {
-        // If the prefix was not trimmed entirely (or absent), need to join with the remaining filename
-        fileName = `${prefix}/${fileName}`
-      }
+      fileName = parseHeaderPath(header)
     }
 
     if (fileName.includes('./') || fileName.includes('.\\')) {
@@ -117,77 +232,33 @@ export function parseTarball (buffer: Buffer): IParseResult {
       case 0:
       case ZERO:
       case FILE_TYPE_HARD_LINK:
-      // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
-        mode = parseOctal(blockStart + MODE_OFFSET, 8)
-
-        // The TAR format is an append-only data structure; as such later entries with the same name supercede earlier ones.
-        files.set(fileName.replaceAll('//', '/'), { offset: blockStart + 512, mode, size: fileSize })
-        break
+        return {
+          fileType,
+          fileName: fileName.replaceAll('//', '/'),
+          // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
+          mode: parseOctal(header, MODE_OFFSET, 8),
+          size: fileSize,
+        }
       case FILE_TYPE_DIRECTORY:
       case FILE_TYPE_SYMLINK:
-      // Skip
-        break
       case FILE_TYPE_PAX_HEADER:
-        parsePaxHeader(blockStart + 512, fileSize, false)
-        break
       case FILE_TYPE_PAX_GLOBAL_HEADER:
-        parsePaxHeader(blockStart + 512, fileSize, true)
-        break
-      case FILE_TYPE_LONGLINK: {
-      // Read the long filename
-        longLinkPath = buffer.toString('utf8', blockStart + 512, blockStart + 512 + fileSize).replace(/\0.*/, '')
-        // Remove the first path segment
-        const slashIndex = longLinkPath.indexOf('/')
-        if (slashIndex >= 0) {
-          longLinkPath = longLinkPath.slice(slashIndex + 1)
-        }
-        break
-      }
+      case FILE_TYPE_LONGLINK:
+        return { fileType, fileName, mode: 0, size: fileSize }
       default:
         throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
     }
-
-    // Move to the next record in the TAR archive.
-    blockStart += blockBytes
-  }
-
-  return { files, buffer: buffer.buffer }
-
-  /**
-   * Computes the checksum for the TAR header at the specified `offset`.
-   * @param offset - The current offset into the tar buffer
-   * @returns The header checksum
-   */
-  function checkSum (offset: number): number {
-    let sum: number = 256
-    let i: number = offset
-
-    const checksumStart: number = offset + 148
-    const checksumEnd: number = offset + 156
-    const blockEnd: number = offset + 512
-
-    for (; i < checksumStart; i++) {
-      sum += buffer[i]
-    }
-
-    for (i = checksumEnd; i < blockEnd; i++) {
-      sum += buffer[i]
-    }
-
-    return sum
   }
 
   /**
    * Parses a PAX header, which is a series of key/value pairs.
    *
-   * @param offset - Offset into the buffer where the PAX header starts
-   * @param length - Length of the PAX header, in bytes
+   * @param buffer - The content of the PAX header entry
    * @param global - Whether this is a global PAX header
-   * @returns The path field, if present
    */
-  function parsePaxHeader (offset: number, length: number, global: boolean): void {
-    const end: number = offset + length
-    let i: number = offset
+  function parsePaxHeader (buffer: Buffer, global: boolean): void {
+    const end: number = buffer.length
+    let i: number = 0
     while (i < end) {
       const lineStart: number = i
       while (i < end && buffer[i] !== SPACE) {
@@ -228,45 +299,92 @@ export function parseTarball (buffer: Buffer): IParseResult {
           throw new Error(`Unexpected global PAX file size: ${record}`)
         }
         paxHeaderFileSize = size
-      } else {
-        // Ignore. Not relevant.
-        continue
       }
     }
   }
+}
 
-  /**
-   * Parses a UTF-8 string at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by a NUL.
-   * Will trim the first segment if `pathTrimmed` is currently false and the string contains a `/` or `\\`.
-   */
-  function parseString (offset: number, length: number): string {
-    let end: number = offset
-    const max: number = length + offset
-    for (let char: number = buffer[end]; char !== 0 && end !== max; char = buffer[++end]) {
-      if (!pathTrimmed && (char === SLASH || char === BACKSLASH)) {
-        pathTrimmed = true
-        offset = end + 1
-      }
+function entryHasContent (fileType: number): boolean {
+  return fileType !== FILE_TYPE_DIRECTORY && fileType !== FILE_TYPE_SYMLINK
+}
+
+/**
+ * An entry's content is followed by zeros up to the next 512-byte block boundary.
+ */
+function paddingOf (size: number): number {
+  return (BLOCK_SIZE - (size & 0x1ff)) & 0x1ff
+}
+
+/**
+ * The full file path is an optional prefix at offset 345, followed by the file name at offset 0, separated by a '/'.
+ * The first path segment of the full path is dropped.
+ */
+function parseHeaderPath (header: Buffer): string {
+  const trimState = { pathTrimmed: false }
+  // Both values are terminated by a NUL if not using the full length of the field.
+  let prefix = parseString(header, PREFIX_OFFSET, 155, trimState)
+
+  // If the prefix is present and did not contain a `/` or `\\`, then the prefix is the first path segment and should be dropped entirely.
+  if (prefix && !trimState.pathTrimmed) {
+    trimState.pathTrimmed = true
+    prefix = ''
+  }
+
+  // Get the base filename at offset 0, up to 100 characters (where the mode field begins).
+  const fileName = parseString(header, 0, MODE_OFFSET, trimState)
+
+  // If the prefix was not trimmed entirely (or absent), need to join with the remaining filename
+  return prefix ? `${prefix}/${fileName}` : fileName
+}
+
+/**
+ * Parses a UTF-8 string at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by a NUL.
+ * Will trim the first segment if `pathTrimmed` is currently false and the string contains a `/` or `\\`.
+ */
+function parseString (buffer: Buffer, offset: number, length: number, trimState: { pathTrimmed: boolean }): string {
+  let end: number = offset
+  const max: number = length + offset
+  for (let char: number = buffer[end]; char !== 0 && end !== max; char = buffer[++end]) {
+    if (!trimState.pathTrimmed && (char === SLASH || char === BACKSLASH)) {
+      trimState.pathTrimmed = true
+      offset = end + 1
     }
-    return buffer.toString('utf8', offset, end)
+  }
+  return buffer.toString('utf8', offset, end)
+}
+
+/**
+ * Computes the checksum of a TAR header, counting the checksum field itself as spaces.
+ */
+function checkSum (header: Buffer): number {
+  let sum: number = 256
+  let i: number = 0
+
+  for (; i < CHECKSUM_OFFSET; i++) {
+    sum += header[i]
   }
 
-  /**
-   * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
-   * a NUL or a space.
-   */
-  function parseOctal (offset: number, length: number) {
-    const val = buffer.subarray(offset, offset + length)
-    offset = 0
-
-    // Older versions of tar can prefix with spaces
-    while (offset < val.length && val[offset] === SPACE) offset++
-    const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
-    while (offset < end && val[offset] === 0) offset++
-    if (end === offset) return 0
-    return parseInt(val.subarray(offset, end).toString(), 8)
+  for (i = FILE_TYPE_OFFSET; i < BLOCK_SIZE; i++) {
+    sum += header[i]
   }
-  // eslint-enable no-var
+
+  return sum
+}
+
+/**
+ * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
+ * a NUL or a space.
+ */
+function parseOctal (buffer: Buffer, offset: number, length: number): number {
+  const val = buffer.subarray(offset, offset + length)
+  offset = 0
+
+  // Older versions of tar can prefix with spaces
+  while (offset < val.length && val[offset] === SPACE) offset++
+  const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
+  while (offset < end && val[offset] === 0) offset++
+  if (end === offset) return 0
+  return parseInt(val.subarray(offset, end).toString(), 8)
 }
 
 function indexOf (block: Buffer, num: number, offset: number, end: number): number {
