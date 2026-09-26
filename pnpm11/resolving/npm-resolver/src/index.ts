@@ -296,6 +296,7 @@ export function createNpmResolver (
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
       releaseAgeUpgradeCheckedPackuments,
+      peekManifestFromStore,
     }),
     registriesByScope: opts.registriesByScope,
     registriesByPrefix,

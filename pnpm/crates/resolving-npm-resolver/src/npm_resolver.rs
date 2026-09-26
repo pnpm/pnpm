@@ -68,10 +68,10 @@ use pnpm_resolving_resolver_base::{
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
     WorkspacePackages, parse_packument_timestamp,
 };
-use pnpm_store_dir::SharedReadonlyStoreIndex;
 use ssri::{Algorithm, Integrity};
 
 use crate::{
+    OfflineStoreView,
     errors::{
         AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
         InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
@@ -126,7 +126,9 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub metadata: RegistryMetadataClient<Cache>,
     pub format: RegistryMetadataFormat,
     pub cache_policy: crate::MetadataCachePolicy,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
+    /// The install's store view, when the store is available. Offline picks
+    /// consult it to prefer versions whose tarball is already stored.
+    pub store_view: Option<OfflineStoreView>,
 }
 
 pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
@@ -234,7 +236,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let workspace_packages_active = workspace_packages_active(opts, &spec);
 
         if let Some(result) = fast_path_pick(
-            self.store_index.as_ref(),
+            self.store_view.as_ref().map(OfflineStoreView::index),
             wanted_dependency,
             opts,
             &spec,
@@ -404,7 +406,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let base_selectors = overlay_selectors
             .as_ref()
             .or_else(|| opts.version.preferred_versions.get(&spec.name));
-        let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
+        let ctx =
+            self.metadata.pick_context(&self.format, self.cache_policy, self.store_view.as_ref());
 
         let picked = pick_from_registry_with_guard(
             &ctx,
@@ -491,12 +494,14 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
         &'a self,
         format: &'a RegistryMetadataFormat,
         cache_policy: crate::MetadataCachePolicy,
+        store_view: Option<&'a OfflineStoreView>,
     ) -> PickPackageContext<'a, Cache> {
         PickPackageContext {
             full_metadata: format.full_metadata,
             needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
             filter_metadata: format.filter_metadata,
             cache_policy,
+            store_view,
             metadata: crate::MetadataRequestContext {
                 meta_cache: self.meta_cache.as_ref(),
                 fetch_locker: &self.fetch_locker,

@@ -291,7 +291,7 @@ async fn resolve_via_mock(
             prefer_offline: false,
             ignore_missing_time_field: true,
         },
-        store_index: None,
+        store_view: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),
