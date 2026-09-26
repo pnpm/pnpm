@@ -1,7 +1,8 @@
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
-    collect_explicit_settings, default_config_dir, default_state_dir, resolve_configured_state_dir,
+    LoadWorkspaceYamlError, NpmrcAuth, Path, PathBuf, WorkspaceSettings,
+    build_package_manager_bootstrap, collect_explicit_settings, default_config_dir,
+    default_state_dir, resolve_configured_state_dir,
 };
 
 impl Config {
@@ -106,11 +107,12 @@ impl Config {
             start_dir,
         );
 
-        self.apply_workspace_yaml::<Sys>(
+        self.apply_workspace_and_overrides::<Sys>(
             workspace_yaml,
             &mut explicit,
             &mut declared_registries,
             for_self_update,
+            start_dir,
         )?;
 
         // Apply `_auth` routes after workspace yaml (so they win over
@@ -136,6 +138,29 @@ impl Config {
     pub(super) fn anchor_default_module_dirs(&mut self, start_dir: &std::path::Path) {
         self.modules_dir = start_dir.join("node_modules");
         self.virtual_store_dir = self.modules_dir.join(".pnpm");
+    }
+
+    fn apply_workspace_and_overrides<Sys>(
+        &mut self,
+        workspace_yaml: Option<(PathBuf, Option<WorkspaceSettings>)>,
+        explicit: &mut ExplicitPaths,
+        declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
+        for_self_update: bool,
+        start_dir: &std::path::Path,
+    ) -> Result<(), LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.apply_workspace_yaml::<Sys>(
+            workspace_yaml,
+            explicit,
+            declared_registries,
+            for_self_update,
+        )?;
+        crate::override_version_references::merge_root_resolutions_and_resolve_references(
+            &mut self.overrides,
+            self.workspace_dir.as_deref().unwrap_or(start_dir),
+        )
     }
 
     pub(super) fn apply_bootstrap_settings<Sys: EnvVar>(

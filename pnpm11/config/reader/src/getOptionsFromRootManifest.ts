@@ -580,15 +580,23 @@ function isGetOptionsFromPnpmSettingsOptions (
   return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
-function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
+function assertValidOverrides (overrides: unknown, fieldName: string = 'overrides'): asserts overrides is Record<string, string> {
   if (overrides == null || typeof overrides !== 'object' || Array.isArray(overrides)) {
-    throw new PnpmError('INVALID_OVERRIDES', `The overrides field should be an object, but got ${renderReceivedType(overrides)}`)
+    throw new PnpmError('INVALID_OVERRIDES', `The ${fieldName} field should be an object, but got ${renderReceivedType(overrides)}`)
   }
   for (const [selector, spec] of Object.entries(overrides)) {
     if (typeof spec !== 'string') {
-      throw new PnpmError('INVALID_OVERRIDES', `The value of overrides.${selector} should be a string, but got ${renderReceivedType(spec)}`)
+      throw new PnpmError('INVALID_OVERRIDES', `The value of ${fieldName}.${selector} should be a string, but got ${renderReceivedType(spec)}`)
     }
   }
+}
+
+export function getOverridesFromRootResolutions (manifest: ProjectManifest): Record<string, string> | undefined {
+  if (manifest.resolutions == null) return undefined
+  assertValidOverrides(manifest.resolutions, 'resolutions')
+  if (Object.keys(manifest.resolutions).length === 0) return undefined
+  warnAboutDeprecatedVersionReferences(manifest.resolutions)
+  return mapValues(createVersionReferencesReplacer(manifest), manifest.resolutions)
 }
 
 const PACKAGE_EXTENSION_DEPENDENCY_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const

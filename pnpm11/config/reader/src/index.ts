@@ -43,7 +43,7 @@ import { extractAndRemoveDependencyBuildOptions, hasDependencyBuildOptions } fro
 import { getCacheDir, getConfigDir, getDataDir, getGlobalConfigPath, getStateDir } from './dirs.js'
 import { parseEnvVars } from './env.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
-import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
+import { getOptionsFromPnpmSettings, getOverridesFromRootResolutions } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
@@ -63,7 +63,7 @@ export { binDirOf, modulesDirOf } from './binDir.js'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 export { getGlobalConfigPath } from './dirs.js'
 export { getDefaultCreds, getNetworkConfigs, type NetworkConfigs } from './getNetworkConfigs.js'
-export { getOptionsFromPnpmSettings, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
+export { getOptionsFromPnpmSettings, getOverridesFromRootResolutions, type OptionsFromRootManifest, toAuditSettings, toUpdateSettings } from './getOptionsFromRootManifest.js'
 export {
   getPackageManagerBootstrapConfig,
   getPackageManagerRegistries,
@@ -536,6 +536,14 @@ export async function getConfig (opts: {
       const ignoredPnpmFieldKeys = getIgnoredPnpmFieldKeys(pnpmConfig.rootProjectManifest)
       if (ignoredPnpmFieldKeys.length > 0) {
         warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
+      }
+      const resolutionsOverrides = getOverridesFromRootResolutions(pnpmConfig.rootProjectManifest)
+      if (resolutionsOverrides != null) {
+        pnpmConfig.overrides = {
+          ...resolutionsOverrides,
+          ...pnpmConfig.overrides,
+        }
+        pnpmConfig.explicitlySetKeys.add('overrides')
       }
     }
 
@@ -1712,6 +1720,12 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
 }): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  if (pnpmConfig.overrides != null && settingsFromManifest.overrides != null) {
+    settingsFromManifest.overrides = {
+      ...pnpmConfig.overrides,
+      ...settingsFromManifest.overrides,
+    }
+  }
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {

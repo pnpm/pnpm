@@ -21,6 +21,63 @@ use std::{collections::HashMap, path::Path};
 const REFERENCEABLE_GROUPS: [DependencyGroup; 3] =
     [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional];
 
+/// Read `resolutions` from the root project manifest at `root_dir`, merge them
+/// beneath any existing workspace `overrides`, and resolve any `$dep-name`
+/// version references in the combined map against the root manifest's direct
+/// dependencies.
+pub(crate) fn merge_root_resolutions_and_resolve_references(
+    overrides: &mut Option<IndexMap<String, String>>,
+    root_dir: &Path,
+) -> Result<(), LoadWorkspaceYamlError> {
+    let root_manifest =
+        match PackageManifest::from_path(pnpm_package_manifest::project_manifest_path(root_dir)) {
+            Ok(manifest) => Some(manifest),
+            Err(
+                PackageManifestError::NoImporterManifestFound(_)
+                | PackageManifestError::InvalidRoot { .. },
+            ) => None,
+            Err(source) => {
+                return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
+            }
+        };
+    let resolutions = root_manifest
+        .as_ref()
+        .and_then(|manifest| {
+            let obj = manifest
+                .value()
+                .get("resolutions")?
+                .as_object()?;
+            let map: IndexMap<String, String> = obj
+                .iter()
+                .filter_map(|(name, val)| {
+                    val.as_str()
+                        .map(|spec| (name.clone(), spec.to_string()))
+                })
+                .collect();
+            (!map.is_empty()).then_some(map)
+        });
+    merge_resolutions(overrides, resolutions);
+    if let Some(map) = overrides.as_mut() {
+        resolve_version_references(map, root_dir)?;
+    }
+    Ok(())
+}
+
+fn merge_resolutions(
+    overrides: &mut Option<IndexMap<String, String>>,
+    resolutions: Option<IndexMap<String, String>>,
+) {
+    match (resolutions, overrides.take()) {
+        (Some(mut res), Some(existing)) => {
+            res.extend(existing);
+            *overrides = Some(res);
+        }
+        (Some(res), None) => *overrides = Some(res),
+        (None, Some(existing)) => *overrides = Some(existing),
+        (None, None) => {}
+    }
+}
+
 /// Replace every `$dep-name` value in `overrides` with the specifier
 /// the manifest at `root_dir` declares for that dependency.
 ///

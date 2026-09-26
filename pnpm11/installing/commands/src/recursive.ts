@@ -80,6 +80,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'overrides'
 | 'pnprServer'
 | 'allowBuilds'
 | 'registriesByScope'
