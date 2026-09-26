@@ -223,6 +223,21 @@ fn a_failed_branch_listing_is_empty() {
     );
 }
 
+/// A provider whose git spawn itself fails, which is what a machine
+/// without git looks like.
+struct GitUnspawnable;
+
+impl RunCommand for GitUnspawnable {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Err(io::Error::new(io::ErrorKind::NotFound, "no git"))
+    }
+}
+
+#[test]
+fn a_failing_git_spawn_yields_no_branches() {
+    assert!(get_branches_containing_head::<GitUnspawnable>(std::path::Path::new(".")).is_empty(),);
+}
+
 #[test]
 fn a_branch_listing_with_no_matches_is_empty() {
     assert!(get_branches_containing_head::<GitSaysNothing>(std::path::Path::new(".")).is_empty());
