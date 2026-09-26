@@ -16,8 +16,8 @@ use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, jsr_manifest_updates,
-    read_change_intents, read_ledger,
+    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
+    read_ledger,
 };
 
 use serde_json::{Value, json};
@@ -304,19 +304,7 @@ impl VersionArgs {
             .as_object_mut()
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
-        let jsr_updates = jsr_manifest_updates(pkg_dir, &new_version)?;
-        if !self.dry_run {
-            manifest
-                .save()
-                .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
-            for update in &jsr_updates {
-                update.write()?;
-            }
-        }
-        let jsr_manifest_paths = jsr_updates
-            .into_iter()
-            .map(|update| update.path)
-            .collect();
+        let jsr_manifest_paths = self.save_bumped_manifests(&mut manifest, pkg_dir, &new_version)?;
 
         let change = VersionChange {
             name,
@@ -491,3 +479,5 @@ mod bump;
 mod release;
 
 mod git;
+
+mod manifests;

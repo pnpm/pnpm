@@ -113,74 +113,56 @@ fn tokenize(text: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut index = 0;
     while index < bytes.len() {
-        match bytes[index] {
-            b'/' if bytes.get(index + 1) == Some(&b'/') => {
-                while index < bytes.len() && bytes[index] != b'\n' {
-                    index += 1;
-                }
-            }
-            b'/' if bytes.get(index + 1) == Some(&b'*') => {
-                index = text[index + 2..]
-                    .find("*/")
-                    .map_or(bytes.len(), |end| index + 2 + end + 2);
-            }
-            b'"' => {
-                let start = index;
-                index += 1;
-                while index < bytes.len() && bytes[index] != b'"' {
-                    index += if bytes[index] == b'\\' { 2 } else { 1 };
-                }
-                index += 1;
-                tokens.push(Token::Str(start..index.min(bytes.len())));
-            }
-            punct @ (b'{' | b'}' | b'[' | b']' | b':' | b',') => {
-                tokens.push(Token::Punct(punct));
-                index += 1;
-            }
-            byte if byte.is_ascii_whitespace() => index += 1,
-            _ => {
-                index += 1;
-                tokens.push(Token::Other);
-            }
+        if let Some(end) = comment_end(bytes, index) {
+            index = end;
+            continue;
         }
+        let byte = bytes[index];
+        if byte == b'"' {
+            let end = string_end(bytes, index);
+            tokens.push(Token::Str(index..end));
+            index = end;
+            continue;
+        }
+        if matches!(byte, b'{' | b'}' | b'[' | b']' | b':' | b',') {
+            tokens.push(Token::Punct(byte));
+        } else if !byte.is_ascii_whitespace() {
+            tokens.push(Token::Other);
+        }
+        index += 1;
     }
     tokens
 }
 
-#[cfg(test)]
-mod tests {
-    use super::top_level_version_span;
-    use pretty_assertions::assert_eq;
-
-    fn replace_version(text: &str) -> Option<String> {
-        let span = top_level_version_span(text)?;
-        let mut updated = text.to_string();
-        updated.replace_range(span, r#""2.0.0""#);
-        Some(updated)
-    }
-
-    #[test]
-    fn replaces_only_the_root_version_literal() {
-        let text = "\u{feff}{\n  // \"version\": \"0.0.0\"\n  \"name\": \"@scope/pkg\",\n  \"exports\": { \"version\": \"./version.ts\" },\n  /* \"version\": */ \"version\" : \"1.0.0\",\n}\n";
-        assert_eq!(
-            replace_version(text).as_deref(),
-            Some(
-                "\u{feff}{\n  // \"version\": \"0.0.0\"\n  \"name\": \"@scope/pkg\",\n  \"exports\": { \"version\": \"./version.ts\" },\n  /* \"version\": */ \"version\" : \"2.0.0\",\n}\n"
-            ),
+/// The index past the `//` or `/* */` comment starting at `start`, if one does.
+fn comment_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let rest = &bytes[start..];
+    if rest.starts_with(b"//") {
+        return Some(
+            rest.iter()
+                .position(|&byte| byte == b'\n')
+                .map_or(bytes.len(), |offset| start + offset),
         );
     }
-
-    #[test]
-    fn string_values_named_version_are_not_keys() {
-        let text = r#"{"name":"version","description":"a \"version\": \"x\"","version":"1.0.0"}"#;
-        assert_eq!(
-            replace_version(text).as_deref(),
-            Some(r#"{"name":"version","description":"a \"version\": \"x\"","version":"2.0.0"}"#),
+    if rest.starts_with(b"/*") {
+        return Some(
+            rest[2..]
+                .windows(2)
+                .position(|pair| pair == b"*/")
+                .map_or(bytes.len(), |offset| start + 2 + offset + 2),
         );
     }
-
-    #[test]
-    fn nested_version_keys_are_skipped() {
-        assert_eq!(replace_version(r#"{"exports":{"version":"1"},"tags":["version"]}"#), None);
-    }
+    None
 }
+
+/// The index past the string literal whose opening quote is at `start`.
+fn string_end(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 1;
+    while index < bytes.len() && bytes[index] != b'"' {
+        index += if bytes[index] == b'\\' { 2 } else { 1 };
+    }
+    (index + 1).min(bytes.len())
+}
+
+#[cfg(test)]
+mod tests;
