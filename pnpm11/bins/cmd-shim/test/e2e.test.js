@@ -63,6 +63,44 @@ describeOnWindows('CMD shims with Unicode paths', () => {
   }
 })
 
+describeOnWindows('PowerShell shims with Unicode paths', () => {
+  for (const exitCode of [0, 7]) {
+    test(`runs a Unicode target under Windows PowerShell and preserves exit ${exitCode}`, async () => {
+      const tempDir = temporaryDirectory()
+      try {
+        const targetDir = path.join(tempDir, '工具')
+        fs.mkdirSync(targetDir)
+        const target = path.join(targetDir, 'cli.js')
+        fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)))\nprocess.exit(Number(process.argv[3]))\n', 'utf8')
+        await cmdShim(target, path.join(tempDir, 'shim'))
+        const shim = path.join(tempDir, 'shim.ps1')
+        assert.ok(fs.readFileSync(shim).subarray(0, 3).equals(Buffer.from([0xEF, 0xBB, 0xBF])), 'the shim must start with a UTF-8 BOM')
+        const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', shim, 'argument with spaces', String(exitCode)], {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 30000,
+        })
+        assert.equal(result.status, exitCode, `stdout: ${result.stdout}\nstderr: ${result.stderr}`)
+        assert.deepEqual(JSON.parse(result.stdout.trim()), ['argument with spaces', String(exitCode)])
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+  }
+
+  test('leaves an ASCII-only shim without a BOM', async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const target = path.join(tempDir, 'cli.js')
+      fs.writeFileSync(target, '#!/usr/bin/env node\n', 'utf8')
+      await cmdShim(target, path.join(tempDir, 'shim'))
+      assert.ok(fs.readFileSync(path.join(tempDir, 'shim.ps1'), 'utf8').startsWith('#!/usr/bin/env pwsh\n'))
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describeOnWindows('create a command shim for a .exe file', () => {
   test('shim files', async (t) => {
     const tempDir = temporaryDirectory()

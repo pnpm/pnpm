@@ -901,7 +901,17 @@ exit $LASTEXITCODE
 `
   }
 
-  return pwsh
+  return withUtf8Bom(pwsh)
+}
+
+/**
+ * Windows PowerShell 5.1 decodes a script without a byte order mark using the
+ * ANSI code page, so non-ASCII text in the shim needs a UTF-8 BOM. Elsewhere
+ * the shebang has to stay at the start of the file.
+ */
+function withUtf8Bom (pwsh: string): string {
+  if (!isWindows || Buffer.byteLength(pwsh) === pwsh.length) return pwsh
+  return `\uFEFF${pwsh}`
 }
 
 function chmodShim (to: string, opts: InternalOptions) {
