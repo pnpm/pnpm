@@ -20,7 +20,7 @@ impl PickState<'_> {
         // mirror on an online pick. Offline and prefer-offline still may.
         if !ctx.cache_policy.offline
             && !ctx.cache_policy.prefer_offline
-            && self.mirror_is_uncacheable()
+            && self.mirror_is_uncacheable().await
         {
             return None;
         }
@@ -68,10 +68,8 @@ impl PickState<'_> {
     }
 
     /// `true` when the mirror's header line says the last response forbade caching.
-    pub(super) fn mirror_is_uncacheable(&self) -> bool {
-        self.pkg_mirror
-            .as_deref()
-            .and_then(crate::mirror::load_meta_headers)
+    pub(super) async fn mirror_is_uncacheable(&self) -> bool {
+        crate::mirror::load_meta_headers_async(self.pkg_mirror.as_deref()).await
             .is_some_and(|headers| headers.uncacheable)
     }
 

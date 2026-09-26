@@ -195,7 +195,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     let online_lowest_must_refetch = opts.pick_lowest_version
         && !ctx.cache_policy.offline
         && !ctx.cache_policy.prefer_offline
-        && state.mirror_is_uncacheable();
+        && state.mirror_is_uncacheable().await;
     if !online_lowest_must_refetch
         && (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
