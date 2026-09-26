@@ -37,7 +37,6 @@ export function getProxyAgent (uri: string, opts: ProxyAgentOptions): Agent | un
   if (!proxyUri) return
   const isHttps = parsedUri.protocol === 'https:'
 
-
   const key = [
     `https:${isHttps.toString()}`,
     `proxy:${proxyUri.protocol}//${proxyUri.username}:${proxyUri.password}@${proxyUri.host}:${proxyUri.port}`,
@@ -49,7 +48,6 @@ export function getProxyAgent (uri: string, opts: ProxyAgentOptions): Agent | un
     `cert:${(isHttps && opts.cert?.toString()) || '>no-cert<'}`,
     `key:${(isHttps && opts.key) || '>no-key<'}`,
   ].join(':')
-
 
   if (AGENT_CACHE.peek(key)) {
     return AGENT_CACHE.get(key)

@@ -14,8 +14,8 @@ YYYY
     `-----BEGIN CERTIFICATE-----
 ZZZZ
 -----END CERTIFICATE-----`,
-  ]);
-});
+  ])
+})
 
 it('should not fail when the file does not exist', () => {
   expect(readCAFileSync(path.join(import.meta.dirname, 'not-exists.txt'))).toBeUndefined()

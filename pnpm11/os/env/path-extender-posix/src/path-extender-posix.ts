@@ -39,7 +39,6 @@ export interface PathExtenderPosixReport {
   newSettings: string
 }
 
-
 export async function addDirToPosixEnvPath (
   dir: string,
   opts: AddDirToPosixEnvPathOpts

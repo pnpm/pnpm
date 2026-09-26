@@ -1,1 +1,1 @@
-export { pickSettingByUrl } from './config.js';
+export { pickSettingByUrl } from './config.js'

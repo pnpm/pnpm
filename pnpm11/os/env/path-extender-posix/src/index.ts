@@ -4,4 +4,4 @@ export {
   type ConfigFileChangeType,
   type ConfigReport,
   type PathExtenderPosixReport,
-} from './path-extender-posix.js';
+} from './path-extender-posix.js'

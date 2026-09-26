@@ -32,7 +32,6 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
     ...pickSettingByUrl(opts.clientCertificates, uri),
   }
 
-
   const key = [
     `https:${isHttps.toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
@@ -43,7 +42,6 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
     `cert:${isHttps && (cert?.toString()) || '>no-cert<'}`,
     `key:${isHttps && (certKey?.toString()) || '>no-key<'}`,
   ].join(':')
-
 
   if (AGENT_CACHE.peek(key)) {
     return AGENT_CACHE.get(key)
