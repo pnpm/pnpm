@@ -55,6 +55,7 @@ impl<'a> LinkingPaths<'a> {
         };
         let physical_root = resolve(root)?;
         if !is_subdir(&physical_root, &paths.physical_bins_dir) {
+            paths.cleanup_aliases = paths.has_bin_aliases();
             return Ok(paths);
         }
         paths.bins_dir.clone_from(&paths.physical_bins_dir);

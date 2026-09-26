@@ -310,6 +310,38 @@ fn default_bin_linking_does_not_touch_a_symlinked_alias_directory() {
     assert_eq!(read_to_string(victim.join("foo")).unwrap(), "keep");
 }
 
+/// The relocatable root can resolve to a directory the physical bin directory
+/// is not under, when the bin directory is a symlink out of the project. The
+/// aliases beside the link still belong to that bin directory, so a pass that
+/// links the bin without one clears them.
+#[cfg(unix)]
+#[test]
+fn default_linking_cleans_a_stale_alias_when_the_bin_dir_is_outside_the_relocatable_root() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let root = tmp.path().join("project");
+    let outside = tmp.path().join("outside");
+    create_dir_all(&outside).unwrap();
+    let modules_dir = root.join("node_modules");
+    create_dir_all(&modules_dir).unwrap();
+    let bins_dir = modules_dir.join(".bin");
+    symlink(&outside, &bins_dir).unwrap();
+    let target = tmp.path().join("stale.js");
+    write_file(&target, "target").unwrap();
+    let alias = modules_dir.join(".bin-symlinks/foo");
+    create_dir_all(alias.parent().unwrap()).unwrap();
+    symlink(&target, &alias).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions { relocatable_root: Some(root), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    assert!(!alias.exists(), "a stale alias must not survive a default linking pass");
+}
+
 #[cfg(unix)]
 #[test]
 fn removing_a_bin_does_not_follow_a_symlinked_alias_directory() {
