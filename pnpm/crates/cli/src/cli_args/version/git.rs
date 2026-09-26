@@ -55,7 +55,7 @@ fn run_git(cwd: &Path, args: &[&str]) -> miette::Result<()> {
 }
 
 impl VersionArgs {
-    /// Stage the bumped manifest and record the bump as a commit plus an
+    /// Stage the bumped manifests and record the bump as a commit plus an
     /// annotated (or signed) tag, mirroring the TypeScript `commitAndTag`.
     pub(super) fn commit_and_tag(
         &self,
@@ -69,19 +69,22 @@ impl VersionArgs {
             .replace("%s", &change.new_version);
         let tag_name = format!("{tag_version_prefix}{}", change.new_version);
 
-        let Ok(relative) = change.manifest_path.strip_prefix(cwd) else {
-            return Err(VersionError::InvalidManifestPath {
-                path: change.manifest_path.display().to_string(),
-            }
-            .into());
-        };
-        let manifest_rel: String = relative
-            .components()
-            .map(|component| component.as_os_str().to_string_lossy())
-            .collect::<Vec<_>>()
-            .join("/");
-
-        run_git(cwd, &["add", &manifest_rel])?;
+        for manifest_path in
+            std::iter::once(&change.manifest_path).chain(&change.jsr_manifest_paths)
+        {
+            let Ok(relative) = manifest_path.strip_prefix(cwd) else {
+                return Err(VersionError::InvalidManifestPath {
+                    path: manifest_path.display().to_string(),
+                }
+                .into());
+            };
+            let manifest_rel: String = relative
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+            run_git(cwd, &["add", &manifest_rel])?;
+        }
 
         let mut commit_args = vec!["commit", "-m", &message];
         if self.git.no_commit_hooks {

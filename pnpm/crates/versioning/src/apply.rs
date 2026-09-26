@@ -10,6 +10,7 @@ use crate::{
     changelog::{compose_changelog_section, prepend_changelog_section},
     error::VersioningError,
     intents::{ChangeIntent, IntentBumpType},
+    jsr::{jsr_manifest_updates, save_with_jsr_manifests},
     ledger::{
         Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
         normalize_project_dir,
@@ -101,7 +102,7 @@ impl ReleaseStorage {
     }
 }
 
-/// Stamp every released manifest with its new version.
+/// Stamp every released manifest, and its JSR manifests, with its new version.
 fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, VersioningError> {
     let mut applied = Vec::with_capacity(plan.releases.len());
     for release in &plan.releases {
@@ -109,7 +110,10 @@ fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, Version
         let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
             .map_err(VersioningError::Manifest)?;
         manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
-        manifest.save().map_err(VersioningError::Manifest)?;
+        let jsr_updates = jsr_manifest_updates(&release.root_dir, &release.version.next)?;
+        save_with_jsr_manifests(&jsr_updates, || {
+            manifest.save().map_err(VersioningError::Manifest)
+        })?;
         applied.push(AppliedRelease {
             name: release.name.clone(),
             current_version: release.version.current.clone(),

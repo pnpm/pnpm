@@ -6331,6 +6331,7 @@ dependencies = [
  "miette 7.6.0",
  "node-semver",
  "pathdiff",
+ "pnpm-fs",
  "pnpm-matcher",
  "pnpm-package-manifest",
  "pretty_assertions",

@@ -3,8 +3,8 @@
 //! intents from `.changeset/*.md`, assembles a release plan (direct bumps,
 //! dependent propagation through materialized `workspace:` ranges, fixed
 //! groups, per-package release lanes), and applies it (manifest version
-//! updates, changelog composition, the consumed-intents ledger, and
-//! intent-file cleanup).
+//! updates, including `jsr.json` / `jsr.jsonc`, changelog composition, the
+//! consumed-intents ledger, and intent-file cleanup).
 //!
 //! The TypeScript counterpart is `@pnpm/releasing.versioning`
 //! (`pnpm11/releasing/versioning`); the two must stay behaviorally identical.
@@ -18,6 +18,7 @@ pub use intents::{
     CHANGES_DIR, ChangeIntent, IntentBumpType, format_change_intent, parse_change_intent,
     read_change_intents, write_change_intent,
 };
+pub use jsr::{JsrManifestUpdate, jsr_manifest_updates, save_with_jsr_manifests};
 pub use ledger::{
     LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
     build_consumption_index, normalize_project_dir, read_ledger,
@@ -43,6 +44,7 @@ mod changelog;
 mod error;
 mod human_id;
 mod intents;
+mod jsr;
 mod ledger;
 mod pending;
 mod plan;

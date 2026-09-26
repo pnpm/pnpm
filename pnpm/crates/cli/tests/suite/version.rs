@@ -834,11 +834,69 @@ fn recursive_filter_bumps_only_the_selected_package() {
     drop(root);
 }
 
+fn write_jsr_manifest(dir: &Path, version: &str) {
+    fs::write(dir.join("jsr.json"), format!(r#"{{"name":"@scope/pkg","version":"{version}"}}"#))
+        .expect("write jsr.json");
+}
+
+fn jsr_manifest_version(dir: &Path) -> String {
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("jsr.json")).expect("read jsr.json"))
+            .expect("parse jsr.json");
+    manifest["version"]
+        .as_str()
+        .expect("a string version")
+        .to_string()
+}
+
+#[test]
+fn recursive_filter_bumps_the_jsr_manifest_of_the_selected_package_only() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    write_jsr_manifest(&pkg_a, "1.0.0");
+    write_jsr_manifest(&pkg_b, "2.3.0");
+
+    let output = pacquet_recursive_version(
+        &workspace,
+        &["-r", "--filter", "pkg-b", "version", "patch", "--no-git-checks"],
+    );
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(jsr_manifest_version(&pkg_a), "1.0.0");
+    assert_eq!(jsr_manifest_version(&pkg_b), "2.3.1");
+    drop(root);
+}
+
+#[test]
+fn applying_change_intents_bumps_the_jsr_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    write_jsr_manifest(&pkg_a, "1.0.0");
+    write_jsr_manifest(&pkg_b, "2.3.0");
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset");
+    fs::write(
+        workspace.join(".changeset").join("calm-cats-smile.md"),
+        "---\n\"pkg-a\": minor\n---\n\nA feature.\n",
+    )
+    .expect("write change intent");
+
+    let output =
+        pacquet_version_assuming_published(&workspace, &["version", "-r", "--no-git-checks"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&pkg_a), "1.1.0");
+    assert_eq!(jsr_manifest_version(&pkg_a), "1.1.0");
+    assert_eq!(jsr_manifest_version(&pkg_b), "2.3.0");
+    drop(root);
+}
+
 #[test]
 fn dry_run_reports_the_bump_without_writing_the_manifest() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
     let manifest_before = manifest_text(&workspace);
+    let jsr_manifest = r#"{"name":"@scope/test-pkg","version":"1.0.0"}"#;
+    fs::write(workspace.join("jsr.json"), jsr_manifest).expect("write jsr.json");
 
     let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
 
@@ -847,6 +905,73 @@ fn dry_run_reports_the_bump_without_writing_the_manifest() {
     assert!(stdout.contains("Version bump plan:"), "{stdout}");
     assert!(stdout.contains("1.0.0 → 1.0.1"), "{stdout}");
     assert_eq!(manifest_text(&workspace), manifest_before);
+    assert_eq!(
+        fs::read_to_string(workspace.join("jsr.json")).expect("read jsr.json"),
+        jsr_manifest,
+    );
+    drop(root);
+}
+
+/// <https://github.com/pnpm/pnpm/issues/8317>
+#[test]
+fn bumps_the_jsr_manifests_next_to_the_package_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"@scope/pkg","version":"1.0.0"}"#);
+    fs::write(
+        workspace.join("jsr.json"),
+        "{\n    \"name\": \"@scope/pkg\",\n    \"version\": \"1.0.0\",\n    \"exports\": \"./mod.ts\"\n}\n",
+    )
+    .expect("write jsr.json");
+    fs::write(
+        workspace.join("jsr.jsonc"),
+        "{\n  // JSR manifest\n  \"name\": \"@scope/pkg\",\n  \"version\": \"1.0.0\", // released\n  \"exports\": \"./mod.ts\",\n}\n",
+    )
+    .expect("write jsr.jsonc");
+
+    let output = pacquet_version(&workspace, &["minor"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(
+        fs::read_to_string(workspace.join("jsr.json")).expect("read jsr.json"),
+        "{\n    \"name\": \"@scope/pkg\",\n    \"version\": \"1.1.0\",\n    \"exports\": \"./mod.ts\"\n}\n",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("jsr.jsonc")).expect("read jsr.jsonc"),
+        "{\n  // JSR manifest\n  \"name\": \"@scope/pkg\",\n  \"version\": \"1.1.0\", // released\n  \"exports\": \"./mod.ts\",\n}\n",
+    );
+    drop(root);
+}
+
+#[test]
+fn jsr_manifest_without_a_version_is_left_untouched() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"@scope/pkg","version":"1.0.0"}"#);
+    let jsr_manifest = r#"{"name":"@scope/pkg","exports":{"version":"./version.ts"}}"#;
+    fs::write(workspace.join("jsr.json"), jsr_manifest).expect("write jsr.json");
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(manifest_version(&workspace), "1.0.1");
+    assert_eq!(
+        fs::read_to_string(workspace.join("jsr.json")).expect("read jsr.json"),
+        jsr_manifest,
+    );
+    drop(root);
+}
+
+#[test]
+fn invalid_jsr_manifest_fails_before_anything_is_bumped() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"@scope/pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("jsr.json"), r#"{"version":"1.0.0",}"#).expect("write jsr.json");
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(!output.status.success(), "an invalid jsr.json must fail");
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_INVALID_JSR_MANIFEST"), "{stderr}");
+    assert_eq!(manifest_version(&workspace), "1.0.0");
     drop(root);
 }
 
