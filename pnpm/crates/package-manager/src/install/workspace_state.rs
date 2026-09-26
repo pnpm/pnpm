@@ -97,11 +97,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         return None;
     }
     ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
-    super::run::lockfile_load::register_workspace_in_store(check.config, &workspace_root);
-    Some(UpToDateWorkspace {
-        root: state_root,
-        project_count: workspace_projects.as_ref().map(Vec::len),
-    })
+    super::run::register_workspace_in_store(check.config, &workspace_root);
+    let project_count = workspace_projects.as_ref().map(Vec::len);
+    Some(UpToDateWorkspace { root: state_root, project_count })
 }
 
 fn fast_path_workspace_context(

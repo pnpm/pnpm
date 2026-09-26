@@ -240,40 +240,6 @@ pub(super) fn needs_early_host_detection(
             _ => false,
         })
 }
-/// Register the workspace root in the store's project registry, once per
-/// install, with or without the global virtual store. Both repeat-install
-/// fast paths call it too, so a project installed unregistered still gets an
-/// entry. Store prune walks the workspace's `node_modules/.pnpm/` to find
-/// every installed package, so one entry per workspace is enough. A frozen
-/// store is read-only.
-///
-/// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead.
-pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
-    if config.frozen_store {
-        return;
-    }
-    // Create the store root before calling `register_project` so its
-    // `path_contains` guard can canonicalize the path instead of falling
-    // through to a literal comparison that wrongly matches against
-    // `<workspace>/../pacquet-store/v11`-shaped relative store paths
-    // (resolved-on-disk: outside the workspace; lexical: starts with the
-    // workspace prefix).
-    if let Err(error) = std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir)) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to ensure store root exists before project registry write; install continues",
-        );
-    }
-    if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, workspace_root) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to register workspace root in the store project registry; install continues",
-        );
-    }
-}
 /// A corrupted or version-incompatible current lockfile is disposable state:
 /// pnpm warns and continues with none, because the wanted lockfile and
 /// filesystem remain authoritative.

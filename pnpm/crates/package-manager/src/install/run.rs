@@ -1,4 +1,5 @@
 mod fast_path;
+pub(super) use fast_path::register_workspace_in_store;
 use fast_path::{UpToDateCheck, install_is_already_up_to_date};
 
 mod dispatch;
@@ -10,7 +11,7 @@ use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hoo
 mod wanted;
 use wanted::{Lockfiles, settle_wanted_lockfile};
 
-pub(super) mod lockfile_load;
+mod lockfile_load;
 use lockfile_load::{Loaded, load_lockfiles};
 
 mod workspace;

@@ -4,6 +4,8 @@ use super::super::{
     check_optimistic_repeat_install, gvs_build_marker_present,
     gvs_build_markers_may_require_recovery, unapproved_recorded_ignored_builds,
 };
+use pnpm_config::Config;
+use std::path::Path;
 
 /// Everything the optimistic repeat-install short-circuit consults.
 pub(super) struct UpToDateCheck<'a> {
@@ -41,6 +43,7 @@ pub(super) struct UpToDateCheck<'a> {
 pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
+    register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
         && !check.frozen_lockfile
@@ -116,5 +119,39 @@ pub(super) fn build_state_allows_short_circuit(
         }
         Ok(None) => Ok(true),
         Err(_) => Ok(false),
+    }
+}
+/// Register the workspace root in the store's project registry, once per
+/// install, with or without the global virtual store. The repeat-install
+/// fast paths call it before they short-circuit, so a project installed
+/// unregistered still gets an entry. Store prune walks the workspace's `node_modules/.pnpm/` to find
+/// every installed package, so one entry per workspace is enough. A frozen
+/// store is read-only.
+///
+/// Best-effort: a registry write failure shouldn't fail the install, so it is
+/// surfaced as `tracing::warn!` instead.
+pub(crate) fn register_workspace_in_store(config: &Config, workspace_root: &Path) {
+    if config.frozen_store {
+        return;
+    }
+    // Create the store root before calling `register_project` so its
+    // `path_contains` guard can canonicalize the path instead of falling
+    // through to a literal comparison that wrongly matches against
+    // `<workspace>/../pacquet-store/v11`-shaped relative store paths
+    // (resolved-on-disk: outside the workspace; lexical: starts with the
+    // workspace prefix).
+    if let Err(error) = std::fs::create_dir_all(pnpm_store_dir::StoreDir::root(&config.store_dir)) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to ensure store root exists before project registry write; install continues",
+        );
+    }
+    if let Err(error) = pnpm_store_dir::register_project(&config.store_dir, workspace_root) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to register workspace root in the store project registry; install continues",
+        );
     }
 }

@@ -6,9 +6,7 @@ use super::{
         prior_hoisted_locations,
     },
     Dispatched, InstallRunOutcome, InstallScope, Loaded, Lockfiles, RunExecution, Settled,
-    Verification, dispatch, load_lockfiles,
-    lockfile_load::register_workspace_in_store,
-    settle_wanted_lockfile,
+    Verification, dispatch, load_lockfiles, settle_wanted_lockfile,
     time_machine_capture::capture_time_machine_exclusions,
     workspace_projects,
 };
@@ -30,10 +28,6 @@ impl<'a> RunExecution<'a> {
     ) -> Result<InstallRunOutcome, InstallError> {
         let scope = self.select_scope();
         capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
-        register_workspace_in_store(
-            self.install.context.config,
-            &self.workspace.dirs.workspace_root,
-        );
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,
