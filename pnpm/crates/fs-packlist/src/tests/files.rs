@@ -434,9 +434,6 @@ fn files_field_keeps_explicitly_deep_patterns() {
 
 #[test]
 fn files_field_exclusion_prunes_the_directory_it_names() {
-    // Regression: `**` matches files under an excluded directory on
-    // their own, so an exclusion naming the directory (`!**/test`)
-    // was never consulted and the directory shipped anyway.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
