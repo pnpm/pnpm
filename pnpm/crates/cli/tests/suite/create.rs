@@ -172,7 +172,8 @@ fn create_accepts_shell_mode_flag() {
 
 /// Add `templates/*` and `packages/*` to the workspace, with a `packages/app`
 /// project to run `create` from, and a template project named `name` whose
-/// bin writes its arguments to `local.txt` in the working directory.
+/// bin writes its arguments to `local.txt` and its `PATH` to `path.txt` in
+/// the working directory.
 fn add_workspace_template(workspace: &Path, name: &str) {
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let mut text = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
@@ -190,7 +191,12 @@ fn add_workspace_template(workspace: &Path, name: &str) {
         .expect("write template manifest");
     fs::write(
         template.join("cli.js"),
-        "#!/usr/bin/env node\nrequire('fs').writeFileSync('local.txt', JSON.stringify(process.argv.slice(2)))\n",
+        concat!(
+            "#!/usr/bin/env node\n",
+            "const fs = require('fs')\n",
+            "fs.writeFileSync('local.txt', JSON.stringify(process.argv.slice(2)))\n",
+            "fs.writeFileSync('path.txt', process.env.PATH)\n",
+        ),
     )
     .expect("write template bin");
 }
@@ -218,6 +224,15 @@ fn create_runs_workspace_template() {
 
     let content = fs::read_to_string(app.join("local.txt")).expect("the template bin should run");
     assert_eq!(content, r#"["--extra-arg"]"#);
+
+    let path = fs::read_to_string(app.join("path.txt")).expect("read path.txt");
+    let deps_bin_dir = dunce::canonicalize(&workspace)
+        .expect("canonicalize the workspace")
+        .join("templates/template/node_modules/.bin");
+    assert!(
+        std::env::split_paths(&path).any(|dir| dir == deps_bin_dir),
+        "the template's dependency bins should be on PATH\nPATH: {path}",
+    );
 
     drop(root);
 }
