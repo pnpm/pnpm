@@ -162,11 +162,7 @@ pub(super) fn no_matching_script(
     if fallback_to_exec {
         return exec_fallback(script_name, args, dirs, config, reporter);
     }
-    Err(RunError::NoScript {
-        script: script_name.to_owned(),
-        hint: format!(r#"Command "{script_name}" not found."#),
-    }
-    .into())
+    Err(RunError::no_script(script_name, args).into())
 }
 
 /// The scripts the selector matches. Hidden scripts (names starting
