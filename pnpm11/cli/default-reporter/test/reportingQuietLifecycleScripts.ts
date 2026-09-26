@@ -155,3 +155,24 @@ test.each([false, true])('retains default info optional success and failure once
     'packages/foo postinstall: Failed',
   ])
 })
+
+test('buffers same-named projects separately at warn level', async () => {
+  const failed = { depPath: 'same-name', stage: '(exec)', wd: 'packages/a' }
+  const succeeded = { depPath: 'same-name', stage: '(exec)', wd: 'packages/b' }
+  const output = await captureOutput({
+    context: { argv: ['exec'] },
+    reportingOptions: { appendOnly: true, logLevel: 'warn' },
+  }, () => {
+    lifecycleLogger.debug({ ...failed, optional: false, script: 'node fail.js' })
+    lifecycleLogger.debug({ ...failed, line: 'failed stdout', stdio: 'stdout' })
+    lifecycleLogger.debug({ ...succeeded, optional: false, script: 'node ok.js' })
+    lifecycleLogger.debug({ ...succeeded, line: 'successful stdout', stdio: 'stdout' })
+    lifecycleLogger.debug({ ...succeeded, exitCode: 0, optional: false })
+    lifecycleLogger.debug({ ...failed, exitCode: 1, optional: false })
+  })
+  expect(output).toEqual([
+    'packages/a (exec)$ node fail.js',
+    'packages/a (exec): failed stdout',
+    'packages/a (exec): Failed',
+  ])
+})

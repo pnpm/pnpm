@@ -155,8 +155,10 @@ impl ReporterState {
         if !aggregate_output {
             return Some(self.stream_lifecycle(message));
         }
-        let (stage, dep_path, _) = lifecycle_ids(message);
-        let key = format!("{stage}:{dep_path}");
+        let (stage, dep_path, wd) = lifecycle_ids(message);
+        // `pnpm -r exec` reports a project's manifest name as its
+        // `dep_path`, so same-named projects differ only by `wd`.
+        let key = format!("{stage}\0{dep_path}\0{wd}");
         // Format on flush rather than on arrival so the prefix color
         // wheel advances in the order the blocks are printed.
         if !matches!(message, LifecycleMessage::Exit { .. }) {

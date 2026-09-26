@@ -81,7 +81,6 @@ fn optional_failures_are_warn_only_and_completed_buffers_never_leak() {
                 optional_exit,
             ],
         );
-        dbg!(&lines);
         if max_log_level == MaxLogLevel::Warn {
             assert!(lines.join("\n").contains("optional-output"));
             assert!(lines.join("\n").contains("skipped as optional"));
@@ -99,7 +98,6 @@ fn optional_failures_are_warn_only_and_completed_buffers_never_leak() {
                 lifecycle_exit(CWD, "postinstall", 1),
             ],
         );
-        dbg!(&lines);
         let text = lines.join("\n");
         assert!(text.contains("required-output"));
         assert!(!text.contains("optional-output"));
@@ -128,12 +126,48 @@ fn interleaved_package_and_stage_buffers_flush_independently() {
             lifecycle_exit(CWD, "preinstall", 1),
         ],
     );
-    dbg!(&lines);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("after-output"));
     assert!(!lines[0].contains("before-output"));
     assert!(lines[1].contains("before-output"));
     assert!(!lines.join("\n").contains("other-output"));
+}
+
+fn with_dep_path(mut event: LogEvent, dep_path: &str) -> LogEvent {
+    let LogEvent::Lifecycle(LifecycleLog { message, .. }) = &mut event else { unreachable!() };
+    match message {
+        LifecycleMessage::Script { dep_path: target, .. }
+        | LifecycleMessage::Stdio { dep_path: target, .. }
+        | LifecycleMessage::Exit { dep_path: target, .. } => *target = dep_path.to_string(),
+    }
+    event
+}
+
+#[test]
+fn same_named_projects_buffer_separately() {
+    let mut reporter = state_with_options(ReporterOptions {
+        max_log_level: MaxLogLevel::Warn,
+        append_only: true,
+        ..Default::default()
+    });
+    let lines = emitted_lines(
+        &mut reporter,
+        [
+            lifecycle_script("/repo/a", "(exec)", "node fail.js"),
+            lifecycle_line("/repo/a", "(exec)", "failed-output"),
+            lifecycle_script("/repo/b", "(exec)", "node ok.js"),
+            lifecycle_line("/repo/b", "(exec)", "successful-output"),
+            lifecycle_exit("/repo/b", "(exec)", 0),
+            lifecycle_exit("/repo/a", "(exec)", 1),
+        ]
+        .into_iter()
+        .map(|event| with_dep_path(event, "same-name"))
+        .collect(),
+    );
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains("node fail.js"));
+    assert!(lines[0].contains("failed-output"));
+    assert!(!lines[0].contains("successful-output"));
 }
 
 #[test]
@@ -165,7 +199,6 @@ fn info_aggregate_retains_success_and_optional_failure_blocks() {
             optional_exit,
         ],
     );
-    dbg!(&lines);
     assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("successful-output"));
     assert!(lines[0].contains("Done"));
@@ -201,7 +234,6 @@ fn quiet_verification_keeps_terminal_verdicts_at_their_severity() {
             assert_eq!(matches!(output, Output::Lines(_)), visible);
         }
         let lines = emitted_lines(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
-        dbg!(&lines);
         assert_eq!(!lines.is_empty(), max_log_level == MaxLogLevel::Warn);
     }
 }

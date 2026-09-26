@@ -289,7 +289,9 @@ function cutLine (line: string | undefined, maxLength: number): string {
 
 function aggregateOutput (logLevel: LogLevel | undefined): (source: Rx.Observable<LifecycleLog>) => Rx.Observable<LifecycleLog> {
   return (source) => source.pipe(
-    groupBy((data) => `${data.depPath}\0${data.stage}`),
+    // `pnpm -r exec` reports a project's manifest name as its depPath, so
+    // same-named projects differ only by wd.
+    groupBy((data) => `${data.depPath}\0${data.stage}\0${data.wd}`),
     mergeMap(group => group.pipe(
       buffer(group.pipe(filter(msg => 'exitCode' in msg))),
       filter((messages) => {
