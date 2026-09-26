@@ -21,8 +21,8 @@ pub use errors::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
 };
 pub use peer_range::{
-    MAX_INTERSECTED_ALTERNATIVES, get_peer_version_range, intersection_exceeds_bound,
-    is_acceptable_peer_spec, is_valid_peer_range, range_alternative_count,
+    MAX_INTERSECTED_ALTERNATIVES, get_peer_version_range, intersect_peer_ranges,
+    is_acceptable_peer_spec, is_valid_peer_range,
 };
 pub use pnpm_config::LinkWorkspacePackages;
 pub use publish_time::parse_packument_timestamp;

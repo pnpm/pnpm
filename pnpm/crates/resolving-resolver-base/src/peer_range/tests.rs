@@ -1,7 +1,8 @@
 use super::{
-    MAX_INTERSECTED_ALTERNATIVES, get_peer_version_range, intersection_exceeds_bound,
-    is_acceptable_peer_spec, is_valid_peer_range, range_alternative_count,
+    MAX_INTERSECTED_ALTERNATIVES, get_peer_version_range, intersect_peer_ranges,
+    is_acceptable_peer_spec, is_valid_peer_range,
 };
+use node_semver::Range;
 
 #[test]
 fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {
@@ -78,11 +79,42 @@ fn get_peer_version_range_reduces_a_union_of_scheme_specifiers() {
     assert_eq!(get_peer_version_range("^1.0.0 || ^2.0.0"), "^1.0.0 || ^2.0.0");
 }
 
+/// A union of `count` alternatives that each overlap their neighbours
+/// without covering them, so intersecting two of them keeps every pair.
+fn staggered_union(count: usize, offset: usize) -> Range {
+    let union = (0..count)
+        .map(|patch| format!(">=1.0.{patch} <2.0.{}", patch + offset))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    Range::parse(union).unwrap()
+}
+
 #[test]
-fn intersection_bound_trips_before_a_cartesian_product_of_unions() {
-    assert_eq!(range_alternative_count("0.1.138 || 0.1.147"), 2);
-    assert_eq!(range_alternative_count(" 0.19.0-alpha.1 || 0.21.1 "), 2);
-    assert!(!intersection_exceeds_bound(2, 2));
-    assert!(intersection_exceeds_bound(80, 80));
-    assert!(intersection_exceeds_bound(MAX_INTERSECTED_ALTERNATIVES, 2));
+fn intersect_peer_ranges_pairs_unions_up_to_the_bound() {
+    let side = MAX_INTERSECTED_ALTERNATIVES.isqrt();
+    let intersection =
+        intersect_peer_ranges(&staggered_union(side, 0), &staggered_union(side, 1)).unwrap();
+    assert_eq!(
+        intersection
+            .to_string()
+            .split("||")
+            .count(),
+        MAX_INTERSECTED_ALTERNATIVES,
+    );
+}
+
+#[test]
+fn intersect_peer_ranges_declines_unions_past_the_bound() {
+    let side = MAX_INTERSECTED_ALTERNATIVES.isqrt();
+    assert!(
+        intersect_peer_ranges(&staggered_union(side + 1, 0), &staggered_union(side, 1)).is_none(),
+    );
+}
+
+#[test]
+fn intersect_peer_ranges_returns_none_for_disjoint_ranges() {
+    assert!(
+        intersect_peer_ranges(&Range::parse("^1.0.0").unwrap(), &Range::parse("^2.0.0").unwrap())
+            .is_none(),
+    );
 }

@@ -70,28 +70,28 @@ pub fn get_peer_version_range(version: &str) -> String {
     "*".to_string()
 }
 
-/// Most `||` alternatives [`node_semver::Range::intersect`] may pair.
+/// Most alternative pairs [`intersect_peer_ranges`] lets
+/// [`Range::intersect`] build.
 ///
-/// The intersection stores every alternative of one union with every
-/// alternative of the other. A chain of overlapping unions doubles that
-/// set on each step, and the next reservation is one allocation of tens
-/// of gigabytes. Callers treat a product past this cap as no intersection.
+/// [`Range::intersect`] stores every alternative of one union paired with
+/// every alternative of the other. Overlapping unions that no alternative
+/// covers keep that whole product, so a chain of them doubles it on each
+/// step until one reservation runs to tens of gigabytes.
 pub const MAX_INTERSECTED_ALTERNATIVES: usize = 4096;
 
-/// How many `||` alternatives `range` spells. Empty pieces do not count.
+/// [`Range::intersect`], or `None` when the ranges share no versions or
+/// pairing their alternatives would pass [`MAX_INTERSECTED_ALTERNATIVES`].
 #[must_use]
-pub fn range_alternative_count(range: &str) -> usize {
-    range
-        .split("||")
-        .filter(|part| !part.trim().is_empty())
-        .count()
+pub fn intersect_peer_ranges(left: &Range, right: &Range) -> Option<Range> {
+    let pairs = count_alternatives(left).saturating_mul(count_alternatives(right));
+    if pairs > MAX_INTERSECTED_ALTERNATIVES {
+        return None;
+    }
+    left.intersect(right)
 }
 
-/// Whether intersecting two unions would allocate more alternatives than
-/// [`MAX_INTERSECTED_ALTERNATIVES`].
-#[must_use]
-pub fn intersection_exceeds_bound(left: usize, right: usize) -> bool {
-    left.saturating_mul(right) > MAX_INTERSECTED_ALTERNATIVES
+fn count_alternatives(range: &Range) -> usize {
+    range.to_string().split("||").count()
 }
 
 /// The comparable range a value [`is_valid_peer_range`] accepted stands for:
