@@ -86,7 +86,7 @@ fn try_build_regex_from_command(command: &str) -> Result<Option<Regex>, RunError
 /// whose only `/` characters are backslash-escaped, and flags drawn from
 /// JavaScript's flag set. The closing delimiter is therefore the last
 /// `/` in the string.
-fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
+pub(super) fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
     let body = command.strip_prefix('/')?;
     let close = body.rfind('/')?;
     let (pattern, flags) = body.split_at(close);

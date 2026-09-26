@@ -24,6 +24,7 @@ serde = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+regex = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 

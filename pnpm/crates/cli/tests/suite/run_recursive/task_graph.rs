@@ -114,6 +114,56 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     drop(root);
 }
 
+#[test]
+fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let scripts = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": if name == "project-a" { json!({ "project-b": "workspace:*" }) } else { json!({}) },
+            "scripts": {
+                "build": append_line_script(&format!("{name}-build"), "../order.log"),
+                "test": append_line_script(&format!("{name}-test"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-a", scripts("project-a")), ("project-b", scripts("project-b"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - project-a\n  - project-b\n",
+            "tasks:\n",
+            "  build:\n    dependsOn: ['^build']\n",
+            "  test:\n    dependsOn: ['build']\n",
+        ),
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let lines: Vec<&str> = order.lines().collect();
+    dbg!(&lines);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
+    assert!(position("project-b-build") < position("project-a-build"));
+    assert!(position("project-a-build") < position("project-a-test"));
+    assert!(position("project-b-build") < position("project-b-test"));
+
+    drop(root);
+}
+
 /// `dependency`'s lint waits for the marker `dependent`'s lint writes:
 /// only possible when the explicitly empty `dependsOn` frees the lint
 /// tasks from the project-graph order.

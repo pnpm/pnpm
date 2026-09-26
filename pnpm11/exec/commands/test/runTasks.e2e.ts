@@ -104,6 +104,50 @@ test('dependsOn runs the tasks a task depends on, in dependency order', async ()
   expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
 })
 
+test('a RegExp selector runs the dependsOn of the scripts it matches', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('a-build'),
+        test: server.sendLineScript('a-test'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('b-build'),
+        test: server.sendLineScript('b-test'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      build: { dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
+  expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
+})
+
 test('a task with an explicitly empty dependsOn starts without waiting for anything', async () => {
   await using server = await createTestIpcServer()
 
