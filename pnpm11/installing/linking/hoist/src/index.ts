@@ -391,6 +391,10 @@ async function removeWorkspaceLinkIfTarget (destination: string, target: string)
 
 export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
   if (Object.keys(opts.graph ?? {}).length === 0) return null
+  const rootDirectDeps = opts.directDepsByImporterId['.' as ProjectId] ?? new Map<string, T>()
+  const privateRootAliases = isSubdir(path.dirname(opts.publicHoistedModulesDir), opts.privateHoistedModulesDir)
+    ? new Set<string>()
+    : new Set(Array.from(rootDirectDeps.keys()).filter(createMatcher(opts.privateHoistPattern)))
   const { directDeps, step } = graphWalker(
     opts.graph,
     opts.directDepsByImporterId
@@ -403,7 +407,7 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
             acc[alias] = nodeId
           }
           return acc
-        }, {} as Record<string, T>),
+        }, privateRootAliases.size > 0 ? Object.fromEntries(rootDirectDeps) : {} as Record<string, T>),
       nodeId: '' as T,
       depth: -1,
     },
@@ -412,8 +416,9 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
+  return hoistGraph(deps, rootDirectDeps, {
     getAliasHoistType,
+    privateRootAliases,
     graph: opts.graph,
     reservedAliases: opts.reservedAliases,
     skipped: opts.skipped,
@@ -510,13 +515,14 @@ function hoistGraph<T extends string> (
   currentSpecifiers: Map<string, T>,
   opts: {
     getAliasHoistType: GetAliasHoistType
+    privateRootAliases: Set<string>
     graph: DependenciesGraph<T>
     reservedAliases?: Iterable<string>
     skipped: Set<DepPath>
   }
 ): HoistGraphResult<T> {
   const hoistedAliases = new Set([
-    ...currentSpecifiers.keys(),
+    ...Array.from(currentSpecifiers.keys()).filter(alias => !opts.privateRootAliases.has(alias)),
     ...opts.reservedAliases ?? [],
   ].map(alias => alias.toLowerCase()))
   const hoistedDependencies: HoistedDependencies = Object.create(null)
@@ -532,7 +538,9 @@ function hoistGraph<T extends string> (
     // build the alias map and the id map
     .forEach((depNode) => {
       for (const [childAlias, childNodeId] of Object.entries<T>(depNode.children)) {
-        const hoist = opts.getAliasHoistType(childAlias)
+        const privateRootDependency = opts.privateRootAliases.has(childAlias)
+        if (privateRootDependency && currentSpecifiers.get(childAlias) !== childNodeId) continue
+        const hoist = privateRootDependency ? 'private' : opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
         // if this alias has already been taken, skip it

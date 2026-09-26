@@ -218,6 +218,8 @@ pub struct HoistInputs<'a> {
     pub private_pattern: Matcher,
     /// Boolean matcher built from `Config.public_hoist_pattern`.
     pub public_pattern: Matcher,
+    /// Root dependencies need private links when the virtual store cannot reach the root modules.
+    pub hoist_root_dependencies: bool,
     /// `hoist-workspace-packages`: workspace project name → project id and
     /// absolute project dir, for every named non-root project. When present,
     /// each name is considered for hoisting like a root-level alias
@@ -311,6 +313,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     });
 
     let mut pass = HoistPass::new(input);
+    pass.hoist_root_dependencies();
     // `hoist-workspace-packages`: consider each named workspace project
     // for hoisting after every importer's direct deps (v11 merges the
     // names into the root children as the LOWEST-precedence entries —
@@ -424,6 +427,23 @@ impl<'a> HoistPass<'a> {
         }
     }
 
+    fn hoist_root_dependencies(&mut self) {
+        let input = self.input;
+        if !input.hoist_root_dependencies {
+            return;
+        }
+        let Some(deps) = input.direct_deps_by_importer.get(".") else { return };
+        for (alias, node_id) in deps {
+            if !input.private_pattern.matches(alias) {
+                continue;
+            }
+            let normalized = alias.to_lowercase();
+            self.hoisted_aliases.remove(&normalized);
+            self.place_child(alias, node_id);
+            self.hoisted_aliases.insert(normalized);
+        }
+    }
+
     /// Place the named workspace projects, one deliberate divergence
     /// from v11: a placed workspace name claims its alias, so an
     /// equally-named transitive can't also hoist and clobber the link
@@ -449,6 +469,13 @@ impl<'a> HoistPass<'a> {
     /// Which hoist target the configured patterns put `alias` in, if
     /// any.
     fn hoist_kind(&self, alias: &str) -> Option<HoistKind> {
+        if self.input.hoist_root_dependencies
+            && self.input.direct_deps_by_importer
+                .get(".")
+                .is_some_and(|deps| deps.contains_key(alias))
+        {
+            return self.input.private_pattern.matches(alias).then_some(HoistKind::Private);
+        }
         pattern_hoist_kind(&self.input.private_pattern, &self.input.public_pattern, alias)
     }
 

@@ -1,5 +1,7 @@
 use std::sync::LazyLock;
 
+use pnpm_fs::lexical_normalize;
+
 use super::super::{
     BTreeMap, Config, HashMap, HashSet, PackageKey, PackageMetadata, Path, PathBuf, Prefix,
     SkippedSnapshots, SnapshotEntry, build_direct_deps_by_importer, create_matcher,
@@ -135,6 +137,11 @@ pub fn compute_hoist_plan(
         private_pattern,
         public_pattern,
         hoisted_workspace_packages,
+        hoist_root_dependencies: lexical_normalize(&config.modules_dir)
+            .parent()
+            .is_some_and(|project_dir| {
+                !lexical_normalize(&config.virtual_store_dir).starts_with(project_dir)
+            }),
     })?;
     Some(HoistPlan { graph, result, skipped: hoist_skipped })
 }
