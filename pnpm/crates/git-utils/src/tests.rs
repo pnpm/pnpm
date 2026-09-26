@@ -223,8 +223,8 @@ fn a_failed_branch_listing_is_empty() {
     );
 }
 
-/// A provider whose git spawn itself fails, which is what a machine
-/// without git looks like.
+// A provider whose git spawn itself fails, which is what a machine
+// without git looks like.
 struct GitUnspawnable;
 
 impl RunCommand for GitUnspawnable {

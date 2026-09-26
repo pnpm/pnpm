@@ -463,6 +463,21 @@ impl Default for WantedLockfileSelection {
 }
 
 impl WantedLockfileSelection {
+    /// Whether any file the read would try holds a wanted lockfile.
+    ///
+    /// With no candidates this asks about `file_name` alone, mirroring the
+    /// single-file check pnpm's `existsNonEmptyWantedLockfile` performs on
+    /// a branch: a branch that has not been installed on yet reads as
+    /// having no lockfile even when the shared one is on disk. A detached
+    /// HEAD's candidates widen the question to the whole read order, where
+    /// the shared lockfile is the last file tried.
+    pub(crate) fn wanted_exists_on_disk(&self, dir: &Path) -> bool {
+        if self.branch_lockfile_candidates.is_empty() {
+            return Lockfile::wanted_exists(dir, &self.file_name);
+        }
+        self.read_order().any(|file_name| Lockfile::wanted_exists(dir, file_name))
+    }
+
     /// The file names to try, most specific first.
     fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);

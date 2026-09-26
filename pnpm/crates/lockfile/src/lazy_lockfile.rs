@@ -188,7 +188,7 @@ impl LazyLockfile {
         }
         self.source
             .as_ref()
-            .is_some_and(|(dir, selection)| Lockfile::wanted_exists(dir, &selection.file_name))
+            .is_some_and(|(dir, selection)| selection.wanted_exists_on_disk(dir))
     }
 }
 
