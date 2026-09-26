@@ -266,11 +266,7 @@ fn installed_modules_match_lockfile(
     crate::optimistic_repeat_install::materialized_shape_matches(
         &wanted,
         &current,
-        IncludedDependencies {
-            dependencies: true,
-            dev_dependencies: true,
-            optional_dependencies: true,
-        },
+        IncludedDependencies::default(),
         config.peer_edge_options(),
     ) && manifests_match_lockfile(
         config,
@@ -295,6 +291,20 @@ fn virtual_store_dir_for(config: &Config, lockfile_root: &Path) -> std::path::Pa
     lockfile_root.join(modules_name).join(".pnpm")
 }
 
+fn load_projects(
+    config: &Config,
+    workspace_root: &Path,
+    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
+) -> Result<Option<Vec<pnpm_workspace::Project>>, ()> {
+    let ignored = config.managed_directories();
+    config
+        .shares_one_lockfile()
+        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored))
+        .transpose()
+        .map(Option::flatten)
+        .map_err(|_| ())
+}
+
 fn manifests_match_lockfile(
     config: &Config,
     manifest: &PackageManifest,
@@ -303,19 +313,16 @@ fn manifests_match_lockfile(
     lockfile_root: &Path,
     wanted: &pnpm_lockfile::Lockfile,
 ) -> bool {
-    let ignored_directories = config.managed_directories();
-    let Ok(projects) = config
-        .shares_one_lockfile()
-        .then(|| load_workspace_projects(workspace_root, workspace_manifest, &ignored_directories))
-        .transpose()
-    else {
+    let Ok(projects) = load_projects(config, workspace_root, workspace_manifest) else {
         return false;
     };
-    let projects = projects.flatten();
     let manifests = build_project_manifests_list(manifest, projects.as_deref());
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return false;
     };
+    if !lockfile_settings_up_to_date(config, wanted, &catalogs) {
+        return false;
+    }
     let check = OptimisticRepeatInstallCheck {
         workspace_root: lockfile_root,
         config,
@@ -326,16 +333,33 @@ fn manifests_match_lockfile(
         layout: crate::RepeatInstallLayout {
             node_linker: config.node_linker,
             supported_architectures: config.supported_architectures.as_ref(),
-            included: IncludedDependencies {
-                dependencies: true,
-                dev_dependencies: true,
-                optional_dependencies: true,
-            },
+            included: IncludedDependencies::default(),
         },
         manifest_freshness: crate::ManifestFreshness::Mtime,
     };
     crate::optimistic_repeat_install::first_project_missing_modules_dir(&check).is_none()
         && projects_satisfy_lockfile(config, lockfile_root, &manifests, wanted)
+}
+
+fn lockfile_settings_up_to_date(
+    config: &Config,
+    wanted: &pnpm_lockfile::Lockfile,
+    catalogs: &Catalogs,
+) -> bool {
+    let Ok(parsed_overrides) = crate::install::parse_config_overrides(config, catalogs) else {
+        return false;
+    };
+    crate::install::check_lockfile_settings_drift(
+        wanted,
+        config,
+        catalogs,
+        crate::install::CheckLockfileSettingsDriftOptions {
+            parsed_overrides: parsed_overrides.as_deref(),
+            pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
+            dedupe_peers: config.dedupe_peers,
+        },
+    )
+    .is_ok()
 }
 
 fn projects_satisfy_lockfile(
@@ -344,7 +368,10 @@ fn projects_satisfy_lockfile(
     manifests: &[(std::path::PathBuf, &PackageManifest)],
     wanted: &pnpm_lockfile::Lockfile,
 ) -> bool {
-    let is_ignored_optional = |_: &str| false;
+    let ignored_optional = pnpm_matcher::create_matcher(
+        config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
+    );
+    let is_ignored_optional = |name: &str| ignored_optional.matches(name);
     manifests
         .iter()
         .all(|(dir, manifest)| {
