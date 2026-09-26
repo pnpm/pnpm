@@ -9,7 +9,7 @@ use super::{
     write_recursive_summary,
 };
 
-/// Whether a task name addresses scripts by RegExp literal rather than by
+/// Whether a task name addresses scripts by `RegExp` literal rather than by
 /// name: the graph resolves its `dependsOn` through the scripts it selects
 /// per project instead of through the name itself.
 fn is_selector_task(task_name: &str) -> bool {
