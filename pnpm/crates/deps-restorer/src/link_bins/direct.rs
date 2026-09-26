@@ -317,9 +317,7 @@ fn read_dep_manifest(
     let location = modules_dir.join(name);
     let manifest = match read_manifest_at(&location.join("package.json")) {
         Ok(Some(manifest)) => manifest,
-        Ok(None) => match find_parent_publish_manifest(target.filter(|target| target.is_dir())?)
-            .map_err(LinkBinsError::ReadProjectManifest)
-        {
+        Ok(None) => match read_existing_publish_manifest(target?) {
             Ok(Some(manifest)) => manifest,
             Ok(None) => return None,
             Err(err) => return Some(Err(err)),
@@ -327,6 +325,18 @@ fn read_dep_manifest(
         Err(err) => return Some(Err(err)),
     };
     Some(Ok((location, manifest)))
+}
+fn read_existing_publish_manifest(
+    target: &Path,
+) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    match fs::metadata(target) {
+        Ok(metadata) if metadata.is_dir() => {
+            find_parent_publish_manifest(target).map_err(LinkBinsError::ReadProjectManifest)
+        }
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LinkBinsError::ResolvePath { path: target.to_path_buf(), error }),
+    }
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,
