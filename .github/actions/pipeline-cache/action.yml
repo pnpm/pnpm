@@ -1,0 +1,75 @@
+name: Pipeline task cache
+
+description: >
+  Restore, and on main save, the pnpm pipeline task cache for one pipeline.
+  The cache is local-tier only, so it survives a run only if the directory
+  does. On Blacksmith runners `actions/cache` is served by Blacksmith's
+  colocated cache, so this needs no separate action.
+
+  The pipeline step between the two calls must set PNPM_CONFIG_CACHE_DIR to a
+  pnpm-cache directory under the runner temp directory, which is where this
+  action reads and writes. Setting it on that step rather than exporting it
+  from here keeps the action clear of GITHUB_ENV, a write zizmor flags
+  wherever it appears. Spelling the path out here would not work: GitHub
+  evaluates expressions in this description, and the runner context does not
+  exist in it.
+
+inputs:
+  pipeline:
+    description: The pipeline whose task results this cache holds.
+    required: true
+  mode:
+    description: '"restore" before the pipeline runs, "save" after it.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Reject an unknown mode
+      shell: bash
+      if: ${{ inputs.mode != 'restore' && inputs.mode != 'save' }}
+      env:
+        MODE: ${{ inputs.mode }}
+      run: |
+        echo "::error::pipeline-cache mode must be \"restore\" or \"save\", got \"$MODE\""
+        exit 1
+
+    # A cache-service outage must not redden a check that would otherwise pass,
+    # the same guard the dylint and test jobs put on their own cache steps.
+    # Those also carry `timeout-minutes`, which composite action steps do not
+    # support, so a hang here is bounded only by the job.
+    - name: Restore the pipeline task cache
+      if: ${{ inputs.mode == 'restore' }}
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/tasks
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/state
+        key: pipeline-${{ inputs.pipeline }}-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          pipeline-${{ inputs.pipeline }}-${{ runner.os }}-
+
+    # Nothing evicts entries from the pipeline cache yet, and one entry can
+    # hold a full copy of a compiled tree, so an unpruned directory would grow
+    # into a tarball that costs more to download than the build it replaces.
+    # Two tasks times two revisions keeps the previous build reachable while
+    # the current one is written.
+    - name: Bound the pipeline task cache
+      if: ${{ inputs.mode == 'save' }}
+      shell: bash
+      run: |
+        for tasks in "$RUNNER_TEMP"/pnpm-cache/pipeline/*/tasks; do
+          [ -d "$tasks" ] || continue
+          (cd "$tasks" && ls -1dt ./*/* 2>/dev/null | tail -n +5 | xargs -r rm -rf)
+        done
+
+    - name: Save the pipeline task cache
+      if: ${{ inputs.mode == 'save' }}
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/tasks
+          ${{ runner.temp }}/pnpm-cache/pipeline/*/state
+        key: pipeline-${{ inputs.pipeline }}-${{ runner.os }}-${{ github.sha }}
