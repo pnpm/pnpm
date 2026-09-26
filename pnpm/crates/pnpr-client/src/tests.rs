@@ -365,15 +365,30 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 }
 
 #[test]
-fn a_missing_integrity_violation_keeps_its_code_and_structural_hint() {
-    let line = br#"{"type":"violations","violations":[{"name":"acme","version":"1.0.0","code":"MISSING_TARBALL_INTEGRITY","reason":"no integrity"},{"name":"bravo","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"young"}]}"#;
-    let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
-        panic!("expected a violations frame");
-    };
-    let verify_err = build_verify_error(violations);
-    assert!(verify_err.to_string().contains("[MISSING_TARBALL_INTEGRITY]"), "got {verify_err}");
-    let help = miette::Diagnostic::help(&verify_err).expect("hint").to_string();
-    assert!(!help.contains("relax the policy"), "got: {help}");
+fn structural_violations_keep_their_code_and_hint() {
+    for code in [
+        "MISSING_TARBALL_INTEGRITY",
+        "RESOLUTION_SHAPE_MISMATCH",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+    ] {
+        let line = format!(
+            r#"{{"type":"violations","violations":[{{"name":"acme","version":"1.0.0","code":"{code}","reason":"broken"}},{{"name":"bravo","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"young"}}]}}"#,
+        );
+        let Frame::Violations { violations } = parse_frame(line.as_bytes()).expect("frame parses")
+        else {
+            panic!("expected a violations frame");
+        };
+        let verify_err = build_verify_error(violations);
+        assert!(
+            verify_err
+                .to_string()
+                .contains(&format!("[{code}]")),
+            "got {verify_err}",
+        );
+        let help = miette::Diagnostic::help(&verify_err).expect("hint").to_string();
+        assert!(!help.contains("relax the policy"), "{code}: {help}");
+    }
 }
 
 #[test]

@@ -196,7 +196,12 @@ fn policy_violation_hint_gates_relaxing_the_policy_on_trust() {
 /// No configured policy produces these, so relaxing one cannot clear them.
 #[test]
 fn structural_violation_hints_do_not_suggest_relaxing_a_policy() {
-    for code in ["MISSING_TARBALL_INTEGRITY", "RESOLUTION_SHAPE_MISMATCH"] {
+    for code in [
+        "MISSING_TARBALL_INTEGRITY",
+        "RESOLUTION_SHAPE_MISMATCH",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+    ] {
         let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
         let help = help_text(&err);
         assert!(help.contains(r#"run "pnpm clean --lockfile""#), "{code}: {help}");

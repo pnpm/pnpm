@@ -214,6 +214,8 @@ fn is_structural_violation(code: &str) -> bool {
     matches!(
         code,
         pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY
+            | pnpm_resolving_npm_resolver_violation_codes::TARBALL_URL_MISMATCH
+            | pnpm_resolving_npm_resolver_violation_codes::TARBALL_REVISION_MISMATCH
             | crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
     )
 }
@@ -269,6 +271,10 @@ mod pnpm_resolving_npm_resolver_violation_codes {
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
     /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
     pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
+    /// Matches `pnpm_resolving_npm_resolver::TARBALL_URL_MISMATCH_VIOLATION_CODE`.
+    pub const TARBALL_URL_MISMATCH: &str = "TARBALL_URL_MISMATCH";
+    /// Matches `pnpm_resolving_npm_resolver::TARBALL_REVISION_MISMATCH_VIOLATION_CODE`.
+    pub const TARBALL_REVISION_MISMATCH: &str = "TARBALL_REVISION_MISMATCH";
 }
 
 #[cfg(test)]
