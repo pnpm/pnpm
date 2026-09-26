@@ -113,14 +113,41 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        // A new store directory inherits group-write and setgid from the
+        // nearest directory that already existed. An existing store
+        // directory is left alone, including one another user owns.
+        #[cfg(unix)]
+        let new_store_template = if store_dir.is_dir() {
+            None
+        } else {
+            pnpm_fs::file_mode::nearest_existing_ancestor(store_dir)
+        };
         std::fs::create_dir_all(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
                 source,
             })?;
+        #[cfg(unix)]
+        if let Some(template) = new_store_template.as_deref() {
+            pnpm_fs::file_mode::grant_inherited_dir_mode(store_dir, template)
+                .map_err(|source| StoreIndexError::CreateDir {
+                    path: store_dir.to_path_buf(),
+                    source,
+                })?;
+        }
         let db_path = store_dir.join("index.db");
+        // SQLite creates a missing database as `0o644` and then copies that
+        // mode onto the WAL and shared-memory sidecars. Add the store
+        // directory's group-write bit before `journal_mode=WAL` so those
+        // sidecars inherit it. An existing database is not chmod'd.
+        #[cfg(unix)]
+        let db_is_new = !db_path.is_file();
         let conn = Connection::open(&db_path)
-            .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
+            .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
+        #[cfg(unix)]
+        if db_is_new {
+            grant_new_index_mode(&db_path, store_dir)?;
+        }
 
         // Busy-timeout FIRST so the internal busy handler is active during the
         // rest of the setup — on Windows file locking is mandatory and
@@ -503,6 +530,16 @@ fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
         .map_err(|()| StoreIndexError::FileUri { path: absolute, source: None })?;
     url.query_pairs_mut().append_pair("immutable", "1");
     Ok(url.into())
+}
+
+/// Add the store directory's group-write bit to a database this process
+/// just created. Sidecars created afterwards copy the database mode.
+#[cfg(unix)]
+fn grant_new_index_mode(db_path: &Path, store_dir: &Path) -> Result<(), StoreIndexError> {
+    let file = std::fs::File::open(db_path)
+        .map_err(|source| StoreIndexError::CreateDir { path: db_path.to_path_buf(), source })?;
+    pnpm_fs::file_mode::grant_inherited_mode(&file, store_dir, false)
+        .map_err(|source| StoreIndexError::CreateDir { path: db_path.to_path_buf(), source })
 }
 
 #[cfg(test)]

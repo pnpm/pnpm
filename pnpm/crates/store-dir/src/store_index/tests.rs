@@ -551,3 +551,39 @@ fn open_immutable_reads_wal_db_on_readonly_directory() {
         );
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn new_index_db_inherits_group_write_and_reopen_keeps_owner_and_mode() {
+    use std::{
+        fs,
+        os::unix::fs::{MetadataExt, PermissionsExt},
+    };
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let store = tmp.path().join("store");
+    drop(StoreIndex::open(&store).unwrap());
+
+    let db = store.join("index.db");
+    let created = fs::metadata(&db).unwrap();
+    assert_ne!(created.permissions().mode() & 0o020, 0, "new index.db must be group-writable");
+    assert_eq!(created.gid(), fs::metadata(tmp.path()).unwrap().gid());
+    assert_eq!(
+        fs::metadata(&store)
+            .unwrap()
+            .permissions()
+            .mode()
+            & (0o020 | 0o2000),
+        0o020 | 0o2000
+    );
+
+    fs::set_permissions(&db, fs::Permissions::from_mode(0o600)).unwrap();
+    let before = fs::metadata(&db).unwrap();
+    drop(StoreIndex::open(&store).unwrap());
+    let after = fs::metadata(&db).unwrap();
+    assert_eq!(after.uid(), before.uid());
+    assert_eq!(after.gid(), before.gid());
+    assert_eq!(after.ino(), before.ino());
+    assert_eq!(after.permissions().mode() & 0o777, 0o600);
+}

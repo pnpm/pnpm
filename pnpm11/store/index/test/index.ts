@@ -172,6 +172,35 @@ testFrozenOpen('StoreIndex frozen mode opens under a store path containing a "?"
 // platform-independent), so it runs on Windows too when the runtime is old.
 const testUnsupportedNode = supportsImmutableUri ? test.skip : test
 
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('StoreIndex keeps group write on a new index.db and does not chmod an existing one', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const created = new StoreIndex(storeDir)
+  created.close()
+
+  const dbPath = path.join(storeDir, 'index.db')
+  const fresh = fs.statSync(dbPath)
+  expect(fresh.mode & 0o020).not.toBe(0)
+  expect(fresh.gid).toBe(fs.statSync(parent).gid)
+  expect(fs.statSync(storeDir).mode & (0o020 | 0o2000)).toBe(0o020 | 0o2000)
+
+  fs.chmodSync(dbPath, 0o600)
+  const before = fs.statSync(dbPath)
+  const reopened = new StoreIndex(storeDir)
+  try {
+    const after = fs.statSync(dbPath)
+    expect(after.uid).toBe(before.uid)
+    expect(after.gid).toBe(before.gid)
+    expect(after.ino).toBe(before.ino)
+    expect(after.mode & 0o777).toBe(0o600)
+  } finally {
+    reopened.close()
+  }
+})
+
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   expect(() => new ReadOnlyStoreIndex(storeDir))

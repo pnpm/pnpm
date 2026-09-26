@@ -4,6 +4,12 @@ import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlit
 import { pathToFileURL } from 'node:url'
 
 import { PnpmError } from '@pnpm/error'
+import {
+  directoryExists,
+  grantInheritedDirMode,
+  grantInheritedFileMode,
+  nearestExistingAncestor,
+} from '@pnpm/store.file-mode'
 import { Packr } from 'msgpackr'
 
 const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
@@ -139,8 +145,20 @@ export class StoreIndex {
 
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
-    fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(`${storeDir}/index.db`)
+    if (process.platform !== 'win32' && !directoryExists(storeDir)) {
+      const template = nearestExistingAncestor(storeDir)
+      fs.mkdirSync(storeDir, { recursive: true })
+      if (template != null) grantInheritedDirMode(storeDir, template)
+    } else {
+      fs.mkdirSync(storeDir, { recursive: true })
+    }
+    const dbPath = `${storeDir}/index.db`
+    // Exclusive create is the signal that this process made the database.
+    // SQLite copies that file's mode onto the WAL sidecars, so the inherited
+    // bits are applied before open. An existing database is not chmod'd.
+    const dbIsNew = process.platform !== 'win32' && createEmptyFile(dbPath)
+    if (dbIsNew) grantInheritedFileMode(dbPath, storeDir)
+    this.db = new DatabaseSync(dbPath)
     // Set busy_timeout FIRST so SQLite's internal busy handler is active
     // during all subsequent operations. On Windows, file locking is mandatory
     // and concurrent processes (e.g. parallel dlx calls) will contend.
@@ -471,4 +489,19 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   if (major === 22) return minor >= 15
   if (major === 23) return minor >= 11
   return true
+}
+
+// True only when this call created `filePath`. `EEXIST` means the database
+// was already there, so the caller must not chmod it.
+function createEmptyFile (filePath: string): boolean {
+  let fd: number | undefined
+  try {
+    fd = fs.openSync(filePath, 'wx')
+    return true
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err != null && 'code' in err && err.code === 'EEXIST') return false
+    throw err
+  } finally {
+    if (fd != null) fs.closeSync(fd)
+  }
 }
