@@ -207,7 +207,7 @@ fn info_aggregate_retains_success_and_optional_failure_blocks() {
 }
 
 #[test]
-fn quiet_verification_keeps_terminal_verdicts_at_their_severity() {
+fn quiet_verification_prints_only_failures() {
     for max_log_level in [MaxLogLevel::Warn, MaxLogLevel::Error] {
         let mut reporter = state_with_options(ReporterOptions {
             max_log_level,
@@ -230,8 +230,7 @@ fn quiet_verification_keeps_terminal_verdicts_at_their_severity() {
                     level: LogLevel::Debug,
                     message,
                 }));
-            let visible = index == 3 || (index > 0 && max_log_level == MaxLogLevel::Warn);
-            assert_eq!(matches!(output, Output::Lines(_)), visible);
+            assert_eq!(matches!(output, Output::Lines(_)), index == 3);
         }
         let lines = emitted_lines(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
         assert_eq!(!lines.is_empty(), max_log_level == MaxLogLevel::Warn);

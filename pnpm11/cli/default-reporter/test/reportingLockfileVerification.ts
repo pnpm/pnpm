@@ -10,7 +10,7 @@ import { firstValueFrom, take, toArray } from 'rxjs'
 import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
 import { captureOutput } from './utils/captureOutput.js'
 
-test.each(['info', 'warn', 'error'] as const)('prints each permitted lockfile verdict once at %s level', async (logLevel) => {
+test.each(['info', 'warn', 'error'] as const)('prints only the lockfile verdicts permitted at %s level', async (logLevel) => {
   const output = await captureOutput({
     context: { argv: ['install'] },
     reportingOptions: { appendOnly: true, logLevel },
@@ -24,9 +24,7 @@ test.each(['info', 'warn', 'error'] as const)('prints each permitted lockfile ve
   const cached = '✓ Lockfile passes supply-chain policies (previously verified)'
   const done = '✓ Lockfile passes supply-chain policies (2 entries in 42ms)'
   const failed = '✗ Lockfile failed supply-chain policy check (2 entries in 800ms)'
-  expect(output).toEqual(logLevel === 'error' ? [failed]
-    : logLevel === 'warn' ? [cached, done, failed]
-      : [started, cached, done, failed])
+  expect(output).toEqual(logLevel === 'info' ? [started, cached, done, failed] : [failed])
 })
 
 test('prints lockfile verification in-progress and completion messages', async () => {

@@ -62,14 +62,14 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
 }, TIMEOUT)
 
 // https://github.com/pnpm/pnpm/issues/11936
-test.each<[string[], boolean]>([
-  [['--silent'], false],
-  [['-s'], false],
-  [['-sd'], false],
-  [['-silent'], false],
-  [['-quiet'], true],
-  [['--loglevel', 'warn'], true],
-])('pnpm install --frozen-lockfile %j keeps the reporting flags from pacquet', async (reportingFlags, showVerdict) => {
+test.each([
+  [['--silent']],
+  [['-s']],
+  [['-sd']],
+  [['-silent']],
+  [['-quiet']],
+  [['--loglevel', 'warn']],
+])('pnpm install --frozen-lockfile %j keeps the reporting flags from pacquet', async (reportingFlags) => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
   await fs.promises.rm('node_modules', { recursive: true, force: true })
 
@@ -78,13 +78,7 @@ test.each<[string[], boolean]>([
     { env: { pnpm_config_silent: 'false' }, stdio: 'pipe' }
   )
   expect(stderr.toString()).toBe('')
-  const output = stdout.toString()
-  if (showVerdict) {
-    expect(output).toMatch(/^✓ Lockfile passes supply-chain policies(?: \(verified [^\r\n]+ ago\))?\r?\n?$/)
-    expect(output).not.toMatch(/Progress:|Verifying lockfile|Using pacquet for this install/)
-  } else {
-    expect(output).toBe('')
-  }
+  expect(stdout.toString()).toBe('')
   expect(status).toBe(0)
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)

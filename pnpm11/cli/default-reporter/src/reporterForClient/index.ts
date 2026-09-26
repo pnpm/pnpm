@@ -177,8 +177,7 @@ export function reporterForClient (
         logLevel: opts.logLevel,
         annotateOptionalFailure: true,
       }),
-      reportLockfileVerification(log$.lockfileVerification.pipe(filter((log) => log.status !== 'started'
-        && (log.status === 'failed' || logLevelNumber === LOG_LEVEL_NUMBER.warn))), {
+      reportLockfileVerification(log$.lockfileVerification.pipe(filter((log) => log.status === 'failed')), {
         cwd,
         workspaceDir: opts.pnpmConfig?.workspaceDir,
       })

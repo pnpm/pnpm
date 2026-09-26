@@ -348,8 +348,8 @@ impl ReporterState {
     /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
     /// message level in [`Self::on_pnpm`], so errors always pass.
     /// Lifecycle events always pass: below `info`, [`Self::on_lifecycle`]
-    /// buffers each script and prints only failed ones. A supply-chain
-    /// verdict needs `warn`, a failed verification only `error`.
+    /// buffers each script and prints only failed ones. A failed
+    /// supply-chain verification always passes; its other states need `info`.
     /// Dedupe-check issues always pass too — upstream reports them as an
     /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
     /// `reportError.ts`).
@@ -364,18 +364,10 @@ impl ReporterState {
             | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
-            LogEvent::LockfileVerification(log) => match log.message {
-                LockfileVerificationMessage::Started { .. } => {
-                    self.options.max_log_level >= MaxLogLevel::Info
-                }
-                LockfileVerificationMessage::Cached { .. }
-                | LockfileVerificationMessage::Done { .. } => {
-                    self.options.max_log_level >= MaxLogLevel::Warn
-                }
-                LockfileVerificationMessage::Failed { .. } => {
-                    self.options.max_log_level >= MaxLogLevel::Error
-                }
-            },
+            LogEvent::LockfileVerification(log) => {
+                matches!(log.message, LockfileVerificationMessage::Failed { .. })
+                    || self.options.max_log_level >= MaxLogLevel::Info
+            }
             _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
     }
