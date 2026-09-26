@@ -15,11 +15,11 @@ import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/
 import type { DependenciesField, Project, ProjectRootDir } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
-import { pick, without } from 'ramda'
+import { pick, uniq, without } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { getSaveType } from './getSaveType.js'
-import { recursive } from './recursive.js'
+import { createMatcher, recursive } from './recursive.js'
 import { resolvedPackageVersionsForPrune } from './resolvedPackageVersionsForPrune.js'
 
 class RemoveMissingDepsError extends PnpmError {
@@ -206,14 +206,8 @@ export async function handler (
       }
     }
     const availableDependencies = Array.from(availableDependenciesSet).sort()
-    const nonMatchedDependencies = without(availableDependencies, params)
-    if (nonMatchedDependencies.length !== 0) {
-      throw new RemoveMissingDepsError({
-        availableDependencies,
-        nonMatchedDependencies,
-        targetDependenciesField,
-      })
-    }
+    const dependencyNames = validateRemoveDependencies(params, availableDependencies, targetDependenciesField)
+    if (dependencyNames === undefined) return
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,
@@ -253,18 +247,12 @@ export async function handler (
       ? getAllDependenciesFromManifest(currentManifest)
       : currentManifest[targetDependenciesField] ?? {}
   )
-  const nonMatchedDependencies = without(availableDependencies, params)
-  if (nonMatchedDependencies.length !== 0) {
-    throw new RemoveMissingDepsError({
-      availableDependencies,
-      nonMatchedDependencies,
-      targetDependenciesField,
-    })
-  }
+  const dependencyNames = validateRemoveDependencies(params, availableDependencies, targetDependenciesField)
+  if (dependencyNames === undefined) return
   const mutationResult = await mutateModulesInSingleProject(
     {
       binsDir: opts.bin,
-      dependencyNames: params,
+      dependencyNames,
       manifest: currentManifest,
       mutation: 'uninstallSome',
       rootDir: opts.dir as ProjectRootDir,
@@ -295,3 +283,30 @@ export async function handler (
     allProjects: updatedProjects,
   })
 }
+
+function validateRemoveDependencies (
+  params: string[],
+  availableDependencies: string[],
+  targetDependenciesField: DependenciesField | undefined
+): string[] | undefined {
+  const hasRemovePatterns = params.some(param => param.includes('*') || param.startsWith('!'))
+  let dependencyNames = params
+  if (hasRemovePatterns) {
+    if (params.every(param => param.startsWith('!'))) return undefined
+    const explicitDependencies = params.filter(param => !param.includes('*') && !param.startsWith('!'))
+    const matcher = createMatcher(params)
+    const matched = availableDependencies.filter(dep => matcher(dep) !== null)
+    dependencyNames = uniq([...explicitDependencies, ...matched])
+    if (dependencyNames.length === 0) return undefined
+  }
+  const nonMatchedDependencies = without(availableDependencies, dependencyNames)
+  if (nonMatchedDependencies.length !== 0) {
+    throw new RemoveMissingDepsError({
+      availableDependencies,
+      nonMatchedDependencies,
+      targetDependenciesField,
+    })
+  }
+  return dependencyNames
+}
+

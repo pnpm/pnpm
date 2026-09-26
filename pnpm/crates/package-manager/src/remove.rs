@@ -19,6 +19,9 @@ use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessa
 use pnpm_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, path::PathBuf, sync::Arc};
 
+mod patterns;
+use patterns::{expand_remove_patterns, has_remove_patterns, missing_selected_dependencies};
+
 #[must_use]
 pub struct Remove<'a> {
     pub manifest: &'a mut PackageManifest,
@@ -72,10 +75,17 @@ impl Remove<'_> {
             resources: owned,
             manifest,
         } = self;
-        validate_removable(manifest, remove.package_names, remove.save_type)
+        let has_remove_patterns = has_remove_patterns(remove.package_names);
+        let package_names =
+            expand_remove_patterns(manifest, remove.package_names, remove.save_type);
+        if has_remove_patterns && package_names.is_empty() {
+            return Ok(());
+        }
+        validate_removable(manifest, &package_names, remove.save_type)
             .map_err(RemoveError::Validation)?;
-        prepare_manifest::<Reporter>(manifest, remove.package_names, remove.save_type);
+        prepare_manifest::<Reporter>(manifest, &package_names, remove.save_type);
 
+        let remove = RemoveOptions { package_names: &package_names, ..remove };
         let ignored_builds = remove_install(remove, owned, manifest)
             .run::<Reporter>()
             .await
@@ -90,21 +100,14 @@ impl Remove<'_> {
         post_install_prune(remove.config, None, manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(RemoveError::Install(ignored_builds));
-        }
-        Ok(())
+        finish_ignored_builds(ignored_builds)
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         selected: SelectedProjects<'_>,
     ) -> Result<(), RemoveError> {
-        let Self {
-            options: remove,
-            resources: owned,
-            manifest,
-        } = self;
+        let (remove, owned, manifest) = (self.options, self.resources, self.manifest);
         let selected_indices = selected_project_indices(
             selected.projects,
             selected.ordered_dirs,
@@ -120,6 +123,9 @@ impl Remove<'_> {
             remove.package_names,
             remove.save_type,
         )?;
+        if edited_dirs.is_empty() && has_remove_patterns(remove.package_names) {
+            return Ok(());
+        }
         let workspace_root = removal_workspace_root(remove.config, manifest);
 
         let ignored_builds = remove_install(remove, owned, manifest)
@@ -138,10 +144,14 @@ impl Remove<'_> {
             &workspace_root,
             manifest,
         )?;
-        if let Some(ignored_builds) = ignored_builds {
-            return Err(RemoveError::Install(ignored_builds));
-        }
-        Ok(())
+        finish_ignored_builds(ignored_builds)
+    }
+}
+
+fn finish_ignored_builds(ignored_builds: Option<InstallError>) -> Result<(), RemoveError> {
+    match ignored_builds {
+        Some(builds) => Err(RemoveError::Install(builds)),
+        None => Ok(()),
     }
 }
 
@@ -228,15 +238,11 @@ fn remove_install<'i>(
     }
 }
 
-fn validate_selected_remove(
+fn collect_selected_available_dependencies(
     projects: &[pnpm_workspace::Project],
     selected_indices: &[usize],
-    package_names: &[String],
     save_type: Option<DependencyGroup>,
-) -> Result<(), RemoveValidationError> {
-    if package_names.is_empty() {
-        return Err(RemoveValidationError::MustRemoveSomething);
-    }
+) -> (HashSet<String>, Vec<String>) {
     let mut available_lookup = HashSet::new();
     let mut available_dependencies = Vec::new();
     for &index in selected_indices {
@@ -256,10 +262,21 @@ fn validate_selected_remove(
         }
     }
     available_dependencies.sort();
-    let non_matched_dependencies: Vec<&String> = package_names
-        .iter()
-        .filter(|name| !available_lookup.contains(name.as_str()))
-        .collect();
+    (available_lookup, available_dependencies)
+}
+
+fn validate_selected_remove(
+    projects: &[pnpm_workspace::Project],
+    selected_indices: &[usize],
+    package_names: &[String],
+    save_type: Option<DependencyGroup>,
+) -> Result<(), RemoveValidationError> {
+    if package_names.is_empty() {
+        return Err(RemoveValidationError::MustRemoveSomething);
+    }
+    let (available_lookup, available_dependencies) =
+        collect_selected_available_dependencies(projects, selected_indices, save_type);
+    let non_matched_dependencies = missing_selected_dependencies(package_names, &available_lookup);
     if non_matched_dependencies.is_empty() {
         return Ok(());
     }
@@ -285,7 +302,8 @@ fn edited_project_dirs(
                 .into_iter()
                 .chain(peer_dependencies)
                 .collect();
-            package_names
+            let expanded = expand_remove_patterns(manifest, package_names, save_type);
+            expanded
                 .iter()
                 .any(|name| listed.contains(name))
         })
@@ -314,7 +332,9 @@ fn prepare_selected_manifests<Reporter: self::Reporter>(
     save_type: Option<DependencyGroup>,
 ) {
     for &index in selected_indices {
-        prepare_manifest::<Reporter>(&mut projects[index].manifest, package_names, save_type);
+        let package_names =
+            expand_remove_patterns(&projects[index].manifest, package_names, save_type);
+        prepare_manifest::<Reporter>(&mut projects[index].manifest, &package_names, save_type);
     }
 }
 
