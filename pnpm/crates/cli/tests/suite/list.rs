@@ -54,6 +54,101 @@ fn recursive_project_names(pacquet: Command, extra_args: &[&str]) -> BTreeSet<St
         .collect()
 }
 
+#[test]
+fn recursive_list_sorts_projects_by_workspace_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "a",
+                json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "workspace:*" } }),
+            ),
+            (
+                "b",
+                json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } }),
+            ),
+            ("c", json!({ "name": "c", "version": "1.0.0" })),
+        ],
+    );
+
+    for shared_lockfile in [true, false] {
+        if !shared_lockfile {
+            fs::write(
+                workspace.join("pnpm-workspace.yaml"),
+                "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+            )
+            .expect("write dedicated-lockfile workspace settings");
+        }
+
+        for (flags, expected) in [
+            (vec![], vec!["c", "b", "a"]),
+            (vec!["--prod", "--only-projects"], vec!["c", "b", "a"]),
+            (vec!["--no-sort"], vec!["a", "b", "c"]),
+            (vec!["--no-sort", "--reverse"], vec!["a", "b", "c"]),
+            (vec!["--reverse"], vec!["a", "b", "c"]),
+        ] {
+            let mut args =
+                vec!["--filter", "./packages/*", "-r", "list", "--depth", "-1", "--json"];
+            args.extend(flags);
+            let output = run_ok(&workspace, &args);
+            let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+            let names: Vec<&str> = projects
+                .iter()
+                .map(|project| project["name"].as_str().expect("project name"))
+                .collect();
+            assert_eq!(names, expected, "shared lockfile: {shared_lockfile}, args: {args:?}");
+
+            let text_args: Vec<&str> = args
+                .iter()
+                .copied()
+                .filter(|arg| *arg != "--json")
+                .collect();
+            let text_output = run_ok(&workspace, &text_args);
+            let positions: Vec<usize> = expected
+                .iter()
+                .map(|name| {
+                    text_output
+                        .find(&format!("{name}@1.0.0"))
+                        .expect("project in text output")
+                })
+                .collect();
+            assert!(
+                positions
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1]),
+                "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}",
+            );
+        }
+
+        let project_b_manifest = workspace.join("packages/b/package.json");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "devDependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("write dev-only workspace edge");
+        let output = run_ok(
+            &workspace,
+            &["--filter-prod", "a", "--filter-prod", "c", "-r", "list", "--depth", "-1", "--json"],
+        );
+        let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+        let names: Vec<&str> = projects
+            .iter()
+            .map(|project| project["name"].as_str().expect("project name"))
+            .collect();
+        assert_eq!(names, ["a", "c"], "shared lockfile: {shared_lockfile}");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("restore project manifest");
+    }
+
+    drop(root);
+}
+
 /// Scaffold a project whose lockfile records exactly one dependency
 /// (`saved-dep`), with both that dependency and an unrecorded
 /// `extraneous` package materialized in `node_modules`.
