@@ -1,6 +1,5 @@
 ---
 "@pnpm/resolving.parse-wanted-dependency": patch
-"pnpm": patch
 ---
 
-`parseWantedDependency` defaults to an empty string when called without arguments or with undefined.
+`parseWantedDependency` now accepts `undefined` and treats it as an empty string. It previously threw a `TypeError`.
