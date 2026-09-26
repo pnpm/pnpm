@@ -91,6 +91,34 @@ test('an exception is thrown when the global dir is not in PATH', async () => {
   ).rejects.toThrow(/is not in PATH/)
 })
 
+// Windows leaves %PNPM_HOME% in the user Path verbatim when PNPM_HOME is a
+// REG_EXPAND_SZ user variable (https://github.com/pnpm/pnpm/issues/5283).
+test('the error names a PATH entry with an unexpanded environment variable', async () => {
+  const tmp = tempDir()
+  const binDir = path.join(tmp, 'not-in-path-bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  const unexpanded = path.join('%PNPM_HOME%', 'bin')
+  await expect(
+    getConfig({
+      cliOptions: {
+        global: true,
+        'global-bin-dir': binDir,
+        dir: import.meta.dirname,
+      },
+      env: {
+        [pathName]: `${process.env[pathName]!}${path.delimiter}${unexpanded}`,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH',
+    hint: `PATH contains "${unexpanded}", which was not expanded. On Windows, a variable referenced from the user Path must be set and stored as a plain string (REG_SZ), not an expandable string (REG_EXPAND_SZ). Fix the variable, then open a new terminal.`,
+  })
+})
+
 test('the global directory may be a symlink to a directory that is in PATH', async () => {
   const tmp = tempDir()
   const globalBinDirTarget = path.join(tmp, 'global-target')
