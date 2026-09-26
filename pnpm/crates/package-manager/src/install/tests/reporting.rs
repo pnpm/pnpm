@@ -14,7 +14,7 @@ use pnpm_reporter::{
 };
 use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::registry::TestRegistry;
-use pnpm_workspace_state::WorkspaceState;
+use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
 use std::{sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -798,6 +798,7 @@ fn a_lost_workspace_state_write_warns_through_the_reporter() {
     let blocker = dir.path().join("blocker");
     std::fs::write(&blocker, b"not a dir").unwrap();
     let state = WorkspaceState::default();
+    let source_error = update_workspace_state(&blocker, &state).unwrap_err();
 
     let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     MESSAGES.lock().unwrap().clear();
@@ -808,8 +809,5 @@ fn a_lost_workspace_state_write_warns_through_the_reporter() {
     assert_eq!(recorded.len(), 1, "exactly one warning, got: {recorded:?}");
     let (level, message) = &recorded[0];
     assert_eq!(*level, LogLevel::Warn);
-    assert!(
-        message.starts_with("Failed to write the workspace state: "),
-        "the source error belongs in the message, got: {message}",
-    );
+    assert_eq!(message, &format!("Failed to write the workspace state: {source_error}"));
 }
