@@ -293,8 +293,8 @@ fn an_ssh_publickey_hint_refuses_a_host_that_could_break_out_of_the_command() {
 #[test]
 fn an_ssh_publickey_hint_offers_no_rewrite_for_a_user_other_than_git() {
     let err = GitResolveError::new(
-        "ssh://APKAEXAMPLE@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
-        "ssh://APKAEXAMPLE@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
         "Permission denied (publickey)",
     );
 
@@ -305,7 +305,7 @@ fn an_ssh_publickey_hint_offers_no_rewrite_for_a_user_other_than_git() {
     assert!(help.contains("ssh-add -l"), "{help}");
     assert!(help.contains("git-codecommit.us-east-1.amazonaws.com"), "{help}");
     assert!(!help.contains("insteadOf"), "{help}");
-    assert!(!help.contains("APKAEXAMPLE"), "{help}");
+    assert!(!help.contains("deploy-key"), "{help}");
 }
 
 #[test]
