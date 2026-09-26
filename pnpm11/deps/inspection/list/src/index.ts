@@ -83,6 +83,7 @@ export async function searchForPackages (
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<PackageDependencyHierarchy[]> {
   const search = createPackagesSearcher(packages, opts.finders)
@@ -104,6 +105,7 @@ export async function searchForPackages (
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      nodeLinker: opts.nodeLinker,
     }))
       .map(async ([projectPath, buildDependenciesTree]) => {
         const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
@@ -140,6 +142,7 @@ export async function listForPackages (
     virtualStoreDirMaxLength: number
     finders?: Finder[]
     showSummary?: boolean
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -177,6 +180,7 @@ export interface ListOptions {
   virtualStoreDirMaxLength: number
   finders?: Finder[]
   showSummary?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function list (
@@ -224,6 +228,7 @@ export async function getPackagesForListing (
           resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          nodeLinker: opts.nodeLinker,
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {
@@ -272,6 +277,7 @@ export async function whyForPackages (
     resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     finders?: Finder[]
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<string> {
   const reportAs = opts.reportAs ?? 'tree'
@@ -309,6 +315,7 @@ export async function whyForPackages (
     importerInfoMap,
     lockfile,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    nodeLinker: opts.nodeLinker,
   })
 
   switch (reportAs) {

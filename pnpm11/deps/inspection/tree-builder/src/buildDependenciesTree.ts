@@ -60,6 +60,7 @@ export interface BuildDependenciesTreeOptions {
   modulesDir?: string
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependenciesTree (
@@ -142,6 +143,8 @@ async function buildProjectsTrees (
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
+    nodeLinker: modules?.nodeLinker ?? maybeOpts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations,
   }
   // Build the dependency graph ONCE for all importers and share a single
   // MaterializationCache so that identical subtrees are only materialized once.
