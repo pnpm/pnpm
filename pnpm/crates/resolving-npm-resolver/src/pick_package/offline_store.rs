@@ -4,8 +4,12 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
+
+/// The per-route memo: the packument snapshot the narrowing was derived
+/// from, plus the narrowed packument itself.
+type NarrowedMemo = HashMap<String, (Arc<Package>, Option<Arc<Package>>)>;
 
 use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
 
@@ -20,7 +24,7 @@ pub struct OfflineStoreView {
     /// Store-index key → whether the index holds it.
     presence: Mutex<HashMap<String, bool>>,
     /// Packument route → the packument narrowed to its in-store versions.
-    narrowed: Mutex<HashMap<String, Option<Arc<Package>>>>,
+    narrowed: Mutex<NarrowedMemo>,
 }
 
 impl OfflineStoreView {
@@ -71,16 +75,21 @@ impl OfflineStoreView {
             .locked()
             .and_then(|guard| guard.get(route_key).cloned())
         {
-            return cached;
+            // `update_checksums` bypasses the metadata cache, so the same
+            // route can present a different packument snapshot: reuse the
+            // memo only when it was derived from this exact document.
+            if Arc::ptr_eq(&cached.0, meta) {
+                return cached.1;
+            }
         }
         let computed = self.compute(meta).await;
         if let Some(mut guard) = self.locked() {
-            guard.insert(route_key.to_string(), computed.clone());
+            guard.insert(route_key.to_string(), (Arc::clone(meta), computed.clone()));
         }
         computed
     }
 
-    fn locked(&self) -> Option<std::sync::MutexGuard<'_, HashMap<String, Option<Arc<Package>>>>> {
+    fn locked(&self) -> Option<MutexGuard<'_, NarrowedMemo>> {
         self.narrowed.lock().ok()
     }
 
