@@ -53,6 +53,7 @@ pub(in super::super) fn early_materialization_eligible(fit: EarlyMaterialization
         && !fit.is_hoisted
         && !fit.config.force
         && !fit.config.enable_global_virtual_store
+        && fit.config.package_provider.is_none()
         && !pnpm_deps_restorer::DirCloneCache::eligible(fit.config, fit.node_linker)
         && !fit.has_custom_fetcher
 }

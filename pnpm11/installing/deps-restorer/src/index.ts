@@ -101,8 +101,10 @@ import { realpathMissing } from 'realpath-missing'
 import { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 import { linkHoistedModules, removeOrphanBins } from './linkHoistedModules.js'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
+import { materializeThroughPackageProvider } from './packageProvider.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 export { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
+export { materializeThroughPackageProvider, type PackageProviderGraphNode } from './packageProvider.js'
 
 export type { HoistingLimits }
 
@@ -123,6 +125,7 @@ export interface HeadlessOptions extends RegistryContext {
   resolvePeersFromWorkspaceRoot?: boolean
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers?: boolean
+  packageProvider?: string
   childConcurrency?: number
   currentLockfile?: LockfileObject
   currentEngine: {
@@ -429,6 +432,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     virtualStoreDir,
     nodeVersion: currentEngine.nodeVersion,
     pnpmVersion: currentEngine.pnpmVersion,
+    skipFetching: opts.packageProvider != null,
     supportedArchitectures: opts.supportedArchitectures,
     omitResolvedProgress: opts.omitResolvedProgress,
     includeUnchangedDeps: (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) ||
@@ -471,6 +475,33 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       registriesByScope: opts.registriesByScope,
     })
   }
+  if (opts.packageProvider) {
+    const dirsBefore = new Set(Object.keys(graph))
+    const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, graph, { lockfileDir })
+    for (const depPath of providerSkipped) {
+      skipped.add(depPath)
+      // The current lockfile was filtered before materialization; drop the
+      // provider-skipped optionals from it the same way engine-skipped
+      // optionals are dropped, so lock.yaml doesn't record them as installed.
+      if (filteredLockfile.packages != null) {
+        delete filteredLockfile.packages[depPath]
+      }
+    }
+    // The precomputed alias→dir maps still point into the (empty) virtual
+    // store; remap them to the provider directories. Entries that are not
+    // graph nodes (linked workspace deps) stay as they are.
+    for (const directDependencies of Object.values(directDependenciesByImporterId)) {
+      for (const [alias, dir] of Object.entries(directDependencies)) {
+        const node = graph[dir]
+        if (node != null) {
+          directDependencies[alias] = node.dir
+        } else if (dirsBefore.has(dir)) {
+          delete directDependencies[alias]
+        }
+      }
+    }
+  }
+
   const depNodes = Object.values(graph)
   // A node the graph carries without a fetch was already materialized by an
   // earlier install. It is in the graph so hoisting can see it; the build
@@ -564,6 +595,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       linkedToRoot = await symlinkDirectDependencies({
         directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
         dedupe: Boolean(opts.dedupeDirectDeps),
+        absoluteSymlinks: opts.packageProvider != null,
         filteredLockfile,
         lockfileDir,
         projects: selectedProjects,
@@ -579,7 +611,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       })
     }
   } else if (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) {
-    if (!skipGvsInternalLinking) {
+    // With a package provider the packages are already materialized as
+    // read-only directories with their sibling links and builds done.
+    if (!skipGvsInternalLinking && !opts.packageProvider) {
       if (opts.enableModulesDir !== false) {
         await Promise.all(depNodes.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
       }
@@ -652,6 +686,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        absoluteSymlinks: opts.packageProvider != null,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages ? getHoistedWorkspacePackages(opts.allProjects) : undefined,
         beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
           opts.hoistedDependencies,
@@ -679,7 +714,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       newHoistedDependencies = {}
     }
 
-    if (!skipPostImportLinking && !skipGvsInternalLinking) {
+    if (!skipPostImportLinking && !skipGvsInternalLinking && !opts.packageProvider) {
       await linkAllBins(graph, {
         extraNodePaths: opts.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -696,6 +731,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     if (!opts.ignorePackageManifest && !skipPostImportLinking) {
       linkedToRoot = await symlinkDirectDependencies({
         dedupe: Boolean(opts.dedupeDirectDeps),
+        absoluteSymlinks: opts.packageProvider != null,
         directDependenciesByImporterId,
         filteredLockfile,
         lockfileDir,
@@ -768,7 +804,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     ))
   }
   let ignoredBuilds: IgnoredBuilds | undefined
-  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
+  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false && !opts.packageProvider) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       const directDependencies = directDependenciesByImporterId[id]
@@ -1028,6 +1064,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registriesByScope' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: LockfileObject
   dedupe: boolean
+  absoluteSymlinks?: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
   projects: Project[]
 }
@@ -1036,6 +1073,7 @@ async function symlinkDirectDependencies (
   {
     filteredLockfile,
     dedupe,
+    absoluteSymlinks,
     directDependenciesByImporterId,
     lockfileDir,
     projects,
@@ -1085,7 +1123,7 @@ async function symlinkDirectDependencies (
       project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
     }
   }
-  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe), absoluteSymlinks })
 }
 
 // pnpm deploy points the deployed project's node_modules at the root one and

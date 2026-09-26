@@ -290,6 +290,8 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<IndexMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    /// Path to an external package-provider executable.
+    pub package_provider: Option<String>,
     pub cargo: Option<CargoSettings>,
     pub python: Option<PythonSettings>,
     /// `tools` from `pnpm-workspace.yaml`: what pnpm is told about the

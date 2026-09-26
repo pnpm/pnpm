@@ -14,11 +14,13 @@ use verification::{ConcurrentVerification, fetch_verified, load_custom_fetcher_s
 mod planning;
 use planning::{
     BuildInputs, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan, LinkInputs,
-    MaterializationPlan, SkipSetPlan, detect_host, needs_installability_check, plan_engine_name,
-    seed_skip_set, settle_engine_name,
+    MaterializationPlan, PlanContextLayout, SkipSetPlan, detect_host, needs_installability_check,
+    plan_engine_name, seed_skip_set, settle_engine_name,
 };
 
 mod materialization;
+mod provider_build;
+use provider_build::{fetch_step, link_provider_top_level_bins};
 
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
@@ -198,6 +200,14 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write PnP loader: {_0}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PNP_FILE))]
     WritePnpFile(#[error(source)] crate::WritePnpFileError),
+
+    /// Surfaces any failure from the external package provider —
+    /// unsupported resolutions in the graph, a provider that could not
+    /// be spawned or exited non-zero, or an invalid response. See
+    /// [`crate::PackageProviderError`] for the `ERR_PNPM_PACKAGE_PROVIDER_*`
+    /// codes.
+    #[diagnostic(transparent)]
+    PackageProvider(#[error(source)] crate::PackageProviderError),
 }
 
 /// Bundle returned by [`InstallFrozenLockfile::run`] so the caller
@@ -331,62 +341,32 @@ impl<'a> InstallFrozenLockfile<'a> {
     async fn run_plan<Reporter: self::Reporter>(
         self,
         allow_build_policy: &AllowBuildPolicy,
-        plan: MaterializationPlan<'_>,
+        mut plan: MaterializationPlan<'_>,
         seed_skipped: Option<Vec<String>>,
         verification_override: Option<LockfileVerificationOverride<'_>>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
-        let ctx = crate::InstallContext {
-            linker: crate::ModuleLinkerContext {
-                layout: &plan.layout,
-                kind: self.platform.node_linker,
-                bin_options: &plan.link_options,
-            },
-            config: self.drivers.config,
-            workspace_root: self.projects.workspace_root,
-            requester: self.projects.requester,
-
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+            &self.drivers.config.store_dir,
+            self.drivers.config.frozen_store,
+        );
+        let mut settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
+        let deferred_engine_name = plan.deferred_engine_name;
+        let fetched = fetch_step::<Reporter>(
+            &self.inputs(),
             allow_build_policy,
-
-            logged_methods: self.logged_methods,
-            git_source_cache: &plan.git_source_cache,
-            dir_clone_cache: plan.dir_clone_cache.as_ref(),
-        };
-
-        // Spawn the batched store-index writer here so it lives
-        // across both the prefetch/download phase (consumers in
-        // `CreateVirtualStore`) and the build phase (the new
-        // side-effects-cache WRITE-path upload site in
-        // `BuildModules`). We drop the orchestrator's clone and
-        // await the join handle at the end of `run`, so the final
-        // batch flushes once every queued row from both phases has
-        // been processed. A writer open / task failure is degraded
-        // to a `warn!` and the install still succeeds — pacquet's
-        // existing best-effort stance on cache writes.
-        // Under `frozenStore` the store is opened read-only, so the
-        // writer is replaced with a drain-and-drop stub that never opens
-        // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
-
-        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
-
-        let fetched = self.fetch::<Reporter>(
-            &ctx,
-            FetchInputs {
-                cas_prefetch: plan.cas_prefetch,
-                dir_clone_cache: plan.dir_clone_cache.as_ref(),
-                store_index_writer: &store_index_writer,
-                skipped: &settled.skipped,
-                verification_override,
-            },
+            &mut plan.context_layout,
+            plan.cas_prefetch,
+            &mut settled,
+            &store_index_writer,
+            verification_override,
         )
         .await?;
-
+        let ctx = plan.context_layout.make_context(&self.inputs(), allow_build_policy);
         self.finish_materialization::<Reporter>(
             &ctx,
             fetched,
             settled,
-            plan.deferred_engine_name,
+            deferred_engine_name,
             store_index_writer,
             writer_task,
         )
@@ -507,13 +487,14 @@ impl<'a> InstallFrozenLockfile<'a> {
     }
 
     /// The borrowed inputs as one `Copy` value. See [`FrozenInputs`].
-    fn inputs(&self) -> FrozenInputs<'a> {
+    pub(crate) fn inputs(&self) -> FrozenInputs<'a> {
         FrozenInputs {
             drivers: self.drivers,
             lockfiles: self.lockfiles,
             platform: self.platform,
             prior: self.prior,
             projects: self.projects,
+            logged_methods: self.logged_methods,
         }
     }
 

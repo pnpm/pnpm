@@ -43,6 +43,10 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'nodeLinker',
   'optional',
   'overrides',
+  // Enabling, disabling, or switching the external package provider
+  // changes what node_modules links point at without touching the
+  // lockfile, so it must invalidate the up-to-date fast path.
+  'packageProvider',
   'packageExtensions',
   'patchedDependencies',
   'peersSuffixMaxLength',

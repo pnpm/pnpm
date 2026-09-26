@@ -236,6 +236,10 @@ pub enum InstallWithFreshLockfileError {
     /// the install.
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pnpm_hooks::HookError),
+
+    /// Surfaces any failure from the external package provider.
+    #[diagnostic(transparent)]
+    PackageProvider(#[error(source)] pnpm_deps_restorer::PackageProviderError),
 }
 impl From<crate::install_frozen_lockfile::HoistedLinkerError> for InstallWithFreshLockfileError {
     fn from(error: crate::install_frozen_lockfile::HoistedLinkerError) -> Self {

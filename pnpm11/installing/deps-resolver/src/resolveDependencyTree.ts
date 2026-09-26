@@ -118,6 +118,8 @@ export interface ResolveDependenciesOptions extends RegistryContext {
    * the entry out of the way before it links (pnpm/pnpm#881).
    */
   hideAlienModules?: boolean
+  /** Resolve without fetching tarballs into the store (packages will be materialized externally). */
+  skipFetching?: boolean
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
@@ -203,6 +205,7 @@ export async function resolveDependencyTree<T> (
     defaultTag: opts.tag,
     dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,
+    skipFetching: opts.skipFetching,
     engineStrict: opts.engineStrict,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,

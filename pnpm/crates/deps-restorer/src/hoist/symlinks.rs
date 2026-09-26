@@ -230,9 +230,15 @@ impl HoistSymlinkPlan {
     ) -> Result<(), crate::SymlinkPackageError> {
         use rayon::prelude::*;
 
+        let write_symlink = if layout.uses_provider() {
+            pnpm_fs::symlink_dir_absolute
+        } else {
+            pnpm_fs::symlink_dir
+        };
+
         self.work.par_iter().try_for_each(
             |(dep_dir, dest)| -> Result<(), crate::SymlinkPackageError> {
-                match pnpm_fs::symlink_dir(dep_dir.as_path(), dest) {
+                match write_symlink(dep_dir.as_path(), dest) {
                     Ok(()) => Ok(()),
                     Err(ref error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                         update_stale_hoist_symlink(

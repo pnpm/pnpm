@@ -17,8 +17,7 @@ use crate::{
     },
 };
 use clap::{Args, ValueEnum};
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::{Context, IntoDiagnostic};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
@@ -50,8 +49,8 @@ use pnpr_request::{
     resolve_projects_for_pnpr, resolve_projects_options,
 };
 use pnpr_resolution::{
-    DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,
-    resolve_project,
+    DryRunIncompatibleWithPnpr, PackageProviderIncompatibleWithPnpr, PnprSession,
+    install_via_pnpr_inner, prefetch_allowed, resolve_project,
 };
 
 use std::path::PathBuf;
@@ -242,6 +241,9 @@ impl InstallArgs {
         if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
             if self.materialization.dry_run {
                 return Err(DryRunIncompatibleWithPnpr.into());
+            }
+            if state.config.package_provider.is_some() {
+                return Err(PackageProviderIncompatibleWithPnpr.into());
             }
             return Box::pin(install_via_pnpr_inner::<Reporter>(
                 &state,

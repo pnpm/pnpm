@@ -604,6 +604,7 @@ export async function mutateModules (
   // isn't known here — so verification still runs in that window, the
   // duplicate is bounded to it.
   const willDelegateToPacquet = opts.runPacquet != null &&
+    opts.packageProvider == null &&
     opts.useLockfile &&
     !opts.useGitBranchLockfile &&
     !opts.mergeGitBranchLockfiles &&
@@ -1959,6 +1960,7 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     if (
       opts.runPacquet != null &&
+      opts.packageProvider == null &&
       opts.useLockfile &&
       !opts.useGitBranchLockfile &&
       !opts.mergeGitBranchLockfiles &&
@@ -2578,6 +2580,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dryRun: opts.lockfileOnly || isCheckOnlyInstall(opts),
       // The hoisted linker shares one tree and handles such an entry itself.
       hideAlienModules: opts.materializeAfterResolution && opts.nodeLinker !== 'hoisted',
+      skipFetching: opts.packageProvider != null,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
@@ -2786,6 +2789,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         lockfileDir: opts.lockfileDir,
         makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
         outdatedDependencies,
+        packageProvider: opts.packageProvider,
         pruneStore: opts.pruneStore,
         pruneVirtualStore: opts.pruneVirtualStore,
         publicHoistPattern: ctx.publicHoistPattern,
@@ -2950,7 +2954,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     const binWarn = (prefix: string, message: string) => {
       logger.info({ message, prefix })
     }
-    if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
+    // With a package provider, the packages' node_modules are read-only and
+    // dependency scripts already ran during materialization, so no bins are
+    // linked between dependencies.
+    if (result.newDepPaths?.length && !opts.virtualStoreOnly && opts.packageProvider == null) {
       const newPkgs = props<DepPath, DependenciesGraphNode>(
         result.newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
         dependenciesGraph
@@ -2989,7 +2996,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           (
             await Promise.all(
               directPkgs.map(async (dep) => {
-                const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadPublishManifest(dep.dir)
+                // With a package provider nothing was fetched into the store;
+                // read the manifest from the materialized directory instead.
+                const manifest = opts.packageProvider != null
+                  ? await safeReadPublishManifest(dep.dir)
+                  : (await dep.fetching?.())?.bundledManifest ?? await safeReadPublishManifest(dep.dir)
                 return {
                   location: dep.dir,
                   manifest,
@@ -3295,6 +3306,7 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
 async function materializeOrDelegate (
   opts: {
     mergeGitBranchLockfiles?: boolean
+    packageProvider?: string
     rootProjectPreinstallRan?: boolean
     runPacquet?: { run: (opts?: { filterResolvedProgress?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void> }
     saveLockfile?: boolean
@@ -3306,6 +3318,7 @@ async function materializeOrDelegate (
 ): Promise<{ stats?: InstallationResultStats, ignoredBuilds?: IgnoredBuilds }> {
   if (
     opts.runPacquet != null &&
+    opts.packageProvider == null &&
     opts.useLockfile !== false &&
     opts.saveLockfile !== false &&
     opts.useGitBranchLockfile !== true &&
@@ -3466,6 +3479,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     // branch above runs a resolve-then-materialize sequence.
     if (
       opts.runPacquet != null &&
+      opts.packageProvider == null &&
       opts.useLockfile &&
       opts.saveLockfile &&
       !opts.useGitBranchLockfile &&

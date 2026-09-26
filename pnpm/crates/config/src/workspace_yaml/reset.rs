@@ -122,7 +122,7 @@ impl WorkspaceSettings {
             global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir,
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
-            registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache,
+            registry, scope, pnpr_server, package_provider, cargo, python, tools, remote_side_effects_cache,
             reporter_hide_prefix, loglevel, reporter, max_sockets, patched_dependencies, patches_dir,
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, force_ignores_platform,

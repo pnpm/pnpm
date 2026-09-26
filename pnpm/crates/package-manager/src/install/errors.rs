@@ -425,6 +425,22 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR))]
     ConfigConflictVirtualStoreOnlyWithNoModulesDir,
+
+    /// `packageProvider` was configured with a `nodeLinker` other than
+    /// `isolated`. The provider contract is built around the isolated
+    /// layout (each package materialized once, `node_modules` entries
+    /// symlinked to it), so the hoisted and pnp linkers can't honor it.
+    #[display("packageProvider requires node-linker=isolated")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_NODE_LINKER))]
+    ConfigConflictPackageProviderNodeLinker,
+
+    /// `packageProvider` was configured together with
+    /// `enableGlobalVirtualStore`.
+    #[display(
+        "packageProvider cannot be used together with enableGlobalVirtualStore: both take over where packages are materialized"
+    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_CONFLICT_PACKAGE_PROVIDER_GLOBAL_VIRTUAL_STORE))]
+    ConfigConflictPackageProviderGlobalVirtualStore,
 }
 /// Hold back an [`InstallError::IgnoredBuilds`] verdict so the calling
 /// command can finish writing `package.json` and `pnpm-workspace.yaml`

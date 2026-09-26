@@ -22,12 +22,10 @@ impl<'a> RunExecution<'a> {
         )
     }
 
-    pub(super) async fn run<Reporter: self::Reporter + 'static>(
-        mut self,
-        time_machine_exclusions: &mut super::super::TimeMachineExclusions,
-    ) -> Result<InstallRunOutcome, InstallError> {
-        let scope = self.select_scope();
-        capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
+    fn check_up_to_date<Reporter: self::Reporter + 'static>(
+        &self,
+        scope: &InstallScope<'_>,
+    ) -> Result<bool, InstallError> {
         if scope.is_already_up_to_date::<Reporter>(
             self.install,
             &self.owned,
@@ -36,8 +34,20 @@ impl<'a> RunExecution<'a> {
         )? {
             Reporter::emit(&LogEvent::Summary(SummaryLog {
                 level: LogLevel::Debug,
-                prefix: self.workspace.prefix,
+                prefix: self.workspace.prefix.clone(),
             }));
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    pub(super) async fn run<Reporter: self::Reporter + 'static>(
+        mut self,
+        time_machine_exclusions: &mut super::super::TimeMachineExclusions,
+    ) -> Result<InstallRunOutcome, InstallError> {
+        let scope = self.select_scope();
+        capture_time_machine_exclusions(&self, &scope, time_machine_exclusions);
+        if self.check_up_to_date::<Reporter>(&scope)? {
             return Ok(InstallRunOutcome::AlreadyUpToDate);
         }
         let mut loaded = load_lockfiles::<Reporter>(
@@ -62,7 +72,13 @@ impl<'a> RunExecution<'a> {
             self.options.selection.as_ref(),
         )
         .await?;
-        self.install_settled::<Reporter>(&scope, &mut loaded, &project_manifests, &lockfiles).await
+        Box::pin(self.install_settled::<Reporter>(
+            &scope,
+            &mut loaded,
+            &project_manifests,
+            &lockfiles,
+        ))
+        .await
     }
 
     fn take_settled_outcome(&mut self) -> InstallRunOutcome {
@@ -372,19 +388,6 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
             http_client_arc: Arc::clone(&owned.http_client_arc),
-        }
-    }
-}
-
-impl Lockfiles<'_> {
-    pub(super) fn write_policy(
-        &self,
-        save: bool,
-    ) -> crate::install::state_options::LockfileWritePolicy {
-        crate::install::state_options::LockfileWritePolicy {
-            synthesized_from_current: self.wanted.synthesized_from_current(),
-            fast_updated: self.wanted.was_fast_updated(),
-            save,
         }
     }
 }

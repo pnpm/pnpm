@@ -110,6 +110,7 @@ impl WorkspaceSettings {
             registry: Some(config.registry.clone()),
             scope: config.scope.clone(),
             pnpr_server: config.pnpr_server.clone(),
+            package_provider: config.package_provider.clone(),
             cargo: Some(config.cargo.clone()),
             python: Some(config.python.clone()),
             tools: Some(config.tools.clone()),

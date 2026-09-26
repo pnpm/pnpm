@@ -14,7 +14,7 @@ import type {
   DependenciesGraphNode,
   LinkedDependency,
 } from '@pnpm/installing.deps-resolver'
-import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { type InstallationResultStats, materializeThroughPackageProvider, type PackageProviderGraphNode } from '@pnpm/installing.deps-restorer'
 import { linkDirectDeps } from '@pnpm/installing.linking.direct-dep-linker'
 import { hoist, type HoistedWorkspaceProject, hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { prune, removeObsoleteDependency } from '@pnpm/installing.linking.modules-cleaner'
@@ -66,6 +66,7 @@ export interface LinkPackagesOptions {
   lockfileDir: string
   makePartialCurrentLockfile: boolean
   outdatedDependencies: Record<string, string>
+  packageProvider?: string
   pruneStore: boolean
   pruneVirtualStore: boolean
   registriesByScope: RegistriesByScope
@@ -138,6 +139,15 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     wantedLockfile: opts.wantedLockfile,
   })
 
+  if (opts.packageProvider) {
+    const providerSkipped = await materializeThroughPackageProvider(opts.packageProvider, depGraph as unknown as Record<string, PackageProviderGraphNode>, {
+      lockfileDir: opts.lockfileDir,
+    })
+    for (const depPath of providerSkipped) {
+      opts.skipped.add(depPath)
+    }
+  }
+
   stageLogger.debug({
     prefix: opts.lockfileDir,
     stage: 'importing_started',
@@ -167,6 +177,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      externallyMaterialized: opts.packageProvider != null,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -254,6 +265,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
+      absoluteSymlinks: opts.packageProvider != null,
       hoistedWorkspacePackages: opts.hoistWorkspacePackages
         ? projects.reduce((hoistedWorkspacePackages, project) => {
           if (project.manifest.name && project.id !== '.') {
@@ -349,7 +361,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         }]
       }))
     )
-    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
+    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps, absoluteSymlinks: opts.packageProvider != null })
   }
 
   return {
@@ -378,6 +390,12 @@ interface LinkNewPackagesOptions {
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   enableGlobalVirtualStore: boolean
+  /**
+   * The packages already exist as read-only directories outside the virtual
+   * store (created by a package provider), so nothing may be imported,
+   * written, or symlinked into their directories.
+   */
+  externallyMaterialized?: boolean
   force: boolean
   optional: boolean
   ignoreScripts: boolean
@@ -429,7 +447,7 @@ async function linkNewPackages (
   })
 
   const existingWithUpdatedDeps: ModulesLinkJob[] = []
-  if (!opts.force && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
+  if (!opts.force && !opts.externallyMaterialized && (currentLockfile.packages != null) && (wantedLockfile.packages != null)) {
     const currentPackages = currentLockfile.packages
     const wantedPackages = wantedLockfile.packages
     // add subdependencies that have been updated
@@ -497,6 +515,8 @@ async function linkNewPackages (
     })
     return { ...depNode, removedAliases: removedAliases.filter((alias) => alias !== depNode.name) }
   })
+
+  if (opts.externallyMaterialized) return { newDepPaths, added }
 
   await Promise.all(newPkgs.map(async (depNode) => fs.mkdir(depNode.modules, { recursive: true })))
   await Promise.all([

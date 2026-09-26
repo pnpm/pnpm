@@ -1,4 +1,4 @@
-pub use absolute::force_absolute_symlink_dir;
+pub use absolute::{force_absolute_symlink_dir, force_symlink_dir_absolute, symlink_dir_absolute};
 
 use std::{
     borrow::Cow,

@@ -22,6 +22,7 @@ pub mod link_root_component_members;
 pub mod linking;
 pub mod materialization_plan;
 pub mod package_map;
+pub mod package_provider;
 pub mod pnp;
 pub mod prune_direct_deps;
 pub mod prune_stale_modules;
@@ -75,6 +76,7 @@ pub use materialization_options::{
     SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
 pub use package_map::*;
+pub use package_provider::*;
 pub use phase_options::{
     BuildPhaseCache, BuildPhaseDirectories, BuildPhaseGraph, BuildPhasePolicy, HoistedLinkGraph,
     HoistedProjects, LinkLockfiles, LinkPackageData, LinkProjects, PriorHoistedState,

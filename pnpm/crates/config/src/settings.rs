@@ -1011,6 +1011,9 @@ pub struct Config {
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
 
+    /// Path to an external package-provider executable.
+    pub package_provider: Option<String>,
+
     /// Cargo dependency management declared by the workspace.
     pub cargo: CargoSettings,
     pub python: PythonSettings,

@@ -205,6 +205,7 @@ fn create_config(
         overrides: None,
         package_extensions: None,
         package_configs: None,
+        package_provider: None,
         cache_dir: cache_dir.to_path_buf(),
         dlx_cache_max_age: 24 * 60,
         minimum_release_age: None,

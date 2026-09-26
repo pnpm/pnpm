@@ -170,6 +170,7 @@ export interface ResolutionContext extends RegistryContext {
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
+  skipFetching?: boolean
   forceFullResolution: boolean
   staleOverrideTargets?: ReadonlySet<string>
   updateChecksums?: boolean
@@ -2297,7 +2298,7 @@ async function resolveDependency (
         )
           ? ctx.lockfileDir
           : options.parentPkg.rootDir,
-        skipFetch: ctx.dryRun,
+        skipFetch: ctx.dryRun || ctx.skipFetching === true,
         trustPolicy: ctx.trustPolicy,
         trustPolicyExclude: ctx.trustPolicyExclude,
         trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,

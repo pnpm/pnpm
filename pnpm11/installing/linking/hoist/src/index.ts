@@ -8,7 +8,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
 import { withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
-import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { findCommonPathAncestor, forceAbsoluteSymlink, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { DependenciesField, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
@@ -39,6 +39,8 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
+  /** Link with absolute symlinks — for externally materialized targets that outlive the project location. */
+  absoluteSymlinks?: boolean
 }
 
 export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
@@ -74,6 +76,7 @@ export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<Hois
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    absoluteSymlinks: opts.absoluteSymlinks,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -573,11 +576,13 @@ async function symlinkHoistedDependencies<T extends string> (
     publicHoistedModulesDir: string
     virtualStoreDir: string
     virtualStoreDirMaxLength: number
+    absoluteSymlinks?: boolean
   }
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, {
     virtualStoreDir: opts.virtualStoreDir,
     internalPnpmDir: path.dirname(opts.privateHoistedModulesDir),
+    absolute: opts.absoluteSymlinks,
   })
   const promises: Array<Promise<void>> = []
   for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
@@ -602,7 +607,7 @@ async function symlinkHoistedDependencies<T extends string> (
 }
 
 async function symlinkHoistedDependency (
-  opts: { virtualStoreDir: string, internalPnpmDir: string },
+  opts: { virtualStoreDir: string, internalPnpmDir: string, absolute?: boolean },
   depLocation: string,
   dest: string
 ): Promise<void> {
@@ -610,12 +615,19 @@ async function symlinkHoistedDependency (
 }
 
 async function symlinkHoistedDependencyOnce (
-  opts: { virtualStoreDir: string, internalPnpmDir: string },
+  opts: { virtualStoreDir: string, internalPnpmDir: string, absolute?: boolean },
   depLocation: string,
   dest: string
 ): Promise<void> {
+  const symlink = async (target: string, link: string, symlinkOpts?: { overwrite: boolean }): Promise<void> => {
+    if (opts.absolute) {
+      await forceAbsoluteSymlink(target, link, symlinkOpts)
+    } else {
+      await symlinkDir(target, link, symlinkOpts)
+    }
+  }
   try {
-    await symlinkDir(depLocation, dest, { overwrite: false })
+    await symlink(depLocation, dest, { overwrite: false })
     linkLogger.debug({ target: dest, link: depLocation })
     return
   } catch (err: any) { // eslint-disable-line
@@ -626,7 +638,7 @@ async function symlinkHoistedDependencyOnce (
     existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return createHoistedDependencyLink(depLocation, dest)
+      return createHoistedDependencyLink(opts, depLocation, dest)
     }
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
     hoistLogger.debug({
@@ -635,7 +647,7 @@ async function symlinkHoistedDependencyOnce (
     })
     return
   }
-  if (!isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.internalPnpmDir, existingSymlink)) {
+  if (!opts.absolute && !isSubdir(opts.virtualStoreDir, existingSymlink) && !isSubdir(opts.internalPnpmDir, existingSymlink)) {
     hoistLogger.debug({
       skipped: dest,
       existingSymlink,
@@ -648,15 +660,26 @@ async function symlinkHoistedDependencyOnce (
   } catch (err: unknown) {
     if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
-  await createHoistedDependencyLink(depLocation, dest)
+  await createHoistedDependencyLink(opts, depLocation, dest)
 }
 
-async function createHoistedDependencyLink (depLocation: string, dest: string): Promise<void> {
+async function createHoistedDependencyLink (
+  opts: { absolute?: boolean },
+  depLocation: string,
+  dest: string
+): Promise<void> {
+  const symlink = async (target: string, link: string, symlinkOpts?: { overwrite: boolean }): Promise<void> => {
+    if (opts.absolute) {
+      await forceAbsoluteSymlink(target, link, symlinkOpts)
+    } else {
+      await symlinkDir(target, link, symlinkOpts)
+    }
+  }
   let retries = 0
   while (true) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      await symlinkDir(depLocation, dest, { overwrite: false })
+      await symlink(depLocation, dest, { overwrite: false })
       break
     } catch (err: unknown) {
       if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err

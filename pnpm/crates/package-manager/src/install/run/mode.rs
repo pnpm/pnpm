@@ -51,6 +51,10 @@ impl RunMode {
             options.rebuild.as_ref(),
         );
         reject_conflicting_store_config(install.context.config)?;
+        reject_conflicting_package_provider_config(
+            install.context.config,
+            install.execution.node_linker,
+        )?;
         Ok(Self {
             lockfile_only,
             // `--dry-run` resolves but never materializes, so it borrows the
@@ -119,6 +123,21 @@ fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> 
         && !config.enable_global_virtual_store
     {
         return Err(InstallError::ConfigConflictVirtualStoreOnlyWithNoModulesDir);
+    }
+    Ok(())
+}
+
+fn reject_conflicting_package_provider_config(
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+) -> Result<(), InstallError> {
+    if config.package_provider.is_some() {
+        if !matches!(node_linker, pnpm_config::NodeLinker::Isolated) {
+            return Err(InstallError::ConfigConflictPackageProviderNodeLinker);
+        }
+        if config.enable_global_virtual_store {
+            return Err(InstallError::ConfigConflictPackageProviderGlobalVirtualStore);
+        }
     }
     Ok(())
 }

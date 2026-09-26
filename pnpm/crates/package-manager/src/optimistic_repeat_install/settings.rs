@@ -178,6 +178,11 @@ impl SettingsComparison<'_> {
             "linkWorkspacePackages",
             recorded.link_workspace_packages != live.link_workspace_packages,
         );
+        return_drift_if!(
+            self,
+            "packageProvider",
+            recorded.package_provider != live.package_provider,
+        );
         None
     }
     fn resolution_drift(&self) -> Option<&'static str> {
@@ -348,6 +353,7 @@ pub(crate) fn current_settings(
         package_extensions: config.package_extensions
             .as_ref()
             .and_then(|map| serde_json::to_value(map).ok()),
+        package_provider: config.package_provider.clone(),
         patched_dependencies: config.patched_dependencies.clone(),
         peers_suffix_max_length: Some(
             u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),

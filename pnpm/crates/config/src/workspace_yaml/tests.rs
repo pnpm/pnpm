@@ -89,3 +89,5 @@ mod registry_ecosystems;
 mod publish_wait_timeout;
 
 mod env_placeholders;
+
+mod package_provider;

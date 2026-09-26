@@ -12,7 +12,7 @@ use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets}
 mod task_groups;
 use task_groups::{importer_modules_parent, importer_task_groups};
 
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
+use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
@@ -455,11 +455,14 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     symlink: bool,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     prefix: &str,
+    uses_provider: bool,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let ResolvedEntry { name_str, target, .. } = entry;
 
     if symlink {
-        let outcome = symlink_package(target, &modules_dir.join(name_str))
+        let symlink_fn =
+            if uses_provider { crate::symlink_package_absolute } else { crate::symlink_package };
+        let outcome = symlink_fn(target, &modules_dir.join(name_str))
             .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
@@ -531,8 +534,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     let prefix = project_dir.to_string_lossy().into_owned();
 
     // `try_for_each` short-circuits on the first error and returns it
-    // to the caller. The full result collection forces every task to
-    // settle before we surface a single error.
+    let uses_provider = layout.uses_provider();
     entries
         .par_iter()
         .try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
@@ -543,16 +545,26 @@ fn link_one_importer<Reporter: self::Reporter>(
                 symlink,
                 packages,
                 &prefix,
+                uses_provider,
             )
         })?;
 
-    // After the symlinks exist, walk them to discover each
-    // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
-    // destination, so the bin pass gets the resolved location for
-    // free.
+    link_bins_for_entries(symlink, &entries, modules_dir, bin_lookup, link_options)?;
     if symlink {
-        let deps = resolved_entry_bins(&entries);
+        link_publish_modules_dir(importer_id, project_snapshot, project_dir, modules_dir)?;
+    }
+    Ok(())
+}
+
+fn link_bins_for_entries(
+    symlink: bool,
+    entries: &[ResolvedEntry<'_>],
+    modules_dir: &Path,
+    bin_lookup: &crate::PrefetchedBinLookup<'_>,
+    link_options: &LinkBinsOptions,
+) -> Result<(), SymlinkDirectDependenciesError> {
+    if symlink {
+        let deps = resolved_entry_bins(entries);
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
@@ -563,11 +575,6 @@ fn link_one_importer<Reporter: self::Reporter>(
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
-
-    if symlink {
-        link_publish_modules_dir(importer_id, project_snapshot, project_dir, modules_dir)?;
-    }
-
     Ok(())
 }
 

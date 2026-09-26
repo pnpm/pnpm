@@ -47,6 +47,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "npm-path",
     "npmrc-auth-file",
     "package-import-method",
+    "package-provider",
     "pnpr-server",
     "prefer-frozen-lockfile",
     "prefer-offline",
