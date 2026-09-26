@@ -155,7 +155,7 @@ export async function createPublishOptions (
     headers,
     isFromCI,
     otp,
-    timeout,
+    timeout: Math.max(timeout ?? 0, MIN_PUBLISH_TIMEOUT),
     provenance,
     provenanceFile,
     registry,
@@ -207,6 +207,12 @@ interface RegistryInfo {
   registry: NormalizedRegistryUrl
   config: RegistryConfig
 }
+
+// The npm CLI's default `fetch-timeout`. The registry can take longer than pnpm's default
+// `fetchTimeout` to answer a publish request, and a publish request re-sent after a timeout
+// fails with 409 Conflict ("Failed to save packument") while the first one is still being
+// processed (https://github.com/pnpm/pnpm/issues/11454).
+const MIN_PUBLISH_TIMEOUT = 5 * 60 * 1000
 
 const SCOPED_NAME_REGEX = /^@(?<scope>[^/]+)\/[^/]+/
 

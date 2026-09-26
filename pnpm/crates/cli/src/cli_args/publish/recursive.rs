@@ -12,7 +12,7 @@ use crate::cli_args::{
         AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
         select_recursive_projects,
     },
-    registry_client::build_registry_client,
+    registry_client::build_publish_client,
     workspace_packages::build_workspace_package_manifest_map,
 };
 use miette::{Context, IntoDiagnostic};
@@ -156,7 +156,7 @@ impl PublishArgs {
             return Ok(Vec::new());
         }
 
-        let http_client = build_registry_client(config)?;
+        let http_client = build_publish_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let (opts, to_publish) =
             self.select_candidates::<Reporter>(graph, config, stage, &network, workspace_root)
