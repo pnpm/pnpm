@@ -45,6 +45,9 @@ pub struct CreateProjectsGraphOptions<'a> {
     /// the `--filter-prod` graph so dependency walks follow production
     /// deps only.
     pub ignore_dev_deps: bool,
+    /// Edges are `dependencies` only. Dev, optional, and peer
+    /// dependencies add no edge. Wins over [`Self::ignore_dev_deps`].
+    pub production_only: bool,
     /// Whether workspace packages are linked. The tri-state mirrors the
     /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
@@ -184,6 +187,9 @@ fn project_dependencies<Pkg>(
 where
     Pkg: GraphProject,
 {
+    if opts.production_only {
+        return project.production_dependencies();
+    }
     let Some(rewriter) = opts.dependency_rewriter else {
         return project.merged_dependencies(opts.ignore_dev_deps);
     };

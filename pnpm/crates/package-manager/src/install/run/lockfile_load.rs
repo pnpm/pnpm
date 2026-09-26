@@ -22,6 +22,7 @@ use super::{
         InstallScope,
         InstallWorkspace,
         report_install_scope_cycles,
+        report_private_prod_deps,
         workspace_projects,
     },
 };
@@ -130,6 +131,12 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
 ) -> Result<StartedLockfiles<'a>, InstallError> {
     install.context.lockfile.prefetch();
     report_install_scope_cycles::<Reporter>(
+        install.context.config,
+        workspace,
+        selection,
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
+    )?;
+    report_private_prod_deps(
         install.context.config,
         workspace,
         selection,

@@ -70,6 +70,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
         json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
         json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
+        json_field!(settings, reader, disallow_private_prod_deps, "DISALLOW_PRIVATE_PROD_DEPS");
         json_field!(settings, reader, frozen_store, "FROZEN_STORE");
         json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(settings, reader, side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");

@@ -35,6 +35,13 @@ impl BaseProject for GraphPkg<'_> {
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
         self.dependency_groups(ignore_dev_deps).merge()
     }
+
+    fn production_dependencies(&self) -> Vec<(String, String)> {
+        self.project.manifest
+            .dependencies([DependencyGroup::Prod])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect()
+    }
 }
 
 impl GraphProject for GraphPkg<'_> {

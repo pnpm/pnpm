@@ -166,6 +166,7 @@ mod pnpr_install;
 mod pnpx_alias;
 mod pre_resolution_hook;
 mod prefix;
+mod private_prod_deps;
 mod process_lifetime;
 mod profile;
 mod prune;

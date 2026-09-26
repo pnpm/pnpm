@@ -63,6 +63,12 @@ pub use prefetch_downloads::{
     PrefetchDownloads,
 };
 pub use prefetching_resolver::*;
+pub use private_prod_deps::PrivateWorkspaceProdDepError;
+pub(crate) use private_prod_deps::{
+    private_prod_deps_block_short_circuit,
+    private_workspace_prod_deps,
+    render_private_prod_deps,
+};
 pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;
@@ -125,6 +131,7 @@ mod patch;
 mod peer_dependency_issues;
 mod prefetch_downloads;
 mod prefetching_resolver;
+mod private_prod_deps;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod rayon_pool;
