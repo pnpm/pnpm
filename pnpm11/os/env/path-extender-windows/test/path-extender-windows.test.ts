@@ -409,7 +409,7 @@ HKEY_CURRENT_USER\\Environment
   const pnpmHomeDir = tempDir(false)
   await expect(
     addDirToWindowsEnvPath(pnpmHomeDir, { proxyVarName: 'PNPM_HOME' })
-  ).rejects.toThrow(/Currently 'PNPM_HOME' is set to/)
+  ).rejects.toThrow("Currently 'PNPM_HOME' is set to '.pnpm\\home'")
 })
 
 test('setup overwrites PNPM_HOME, when setup is forced', async () => {
