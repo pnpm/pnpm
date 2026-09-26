@@ -1,4 +1,7 @@
-use super::{IndexFetcher, MAX_INDEX_TOTAL_BYTES, index_budget_has_room, over_index_budget};
+use super::{
+    IndexFetcher, LockedEntry, MAX_INDEX_TOTAL_BYTES, index_budget_has_room, over_index_budget,
+};
+use crate::server::StripedLocks;
 use std::{
     fs::File,
     io::Write,
@@ -32,10 +35,9 @@ async fn cached_deletes_stale_entries() {
     let one_hour_ago = SystemTime::now() - Duration::from_hours(1);
     write_with_mtime(&stale_path, "old contents", one_hour_ago);
 
-    let lock = tokio::sync::Mutex::new(());
-    let result =
-        IndexFetcher::cached_or_evict(&stale_path, Duration::from_mins(1), &lock.lock().await)
-            .await;
+    let locks = StripedLocks::new();
+    let entry = LockedEntry::lock(&locks, stale_path.clone()).await;
+    let result = entry.cached_or_evict(Duration::from_mins(1)).await;
 
     assert!(result.is_none(), "stale entry must be a cache miss");
     assert!(!stale_path.exists(), "stale entry must be deleted from disk");
@@ -60,11 +62,40 @@ async fn cached_returns_fresh_entries() {
     let fresh_path = dir.path().join("fresh-entry");
     tokio::fs::write(&fresh_path, "fresh contents").await.unwrap();
 
-    let lock = tokio::sync::Mutex::new(());
-    let result =
-        IndexFetcher::cached_or_evict(&fresh_path, Duration::from_hours(1), &lock.lock().await)
-            .await;
+    let locks = StripedLocks::new();
+    let entry = LockedEntry::lock(&locks, fresh_path.clone()).await;
+    let result = entry.cached_or_evict(Duration::from_hours(1)).await;
 
     assert_eq!(result.as_deref(), Some("fresh contents"));
     assert!(fresh_path.exists(), "fresh entry must remain on disk");
+}
+
+/// Two callers miss a stale entry together. The one holding the lock evicts
+/// and refreshes it; the waiting one must then read the refreshed entry and
+/// leave it on disk rather than evict it again.
+#[tokio::test]
+async fn a_waiting_caller_reads_the_entry_the_lock_holder_refreshed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("contended-entry");
+    write_with_mtime(&path, "old contents", SystemTime::now() - Duration::from_hours(1));
+    let locks = std::sync::Arc::new(StripedLocks::new());
+    let ttl = Duration::from_mins(1);
+
+    let first = LockedEntry::lock(&locks, path.clone()).await;
+    assert!(first.cached_or_evict(ttl).await.is_none());
+    let waiting = tokio::spawn({
+        let locks = std::sync::Arc::clone(&locks);
+        let path = path.clone();
+        async move {
+            let entry = LockedEntry::lock(&locks, path).await;
+            entry.cached_or_evict(ttl).await
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!waiting.is_finished(), "the waiting caller must block on the held lock");
+    IndexFetcher::store(first.path().to_path_buf(), "fresh contents".to_string()).await;
+    drop(first);
+
+    assert_eq!(waiting.await.unwrap().as_deref(), Some("fresh contents"));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "fresh contents");
 }
