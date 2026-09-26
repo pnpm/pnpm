@@ -94,6 +94,7 @@ pub struct ConfigOverrides {
     minimum_release_age_ignore_missing_time: Option<bool>,
     minimum_release_age_strict: Option<bool>,
     merge_git_branch_lockfiles: Option<bool>,
+    metadata_cache: Option<bool>,
     node_experimental_package_map: Option<bool>,
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
@@ -348,6 +349,7 @@ impl ConfigOverrides {
             "maxsockets" => {
                 self.maxsockets = value.parse().ok();
             }
+            "metadata-cache" => self.metadata_cache = parse_bool(value),
             "max-sockets" => {
                 self.max_sockets = value.parse().ok();
             }

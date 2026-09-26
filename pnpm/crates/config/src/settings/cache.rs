@@ -1,6 +1,7 @@
 use super::{
     BTreeMap, Config, EnvVar, RemoteSideEffectsCacheSettings, side_effects_cache_remote_env,
 };
+use std::path::Path;
 
 impl Config {
     /// The environment is the last word on the remote side-effects cache: it is
@@ -95,5 +96,11 @@ impl Config {
         self.side_effects_cache_write_setting.unwrap_or(
             self.side_effects_cache && !self.side_effects_cache_readonly,
         )
+    }
+
+    /// The directory the resolvers mirror registry metadata under, or
+    /// `None` when `metadataCache` is off.
+    pub fn metadata_cache_dir(&self) -> Option<&Path> {
+        self.metadata_cache.then_some(self.cache_dir.as_path())
     }
 }

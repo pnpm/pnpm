@@ -266,7 +266,7 @@ impl ResolverChainInputs<'_> {
                 meta_cache: Arc::clone(self.registry.cache),
                 fetch_locker: Arc::clone(&caches.fetch_locker),
                 picked_manifest_cache: Arc::clone(&caches.picked_manifest_cache),
-                cache_dir: Some(self.config.cache_dir.clone()),
+                cache_dir: self.config.metadata_cache_dir().map(Path::to_path_buf),
                 retry_opts: self.retry_opts(),
             },
             format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
@@ -371,7 +371,7 @@ impl ResolverChainInputs<'_> {
                 meta_cache: Arc::clone(self.registry.cache),
                 fetch_locker: Arc::clone(&caches.fetch_locker),
                 picked_manifest_cache: Arc::clone(&caches.picked_manifest_cache),
-                cache_dir: Some(self.config.cache_dir.clone()),
+                cache_dir: self.config.metadata_cache_dir().map(Path::to_path_buf),
                 retry_opts: self.retry_opts(),
             },
             format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {

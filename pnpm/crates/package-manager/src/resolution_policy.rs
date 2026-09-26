@@ -15,7 +15,7 @@ use pnpm_resolving_npm_resolver::{
     PackumentFetchLocker, PickPackageContext, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once per
 /// command so every lookup in that run shares the same cutoff and metadata
@@ -188,7 +188,7 @@ fn create_configured_npm_resolver(
             meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
             fetch_locker: shared_packument_fetch_locker(),
             picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(config.cache_dir.clone()),
+            cache_dir: config.metadata_cache_dir().map(Path::to_path_buf),
             retry_opts: retry_opts_from_config(config),
         },
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
@@ -231,7 +231,7 @@ pub(crate) fn pick_package_context<'a>(
         metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
             meta_cache,
             fetch_locker,
-            cache_dir: Some(&config.cache_dir),
+            cache_dir: config.metadata_cache_dir(),
             http: pnpm_resolving_npm_resolver::MetadataHttpClient {
                 http_client,
                 auth_headers: &config.auth_headers,

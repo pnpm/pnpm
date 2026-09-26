@@ -1437,6 +1437,15 @@ pub struct Config {
     #[default(_code = "default_cache_dir::<Host>()")]
     pub cache_dir: PathBuf,
 
+    /// Whether the resolvers read registry metadata from, and write it to,
+    /// the mirror under [`cache_dir`](Self::cache_dir). When `false`, every
+    /// packument comes from the network and nothing is written to the
+    /// mirror. The `metadataCache` setting; default `true`.
+    ///
+    /// Consume via [`Config::metadata_cache_dir`].
+    #[default = true]
+    pub metadata_cache: bool,
+
     /// `dlxCacheMaxAge`: the maximum age in **minutes** of a cached
     /// `pnpm dlx` install before it is rebuilt from scratch. Defaults to
     /// `1440` (24 hours).

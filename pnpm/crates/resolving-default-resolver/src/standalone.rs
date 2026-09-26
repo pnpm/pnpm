@@ -35,7 +35,7 @@ use pnpm_resolving_npm_resolver::{
 };
 use pnpm_resolving_resolver_base::Resolver;
 use pnpm_resolving_tarball_resolver::TarballResolver;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 /// Inputs of [`build_standalone_chain`].
 pub struct StandaloneChainOptions<'a> {
@@ -131,7 +131,7 @@ fn build_npm_resolver(
             meta_cache: shared_in_memory_cache(),
             fetch_locker: shared_packument_fetch_locker(),
             picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(config.cache_dir.clone()),
+            cache_dir: config.metadata_cache_dir().map(Path::to_path_buf),
             retry_opts,
         },
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
@@ -191,7 +191,7 @@ fn build_named_registry_resolver(
             meta_cache: shared_in_memory_cache(),
             fetch_locker: shared_packument_fetch_locker(),
             picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(config.cache_dir.clone()),
+            cache_dir: config.metadata_cache_dir().map(Path::to_path_buf),
             retry_opts,
         },
         format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
