@@ -120,6 +120,35 @@ test('throws a generic code with per-entry codes in the breakdown when violation
   })
 })
 
+test.each([
+  'MISSING_TARBALL_INTEGRITY',
+  'TARBALL_URL_MISMATCH',
+  'TARBALL_REVISION_MISMATCH',
+  'MISSING_NAMED_REGISTRY',
+])('does not suggest relaxing a policy for %s, alone or in a mixed batch', async (code) => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'broken@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const structuralOnly = wrap(async (_, { name }) =>
+    name === 'broken' ? { ok: false, code, reason: 'broken' } : { ok: true }
+  )
+  const mixed = wrap(async (_, { name }) =>
+    name === 'broken'
+      ? { ok: false, code, reason: 'broken' }
+      : { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+  )
+
+  await expect(verifyLockfileResolutions(lockfile, [structuralOnly])).rejects.toMatchObject({
+    code: `ERR_PNPM_${code}`,
+    hint: expect.not.stringMatching(/relax the policy/),
+  })
+  await expect(verifyLockfileResolutions(lockfile, [mixed])).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    hint: expect.not.stringMatching(/relax the policy/),
+  })
+})
+
 test('does not suggest relaxing a policy when a mixed batch includes a structural violation', async () => {
   const lockfile = makeLockfile({
     'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },

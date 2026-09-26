@@ -143,7 +143,6 @@ export { createNpmResolutionVerifier, type CreateNpmResolutionVerifierOptions } 
 export { decodeRegistry, encodeRegistry } from './encodeRegistry.js'
 export {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-  MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
 

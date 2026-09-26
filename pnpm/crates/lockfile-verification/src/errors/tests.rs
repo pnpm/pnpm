@@ -201,6 +201,7 @@ fn structural_violation_hints_do_not_suggest_relaxing_a_policy() {
         "RESOLUTION_SHAPE_MISMATCH",
         "TARBALL_URL_MISMATCH",
         "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
     ] {
         let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
         let help = help_text(&err);

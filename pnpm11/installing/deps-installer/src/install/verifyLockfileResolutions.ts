@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { MISSING_TARBALL_INTEGRITY_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
+import { MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type {
   Resolution,
   ResolutionPolicyViolation,
@@ -36,11 +36,11 @@ const DEFAULT_CONCURRENCY = 64
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
-// Violations that no configured policy produces, so relaxing a policy cannot
-// clear them.
-const STRUCTURAL_VIOLATION_CODES = new Set([
-  MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
-  RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+// Violations from policies the user can relax. Relaxing a policy cannot clear
+// any other violation.
+const POLICY_VIOLATION_CODES = new Set([
+  MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  TRUST_DOWNGRADE_VIOLATION_CODE,
 ])
 
 // Same code the sink-level guards (`safeJoinModulesDir`) throw.
@@ -295,20 +295,20 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
     {
-      hint: violations.some((v) => STRUCTURAL_VIOLATION_CODES.has(v.code))
-        ? 'The lockfile contains entries that pnpm cannot verify, whatever ' +
-          'the configured policies. This can mean the lockfile is stale, or ' +
-          'that it was tampered with — inspect recent changes to ' +
-          'pnpm-lock.yaml before trusting it. If the changes look expected, ' +
-          'run "pnpm clean --lockfile" and then "pnpm install" to rebuild ' +
-          'from a fresh resolution.'
-        : 'The lockfile contains entries that the active policies reject. ' +
+      hint: violations.every((v) => POLICY_VIOLATION_CODES.has(v.code))
+        ? 'The lockfile contains entries that the active policies reject. ' +
           'This can mean the lockfile is stale, or that someone committed a ' +
           'lockfile that bypassed the policy locally — inspect recent changes ' +
           'to pnpm-lock.yaml before trusting it. If the changes look expected, ' +
           'run "pnpm clean --lockfile" and then "pnpm install" to rebuild from ' +
           'a fresh resolution. If the fresh resolution still fails and you ' +
-          'trust the affected packages, relax the policy that flagged them.',
+          'trust the affected packages, relax the policy that flagged them.'
+        : 'The lockfile contains entries that pnpm cannot verify, whatever ' +
+          'the configured policies. This can mean the lockfile is stale, or ' +
+          'that it was tampered with — inspect recent changes to ' +
+          'pnpm-lock.yaml before trusting it. If the changes look expected, ' +
+          'run "pnpm clean --lockfile" and then "pnpm install" to rebuild ' +
+          'from a fresh resolution.',
     }
   )
 }

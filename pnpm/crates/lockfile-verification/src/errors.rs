@@ -99,8 +99,8 @@ pub enum VerifyError {
         #[error(not(source))]
         count: usize,
         breakdown: String,
-        /// The structural hint when any entry failed a structural check,
-        /// since relaxing a policy cannot clear that entry.
+        /// The structural hint unless every entry failed a relaxable policy,
+        /// since relaxing a policy cannot clear any other entry.
         #[help]
         hint: &'static str,
     },
@@ -173,10 +173,10 @@ impl VerifyError {
         let count = violations.len();
         let breakdown = violation_breakdown(violations, mixed);
 
-        let hint = if distinct_codes.iter().any(|code| is_structural_violation(code)) {
-            STRUCTURAL_HINT
-        } else {
+        let hint = if distinct_codes.iter().all(|code| is_policy_violation(code)) {
             HINT
+        } else {
+            STRUCTURAL_HINT
         };
 
         if mixed {
@@ -209,14 +209,12 @@ impl VerifyError {
     }
 }
 
-/// Whether no configured policy produces this violation code.
-fn is_structural_violation(code: &str) -> bool {
+/// Whether a policy the user can relax produced this violation code.
+fn is_policy_violation(code: &str) -> bool {
     matches!(
         code,
-        pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY
-            | pnpm_resolving_npm_resolver_violation_codes::TARBALL_URL_MISMATCH
-            | pnpm_resolving_npm_resolver_violation_codes::TARBALL_REVISION_MISMATCH
-            | crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION
+            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE,
     )
 }
 
@@ -271,10 +269,6 @@ mod pnpm_resolving_npm_resolver_violation_codes {
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
     /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
     pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
-    /// Matches `pnpm_resolving_npm_resolver::TARBALL_URL_MISMATCH_VIOLATION_CODE`.
-    pub const TARBALL_URL_MISMATCH: &str = "TARBALL_URL_MISMATCH";
-    /// Matches `pnpm_resolving_npm_resolver::TARBALL_REVISION_MISMATCH_VIOLATION_CODE`.
-    pub const TARBALL_REVISION_MISMATCH: &str = "TARBALL_REVISION_MISMATCH";
 }
 
 #[cfg(test)]

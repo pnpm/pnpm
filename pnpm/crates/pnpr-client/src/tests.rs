@@ -371,6 +371,7 @@ fn structural_violations_keep_their_code_and_hint() {
         "RESOLUTION_SHAPE_MISMATCH",
         "TARBALL_URL_MISMATCH",
         "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
     ] {
         let line = format!(
             r#"{{"type":"violations","violations":[{{"name":"acme","version":"1.0.0","code":"{code}","reason":"broken"}},{{"name":"bravo","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"young"}}]}}"#,
