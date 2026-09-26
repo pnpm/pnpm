@@ -18,6 +18,31 @@ use super::{
     unapproved_recorded_ignored_builds,
 };
 use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
+use pnpm_reporter::Reporter;
+use pnpm_workspace_state::update_workspace_state;
+
+/// Persist `.pnpm-workspace-state-v1.json`, warning instead of failing
+/// the command when the write is lost.
+///
+/// The state file is a cache: the next command's content check
+/// re-derives everything in it, so a lost write must not fail an
+/// install whose `node_modules` and lockfile are already committed
+/// ([#14550](https://github.com/pnpm/pnpm/issues/14550)).
+pub(crate) fn update_workspace_state_or_warn<Reporter: self::Reporter>(
+    workspace_root: &Path,
+    state: &WorkspaceState,
+) {
+    if let Err(error) = update_workspace_state(workspace_root, state) {
+        tracing::warn!(
+            target: "pacquet::install",
+            ?error,
+            "Failed to write the workspace state",
+        );
+        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+            "Failed to write the workspace state: {error}",
+        ));
+    }
+}
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {

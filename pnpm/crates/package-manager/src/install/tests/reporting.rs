@@ -1,5 +1,5 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
+    super::{Install, InstallError, ProjectMutation, update_workspace_state_or_warn},
     InstallDirs, PARTIAL_INSTALL_LOCKFILE, recorded_verified_file_integrity_report,
     seed_placeholder_virtual_store_slot,
 };
@@ -14,6 +14,7 @@ use pnpm_reporter::{
 };
 use pnpm_store_dir::{STORE_VERSION, VerifiedFileIntegrity};
 use pnpm_testing_utils::registry::TestRegistry;
+use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
 use std::{sync::Mutex, time::Duration};
 use tempfile::tempdir;
 use text_block_macros::text_block;
@@ -766,4 +767,47 @@ fn verified_file_integrity_is_scoped_to_one_install() {
     dbg!(this_install);
     assert_eq!(this_install.files, 1);
     assert_eq!(this_install.duration, Duration::from_millis(100));
+}
+
+/// A lost state-file write must not fail the command, and it must not
+/// be silent either: `tracing::warn!` is inert unless `TRACE` is set,
+/// so the warning goes through the reporter, matching the v11 writer's
+/// `globalWarn`.
+#[test]
+fn a_lost_workspace_state_write_warns_through_the_reporter() {
+    static MESSAGES: Mutex<Vec<(LogLevel, String)>> = Mutex::new(Vec::new());
+    // One shared static, so one caller at a time: `cargo nextest` gives
+    // each test its own process, a plain `cargo test` does not.
+    static RECORDER: Mutex<()> = Mutex::new(());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push((log.level, log.message.clone()));
+            }
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    // A regular file where the workspace root belongs: `update_workspace_state`
+    // cannot create the directory it writes into, so the write is lost.
+    let blocker = dir.path().join("blocker");
+    std::fs::write(&blocker, b"not a dir").unwrap();
+    let state = WorkspaceState::default();
+    let source_error = update_workspace_state(&blocker, &state).unwrap_err();
+
+    let _guard = RECORDER.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    MESSAGES.lock().unwrap().clear();
+    // Returns `()`: a lost cache write is not the command's failure.
+    update_workspace_state_or_warn::<RecordingReporter>(&blocker, &state);
+    let recorded = MESSAGES.lock().unwrap().clone();
+
+    assert_eq!(recorded.len(), 1, "exactly one warning, got: {recorded:?}");
+    let (level, message) = &recorded[0];
+    assert_eq!(*level, LogLevel::Warn);
+    assert_eq!(message, &format!("Failed to write the workspace state: {source_error}"));
 }
