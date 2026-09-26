@@ -38,8 +38,8 @@ skipOnWindows('Ctrl+C leaves a script behind a shell with the script\'s own exit
   expect(status).toBe(0)
 })
 
-// dash dies from a terminal SIGINT that the foreground command handled; bash
-// carries on with the rest of the script. Every shell now does what bash does.
+// After a command handles a terminal SIGINT, the rest of the script runs in
+// every shell, as bash runs it. dash on its own would die from the signal.
 skipOnWindows('Ctrl+C handled by a command lets the rest of the script run', () => {
   const { stdout, status, error } = spawnSync('python3', [
     terminalScript,

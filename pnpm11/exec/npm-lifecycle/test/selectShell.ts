@@ -42,11 +42,6 @@ test('a Bourne shell runs the command behind the interrupt trap', () => {
 
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
 
-function runInSh (command: string) {
-  const shell = selectShell(undefined, process.platform, undefined)
-  return spawnSync(shell.sh, [shell.shFlag, scriptBody(shell, command)], { encoding: 'utf8' })
-}
-
 // A shell's own `kill` stands in for a terminal interrupt that the foreground
 // command handled: the trap then sees that command's status, not 130.
 skipOnWindows('a handled interrupt lets the rest of the script run', () => {
@@ -71,3 +66,8 @@ test('a non-Bourne shell runs the command unchanged', () => {
   expect(scriptBody(selectShell('/usr/bin/fish', 'linux', undefined), 'node dev.js')).toBe('node dev.js')
   expect(scriptBody(selectShell('cmd.exe', 'win32', undefined), 'node dev.js')).toBe('node dev.js')
 })
+
+function runInSh (command: string) {
+  const shell = selectShell(undefined, process.platform, undefined)
+  return spawnSync(shell.sh, [shell.shFlag, scriptBody(shell, command)], { encoding: 'utf8' })
+}

@@ -236,9 +236,9 @@ fn a_nested_run_keeps_the_scripts_exit_status_after_ctrl_c() {
     drop(root);
 }
 
-/// dash dies from a terminal `SIGINT` that the foreground command handled;
-/// bash carries on with the rest of the script. Every shell now does what
-/// bash does.
+/// After a command handles a terminal `SIGINT`, the rest of the script runs
+/// in every shell, as bash runs it. dash on its own would die from the
+/// signal.
 #[test]
 fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

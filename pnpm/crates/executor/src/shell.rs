@@ -109,9 +109,9 @@ pub fn select_shell(
 /// The text `shell` executes for `command`.
 ///
 /// A Bourne shell that stays the script's parent holds a terminal `SIGINT`
-/// until the foreground command exits. dash and zsh then die from that
-/// signal even when the command handled it and exited with a status, so
-/// pnpm reported a lifecycle failure and lost the command's status
+/// until the foreground command exits. Without a trap, dash and zsh die
+/// from that signal even when the command handled it and exited with a
+/// status, which pnpm would report as a lifecycle failure
 /// (<https://github.com/pnpm/pnpm/issues/9945>). The trap makes every such
 /// shell do what bash does: re-raise `SIGINT` when the command died from it
 /// (status 130), and otherwise carry on with the rest of the script. A
