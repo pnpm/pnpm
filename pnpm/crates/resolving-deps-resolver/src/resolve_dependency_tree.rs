@@ -309,9 +309,7 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 
-    /// A `readPackage` hook returned a package manifest the resolver cannot
-    /// use, raised with the `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` code pnpm
-    /// 11 reports for that class of failure.
+    /// A `readPackage` hook returned a package manifest the resolver cannot use.
     #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
     BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
 
@@ -336,8 +334,7 @@ pub enum ResolveDependencyTreeError {
 }
 
 impl ResolveDependencyTreeError {
-    /// A `readPackage` failure, under the code its kind calls for: a hook that
-    /// returned a manifest pnpm cannot use reads apart from one that threw.
+    /// Converts a hook error into the corresponding [`ResolveDependencyTreeError`] variant.
     #[must_use]
     pub fn read_package_hook(err: pnpm_hooks::HookError) -> Self {
         if err.is_bad_read_package_result() {

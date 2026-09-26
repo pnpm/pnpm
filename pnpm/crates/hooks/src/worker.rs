@@ -80,10 +80,6 @@ struct Pending {
 }
 
 /// What the worker reported for a request it could not answer.
-///
-/// A failure the worker attributes to a `readPackage` hook that returned a
-/// manifest pnpm cannot use becomes [`HookError::BadReadPackageResult`];
-/// anything else is a pnpmfile that failed to run.
 struct Failure {
     message: String,
     unusable_manifest: bool,

@@ -19,20 +19,13 @@ async fn read_package_fails_with_meaningful_error_on_syntax_error() {
     assert!(err.contains("SyntaxError"));
 }
 
-/// A hook that *returns* a manifest pnpm cannot use is reported apart from one
-/// that throws or times out, because pnpm 11 gives the two different error
-/// codes. The flag travels with the failure from the worker, so each consumer
-/// can pick the code.
 #[tokio::test]
 async fn a_returned_manifest_pnpm_cannot_use_reads_apart_from_a_throwing_hook() {
     let returned = [
-        // Nothing at all.
         "module.exports = { hooks: { readPackage (pkg) {} } }",
-        // Not a manifest.
         "module.exports = { hooks: { readPackage () { return 'a string' } } }",
-        // A dependency field that is not a map of ranges.
+        "module.exports = { hooks: { readPackage () { return new String('a string') } } }",
         "module.exports = { hooks: { readPackage (pkg) { pkg.dependencies = 1; return pkg } } }",
-        // A range that is not a string.
         "module.exports = { hooks: { readPackage (pkg) { pkg.dependencies['ms'] = undefined; return pkg } } }",
     ];
     for source in returned {

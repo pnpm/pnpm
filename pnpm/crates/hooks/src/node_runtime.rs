@@ -143,10 +143,14 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         pkg: Value,
         ctx: crate::HookContext,
     ) -> Result<crate::ReadPackageResult, HookError> {
-        self.worker().await?
-            .call("readPackage", pkg, ctx.log)
-            .await
-            .map(Arc::new)
+        let value = self.worker().await?.call("readPackage", pkg, ctx.log).await?;
+        if !value.is_object() {
+            return Err(HookError::BadReadPackageResult {
+                pnpmfile: self.file.to_string_lossy().into_owned(),
+                message: "readPackage hook did not return a package manifest object.".to_string(),
+            });
+        }
+        Ok(Arc::new(value))
     }
 
     async fn after_all_resolved(

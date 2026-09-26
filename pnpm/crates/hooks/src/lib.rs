@@ -38,13 +38,6 @@ pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
 pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
-///
-/// A pnpmfile that fails to load or throws, and a `readPackage` hook that
-/// throws, abort the install as `ERR_PNPM_PNPMFILE_FAIL`. A `readPackage`
-/// hook that *returns* a manifest pnpm cannot use aborts it under
-/// `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT`, the code pnpm 11 reports for
-/// that class of failure. The two are separate variants so each consumer can
-/// pick the code.
 #[derive(Debug, Display, Clone)]
 pub enum HookError {
     #[display("pnpmfile hook '{_0}' timed out after {_1} seconds")]
@@ -60,8 +53,7 @@ pub enum HookError {
 }
 
 impl HookError {
-    /// Whether a `readPackage` hook returned a manifest pnpm cannot use,
-    /// which pnpm reports apart from a pnpmfile that failed to run.
+    /// Whether the error represents a `readPackage` hook that returned an unusable manifest.
     #[must_use]
     pub fn is_bad_read_package_result(&self) -> bool {
         matches!(self, Self::BadReadPackageResult { .. })
