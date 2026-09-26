@@ -304,6 +304,10 @@ fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
     assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
     let command = format!(r#""pnpm {filter_option} <selector> run build""#);
     assert!(stderr.contains(&command), "{script_args:?} should suggest {command}:\n{stderr}");
+    assert!(
+        !stderr.contains("@local/b"),
+        "{script_args:?} should not echo the selector:\n{stderr}",
+    );
 
     drop(root);
 }
