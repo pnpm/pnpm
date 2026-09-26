@@ -1,9 +1,9 @@
 use super::{
     super::{
         BuildModulesError, HashMap, PackageKey, Path, PathBuf, Reporter, materialize_side_effects,
-        store_index_key_for_resolution,
+        slot_carries_overlay, store_index_key_for_resolution,
     },
-    BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
+    BuildCandidate, BuildOneSnapshot, report_broken_slot,
 };
 use std::sync::atomic::Ordering;
 
@@ -155,6 +155,19 @@ pub(super) enum OverlayOutcome {
     /// with a broken package.
     Broken(BuildModulesError),
 }
+// A removed GVS slot may have been imported pristine while its cached build row survived.
+fn global_slot_carries_overlay(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    overlay: &HashMap<String, PathBuf>,
+) -> bool {
+    context.directories.layout.enable_global_virtual_store()
+        && context
+            .pkg_roots()
+            .canonical(snapshot_key)
+            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
+}
+
 /// The lock to hold while the overlay is re-imported into the slot, or `None`
 /// when the slot already carries it. Another install may be building the
 /// shared slot, which the forced re-import would overwrite; once that build

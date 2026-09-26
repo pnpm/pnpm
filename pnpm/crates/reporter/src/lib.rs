@@ -134,6 +134,12 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
+    /// One per install run that put patched packages in place
+    /// (`pnpm:applied-patches`), by applying their configured patch or from
+    /// the side-effects cache. Not emitted when there were none.
+    #[serde(rename = "pnpm:applied-patches")]
+    AppliedPatches(AppliedPatchesLog),
+
     /// The latest pnpm the registry offers, next to the running one
     /// (`pnpm:update-check`). Emitted at most once a day by the
     /// install-family commands the update notifier covers; the default
@@ -359,6 +365,15 @@ pub struct IgnoredScriptsLog {
     /// the package names, matching pnpm's `ignoredScriptsLogger.debug`.
     #[serde(skip)]
     pub strict_dep_builds: bool,
+}
+
+/// `pnpm:applied-patches` payload. Names are deduplicated, sorted, and in
+/// `name@version` form.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppliedPatchesLog {
+    pub level: LogLevel,
+    pub package_names: Vec<String>,
 }
 
 /// `pnpm:update-check` payload: the running pnpm version and the latest

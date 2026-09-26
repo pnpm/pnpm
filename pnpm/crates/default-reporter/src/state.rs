@@ -15,8 +15,8 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use pnpm_reporter::{
-    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
-    FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
+    AddedRoot, AppliedPatchesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
+    ExecutionTimeLog, FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
     InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
     LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, ProgressMessage, RemovedRoot,
     RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog, SkippedOptionalPackage, Stage,
@@ -316,6 +316,7 @@ impl ReporterState {
             LogEvent::Summary(log) => self.on_summary(&log.prefix),
             LogEvent::Lifecycle(log) => self.on_lifecycle(&log.message),
             LogEvent::IgnoredScripts(log) => self.on_ignored_scripts(log),
+            LogEvent::AppliedPatches(log) => self.on_applied_patches(log),
             LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
