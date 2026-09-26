@@ -204,9 +204,7 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 
 #[derive(Clone)]
 pub struct WildcardMatcher {
-    /// Segments between `*`s. For pattern `a*b*c` this is
-    /// `["a", "b", "c"]`. For `*` alone it is `["", ""]`. For pure
-    /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
+    /// Segments between `*`s.
     segments: Arc<[String]>,
     had_wildcard: bool,
 }
@@ -227,20 +225,93 @@ impl WildcardMatcher {
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
-            return self.segments[0] == input;
+            return match_segment(&self.segments[0], input);
         }
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
-        let Some(rest) = input.strip_prefix(first.as_str()) else { return false };
-        if first.len() + last.len() > input.len() {
+        let Some(rest) = strip_prefix_segment(input, first) else { return false };
+        if first.chars().count() + last.chars().count() > input.chars().count() {
             return false;
         }
-        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
-        // The prefix-strip already advanced past `first`; the
-        // suffix-strip already accounted for `last`. Walk the
-        // middle segments greedily.
+        let Some(middle) = strip_suffix_segment(rest, last) else { return false };
         contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
+}
+
+fn match_char(pattern_char: char, input_char: char) -> bool {
+    pattern_char == '?' || pattern_char == input_char
+}
+
+fn match_segment(segment: &str, input: &str) -> bool {
+    let mut seg_chars = segment.chars();
+    let mut input_chars = input.chars();
+    loop {
+        match (seg_chars.next(), input_chars.next()) {
+            (Some(s), Some(i)) => {
+                if !match_char(s, i) {
+                    return false;
+                }
+            }
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn strip_prefix_segment<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
+    let mut seg_chars = segment.chars();
+    let mut byte_offset = 0;
+    for (idx, c) in input.char_indices() {
+        if let Some(s) = seg_chars.next() {
+            if !match_char(s, c) {
+                return None;
+            }
+            byte_offset = idx + c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    seg_chars
+        .next()
+        .is_none()
+        .then_some(&input[byte_offset..])
+}
+
+fn strip_suffix_segment<'a>(input: &'a str, segment: &str) -> Option<&'a str> {
+    let mut seg_rev = segment.chars().rev();
+    let mut cut_byte = input.len();
+    for (idx, c) in input.char_indices().rev() {
+        if let Some(s) = seg_rev.next() {
+            if !match_char(s, c) {
+                return None;
+            }
+            cut_byte = idx;
+        } else {
+            break;
+        }
+    }
+    seg_rev
+        .next()
+        .is_none()
+        .then_some(&input[..cut_byte])
+}
+
+fn find_segment(input: &str, segment: &str) -> Option<(usize, usize)> {
+    if segment.is_empty() {
+        return Some((0, 0));
+    }
+    let seg_len_chars = segment.chars().count();
+    let input_len_chars = input.chars().count();
+    if seg_len_chars > input_len_chars {
+        return None;
+    }
+    for (start_byte, _) in input.char_indices() {
+        if let Some(rest) = strip_prefix_segment(&input[start_byte..], segment) {
+            let end_byte = input.len() - rest.len();
+            return Some((start_byte, end_byte));
+        }
+    }
+    None
 }
 
 /// Whether `segments` all occur in `input`, in order and without overlap.
@@ -250,8 +321,8 @@ fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
         if segment.is_empty() {
             continue;
         }
-        let Some(index) = input.find(segment.as_str()) else { return false };
-        input = &input[index + segment.len()..];
+        let Some((_, end_byte)) = find_segment(input, segment) else { return false };
+        input = &input[end_byte..];
     }
     true
 }

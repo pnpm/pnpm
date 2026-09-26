@@ -22,6 +22,24 @@ test('matcher()', () => {
     expect(match('abc')).toBe(true)
   }
   {
+    const match = createMatcher(['a?c'])
+    expect(match('abc')).toBe(true)
+    expect(match('adc')).toBe(true)
+    expect(match('ac')).toBe(false)
+    expect(match('abbc')).toBe(false)
+  }
+  {
+    const match = createMatcher(['eslint-?'])
+    expect(match('eslint-a')).toBe(true)
+    expect(match('eslint-1')).toBe(true)
+    expect(match('eslint-ab')).toBe(false)
+  }
+  {
+    const match = createMatcher(['?'])
+    expect(match('😀')).toBe(true)
+    expect(match('😀😀')).toBe(false)
+  }
+  {
     const match = createMatcher(['*-positive'])
     expect(match('is-positive')).toBe(true)
   }
