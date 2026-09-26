@@ -8,6 +8,8 @@ use crate::_utils;
 /// every package out of `node_modules/.pnpm`.
 mod workspace_yaml;
 
+mod quiet_output;
+
 mod dependency_build_scripts;
 
 /// `.modules.yaml`'s `pendingBuilds` — the record of builds
