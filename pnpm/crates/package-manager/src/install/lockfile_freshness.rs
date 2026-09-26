@@ -111,7 +111,7 @@ async fn workspace_manifests_satisfy(
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
-                allow_missing_dependency_free_importers: false,
+                allow_missing_dependency_free_importers: true,
                 allow_unresolved_optional_dependencies: false,
                 prune_stale_importers: true,
             },

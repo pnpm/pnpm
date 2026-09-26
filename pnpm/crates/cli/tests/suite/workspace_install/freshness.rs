@@ -159,7 +159,44 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
 }
 
 #[test]
-fn normal_install_restores_a_missing_dependency_free_workspace_importer() {
+fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml");
+    lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
+    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
+    fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a node_modules");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pkg-a/node_modules/is-positive/package.json").exists(),
+        "the frozen install must still link pkg-a's dependencies",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }),
         &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
@@ -181,13 +218,13 @@ fn normal_install_restores_a_missing_dependency_free_workspace_importer() {
         .with_arg("install")
         .assert()
         .success();
-    let restored: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
-        &fs::read_to_string(&lockfile_path).expect("read restored pnpm-lock.yaml"),
+    let retained: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        &fs::read_to_string(&lockfile_path).expect("read retained pnpm-lock.yaml"),
     )
-    .expect("parse restored pnpm-lock.yaml");
+    .expect("parse retained pnpm-lock.yaml");
     assert!(
-        restored.importers.contains_key("pkg-b"),
-        "a normal install must restore the missing importer entry for a dependency-free project",
+        !retained.importers.contains_key("pkg-b"),
+        "dependency-free pkg-b should not force lockfile regeneration",
     );
 
     drop((root, mock_instance));

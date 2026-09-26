@@ -752,13 +752,16 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
 /// `importers["."]` entry for the project being installed. Distinct
 /// from `NoLockfile` (file missing entirely) — here the file is
 /// well-formed but doesn't describe this project. Should surface as
-/// `NoImporter`, also before any fetch attempt.
+/// `NoImporter`, also before any fetch attempt. The project declares a
+/// dependency, since a missing entry for a dependency-free project is
+/// accepted.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
     let dirs = InstallDirs::new();
 
     let manifest_path = dirs.path().join("package.json");
-    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest.add_dependency("is-positive", "1.0.0", DependencyGroup::Prod).unwrap();
 
     let mut config = Config::new();
     config.store_dir = dirs.store_dir.clone().into();
