@@ -1,5 +1,5 @@
 use std::{
-    fs, io,
+    fmt, fs, io,
     ops::Range,
     path::{Path, PathBuf},
 };
@@ -43,23 +43,38 @@ pub fn jsr_manifest_updates(
 /// Write `updates`, then run `save_package_manifest`. If either fails, the JSR
 /// manifests already written get their original contents back, so a failed
 /// bump does not leave them at a version `package.json` lacks.
-pub fn save_with_jsr_manifests<Error: From<VersioningError>>(
+pub fn save_with_jsr_manifests<Error: From<VersioningError> + fmt::Display>(
     updates: &[JsrManifestUpdate],
     save_package_manifest: impl FnOnce() -> Result<(), Error>,
 ) -> Result<(), Error> {
     for (written, update) in updates.iter().enumerate() {
         if let Err(error) = write_file(&update.path, &update.contents) {
-            restore_originals(&updates[..written]);
-            return Err(error.into());
+            return Err(restore_originals(&updates[..written], error.into()));
         }
     }
-    save_package_manifest().inspect_err(|_| restore_originals(updates))
+    save_package_manifest().map_err(|error| restore_originals(updates, error))
 }
 
-/// Best effort: the caller reports the error that interrupted the bump.
-fn restore_originals(updates: &[JsrManifestUpdate]) {
+/// Restore every update's original contents and return `interrupted_by`, or,
+/// if a restore fails, the error naming the manifest left at the new version.
+fn restore_originals<Error: From<VersioningError> + fmt::Display>(
+    updates: &[JsrManifestUpdate],
+    interrupted_by: Error,
+) -> Error {
+    let mut failed_restore = None;
     for update in updates {
-        let _ = write_file(&update.path, &update.original);
+        if let Err(source) = pnpm_fs::write_atomic(&update.path, update.original.as_bytes()) {
+            failed_restore.get_or_insert((update.path.clone(), source));
+        }
+    }
+    match failed_restore {
+        None => interrupted_by,
+        Some((path, source)) => VersioningError::RestoreJsrManifest {
+            path,
+            interrupted_by: interrupted_by.to_string(),
+            source,
+        }
+        .into(),
     }
 }
 
