@@ -1,3 +1,5 @@
+pub(super) use fast_path::register_workspace_in_store;
+
 mod fast_path;
 use fast_path::{UpToDateCheck, install_is_already_up_to_date};
 

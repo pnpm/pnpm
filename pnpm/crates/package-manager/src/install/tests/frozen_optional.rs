@@ -15,13 +15,10 @@ use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
-/// GVS-off frozen-lockfile install. The dispatch path is the same,
-/// but `Install::run` skips the project-registry write entirely.
-/// Pins that turning off `enable_global_virtual_store` makes the
-/// install behave like today — no `<store_dir>/projects/` directory
-/// appears.
+/// GVS-off frozen-lockfile install still registers the project in
+/// `<store_dir>/projects/`.
 #[tokio::test]
-async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
+async fn frozen_lockfile_with_gvs_off_registers_the_project() {
     let dirs = InstallDirs::new();
 
     std::fs::create_dir_all(&dirs.project_root).expect("create project root");
@@ -98,10 +95,13 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
     .await
     .expect("frozen-lockfile install with GVS off should succeed");
 
-    assert!(
-        !dirs.store_dir.join("v11/projects").exists(),
-        "GVS-off install must NOT create the project-registry directory",
-    );
+    let registered: Vec<_> = pnpm_store_dir::get_registered_projects(&config.store_dir)
+        .expect("list registered projects")
+        .iter()
+        .map(|project| dunce::canonicalize(project).expect("resolve registered project"))
+        .collect();
+    let project_root = dunce::canonicalize(&dirs.project_root).expect("resolve project root");
+    assert_eq!(registered, [project_root]);
 
     drop(dirs.dir);
 }

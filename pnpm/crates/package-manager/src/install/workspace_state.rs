@@ -49,7 +49,8 @@ pub struct UpToDateWorkspace {
 /// synchronous context so the CLI can finish an up-to-date install
 /// before paying for the async runtime, the HTTP client, and the
 /// state setup. Returns what the short-circuit covered when the install
-/// can take it.
+/// can take it, after registering the workspace in the store as
+/// [`super::Install::run`] does.
 ///
 /// Failures deliberately collapse to `None`: the caller falls through
 /// to the full install path, which reproduces the failure with its
@@ -96,10 +97,9 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         return None;
     }
     ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
-    Some(UpToDateWorkspace {
-        root: state_root,
-        project_count: workspace_projects.as_ref().map(Vec::len),
-    })
+    super::run::register_workspace_in_store(check.config, &workspace_root);
+    let project_count = workspace_projects.as_ref().map(Vec::len);
+    Some(UpToDateWorkspace { root: state_root, project_count })
 }
 
 fn fast_path_workspace_context(

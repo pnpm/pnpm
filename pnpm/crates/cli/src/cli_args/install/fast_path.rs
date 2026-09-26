@@ -122,6 +122,11 @@ impl InstallArgs {
         {
             return false;
         }
+        // The fast path registers the project in the store, which a dry run
+        // must not write.
+        if self.materialization.dry_run {
+            return false;
+        }
         if config.cargo.enabled || config.python.enabled || config.catalog_prune {
             return false;
         }

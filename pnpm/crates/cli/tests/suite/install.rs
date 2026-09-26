@@ -107,11 +107,12 @@ fn should_install_dependencies() {
 /// cache, `pnpm-deps-restorer/src/dir_clone_cache.rs`), and their paths
 /// embed a graph hash that varies with the host's Node major — useless
 /// under a platform-shared snapshot, and their files carry package
-/// modes rather than the CAFS `-exec` convention.
+/// modes rather than the CAFS `-exec` convention. Also excludes
+/// `v11/projects/`, whose entry names hash the temporary workspace path.
 fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
     get_all_files(store_dir)
         .into_iter()
-        .filter(|path| !path.starts_with("v11/links/"))
+        .filter(|path| !path.starts_with("v11/links/") && !path.starts_with("v11/projects/"))
         .collect()
 }
 
