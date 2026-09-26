@@ -2,10 +2,10 @@ pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
 pub(crate) use error::FreshnessCheckError;
-pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
     ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
 };
+pub(super) use manifest::{manifest_declares_dependencies, manifest_has_effective_dependencies};
 
 use rayon::prelude::*;
 
@@ -212,8 +212,11 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 pub(crate) struct FreshnessScope {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
-    /// Treat a project with no importer entry and no dependencies as
-    /// satisfied rather than missing.
+    /// Treat a project that declares dependencies, but none that take
+    /// effect, and that has no importer entry as satisfied rather than
+    /// missing. A project that declares no dependencies at all is not
+    /// covered: its importer still has to be written, or a later
+    /// `--frozen-lockfile` install fails.
     pub(crate) allow_missing_dependency_free_importers: bool,
     /// Treat an `optionalDependencies` entry the importer has no entry
     /// for as satisfied: the install that wrote the lockfile could not
@@ -385,6 +388,7 @@ fn check_single_importer(
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     if inputs.scope.allow_missing_dependency_free_importers
         && !lockfile.importers.contains_key(importer_id)
+        && manifest_declares_dependencies(manifest)
         && !manifest_has_effective_dependencies(manifest, ignored_optional_matcher)
     {
         return Ok(Vec::new());

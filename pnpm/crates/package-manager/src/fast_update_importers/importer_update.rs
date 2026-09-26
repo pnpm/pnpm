@@ -77,18 +77,25 @@ pub(super) fn apply_one_importer_update(
         manifest,
         manifest_dependencies,
     } = *entry;
-    let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
-    if records_nothing && !manifest_dependencies.is_empty() {
+    let (records_nothing, missing) = match importers.get(importer_id.as_str()) {
+        None => (true, true),
+        Some(importer) => (records_no_dependencies(importer), false),
+    };
+    // An importer the lockfile has never recorded is written even when the
+    // project declares nothing, so a later frozen install can find it.
+    if records_nothing && (!manifest_dependencies.is_empty() || missing) {
         let Some(new_importer) =
             importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
         else {
             return false;
         };
         importers.insert(importer_id.clone(), new_importer);
-        // The only edit that adds reachability, so a package that until
-        // now only optional dependencies reached can have stopped being
-        // optional.
-        edits.optional_flags_are_stale = true;
+        // Adding dependencies is the edit that adds reachability, so a
+        // package that until now only optional dependencies reached can
+        // have stopped being optional.
+        if !manifest_dependencies.is_empty() {
+            edits.optional_flags_are_stale = true;
+        }
         return true;
     }
     let Some(importer) = importers.get_mut(importer_id.as_str()) else {
