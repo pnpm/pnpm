@@ -256,7 +256,7 @@ fn is_placed_concurrently(error: &io::Error, source_file: &Path, target_link: &P
 }
 
 /// Materialize an independent copy of `source_file` over `target_link`
-/// carrying the current process's [`desired_mode`], leaving `source_file`
+/// carrying the current process's [`desired_permissions`], leaving `source_file`
 /// untouched.
 fn replace_shared_inode_with_copy(source_file: &Path, target_link: &Path) -> io::Result<()> {
     pnpm_fs::copy_file_atomic_with_permissions(
