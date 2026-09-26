@@ -1132,7 +1132,7 @@ export async function resolveDependencies (
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
     }
-    if (pkgAddress.updated) {
+    if (pkgAddress.updated && options.currentDepth === 0) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
