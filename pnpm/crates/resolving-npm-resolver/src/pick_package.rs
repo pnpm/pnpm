@@ -47,8 +47,8 @@
 pub use errors::PickPackageError;
 pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
 pub use options::{
-    MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, PackagePickPolicy,
-    PickPackageContext, PickPackageOptions,
+    MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, OfflineStoreAvailability,
+    PackagePickPolicy, PickPackageContext, PickPackageOptions,
 };
 
 pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
@@ -74,7 +74,10 @@ use release_age_upgrade::{
 };
 
 mod version_pick;
-use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, unverified_pick_is_safe};
+use version_pick::{
+    PickerOpts, pick_from_meta, pick_from_meta_fast, prefer_stored_tarballs,
+    unverified_pick_is_safe,
+};
 
 mod metadata_cache;
 
@@ -164,7 +167,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // callers may briefly duplicate a disk read; the mem-cache
     // promotion inside each path keeps that a one-wave cost.
     let mut disk_meta: Option<Arc<Package>> = None;
-    if let Some(result) = state.mirror_fast_paths(ctx, spec, opts, &mut disk_meta).await {
+    // The offline disk pick must run before the mirror fast paths: an
+    // offline pick has to consult the store (see
+    // [`prefer_stored_tarballs`]), which the fast paths never do.
+    if !ctx.cache_policy.offline
+        && let Some(result) = state.mirror_fast_paths(ctx, spec, opts, &mut disk_meta).await
+    {
         return Ok(result);
     }
 
@@ -574,6 +582,11 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     {
         return Ok(None);
     }
+    let picked = if ctx.cache_policy.offline {
+        prefer_stored_tarballs(picker_opts, ctx, spec, &meta, picked).await?
+    } else {
+        picked
+    };
     Ok(Some(PickPackageResult { meta, picked_package: picked }))
 }
 

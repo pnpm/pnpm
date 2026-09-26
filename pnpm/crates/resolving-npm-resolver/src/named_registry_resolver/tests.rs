@@ -92,6 +92,7 @@ fn build_resolver(
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
     };
     (resolver, cache_dir)
 }

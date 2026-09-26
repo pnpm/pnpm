@@ -33,6 +33,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -82,6 +83,7 @@ async fn warm_in_memory_cache_skips_network() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -130,6 +132,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -188,6 +191,155 @@ async fn offline_with_mirror_picks_from_disk() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
+/// An offline install can only consume tarballs the store already holds, so
+/// when the mirror's newest matching version is not in the store, the pick
+/// falls back to the newest matching version that is.
+#[tokio::test]
+async fn offline_prefers_a_version_whose_tarball_is_in_the_store() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let store_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    // The store holds the tarball of 1.0.0 only.
+    let integrity_1_0_0 = preloaded.versions
+        .get("1.0.0")
+        .expect("fixture has 1.0.0")
+        .dist
+        .integrity
+        .as_ref()
+        .expect("1.0.0 has integrity")
+        .to_string();
+    {
+        let store_index =
+            pnpm_store_dir::StoreIndex::open(store_dir.path()).expect("open store index");
+        store_index
+            .set(
+                &pnpm_store_dir::store_index_key(&integrity_1_0_0, "acme@1.0.0"),
+                &pnpm_store_dir::PackageFilesIndex {
+                    manifest: None,
+                    requires_build: None,
+                    requires_prepare: None,
+                    algo: "sha512".to_string(),
+                    files: std::collections::HashMap::new(),
+                    side_effects: None,
+                    remote_side_effects_quarantine: None,
+                },
+            )
+            .expect("seed store");
+    }
+    let store_index = crate::OfflineStoreAvailability::new(Arc::new(std::sync::Mutex::new(
+        pnpm_store_dir::StoreIndex::open_readonly(store_dir.path()).expect("reopen store index"),
+    )));
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: true,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        store_index: Some(&store_index),
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
+}
+
+/// A store with no rows can never justify switching versions, so the pick
+/// stays the newest match and no store queries are made beyond the one-time
+/// emptiness probe.
+#[tokio::test]
+async fn offline_with_an_empty_store_keeps_the_newest_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let store_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    {
+        // Open and drop a writer so index.db exists but holds no rows.
+        pnpm_store_dir::StoreIndex::open(store_dir.path()).expect("open store index");
+    }
+    let store_index = crate::OfflineStoreAvailability::new(Arc::new(std::sync::Mutex::new(
+        pnpm_store_dir::StoreIndex::open_readonly(store_dir.path()).expect("reopen store index"),
+    )));
+    assert!(store_index.is_empty(), "fixture store should have no rows");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            offline: true,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        store_index: Some(&store_index),
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -224,6 +376,7 @@ async fn offline_without_mirror_errors() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -257,6 +410,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
+        store_index: None,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
@@ -325,6 +479,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -385,6 +540,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
             prefer_offline: true,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -450,6 +606,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
             prefer_offline: true,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -509,6 +666,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -577,6 +735,7 @@ async fn version_spec_missing_in_mirror_fetches() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -622,6 +781,7 @@ async fn dry_run_skips_in_memory_cache() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -715,6 +875,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -778,6 +939,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -837,6 +999,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

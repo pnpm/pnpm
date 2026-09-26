@@ -22,6 +22,7 @@ pnpm-resolving-local-resolver = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-resolving-tarball-resolver = { workspace = true }
+pnpm-store-dir = { workspace = true }
 
 derive_more = { workspace = true }
 miette = { workspace = true }

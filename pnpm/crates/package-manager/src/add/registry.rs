@@ -1,6 +1,6 @@
 use super::{AddError, AddOptions, AddResolveInputs};
 use crate::{
-    resolution_policy::{PickPolicy, pick_package_context},
+    resolution_policy::{PickPolicy, offline_store_index, pick_package_context},
     resolve_latest::LatestPicker,
 };
 use pnpm_config::Config;
@@ -81,12 +81,14 @@ pub(super) async fn resolve_explicit_registry_spec(
 
     let policy = add_pick_policy(inputs, &spec_parsed.name)?;
     let preferred_versions = inputs.preferred_versions(manifest);
+    let store_index = offline_store_index(add.config);
     let ctx = pick_package_context(
         add.http_client,
         add.config,
         &policy,
         &resolution.meta_cache,
         &resolution.fetch_locker,
+        store_index.as_ref(),
     );
     let opts = explicit_registry_pick_options(
         add.config,

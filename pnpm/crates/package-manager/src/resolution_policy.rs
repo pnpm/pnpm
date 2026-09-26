@@ -12,10 +12,22 @@ use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    PackumentFetchLocker, PickPackageContext, merge_named_registries,
+    OfflineStoreAvailability, PackumentFetchLocker, PickPackageContext, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
+use pnpm_store_dir::StoreIndex;
 use std::sync::Arc;
+
+/// Open the store's package index for an offline install, so resolution can
+/// prefer versions whose tarballs the store already holds. `None` when the
+/// store was never initialized — there is nothing to prefer then — or when
+/// online, where the pick needs no store knowledge.
+pub(crate) fn offline_store_index(config: &Config) -> Option<OfflineStoreAvailability> {
+    if !config.offline {
+        return None;
+    }
+    StoreIndex::shared_readonly_in(&config.store_dir).map(OfflineStoreAvailability::new)
+}
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once per
 /// command so every lookup in that run shares the same cutoff and metadata
@@ -161,6 +173,7 @@ pub fn create_configured_registry_resolver(
             filter_metadata: policy.filter_metadata,
         },
         cache_policy: npm.cache_policy,
+        store_index: npm.store_index.clone(),
     };
     Ok(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]))
 }
@@ -201,7 +214,7 @@ fn create_configured_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_index: None,
+        store_index: offline_store_index(config),
     })
 }
 
@@ -209,15 +222,17 @@ fn create_configured_npm_resolver(
 /// `pacquet add`/`update` pre-resolution, so every pre-resolution derives
 /// byte-identical context.
 ///
-/// `meta_cache` and `fetch_locker` are borrowed from caller-owned locals: each
-/// pre-resolution runs its own short-lived cache rather than sharing the
-/// install's.
+/// `meta_cache`, `fetch_locker`, and `store_index` are borrowed from
+/// caller-owned locals: each pre-resolution runs its own short-lived cache,
+/// and the caller opens the store index once (see
+/// [`offline_store_index`]) rather than per pick.
 pub(crate) fn pick_package_context<'a>(
     http_client: &'a ThrottledClient,
     config: &'a Config,
     policy: &'a PickPolicy,
     meta_cache: &'a InMemoryPackageMetaCache,
     fetch_locker: &'a PackumentFetchLocker,
+    store_index: Option<&'a OfflineStoreAvailability>,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
         full_metadata: policy.full_metadata,
@@ -228,6 +243,7 @@ pub(crate) fn pick_package_context<'a>(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_index,
         metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
             meta_cache,
             fetch_locker,
