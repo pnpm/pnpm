@@ -4,7 +4,7 @@ use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 pub(super) struct EnvironmentNetwork {
     pub(super) http_client: Arc<ThrottledClient>,
@@ -25,7 +25,7 @@ impl EnvironmentNetwork {
                 meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
                 fetch_locker: shared_packument_fetch_locker(),
                 picked_manifest_cache: shared_picked_manifest_cache(),
-                cache_dir: Some(config.cache_dir.clone()),
+                cache_dir: config.metadata_cache_dir().map(Path::to_path_buf),
                 retry_opts: self.retry_opts,
             },
             format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {

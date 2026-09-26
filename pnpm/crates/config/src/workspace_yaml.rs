@@ -242,7 +242,7 @@ macro_rules! identically_named_settings {
             save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
-            side_effects_cache_readonly,
+            side_effects_cache_readonly, metadata_cache,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,

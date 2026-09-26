@@ -94,6 +94,7 @@ pub struct ConfigOverrides {
     minimum_release_age_ignore_missing_time: Option<bool>,
     minimum_release_age_strict: Option<bool>,
     merge_git_branch_lockfiles: Option<bool>,
+    metadata_cache: Option<bool>,
     node_experimental_package_map: Option<bool>,
     offline: Option<bool>,
     prefer_frozen_lockfile: Option<bool>,
@@ -262,7 +263,6 @@ impl ConfigOverrides {
         }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
-        }
     }
 }
 

@@ -17,6 +17,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("bail", false),
     ("ci", false),
     ("cache-dir", false),
+    ("metadata-cache", false),
     ("catalog-mode", false),
     ("child-concurrency", true),
     ("merge-git-branch-lockfiles", false),
