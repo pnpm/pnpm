@@ -232,6 +232,50 @@ test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () 
   expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
+test('self-update replaces a standalone pnpm.exe that pnpm v10 installed at pnpmHomeDir', async () => {
+  // pnpm/pnpm#9094
+  const opts = prepare()
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.exe'), 'old standalone pnpm')
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, '.pnpm.exe.1.retired'), 'retired by an earlier update')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.pnpmHomeDir).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update replaces a standalone pnpm.exe in the global bin directory', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  fs.writeFileSync(path.join(opts.bin, 'pnpm.exe'), 'old standalone pnpm')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.bin).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
+})
+
+async function runOnWindows<T> (fn: () => Promise<T>): Promise<T> {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (platform == null) throw new Error('Expected process.platform to be an own property')
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+  }
+}
+
 test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', async () => {
   // Mirror image of the previous test: when there is no v10-style shim at
   // pnpmHomeDir, self-update must NOT start writing bins there. Otherwise we
