@@ -42,7 +42,10 @@ impl AuditArgs {
             &SupportedArchitecturesArgs::default(),
         )?;
         let config: &'static Config = config;
-        resolve_packages(&manifest_path, &self.params, config).await?;
+        // `--dev` audits the packages as `pnpm add --save-dev` would add them.
+        let save_target =
+            if self.dependency_options.dev { DependencyGroup::Dev } else { DependencyGroup::Prod };
+        resolve_packages(&manifest_path, &self.params, save_target, config).await?;
         let state =
             State::init(manifest_path, config, true).wrap_err("initialize the audit state")?;
         self.audit_resolved(&state, temp_dir.path()).await
@@ -84,10 +87,12 @@ fn create_throwaway_project() -> miette::Result<(TempDir, PathBuf)> {
     Ok((temp_dir, manifest_path))
 }
 
-/// Add `specs` to the project at `manifest_path`, writing only its lockfile.
+/// Add `specs` to `save_target` of the project at `manifest_path`, writing
+/// only its lockfile.
 async fn resolve_packages(
     manifest_path: &Path,
     specs: &[String],
+    save_target: DependencyGroup,
     config: &'static Config,
 ) -> miette::Result<()> {
     let state = State::init(manifest_path.to_path_buf(), config, false)
@@ -101,7 +106,7 @@ async fn resolve_packages(
         None,
         true,
         config.supported_architectures.clone(),
-        AddGroups { save_target: Some([DependencyGroup::Prod]), included: None, save_types: false },
+        AddGroups { save_target: Some([save_target]), included: None, save_types: false },
     )
     .await
 }

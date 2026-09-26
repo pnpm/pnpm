@@ -96,6 +96,43 @@ fn audit_package_audits_the_version_its_range_resolves_to() {
 }
 
 #[test]
+fn audit_package_dev_audits_the_package_as_a_dev_dependency() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let mut audit_registry = mockito::Server::new();
+    let mock = audit_registry
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .match_body(Matcher::Json(serde_json::json!({
+            "@pnpm.e2e/audit-multi-version": ["2.0.0"],
+        })))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(advisory_response(
+            "@pnpm.e2e/audit-multi-version",
+            9103,
+            "high",
+            "=2.0.0",
+            "vulnerable 2.0.0",
+            "GHSA-devp-1111-2222",
+        ))
+        .create();
+    write_npmrc(&workspace, &audit_registry.url(), npmrc_info.mock_instance.url());
+
+    let output = pacquet_cmd(
+        &workspace,
+        ["audit", "@pnpm.e2e/audit-multi-version@2.0.0", "--dev", "--json"],
+    )
+    .output()
+    .expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1), "stderr:\n{}", stderr(&output));
+    let report: serde_json::Value = serde_json::from_str(&stdout(&output)).expect("audit JSON");
+    assert_eq!(report["advisories"]["9103"]["findings"][0]["dev"], true);
+    mock.assert();
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn audit_package_rejects_options_that_change_a_project() {
     let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
 
