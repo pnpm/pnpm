@@ -223,15 +223,18 @@ fn quiet_verification_prints_only_failures() {
                 elapsed_ms: 100,
                 lockfile_path: None,
             },
-        ];
-        for (index, message) in events.into_iter().enumerate() {
-            let output =
-                reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
-                    level: LogLevel::Debug,
-                    message,
-                }));
-            assert_eq!(matches!(output, Output::Lines(_)), index == 3);
-        }
+        ]
+        .into_iter()
+        .map(|message| {
+            LogEvent::LockfileVerification(LockfileVerificationLog {
+                level: LogLevel::Debug,
+                message,
+            })
+        })
+        .collect();
+        let lines = emitted_lines(&mut reporter, events);
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].contains("failed supply-chain policy check"), "{lines:?}");
         let lines = emitted_lines(&mut reporter, vec![ignored_scripts(&["esbuild"])]);
         assert_eq!(!lines.is_empty(), max_log_level == MaxLogLevel::Warn);
     }
