@@ -240,11 +240,14 @@ fn self_update_keeps_a_native_shim_named_pnpm() {
         &ShimTarget::Virtual("pnpm".to_string()),
     )
     .unwrap();
-    fs::copy(&old_engine, pnpm_home_dir.join("pnpm.exe")).unwrap();
+    let executable = pnpm_home_dir.join("pnpm.exe");
+    if !executable.exists() {
+        fs::copy(&old_engine, &executable).unwrap();
+    }
     let installed = seed_new_engine_with_bin(&root.path().join("global"));
 
     assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
-    assert!(pnpm_home_dir.join("pnpm.exe").is_file());
+    assert!(executable.is_file());
 }
 
 #[test]
