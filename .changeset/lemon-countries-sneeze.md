@@ -1,5 +1,7 @@
 ---
-"@pnpm/plugin-commands-patching": patch
+"@pnpm/patching.commands": patch
+"pnpm": patch
+"pacquet": patch
 ---
 
-After executing `pnpm patch-remove`, delete the corresponding dependent packages in the `.pnpm_patches` folder to prevent the originally deleted patches from interfering with the new patch content during subsequent operations.
+`pnpm patch-remove` now removes the corresponding edit directory and state entry from `node_modules/.pnpm_patches`.
