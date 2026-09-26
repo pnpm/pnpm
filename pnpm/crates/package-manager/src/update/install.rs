@@ -144,12 +144,7 @@ fn saved_selected_update_options<'a>(
     .map_err(UpdateError::WriteWorkspaceManifest)?;
     Ok(update_with_moved_overrides(update, &prepared.updated_overrides))
 }
-/// The update options a saving single-project update runs its install
-/// under: the catalogs it rewrote are written first for the resolve to
-/// re-read, and the config carries the moved overrides so the resolve
-/// answers to the moved pins rather than the ones startup read. See
-/// [`saved_selected_update_options`] for why the overrides themselves wait
-/// for the install to succeed.
+/// [`saved_selected_update_options`] for the single-project run.
 fn saved_single_update_options<'a>(
     update: UpdateOptions<'a>,
     prepared: &UpdatePreparation,
