@@ -350,6 +350,9 @@ catalogs:
     '@types/yarnpkg__lockfile':
       specifier: ^1.1.9
       version: 1.1.9
+    '@types/yauzl':
+      specifier: ^3.4.0
+      version: 3.4.0
     '@types/zkochan__table':
       specifier: npm:@types/table@6.3.2
       version: 6.3.2
@@ -908,6 +911,9 @@ catalogs:
     yaml-tag:
       specifier: 1.1.0
       version: 1.1.0
+    yauzl:
+      specifier: ^3.4.0
+      version: 3.4.0
 
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
@@ -4789,9 +4795,6 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
-      adm-zip:
-        specifier: 'catalog:'
-        version: 0.6.1
       is-subdir:
         specifier: 'catalog:'
         version: 2.0.0
@@ -4804,6 +4807,9 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
+      yauzl:
+        specifier: 'catalog:'
+        version: 3.4.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4817,6 +4823,12 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+      '@types/yauzl':
+        specifier: 'catalog:'
+        version: 3.4.0
+      adm-zip:
+        specifier: 'catalog:'
+        version: 0.6.1
 
   pnpm11/fetching/directory-fetcher:
     dependencies:
@@ -13277,6 +13289,9 @@ packages:
   '@types/yarnpkg__lockfile@1.1.9':
     resolution: {integrity: sha512-GD4Fk15UoP5NLCNor51YdfL9MSdldKCqOC9EssrRw3HVfar9wUZ5y8Lfnp+qVD6hIinLr8ygklDYnmlnlQo12Q==}
 
+  '@types/yauzl@3.4.0':
+    resolution: {integrity: sha512-NRPn5w6h8dhcnmx3YIRQcqMywY/+nND/uOkJessedcrowO3C0AssHp3tMJpxKAwOhFOo0OV1y9VtsC5hbKKBAw==}
+
   '@typescript-eslint/eslint-plugin@8.70.1':
     resolution: {integrity: sha512-nDNrUQ/4ruSNYbu749TRY7cfrzPtoLHEXSNBI8aaNY32LlZCajixqRf3FqcKC4p5Cam4VOHYx/t+i5+nKXvrqA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -16674,6 +16689,9 @@ packages:
     resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
     engines: {node: '>=8'}
 
+  pend@1.2.0:
+    resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -17964,6 +17982,10 @@ packages:
   yargs@18.2.0:
     resolution: {integrity: sha512-9OpKOLeaoNFecEp7P6iYbzze/5CqWoH7N3SMs/6y1XF4nMvFMspEGZzJ6uFi9MmQwXhyzqYoSEKO3tvA3Z/o2w==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
+
+  yauzl@3.4.0:
+    resolution: {integrity: sha512-jIH9yLR9wqr0wOS0TpBvo/g/2UgZH5qePVbjgRliiF0BYvOZyaBknKsF+x9Iht0O6sqgnB93rCICdOZFecJuDw==}
+    engines: {node: '>=12'}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -20820,6 +20842,10 @@ snapshots:
       '@types/yargs-parser': 21.0.3
 
   '@types/yarnpkg__lockfile@1.1.9': {}
+
+  '@types/yauzl@3.4.0':
+    dependencies:
+      '@types/node': 22.20.4
 
   '@typescript-eslint/eslint-plugin@8.70.1(@typescript-eslint/parser@8.70.1(eslint@10.11.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.11.0(jiti@2.6.1)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
@@ -24553,6 +24579,8 @@ snapshots:
 
   path-type@4.0.0: {}
 
+  pend@1.2.0: {}
+
   picocolors@1.1.1: {}
 
   picomatch@2.3.2: {}
@@ -25889,6 +25917,10 @@ snapshots:
       string-width: 8.2.2
       y18n: 5.0.8
       yargs-parser: 22.0.0
+
+  yauzl@3.4.0:
+    dependencies:
+      pend: 1.2.0
 
   yocto-queue@0.1.0: {}
 
