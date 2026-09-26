@@ -45,5 +45,5 @@ fn keeps_selectors_with_a_colon_whole() {
 
 #[test]
 fn trims_a_selector_with_a_colon_but_keeps_its_commas() {
-    assert_eq!(split(&[" pkg@https://example.com/a,b.tgz "]), ["pkg@https://example.com/a,b.tgz"],);
+    assert_eq!(split(&[" pkg@https://example.com/a,b.tgz "]), ["pkg@https://example.com/a,b.tgz"]);
 }
