@@ -907,7 +907,7 @@ fn dry_run_reports_the_bump_without_writing_the_manifest() {
     assert_eq!(manifest_text(&workspace), manifest_before);
     assert_eq!(
         fs::read_to_string(workspace.join("jsr.json")).expect("read jsr.json"),
-        jsr_manifest
+        jsr_manifest,
     );
     drop(root);
 }
@@ -955,7 +955,7 @@ fn jsr_manifest_without_a_version_is_left_untouched() {
     assert_eq!(manifest_version(&workspace), "1.0.1");
     assert_eq!(
         fs::read_to_string(workspace.join("jsr.json")).expect("read jsr.json"),
-        jsr_manifest
+        jsr_manifest,
     );
     drop(root);
 }
