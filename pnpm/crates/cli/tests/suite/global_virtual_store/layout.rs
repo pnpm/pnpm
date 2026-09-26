@@ -93,6 +93,30 @@ fn virtual_store_only_with_no_modules_dir_is_a_config_conflict() {
     drop((root, mock_instance));
 }
 
+/// Installing with symlink=false and the isolated linker without `PnP`
+/// is a config conflict (TS misc.ts, pnpm/pnpm#8951).
+#[test]
+fn symlink_false_with_isolated_linker_without_pnp_is_a_config_conflict() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    append_workspace_yaml_key(&workspace, "symlink", false);
+
+    let output = pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER"),
+        "the conflict must surface pnpm's error code; got: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `virtualStoreOnly with enableModulesDir=false works when GVS is
 /// enabled` (`globalVirtualStore.ts:571`). The global virtual store lives
 /// outside `node_modules`, so the same combination becomes legal.

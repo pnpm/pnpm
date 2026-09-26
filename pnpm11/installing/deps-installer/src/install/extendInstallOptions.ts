@@ -464,6 +464,16 @@ export function extendOptions (
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
+  if (
+    extendedOpts.symlink === false &&
+    extendedOpts.nodeLinker === 'isolated' &&
+    !extendedOpts.enablePnp &&
+    (extendedOpts.enableModulesDir !== false || extendedOpts.enableGlobalVirtualStore) &&
+    !extendedOpts.virtualStoreOnly
+  ) {
+    throw new PnpmError('CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER',
+      'Cannot use symlink=false with the isolated linker without PnP. The isolated layout links the virtual store and importer dependencies with symlinks, so disabling them leaves node_modules without direct dependencies. Use nodeLinker=hoisted for a symlink-free node_modules or enable PnP together with symlink=false')
+  }
   if (extendedOpts.virtualStoreOnly) {
     // Ensure .modules.yaml records empty hoist patterns so a subsequent
     // normal install knows hoisting must be redone from scratch.

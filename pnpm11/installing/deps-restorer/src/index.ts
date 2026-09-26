@@ -316,6 +316,16 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
+  if (
+    opts.symlink === false &&
+    (opts.nodeLinker ?? 'isolated') === 'isolated' &&
+    !opts.enablePnp &&
+    (opts.enableModulesDir !== false || opts.enableGlobalVirtualStore) &&
+    !opts.virtualStoreOnly
+  ) {
+    throw new PnpmError('CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER',
+      'Cannot use symlink=false with the isolated linker without PnP. The isolated layout links the virtual store and importer dependencies with symlinks, so disabling them leaves node_modules without direct dependencies. Use nodeLinker=hoisted for a symlink-free node_modules or enable PnP together with symlink=false')
+  }
   const skipPostImportLinking = opts.virtualStoreOnly === true
 
   const skipped = opts.skipped || new Set<DepPath>()

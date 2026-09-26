@@ -923,6 +923,17 @@ test('installing with no symlinks but with PnP', async () => {
   expect(fs.existsSync(path.join(prefix, '.pnp.cjs'))).toBeTruthy()
 })
 
+test('installing with symlink=false and the isolated linker without PnP is a config conflict', async () => {
+  const prefix = f.prepare('simple')
+
+  await expect(headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    symlink: false,
+  }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_SYMLINK_WITH_ISOLATED_LINKER',
+  })
+})
+
 test('installing with no modules directory', async () => {
   const prefix = f.prepare('simple')
 
