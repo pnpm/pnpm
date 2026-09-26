@@ -14,17 +14,7 @@ impl ListArgs {
         let projects = self.discover_listed_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let mut project_dirs = if config.sort {
-            selection.sequenced_dirs()
-        } else {
-            selection.selected
-                .keys()
-                .cloned()
-                .collect()
-        };
-        if config.reverse {
-            project_dirs.reverse();
-        }
+        let project_dirs = ordered_project_dirs(&selection, config);
 
         let always_print_root_package = self.always_print_selected_projects();
 
@@ -102,6 +92,21 @@ impl ListArgs {
         }
         Ok(render::render_json(&projects, self.output.long))
     }
+}
+
+fn ordered_project_dirs(selection: &RecursiveSelection<'_>, config: &Config) -> Vec<PathBuf> {
+    let mut project_dirs = if config.sort {
+        selection.sequenced_dirs()
+    } else {
+        selection.selected
+            .keys()
+            .cloned()
+            .collect()
+    };
+    if config.reverse {
+        project_dirs.reverse();
+    }
+    project_dirs
 }
 
 /// `config` re-anchored on one project of a workspace whose projects keep
