@@ -92,7 +92,7 @@ fn find_pnpmfiles_loads_config_dependency_plugins_between_global_and_project() {
         },
     );
 
-    assert_eq!(paths, vec![global, plugin_dir.join("pnpmfile.cjs"), root.join(".pnpmfile.cjs")],);
+    assert_eq!(paths, vec![global, plugin_dir.join("pnpmfile.cjs"), root.join(".pnpmfile.cjs")]);
 }
 
 #[tokio::test]
