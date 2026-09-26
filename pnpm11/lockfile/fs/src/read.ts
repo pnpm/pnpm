@@ -19,7 +19,7 @@ import { LockfileBreakingChangeError } from './errors/index.js'
 import { getGitBranchLockfileNames } from './gitBranchLockfile.js'
 import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
 import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
-import { getWantedLockfileName } from './lockfileName.js'
+import { getWantedLockfileNames } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { extractMainDocument } from './yamlDocuments.js'
 
@@ -282,10 +282,8 @@ async function _readWantedLockfile (
 }> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
   if (opts.useGitBranchLockfile) {
-    const gitBranchLockfileName: string = await getWantedLockfileName(opts)
-    if (gitBranchLockfileName !== WANTED_LOCKFILE) {
-      lockfileNames.unshift(gitBranchLockfileName)
-    }
+    const gitBranchLockfileNames: string[] = await getWantedLockfileNames(opts)
+    lockfileNames.unshift(...gitBranchLockfileNames)
   }
   let result: { lockfile: LockfileObject | null, lockfileFile: LockfileFile | null, hadConflicts: boolean } = { lockfile: null, lockfileFile: null, hadConflicts: false }
   let preMergeImporters: LockfileObject['importers'] | undefined

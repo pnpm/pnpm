@@ -6,7 +6,7 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'js-yaml'
 import { temporaryDirectory } from 'tempy'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {

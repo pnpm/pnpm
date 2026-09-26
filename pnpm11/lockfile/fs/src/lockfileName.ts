@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { getCurrentBranch } from '@pnpm/network.git-utils'
+import { getBranchesContainingHead, getCurrentBranch } from '@pnpm/network.git-utils'
 
 export interface GetWantedLockfileNameOptions {
   useGitBranchLockfile?: boolean
@@ -15,6 +15,34 @@ export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions 
     }
   }
   return WANTED_LOCKFILE
+}
+
+/**
+ * The branch lockfile files the wanted-lockfile read tries before
+ * `pnpm-lock.yaml` itself, in order.
+ *
+ * On a branch that is the branch's own lockfile. On a detached HEAD no
+ * branch is checked out, but the checked-out commit still belongs to the
+ * branches whose history includes it, so their lockfiles are what can
+ * satisfy the checkout — the read tries each of them before the shared
+ * lockfile. `mergeGitBranchLockfiles` reads the shared lockfile and folds
+ * every branch lockfile in, so it names none of them here.
+ */
+export async function getWantedLockfileNames (opts: GetWantedLockfileNameOptions = {}): Promise<string[]> {
+  if (!opts.useGitBranchLockfile || opts.mergeGitBranchLockfiles) {
+    return []
+  }
+  const currentBranchName = await getCurrentBranch({ cwd: opts.cwd })
+  if (currentBranchName) {
+    return [branchLockfileName(currentBranchName)]
+  }
+  const branchesContainingHead = await getBranchesContainingHead({ cwd: opts.cwd })
+  return branchesContainingHead
+    .map(branchLockfileName)
+}
+
+function branchLockfileName (branchName: string): string {
+  return WANTED_LOCKFILE.replace('.yaml', `.${stringifyBranchName(branchName)}.yaml`)
 }
 
 /**

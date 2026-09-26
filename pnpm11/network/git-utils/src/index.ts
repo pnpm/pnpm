@@ -30,6 +30,27 @@ export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<strin
   }
 }
 
+/**
+ * The local branches that contain HEAD, sorted, or an empty array when git
+ * cannot answer — a repository without commits, or no repository at all.
+ *
+ * An attached HEAD is contained in its own branch and every ancestor branch,
+ * so a caller that wants "the branch HEAD is on" must ask
+ * {@link getCurrentBranch} first and use this only when it answers null.
+ */
+export async function getBranchesContainingHead (opts: GitCwdOptions = {}): Promise<string[]> {
+  try {
+    const { stdout } = await execa('git', ['for-each-ref', 'refs/heads', '--contains', 'HEAD', '--format=%(refname:short)'], { cwd: opts.cwd })
+    return String(stdout)
+      .split('\n')
+      .map((branch) => branch.trim())
+      .filter(Boolean)
+      .sort()
+  } catch {
+    return []
+  }
+}
+
 /** Returns false when Git cannot verify HEAD or HEAD refers to a branch. */
 export async function isHeadDetached (opts: GitCwdOptions = {}): Promise<boolean> {
   try {
