@@ -173,3 +173,33 @@ fn renders_three_entries_mixed_codes() {
     ]);
     insta::assert_snapshot!("three_entries_mixed_codes", err.to_string());
 }
+
+fn help_text(err: &VerifyError) -> String {
+    miette::Diagnostic::help(err).expect("verification errors carry a hint").to_string()
+}
+
+#[test]
+fn policy_violation_hint_gates_relaxing_the_policy_on_trust() {
+    let err = VerifyError::from_rendered(&[rendered(
+        "acme",
+        "1.0.0",
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "young",
+    )]);
+    let help = help_text(&err);
+    assert!(
+        help.contains("If the fresh resolution still fails and you trust the affected packages, relax the policy that flagged them."),
+        "got: {help}",
+    );
+}
+
+/// No configured policy produces these, so relaxing one cannot clear them.
+#[test]
+fn structural_violation_hints_do_not_suggest_relaxing_a_policy() {
+    for code in ["MISSING_TARBALL_INTEGRITY", "RESOLUTION_SHAPE_MISMATCH"] {
+        let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
+        let help = help_text(&err);
+        assert!(help.contains(r#"run "pnpm clean --lockfile""#), "{code}: {help}");
+        assert!(!help.contains("relax the policy"), "{code}: {help}");
+    }
+}

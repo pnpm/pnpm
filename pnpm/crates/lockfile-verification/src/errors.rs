@@ -16,6 +16,12 @@ run \"pnpm clean --lockfile\" and then \"pnpm install\" to rebuild from \
 a fresh resolution. If the fresh resolution still fails and you trust \
 the affected packages, relax the policy that flagged them.";
 
+const STRUCTURAL_HINT: &str = "The lockfile contains entries that pnpm cannot verify, \
+whatever the configured policies. This can mean the lockfile is stale, or that it was \
+tampered with — inspect recent changes to pnpm-lock.yaml before trusting it. If the \
+changes look expected, run \"pnpm clean --lockfile\" and then \"pnpm install\" to \
+rebuild from a fresh resolution.";
+
 const INVALID_ALIAS_HINT: &str = "A dependency alias becomes a directory under node_modules, \
 so it must be a valid npm package name — a single `name` or `@scope/name` with no leading \
 `.` or `_`, and not a reserved name such as `node_modules`. An alias containing path-traversal \
@@ -72,7 +78,7 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{STRUCTURAL_HINT}"))]
     MissingTarballIntegrity {
         #[error(not(source))]
         count: usize,
@@ -80,7 +86,7 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{STRUCTURAL_HINT}"))]
     ResolutionShapeMismatch {
         #[error(not(source))]
         count: usize,

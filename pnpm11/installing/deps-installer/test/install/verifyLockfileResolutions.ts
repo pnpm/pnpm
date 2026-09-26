@@ -428,6 +428,7 @@ test('rejects a registry-style depPath backed by a git resolution, even with no 
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    hint: expect.not.stringMatching(/relax the policy/),
     message: expect.stringMatching(/foo@1\.0\.0/),
   })
 })
