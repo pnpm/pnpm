@@ -301,23 +301,28 @@ fn needs_build_slots_ignore_the_configured_import_method() {
         reported_import_method(PackageImportMethod::Copy, true, false),
         WireImportMethod::Copy,
     );
-    // A package that will be built imports with `clone-or-copy` instead,
-    // whatever the configured method is.
+    // A package that will be built imports with private inodes, whatever the
+    // configured method is. A mutable directory source is copied outright so
+    // a watcher on the injected path can see later writes.
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, false, true),
         WireImportMethod::Clone,
     );
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, true, true),
-        WireImportMethod::Clone,
+        WireImportMethod::Copy,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Auto, true, false),
+        WireImportMethod::Hardlink,
     );
 }
 
 /// The write-through the issue reports: a build script that rewrites a
 /// shipped file inside its slot must not reach the source the slot was
 /// imported from. On a filesystem where the hardlink tier works this fails
-/// when the slot is hard-linked, and passes once a build forces
-/// `clone-or-copy`.
+/// when the slot is hard-linked, and passes once a mutable source that
+/// needs a build is imported with a plain copy.
 #[test]
 fn a_build_write_does_not_reach_the_import_source() {
     let dir = tempdir().expect("tempdir");

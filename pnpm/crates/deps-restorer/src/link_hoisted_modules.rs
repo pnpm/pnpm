@@ -400,12 +400,14 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
+    let method = hoisted_import_method(node, opts.import.method, cas_paths);
+    let import = crate::PackageImportOptions { method, ..opts.import };
     if !opts.dir_clone_cache.is_some_and(|cache| {
-        cache.try_import::<Reporter>(node, opts.import, cas_paths)
+        cache.try_import::<Reporter>(node, import, cas_paths)
     }) {
         import_indexed_dir::<Reporter>(
             opts.import.logged_methods,
-            opts.import.method,
+            method,
             &node.dir,
             cas_paths,
             hoisted_import_opts(node),
@@ -421,13 +423,32 @@ fn import_node<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {
-            method: crate::optimistic_wire_method(opts.import.method),
+            method: crate::optimistic_wire_method(method),
             requester: opts.import.requester.to_owned(),
             to: node.dir.to_string_lossy().into_owned(),
         },
     }));
 
     Ok(true)
+}
+
+/// A directory dependency is a mutable workspace tree. It uses the same
+/// import method as an isolated injected slot, so a hoisted copy is not a
+/// copy-on-write clone that hides later writes from watchers.
+fn hoisted_import_method(
+    node: &DependenciesGraphNode,
+    configured: pnpm_config::PackageImportMethod,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> pnpm_config::PackageImportMethod {
+    if matches!(node.package.resolution, LockfileResolution::Directory(_)) {
+        crate::effective_import_method(
+            configured,
+            crate::requires_build_from_cas_paths(cas_paths),
+            true,
+        )
+    } else {
+        configured
+    }
 }
 
 /// A hoisted package replaces whatever is at its directory but keeps the

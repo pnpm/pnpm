@@ -189,7 +189,7 @@ impl CreateVirtualDirBySnapshot<'_> {
     /// The method this slot's files are imported with — the configured one,
     /// unless a build or patch is still going to write them.
     fn import_method(&self) -> PackageImportMethod {
-        effective_import_method(self.import.method, self.source.needs_build)
+        effective_import_method(self.import.method, self.source.needs_build, self.source.is_mutable)
     }
 
     fn import_slot<Reporter: self::Reporter>(
@@ -429,14 +429,32 @@ fn remove_obsolete_children<'a>(
 /// not share inodes with the source its files were imported from: a hard link
 /// carries those writes back into the workspace directory of an injected
 /// package, or into the content-addressable store for a registry package.
-/// `clone-or-copy` gives the build private inodes and still lets a reflink
-/// avoid a byte-for-byte copy. pnpm v11 applies the same override to
-/// `willBeBuilt` packages in `createPackageImporter`.
+/// `clone-or-copy` gives that package private inodes. A mutable directory
+/// source is the workspace tree a watcher reads through an injected copy, so
+/// it is hardlinked when nothing will build it, and copied when something
+/// will. A copy-on-write clone keeps the bytes private but does not report
+/// later writes to a watcher on the injected path. pnpm v11 applies the same
+/// choice to `local-dir` packages in `createPackageImporter`.
 #[must_use]
 pub fn effective_import_method(
     configured: PackageImportMethod,
     needs_build: bool,
+    source_is_mutable: bool,
 ) -> PackageImportMethod {
+    if source_is_mutable
+        && !needs_build
+        && matches!(
+            configured,
+            PackageImportMethod::Auto
+                | PackageImportMethod::Clone
+                | PackageImportMethod::CloneOrCopy,
+        )
+    {
+        return PackageImportMethod::Hardlink;
+    }
+    if source_is_mutable && needs_build && configured != PackageImportMethod::Copy {
+        return PackageImportMethod::Copy;
+    }
     if needs_build { PackageImportMethod::CloneOrCopy } else { configured }
 }
 

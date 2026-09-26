@@ -12,7 +12,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import normalizePath from 'normalize-path'
 
-import { DirPatcher } from './DirPatcher.js'
+import { DirPatcher, publishEditsForWatchers } from './DirPatcher.js'
 
 interface SkipSyncInjectedDepsMessage {
   message: string
@@ -21,6 +21,13 @@ interface SkipSyncInjectedDepsMessage {
 }
 
 const logger = createLogger<SkipSyncInjectedDepsMessage>('skip-sync-injected-deps')
+
+interface WatchPublishError {
+  err: unknown
+  message: string
+}
+
+const watchLogger = createLogger<WatchPublishError>('sync-injected-deps-watch')
 
 export interface SyncInjectedDepsOptions {
   pkgName: string | undefined
@@ -33,6 +40,62 @@ export interface SyncInjectedDepsOptions {
    * an in-place rewrite has already reached them.
    */
   manifestBeforeScripts?: DependencyManifest
+}
+
+export interface InjectedEditWatch {
+  stop: () => Promise<void>
+}
+
+/**
+ * The source directory and injected copies a running script should publish.
+ * `undefined` when the package has no name, no workspace, or no injected copies.
+ */
+export async function injectedEditDirs (
+  opts: SyncInjectedDepsOptions
+): Promise<{ sourceDir: string, targetDirs: string[] } | undefined> {
+  if (!opts.pkgName || opts.workspaceDir == null) return undefined
+  const located = await readInjectedTargets(opts.workspaceDir, opts.pkgRootDir)
+  if (located?.resolvedTargetDirs == null) return undefined
+  return { sourceDir: located.pkgRootDir, targetDirs: located.resolvedTargetDirs }
+}
+
+/**
+ * Publish injected copies about every 200ms until `stop`. `editedSinceMs` stays
+ * two seconds behind the start of the watch, which covers one-second mtime
+ * resolution. Stop waits for an in-flight publish so the end-of-script hardlink
+ * sync does not run beside it.
+ */
+export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): InjectedEditWatch {
+  const editedSinceMs = Date.now() - 2000
+  let stopped = false
+  let timer: ReturnType<typeof setInterval> | undefined
+  let inFlight: Promise<void> | undefined
+
+  const publish = (): void => {
+    if (stopped || inFlight != null) return
+    inFlight = Promise.all(targetDirs.map(async targetDir => {
+      try {
+        await publishEditsForWatchers(sourceDir, targetDir, editedSinceMs)
+      } catch (err: unknown) {
+        watchLogger.debug({
+          err,
+          message: `Failed to publish injected dependency ${targetDir} while its script is running`,
+        })
+      }
+    })).then(() => {
+      inFlight = undefined
+    })
+  }
+
+  publish()
+  timer = setInterval(publish, 200)
+  return {
+    stop: async () => {
+      stopped = true
+      if (timer != null) clearInterval(timer)
+      await inFlight
+    },
+  }
 }
 
 export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<void> {
@@ -115,6 +178,25 @@ export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModu
     const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
     await Promise.all(patchers.map(patcher => patcher.apply()))
   }))
+}
+
+async function readInjectedTargets (workspaceDir: string, pkgRootDirInput: string): Promise<{
+  modules: NonNullable<Awaited<ReturnType<typeof readModulesManifest>>>
+  pkgRootDir: string
+  resolvedTargetDirs: string[] | undefined
+} | undefined> {
+  const pkgRootDir = path.resolve(workspaceDir, pkgRootDirInput)
+  const modules = await readModulesManifest(path.resolve(workspaceDir, 'node_modules'))
+  if (modules?.injectedDeps == null) return undefined
+  const injectedDepKey = normalizePath(path.relative(workspaceDir, pkgRootDir), true)
+  const targetDirs = modules.injectedDeps[injectedDepKey]
+  return {
+    modules,
+    pkgRootDir,
+    resolvedTargetDirs: targetDirs == null || targetDirs.length === 0
+      ? undefined
+      : targetDirs.map(targetDir => path.resolve(workspaceDir, targetDir)),
+  }
 }
 
 /** The commands a package declares, or none when it declares no bins. */

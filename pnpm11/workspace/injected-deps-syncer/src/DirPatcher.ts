@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import util from 'node:util'
 
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
@@ -229,6 +230,119 @@ export async function extendFilesMap ({ filesMap, filesStats }: ExtendFilesMapOp
 }
 
 const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${stats.dev}:${stats.ino}`
+
+const WATCH_MTIME_TOLERANCE_MS = 1
+
+/**
+ * Copy changed files into `targetDir` as independent files, so a watcher on
+ * the injected directory sees the write. A hardlink edited in place is
+ * republished when its mtime is at least `editedSinceMs`. A copy whose size
+ * and mtime already match the source is left alone.
+ */
+export async function publishEditsForWatchers (
+  sourceDir: string,
+  targetDir: string,
+  editedSinceMs: number
+): Promise<void> {
+  const fetchOptions: FetchFromDirOptions = {
+    resolveSymlinks: false,
+  }
+  const [sourceFetch, targetFetch] = await Promise.all([
+    fetchFromDir(sourceDir, fetchOptions),
+    fetchFromDir(targetDir, fetchOptions),
+  ])
+  const [sourceMap, targetMap] = await Promise.all([
+    extendFilesMap(sourceFetch),
+    extendFilesMap(targetFetch),
+  ])
+
+  const removed = Object.keys(targetMap)
+    .filter(relPath => !(relPath in sourceMap) && relPath !== '.')
+    .sort(comparePaths)
+    .reverse()
+  for (const relPath of removed) {
+    await removePath(path.join(targetDir, relPath)) // eslint-disable-line no-await-in-loop
+  }
+
+  const sourcePaths = Object.keys(sourceMap).sort(comparePaths)
+  for (const relPath of sourcePaths) {
+    if (sourceMap[relPath] !== DIR || relPath === '.') continue
+    const targetPath = path.join(targetDir, relPath)
+    if (targetMap[relPath] != null && targetMap[relPath] !== DIR) {
+      await removePath(targetPath) // eslint-disable-line no-await-in-loop
+    }
+    await fs.promises.mkdir(targetPath, { recursive: true }) // eslint-disable-line no-await-in-loop
+  }
+
+  for (const relPath of sourcePaths) {
+    const sourceValue = sourceMap[relPath]
+    if (typeof sourceValue !== 'string') continue
+    const sourcePath = path.join(sourceDir, relPath)
+    const targetPath = path.join(targetDir, relPath)
+    const sourceStat = await fs.promises.stat(sourcePath) // eslint-disable-line no-await-in-loop
+    const targetValue = targetMap[relPath]
+    const targetStat = typeof targetValue === 'string'
+      ? await statFile(targetPath) // eslint-disable-line no-await-in-loop
+      : null
+    if (!shouldPublish(sourceStat, targetStat, sourceValue, targetValue, editedSinceMs)) continue
+    await copyForWatchers(sourcePath, targetPath, sourceStat.mtime) // eslint-disable-line no-await-in-loop
+  }
+}
+
+function shouldPublish (
+  sourceStat: fs.Stats,
+  targetStat: fs.Stats | null,
+  sourceId: string,
+  targetValue: Value | undefined,
+  editedSinceMs: number
+): boolean {
+  if (targetStat == null || typeof targetValue !== 'string') return true
+  if (targetValue === sourceId) return sourceStat.mtimeMs >= editedSinceMs
+  return sourceStat.size !== targetStat.size ||
+    Math.abs(sourceStat.mtimeMs - targetStat.mtimeMs) > WATCH_MTIME_TOLERANCE_MS
+}
+
+async function statFile (filePath: string): Promise<fs.Stats | null> {
+  try {
+    return await fs.promises.stat(filePath)
+  } catch (error: unknown) {
+    if (isEnoent(error)) return null
+    throw error
+  }
+}
+
+function isEnoent (error: unknown): boolean {
+  return util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT'
+}
+
+async function removePath (targetPath: string): Promise<void> {
+  await fs.promises.rm(targetPath, { recursive: true, force: true })
+}
+
+/**
+ * Read and write the bytes. `fs.copyFile` may reflink on macOS, and a
+ * reflink does not notify watchers the way a new file in the injected
+ * directory does.
+ */
+async function copyForWatchers (sourcePath: string, targetPath: string, mtime: Date): Promise<void> {
+  const existing = await fs.promises.lstat(targetPath).catch((error: unknown) => {
+    if (isEnoent(error)) return null
+    throw error
+  })
+  if (existing?.isDirectory() === true) {
+    await removePath(targetPath)
+  }
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
+  const tempPath = pathTemp(path.dirname(targetPath))
+  try {
+    await pipeline(fs.createReadStream(sourcePath), fs.createWriteStream(tempPath, { flags: 'wx' }))
+    renameFileWithRetry(tempPath, targetPath)
+    await fs.promises.utimes(targetPath, new Date(), mtime)
+  } catch (error) {
+    await fs.promises.rm(tempPath, { force: true })
+    throw error
+  }
+}
 
 export class DirPatcher {
   private readonly sourceDir: string

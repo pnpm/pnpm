@@ -19,7 +19,12 @@ import {
   type RunLifecycleHookOptions,
 } from '@pnpm/exec.lifecycle'
 import type { DependencyManifest, PackageScripts, ProjectManifest, ProjectsGraph } from '@pnpm/types'
-import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
+import {
+  injectedEditDirs,
+  type InjectedEditWatch,
+  syncInjectedDeps,
+  watchInjectedEdits,
+} from '@pnpm/workspace.injected-deps-syncer'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
@@ -466,17 +471,23 @@ export async function runScript (opts: {
   runScriptOptions: RunScriptOptions
   passedThruArgs: string[]
 }, scriptName: string): Promise<void> {
-  const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
-  if (stages.length === 0) {
-    await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
-  } else {
-    for (const stage of stages) {
-      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
-        ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
-        : opts.lifecycleOpts)
+  const syncAfter = opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName) === true
+  const watch = syncAfter ? await startInjectedEditWatch(opts) : undefined
+  try {
+    const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
+    if (stages.length === 0) {
+      await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
+    } else {
+      for (const stage of stages) {
+        await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName // eslint-disable-line no-await-in-loop
+          ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
+          : opts.lifecycleOpts)
+      }
     }
+  } finally {
+    await watch?.stop()
   }
-  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+  if (syncAfter) {
     await syncInjectedDeps({
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
@@ -485,6 +496,20 @@ export async function runScript (opts: {
       manifestBeforeScripts: opts.manifest as DependencyManifest,
     })
   }
+}
+
+async function startInjectedEditWatch (opts: {
+  manifest: ProjectManifest
+  lifecycleOpts: RunLifecycleHookOptions
+  runScriptOptions: RunScriptOptions
+}): Promise<InjectedEditWatch | undefined> {
+  const located = await injectedEditDirs({
+    pkgName: opts.manifest.name,
+    pkgRootDir: opts.lifecycleOpts.pkgRoot,
+    workspaceDir: opts.runScriptOptions.workspaceDir,
+  })
+  if (located == null) return undefined
+  return watchInjectedEdits(located.sourceDir, located.targetDirs)
 }
 
 export function getRunScriptCommands (
