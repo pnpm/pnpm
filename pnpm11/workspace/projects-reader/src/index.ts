@@ -200,24 +200,17 @@ function isBelow (relativePath: string): boolean {
   return relativePath !== '' && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath)
 }
 
-const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
+const uselessNonRootManifestFields = {
+  resolutions: 'Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.',
+} satisfies Partial<Record<keyof ProjectManifest, string>>
 
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
-  const warn = printNonRootFieldWarning.bind(null, rootDir)
-  for (const field of uselessNonRootManifestFields) {
+  for (const [field, suggestion] of Object.entries(uselessNonRootManifestFields)) {
     if (field in manifest) {
-      warn(field)
+      logger.warn({
+        message: `The field "${field}" was found in ${rootDir}/package.json. This will not take effect. ${suggestion}`,
+        prefix: rootDir,
+      })
     }
   }
-}
-
-function printNonRootFieldWarning (prefix: string, propertyPath: string): void {
-  const message = propertyPath === 'resolutions'
-    ? `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.`
-    : `The field "${propertyPath}" was found in ${prefix}/package.json. This will not take effect. You should configure "${propertyPath}" at the root of the workspace instead.`
-
-  logger.warn({
-    message,
-    prefix,
-  })
 }
