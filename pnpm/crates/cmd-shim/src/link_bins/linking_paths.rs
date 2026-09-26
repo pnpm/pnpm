@@ -121,9 +121,11 @@ impl<'a> LinkingPaths<'a> {
 
 /// The `NODE_PATH` entries for one package's shims: the project modules
 /// dir when there is one, then the target's own `node_modules` dirs
-/// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
-/// appears again keeps its first position. With no project dir and no
-/// extras the shims get no `NODE_PATH` at all.
+/// (pnpm's `getBinNodePaths`) when a custom modules directory or caller
+/// extra is in use, then the caller's extras. An entry that appears again
+/// keeps its first position. With the ordinary `node_modules` project dir
+/// and no extras, the shims get the project path without exposing the
+/// package's private store paths.
 ///
 /// The result depends only on the package's symlink-resolved
 /// directory — every bin lives under the package root — so a
@@ -140,12 +142,18 @@ pub(super) fn shim_node_path(
     if project_node_path.is_none() && extra_node_paths.is_empty() {
         return Vec::new();
     }
-    let own = if let Some(resolved) = &pkg.resolved_location {
-        bin_node_paths(resolved)
+    let own = if !extra_node_paths.is_empty()
+        || project_node_path.is_some_and(|path| !Path::new(path).ends_with("node_modules"))
+    {
+        if let Some(resolved) = &pkg.resolved_location {
+            bin_node_paths(resolved)
+        } else {
+            let dir = dunce::canonicalize(&pkg.location)
+                .unwrap_or_else(|_| pkg.location.clone());
+            bin_node_paths(&dir)
+        }
     } else {
-        let dir =
-            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
-        bin_node_paths(&dir)
+        Vec::new()
     };
     let mut merged: Vec<String> = project_node_path
         .map(str::to_string)
