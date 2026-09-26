@@ -86,6 +86,7 @@ async fn resolve_latest_returns_picked_manifest() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver
         .resolve_latest(&query, &ResolveOptions::default())
@@ -115,6 +116,7 @@ async fn resolve_latest_under_compatible_does_not_override_update_to_latest() {
             ..WantedDependency::default()
         },
         compatible: true,
+        current_version: None,
     };
     let opts = ResolveOptions {
         refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {

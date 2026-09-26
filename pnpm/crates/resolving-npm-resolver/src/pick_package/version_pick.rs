@@ -6,6 +6,7 @@ use super::{
     pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
     warn_missing_time_once,
 };
+use node_semver::{Identifier, Version};
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact
@@ -47,6 +48,7 @@ pub(super) struct PickerOpts<'a> {
     pub(super) published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub(super) pick_lowest_version: bool,
     pub(super) include_latest_tag: bool,
+    pub(super) current_version: Option<&'a Version>,
     pub(super) ignore_missing_time_field: bool,
 }
 
@@ -128,6 +130,7 @@ pub(super) fn pick_matching_version_final(
                 published_by_exclude: None,
                 pick_lowest_version: picker_opts.pick_lowest_version,
                 include_latest_tag: picker_opts.include_latest_tag,
+                current_version: picker_opts.current_version,
                 ignore_missing_time_field: picker_opts.ignore_missing_time_field,
             };
             pick_matching_version_fast(&fallback, spec, meta)
@@ -146,7 +149,7 @@ pub(super) fn pick_respecting_min_release_age(
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
-    run_picker(picker_opts, spec, |target_spec| {
+    run_picker(picker_opts, meta, spec, |target_spec| {
         let pick_mature = if picker_opts.pick_lowest_version {
             pick_lowest_version_by_version_range
         } else {
@@ -177,7 +180,7 @@ pub(super) fn pick_ignoring_release_age(
     spec: &RegistryPackageSpec,
     meta: &Package,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
-    run_picker(picker_opts, spec, |target_spec| {
+    run_picker(picker_opts, meta, spec, |target_spec| {
         if picker_opts.pick_lowest_version {
             pick_package_from_meta(
                 pick_lowest_version_by_version_range,
@@ -196,11 +199,11 @@ pub(super) fn pick_ignoring_release_age(
     })
 }
 
-/// `include_latest_tag` runner. When the flag is off, just delegate
-/// to the inner picker. When on, additionally pick against the
-/// `latest` tag and return the higher of the two.
+/// `include_latest_tag` runner. When the flag is on, additionally pick
+/// against either the installed prerelease channel's dist-tag or `latest`.
 pub(super) fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
+    meta: &Package,
     spec: &RegistryPackageSpec,
     pick_one: PickOne,
 ) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError>
@@ -212,10 +215,51 @@ where
     if !picker_opts.include_latest_tag {
         return Ok(current);
     }
-    let mut latest_spec = RegistryPackageSpec::latest_tag(spec.name.clone());
-    latest_spec.normalized_bare_specifier.clone_from(&spec.normalized_bare_specifier);
-    let latest = pick_one(&latest_spec)?;
-    Ok(pick_max(current, latest))
+    let tag = picker_opts.current_version
+        .and_then(|version| pick_prerelease_tag(meta, version))
+        .unwrap_or("latest");
+    let mut tagged_spec = RegistryPackageSpec::latest_tag(spec.name.clone());
+    tagged_spec.fetch_spec = tag.to_string();
+    tagged_spec.normalized_bare_specifier.clone_from(&spec.normalized_bare_specifier);
+    let tagged = pick_one(&tagged_spec)?;
+    Ok(pick_max(current, tagged))
+}
+
+fn pick_prerelease_tag<'a>(meta: &'a Package, current: &Version) -> Option<&'a str> {
+    let channel = prerelease_channel(current)?;
+    meta.dist_tags()
+        .filter_map(|(tag, version)| {
+            let version = Version::parse(version).ok()?;
+            (prerelease_channel(&version).as_deref() == Some(channel.as_str())).then_some((
+                tag, version,
+            ))
+        })
+        .max_by(|(_, version1), (_, version2)| version1.cmp(version2))
+        .map(|(tag, _)| tag)
+}
+
+fn prerelease_channel(version: &Version) -> Option<String> {
+    let mut identifiers = version.pre_release
+        .iter()
+        .map(|identifier| match identifier {
+            Identifier::AlphaNumeric(value) => value.clone(),
+            Identifier::Numeric(value) => value.to_string(),
+        })
+        .collect::<Vec<_>>();
+    while identifiers
+        .last()
+        .is_some_and(|identifier| identifier.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        identifiers.pop();
+    }
+    if let Some(last) = identifiers.last_mut()
+        && let Some((channel, number)) = last.rsplit_once('-')
+        && !channel.is_empty()
+        && number.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        last.truncate(channel.len());
+    }
+    (!identifiers.is_empty()).then(|| identifiers.join("."))
 }
 
 /// Higher-version-wins between two optional picks. Treats `None`
@@ -244,3 +288,6 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
         published_by_exclude: picker_opts.published_by_exclude,
     }
 }
+
+#[cfg(test)]
+mod tests;

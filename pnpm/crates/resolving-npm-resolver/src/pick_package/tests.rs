@@ -147,6 +147,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         preferred_version_selectors: None,
         pick_lowest_version: false,
         include_latest_tag: false,
+        current_version: None,
         blocked_versions: None,
         policy: crate::PackagePickPolicy {
             published_by: None,

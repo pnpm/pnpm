@@ -91,6 +91,7 @@ async fn resolve_latest_claims_local_scheme_specifiers() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver.resolve_latest(&query, &opts).await.expect("resolve_latest");
     assert!(info.is_some(), "local resolver should claim link: specs in resolve_latest");

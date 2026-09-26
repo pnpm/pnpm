@@ -494,7 +494,9 @@ function createResolveLatest (
     // `update: 'latest'` tells the resolver to ignore the range and take
     // the absolute newest.
     const bareSpecifier = query.wantedDependency.bareSpecifier ?? 'latest'
-    const resolveOpts = query.compatible ? opts : { ...opts, update: 'latest' as const }
+    const resolveOpts = query.compatible
+      ? opts
+      : { ...opts, currentVersion: query.currentVersion, update: 'latest' as const }
     try {
       const result = await resolve(
         { alias: query.wantedDependency.alias, bareSpecifier },
@@ -556,6 +558,7 @@ export type ResolveFromNpmOptions = {
   updatePatches?: boolean
   updateRequested?: boolean
   updateChecksums?: boolean
+  currentVersion?: string
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   rangeSpecStyle?: RangeSpecStyle
@@ -710,6 +713,7 @@ async function resolveNpm (
     preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
+    currentVersion: opts.currentVersion,
     updateChecksums: opts.updateChecksums || opts.updatePatches,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
@@ -1009,6 +1013,7 @@ async function pickFromSimpleRegistry (
     preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
+    currentVersion: opts.currentVersion,
     updateChecksums: opts.updateChecksums || opts.updatePatches,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
