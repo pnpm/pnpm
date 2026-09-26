@@ -1,9 +1,9 @@
 use super::{
     PNPM_VERSION, default_cache_dir, default_child_concurrency,
     default_child_concurrency_with_parallelism, default_config_dir, default_fetch_timeout,
-    default_store_dir, default_unsafe_perm, default_user_agent, default_virtual_store_dir,
-    default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
-    resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
+    default_pnpm_home_dir, default_store_dir, default_unsafe_perm, default_user_agent,
+    default_virtual_store_dir, default_workspace_concurrency, install_command_for,
+    is_unsafe_perm_posix, resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
     resolve_configured_state_dir, store_dir_for_os,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
@@ -83,6 +83,51 @@ fn test_default_store_dir_with_pnpm_home_env() {
     }
     let store_dir = default_store_dir::<EnvWithPnpmHome>();
     assert_eq!(display_store_dir(&store_dir), format!("/tmp/pnpm-home/store/{STORE_VERSION}"));
+}
+
+#[cfg(not(windows))]
+#[test]
+fn test_default_pnpm_home_dir_keeps_percent_refs_off_windows() {
+    struct EnvWithPercentHome;
+    impl EnvVar for EnvWithPercentHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_HOME" => Some("%SOME_ENV%/pnpm".to_owned()),
+                "SOME_ENV" => Some("/opt/tools".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    impl GetHomeDir for EnvWithPercentHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("home_dir must not be called when PNPM_HOME is set");
+        }
+    }
+    assert_eq!(
+        default_pnpm_home_dir::<EnvWithPercentHome>(),
+        Some(PathBuf::from("%SOME_ENV%/pnpm")),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn test_default_pnpm_home_dir_expands_nested_percent_refs() {
+    struct EnvWithNestedHome;
+    impl EnvVar for EnvWithNestedHome {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_HOME" => Some("%SOME_ENV%/pnpm".to_owned()),
+                "SOME_ENV" => Some(r"C:\tools".to_owned()),
+                _ => None,
+            }
+        }
+    }
+    impl GetHomeDir for EnvWithNestedHome {
+        fn home_dir() -> Option<PathBuf> {
+            unreachable!("home_dir must not be called when PNPM_HOME is set");
+        }
+    }
+    assert_eq!(default_pnpm_home_dir::<EnvWithNestedHome>(), Some(PathBuf::from(r"C:\tools/pnpm")),);
 }
 
 /// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`

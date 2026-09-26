@@ -219,6 +219,7 @@ pub(super) fn reject_non_regular_output_file(output_file: &Path) -> Result<(), P
 
 /// pnpm home directory, the base of pack-app's per-target runtime cache.
 pub(super) fn pnpm_home_dir() -> miette::Result<PathBuf> {
+    pnpm_config::ensure_windows_dir_envs::<Host>()?;
     pnpm_config::default_pnpm_home_dir::<Host>()
         .ok_or_else(|| miette::miette!("could not determine the pnpm home directory"))
 }

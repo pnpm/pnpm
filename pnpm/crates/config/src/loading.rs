@@ -52,6 +52,11 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        crate::windows_path_env::ensure_windows_dir_envs::<Sys>()
+            .map_err(|error| LoadWorkspaceYamlError::UnexpandedEnvInPath {
+                variable: error.variable,
+                reference: error.reference,
+            })?;
         let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
         self.state_dir.clone_from(&default_state_dir);
 

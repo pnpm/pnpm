@@ -13,7 +13,7 @@ use miette::{Context, IntoDiagnostic};
 use path_extender::{
     AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_dir_envs};
 use pnpm_fs::write_atomic;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use std::{fs, path::Path, process::Command};
@@ -40,6 +40,7 @@ impl SetupArgs {
 }
 
 fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+    ensure_windows_dir_envs::<Host>()?;
     let pnpm_home_dir = default_pnpm_home_dir::<Host>().ok_or_else(|| {
         miette::miette!(
             "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."

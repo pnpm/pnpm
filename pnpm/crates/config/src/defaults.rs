@@ -1,4 +1,7 @@
-use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
+use crate::{
+    api::{EnvVar, GetCurrentDir, GetHomeDir},
+    windows_path_env::read_dir_env,
+};
 use pnpm_store_dir::StoreDir;
 use std::{
     env,
@@ -91,11 +94,11 @@ where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,
 {
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
-    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+    if let Some(pnpm_home) = read_dir_env::<Sys>("PNPM_HOME") {
         return PathBuf::from(pnpm_home).join("store").into();
     }
 
-    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+    if let Some(xdg_data_home) = read_dir_env::<Sys>("XDG_DATA_HOME") {
         return PathBuf::from(xdg_data_home)
             .join("pnpm")
             .join("store")
@@ -138,23 +141,24 @@ pub const GLOBAL_LAYOUT_VERSION: &str = "v11";
 ///
 /// Resolution order: `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm`
 /// (macOS) / `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm`
-/// (Windows) → `~/.pnpm`. Returns `None` only when the home directory
-/// cannot be determined and no env override is set.
+/// (Windows) → `~/.pnpm`. On Windows, `%VAR%` references in these
+/// environment variables are expanded. Returns `None` only when the home
+/// directory cannot be determined and no env override is set.
 #[must_use]
 pub fn default_pnpm_home_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+    if let Some(pnpm_home) = read_dir_env::<Sys>("PNPM_HOME") {
         return Some(PathBuf::from(pnpm_home));
     }
-    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+    if let Some(xdg_data_home) = read_dir_env::<Sys>("XDG_DATA_HOME") {
         return Some(PathBuf::from(xdg_data_home).join("pnpm"));
     }
     let home_dir = Sys::home_dir()?;
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA")
+        "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
             .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
@@ -174,8 +178,8 @@ pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
-    let local_app_data = Sys::var("LOCALAPPDATA");
+    let xdg_config_home = read_dir_env::<Sys>("XDG_CONFIG_HOME");
+    let local_app_data = read_dir_env::<Sys>("LOCALAPPDATA");
     pnpm_config_dir::config_dir(
         "pnpm",
         env::consts::OS,
@@ -193,8 +197,8 @@ pub fn default_state_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    let xdg_state_home = Sys::var("XDG_STATE_HOME");
-    let local_app_data = Sys::var("LOCALAPPDATA");
+    let xdg_state_home = read_dir_env::<Sys>("XDG_STATE_HOME");
+    let local_app_data = read_dir_env::<Sys>("LOCALAPPDATA");
     pnpm_config_dir::state_dir(
         "pnpm",
         env::consts::OS,
@@ -246,13 +250,13 @@ pub fn default_cache_dir<Sys>() -> PathBuf
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
+    if let Some(xdg_cache_home) = read_dir_env::<Sys>("XDG_CACHE_HOME") {
         return PathBuf::from(xdg_cache_home).join("pnpm");
     }
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA")
+        "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
             .map_or_else(
                 || home_dir.join(".pnpm-cache"),
                 |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
