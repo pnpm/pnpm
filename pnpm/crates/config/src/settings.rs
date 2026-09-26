@@ -221,11 +221,10 @@ pub struct Config {
     /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
     pub hoist_patterns_before_virtual_store_only: Option<HoistPatterns>,
 
-    /// `extendNodePath`: when `true` (the default) and the isolated
-    /// `nodeLinker` runs with a hoist pattern, command shims set
-    /// `NODE_PATH` to include the hidden hoisted modules directory
-    /// (`<virtual-store-dir>/node_modules`). `false` leaves `NODE_PATH`
-    /// out of the shims entirely.
+    /// `extendNodePath`: when `true` (the default), command shims can
+    /// expose a custom modules directory through `NODE_PATH`. Private
+    /// hoisted modules are not added to command shims. Also controls
+    /// the resolution environment for a global virtual store.
     #[default(true)]
     pub extend_node_path: bool,
 
