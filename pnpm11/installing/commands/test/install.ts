@@ -425,7 +425,7 @@ describe('shouldFreezeLockfileIfExists', () => {
         ...DEFAULT_OPTS,
         dir: 'does-not-matter',
         frozenLockfileIfExists: true,
-      }, false)).toEqual(true)
+      }, false)).toBe(true)
     })
 
     test('is false', () => {
@@ -435,7 +435,7 @@ describe('shouldFreezeLockfileIfExists', () => {
         frozenLockfileIfExists: false,
         frozenLockfile: true,
         preferFrozenLockfile: true,
-      }, true)).toEqual(false)
+      }, true)).toBe(false)
     })
   })
 
@@ -446,7 +446,7 @@ describe('shouldFreezeLockfileIfExists', () => {
         dir: 'does-not-matter',
         frozenLockfile: true,
         preferFrozenLockfile: true,
-      }, false)).toEqual(false)
+      }, false)).toBe(false)
     })
 
     describe('when on CI', () => {
@@ -456,21 +456,21 @@ describe('shouldFreezeLockfileIfExists', () => {
           dir: 'does-not-matter',
           frozenLockfile: true,
           preferFrozenLockfile: true,
-        }, true)).toEqual(true)
+        }, true)).toBe(true)
         expect(install.shouldFreezeLockfileIfExists({
           ...DEFAULT_OPTS,
           dir: 'does-not-matter',
           preferFrozenLockfile: true,
-        }, true)).toEqual(true)
+        }, true)).toBe(true)
         expect(install.shouldFreezeLockfileIfExists({
           ...DEFAULT_OPTS,
           dir: 'does-not-matter',
           frozenLockfile: true,
-        }, true)).toEqual(true)
+        }, true)).toBe(true)
         expect(install.shouldFreezeLockfileIfExists({
           ...DEFAULT_OPTS,
           dir: 'does-not-matter',
-        }, true)).toEqual(true)
+        }, true)).toBe(true)
       })
 
       test('is false if either frozen-lockfile or prefer-frozen-lockfile is false', () => {
@@ -479,13 +479,13 @@ describe('shouldFreezeLockfileIfExists', () => {
           dir: 'does-not-matter',
           frozenLockfile: true,
           preferFrozenLockfile: false,
-        }, true)).toEqual(false)
+        }, true)).toBe(false)
         expect(install.shouldFreezeLockfileIfExists({
           ...DEFAULT_OPTS,
           dir: 'does-not-matter',
           frozenLockfile: false,
           preferFrozenLockfile: true,
-        }, true)).toEqual(false)
+        }, true)).toBe(false)
       })
     })
   })
