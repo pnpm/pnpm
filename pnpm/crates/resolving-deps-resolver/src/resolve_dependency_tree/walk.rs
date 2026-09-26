@@ -45,9 +45,9 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, SnapshotEntry, TarballRevision};
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
-    WantedDependency,
+    CurrentPkg, GitResolveError, LinkedPkgDirNotFoundError, NoMatchingVersionError,
+    PreferredVersionsOverlay, RegistryResponseError, ResolveError, ResolveOptions, Resolver,
+    UpdateBehavior, WantedDependency,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
@@ -129,6 +129,7 @@ where
             reuse,
             pick_overlay: base_overlay.clone(),
             parent_dir: None,
+            parent_is_directory: true,
             parent_pkg_aliases,
             parent_is_workspace: false,
         },
@@ -205,6 +206,13 @@ struct SeededPackage<'a> {
 }
 
 /// The parent-side context one child edge resolves in.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields are the walk context one child edge resolves in, and none of them group into a nameable subset."
+    )
+)]
 pub(super) struct ChildEdge<'e> {
     pub(super) ancestor_ids: &'e Arc<Vec<String>>,
     pub(super) depth: i32,
@@ -212,6 +220,13 @@ pub(super) struct ChildEdge<'e> {
     pub(super) reuse: ReuseSource,
     pub(super) pick_overlay: Option<Arc<PreferredVersionsOverlay>>,
     pub(super) parent_dir: Option<&'e Path>,
+    /// Whether the manifest that declares this edge lives in a directory
+    /// pnpm can read. False for a package resolved from a tarball or the
+    /// registry, whose files pnpm never unpacks to a directory — so a
+    /// relative `file:` specifier it declares has no base to resolve
+    /// against. Unlike `parent_dir`, this does not go false for a workspace
+    /// package, whose id is a `link:` rather than a `file:`.
+    pub(super) parent_is_directory: bool,
     pub(super) parent_pkg_aliases: &'e Arc<ParentPkgAliases>,
     pub(super) parent_is_workspace: bool,
 }

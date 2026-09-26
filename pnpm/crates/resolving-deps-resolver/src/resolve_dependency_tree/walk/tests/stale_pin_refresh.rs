@@ -30,6 +30,7 @@ fn child_wanted_for_react(ctx: &TreeCtx) -> (Option<String>, Option<String>) {
         direct_versions: Some(Arc::new(direct_versions)),
         declaring_dir: None,
         parent_is_workspace: false,
+        parent_is_directory: true,
     };
     let spec = ("react".to_string(), "^17.0.0 || ^18.0.0".to_string(), false, false);
     let (wanted, prior) = child_wanted(ctx, &scope, &spec, 1);

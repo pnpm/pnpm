@@ -37,9 +37,10 @@ use chrono::{DateTime, Utc};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, LinkWorkspacePackages, NoMatchingVersionError, PkgResolutionId, PreferredVersions,
-    RegistryResponseError, RegistryResponseErrorOptions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery, LinkWorkspacePackages, LinkedPkgDirNotFoundError, NoMatchingVersionError,
+    PkgResolutionId, PreferredVersions, RegistryResponseError, RegistryResponseErrorOptions,
+    ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
@@ -851,4 +852,42 @@ async fn resolve_single_importer(
     )
     .await
     .map(|result| result.expect("resolve"))
+}
+
+/// Serves `table` and fails every other specifier the way the local
+/// resolver does for a `file:` path that does not exist, so the tree
+/// walker's handling of `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` can be
+/// exercised without a registry.
+struct FileDepFailingResolver {
+    table: HashMap<(String, String), ResolveResult>,
+}
+
+impl Resolver for FileDepFailingResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let alias = wanted.alias.clone().unwrap_or_default();
+        let range = wanted.bare_specifier.clone().unwrap_or_default();
+        if let Some(result) = self.table
+            .get(&(alias, range.clone()))
+            .cloned()
+        {
+            return Box::pin(async move { Ok::<_, ResolveError>(Some(result)) });
+        }
+        Box::pin(async move {
+            Err::<Option<ResolveResult>, ResolveError>(Box::new(LinkedPkgDirNotFoundError {
+                path: range.trim_start_matches("file:").to_string(),
+            }))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
 }

@@ -6256,6 +6256,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
+      '@types/tar-stream':
+        specifier: 'catalog:'
+        version: 3.1.4
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.9.1(typanion@3.14.0)
@@ -6286,6 +6289,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 10.0.3
+      tar-stream:
+        specifier: 'catalog:'
+        version: 3.2.1
       write-json-file:
         specifier: 'catalog:'
         version: 7.0.0
