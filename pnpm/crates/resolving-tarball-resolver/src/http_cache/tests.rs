@@ -125,3 +125,20 @@ fn repeated_max_age_takes_the_shortest_lifetime() {
     assert_eq!(CacheControl::parse("max-age=3600, max-age=60").max_age, Some(60));
     assert_eq!(CacheControl::parse("max-age=3600, max-age=bad").max_age, None);
 }
+
+#[test]
+fn mutable_redirect_is_never_fresh() {
+    let record = TarballResolutionRecord::from_response(
+        "https://example.com/pkg.tgz".to_owned(),
+        "https://example.com/pkg.tgz".to_owned(),
+        "https://cdn.example.com/pkg-v1.tgz".to_owned(),
+        "sha512-abc".to_owned(),
+        &CacheHeaders {
+            etag: Some(r#""pkg""#.to_owned()),
+            cache_control: Some("max-age=31536000".to_owned()),
+            ..CacheHeaders::default()
+        },
+        1_000,
+    );
+    assert_eq!(record.freshness(1_000), Freshness::Revalidate);
+}

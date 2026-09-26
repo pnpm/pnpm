@@ -74,13 +74,16 @@ impl TarballResolutionRecord {
     }
 
     /// Freshness per RFC 9111: the response's current age, which counts the
-    /// age it arrived with, is compared with `max-age`.
+    /// age it arrived with, is compared with `max-age`. A record reached
+    /// through a redirect that was not pinned as `immutable` is never fresh,
+    /// because the archive's lifetime says nothing about where the redirect
+    /// points next.
     pub(crate) fn freshness(&self, now_ms: u64) -> Freshness {
         let directives = CacheControl::parse(self.cache_control.as_deref().unwrap_or(""));
         if directives.no_store {
             return Freshness::Unusable;
         }
-        if directives.no_cache {
+        if directives.no_cache || self.final_url != self.tarball {
             return Freshness::Revalidate;
         }
         let Some(max_age) = directives.max_age else {
