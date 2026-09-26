@@ -58,6 +58,10 @@ struct ProgressStats {
 struct ProgressEntry {
     stats: ProgressStats,
     slot: BlockSlot,
+    /// Set once the `, done` line is rendered. Like pnpm's `takeWhile`
+    /// on `importingDone$`, later progress events for the requester are
+    /// dropped instead of starting a new line.
+    done: bool,
 }
 
 /// One dependency added or removed, ready to render.
