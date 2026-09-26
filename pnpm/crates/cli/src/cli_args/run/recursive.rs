@@ -399,11 +399,7 @@ impl RecursiveRun<'_, '_> {
             init_cwd: &init_cwd,
         };
         let run_task = |node: &TaskNode| runner.run_task(node);
-        let on_task_skipped = |node: &TaskNode| {
-            slots.result.lock().expect("summary lock is not poisoned")
-                [&task_summary_key(node, self.script.script_name)]
-                .status = Status::Skipped;
-        };
+        let on_task_skipped = |node: &TaskNode| slots.mark_skipped(node, self.script.script_name);
         schedule_tasks(
             &prepared.task_graph,
             &ScheduleTasksOptions {

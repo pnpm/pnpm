@@ -233,6 +233,42 @@ fn regexp_selector_with_tasks_skips_a_matched_hidden_script() {
     drop(root);
 }
 
+/// A matched hidden script that another matched script names in its
+/// `dependsOn` is a deliberate reference, so it runs.
+#[test]
+fn regexp_selector_runs_a_matched_hidden_script_named_in_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": append_line_script("test", "../order.log"),
+                    ".test-setup": append_line_script(".test-setup", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  test:\n    dependsOn: ['.test-setup']\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order.lines().collect::<Vec<_>>(), [".test-setup", "test"]);
+    drop(root);
+}
+
 /// `dependency`'s lint waits for the marker `dependent`'s lint writes:
 /// only possible when the explicitly empty `dependsOn` frees the lint
 /// tasks from the project-graph order.

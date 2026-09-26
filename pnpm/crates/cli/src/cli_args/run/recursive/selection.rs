@@ -1,7 +1,7 @@
 use super::{
     super::listing::split_regex_literal, BuildTaskGraphOptions, Config, ExecutionStatus, GraphPkg,
-    HashMap, IndexMap, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PnpmLog, ProcessTracker,
-    ProjectGraph, RecursiveRunError, RunArgs, ScriptSelector, TaskGraph, TaskKey,
+    HashMap, HashSet, IndexMap, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PnpmLog,
+    ProcessTracker, ProjectGraph, RecursiveRunError, RunArgs, ScriptSelector, TaskGraph, TaskKey,
     TaskRunExecutionSettings, TaskRunStateContext, build_task_graph, count_failures, env,
     filtered_projects_dependencies, find_resume_root, render_project_commands,
     render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph, task_graph_to_json,
@@ -152,9 +152,10 @@ pub(super) fn print_run_dry_run(
 /// within another script, detected by an inherited `npm_lifecycle_event`.
 /// Checked only for the tasks the invocation named: a `dependsOn`
 /// declaration naming a hidden script is a deliberate reference, like a
-/// call from another script. Checked per project, over every requested
-/// task: a `RegExp` selector can seed one task per matched script, and a
-/// project fails only when everything the selector matched in it is hidden.
+/// call from another script, so a requested task that another task names
+/// in its `dependsOn` is exempt too. Checked per project, over every requested task: a
+/// `RegExp` selector can seed one task per matched script, and a project
+/// fails only when everything the selector matched in it is hidden.
 pub(super) fn filter_hidden_requested_scripts(
     task_graph: &mut TaskGraph,
     script_name: &str,
@@ -162,8 +163,22 @@ pub(super) fn filter_hidden_requested_scripts(
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(());
     }
+    let depended_on: HashSet<&TaskKey> = task_graph
+        .values()
+        .flat_map(|node| {
+            node.dependencies
+                .iter()
+                .filter(|dependency| dependency.task_name != node.task_name)
+        })
+        .collect();
+    let checked: Vec<TaskKey> = task_graph
+        .iter()
+        .filter(|(key, node)| node.requested && !depended_on.contains(key))
+        .map(|(key, _)| key.clone())
+        .collect();
     let mut requested_by_project: IndexMap<PathBuf, Vec<String>> = IndexMap::new();
-    for node in task_graph.values().filter(|node| node.requested) {
+    for key in &checked {
+        let node = &task_graph[key];
         requested_by_project
             .entry(node.project.clone())
             .or_default()
@@ -173,7 +188,8 @@ pub(super) fn filter_hidden_requested_scripts(
     for (project, scripts) in requested_by_project {
         visible_by_project.insert(project, throw_or_filter_hidden_scripts(scripts, script_name)?);
     }
-    for node in task_graph.values_mut().filter(|node| node.requested) {
+    for key in &checked {
+        let node = task_graph.get_mut(key).expect("checked task is in the graph");
         let visible = &visible_by_project[&node.project];
         node.scripts.retain(|script| visible.contains(script));
     }

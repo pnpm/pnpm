@@ -427,14 +427,24 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
 }
 
 /**
- * Checked per project, over every requested task: a RegExp selector can seed
- * one task per matched script, and a project fails only when everything the
- * selector matched in it is hidden.
+ * Checked only for the tasks the invocation named: a `dependsOn` declaration
+ * naming a hidden script is a deliberate reference, like a call from another
+ * script, so a requested task that another task names in its `dependsOn` is
+ * exempt too. Checked
+ * per project, over every requested task: a RegExp selector can seed one task
+ * per matched script, and a project fails only when everything the selector
+ * matched in it is hidden.
  */
 function filterHiddenRequestedScripts (taskGraph: TaskGraph, scriptName: string): void {
-  const requestedScriptsByProject = new Map<string, string[]>()
+  const dependedOn = new Set<TaskKey>()
   for (const node of taskGraph.values()) {
-    if (!node.requested) continue
+    for (const dependency of node.dependencies) {
+      if (taskGraph.get(dependency)!.taskName !== node.taskName) dependedOn.add(dependency)
+    }
+  }
+  const checkedNodes = [...taskGraph].filter(([key, node]) => node.requested && !dependedOn.has(key)).map(([, node]) => node)
+  const requestedScriptsByProject = new Map<string, string[]>()
+  for (const node of checkedNodes) {
     const scripts = requestedScriptsByProject.get(node.project) ?? []
     scripts.push(...node.scripts)
     requestedScriptsByProject.set(node.project, scripts)
@@ -443,8 +453,7 @@ function filterHiddenRequestedScripts (taskGraph: TaskGraph, scriptName: string)
   for (const [project, scripts] of requestedScriptsByProject) {
     visibleScriptsByProject.set(project, new Set(throwOrFilterHiddenScripts(scripts, scriptName)))
   }
-  for (const node of taskGraph.values()) {
-    if (!node.requested) continue
+  for (const node of checkedNodes) {
     const visibleScripts = visibleScriptsByProject.get(node.project)!
     node.scripts = node.scripts.filter((script) => visibleScripts.has(script))
   }

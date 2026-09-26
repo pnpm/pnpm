@@ -29,6 +29,12 @@ impl RunSlots {
         }
     }
 
+    pub(super) fn mark_skipped(&self, node: &TaskNode, script_name: &str) {
+        self.result.lock().expect("summary lock is not poisoned")
+            [&task_summary_key(node, script_name)]
+            .status = Status::Skipped;
+    }
+
     pub(super) fn into_results(self, bail: bool) -> miette::Result<RunResults> {
         if let Some(error) = self.abort.into_inner().expect("abort slot lock is not poisoned") {
             return Err(error);

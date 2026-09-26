@@ -754,6 +754,34 @@ test('a RegExp selector with tasks declared filters a matched hidden script', as
   expect(server.getLines()).toStrictEqual(['visible'])
 })
 
+test('a RegExp selector runs a matched hidden script that another matched script depends on', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        test: server.sendLineScript('test'),
+        '.test-setup': server.sendLineScript('setup'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      test: { dependsOn: ['.test-setup'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test/'])
+
+  expect(server.getLines()).toStrictEqual(['setup', 'test'])
+})
+
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {
   preparePackages([
     {
