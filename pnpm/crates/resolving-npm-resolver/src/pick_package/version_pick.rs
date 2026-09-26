@@ -285,16 +285,17 @@ pub(super) async fn pick_from_meta_offline(
         return Ok((meta, picked));
     };
     // Fast path: the pick the preferences already made is installable
-    // offline — one presence check, no re-pick.
-    let Some(integrity) = picked_version.dist.integrity.as_ref() else {
-        return Ok((meta, picked));
-    };
-    let picked_key = store_index_key(
-        &integrity.to_string(),
-        &format!("{}@{}", meta.name, picked_version.version),
-    );
-    if store_view.holds(&picked_key) {
-        return Ok((meta, picked));
+    // offline — one presence check, no re-pick. A pick without integrity
+    // cannot be verified against the store, so it falls through to the
+    // narrowed re-pick, which only offers versions the store can verify.
+    if let Some(integrity) = picked_version.dist.integrity.as_ref() {
+        let picked_key = store_index_key(
+            &integrity.to_string(),
+            &format!("{}@{}", meta.name, picked_version.version),
+        );
+        if store_view.holds(&picked_key) {
+            return Ok((meta, picked));
+        }
     }
     let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
         return Ok((meta, picked));
