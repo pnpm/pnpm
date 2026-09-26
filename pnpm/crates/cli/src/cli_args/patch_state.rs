@@ -4,7 +4,7 @@ use pnpm_fs::{is_subdir, lexical_normalize};
 use pnpm_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     env, fs, io,
     io::Write,
     path::{Path, PathBuf},
@@ -74,6 +74,22 @@ pub(crate) enum StateFileError {
         #[error(source)]
         source: io::Error,
     },
+
+    #[display("Failed to remove patch state file {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_REMOVE))]
+    Remove {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to remove patch edit directory {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_REMOVE_EDIT_DIR))]
+    RemoveEditDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
 pub(crate) fn read_edit_dir_state(
@@ -109,6 +125,111 @@ pub(crate) fn write_edit_dir_state(
         .map_err(|source| StateFileError::Serialize { path: path.clone(), source })?;
     write_state_file_atomically(&path, text.as_bytes())
         .map_err(|source| StateFileError::Write { path, source })
+}
+
+pub(crate) fn clean_patch_state_and_edit_dirs(
+    modules_dir: &Path,
+    patches: &[String],
+) -> Result<(), StateFileError> {
+    let state_dir = modules_dir.join(STATE_DIR);
+    reject_state_symlink_if_exists(&state_dir)?;
+    if let (Ok(real_modules_dir), Ok(real_state_dir)) =
+        (dunce::canonicalize(modules_dir), dunce::canonicalize(&state_dir))
+        && !is_subdir(&real_modules_dir, &real_state_dir)
+    {
+        return Err(StateFileError::UnsafePath {
+            path: state_dir,
+            reason: "must stay under the modules directory",
+        });
+    }
+    let mut dirs_to_remove = remove_matching_state_entries(modules_dir, &state_dir, patches)?;
+    for patch in patches {
+        dirs_to_remove.insert(state_dir.join(patch));
+    }
+    remove_edit_dirs(&state_dir, &dirs_to_remove)?;
+    remove_state_dir_if_empty(&state_dir);
+    Ok(())
+}
+
+fn remove_matching_state_entries(
+    modules_dir: &Path,
+    state_dir: &Path,
+    patches: &[String],
+) -> Result<HashSet<PathBuf>, StateFileError> {
+    let path = checked_state_file_path_for_read(modules_dir)?;
+    let Some(text) = read_state_file_text(&path)? else {
+        return Ok(HashSet::new());
+    };
+    let mut state: BTreeMap<String, EditDirState> = serde_json::from_str(&text)
+        .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
+    let mut dirs = HashSet::new();
+    let patches_set: HashSet<&str> = patches
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let target_keys: HashSet<String> = patches
+        .iter()
+        .map(|patch| edit_dir_key(&state_dir.join(patch)))
+        .collect::<Result<_, _>>()?;
+    state.retain(|key, entry| {
+        let matches = patches_set.contains(entry.patched_pkg.as_str()) || target_keys.contains(key);
+        if matches {
+            dirs.insert(PathBuf::from(key));
+            false
+        } else {
+            true
+        }
+    });
+    save_or_remove_state_file(&path, &state)?;
+    Ok(dirs)
+}
+
+fn save_or_remove_state_file(
+    path: &Path,
+    state: &BTreeMap<String, EditDirState>,
+) -> Result<(), StateFileError> {
+    if state.is_empty() {
+        if let Err(source) = fs::remove_file(path)
+            && source.kind() != io::ErrorKind::NotFound
+        {
+            return Err(StateFileError::Remove { path: path.to_path_buf(), source });
+        }
+    } else {
+        let text = serde_json::to_string_pretty(state)
+            .map_err(|source| StateFileError::Serialize { path: path.to_path_buf(), source })?;
+        write_state_file_atomically(path, text.as_bytes())
+            .map_err(|source| StateFileError::Write { path: path.to_path_buf(), source })?;
+    }
+    Ok(())
+}
+
+fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
+    let canonical_state_dir = dunce::canonicalize(state_dir).ok();
+    for dir in dirs {
+        let is_under_state = (dir != state_dir && is_subdir(state_dir, dir))
+            || canonical_state_dir
+                .as_ref()
+                .is_some_and(|parent| {
+                    dunce::canonicalize(dir)
+                        .is_ok_and(|child| child != *parent && is_subdir(parent, &child))
+                });
+        if is_under_state
+            && dir.exists()
+            && let Err(source) = fs::remove_dir_all(dir)
+            && source.kind() != io::ErrorKind::NotFound
+        {
+            return Err(StateFileError::RemoveEditDir { path: dir.clone(), source });
+        }
+    }
+    Ok(())
+}
+
+fn remove_state_dir_if_empty(state_dir: &Path) {
+    if let Ok(mut entries) = fs::read_dir(state_dir)
+        && entries.next().is_none()
+    {
+        let _ = fs::remove_dir(state_dir);
+    }
 }
 
 fn read_state_file_for_write(

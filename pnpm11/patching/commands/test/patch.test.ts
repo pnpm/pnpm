@@ -128,6 +128,60 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
+  test('after patch-remove is executed, remove the corresponding .pnpm_patches directory info', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    // store patch files in a directory inside modules dir when not given editDir option
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // sanity check to ensure that the license file contains the expected string
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+
+    expect(patchContent).not.toContain('The MIT License (MIT)')
+    expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+
+    await patchRemove.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+      patchedDependencies: workspaceManifest?.patchedDependencies,
+    }, ['is-positive@1.0.0'])
+
+    const updatedWorkspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(updatedWorkspaceManifest?.patchedDependencies).toBeUndefined()
+    expect(fs.existsSync(patchDir)).toBe(false)
+
+    const statePath = path.join('node_modules', '.pnpm_patches', 'state.json')
+    expect(fs.existsSync(statePath)).toBe(false)
+    expect(fs.existsSync(path.join('node_modules', '.pnpm_patches'))).toBe(false)
+  })
+
   test('patch and commit without exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive'])
     const patchDir = getPatchDirFromPatchOutput(output)

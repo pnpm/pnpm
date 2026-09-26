@@ -40,15 +40,46 @@ export function writeEditDirState (opts: WriteEditDirStateOptions): void {
   })
 }
 
+export interface DeleteEditDirStateOptions {
+  modulesDir: string
+  editDir?: string
+  patchedPkg?: string
+}
+
+export function deleteEditDirState (opts: DeleteEditDirStateOptions): void {
+  modifyStateFile(opts.modulesDir, state => {
+    const resolvedKey = opts.editDir ? path.resolve(opts.editDir) : undefined
+    for (const [k, entry] of Object.entries(state)) {
+      if (
+        (opts.patchedPkg && entry.patchedPkg === opts.patchedPkg) ||
+        (opts.editDir && (k === opts.editDir || path.resolve(k) === resolvedKey))
+      ) {
+        delete state[k as EditDir]
+      }
+    }
+  })
+}
+
 function modifyStateFile (modulesDir: string, modifyState: (state: State) => void): void {
   const filePath = getStateFilePath(modulesDir)
   let state = readStateFile(modulesDir)
   if (!state) {
     state = {}
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
   }
   modifyState(state)
-  fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
+  const len = Object.keys(state).length
+  if (len) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
+  } else if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath)
+    try {
+      const dir = path.dirname(filePath)
+      if (fs.readdirSync(dir).length === 0) {
+        fs.rmdirSync(dir)
+      }
+    } catch {}
+  }
 }
 
 export function readStateFile (modulesDir: string): State | undefined {

@@ -584,6 +584,9 @@ fn patch_workflow_runs_with_default_ndjson_and_silent_reporters() {
             "workspace yaml: {workspace_yaml}",
         );
         assert!(!workspace.join("patches/is-positive@1.0.0.patch").exists());
+        assert!(!edit_dir.exists());
+        assert!(!workspace.join("node_modules/.pnpm_patches/state.json").exists());
+        assert!(!workspace.join("node_modules/.pnpm_patches").exists());
 
         drop((root, mock_instance));
     }
