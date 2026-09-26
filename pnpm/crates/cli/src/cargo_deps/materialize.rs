@@ -244,6 +244,7 @@ impl CrateStore {
             strict_pkg_content_check: self.strict_pkg_content_check,
             verified_files_cache: Arc::clone(&self.verified_files_cache),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         }
     }
 }

@@ -90,6 +90,7 @@ fn revision_download(
             verify_integrity: true,
             strict_pkg_content_check: true,
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
         fetching: crate::tarball_prefetch::PrefetchHttpClient {
             http_client: Arc::new(ThrottledClient::default()),

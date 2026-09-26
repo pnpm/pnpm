@@ -245,6 +245,7 @@ async fn materialize<Reporter: self::Reporter>(
             strict_pkg_content_check: opts.store.strict_pkg_content_check,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: &opts.requester(),

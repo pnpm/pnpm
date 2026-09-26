@@ -144,6 +144,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("verify-deps-before-run", false),
     ("verify-store-integrity", false),
     ("frozen-store", false),
+    ("fallback-store-dir", false),
     ("global-virtual-store-dir", false),
     ("virtual-store-dir", false),
     ("virtual-store-only", false),

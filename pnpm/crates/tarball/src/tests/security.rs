@@ -79,6 +79,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
             strict_pkg_content_check: true,
             verified_files_cache: SharedVerifiedFilesCache::default(),
             prefetched_cas_paths: None,
+            fallback_dir: None,
         },
 
         requester: "",

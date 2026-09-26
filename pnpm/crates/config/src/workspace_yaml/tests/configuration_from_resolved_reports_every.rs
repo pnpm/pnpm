@@ -76,6 +76,7 @@ fn from_resolved_reports_every_setting() {
         // The settings that report as written, rather than as resolved.
         explicit_settings: [
             "storeDir",
+            "fallbackStoreDir",
             "cacheDir",
             "modulesDir",
             "virtualStoreDir",
