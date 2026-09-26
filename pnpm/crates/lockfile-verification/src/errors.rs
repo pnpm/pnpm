@@ -94,6 +94,30 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_URL_MISMATCH), help("{STRUCTURAL_HINT}"))]
+    TarballUrlMismatch {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_REVISION_MISMATCH), help("{STRUCTURAL_HINT}"))]
+    TarballRevisionMismatch {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
+    #[diagnostic(code(ERR_PNPM_MISSING_NAMED_REGISTRY), help("{STRUCTURAL_HINT}"))]
+    MissingNamedRegistry {
+        #[error(not(source))]
+        count: usize,
+        breakdown: String,
+    },
+
+    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION))]
     LockfileResolutionVerification {
         #[error(not(source))]
@@ -180,31 +204,38 @@ impl VerifyError {
         };
 
         if mixed {
-            VerifyError::LockfileResolutionVerification { count, breakdown, hint }
-        } else {
-            // Safe: distinct_codes has exactly one element.
-            let code = *distinct_codes
-                .iter()
-                .next()
-                .expect("at least one code");
-            match code {
-                pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
-                    VerifyError::MinimumReleaseAgeViolation { count, breakdown }
-                }
-                pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
-                    VerifyError::TrustDowngrade { count, breakdown }
-                }
-                pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
-                    VerifyError::MissingTarballIntegrity { count, breakdown }
-                }
-                crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
-                    VerifyError::ResolutionShapeMismatch { count, breakdown }
-                }
-                // Unknown verifier code (future-proofing): fall back
-                // to the generic envelope rather than fabricating a
-                // variant we don't have.
-                _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
+            return VerifyError::LockfileResolutionVerification { count, breakdown, hint };
+        }
+        // Safe: distinct_codes has exactly one element.
+        let code = *distinct_codes
+            .iter()
+            .next()
+            .expect("at least one code");
+        Self::from_single_code(code, count, breakdown, hint)
+    }
+
+    /// The variant carrying the stable code for a batch whose entries all
+    /// failed with `code`. An unknown verifier code falls back to the
+    /// generic envelope rather than fabricating a variant.
+    fn from_single_code(code: &str, count: usize, breakdown: String, hint: &'static str) -> Self {
+        use pnpm_resolving_npm_resolver_violation_codes as codes;
+        match code {
+            codes::MINIMUM_RELEASE_AGE_VIOLATION => {
+                VerifyError::MinimumReleaseAgeViolation { count, breakdown }
             }
+            codes::TRUST_DOWNGRADE => VerifyError::TrustDowngrade { count, breakdown },
+            codes::MISSING_TARBALL_INTEGRITY => {
+                VerifyError::MissingTarballIntegrity { count, breakdown }
+            }
+            codes::TARBALL_URL_MISMATCH => VerifyError::TarballUrlMismatch { count, breakdown },
+            codes::TARBALL_REVISION_MISMATCH => {
+                VerifyError::TarballRevisionMismatch { count, breakdown }
+            }
+            codes::MISSING_NAMED_REGISTRY => VerifyError::MissingNamedRegistry { count, breakdown },
+            crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
+                VerifyError::ResolutionShapeMismatch { count, breakdown }
+            }
+            _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
         }
     }
 }
@@ -269,6 +300,12 @@ mod pnpm_resolving_npm_resolver_violation_codes {
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
     /// Matches `pnpm_resolving_npm_resolver::MISSING_TARBALL_INTEGRITY_VIOLATION_CODE`.
     pub const MISSING_TARBALL_INTEGRITY: &str = "MISSING_TARBALL_INTEGRITY";
+    /// Matches `pnpm_resolving_npm_resolver::TARBALL_URL_MISMATCH_VIOLATION_CODE`.
+    pub const TARBALL_URL_MISMATCH: &str = "TARBALL_URL_MISMATCH";
+    /// Matches `pnpm_resolving_npm_resolver::TARBALL_REVISION_MISMATCH_VIOLATION_CODE`.
+    pub const TARBALL_REVISION_MISMATCH: &str = "TARBALL_REVISION_MISMATCH";
+    /// Matches `pnpm_resolving_npm_resolver::MISSING_NAMED_REGISTRY_VIOLATION_CODE`.
+    pub const MISSING_NAMED_REGISTRY: &str = "MISSING_NAMED_REGISTRY";
 }
 
 #[cfg(test)]
