@@ -19,7 +19,10 @@ use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
     resolve_from_catalog,
 };
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, get_bins_from_package_manifest,
+    link_bins_of_packages,
+};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_crypto_hash::create_short_hash;
@@ -33,6 +36,7 @@ use pnpm_package_manifest::{
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_workspace::Project;
 use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runtime};
 use serde_json::{Value, json};
 use std::{
@@ -41,6 +45,7 @@ use std::{
     fs, io,
     path::{Path, PathBuf},
     process::Command,
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -381,12 +386,54 @@ fn run_bin(
         .map_err(miette::Report::new)
 }
 
+/// Run the bin of a package that is already on disk, such as a workspace
+/// project, in place of installing one into the dlx cache. The package's
+/// own dependencies, and their bins, resolve from its directory, so they
+/// must be installed.
+pub(crate) fn run_local_package(
+    pkg_name: String,
+    project: &Project,
+    args: &[String],
+    shell_mode: bool,
+    config: &Config,
+    dir: &Path,
+) -> miette::Result<()> {
+    let pkg_dir = &project.root_dir;
+    let manifest = project.manifest.value();
+    let deps_bin_dir = pkg_dir
+        .join(config.modules_dir_name_for(pkg_dir, Some(&pkg_name)))
+        .join(".bin");
+    let bin_name = choose_bin_name(manifest, pkg_dir, pkg_name)?;
+    let bin_dir =
+        tempfile::tempdir().into_diagnostic().wrap_err("create a temporary bin directory")?;
+    let source = PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest.clone()));
+    link_bins_of_packages::<CmdShimHost>(&[source], bin_dir.path(), &LinkBinsOptions::default())
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| format!("link the bins of {}", pkg_dir.display()))?;
+    let env = SpawnEnv::from_config(config, dir);
+    let status = run_bin(
+        DlxProgram::Named(&bin_name),
+        args,
+        vec![bin_dir.path().to_path_buf(), deps_bin_dir],
+        &env.spawn(shell_mode),
+    )?;
+    drop(bin_dir);
+    exit_unless_success(status);
+    Ok(())
+}
+
 /// Determine the bin to run from the first installed dependency.
 fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
     let pkg_name = get_pkg_name(cached_dir)?;
     let pkg_dir = cached_dir.join("node_modules").join(&pkg_name);
     let manifest = read_json(&pkg_dir.join("package.json"))?;
-    let bins = get_bins_from_package_manifest::<CmdShimHost>(&manifest, &pkg_dir);
+    choose_bin_name(&manifest, &pkg_dir, pkg_name)
+}
+
+/// The bin a package runs as: its only bin, or the one named after the
+/// package when it declares several.
+fn choose_bin_name(manifest: &Value, pkg_dir: &Path, pkg_name: String) -> Result<String, DlxError> {
+    let bins = get_bins_from_package_manifest::<CmdShimHost>(manifest, pkg_dir);
 
     match bins.as_slice() {
         [] => Err(DlxError::NoBin { package: pkg_name }),

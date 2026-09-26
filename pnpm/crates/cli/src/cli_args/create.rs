@@ -1,12 +1,19 @@
-use crate::cli_args::dlx::DlxArgs;
+use crate::cli_args::{
+    dlx::{DlxArgs, run_local_package},
+    recursive::discover_workspace_projects,
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
+use pnpm_workspace::Project;
+use serde_json::Value;
 use std::path::Path;
 
-/// Create a project from a `create-*` starter kit.
+/// Create a project from a `create-*` starter kit. Inside a workspace, a
+/// workspace project with the starter kit's name is used instead of the
+/// registry package.
 #[derive(Debug, Args)]
 pub struct CreateArgs {
     /// The template name (e.g., `vite`, `create-vite`, `@scope/foo`),
@@ -82,6 +89,28 @@ fn ensure_create_prefixed(package_name: &str) -> String {
     }
 }
 
+/// The workspace project published as `create_name`, which `create` runs
+/// in place of fetching the package from the registry. A name carrying a
+/// version or tag asks for the registry package.
+fn find_workspace_template(config: &Config, create_name: &str) -> miette::Result<Option<Project>> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(None);
+    };
+    if create_name[1..].contains('@') {
+        return Ok(None);
+    }
+    let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
+    Ok(projects
+        .into_iter()
+        .find(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(Value::as_str)
+                == Some(create_name)
+        }))
+}
+
 impl CreateArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
@@ -100,6 +129,9 @@ impl CreateArgs {
         let name = command_iter.next().ok_or(CreateError::MissingArgs)?;
         let args: Vec<String> = command_iter.collect();
         let create_name = convert_to_create_name(&name);
+        if let Some(project) = find_workspace_template(config, &create_name)? {
+            return run_local_package(create_name, &project, &args, shell_mode, config, dir);
+        }
         let dlx_args = DlxArgs {
             command: std::iter::once(create_name).chain(args).collect(),
             package: vec![],
