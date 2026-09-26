@@ -131,6 +131,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   prodAllProjectsGraph?: ProjectsGraph
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   pruneDirectDependencies?: boolean
   pruneLockfileImporters?: boolean
   storeControllerAndDir?: {

@@ -6,7 +6,7 @@ use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_preferred_versions::DirectSpecs;
 use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, VersionSelectorType};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -36,7 +36,7 @@ pub(in super::super) fn preferred_versions_seeds(
     update_seed_policy: &UpdateSeedPolicy,
     wanted_lockfile: Option<&Lockfile>,
     direct: DirectSpecs<'_>,
-    overrides: Option<&PreferredVersions>,
+    overrides: Option<&super::super::PreferredVersionsOverride>,
     stale_override_targets: &UpdateTargets,
 ) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
     use pnpm_lockfile_preferred_versions::{
@@ -46,6 +46,7 @@ pub(in super::super) fn preferred_versions_seeds(
 
     let snapshots = wanted_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref());
     let stale = withheld_pin(stale_override_targets);
+    let shared_overrides = overrides.map(|overrides| &overrides.shared);
 
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
@@ -64,16 +65,45 @@ pub(in super::super) fn preferred_versions_seeds(
     // workspace seed as well would reach the importers that policy left out, moving
     // dependencies in projects the command never named.
     if !matches!(update_seed_policy, UpdateSeedPolicy::ByImporter { .. }) {
-        merge_preferred_versions(&mut workspace_seed, overrides);
+        merge_preferred_versions(&mut workspace_seed, shared_overrides);
     }
 
     let mut by_importer = BTreeMap::new();
     if let UpdateSeedPolicy::ByImporter { policies, .. } = update_seed_policy {
-        by_importer = by_importer_seeds(policies, snapshots, direct, overrides, &stale);
+        by_importer = by_importer_seeds(policies, snapshots, direct, shared_overrides, &stale);
+    }
+    if let Some(pins_by_importer) = overrides.map(|overrides| &overrides.by_importer) {
+        apply_importer_lockfile_pins(&workspace_seed, &mut by_importer, pins_by_importer);
     }
 
     (Arc::new(workspace_seed), by_importer)
 }
+
+/// Each importer's lockfile pins replace the shared concrete versions for
+/// the names that lockfile records. The shared seed stays in place for
+/// every other importer and for names the nested lockfile does not mention.
+fn apply_importer_lockfile_pins(
+    workspace_seed: &PreferredVersions,
+    by_importer: &mut BTreeMap<String, Arc<PreferredVersions>>,
+    pins_by_importer: &BTreeMap<String, PreferredVersions>,
+) {
+    for (importer_id, pins) in pins_by_importer {
+        let mut seed = by_importer
+            .get(importer_id)
+            .map_or_else(|| workspace_seed.clone(), |seed| seed.as_ref().clone());
+        replace_version_pins(&mut seed, pins);
+        by_importer.insert(importer_id.clone(), Arc::new(seed));
+    }
+}
+
+fn replace_version_pins(seed: &mut PreferredVersions, pins: &PreferredVersions) {
+    for (name, project_pins) in pins {
+        let selectors = seed.entry(name.clone()).or_default();
+        selectors.retain(|_, entry| entry.selector_type() != VersionSelectorType::Version);
+        selectors.extend(project_pins.clone());
+    }
+}
+
 /// One seed per importer, with the two seed shapes cached: a `DropAll`
 /// importer always seeds the same way, and importers naming the same update
 /// targets share one `DropOnly` seed.

@@ -9,7 +9,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
-import { getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import {
@@ -139,8 +139,10 @@ export async function handler (
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
+  const projects = await getImportedProjects(opts)
+  const preferredVersionsByImporterId = await nestedYarnLockPreferredVersions(opts, projects)
   const patchedDependencies = await importYarnPatches({
-    projects: await getImportedProjects(opts),
+    projects,
     yarnRootDir: opts.dir,
     workspaceDir: opts.workspaceDir ?? opts.dir,
     patchedDependencies: opts.patchedDependencies,
@@ -174,7 +176,7 @@ export async function handler (
     if (envLockfile) {
       await writeEnvLockfile(lockfileDir, envLockfile)
     }
-    await installImportedLockfile({ ...opts, patchedDependencies }, params, preferredVersions)
+    await installImportedLockfile({ ...opts, patchedDependencies }, params, preferredVersions, preferredVersionsByImporterId)
   } catch (err: unknown) {
     await fs.promises.rm(lockfilePath, { force: true })
     if (lockfileExisted) {
@@ -200,7 +202,8 @@ async function getImportedProjects (opts: ImportCommandOptions): Promise<Importe
 async function installImportedLockfile (
   opts: ImportCommandOptions,
   params: string[],
-  preferredVersions: PreferredVersions
+  preferredVersions: PreferredVersions,
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
 ): Promise<void> {
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
@@ -234,6 +237,7 @@ async function installImportedLockfile (
           lockfileOnly: true,
           selectedProjectsGraph,
           preferredVersions,
+          preferredVersionsByImporterId,
           workspaceDir: opts.workspaceDir,
         },
         'import'
@@ -334,6 +338,23 @@ const IMPORTED_VERSION_SELECTOR = {
   selectorType: 'version',
   weight: EXISTING_VERSION_SELECTOR_WEIGHT,
 } as const
+
+async function nestedYarnLockPreferredVersions (
+  opts: ImportCommandOptions,
+  projects: ImportedProject[]
+): Promise<Record<string, PreferredVersions> | undefined> {
+  if (opts.workspaceDir == null) return undefined
+  const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
+  const byImporterId: Record<string, PreferredVersions> = Object.create(null)
+  await Promise.all(projects.map(async (project) => {
+    if (path.relative(project.rootDir, opts.dir) === '') return
+    if (!fs.existsSync(path.join(project.rootDir, 'yarn.lock'))) return
+    const versionsByPackageNames = {}
+    getAllVersionsFromYarnLockFile(await readYarnLockFile(project.rootDir), versionsByPackageNames)
+    byImporterId[getLockfileImporterId(lockfileDir, project.rootDir)] = getPreferredVersions(versionsByPackageNames)
+  }))
+  return Object.keys(byImporterId).length === 0 ? undefined : byImporterId
+}
 
 function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames): PreferredVersions {
   const preferredVersions = mapValues(

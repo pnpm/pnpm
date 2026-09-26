@@ -318,6 +318,7 @@ export type MutatedProject = DependenciesMutation & { rootDir: ProjectRootDir }
 
 export type MutateModulesOptions = InstallOptions & {
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   hooks?: {
     readPackage?: ReadPackageHook[] | ReadPackageHook
   } | InstallOptions['hooks']
@@ -2422,6 +2423,7 @@ type InstallFunction = (
     staleOverrideTargets?: ReadonlySet<string>
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
+    preferredVersionsByImporterId?: Record<string, PreferredVersions>
     pruneVirtualStore: boolean
     /** The root project's `preinstall` already ran, ahead of resolution. */
     rootProjectPreinstallRan: boolean
@@ -2597,6 +2599,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       preferWorkspacePackages: opts.preferWorkspacePackages,
       preferredVersions,
+      preferredVersionsByImporterId: opts.preferredVersionsByImporterId,
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registriesByScope: ctx.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,

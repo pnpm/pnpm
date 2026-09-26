@@ -204,7 +204,8 @@ impl DeployArgs {
             base_install.lockfile_policy.disable_optimistic_repeat = true;
             base_install.execution.skip_runtimes =
                 config.skip_runtimes || self.install_args.materialization.no_runtime;
-            base_install.resolution.preferred_versions_override = preferred_versions_override;
+            base_install.resolution.preferred_versions_override =
+                preferred_versions_override.map(Into::into);
             base_install.context.lockfile_path = lockfile_path.as_deref();
             base_install.projects.supported_architectures = supported_architectures;
             base_install.projects.pnpmfile_hook_override = pnpmfile_hook;

@@ -34,7 +34,7 @@ use super::{
 use pnpm_config::Config;
 
 use crate::{
-    PolicyExcludes, ProjectMutation,
+    PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
     catalog_cleanup::{
         post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
     },
@@ -350,7 +350,7 @@ struct InstallOwned {
 #[derive(Default)]
 pub struct ResolutionInputs {
     pub update_seed_policy: UpdateSeedPolicy,
-    pub preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
+    pub preferred_versions_override: Option<PreferredVersionsOverride>,
     pub auth_override: Option<Arc<super::AuthHeaders>>,
     pub observer: Option<Arc<dyn crate::ResolutionObserver>>,
     pub peer_issues_sink: Option<crate::PeerIssuesSink>,
