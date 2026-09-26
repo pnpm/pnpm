@@ -49,7 +49,7 @@ pub(crate) struct CacheControl {
 }
 
 impl TarballResolutionRecord {
-    /// Build a record for a response received at `now_ms`.
+    /// Build a record for a response received at the given time.
     pub(crate) fn from_response(
         url: String,
         tarball: String,
@@ -85,7 +85,7 @@ impl TarballResolutionRecord {
         if age_ms < max_age.saturating_mul(1000) { Freshness::Fresh } else { Freshness::Revalidate }
     }
 
-    /// The record after a `304 Not Modified` received at `now_ms`. Headers
+    /// The record after a `304 Not Modified` received at the given time. Headers
     /// the `304` carries replace the stored ones.
     pub(crate) fn renewed(&self, headers: &CacheHeaders, now_ms: u64) -> Self {
         Self {

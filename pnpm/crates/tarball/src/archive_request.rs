@@ -4,7 +4,7 @@ use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogL
 
 /// The HTTP caching headers of an archive response, kept verbatim so the
 /// caller can decide whether and for how long the response may be reused.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CacheHeaders {
     pub etag: Option<String>,
     pub cache_control: Option<String>,
