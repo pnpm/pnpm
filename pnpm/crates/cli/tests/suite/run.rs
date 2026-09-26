@@ -796,7 +796,7 @@ mod shell_emulator {
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
         let mut yaml = format!("shellEmulator: {shell_emulator}\n");
         if let Some(script_shell) = script_shell {
-            let _ = write!(yaml, "scriptShell: '{}'\n", script_shell.display());
+            let _ = writeln!(yaml, "scriptShell: '{}'", script_shell.display());
         }
         fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
     }
