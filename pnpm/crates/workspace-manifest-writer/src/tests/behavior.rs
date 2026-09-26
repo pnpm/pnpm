@@ -246,10 +246,10 @@ fn minimum_release_age_exclude_add_keeps_the_existing_entries_comments() {
     assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - new@1.0.0\n");
 }
 
-/// A rewritten entry loses its own comment, matching the TypeScript writer's
-/// node reuse.
+/// Adding another exact version leaves the existing entry, and its comment,
+/// in place and records the new version on its own line.
 #[test]
-fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewritten() {
+fn minimum_release_age_exclude_add_keeps_the_comment_on_an_existing_exact_entry() {
     let added = ["foo@2.0.0".to_string()];
     let out = run_with(
         Some("minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - bar@1.0.0 # pinned\n"),
@@ -260,7 +260,10 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     )
     .expect("written");
 
-    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
+    assert_eq!(
+        out,
+        "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n",
+    );
 }
 
 #[test]

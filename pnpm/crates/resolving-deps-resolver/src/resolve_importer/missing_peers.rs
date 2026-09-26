@@ -1,5 +1,8 @@
 use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo};
 use node_semver::Range;
+use pnpm_resolving_resolver_base::{
+    MAX_INTERSECTED_ALTERNATIVES, intersection_exceeds_bound, range_alternative_count,
+};
 
 /// Split the missing-peer report into the inputs the inner and outer
 /// loops consume.
@@ -122,18 +125,28 @@ pub(super) fn merge_ranges(
 /// Semver intersection of every range, rendered in `node-semver`'s
 /// canonical form (`2` ∩ `^2.2.0` → `>=2.2.0 <3.0.0-0`, the same shape
 /// the `semver-range-intersect` npm package emits upstream). `None`
-/// when a range fails to parse or the ranges share no versions,
-/// mirroring `safeIntersect`'s caught-throw `null`.
+/// when a range fails to parse, the ranges share no versions, or the
+/// cartesian product of two unions would pass
+/// [`pnpm_resolving_resolver_base::MAX_INTERSECTED_ALTERNATIVES`].
+/// Mirrors `safeIntersect`'s caught-throw `null` for the first two.
 pub(super) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
-    let mut iter = ranges.iter();
-    let first = Range::parse(iter.next()?).ok()?;
-    iter.try_fold(first, |acc, range| {
-        Range::parse(range)
-            .ok()
-            .and_then(|range| acc.intersect(&range))
-            .map(|intersection| collapse_covered_alternatives(&intersection))
-    })
-    .map(|range| range.to_string())
+    let mut iter = ranges.iter().copied();
+    let first = iter.next()?;
+    let mut acc = Range::parse(first).ok()?;
+    let mut acc_count = range_alternative_count(&acc.to_string());
+    for range in iter {
+        let parsed = Range::parse(range).ok()?;
+        let next_count = range_alternative_count(&parsed.to_string());
+        if intersection_exceeds_bound(acc_count, next_count) {
+            return None;
+        }
+        acc = collapse_covered_alternatives(&acc.intersect(&parsed)?);
+        acc_count = range_alternative_count(&acc.to_string());
+        if acc_count > MAX_INTERSECTED_ALTERNATIVES {
+            return None;
+        }
+    }
+    Some(acc.to_string())
 }
 
 /// Drop the alternatives of a union that another alternative already

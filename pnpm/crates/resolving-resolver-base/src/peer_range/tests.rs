@@ -1,4 +1,7 @@
-use super::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
+use super::{
+    MAX_INTERSECTED_ALTERNATIVES, get_peer_version_range, intersection_exceeds_bound,
+    is_acceptable_peer_spec, is_valid_peer_range, range_alternative_count,
+};
 
 #[test]
 fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {
@@ -73,4 +76,13 @@ fn get_peer_version_range_reduces_a_union_of_scheme_specifiers() {
     assert_eq!(get_peer_version_range("^1.0.0 || work:^2.0.0"), "^1.0.0 || ^2.0.0");
     // A plain semver union is a valid range and is returned unchanged.
     assert_eq!(get_peer_version_range("^1.0.0 || ^2.0.0"), "^1.0.0 || ^2.0.0");
+}
+
+#[test]
+fn intersection_bound_trips_before_a_cartesian_product_of_unions() {
+    assert_eq!(range_alternative_count("0.1.138 || 0.1.147"), 2);
+    assert_eq!(range_alternative_count(" 0.19.0-alpha.1 || 0.21.1 "), 2);
+    assert!(!intersection_exceeds_bound(2, 2));
+    assert!(intersection_exceeds_bound(80, 80));
+    assert!(intersection_exceeds_bound(MAX_INTERSECTED_ALTERNATIVES, 2));
 }

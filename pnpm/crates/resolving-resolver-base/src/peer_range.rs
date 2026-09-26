@@ -70,6 +70,30 @@ pub fn get_peer_version_range(version: &str) -> String {
     "*".to_string()
 }
 
+/// Most `||` alternatives [`node_semver::Range::intersect`] may pair.
+///
+/// The intersection stores every alternative of one union with every
+/// alternative of the other. A chain of overlapping unions doubles that
+/// set on each step, and the next reservation is one allocation of tens
+/// of gigabytes. Callers treat a product past this cap as no intersection.
+pub const MAX_INTERSECTED_ALTERNATIVES: usize = 4096;
+
+/// How many `||` alternatives `range` spells. Empty pieces do not count.
+#[must_use]
+pub fn range_alternative_count(range: &str) -> usize {
+    range
+        .split("||")
+        .filter(|part| !part.trim().is_empty())
+        .count()
+}
+
+/// Whether intersecting two unions would allocate more alternatives than
+/// [`MAX_INTERSECTED_ALTERNATIVES`].
+#[must_use]
+pub fn intersection_exceeds_bound(left: usize, right: usize) -> bool {
+    left.saturating_mul(right) > MAX_INTERSECTED_ALTERNATIVES
+}
+
 /// The comparable range a value [`is_valid_peer_range`] accepted stands for:
 /// what follows a `workspace:` prefix when that is itself a range, `*` when it
 /// is not, and the value unchanged when it carries no such prefix.
