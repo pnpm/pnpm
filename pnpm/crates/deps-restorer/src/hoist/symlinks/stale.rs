@@ -76,6 +76,7 @@ fn create_hoist_symlink(dep_dir: &Path, dest: &Path) -> io::Result<()> {
             }
             Err(read_error) if should_retry_hoist_link_read(dest, &read_error) && retries < 100 => {
                 retries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
             Ok(existing) => {
                 return Err(io::Error::new(
@@ -107,9 +108,21 @@ fn should_retry_hoist_link_read(dest: &Path, error: &io::Error) -> bool {
     }
     // A concurrent unlink can make a link read report that the entry is not a link.
     match pnpm_fs::symlink_metadata_with_retry(dest) {
-        Ok(metadata) => is_link_metadata(&metadata),
+        Ok(metadata) => is_link_metadata(&metadata) || may_be_junction_in_creation(dest, &metadata),
         Err(error) => error.kind() == io::ErrorKind::NotFound,
     }
+}
+
+/// A junction is created as an empty directory that gets its reparse point
+/// afterwards, so a concurrent hoist can find an empty plain directory in its
+/// place for a moment. A junction completed after `metadata` was read lists
+/// its target's entries, so a non-empty directory is checked again.
+fn may_be_junction_in_creation(dest: &Path, metadata: &std::fs::Metadata) -> bool {
+    cfg!(windows)
+        && metadata.is_dir()
+        && (std::fs::read_dir(dest).is_ok_and(|mut entries| entries.next().is_none())
+            || pnpm_fs::symlink_metadata_with_retry(dest)
+                .is_ok_and(|metadata| is_link_metadata(&metadata)))
 }
 
 fn is_link_metadata(metadata: &std::fs::Metadata) -> bool {
