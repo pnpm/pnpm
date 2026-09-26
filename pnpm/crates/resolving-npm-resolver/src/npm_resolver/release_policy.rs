@@ -104,7 +104,8 @@ pub(super) fn installable_under_policy(
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
 /// when the picked version's publish timestamp falls past the policy
 /// cutoff and isn't excluded by name/version.
-pub(super) fn detect_min_release_age_violation(
+#[must_use]
+pub fn detect_min_release_age_violation(
     name: &PkgName,
     version: &str,
     published_at: Option<&str>,
