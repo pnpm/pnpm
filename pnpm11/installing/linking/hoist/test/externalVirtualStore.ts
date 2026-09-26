@@ -19,7 +19,7 @@ test('does not link skipped root dependencies into an external virtual store', a
         [depPath]: {
           dir: path.join(virtualStoreDir, '@types+fixture@1.0.0/node_modules/@types/fixture'),
           children: {},
-          optionalDependencies: new Set(),
+          optionalDependencies: new Set<string>(),
           hasBin: false,
           name: '@types/fixture',
           depPath,
