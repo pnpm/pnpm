@@ -78,24 +78,21 @@ async fn a_waiting_caller_reads_the_entry_the_lock_holder_refreshed() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("contended-entry");
     write_with_mtime(&path, "old contents", SystemTime::now() - Duration::from_hours(1));
-    let locks = std::sync::Arc::new(StripedLocks::new());
+    let locks = StripedLocks::new();
     let ttl = Duration::from_mins(1);
 
     let first = LockedEntry::lock(&locks, path.clone()).await;
     assert!(first.cached_or_evict(ttl).await.is_none());
-    let waiting = tokio::spawn({
-        let locks = std::sync::Arc::clone(&locks);
-        let path = path.clone();
-        async move {
-            let entry = LockedEntry::lock(&locks, path).await;
-            entry.cached_or_evict(ttl).await
-        }
-    });
-    tokio::time::sleep(Duration::from_millis(50)).await;
-    assert!(!waiting.is_finished(), "the waiting caller must block on the held lock");
+    let waiting = LockedEntry::lock(&locks, path.clone());
+    tokio::pin!(waiting);
+    assert!(
+        futures_util::poll!(&mut waiting).is_pending(),
+        "the waiting caller must block on the held lock",
+    );
     IndexFetcher::store(first.path().to_path_buf(), "fresh contents".to_string()).await;
     drop(first);
 
-    assert_eq!(waiting.await.unwrap().as_deref(), Some("fresh contents"));
+    let refreshed = waiting.await.cached_or_evict(ttl).await;
+    assert_eq!(refreshed.as_deref(), Some("fresh contents"));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "fresh contents");
 }
