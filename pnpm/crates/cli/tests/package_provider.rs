@@ -242,19 +242,19 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
     assert!(
         direct_node["tarball"]
             .as_str()
-            .is_some_and(|url| !url.is_empty())
+            .is_some_and(|url| !url.is_empty()),
     );
     assert!(
         direct_node["integrity"]
             .as_str()
             .expect("integrity")
-            .starts_with("sha")
+            .starts_with("sha"),
     );
     assert!(
         direct_node["engine"]
             .as_str()
             .expect("engine")
-            .contains(";node")
+            .contains(";node"),
     );
     let dep_alias = &direct_node["deps"]["@pnpm.e2e/dep-of-pkg-with-1-dep"];
     let dep_path = dep_alias["depPath"].as_str().expect("dep depPath");
@@ -266,7 +266,7 @@ fn packages_are_materialized_through_the_provider_and_symlinked() {
     assert!(
         !entries
             .iter()
-            .any(|entry| entry.contains("pkg-with-1-dep"))
+            .any(|entry| entry.contains("pkg-with-1-dep")),
     );
 
     // The lockfile is written as usual.
@@ -351,12 +351,12 @@ fn patched_dependencies_are_sent_with_their_patch_content() {
         node["patch"]["content"]
             .as_str()
             .expect("patch content")
-            .contains("patched")
+            .contains("patched"),
     );
     assert!(
         node["patch"]["hash"]
             .as_str()
-            .is_some_and(|hash| !hash.is_empty())
+            .is_some_and(|hash| !hash.is_empty()),
     );
 
     drop((root, mock_instance));
@@ -419,7 +419,7 @@ fn a_frozen_install_materializes_through_the_provider() {
     assert!(
         !entries
             .iter()
-            .any(|entry| entry.contains("pkg-with-1-dep"))
+            .any(|entry| entry.contains("pkg-with-1-dep")),
     );
 
     drop((root, mock_instance));
@@ -514,14 +514,14 @@ fn optional_packages_the_provider_cannot_build_are_skipped() {
             .join("node_modules")
             .join("@pnpm.e2e")
             .join("foo")
-            .exists()
+            .exists(),
     );
     assert!(
         !workspace
             .join("node_modules")
             .join("@pnpm.e2e")
             .join("bar")
-            .exists()
+            .exists(),
     );
 
     let request = read_request(&provider_dir);

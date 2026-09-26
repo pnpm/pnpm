@@ -29,12 +29,9 @@ pub struct PackageProviderOutput {
     pub skipped: Vec<PackageKey>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ProviderRequestNode {
-    pub(crate) name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) version: Option<String>,
+pub(crate) struct ProviderResolutionSource {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tarball: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,6 +40,16 @@ pub(crate) struct ProviderRequestNode {
     pub(crate) directory: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) git: Option<ProviderGitSource>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProviderRequestNode {
+    pub(crate) name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) version: Option<String>,
+    #[serde(flatten)]
+    pub(crate) source: ProviderResolutionSource,
     pub(crate) deps: BTreeMap<String, ProviderRequestDep>,
     pub(crate) engine: String,
     #[serde(skip_serializing_if = "Option::is_none")]

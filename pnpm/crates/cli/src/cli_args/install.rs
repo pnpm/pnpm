@@ -17,8 +17,7 @@ use crate::{
     },
 };
 use clap::{Args, ValueEnum};
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::{Context, IntoDiagnostic};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;

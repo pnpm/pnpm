@@ -14,13 +14,13 @@ use verification::{ConcurrentVerification, fetch_verified, load_custom_fetcher_s
 mod planning;
 use planning::{
     BuildInputs, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan, LinkInputs,
-    MaterializationPlan, SkipSetPlan, detect_host, needs_installability_check, plan_engine_name,
-    seed_skip_set, settle_engine_name,
+    MaterializationPlan, PlanContextLayout, SkipSetPlan, detect_host, needs_installability_check,
+    plan_engine_name, seed_skip_set, settle_engine_name,
 };
 
 mod materialization;
 mod provider_build;
-use provider_build::{link_provider_top_level_bins, materialize_frozen_provider};
+use provider_build::{fetch_step, link_provider_top_level_bins};
 
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
@@ -341,7 +341,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     async fn run_plan<Reporter: self::Reporter>(
         self,
         allow_build_policy: &AllowBuildPolicy,
-        plan: MaterializationPlan<'_>,
+        mut plan: MaterializationPlan<'_>,
         seed_skipped: Option<Vec<String>>,
         verification_override: Option<LockfileVerificationOverride<'_>>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
@@ -349,62 +349,19 @@ impl<'a> InstallFrozenLockfile<'a> {
             &self.drivers.config.store_dir,
             self.drivers.config.frozen_store,
         );
-        let MaterializationPlan {
-            link_options,
-            host,
-            deferred_engine_name,
-            mut layout,
-            dir_clone_cache,
-            cas_prefetch,
-            git_source_cache,
-        } = plan;
-        let mut settled = self.settle_skip_set::<Reporter>(host, seed_skipped).await?;
-
-        let fetched =
-            if let Some(provider) = self.drivers.config.package_provider.as_deref() {
-                materialize_frozen_provider(
-                    &self.inputs(),
-                    allow_build_policy,
-                    provider,
-                    &mut settled,
-                    &mut layout,
-                    verification_override,
-                )
-                .await?
-            } else {
-                let ctx = make_context(
-                    &self.inputs(),
-                    self.platform.node_linker,
-                    self.logged_methods,
-                    allow_build_policy,
-                    &layout,
-                    &link_options,
-                    &git_source_cache,
-                    dir_clone_cache.as_ref(),
-                );
-                self.fetch::<Reporter>(
-                    &ctx,
-                    FetchInputs {
-                        cas_prefetch,
-                        dir_clone_cache: dir_clone_cache.as_ref(),
-                        store_index_writer: &store_index_writer,
-                        skipped: &settled.skipped,
-                        verification_override,
-                    },
-                )
-                .await?
-            };
-
-        let ctx = make_context(
+        let mut settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
+        let deferred_engine_name = plan.deferred_engine_name;
+        let fetched = fetch_step::<Reporter>(
             &self.inputs(),
-            self.platform.node_linker,
-            self.logged_methods,
             allow_build_policy,
-            &layout,
-            &link_options,
-            &git_source_cache,
-            dir_clone_cache.as_ref(),
-        );
+            &mut plan.context_layout,
+            plan.cas_prefetch,
+            &mut settled,
+            &store_index_writer,
+            verification_override,
+        )
+        .await?;
+        let ctx = plan.context_layout.make_context(&self.inputs(), allow_build_policy);
         self.finish_materialization::<Reporter>(
             &ctx,
             fetched,
@@ -530,13 +487,14 @@ impl<'a> InstallFrozenLockfile<'a> {
     }
 
     /// The borrowed inputs as one `Copy` value. See [`FrozenInputs`].
-    fn inputs(&self) -> FrozenInputs<'a> {
+    pub(crate) fn inputs(&self) -> FrozenInputs<'a> {
         FrozenInputs {
             drivers: self.drivers,
             lockfiles: self.lockfiles,
             platform: self.platform,
             prior: self.prior,
             projects: self.projects,
+            logged_methods: self.logged_methods,
         }
     }
 
@@ -570,26 +528,4 @@ fn injected_deps(
         skipped,
         ctx.is_hoisted().then_some(hoisted_locations),
     )
-}
-#[allow(clippy::too_many_arguments)]
-fn make_context<'p>(
-    inputs: &FrozenInputs<'p>,
-    kind: pnpm_config::NodeLinker,
-    logged_methods: &'p std::sync::atomic::AtomicU8,
-    allow_build_policy: &'p AllowBuildPolicy,
-    layout: &'p crate::VirtualStoreLayout,
-    link_options: &'p pnpm_cmd_shim::LinkBinsOptions,
-    git_source_cache: &'p pnpm_git_fetcher::GitSourceCache,
-    dir_clone_cache: Option<&'p crate::DirCloneCache<'p>>,
-) -> crate::InstallContext<'p> {
-    crate::InstallContext {
-        linker: crate::ModuleLinkerContext { layout, kind, bin_options: link_options },
-        config: inputs.drivers.config,
-        workspace_root: inputs.projects.workspace_root,
-        requester: inputs.projects.requester,
-        allow_build_policy,
-        logged_methods,
-        git_source_cache,
-        dir_clone_cache,
-    }
 }

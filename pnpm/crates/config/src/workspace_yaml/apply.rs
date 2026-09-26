@@ -161,14 +161,14 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        if let Some(v) = self.package_provider.take() {
-            config.package_provider =
-                Some(if v.contains('/') || v.contains(std::path::MAIN_SEPARATOR) {
-                    resolve(base_dir, &v).to_string_lossy().into_owned()
-                } else {
-                    v
-                });
-        }
+        self.apply_package_provider(config, base_dir);
+    }
+
+    fn apply_package_provider(&mut self, config: &mut Config, base_dir: &Path) {
+        let Some(v) = self.package_provider.take() else { return };
+        let is_path = v.contains('/') || v.contains(std::path::MAIN_SEPARATOR);
+        config.package_provider =
+            Some(if is_path { resolve(base_dir, &v).to_string_lossy().into_owned() } else { v });
     }
 
     /// Registry endpoints, their credentials, and the caches keyed by them.

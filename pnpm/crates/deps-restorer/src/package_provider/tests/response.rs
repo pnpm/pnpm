@@ -1,7 +1,10 @@
-use super::super::{
-    ProviderRequestBundle, ProviderResponse, parse_provider_response, validate_provider_response,
+use super::{
+    super::{
+        ProviderRequestBundle, ProviderResponse, parse_provider_response,
+        validate_provider_response,
+    },
+    helpers::{Fixture, tarball_metadata},
 };
-use super::helpers::{Fixture, tarball_metadata};
 use pnpm_lockfile::SnapshotEntry;
 use pretty_assertions::assert_eq;
 
@@ -42,7 +45,7 @@ fn response_must_be_valid_json() {
         .expect_err("invalid JSON must be rejected");
     assert_eq!(
         error.to_string(),
-        r#"The package provider at "/provider" did not return valid JSON"#
+        r#"The package provider at "/provider" did not return valid JSON"#,
     );
 }
 
@@ -106,7 +109,7 @@ fn relative_or_empty_path_is_rejected() {
         response(&[("foo@1.0.0", ""), ("bar@2.0.0", "/nix/store/bar")], &[]),
     )
     .expect_err("empty path must be rejected");
-    assert_eq!(error.to_string(), "The package provider returned a relative path for foo@1.0.0: ",);
+    assert_eq!(error.to_string(), "The package provider returned a relative path for foo@1.0.0: ");
 }
 
 #[test]

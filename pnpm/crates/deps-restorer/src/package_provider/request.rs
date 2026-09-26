@@ -1,9 +1,14 @@
 use super::{
     PackageProviderError, PackageProviderInputs, ProviderGitSource, ProviderPatch, ProviderRequest,
-    ProviderRequestBundle, ProviderRequestDep, ProviderRequestNode, types::PROTOCOL_VERSION,
+    ProviderRequestBundle, ProviderRequestDep, ProviderRequestNode, ProviderResolutionSource,
+    types::PROTOCOL_VERSION,
 };
 use crate::install_package_by_snapshot::tarball_url_and_integrity;
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry, VersionPart};
+use pnpm_config::Config;
+use pnpm_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
+    VersionPart,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -74,24 +79,21 @@ fn build_node(
     let mut node = ProviderRequestNode {
         name: name.clone(),
         version,
-        tarball: None,
-        integrity: None,
-        directory: None,
-        git: None,
+        source: ProviderResolutionSource::default(),
         deps: BTreeMap::new(),
         engine: engine.to_string(),
         optional: snapshot.optional.then_some(true),
         patch: None,
     };
 
-    populate_resolution(&mut node, metadata, dep_path, key, inputs)?;
+    populate_resolution(&mut node.source, metadata, dep_path, key, inputs)?;
     populate_patch(&mut node, &metadata_key, dep_path, inputs)?;
     populate_deps(&mut node, snapshot, &name, dep_path, inputs, snapshots)?;
     Ok(node)
 }
 
 fn populate_resolution(
-    node: &mut ProviderRequestNode,
+    source: &mut ProviderResolutionSource,
     metadata: &PackageMetadata,
     dep_path: &str,
     key: &PackageKey,
@@ -99,58 +101,51 @@ fn populate_resolution(
 ) -> Result<(), PackageProviderError> {
     match &metadata.resolution {
         LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
-            let unsupported = || PackageProviderError::UnsupportedResolution {
-                dep_path: dep_path.to_string(),
-                kind: "tarball without integrity",
-            };
-            let (tarball, integrity) =
-                tarball_url_and_integrity(&metadata.resolution, key, inputs.config)
-                    .map_err(|_| unsupported())?;
-            let integrity = integrity.ok_or_else(unsupported)?;
-            node.tarball = Some(tarball.into_owned());
-            node.integrity = Some(integrity.to_string());
+            populate_tarball(source, &metadata.resolution, key, inputs.config, dep_path)?;
         }
-        LockfileResolution::Directory(dir_resolution) => {
-            let directory = Path::new(&dir_resolution.directory);
-            let directory = if directory.is_absolute() {
-                directory.to_path_buf()
-            } else {
-                inputs.lockfile_dir.join(directory)
-            };
-            node.directory =
-                Some(pnpm_fs::lexical_normalize(&directory).to_string_lossy().into_owned());
+        LockfileResolution::Directory(dir) => {
+            source.directory = Some(resolve_dir(inputs.lockfile_dir, &dir.directory));
         }
-        LockfileResolution::Git(git_resolution) => {
+        LockfileResolution::Git(git) => {
             if metadata.prepare == Some(true) {
                 return Err(PackageProviderError::GitPrepareUnsupported {
                     dep_path: dep_path.to_string(),
                 });
             }
-            node.git = Some(ProviderGitSource {
-                repo: git_resolution.repo.clone(),
-                commit: git_resolution.commit.clone(),
-            });
+            source.git =
+                Some(ProviderGitSource { repo: git.repo.clone(), commit: git.commit.clone() });
         }
-        LockfileResolution::Binary(_) => {
-            return Err(PackageProviderError::UnsupportedResolution {
-                dep_path: dep_path.to_string(),
-                kind: "binary",
-            });
-        }
-        LockfileResolution::Variations(_) => {
-            return Err(PackageProviderError::UnsupportedResolution {
-                dep_path: dep_path.to_string(),
-                kind: "variations",
-            });
-        }
-        LockfileResolution::Custom(_) => {
-            return Err(PackageProviderError::UnsupportedResolution {
-                dep_path: dep_path.to_string(),
-                kind: "custom",
-            });
-        }
+        LockfileResolution::Binary(_) => return Err(unsupported_res(dep_path, "binary")),
+        LockfileResolution::Variations(_) => return Err(unsupported_res(dep_path, "variations")),
+        LockfileResolution::Custom(_) => return Err(unsupported_res(dep_path, "custom")),
     }
     Ok(())
+}
+
+fn unsupported_res(dep_path: &str, kind: &'static str) -> PackageProviderError {
+    PackageProviderError::UnsupportedResolution { dep_path: dep_path.to_string(), kind }
+}
+
+fn populate_tarball(
+    source: &mut ProviderResolutionSource,
+    resolution: &LockfileResolution,
+    key: &PackageKey,
+    config: &Config,
+    dep_path: &str,
+) -> Result<(), PackageProviderError> {
+    let unsupported = || unsupported_res(dep_path, "tarball without integrity");
+    let (tarball, integrity) =
+        tarball_url_and_integrity(resolution, key, config).map_err(|_| unsupported())?;
+    let integrity = integrity.ok_or_else(unsupported)?;
+    source.tarball = Some(tarball.into_owned());
+    source.integrity = Some(integrity.to_string());
+    Ok(())
+}
+
+fn resolve_dir(lockfile_dir: &Path, directory: &str) -> String {
+    let path = Path::new(directory);
+    let resolved = if path.is_absolute() { path.to_path_buf() } else { lockfile_dir.join(path) };
+    pnpm_fs::lexical_normalize(&resolved).to_string_lossy().into_owned()
 }
 
 fn populate_patch(
@@ -184,25 +179,32 @@ fn populate_deps(
 ) -> Result<(), PackageProviderError> {
     for dep_map in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
         let Some(dep_map) = dep_map else { continue };
-        for (alias, dep_ref) in dep_map {
-            let Some(resolved) = dep_ref.resolve(alias) else { continue };
-            if inputs.skipped.contains(&resolved) || !snapshots.contains_key(&resolved) {
-                continue;
-            }
-            let alias = alias.to_string();
-            if alias == name {
-                return Err(PackageProviderError::SelfDependency {
-                    dep_path: dep_path.to_string(),
-                });
-            }
-            node.deps.insert(
-                alias,
-                ProviderRequestDep {
-                    dep_path: resolved.to_string(),
-                    name: resolved.name.to_string(),
-                },
-            );
+        populate_dep_group(node, dep_map, name, dep_path, inputs, snapshots)?;
+    }
+    Ok(())
+}
+
+fn populate_dep_group(
+    node: &mut ProviderRequestNode,
+    dep_map: &HashMap<PkgName, SnapshotDepRef>,
+    name: &str,
+    dep_path: &str,
+    inputs: &PackageProviderInputs<'_>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+) -> Result<(), PackageProviderError> {
+    for (alias, dep_ref) in dep_map {
+        let Some(resolved) = dep_ref.resolve(alias) else { continue };
+        if inputs.skipped.contains(&resolved) || !snapshots.contains_key(&resolved) {
+            continue;
         }
+        let alias = alias.to_string();
+        if alias == name {
+            return Err(PackageProviderError::SelfDependency { dep_path: dep_path.to_string() });
+        }
+        node.deps.insert(
+            alias,
+            ProviderRequestDep { dep_path: resolved.to_string(), name: resolved.name.to_string() },
+        );
     }
     Ok(())
 }

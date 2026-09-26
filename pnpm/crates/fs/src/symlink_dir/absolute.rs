@@ -1,5 +1,13 @@
+pub use force_absolute_symlink_dir as force_symlink_dir_absolute;
+
 use super::{ForceSymlinkOutcome, TriedOnce, force_symlink_inner, to_native_separators};
 use std::{io, path::Path};
+
+/// Like [`symlink_dir`](super::symlink_dir), but the symlink contents are stored as the
+/// absolute `original` path.
+pub fn symlink_dir_absolute(original: &Path, link: &Path) -> io::Result<()> {
+    super::symlink_dir_with_contents(original, original, link)
+}
 
 /// [`force_symlink_dir`](super::force_symlink_dir) with the link holding
 /// `target` as given rather than a path relative to the link, for a link

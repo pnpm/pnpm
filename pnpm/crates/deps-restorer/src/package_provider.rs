@@ -1,13 +1,17 @@
-mod error;
-mod request;
-mod response;
 pub(crate) mod types;
 
 pub use error::PackageProviderError;
 pub(crate) use request::build_provider_request;
 pub(crate) use response::{invoke_provider, parse_provider_response, validate_provider_response};
-pub(crate) use types::*;
 pub use types::{PackageProviderInputs, PackageProviderOutput};
+pub(crate) use types::{
+    ProviderGitSource, ProviderPatch, ProviderRequest, ProviderRequestBundle, ProviderRequestDep,
+    ProviderRequestNode, ProviderResolutionSource, ProviderResponse,
+};
+
+mod error;
+mod request;
+mod response;
 
 /// Send the dependency graph to the configured package provider and
 /// return the directory it materialized each snapshot at, plus the

@@ -1,6 +1,7 @@
 use super::{
-    BuildPhaseError, FrozenInputs, InstallFrozenLockfileError, LockfileVerificationOverride,
-    SkipSetPlan, resolve_snapshot_patches,
+    BuildPhaseError, FetchInputs, FrozenInputs, InstallFrozenLockfileError,
+    LockfileVerificationOverride, PlanContextLayout, SkipSetPlan, StoreIndexWriter,
+    resolve_snapshot_patches,
 };
 use crate::{
     AllowBuildPolicy, CreateVirtualStoreOutput, SkippedSnapshots, VirtualStoreLayout,
@@ -9,7 +10,43 @@ use crate::{
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter};
-use std::ffi::OsStr;
+use std::{ffi::OsStr, sync::Arc};
+
+pub(super) async fn fetch_step<'p, Reporter: self::Reporter>(
+    install: &FrozenInputs<'p>,
+    allow_build_policy: &'p AllowBuildPolicy,
+    context_layout: &mut PlanContextLayout<'_>,
+    cas_prefetch: crate::create_virtual_store::CasPrefetch,
+    settled: &mut SkipSetPlan,
+    store_index_writer: &Arc<StoreIndexWriter>,
+    verification_override: Option<LockfileVerificationOverride<'_>>,
+) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+    if let Some(provider) = install.drivers.config.package_provider.as_deref() {
+        materialize_frozen_provider(
+            install,
+            allow_build_policy,
+            provider,
+            settled,
+            &mut context_layout.layout,
+            verification_override,
+        )
+        .await
+    } else {
+        let ctx = context_layout.make_context(install, allow_build_policy);
+        super::materialization::fetch_frozen_store::<Reporter>(
+            install,
+            &ctx,
+            FetchInputs {
+                cas_prefetch,
+                dir_clone_cache: context_layout.dir_clone_cache.as_ref(),
+                store_index_writer,
+                skipped: &settled.skipped,
+                verification_override,
+            },
+        )
+        .await
+    }
+}
 
 pub(super) async fn materialize_frozen_provider(
     install: &FrozenInputs<'_>,

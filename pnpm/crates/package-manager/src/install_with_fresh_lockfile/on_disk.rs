@@ -1,6 +1,7 @@
+mod building;
+
 use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
 use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
-use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, LockfileEntries};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
@@ -10,47 +11,6 @@ use std::{
     path::Path,
     sync::{Arc, atomic::AtomicU8},
 };
-
-/// Write the freshly-built wanted lockfile to `target`, first running the
-/// `afterAllResolved` pnpmfile hook when one is configured.
-///
-/// `afterAllResolved` receives the resolved lockfile object and
-/// returns the (possibly mutated) lockfile that gets written. The round-trip
-/// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
-/// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
-/// keeps the output byte-identical to the typed write when the hook makes no
-/// changes. A throwing hook aborts the install.
-/// The environment lifecycle scripts run under: `config.extra_env` plus
-/// the `NODE_OPTIONS` for the selected project-level dependency loader.
-pub(super) fn build_extra_env(
-    config: &Config,
-    node_linker: NodeLinker,
-    workspace_root: &Path,
-) -> HashMap<String, String> {
-    let mut env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        env.insert("NODE_OPTIONS".to_string(), node_options.clone());
-    }
-    if matches!(node_linker, NodeLinker::Pnp) {
-        let node_options = env.get("NODE_OPTIONS").map(String::as_str);
-        env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_require_option(
-                &workspace_root.join(crate::PNP_FILENAME),
-                node_options,
-            ),
-        );
-    }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
-        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
-        let node_options = env.get("NODE_OPTIONS").map(String::as_str);
-        env.insert(
-            "NODE_OPTIONS".to_string(),
-            crate::make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
-    env
-}
 /// The concurrent pre-resolve verification of the existing lockfile must have
 /// its verdict before anything sensitive: the symlink / bin-link phases, the
 /// dependency builds, and the lockfile save all run on a trusted lockfile
@@ -107,7 +67,7 @@ pub(super) struct OnDiskOutput {
 impl<'a> OnDiskInputs<'a> {
     /// See `linking::run_link_phase` for why this anchors on
     /// `Config::modules_dir_anchor` rather than the install root.
-    fn symlink_root(&self) -> &'a Path {
+    pub(super) fn symlink_root(&self) -> &'a Path {
         self.ctx.config.modules_dir_anchor().unwrap_or(self.ctx.workspace_root)
     }
 
@@ -260,90 +220,8 @@ impl<'a> OnDiskInputs<'a> {
         linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
         skipped: &SkippedSnapshots,
     ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
-        if self.ctx.config.package_provider.is_some() {
-            Reporter::emit(&LogEvent::IgnoredScripts(pnpm_reporter::IgnoredScriptsLog {
-                level: LogLevel::Debug,
-                package_names: Vec::new(),
-                strict_dep_builds: self.ctx.config.strict_dep_builds,
-            }));
-            drop(self.store.store_index_writer);
-            return Ok(crate::BuildModulesOutput::default());
-        }
-        let top_level_bin_root = self.symlink_root();
-        let OnDiskInputs {
-            install,
-            ctx,
-            deps_requiring_build_sink,
-            patched_dependencies,
-            store,
-            runtime,
-            projects,
-            ..
-        } = self;
-        let engine_name =
-            settle_engine_name(runtime.deferred_engine_name, runtime.engine_name).await;
-        let extra_env = build_extra_env(ctx.config, ctx.linker.kind, ctx.workspace_root);
-        publish_deps_requiring_build(
-            deps_requiring_build_sink.as_ref(),
-            &materialized.requires_build_by_snapshot,
-        );
-        let built = run_fresh_build_phase::<Reporter>(
-            ctx,
-            &projects,
-            install.projects.dependency_groups,
-            &store.store_index_writer,
-            patched_dependencies,
-            materialized,
-            linked,
-            engine_name.as_deref(),
-            &extra_env,
-            top_level_bin_root,
-            skipped,
-        )?;
-        drop(store.store_index_writer);
-        Ok(built)
+        self::building::run_build::<Reporter>(self, materialized, linked, skipped).await
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_fresh_build_phase<Reporter: self::Reporter + 'static>(
-    ctx: &pnpm_deps_restorer::InstallContext<'_>,
-    projects: &OnDiskProjects<'_>,
-    dependency_groups: &[pnpm_package_manifest::DependencyGroup],
-    store_index_writer: &Arc<pnpm_store_dir::StoreIndexWriter>,
-    patched_dependencies: Option<&pnpm_patching::PatchGroupRecord>,
-    materialized: &CreateVirtualStoreOutput,
-    linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
-    engine_name: Option<&str>,
-    extra_env: &HashMap<String, String>,
-    top_level_bin_root: &Path,
-    skipped: &SkippedSnapshots,
-) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
-    crate::install_frozen_lockfile::run_build_phase::<Reporter>(
-        &crate::install_frozen_lockfile::BuildPhaseInputs {
-            cache: materialized.build_cache(engine_name, store_index_writer),
-            directories: build_directories(ctx, linked, top_level_bin_root),
-            graph: pnpm_deps_restorer::BuildPhaseGraph {
-                snapshots: projects.materialization_lockfile.snapshots.as_ref(),
-                packages: projects.materialization_lockfile.packages.as_ref(),
-                importers: &projects.materialization_lockfile.importers,
-                dependency_groups,
-                materialized_snapshots: linked.build_snapshots(
-                    &materialized.materialized_snapshots,
-                ),
-            },
-            policy: pnpm_deps_restorer::BuildPhasePolicy {
-                config: ctx.config,
-                patch_groups: patched_dependencies,
-                allow_build_policy: ctx.allow_build_policy,
-                rebuild: None,
-            },
-            extra_env,
-            skipped,
-            held_back_bins_dirs: &linked.held_back_bins_dirs,
-        },
-    )
-    .map_err(InstallWithFreshLockfileError::BuildPhase)
 }
 /// Materialize the virtual store, link it into every project, and run the
 /// dependency builds. The lockfile is persisted by the caller, after this
@@ -419,32 +297,6 @@ pub(super) fn fold_fetch_failures(
         skipped.add_fetch_failed(key);
     }
 }
-/// `CreateVirtualStore` keeps skipped snapshots out of this map, so it holds
-/// only what the install put on disk. See [`crate::DepsRequiringBuildSink`].
-pub(super) fn publish_deps_requiring_build(
-    sink: Option<&crate::DepsRequiringBuildSink>,
-    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
-) {
-    let Some(sink) = sink else { return };
-    let deps_requiring_build = requires_build_by_snapshot
-        .iter()
-        .filter(|(_, requires_build)| **requires_build)
-        .map(|(snapshot_key, _)| snapshot_key.to_string())
-        .collect();
-    *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(deps_requiring_build);
-}
-/// Resolve the deferred `node --version` probe (non-GVS path); it overlapped
-/// `CreateVirtualStore`. Falls back to the synchronous value when the probe
-/// wasn't deferred.
-pub(super) async fn settle_engine_name(
-    deferred: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
-    engine_name: Option<String>,
-) -> Option<String> {
-    match deferred {
-        Some(deferred) => deferred.handle.await.ok().flatten(),
-        None => engine_name,
-    }
-}
 
 impl OnDiskProjects<'_> {
     fn project_manifests(
@@ -485,22 +337,5 @@ impl<'a> super::FreshPriorInstall<'a> {
             unbuilt_builds: self.unbuilt_builds,
             previously_skipped: self.previously_skipped,
         }
-    }
-}
-
-fn build_directories<'a>(
-    ctx: &'a pnpm_deps_restorer::InstallContext<'a>,
-    linked: &'a pnpm_deps_restorer::linking::LinkPhaseOutput,
-    top_level_bin_root: &'a Path,
-) -> pnpm_deps_restorer::BuildPhaseDirectories<'a> {
-    pnpm_deps_restorer::BuildPhaseDirectories {
-        workspace_root: ctx.workspace_root,
-        top_level_bin_root,
-        layout: ctx.linker.layout,
-        hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
-        is_hoisted: ctx.is_hoisted(),
-        publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
-        logged_methods: ctx.logged_methods,
-        link_options: ctx.linker.bin_options,
     }
 }

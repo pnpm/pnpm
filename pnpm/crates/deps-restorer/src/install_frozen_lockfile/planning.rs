@@ -14,29 +14,56 @@ use std::{
     sync::Arc,
 };
 
+pub(super) struct PlanContextLayout<'p> {
+    pub(super) link_options: pnpm_cmd_shim::LinkBinsOptions,
+    pub(super) layout: VirtualStoreLayout,
+    pub(super) dir_clone_cache: Option<crate::DirCloneCache<'p>>,
+    pub(super) git_source_cache: pnpm_git_fetcher::GitSourceCache,
+}
+
+impl PlanContextLayout<'_> {
+    pub(super) fn make_context<'a>(
+        &'a self,
+        inputs: &FrozenInputs<'a>,
+        allow_build_policy: &'a crate::AllowBuildPolicy,
+    ) -> crate::InstallContext<'a> {
+        crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &self.layout,
+                kind: inputs.platform.node_linker,
+                bin_options: &self.link_options,
+            },
+            config: inputs.drivers.config,
+            workspace_root: inputs.projects.workspace_root,
+            requester: inputs.projects.requester,
+            allow_build_policy,
+            logged_methods: inputs.logged_methods,
+            git_source_cache: &self.git_source_cache,
+            dir_clone_cache: self.dir_clone_cache.as_ref(),
+        }
+    }
+}
+
 /// What [`InstallFrozenLockfile::plan_materialization`](crate::InstallFrozenLockfile::plan_materialization) decides before
 /// the on-disk phases run. Owned by `run` for the whole install; the
 /// phases borrow the parts they read.
 pub(super) struct MaterializationPlan<'p> {
-    pub(super) link_options: pnpm_cmd_shim::LinkBinsOptions,
+    pub(super) context_layout: PlanContextLayout<'p>,
     pub(super) host: HostPlan,
     pub(super) deferred_engine_name: Option<crate::materialization_plan::DeferredEngineName>,
-    pub(super) layout: VirtualStoreLayout,
-    /// Borrows the allow-builds policy `run` owns.
-    pub(super) dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     pub(super) cas_prefetch: crate::create_virtual_store::CasPrefetch,
-    pub(super) git_source_cache: pnpm_git_fetcher::GitSourceCache,
 }
 /// The install's borrowed inputs, as one `Copy` value a phase's future
 /// can capture. Only the `Copy` fields of [`InstallFrozenLockfile`](crate::InstallFrozenLockfile) are
 /// here; the owned ones go through [`InstallFrozenLockfile::take_owned`](crate::InstallFrozenLockfile::take_owned).
 #[derive(Clone, Copy)]
-pub(super) struct FrozenInputs<'a> {
+pub(crate) struct FrozenInputs<'a> {
     pub drivers: crate::FrozenInstallDrivers<'a>,
     pub lockfiles: crate::FrozenLockfileInputs<'a>,
     pub platform: crate::FrozenPlatformOptions<'a>,
     pub prior: crate::PriorMaterialization<'a>,
     pub projects: crate::FrozenProjectInputs<'a>,
+    pub logged_methods: &'a std::sync::atomic::AtomicU8,
 }
 impl<'a> FrozenInputs<'a> {
     pub(super) fn build_policy(
@@ -246,7 +273,7 @@ pub(super) struct LinkInputs<'p> {
     /// by the module-resolution sidecars and the `injectedDeps` record.
     pub(super) current_lockfile: &'p Lockfile,
 }
-/// What [`InstallFrozenLockfile::fetch`](crate::InstallFrozenLockfile::fetch) needs beyond the install's own
+/// What `fetch` needs beyond the install's own
 /// inputs: the plan's store-side half and the state the phases before
 /// it produced.
 pub(super) struct FetchInputs<'p> {

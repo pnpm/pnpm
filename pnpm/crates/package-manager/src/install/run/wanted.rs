@@ -77,6 +77,17 @@ impl<'a> Lockfiles<'a> {
             ),
         }
     }
+
+    pub(super) fn write_policy(
+        &self,
+        save: bool,
+    ) -> crate::install::state_options::LockfileWritePolicy {
+        crate::install::state_options::LockfileWritePolicy {
+            synthesized_from_current: self.wanted.synthesized_from_current(),
+            fast_updated: self.wanted.was_fast_updated(),
+            save,
+        }
+    }
 }
 pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter + 'static>(
     install: InstallView<'a>,

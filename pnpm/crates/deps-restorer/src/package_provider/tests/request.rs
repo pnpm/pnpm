@@ -1,6 +1,6 @@
-use super::super::{PackageProviderError, PackageProviderInputs, build_provider_request};
-use super::helpers::{
-    ENGINE, Fixture, INTEGRITY, key, metadata, snapshot_with_deps, tarball_metadata,
+use super::{
+    super::{PackageProviderError, PackageProviderInputs, build_provider_request},
+    helpers::{ENGINE, Fixture, INTEGRITY, key, metadata, snapshot_with_deps, tarball_metadata},
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution,
@@ -17,7 +17,7 @@ fn empty_graph_skips_the_provider() {
         fixture
             .build()
             .expect("build request")
-            .is_none()
+            .is_none(),
     );
 
     let no_maps = PackageProviderInputs { snapshots: None, packages: None, ..fixture.inputs() };
@@ -198,7 +198,7 @@ fn patch_content_is_sent_inline() {
         patch["content"]
             .as_str()
             .expect("patch content")
-            .contains("// patched")
+            .contains("// patched"),
     );
 }
 

@@ -1,4 +1,4 @@
-pub use absolute::force_absolute_symlink_dir;
+pub use absolute::{force_absolute_symlink_dir, force_symlink_dir_absolute, symlink_dir_absolute};
 
 use std::{
     borrow::Cow,
@@ -61,12 +61,6 @@ pub fn symlink_dir_with_contents(original: &Path, contents: &Path, link: &Path) 
             &to_native_separators(link),
         )
     }
-}
-
-/// Like [`symlink_dir`], but the symlink contents are stored as the
-/// absolute `original` path.
-pub fn symlink_dir_absolute(original: &Path, link: &Path) -> io::Result<()> {
-    symlink_dir_with_contents(original, original, link)
 }
 
 /// Rewrite every `/` in `path` to the native `\` on Windows.
@@ -245,16 +239,6 @@ pub fn force_symlink_dir(target: &Path, link: &Path) -> io::Result<ForceSymlinkO
     return force_symlink_inner(&target, &link, TriedOnce::default(), windows::create);
     #[cfg(not(windows))]
     force_symlink_inner(&target, &link, TriedOnce::default(), symlink_dir)
-}
-
-/// [`force_symlink_dir`] with the [`symlink_dir_absolute`] link style.
-pub fn force_symlink_dir_absolute(target: &Path, link: &Path) -> io::Result<ForceSymlinkOutcome> {
-    let target = to_native_separators(target);
-    let link = to_native_separators(link);
-    #[cfg(windows)]
-    return force_symlink_inner(&target, &link, TriedOnce::default(), windows::create);
-    #[cfg(not(windows))]
-    force_symlink_inner(&target, &link, TriedOnce::default(), symlink_dir_absolute)
 }
 
 fn force_symlink_inner(
