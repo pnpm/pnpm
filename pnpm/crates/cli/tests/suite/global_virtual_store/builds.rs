@@ -800,32 +800,46 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     drop((root, mock_instance));
 }
 
-/// A slot's hash does not record the workspace root's bins, so a build
-/// that another project reuses must not depend on them. Only the pinned
-/// runtime's `node` reaches the script, which the engine part of the hash
-/// does record.
+/// A dependency's build script in a shared slot sees the workspace root's
+/// bins and the privately hoisted bins, as it does with a local virtual store.
+/// This is by design, although the slot hash records neither: `NODE_PATH`
+/// already exposes the root and hoisted `node_modules` to the same scripts,
+/// and builds that run a tool they do not declare would fail without them.
 #[test]
-fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
+fn gvs_dependency_build_scripts_see_the_workspace_root_and_hoisted_bins() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    fs::create_dir_all(workspace.join("tool")).expect("mkdir tool");
+    for (name, bin, marker) in [
+        ("tool", "gvs-root-tool", "root-tool-ran"),
+        ("hoisted-tool", "gvs-hoisted-tool", "hoisted-tool-ran"),
+    ] {
+        fs::create_dir_all(workspace.join(name)).expect("mkdir tool");
+        fs::write(
+            workspace.join(name).join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0", "bin": { bin: "cli.js" } })
+                .to_string(),
+        )
+        .expect("write tool package.json");
+        fs::write(
+            workspace.join(name).join("cli.js"),
+            format!("#!/usr/bin/env node\nrequire('fs').writeFileSync('{marker}', '')\n"),
+        )
+        .expect("write tool cli.js");
+    }
+
+    fs::create_dir_all(workspace.join("wrapper")).expect("mkdir wrapper");
     fs::write(
-        workspace.join("tool/package.json"),
+        workspace.join("wrapper/package.json"),
         serde_json::json!({
-            "name": "tool",
+            "name": "wrapper",
             "version": "1.0.0",
-            "bin": { "gvs-root-tool": "cli.js" },
+            "dependencies": { "hoisted-tool": "file:../hoisted-tool" },
         })
         .to_string(),
     )
-    .expect("write tool/package.json");
-    fs::write(
-        workspace.join("tool/cli.js"),
-        "#!/usr/bin/env node\nrequire('fs').writeFileSync('root-tool-ran', '')\n",
-    )
-    .expect("write tool/cli.js");
+    .expect("write wrapper/package.json");
 
     fs::create_dir_all(workspace.join("dep")).expect("mkdir dep");
     fs::write(
@@ -833,15 +847,16 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
         serde_json::json!({
             "name": "dep",
             "version": "1.0.0",
-            "scripts": {
-                "postinstall": r#"gvs-root-tool || node -e "require('fs').writeFileSync('root-tool-missing', '')""#,
-            },
+            "scripts": { "postinstall": "gvs-root-tool && gvs-hoisted-tool" },
         })
         .to_string(),
     )
     .expect("write dep/package.json");
 
-    write_manifest(&workspace, &serde_json::json!({ "tool": "file:tool", "dep": "file:dep" }));
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "tool": "file:tool", "wrapper": "file:wrapper", "dep": "file:dep" }),
+    );
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("dep@file:dep", true)]));
 
     pacquet(&workspace)
@@ -851,11 +866,8 @@ fn gvs_dependency_build_scripts_do_not_see_the_workspace_root_bins() {
 
     let slot = sole_hash_dir(&pkg_version_dir(&store_dir, "@/dep", "directory"));
     let dep_dir = pkg_in_slot(&slot, "dep");
-    assert!(dep_dir.join("root-tool-missing").exists(), "the postinstall script did not run");
-    assert!(
-        !dep_dir.join("root-tool-ran").exists(),
-        "the postinstall script ran a bin from the workspace root's node_modules/.bin",
-    );
+    assert!(dep_dir.join("root-tool-ran").exists(), "the workspace root's bin did not run");
+    assert!(dep_dir.join("hoisted-tool-ran").exists(), "the hoisted bin did not run");
 
     drop((root, mock_instance));
 }

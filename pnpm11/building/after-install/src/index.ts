@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { linkBins, nodeRuntimeBinDir } from '@pnpm/bins.linker'
+import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import {
@@ -402,13 +402,6 @@ async function _rebuild (
       ? path.join(gvsDirByDepPath.get(depPath)!, 'node_modules')
       : path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
 
-  // As in `buildModules` of `@pnpm/building.during-install`: a global virtual
-  // store slot's build scripts get only the root project's runtime `node`,
-  // because the slot hash records nothing else from the workspace root.
-  const gvsScriptBinPaths = nodeVersion == null
-    ? []
-    : [nodeRuntimeBinDir(safeJoinModulesDir(pkgModulesDir(`node@runtime:${nodeVersion}` as DepPath), 'node'))]
-
   const runBuild = async (depPath: DepPath): Promise<void> => {
     const pkgSnapshot = pkgSnapshots[depPath]
     const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -452,10 +445,8 @@ async function _rebuild (
         const modules = pkgModulesDir(depPath)
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
-        extraBinPaths = gvsDir == null ? ctx.extraBinPaths : gvsScriptBinPaths
+        extraBinPaths = ctx.extraBinPaths
       } else {
-        // A hoisted package builds in the project's own node_modules, not in a
-        // shared slot.
         extraBinPaths = [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
       }
       const resolution = (pkgSnapshot.resolution as TarballResolution)

@@ -29,7 +29,7 @@ pub(crate) struct BuildOneSnapshot<'a> {
     pub graph: crate::BuildSnapshotInputs<'a>,
     pub progress: crate::BuildProgress<'a>,
     pub scripts: crate::BuildScriptOptions<'a>,
-    pub(crate) runtime_node_bin_dir: Option<&'a Path>,
+    pub(crate) project_bin_dirs: &'a [PathBuf],
     pub(crate) allow_build_policy: &'a AllowBuildPolicy,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
 }
@@ -143,7 +143,7 @@ fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> V
     } else {
         Vec::new()
     };
-    extra_bin_paths.extend(context.runtime_node_bin_dir.map(Path::to_path_buf));
+    extra_bin_paths.extend_from_slice(context.project_bin_dirs);
     extra_bin_paths
 }
 
@@ -409,7 +409,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: context.scripts.prepend_node_path,
+            prepend_node_path: context.scripts.path.prepend_node_path,
             shell: context.scripts.shell,
             shell_emulator: context.scripts.shell_emulator,
             wd_bin_dir: None,
