@@ -96,7 +96,7 @@ HKEY_CURRENT_USER\\Environment
 })
 
 test('successful first time installation', async () => {
-  const currentPathInRegistry = 'C:\\Users\\Jozef Steinhübl\\bin;%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;'
+  const currentPathInRegistry = 'C:\\Users\\user\\café;%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;'
 
   execaMock.mockResolvedValueOnce({
     failed: false,

@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm setup` no longer garbles non-ASCII characters in existing Windows `Path` entries, such as a user folder named `Jozef Steinhübl` [#6346](https://github.com/pnpm/pnpm/issues/6346).
+`pnpm setup` no longer garbles non-ASCII characters in existing Windows `Path` entries [#6346](https://github.com/pnpm/pnpm/issues/6346).
