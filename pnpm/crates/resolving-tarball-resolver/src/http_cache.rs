@@ -127,20 +127,24 @@ impl CacheControl {
                 "no-store" => parsed.no_store = true,
                 "no-cache" => parsed.no_cache = true,
                 "immutable" => parsed.immutable = true,
-                "max-age" => {
-                    let seconds = value.and_then(parse_delta_seconds);
-                    max_age = Some(match max_age {
-                        None => seconds,
-                        Some(previous) => previous
-                            .zip(seconds)
-                            .map(|(a, b)| a.min(b)),
-                    });
-                }
+                "max-age" => max_age = Some(shortest_max_age(max_age, value)),
                 _ => {}
             }
         }
         parsed.max_age = max_age.flatten();
         parsed
+    }
+}
+
+/// Fold one more `max-age` into the ones seen so far. `None` is an
+/// invalid value, which wins so the response is revalidated.
+fn shortest_max_age(seen: Option<Option<u64>>, value: Option<&str>) -> Option<u64> {
+    let seconds = value.and_then(parse_delta_seconds);
+    match seen {
+        None => seconds,
+        Some(previous) => previous
+            .zip(seconds)
+            .map(|(a, b)| a.min(b)),
     }
 }
 
