@@ -388,7 +388,7 @@ test('setup ignores legacy shim cleanup failures', async () => {
 })
 
 // The aliases setup writes are `sh` scripts, so this runs where `sh` does. On
-// Windows the .cmd and .ps1 wrappers take over, and they have only PATH to go on.
+// Windows the .cmd wrappers take over.
 const posixTest = process.platform === 'win32' ? test.skip : test
 
 posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH', async () => {
@@ -441,75 +441,81 @@ function writeStub (file: string, label: string): void {
   actualFs.chmodSync(file, 0o755)
 }
 
-// The Windows counterparts of the test above. The stand-in siblings are named for
-// the pnpm.cmd / pnpm.ps1 shims `pnpm add -g` links next to the aliases.
+// The Windows counterpart of the test above. The stand-in sibling is named for the
+// pnpm.cmd shim `pnpm add -g` links next to the aliases.
 const winTest = process.platform === 'win32' ? test : test.skip
-// What the stand-in shims exit with, so the wrappers are shown to hand the shim's
+// What the stand-in shim exits with, so the wrappers are shown to hand the shim's
 // status back rather than reporting their own success.
 const SHIM_EXIT_CODE = 3
-// cmd.exe needs System32 for its own startup. powershell.exe lives a few levels
-// deeper, and it has to be on the PATH handed to the child because that is what
-// Node resolves the command name against. The decoy stays first either way, which
-// is what these tests turn on.
+// cmd.exe needs System32 for its own startup. It follows the decoy on the PATH
+// handed to the child, and the decoy coming first is what this test turns on.
 const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
-const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
 
-const WINDOWS_WRAPPERS = [
-  {
-    extension: 'cmd',
-    command: 'cmd',
-    argv: (script: string) => ['/c', script, 'add', 'foo'],
-  },
-  {
-    extension: 'ps1',
-    command: 'powershell',
-    // -ExecutionPolicy Bypass because a runner's default policy blocks running a
-    // script from disk, which is not what this is testing.
-    argv: (script: string) => ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, 'add', 'foo'],
-  },
-]
+winTest('the .cmd wrappers call the pnpm shim beside them, not one earlier on PATH', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const execPath = path.join(tmpDir, 'pnpm.exe')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
 
-for (const wrapper of WINDOWS_WRAPPERS) {
-  winTest(`the .${wrapper.extension} wrappers call the pnpm shim beside them, not one earlier on PATH`, async () => {
-    jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
-      oldSettings: 'PNPM_HOME=dir',
-      newSettings: 'PNPM_HOME=dir',
-    }))
-    jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
-    const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
-    const pnpmHomeDir = path.join(tmpDir, 'home')
-    const execPath = path.join(tmpDir, 'pnpm.exe')
-    const originalExecPath = process.execPath
-    Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
-    try {
-      await setup.handler({ pnpmHomeDir })
+    const binDir = path.join(pnpmHomeDir, 'bin')
+    writeShimStub(path.join(binDir, 'pnpm.cmd'), 'sibling')
+    // Earlier on PATH, so it wins any lookup by name.
+    const decoyDir = path.join(tmpDir, 'decoy')
+    writeShimStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy')
 
-      // pnpm.cmd is the only sibling shim guaranteed to be there: the bin linker
-      // omits pnpm.ps1 for a package named `pnpm`, so neither wrapper may rely on
-      // it. None is planted, so a wrapper reaching for one would fail here.
-      const binDir = path.join(pnpmHomeDir, 'bin')
-      writeShimStub(path.join(binDir, 'pnpm.cmd'), 'sibling')
-      // Earlier on PATH, so it wins any lookup by name.
-      const decoyDir = path.join(tmpDir, 'decoy')
-      writeShimStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy')
-
-      for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
-        const script = path.join(binDir, `${name}.${wrapper.extension}`)
-        const result = actualChildProcess.spawnSync(wrapper.command, wrapper.argv(script), {
-          encoding: 'utf8',
-          env: { ...process.env, PATH: `${decoyDir};${SYSTEM32};${POWERSHELL_DIR}` },
-        })
-        // Otherwise a failure to spawn surfaces as `stdout` being undefined.
-        if (result.error != null) throw result.error
-        expect({ name, stdout: result.stdout.trimEnd(), status: result.status })
-          .toEqual({ name, stdout: `sibling: ${injected}add foo`, status: SHIM_EXIT_CODE })
-      }
-    } finally {
-      Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
-      actualFs.rmSync(tmpDir, { recursive: true, force: true })
+    for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      const result = actualChildProcess.spawnSync('cmd', ['/c', path.join(binDir, `${name}.cmd`), 'add', 'foo'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${decoyDir};${SYSTEM32}` },
+      })
+      // Otherwise a failure to spawn surfaces as `stdout` being undefined.
+      if (result.error != null) throw result.error
+      expect({ name, stdout: result.stdout.trimEnd(), status: result.status })
+        .toEqual({ name, stdout: `sibling: ${injected}add foo`, status: SHIM_EXIT_CODE })
     }
-  })
-}
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+// PowerShell prefers pn.ps1 over pn.cmd, so an unsigned leftover from an earlier
+// setup would keep failing under the default execution policy.
+winTest('setup removes the .ps1 alias wrappers an earlier setup left', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const binDir = path.join(pnpmHomeDir, 'bin')
+  actualFs.mkdirSync(binDir, { recursive: true })
+  for (const name of ['pn', 'pnpx', 'pnx']) {
+    actualFs.writeFileSync(path.join(binDir, `${name}.ps1`), 'stale wrapper\n')
+  }
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: path.join(tmpDir, 'pnpm.exe'), configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    for (const name of ['pn', 'pnpx', 'pnx']) {
+      expect({ name, ps1: actualFs.existsSync(path.join(binDir, `${name}.ps1`)) }).toEqual({ name, ps1: false })
+      expect({ name, cmd: actualFs.existsSync(path.join(binDir, `${name}.cmd`)) }).toEqual({ name, cmd: true })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
 
 /** A stand-in for pnpm's generated `.cmd` shim at `file`, echoing `label` and its arguments. */
 function writeShimStub (file: string, label: string): void {
