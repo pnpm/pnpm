@@ -7,6 +7,12 @@ alias r := ready
 alias c := codecov
 alias t := test
 
+# Every recipe below shells out to cargo, and cargo and nextest both default
+# to the core count. See pnpm/scripts/cargo-jobs.mjs for what this caps them
+# to instead, and why.
+export CARGO_BUILD_JOBS := `node pnpm/scripts/cargo-jobs.mjs`
+export NEXTEST_TEST_THREADS := env("NEXTEST_TEST_THREADS", CARGO_BUILD_JOBS)
+
 # Initialize the project by installing all the necessary tools.
 # Make sure you have cargo-binstall installed.
 # You can download the pre-compiled binary from <https://github.com/cargo-bins/cargo-binstall#installation>
@@ -37,6 +43,10 @@ update:
 # so the root install populates its node_modules.
 install:
   pnpm install --frozen-lockfile --prefer-offline
+
+# Build the release `pnpm` binary.
+build-pnpm *args:
+  cargo build --release --bin pnpm {{args}}
 
 # Run `cargo watch`
 # --no-vcs-ignores: cargo-watch has a bug loading all .gitignores, including the ones listed in .gitignore
