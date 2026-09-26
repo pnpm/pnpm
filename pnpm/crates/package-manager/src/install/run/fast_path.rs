@@ -13,6 +13,9 @@ pub(super) struct UpToDateCheck<'a> {
     pub(super) mutation: crate::ProjectMutation,
     pub(super) update_seed_policy: &'a UpdateSeedPolicy,
     pub(super) frozen_lockfile: bool,
+    /// `--lockfile-only` or `--dry-run`: nothing is linked, so the project is
+    /// not registered in the store.
+    pub(super) resolve_only: bool,
     pub(super) disable_optimistic_repeat_install: bool,
     pub(super) effective_node_version: Option<&'a str>,
     pub(super) prefix: &'a str,
@@ -43,7 +46,9 @@ pub(super) struct UpToDateCheck<'a> {
 pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
-    register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
+    if !check.resolve_only {
+        register_workspace_in_store(check.workspace.config, check.workspace.workspace_root);
+    }
     let eligible = check.mutation.is_full_install()
         && matches!(check.update_seed_policy, UpdateSeedPolicy::KeepAll)
         && !check.frozen_lockfile

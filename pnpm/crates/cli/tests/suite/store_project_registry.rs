@@ -99,3 +99,22 @@ fn assert_repeat_install_registers_the_project(args: &[&str]) {
         .collect();
     assert_eq!(projects, [canonicalize(&workspace)], "{args:?}");
 }
+
+#[test]
+fn resolve_only_install_does_not_register_the_project() {
+    for args in [&["install", "--lockfile-only"][..], &["install", "--dry-run"]] {
+        let CommandTempCwd {
+            root: _root, workspace, npmrc_info, ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        fs::write(workspace.join("package.json"), r#"{"dependencies":{"is-positive":"1.0.0"}}"#)
+            .expect("write package.json");
+
+        pacquet_at(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+
+        let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+        assert!(!store_dir.projects().exists(), "{args:?}");
+    }
+}
