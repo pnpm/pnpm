@@ -1,8 +1,8 @@
 use super::{
-    Catalogs, Context, DependencyGroup, Diagnostic, Display, Error, InstallFamilySelection,
-    LocalLockfileInstall, Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient,
-    PnprClientError, PnprLink, PnprRequestInputs, Reporter, ResolveProject, ResolveProjectsOptions,
-    State, TarballPrefetcher, WantedLockfileSatisfactionCheck, full_workspace_importer_ids,
+    Catalogs, Context, Diagnostic, Display, Error, InstallFamilySelection, LocalLockfileInstall,
+    Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError,
+    PnprLink, PnprRequestInputs, Reporter, ResolveProject, ResolveProjectsOptions, State,
+    TarballPrefetcher, WantedLockfileSatisfactionCheck, full_workspace_importer_ids,
     install_from_local_lockfile, link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
     pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
     resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
@@ -47,41 +47,6 @@ pub(super) struct DryRunIncompatibleWithPnpr;
 )]
 #[diagnostic(code(ERR_PNPM_AUTO_DEDUPE_WITH_PNPR_SERVER))]
 struct AutoDedupeWithPnpr;
-
-pub(super) fn resolve_project(
-    dir: String,
-    manifest: &pnpm_package_manifest::PackageManifest,
-) -> ResolveProject {
-    ResolveProject {
-        dir,
-        name: manifest
-            .value()
-            .get("name")
-            .and_then(|value| value.as_str())
-            .map(str::to_string),
-        version: manifest
-            .value()
-            .get("version")
-            .and_then(|value| value.as_str())
-            .map(str::to_string),
-        dependencies: manifest
-            .dependencies([DependencyGroup::Prod])
-            .map(|(name, spec)| (name.to_string(), spec.to_string()))
-            .collect(),
-        dev_dependencies: manifest
-            .dependencies([DependencyGroup::Dev])
-            .map(|(name, spec)| (name.to_string(), spec.to_string()))
-            .collect(),
-        optional_dependencies: manifest
-            .dependencies([DependencyGroup::Optional])
-            .map(|(name, spec)| (name.to_string(), spec.to_string()))
-            .collect(),
-        peer_dependencies: manifest
-            .dependencies([DependencyGroup::Peer])
-            .map(|(name, spec)| (name.to_string(), spec.to_string()))
-            .collect(),
-    }
-}
 
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.

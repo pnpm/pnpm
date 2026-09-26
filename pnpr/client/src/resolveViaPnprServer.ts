@@ -17,6 +17,7 @@ export interface PnprProject {
   dir: string
   name?: string
   version?: string
+  publishConfig?: { directory: string, linkDirectory?: boolean }
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
@@ -30,6 +31,8 @@ export interface ResolveViaPnprServerOptions {
   name?: string
   /** Project version to resolve (single project) */
   version?: string
+  /** Workspace link target (single project) */
+  publishConfig?: PnprProject['publishConfig']
   /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
@@ -165,6 +168,7 @@ export async function resolveViaPnprServer (
     dir: '.',
     name: opts.name,
     version: opts.version,
+    publishConfig: opts.publishConfig,
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
@@ -218,6 +222,7 @@ export async function resolveViaPnprServer (
   }
 
   assertTransformMetadata(terminal.lockfile, opts)
+  assertPublishDirectories(terminal.lockfile, projects)
 
   return {
     // The server speaks the on-disk lockfile format; convert it to the
@@ -248,6 +253,24 @@ function equalStringRecords (
 ): boolean {
   if (actual == null || Object.keys(actual).length !== Object.keys(expected).length) return false
   return Object.entries(expected).every(([key, value]) => actual[key] === value)
+}
+
+/**
+ * Every project that publishes from a subdirectory must come back with that
+ * directory on its importer: the server rebuilds each project's manifest from
+ * the request, so a server that ignored `publishConfig` would have the caller
+ * link the project root and install different code than a local install does.
+ * Only an importer the server did return is checked — a request may be merged
+ * into a lockfile that leaves other importers alone.
+ */
+function assertPublishDirectories (lockfile: LockfileFile, projects: PnprProject[]): void {
+  for (const project of projects) {
+    const expected = project.publishConfig?.directory
+    if (expected == null) continue
+    const importer = lockfile.importers?.[project.dir]
+    if (importer == null || importer.publishDirectory === expected) continue
+    throw new PnpmError('PNPR_PUBLISH_DIRECTORY_MISMATCH', `pnpr server /-/pnpr/v0/resolve returned importer "${project.dir}" linked at ${JSON.stringify(importer.publishDirectory)} instead of its publishConfig.directory "${expected}"; the server may not forward project publishConfig`)
+  }
 }
 
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>
