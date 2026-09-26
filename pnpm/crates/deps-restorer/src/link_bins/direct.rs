@@ -22,13 +22,14 @@ use std::{
 /// that directory on `NODE_PATH` lets a project script resolve undeclared
 /// dependencies when it runs through `node_modules/.bin`.
 #[must_use]
-pub fn shim_link_options(config: &Config, _node_linker: NodeLinker) -> LinkBinsOptions {
+pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOptions {
     LinkBinsOptions {
         extra_node_paths: Vec::new(),
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
         relocatable_root: config.modules_dir_anchor().map(Path::to_path_buf),
         project_modules_dir_name: (config.extend_node_path
-            && config.modules_dir_name() != "node_modules")
+            && (config.modules_dir_name() != "node_modules"
+                || node_linker == NodeLinker::Isolated))
             .then(|| config.modules_dir_name().to_owned()),
         installed_modules_dir: (config.modules_dir_name() != "node_modules").then(|| {
             config.modules_dir.clone()

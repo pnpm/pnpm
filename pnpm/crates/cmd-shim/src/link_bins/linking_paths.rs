@@ -154,8 +154,7 @@ fn should_include_package_node_paths(
     project_node_path: Option<&str>,
     extra_node_paths: &[String],
 ) -> bool {
-    !extra_node_paths.is_empty()
-        || project_node_path.is_some_and(|path| !Path::new(path).ends_with("node_modules"))
+    !extra_node_paths.is_empty() || project_node_path.is_some()
 }
 
 fn package_node_paths(pkg: &PackageBinSource) -> Vec<String> {

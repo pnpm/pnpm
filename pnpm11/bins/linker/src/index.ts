@@ -466,11 +466,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions 
       const binNodePaths = await getBinNodePaths(cmd.path, opts.projectModulesDir)
       nodePath = Array.from(new Set([
         ...(opts.projectModulesDir ? [opts.projectModulesDir] : []),
-        ...(opts.extraNodePaths?.length || opts.projectModulesDir && path.basename(opts.projectModulesDir) !== 'node_modules'
-          ? binNodePaths
-          : opts.projectModulesDir
-            ? binNodePaths.slice(0, 1)
-            : []),
+        ...binNodePaths,
         ...opts.extraNodePaths ?? [],
       ]))
     }
