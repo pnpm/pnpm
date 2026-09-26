@@ -276,7 +276,6 @@ impl ConfigOverrides {
             "merge-git-branch-lockfiles" => {
                 self.merge_git_branch_lockfiles = parse_bool(value);
             }
-            "metadata-cache" => self.metadata_cache = parse_bool(value),
             "offline" => self.offline = parse_bool(value),
             "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),
@@ -350,6 +349,7 @@ impl ConfigOverrides {
             "maxsockets" => {
                 self.maxsockets = value.parse().ok();
             }
+            "metadata-cache" => self.metadata_cache = parse_bool(value),
             "max-sockets" => {
                 self.max_sockets = value.parse().ok();
             }
