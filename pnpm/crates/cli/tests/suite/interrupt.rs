@@ -236,6 +236,34 @@ fn a_nested_run_keeps_the_scripts_exit_status_after_ctrl_c() {
     drop(root);
 }
 
+/// dash dies from a terminal `SIGINT` that the foreground command handled;
+/// bash carries on with the rest of the script. Every shell now does what
+/// bash does.
+#[test]
+fn ctrl_c_handled_by_a_command_lets_the_rest_of_the_script_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_project_running(&workspace, "test", "node dev.js && echo > after.txt", GRACEFUL_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "run",
+        "dev",
+    ]));
+    wait_for_file(&workspace.join("started.txt"), &mut process);
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert!(
+        workspace.join("after.txt").exists(),
+        "the command after the interrupted one must run\n{output}",
+    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too\n{output}");
+
+    drop(root);
+}
+
 /// The same shell, when the script never handles `SIGINT`, still ends
 /// pnpm with that signal. The child's status is a real interrupt, and
 /// pnpm reports it.

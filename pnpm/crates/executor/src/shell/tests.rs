@@ -121,13 +121,44 @@ fn cmd_exe_script_shell_uses_d_s_c_and_verbatim_args_on_windows() {
     }
 }
 
-#[test]
-fn a_bourne_shell_returns_the_interrupted_child_status() {
+/// Run `command` the way pnpm runs a script, with `sh` as the shell.
+#[cfg(unix)]
+fn run_in_sh(command: &str) -> std::process::Output {
     let shell = select_shell(None, false).expect("select_shell");
-    let body = script_body(&shell, "node dev.js");
-    assert!(body.starts_with("trap "), "the shell would otherwise die from SIGINT after the child");
-    assert!(body.ends_with("node dev.js"));
-    assert!(body.contains("-eq 130"), "only a command killed by SIGINT is re-raised");
+    std::process::Command::new(&shell.program)
+        .args(&shell.args)
+        .arg(script_body(&shell, command).as_ref())
+        .output()
+        .expect("run sh")
+}
+
+/// A shell's own `kill` stands in for a terminal interrupt that the
+/// foreground command handled: the trap then sees that command's status,
+/// not 130.
+#[cfg(unix)]
+#[test]
+fn a_handled_interrupt_lets_the_rest_of_the_script_run() {
+    let output = run_in_sh("kill -s INT $$; echo after; exit 3");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "after\n");
+    assert_eq!(output.status.code(), Some(3));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_command_killed_by_the_interrupt_ends_the_script_with_sigint() {
+    use std::os::unix::process::ExitStatusExt;
+    let output = run_in_sh("sh -c 'kill -s INT $PPID; kill -s INT $$'; echo after");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
+    assert_eq!(output.status.signal(), Some(libc::SIGINT));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_second_interrupt_ends_the_script_with_sigint() {
+    use std::os::unix::process::ExitStatusExt;
+    let output = run_in_sh("kill -s INT $$; kill -s INT $$; echo after");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
+    assert_eq!(output.status.signal(), Some(libc::SIGINT));
 }
 
 #[test]

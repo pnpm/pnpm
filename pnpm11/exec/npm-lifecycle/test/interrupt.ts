@@ -11,7 +11,7 @@ const terminalScript = path.join(import.meta.dirname, '../../../__utils__/script
 const shutdownTimeout = 10_000
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
 
-const markers = ['started.txt', 'shut-down.txt', 'forced.txt'].map((name) => path.join(fixture, name))
+const markers = ['started.txt', 'shut-down.txt', 'forced.txt', 'after.txt'].map((name) => path.join(fixture, name))
 
 afterEach(() => {
   for (const marker of markers) {
@@ -35,6 +35,22 @@ skipOnWindows('Ctrl+C leaves a script behind a shell with the script\'s own exit
   expect(fs.existsSync(markers[1])).toBe(true)
   expect(stdout).not.toContain('lifecycle failed')
   expect(stdout).not.toContain('ELIFECYCLE')
+  expect(status).toBe(0)
+})
+
+// dash dies from a terminal SIGINT that the foreground command handled; bash
+// carries on with the rest of the script. Every shell now does what bash does.
+skipOnWindows('Ctrl+C handled by a command lets the rest of the script run', () => {
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    runScript,
+    'dev-then-more',
+  ], { encoding: 'utf8', timeout: shutdownTimeout })
+  expect(error).toBeUndefined()
+  expect(fs.existsSync(markers[1])).toBe(true)
+  expect(fs.existsSync(markers[3])).toBe(true)
+  expect(stdout).not.toContain('lifecycle failed')
   expect(status).toBe(0)
 })
 

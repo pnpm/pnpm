@@ -109,12 +109,14 @@ pub fn select_shell(
 /// The text `shell` executes for `command`.
 ///
 /// A Bourne shell that stays the script's parent holds a terminal `SIGINT`
-/// until the foreground command exits, then dies from that signal even
-/// when the command already exited with a status. pnpm would report that
-/// as a lifecycle failure and lose the command's status
-/// (<https://github.com/pnpm/pnpm/issues/9945>). The trap returns the
-/// command's status, and re-raises `SIGINT` only when the command itself
-/// died from it (status 130).
+/// until the foreground command exits. dash and zsh then die from that
+/// signal even when the command handled it and exited with a status, so
+/// pnpm reported a lifecycle failure and lost the command's status
+/// (<https://github.com/pnpm/pnpm/issues/9945>). The trap makes every such
+/// shell do what bash does: re-raise `SIGINT` when the command died from it
+/// (status 130), and otherwise carry on with the rest of the script. A
+/// second interrupt always re-raises, so `Ctrl+C` can still stop a loop of
+/// builtins.
 pub(crate) fn script_body<'a>(shell: &SelectedShell, command: &'a str) -> Cow<'a, str> {
     if !returns_interrupted_child_status(shell) {
         return Cow::Borrowed(command);
@@ -122,10 +124,10 @@ pub(crate) fn script_body<'a>(shell: &SelectedShell, command: &'a str) -> Cow<'a
     Cow::Owned(format!("{INTERRUPT_STATUS_TRAP}{command}"))
 }
 
-/// `sh -c` prefix. Status 130 is the shell's report of a command killed by
-/// `SIGINT`; anything else is the command's own exit code.
+/// `sh -c` prefix. `$?` must be read first: it is the interrupted command's
+/// status only until the trap runs a command of its own.
 const INTERRUPT_STATUS_TRAP: &str = "\
-trap 'st=$?; if [ \"$st\" -eq 130 ]; then trap - INT; kill -s INT $$; else exit \"$st\"; fi' INT; ";
+trap 'if [ \"$?\" -eq 130 ] || [ -n \"${pnpm_sigint-}\" ]; then trap - INT; kill -s INT $$; fi; pnpm_sigint=1' INT; ";
 
 fn returns_interrupted_child_status(shell: &SelectedShell) -> bool {
     if shell.windows_verbatim_args {
@@ -139,7 +141,7 @@ fn returns_interrupted_child_status(shell: &SelectedShell) -> bool {
     }
     matches!(
         shell_program_name(&shell.program).as_str(),
-        "sh" | "dash" | "bash" | "ash" | "zsh" | "ksh" | "mksh"
+        "sh" | "dash" | "bash" | "ash" | "zsh" | "ksh" | "mksh",
     )
 }
 

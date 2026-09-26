@@ -12,9 +12,15 @@ use std::{
     },
     process::{Child, Command, Stdio},
     ptr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc},
     thread,
+    time::Duration,
 };
+
+/// How long the output may keep arriving after the command exits. A
+/// descendant that outlives the command can hold the terminal open for
+/// ever, and the test should fail on its assertions rather than hang.
+const OUTPUT_DEADLINE: Duration = Duration::from_secs(10);
 
 /// A pseudo-terminal the test types into, with pacquet as its foreground
 /// job.
@@ -22,7 +28,7 @@ pub struct Terminal {
     master: OwnedFd,
     slave: Option<OwnedFd>,
     output: Arc<Mutex<Vec<u8>>>,
-    reader: Option<thread::JoinHandle<()>>,
+    reader_done: Option<mpsc::Receiver<()>>,
 }
 
 impl Terminal {
@@ -48,17 +54,18 @@ impl Terminal {
                 master: OwnedFd::from_raw_fd(master),
                 slave: Some(OwnedFd::from_raw_fd(slave)),
                 output: Arc::clone(&output),
-                reader: None,
+                reader_done: None,
             }
         };
-        let reader = terminal.drain(output);
-        Self { reader: Some(reader), ..terminal }
+        let reader_done = terminal.drain(output);
+        Self { reader_done: Some(reader_done), ..terminal }
     }
 
     /// Read whatever pacquet and the script write, so neither blocks on a
     /// full terminal buffer. The reader ends when the terminal closes.
-    fn drain(&self, output: Arc<Mutex<Vec<u8>>>) -> thread::JoinHandle<()> {
+    fn drain(&self, output: Arc<Mutex<Vec<u8>>>) -> mpsc::Receiver<()> {
         let mut master = File::from(self.master.try_clone().expect("clone the terminal"));
+        let (done, reader_done) = mpsc::channel();
         thread::spawn(move || {
             let mut sink = [0; 4096];
             loop {
@@ -71,15 +78,19 @@ impl Terminal {
                     Err(_) => break,
                 }
             }
-        })
+            let _ = done.send(());
+        });
+        reader_done
     }
 
     /// What the terminal showed, once the command has exited. Closing the
-    /// slave is what lets the reader see the end of the output.
+    /// slave is what lets the reader see the end of the output; a
+    /// descendant still holding it open cuts the output at
+    /// [`OUTPUT_DEADLINE`].
     pub fn captured_output(&mut self) -> String {
         self.slave.take();
-        if let Some(reader) = self.reader.take() {
-            reader.join().expect("the terminal reader finishes");
+        if let Some(reader_done) = self.reader_done.take() {
+            let _ = reader_done.recv_timeout(OUTPUT_DEADLINE);
         }
         let output = self.output.lock().expect("terminal output lock");
         String::from_utf8_lossy(&output).into_owned()

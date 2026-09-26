@@ -8,19 +8,22 @@ export interface SelectedShell {
  * The text `shell` executes for `command`.
  *
  * A Bourne shell that stays the script's parent holds a terminal SIGINT
- * until the foreground command exits, then dies from that signal even when
- * the command already exited with a status. pnpm would report that as a
- * lifecycle failure and lose the command's status
- * (https://github.com/pnpm/pnpm/issues/9945). The trap returns the command's
- * status, and re-raises SIGINT only when the command itself died from it
- * (status 130).
+ * until the foreground command exits. dash and zsh then die from that signal
+ * even when the command handled it and exited with a status, so pnpm
+ * reported a lifecycle failure and lost the command's status
+ * (https://github.com/pnpm/pnpm/issues/9945). The trap makes every such
+ * shell do what bash does: re-raise SIGINT when the command died from it
+ * (status 130), and otherwise carry on with the rest of the script. A second
+ * interrupt always re-raises, so Ctrl+C can still stop a loop of builtins.
  */
 export function scriptBody (shell: SelectedShell, command: string): string {
   if (!returnsInterruptedChildStatus(shell)) return command
   return `${INTERRUPT_STATUS_TRAP}${command}`
 }
 
-const INTERRUPT_STATUS_TRAP = "trap 'st=$?; if [ \"$st\" -eq 130 ]; then trap - INT; kill -s INT $$; else exit \"$st\"; fi' INT; "
+// `$?` must be read first: it is the interrupted command's status only until
+// the trap runs a command of its own.
+const INTERRUPT_STATUS_TRAP = "trap 'if [ \"$?\" -eq 130 ] || [ -n \"${pnpm_sigint-}\" ]; then trap - INT; kill -s INT $$; fi; pnpm_sigint=1' INT; "
 
 const BOURNE_SHELLS = new Set(['sh', 'dash', 'bash', 'ash', 'zsh', 'ksh', 'mksh'])
 
