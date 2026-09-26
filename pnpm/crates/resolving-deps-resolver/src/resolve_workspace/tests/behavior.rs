@@ -1,8 +1,8 @@
 use super::{
-    BTreeMap, DependencyGroup, HashMap, Mutex, OverlapRecordingResolver, RecordingResolver,
-    WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps, fake_manifest,
-    fake_result, graph_versions_of, importer_opts, resolve_single_importer, resolve_workspace,
-    workspace_opts,
+    BTreeMap, DependencyGroup, FileDepFailingResolver, HashMap, Mutex, OverlapRecordingResolver,
+    RecordingResolver, WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps,
+    fake_manifest, fake_result, graph_versions_of, importer_opts, resolve_single_importer,
+    resolve_workspace, workspace_opts,
 };
 
 #[tokio::test]
@@ -356,4 +356,75 @@ async fn warm_up_resolves_each_edge_once_across_a_diamond() {
     assert_eq!(resolver.calls_for("z", "^1.0.0"), 1);
     assert_eq!(resolver.calls_for("z", ">=1.0.0"), 1);
     assert_eq!(resolver.calls_for("w", "^1.0.0"), 1);
+}
+
+/// A `file:` specifier declared by a package pnpm resolved from a tarball or
+/// the registry names a path inside that package, which pnpm never unpacks to
+/// a directory. There is nothing to resolve it against, so the edge is dropped
+/// instead of failing the install. `@eslint/css@0.3.0` declared
+/// `"@types/css-tree": "file:./typings/css-tree"` that way, and
+/// `pnpm add -D @eslint/css@0.3.0` failed with
+/// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`.
+#[tokio::test]
+async fn a_file_dep_of_a_packed_package_is_dropped_instead_of_failing_the_install() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("parent".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "parent",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "parent",
+                "version": "1.0.0",
+                "dependencies": { "child": "file:./child" },
+            }),
+        ),
+    );
+    let resolver = FileDepFailingResolver { table };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let mut opts = workspace_opts(false, false);
+    let sink = std::sync::Arc::clone(&skipped);
+    opts.hooks.skipped_optional_log =
+        Some(std::sync::Arc::new(move |notification| sink.lock().unwrap().push(notification)));
+
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp.path().to_path_buf(), None)
+    })
+    .await
+    .expect("a file: dep of a packed package is dropped, not fatal");
+
+    let direct = &result.peers.direct_dependencies_by_importer["."];
+    assert!(direct.contains_key("parent"), "the direct dep resolves: {direct:?}");
+    let skipped = skipped.lock().unwrap();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].name.as_deref(), Some("child"));
+    assert_eq!(skipped[0].bare_specifier, "file:./child");
+}
+
+/// The other side of that rule: a `file:` path the project itself declares
+/// and that does not exist is the user's mistake, and still fails the install
+/// rather than being dropped.
+#[tokio::test]
+async fn a_file_dep_of_the_project_itself_still_fails_when_the_path_is_missing() {
+    let resolver = FileDepFailingResolver { table: HashMap::default() };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "typo": "file:./does-not-exist" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let err = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        workspace_opts(false, false),
+        |_| importer_opts(tmp.path().to_path_buf(), None),
+    )
+    .await
+    .err()
+    .expect("a missing file: path in the project is still an error");
+    assert!(
+        err.to_string().contains("does-not-exist"),
+        "the failure names the path the user got wrong: {err}",
+    );
 }

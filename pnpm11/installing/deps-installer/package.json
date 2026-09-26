@@ -160,6 +160,7 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
+    "@types/tar-stream": "catalog:",
     "@yarnpkg/core": "catalog:",
     "ci-info": "catalog:",
     "deep-require-cwd": "catalog:",
@@ -170,6 +171,7 @@
     "read-yaml-file": "catalog:",
     "resolve-link-target": "catalog:",
     "symlink-dir": "catalog:",
+    "tar-stream": "catalog:",
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"
   },

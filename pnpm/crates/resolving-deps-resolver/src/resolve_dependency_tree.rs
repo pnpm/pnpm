@@ -26,8 +26,8 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
-    GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency,
+    GitResolveError, LinkedPkgDirNotFoundError, NoMatchingVersionError, PreferredVersionsOverlay,
+    RegistryResponseError, ResolveOptions, Resolver, WantedDependency,
 };
 use serde_json::Value;
 use std::{
@@ -244,6 +244,14 @@ pub enum ResolveDependencyTreeError {
     /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
     #[diagnostic(transparent)]
     GitResolve(#[error(source)] GitResolveError),
+
+    /// A `file:` specifier resolved to a path that does not exist, raised
+    /// with the `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code. The tree walk
+    /// reads this variant to tell a specifier that names a path inside the
+    /// declaring package — which pnpm never unpacks to a directory — apart
+    /// from a path the user got wrong.
+    #[diagnostic(transparent)]
+    LinkedPkgDirNotFound(#[error(source)] LinkedPkgDirNotFoundError),
 
     /// The npm resolver's cache/fetch orchestration failed — most often
     /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
@@ -569,6 +577,7 @@ where
             reuse: root.reuse.clone(),
             pick_overlay: root.base_overlay.clone(),
             parent_dir: None,
+            parent_is_directory: true,
             parent_pkg_aliases: root.parent_pkg_aliases,
             parent_is_workspace: false,
         },

@@ -13,7 +13,8 @@
 use crate::{
     local_resolver::{
         LocalCurrentPkg, LocalResolverContext, LocalResolverOptions, LocalResolverUpdate,
-        resolve_from_local_path, resolve_from_local_scheme, resolve_latest_from_local,
+        ResolveLocalError, resolve_from_local_path, resolve_from_local_scheme,
+        resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
 };
@@ -59,7 +60,7 @@ impl Resolver for LocalSchemeResolver {
             let local_opts = local_options(opts);
             let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
                 .await
-                .map_err(|err| Box::new(err) as ResolveError)?
+                .map_err(into_resolve_error)?
             else {
                 return Ok(None);
             };
@@ -112,7 +113,7 @@ impl Resolver for LocalPathResolver {
             let local_opts = local_options(opts);
             let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
                 .await
-                .map_err(|err| Box::new(err) as ResolveError)?
+                .map_err(into_resolve_error)?
             else {
                 return Ok(None);
             };
@@ -178,14 +179,14 @@ impl LocalResolver {
 
         if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?
+            .map_err(into_resolve_error)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));
         }
 
         if let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?
+            .map_err(into_resolve_error)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));
         }
@@ -232,4 +233,19 @@ fn into_chain_result(
     let mut chain: ResolveResult = result.into();
     chain.alias.clone_from(&wanted_dependency.alias);
     chain
+}
+
+/// Box a local-resolver failure for the resolver chain.
+///
+/// The dependency tree walker recovers the code of a coded failure by
+/// downcasting the box, so
+/// [`pnpm_resolving_resolver_base::LinkedPkgDirNotFoundError`] has to be the
+/// outermost layer rather than a variant inside the enum — the walker cannot
+/// see through the enum. Every other variant keeps the enum, whose own
+/// diagnostic still carries its code to the CLI.
+fn into_resolve_error(err: ResolveLocalError) -> ResolveError {
+    match err {
+        ResolveLocalError::LinkedPkgDirNotFound(linked) => Box::new(linked),
+        other => Box::new(other),
+    }
 }

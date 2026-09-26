@@ -290,6 +290,12 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
    * peer-resolved there — not in the root context.
    */
   hoistedPeerProvider?: boolean
+  /**
+   * Whether this package's resolution is a directory pnpm can read. A package
+   * resolved from a tarball or the registry has none, so a relative `file:`
+   * specifier it declares has no base directory to resolve against.
+   */
+  isDirectoryResolution: boolean
 }
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
@@ -342,7 +348,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath' | 'isDirectoryResolution'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -769,6 +775,23 @@ async function readManifestOfLocalTarget (dir: string): Promise<PackageManifest 
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTDIR') return null
     throw err
   }
+}
+
+/**
+ * Whether the resolution failed because a `file:` specifier declared by a
+ * package that is not on disk names a path pnpm cannot reach. Such a package
+ * ships the target inside itself, as `@eslint/css@0.3.0` shipped
+ * `typings/css-tree` for its `"@types/css-tree": "file:./typings/css-tree"`
+ * dependency.
+ */
+function isUnresolvableFileDepOfPackedPkg (
+  err: { code?: string },
+  wantedDependency: WantedDependency,
+  parentPkg: ParentPkg
+): boolean {
+  return err.code === 'ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND' &&
+    wantedDependency.bareSpecifier.startsWith('file:') &&
+    !parentPkg.isDirectoryResolution
 }
 
 interface ResolvedDependenciesResult {
@@ -2339,6 +2362,21 @@ async function resolveDependency (
             'Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. ' +
             'If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile.'
         }
+      } else if (isUnresolvableFileDepOfPackedPkg(err, wantedDependency, options.parentPkg)) {
+        // A relative `file:` specifier in a package that came from a tarball or
+        // the registry points inside that package, which pnpm never unpacks to
+        // a directory. There is nothing to resolve it against, so skip it
+        // instead of failing the whole install.
+        if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency)) {
+          skippedOptionalDependencyLogger.debug({
+            details: err.toString(),
+            package: wantedDependencyDetails,
+            parents: getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById),
+            prefix: options.prefix,
+            reason: 'resolution_failure',
+          })
+          return null
+        }
       }
       err.package = wantedDependencyDetails
       err.prefix = options.prefix
@@ -2603,7 +2641,8 @@ async function resolveDependency (
       }
     }
 
-    const rootDir = pkgResponse.body.resolution.type === 'directory'
+    const isDirectoryResolution = pkgResponse.body.resolution.type === 'directory'
+    const rootDir = isDirectoryResolution
       ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
       : options.prefix
     const missingPeersOfChildren = childrenResolution.missingPeersOfChildren
@@ -2622,6 +2661,7 @@ async function resolveDependency (
       childrenResolutionId: childrenResolution.id,
       pkgId: pkgResponse.body.id,
       rootDir,
+      isDirectoryResolution,
       missingPeers: getMissingPeers(resolvedPkg.peerDependencies),
       optional: resolvedPkg.optional,
       version: resolvedPkg.version,
