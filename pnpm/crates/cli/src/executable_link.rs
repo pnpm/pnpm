@@ -11,6 +11,10 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
     if same_file::is_same_file(src, dest).unwrap_or(false) {
         return Ok(());
     }
+    // `fs::hard_link` links a symlink itself, not its target. A `src` reached
+    // through a relative symlink, such as Homebrew's `bin/pnpm`, would dangle
+    // at `dest`.
+    let src = &fs::canonicalize(src)?;
     let staged = staging_path(dest);
     let publish = || {
         // A hard link shares the source's inode, so it is only usable
@@ -78,3 +82,6 @@ fn swap_into_place(staged: &Path, dest: &Path) -> std::io::Result<()> {
     }
     fs::rename(staged, dest)
 }
+
+#[cfg(all(test, unix))]
+mod tests;
