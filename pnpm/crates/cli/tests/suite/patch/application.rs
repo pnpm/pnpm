@@ -12,11 +12,9 @@ use pnpm_testing_utils::fs::bump_mtime;
 /// The map records the hash bare, so replacing the parenthesized form reaches
 /// only the segments and leaves `patchedDependencies` alone.
 fn rewrite_patch_hash_segments(workspace: &Path, patch_hash: &str, replacement: &str) {
-    rewrite_lockfile_patch_hash_segments(
-        &workspace.join("pnpm-lock.yaml"),
-        patch_hash,
-        replacement,
-    );
+    let lockfile = workspace.join("pnpm-lock.yaml");
+    rewrite_lockfile_patch_hash_segments(&lockfile, patch_hash, replacement);
+    bump_mtime(&lockfile);
 }
 
 fn rewrite_lockfile_patch_hash_segments(lockfile_path: &Path, patch_hash: &str, replacement: &str) {
