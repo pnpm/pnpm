@@ -455,6 +455,16 @@ mod minimum_release_age_exclude_prune {
     }
 
     #[test]
+    fn rewrites_a_narrowed_version_union_as_exact_entries() {
+        let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0 || 3.0.0\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "3.0.0"])])));
+        assert_eq!(
+            out.as_deref(),
+            Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - foo@3.0.0\n"),
+        );
+    }
+
+    #[test]
     fn rewrites_a_narrowed_version_union_canonically() {
         let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n";
         let out = run_age_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));

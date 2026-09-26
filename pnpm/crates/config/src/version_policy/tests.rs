@@ -228,7 +228,7 @@ fn create_policy_version_union_handles_whitespace() {
 #[test]
 fn merge_combines_versions_of_the_same_package_sorted() {
     let merged = merge_package_version_specs(["foo@2.0.0", "foo@1.0.0"]).unwrap();
-    assert_eq!(merged, vec!["foo@1.0.0 || 2.0.0".to_string()]);
+    assert_eq!(merged, vec!["foo@1.0.0".to_string(), "foo@2.0.0".to_string()]);
 }
 
 #[test]
@@ -252,5 +252,54 @@ fn merge_bare_name_absorbs_version_specific_entries() {
 #[test]
 fn merge_handles_union_and_separate_entries_for_the_same_package() {
     let merged = merge_package_version_specs(["foo@1.0.0 || 2.0.0", "foo@1.5.0"]).unwrap();
-    assert_eq!(merged, vec!["foo@1.0.0 || 1.5.0 || 2.0.0".to_string()]);
+    assert_eq!(
+        merged,
+        vec!["foo@1.0.0".to_string(), "foo@1.5.0".to_string(), "foo@2.0.0".to_string()],
+    );
+}
+
+/// The shapes that aborted install (`name@v1 || v2`, including a prerelease)
+/// expand to exact versions. Matching compares those strings. It does not
+/// build a semver-range intersection from the union.
+#[test]
+fn exact_version_unions_match_as_exact_versions() {
+    let policy = create_package_version_policy([
+        "billion-context@0.1.138 || 0.1.147",
+        "dsh-better-sidebar@0.19.0-alpha.1 || 0.21.1",
+    ])
+    .unwrap();
+    assert_eq!(
+        policy.matches("billion-context"),
+        PolicyMatch::ExactVersions(vec!["0.1.138".to_string(), "0.1.147".to_string()]),
+    );
+    assert_eq!(
+        policy.matches("dsh-better-sidebar"),
+        PolicyMatch::ExactVersions(vec!["0.19.0-alpha.1".to_string(), "0.21.1".to_string()]),
+    );
+    assert_eq!(policy.matches("other"), PolicyMatch::No);
+}
+
+#[test]
+fn merge_writes_one_exact_entry_per_approved_version() {
+    let merged = merge_package_version_specs([
+        "billion-context@0.1.147",
+        "billion-context@0.1.138",
+        "dsh-better-sidebar@0.21.1",
+        "dsh-better-sidebar@0.19.0-alpha.1",
+    ])
+    .unwrap();
+    assert_eq!(
+        merged,
+        vec![
+            "billion-context@0.1.138".to_string(),
+            "billion-context@0.1.147".to_string(),
+            "dsh-better-sidebar@0.19.0-alpha.1".to_string(),
+            "dsh-better-sidebar@0.21.1".to_string(),
+        ],
+    );
+    assert!(
+        merged
+            .iter()
+            .all(|entry| !entry.contains("||"))
+    );
 }

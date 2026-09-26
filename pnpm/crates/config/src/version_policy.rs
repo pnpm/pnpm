@@ -16,7 +16,9 @@
 //! - Exact version → `foo@1.0.0`, `@scope/foo@1.0.0`.
 //! - Exact-version union → `foo@1.0.0 || 2.0.0`. Each version is
 //!   parsed strictly (like the `semver` npm package's `valid`);
-//!   whitespace around `||` and within versions is trimmed.
+//!   whitespace around `||` and within versions is trimmed. Reading a
+//!   union expands it to those exact versions. Writing approved
+//!   versions records one `name@version` entry per version.
 //! - Wildcards in the name **without** a version part —
 //!   [`expand_package_version_specs`] keeps them verbatim (the literal
 //!   lands in the set and is compared by equality), and
@@ -85,13 +87,14 @@ where
     Ok(out)
 }
 
-/// Merge a list of package-version-policy specs into one canonical entry per
-/// package, preserving first-seen package order. Specs for the same package
-/// are combined: a bare name/pattern absorbs any version-specific specs for
+/// Merge a list of package-version-policy specs into canonical entries,
+/// preserving first-seen package order. Specs for the same package are
+/// combined: a bare name/pattern absorbs any version-specific specs for
 /// that package (every version excluded); otherwise the exact versions are
-/// deduplicated, sorted by semver, and joined into a single `name@v1 || v2`
-/// entry. Keeps `minimumReleaseAgeExclude` canonical when `pnpm audit --fix`
-/// appends patched versions.
+/// deduplicated, sorted by semver, and emitted as one `name@version` entry
+/// each. Keeps `minimumReleaseAgeExclude` canonical when `pnpm audit --fix`
+/// appends patched versions. A `name@v1 || v2` union is read and expanded,
+/// then written back as those exact entries.
 pub fn merge_package_version_specs<Iter, Spec>(
     specs: Iter,
 ) -> Result<Vec<String>, VersionPolicyError>
@@ -108,7 +111,7 @@ where
     }
     Ok(by_package
         .into_iter()
-        .map(|(name, versions)| render_merged_spec(name, versions))
+        .flat_map(|(name, versions)| render_merged_specs(name, versions))
         .collect())
 }
 
@@ -137,15 +140,18 @@ fn absorb_spec(
     }
 }
 
-/// One package's canonical entry: the bare name, or `name@v1 || v2` with the
-/// versions in semver order.
-fn render_merged_spec(name: String, versions: Option<Vec<String>>) -> String {
-    let Some(mut versions) = versions else { return name };
+/// One package's canonical entries: the bare name, or one `name@version`
+/// per exact version, in semver order.
+fn render_merged_specs(name: String, versions: Option<Vec<String>>) -> Vec<String> {
+    let Some(mut versions) = versions else { return vec![name] };
     versions.sort_by(|left, right| match (Version::parse(left), Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
     });
-    format!("{name}@{}", versions.join(" || "))
+    versions
+        .into_iter()
+        .map(|version| format!("{name}@{version}"))
+        .collect()
 }
 
 /// Package name → the exact versions the freshly resolved lockfile
@@ -162,7 +168,7 @@ pub type ResolvedPackageVersions =
 /// records. Entry order is preserved.
 ///
 /// - `name@v1 || v2` keeps the resolved versions only; a narrowed entry
-///   is rewritten canonically (semver-sorted, ` || `-joined) via
+///   is rewritten as one `name@version` per kept version via
 ///   [`merge_package_version_specs`], an emptied one is dropped.
 /// - A bare `name` (no version part, no `*`) is dropped when the
 ///   lockfile no longer resolves the package at all.
@@ -175,20 +181,22 @@ pub fn drop_unresolved_package_version_specs(
 ) -> Vec<String> {
     specs
         .iter()
-        .filter_map(|spec| drop_unresolved_spec(spec, resolved))
+        .flat_map(|spec| drop_unresolved_spec(spec, resolved))
         .collect()
 }
 
-fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Option<String> {
+fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Vec<String> {
     let Ok(parsed) = parse_version_policy_rule(spec) else {
-        return Some(spec.to_string());
+        return vec![spec.to_string()];
     };
     if parsed.package_name.contains('*') {
-        return Some(spec.to_string());
+        return vec![spec.to_string()];
     }
-    let resolved_versions = resolved.get(parsed.package_name)?;
+    let Some(resolved_versions) = resolved.get(parsed.package_name) else {
+        return Vec::new();
+    };
     if parsed.exact_versions.is_empty() {
-        return Some(spec.to_string());
+        return vec![spec.to_string()];
     }
     let kept: Vec<&str> = parsed.exact_versions
         .iter()
@@ -196,16 +204,14 @@ fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Optio
         .filter(|version| resolved_versions.contains(*version))
         .collect();
     if kept.is_empty() {
-        return None;
+        return Vec::new();
     }
     if kept.len() == parsed.exact_versions.len() {
-        return Some(spec.to_string());
+        return vec![spec.to_string()];
     }
     let narrowed = format!("{}@{}", parsed.package_name, kept.join(" || "));
     merge_package_version_specs([&narrowed])
         .expect("the kept versions already parsed as exact semver")
-        .into_iter()
-        .next()
 }
 
 /// Decision a [`PackageVersionPolicy`] reaches for a given package name.

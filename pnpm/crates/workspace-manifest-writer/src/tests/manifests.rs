@@ -107,7 +107,7 @@ fn minimum_release_age_excludes_are_added_to_the_local_manifest_values() {
     )
     .expect("written");
 
-    assert_eq!(out, "minimumReleaseAgeExclude:\n  - local@1.0.0 || 2.0.0\n");
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - local@1.0.0\n  - local@2.0.0\n");
 }
 
 #[test]
