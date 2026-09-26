@@ -1,8 +1,5 @@
 pub(crate) use resolve::fallback_version;
 
-mod publish;
-use publish::link_publish_modules_dir;
-
 mod report;
 use report::emit_root_added;
 
@@ -110,14 +107,6 @@ pub enum SymlinkDirectDependenciesError {
         name: String,
         #[error(source)]
         source: SymlinkPackageError,
-    },
-
-    #[display("Failed to inspect modules directory {dir:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_MODULES_DIR))]
-    InspectModulesDir {
-        dir: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
     },
 }
 
@@ -562,10 +551,6 @@ fn link_one_importer<Reporter: self::Reporter>(
             .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
-    }
-
-    if symlink {
-        link_publish_modules_dir(importer_id, project_snapshot, project_dir, modules_dir)?;
     }
 
     Ok(())

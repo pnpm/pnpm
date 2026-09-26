@@ -304,10 +304,11 @@ pub(super) fn read_dep_bin_source(
             })
         })
 }
-/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
-/// `publishConfig.directory` that has no manifest of its own falls back
-/// to the manifest of the project that declares that directory, found
-/// through `target`.
+/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to an
+/// existing `publishConfig.directory` that has no manifest of its own
+/// falls back to the manifest of the project that declares that
+/// directory, found through `target`. A publish directory that does not
+/// exist yet has no bins to link; a build creates it later.
 fn read_dep_manifest(
     modules_dir: &Path,
     name: &str,
@@ -316,7 +317,7 @@ fn read_dep_manifest(
     let location = modules_dir.join(name);
     let manifest = match read_manifest_at(&location.join("package.json")) {
         Ok(Some(manifest)) => manifest,
-        Ok(None) => match find_parent_publish_manifest(target?)
+        Ok(None) => match find_parent_publish_manifest(target.filter(|target| target.is_dir())?)
             .map_err(LinkBinsError::ReadProjectManifest)
         {
             Ok(Some(manifest)) => manifest,

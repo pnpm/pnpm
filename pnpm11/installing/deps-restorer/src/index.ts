@@ -1057,26 +1057,19 @@ async function symlinkDirectDependencies (
     importerManifestsByImporterId[id] = manifest
   }
   const projectsToLink = Object.fromEntries(await Promise.all(
-    projects.map(async ({ rootDir, id, modulesDir }) => {
-      const importer = filteredLockfile.importers[id]
-      const publishDir = (importer?.publishDirectory != null && importer?.linkDirectory !== false)
-        ? importer.publishDirectory
-        : undefined
-      return [id, {
-        dir: rootDir,
-        modulesDir,
-        publishDir,
-        dependencies: await getRootPackagesToLink(filteredLockfile, {
-          importerId: id,
-          importerModulesDir: modulesDir,
-          lockfileDir,
-          projectDir: rootDir,
-          importerManifestsByImporterId,
-          registriesByScope,
-          rootDependencies: directDependenciesByImporterId[id],
-        }),
-      }]
-    })
+    projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
+      dir: rootDir,
+      modulesDir,
+      dependencies: await getRootPackagesToLink(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        importerManifestsByImporterId,
+        registriesByScope,
+        rootDependencies: directDependenciesByImporterId[id],
+      }),
+    }]))
   ))
   const rootProject = projectsToLink['.']
   if (rootProject && dedupe) {
