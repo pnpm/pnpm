@@ -287,6 +287,10 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
         stderr.contains("1 directory would be deleted"),
         "the notice must agree in number with the one directory found, got: {stderr}",
     );
+    assert!(
+        stderr.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, still read these"),
+        "the listing must warn that older versions still read it, got: {stderr}",
+    );
 }
 
 /// Restores a directory this test sealed, on the way out of the test whether it
@@ -483,6 +487,10 @@ fn should_report_a_zero_count_on_a_dry_run_of_a_clean_cache() {
     assert!(
         stderr.contains("0 directories would be deleted"),
         "a dry run must say so even when it finds nothing, got: {stderr}",
+    );
+    assert!(
+        !stderr.contains("still read these"),
+        "nothing listed, nothing to warn about, got: {stderr}",
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "", "nothing to list on stdout");
 }
