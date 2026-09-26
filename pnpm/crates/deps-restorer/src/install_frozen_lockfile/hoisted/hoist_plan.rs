@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use pnpm_fs::lexical_normalize;
+use pnpm_fs::is_subdir;
 
 use super::super::{
     BTreeMap, Config, HashMap, HashSet, PackageKey, PackageMetadata, Path, PathBuf, Prefix,
@@ -137,14 +137,17 @@ pub fn compute_hoist_plan(
         private_pattern,
         public_pattern,
         hoisted_workspace_packages,
-        hoist_root_dependencies: lexical_normalize(&config.modules_dir)
-            .parent()
-            .is_some_and(|project_dir| {
-                !lexical_normalize(&config.virtual_store_dir).starts_with(project_dir)
-            }),
+        hoist_root_dependencies: needs_private_root_hoisting(config),
     })?;
     Some(HoistPlan { graph, result, skipped: hoist_skipped })
 }
+
+fn needs_private_root_hoisting(config: &Config) -> bool {
+    config.modules_dir
+        .parent()
+        .is_some_and(|project_dir| !is_subdir(project_dir, &config.virtual_store_dir))
+}
+
 /// Build the `<alias → resolved-target-dir>` map for every publicly-
 /// hoisted entry that will land in root's `node_modules/`. Pacquet
 /// runs the dedupe pass before the on-disk hoist phase, so this map
