@@ -491,12 +491,12 @@ function renderDryRunReport (dryRunResult: DryRunInstallResult): string {
   ].join('\n')
 }
 
-export function shouldFreezeLockfileIfExists (opts: InstallCommandOptions, onCI: boolean = opts.ci ?? false): boolean {
-  if (opts.frozenLockfileIfExists != null) {
-    return opts.frozenLockfileIfExists
-  }
-  return Boolean(onCI && !opts.lockfileOnly && !opts.resolutionOnly &&
+export function shouldFreezeLockfileIfExists (opts: InstallCommandOptions): boolean {
+  return opts.frozenLockfileIfExists ?? (
+    opts.ci === true &&
+    !opts.lockfileOnly &&
+    !opts.resolutionOnly &&
     opts.frozenLockfile !== false &&
-    opts.preferFrozenLockfile !== false)
+    opts.preferFrozenLockfile !== false
+  )
 }
-

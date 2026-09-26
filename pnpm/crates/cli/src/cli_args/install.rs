@@ -351,6 +351,11 @@ impl InstallArgs {
     }
 
     /// Whether this install runs frozen.
+    ///
+    /// `--fix-lockfile` rewrites the lockfile, so it is never frozen. On
+    /// CI a project that already has a non-empty lockfile installs frozen
+    /// by default, unless the run is `--lockfile-only` or the effective
+    /// `preferFrozenLockfile` is `false`.
     fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
         if self.lockfile.fix {
             return Ok(false);
