@@ -375,7 +375,7 @@ pub(super) fn configure_cache_install(
         supported_architectures.apply_to(config.supported_architectures.clone());
 
     config.modules_dir = prepare_dir.join("node_modules");
-    config.virtual_store_dir = prepare_dir.join("node_modules").join(".pacquet");
+    config.virtual_store_dir = prepare_dir.join("node_modules").join(".pnpm");
     // Force the project-local virtual store so the whole prepare dir is
     // self-contained and can be symlinked as the cache entry. This is a
     // deliberate deviation from pnpm's dlx, which keeps
