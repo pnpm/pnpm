@@ -67,7 +67,7 @@ fn apply_new_version_rewrites_the_project_manifest() {
     let bumped = args_with_new_version("2.0.0-alpha.1")
         .apply_new_version(dir.path(), &Config::default(), false)
         .expect("the version is applied");
-    assert_eq!(bumped, Some(HashSet::from(["pkg".to_string()])));
+    assert_eq!(bumped.as_deref(), Some(&HashSet::from(["pkg".to_string()])));
 
     let written: Value =
         serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect("read package.json"))

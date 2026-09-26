@@ -48,7 +48,7 @@ pub fn create_publish_pack_manifest_options(
     config: &Config,
     before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
-    bumped_packages: Option<&HashSet<String>>,
+    bumped_packages: Option<&Arc<HashSet<String>>>,
 ) -> miette::Result<PackManifestOptions> {
     Ok(PackManifestOptions {
         catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
@@ -70,7 +70,7 @@ pub fn create_publish_pack_manifest_options(
         // so they are newer than anything installed in `node_modules`; every
         // other dependency keeps the installed-copy-first resolution a
         // plain publish uses.
-        bumped_workspace_packages: bumped_packages.map(|set| Arc::new(set.clone())),
+        bumped_workspace_packages: bumped_packages.map(Arc::clone),
     })
 }
 
