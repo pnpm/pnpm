@@ -59,7 +59,7 @@ pub(crate) fn verify_deps_before_run(
     let Some(status) = check_deps_status_before_run_at(dir, config) else {
         return Ok(());
     };
-    let (issue, install_args) = match status {
+    let (issue, mut install_args) = match status {
         RunDepsStatus::UpToDate => return Ok(()),
         RunDepsStatus::SkippedPnp => {
             warn(
@@ -70,6 +70,9 @@ pub(crate) fn verify_deps_before_run(
         }
         RunDepsStatus::Outdated { issue, install_args } => (issue, install_args),
     };
+    // A filtered `run` or `exec` only selected some of the workspace's
+    // projects, so its install has to select the same ones.
+    install_args.extend(filter_selector_args(&config.filter, &config.filter_prod));
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => locked_install(dir, config, &install_args, reporter),
         VerifyDepsBeforeRun::Prompt => prompt_install(dir, config, &install_args, reporter, issue),
@@ -149,7 +152,8 @@ fn locked_install(
         return spawn_install(dir, install_args, reporter);
     }
     match check_deps_status_before_run_at(dir, config) {
-        Some(RunDepsStatus::Outdated { install_args, .. }) => {
+        Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
+            install_args.extend(filter_selector_args(&config.filter, &config.filter_prod));
             spawn_install(dir, &install_args, reporter)
         }
         _ => Ok(()),
@@ -257,3 +261,19 @@ fn prompt_install(
         Err(_) => exit(1),
     }
 }
+
+/// The `--filter` / `--filter-prod` arguments that reproduce the gated
+/// command's project selection in the install the gate spawns.
+fn filter_selector_args(filters: &[String], filter_prod: &[String]) -> Vec<String> {
+    let mut args = Vec::with_capacity(filters.len() + filter_prod.len());
+    for selector in filters {
+        args.push(format!("--filter={selector}"));
+    }
+    for selector in filter_prod {
+        args.push(format!("--filter-prod={selector}"));
+    }
+    args
+}
+
+#[cfg(test)]
+mod tests;

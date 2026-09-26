@@ -986,6 +986,57 @@ fn exec_keeps_verifier_output_out_of_child_stdout() {
     drop(root);
 }
 
+/// A filtered `exec` must not install the whole workspace: the install the
+/// gate spawns has to select the same projects the command selected
+/// ([pnpm/pnpm#11865](https://github.com/pnpm/pnpm/issues/11865)).
+#[test]
+fn filtered_exec_installs_only_the_selected_projects() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for name in ["project", "other"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({}),
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "project",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("filtered")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert_eq!(stdout, "filtered");
+    assert!(
+        stderr.contains("Done in"),
+        "the verify-deps gate must have spawned an install:\n{stderr}",
+    );
+    assert!(
+        !stderr.contains("Scope: all"),
+        "the filtered exec must not install the whole workspace:\n{stderr}",
+    );
+
+    drop(root);
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
