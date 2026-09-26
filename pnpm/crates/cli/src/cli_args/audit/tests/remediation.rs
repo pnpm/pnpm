@@ -3,7 +3,8 @@ use super::{
     Range, RangeSpecStyle, age_cutoff, caret_range_for_patched, classify_for_update,
     create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
     format_fix_with_update_output, is_range_subset, minimum_release_age_excludes,
-    prune_subsumed_advisories, publish_times, report_fixed_remaining, report_of,
+    patched_range_for_style, prune_subsumed_advisories, publish_times, report_fixed_remaining,
+    report_of,
 };
 
 #[test]
@@ -12,6 +13,16 @@ fn caret_range_for_patched_uses_minimum_with_caret() {
     assert_eq!(caret_range_for_patched(">=1.2.3"), "^1.2.3");
     // A non-inferred range is passed through unchanged.
     assert_eq!(caret_range_for_patched("not-a-range"), "not-a-range");
+}
+
+#[test]
+fn patched_range_for_style_uses_minimum_with_range_spec_style() {
+    assert_eq!(patched_range_for_style(">=2.0.0", RangeSpecStyle::Major), "^2.0.0");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Major), "^1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Minor), "~1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Patch), "1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Exact), "=1.2.3");
+    assert_eq!(patched_range_for_style("not-a-range", RangeSpecStyle::Major), "not-a-range");
 }
 
 #[test]
