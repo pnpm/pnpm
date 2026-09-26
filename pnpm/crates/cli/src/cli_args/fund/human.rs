@@ -59,10 +59,12 @@ impl FundingTree {
         version: Option<&str>,
         funding: Option<&Value>,
     ) -> Option<usize> {
-        let source = funding_sources(funding?).into_iter().next()?;
-        let url = source.url;
+        let url = funding_sources(funding?)
+            .into_iter()
+            .next()?
+            .public_url();
         let package = printable_name(name, version);
-        if let Some(&item) = self.item_by_url.get(url) {
+        if let Some(&item) = self.item_by_url.get(&url) {
             let comma = ",".if_supports_color(Stream::Stdout, |text| text.dimmed()).to_string();
             let label = &mut self.items[item].label;
             label.push_str(&comma);
@@ -70,11 +72,10 @@ impl FundingTree {
             label.push_str(&package);
             return None;
         }
-        let colored_url = sanitize_inline(&source.public_url())
-            .if_supports_color(Stream::Stdout, |text| text.blue())
-            .to_string();
+        let colored_url =
+            sanitize_inline(&url).if_supports_color(Stream::Stdout, |text| text.blue()).to_string();
         let item = self.push(format!("{colored_url}\n└── {package}"));
-        self.item_by_url.insert(url.to_string(), item);
+        self.item_by_url.insert(url, item);
         Some(item)
     }
 
