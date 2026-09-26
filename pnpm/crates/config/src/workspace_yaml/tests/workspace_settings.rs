@@ -231,6 +231,19 @@ fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
     assert!(config.disallow_workspace_cycles, "yaml override wins");
 }
 
+/// `disallowPrivateProdDeps` is off unless the workspace file turns it on.
+#[test]
+fn parses_disallow_private_prod_deps_from_yaml_and_applies() {
+    let yaml = "disallowPrivateProdDeps: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.disallow_private_prod_deps, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.disallow_private_prod_deps, "the default is `false`");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.disallow_private_prod_deps, "yaml override wins");
+}
+
 /// `apply_to` records the workspace dir on `Config.workspace_dir`
 /// (needed by `Config::resolved_patched_dependencies` so patch
 /// file paths resolve against the same dir as upstream) and pushes

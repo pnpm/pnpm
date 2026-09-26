@@ -235,7 +235,7 @@ macro_rules! identically_named_settings {
             resolve_peers_from_workspace_root, verify_store_integrity,
             strict_store_pkg_content_check, frozen_store,
             include_workspace_root,
-            ignore_workspace_cycles, disallow_workspace_cycles,
+            ignore_workspace_cycles, disallow_workspace_cycles, disallow_private_prod_deps,
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,

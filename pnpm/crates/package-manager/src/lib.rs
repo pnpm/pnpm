@@ -65,6 +65,7 @@ mod package_extender;
 mod patch;
 mod peer_dependency_issues;
 mod prefetching_resolver;
+mod private_prod_deps;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod remove;
@@ -78,6 +79,11 @@ mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
 mod workspace_cycles;
+
+pub use private_prod_deps::PrivateWorkspaceProdDepError;
+pub(crate) use private_prod_deps::{
+    private_prod_deps_block_short_circuit, private_workspace_prod_deps, render_private_prod_deps,
+};
 
 /// The dependency groups a project installs directly — `dependencies`,
 /// `devDependencies`, `optionalDependencies` — in the order pnpm's

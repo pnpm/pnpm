@@ -99,6 +99,7 @@ const EXCLUDED_PNPM_KEYS: &[&str] = &[
     "dedupe-injected-deps",
     "dev",
     "dir",
+    "disallow-private-prod-deps",
     "disallow-workspace-cycles",
     "enable-pre-post-scripts",
     "filter",

@@ -4,7 +4,10 @@ use super::{
         emit_initial_package_manifest, report_merged_lockfile_conflicts,
     },
     HookedManifests, InstallOwned, InstallView, RunMode, resolve_pnpmfile_hook,
-    workspace::{InstallScope, InstallWorkspace, report_install_scope_cycles, workspace_projects},
+    workspace::{
+        InstallScope, InstallWorkspace, report_install_scope_cycles, report_private_prod_deps,
+        workspace_projects,
+    },
 };
 use pnpm_config::Config;
 
@@ -92,6 +95,12 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // check, and before any resolution, because a
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
+        install.context.config,
+        workspace,
+        selection,
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
+    )?;
+    report_private_prod_deps(
         install.context.config,
         workspace,
         selection,

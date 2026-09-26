@@ -329,6 +329,7 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
         json_field!(settings, Sys, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
         json_field!(settings, Sys, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
+        json_field!(settings, Sys, disallow_private_prod_deps, "DISALLOW_PRIVATE_PROD_DEPS");
         json_field!(settings, Sys, side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(settings, Sys, side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
     }

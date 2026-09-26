@@ -31,6 +31,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("dedupe-injected-deps", false),
     ("dev", false),
     ("dir", false),
+    ("disallow-private-prod-deps", false),
     ("disallow-workspace-cycles", false),
     ("enable-modules-dir", false),
     ("enable-pre-post-scripts", false),

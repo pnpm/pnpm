@@ -78,6 +78,17 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     if strict_dep_builds_blocks_fast_path(check.config) {
         return None;
     }
+    // The repeat-install shortcut does not re-read every workspace
+    // setting. A private production dependency must still fail after the
+    // setting is turned on, including when nothing else changed.
+    if crate::private_prod_deps_block_short_circuit(
+        check.config,
+        workspace_dir_opt.as_deref(),
+        workspace_projects.as_deref(),
+        &catalogs,
+    ) {
+        return None;
+    }
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &state_root,
         config: check.config,
