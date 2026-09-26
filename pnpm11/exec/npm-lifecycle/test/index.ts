@@ -140,7 +140,7 @@ skipOnWindows('runs a configured scriptShell when shellEmulator is also set', as
   fs.writeFileSync(
     shim,
     '#!/bin/sh\nprintf \'%s\\n\' "$2" >> "$(dirname "$0")/shell-invocations.txt"\nexec /bin/sh -c "$2"\n',
-    { mode: 0o755 },
+    { mode: 0o755 }
   )
 
   await lifecycle({ name: 'probe', version: '1.0.0', scripts: { postinstall: 'export FOO=1' } }, 'postinstall', wd, {
