@@ -117,6 +117,21 @@ fn safe_intersect_matches_merge_peers_semantics() {
     assert!(range.satisfies(&"16.9.1".parse().unwrap()));
 }
 
+/// Two long staggered unions are not paired into one allocation. The
+/// product is past the cap, so the intersection is `None`.
+#[test]
+fn safe_intersect_refuses_a_cartesian_product_of_version_unions() {
+    use super::super::peer_issues::safe_intersect;
+
+    let union = |offset: u32| {
+        (0..80)
+            .map(|patch| format!(">=1.0.{patch} <2.0.{}", patch + offset))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    assert_eq!(safe_intersect([union(0).as_str(), union(1).as_str()].into_iter()), None);
+}
+
 /// The wire shape mirrors v11's `PeerDependencyIssues`: `missing` /
 /// `bad` entries verbatim, `intersections` from the non-optional
 /// missing ranges, and disjoint ranges surfacing under `conflicts`.

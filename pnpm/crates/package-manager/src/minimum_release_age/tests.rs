@@ -242,7 +242,9 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     let workspace = fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("read workspace manifest");
     assert!(workspace.contains("packages:\n  - packages/*"));
-    assert!(workspace.contains("- foo@1.0.0 || 2.0.0"));
+    assert!(workspace.contains("- foo@1.0.0\n"));
+    assert!(workspace.contains("- foo@2.0.0"));
+    assert!(!workspace.contains("||"));
     assert!(workspace.contains("- bar@3.0.0"));
 
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
@@ -282,7 +284,9 @@ async fn loose_mode_persists_excludes_without_prompting() {
     assert!(prompt.messages.is_empty());
     let workspace = fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("read workspace manifest");
-    assert!(workspace.contains("- foo@1.0.0 || 2.0.0"));
+    assert!(workspace.contains("- foo@1.0.0\n"));
+    assert!(workspace.contains("- foo@2.0.0"));
+    assert!(!workspace.contains("||"));
     assert!(workspace.contains("- bar@3.0.0"));
     let messages: Vec<String> = EVENTS
         .lock()
@@ -328,7 +332,7 @@ async fn global_excludes_are_not_persisted_to_the_workspace_manifest() {
     assert_eq!(
         fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
             .expect("read workspace manifest"),
-        "minimumReleaseAgeExclude:\n  - local@1.0.0 || 2.0.0\n",
+        "minimumReleaseAgeExclude:\n  - local@1.0.0\n  - local@2.0.0\n",
     );
 }
 

@@ -260,7 +260,10 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     )
     .expect("written");
 
-    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
+    assert_eq!(
+        out,
+        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n",
+    );
 }
 
 #[test]

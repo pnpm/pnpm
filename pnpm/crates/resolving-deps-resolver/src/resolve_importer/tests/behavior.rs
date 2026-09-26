@@ -124,6 +124,24 @@ fn differently_spelled_equivalent_ranges_do_not_grow_the_merged_range() {
     assert_eq!(merge_ranges(&repeated, false).as_deref(), Some(merged));
 }
 
+/// Staggered `||` unions overlap without one covering the other.
+/// Pairing every alternative is refused once the product passes the cap,
+/// before that product is allocated.
+#[test]
+fn staggered_version_unions_do_not_build_the_cartesian_product() {
+    let union = |offset: u32| {
+        (0..80)
+            .map(|patch| format!(">=1.0.{patch} <2.0.{}", patch + offset))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    let left = union(0);
+    let right = union(1);
+    assert!(node_semver::Range::parse(&left).is_ok());
+    assert!(node_semver::Range::parse(&right).is_ok());
+    assert_eq!(merge_ranges(&[left.as_str(), right.as_str()], false), None);
+}
+
 /// A scheme specifier is not a semver range, so intersecting it would
 /// drop the peer instead of hoisting it.
 #[test]

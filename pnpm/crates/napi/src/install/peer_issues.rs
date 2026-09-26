@@ -196,13 +196,28 @@ fn peer_intersections_json(
 /// matching v11's `safeIntersect` (which swallows
 /// `semver-range-intersect` errors the same way).
 pub(super) fn safe_intersect<'a>(ranges: impl Iterator<Item = &'a str>) -> Option<String> {
-    let mut acc: Option<node_semver::Range> = None;
+    use pnpm_resolving_resolver_base::{
+        MAX_INTERSECTED_ALTERNATIVES, intersection_exceeds_bound, range_alternative_count,
+    };
+
+    let mut acc: Option<(node_semver::Range, usize)> = None;
     for range in ranges {
         let parsed: node_semver::Range = range.parse().ok()?;
+        let next_count = range_alternative_count(&parsed.to_string());
         acc = Some(match acc {
-            None => parsed,
-            Some(current) => current.intersect(&parsed)?,
+            None => (parsed, next_count),
+            Some((current, acc_count)) => {
+                if intersection_exceeds_bound(acc_count, next_count) {
+                    return None;
+                }
+                let intersection = current.intersect(&parsed)?;
+                let count = range_alternative_count(&intersection.to_string());
+                if count > MAX_INTERSECTED_ALTERNATIVES {
+                    return None;
+                }
+                (intersection, count)
+            }
         });
     }
-    acc.map(|range| range.to_string())
+    acc.map(|(range, _)| range.to_string())
 }
