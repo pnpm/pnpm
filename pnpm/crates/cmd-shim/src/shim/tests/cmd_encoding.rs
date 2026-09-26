@@ -1,6 +1,23 @@
 use super::{ScriptRuntime, generate_cmd_shim};
-use std::{fs, process::Command};
+use std::{fs, path::Path, process::Command};
 use tempfile::tempdir;
+
+#[test]
+fn cmd_shim_switches_encoding_before_unicode_node_path() {
+    let target = Path::new("/proj/pkg/cli");
+    let shim = Path::new("/proj/.bin/cli.cmd");
+    let node_path = ["/工具/50% off/node_modules".to_string()];
+    let body = generate_cmd_shim(target, shim, None, &node_path);
+    let encoding_switch = body
+        .find("@\"%SystemRoot%\\System32\\chcp.com\" 65001 >NUL\r\n")
+        .expect("Unicode literals must be read using UTF-8");
+    let node_path_assignment = body
+        .find(r#"@SET "NODE_PATH=\工具\50%% off\node_modules""#)
+        .expect("the Unicode NODE_PATH must retain percent escaping");
+    assert!(encoding_switch < node_path_assignment);
+    assert!(body.ends_with("@EXIT /B %_PNPM_EXIT_CODE%\r\n"));
+    assert!(!body.replace("\r\n", "").contains('\n'));
+}
 
 #[test]
 #[cfg_attr(not(windows), ignore = "requires Windows CMD code pages")]
