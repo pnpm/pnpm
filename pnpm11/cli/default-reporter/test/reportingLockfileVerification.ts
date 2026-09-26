@@ -8,6 +8,26 @@ import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom, take, toArray } from 'rxjs'
 
 import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
+import { captureOutput } from './utils/captureOutput.js'
+
+test.each(['info', 'warn', 'error'] as const)('prints each permitted lockfile verdict once at %s level', async (logLevel) => {
+  const output = await captureOutput({
+    context: { argv: ['install'] },
+    reportingOptions: { appendOnly: true, logLevel },
+  }, () => {
+    lockfileVerificationLogger.debug({ status: 'started', entries: 2 })
+    lockfileVerificationLogger.debug({ status: 'cached' })
+    lockfileVerificationLogger.debug({ status: 'done', entries: 2, elapsedMs: 42 })
+    lockfileVerificationLogger.debug({ status: 'failed', entries: 2, elapsedMs: 800 })
+  })
+  const started = '? Verifying lockfile against supply-chain policies (2 entries)...'
+  const cached = '✓ Lockfile passes supply-chain policies (previously verified)'
+  const done = '✓ Lockfile passes supply-chain policies (2 entries in 42ms)'
+  const failed = '✗ Lockfile failed supply-chain policy check (2 entries in 800ms)'
+  expect(output).toEqual(logLevel === 'error' ? [failed]
+    : logLevel === 'warn' ? [cached, done, failed]
+      : [started, cached, done, failed])
+})
 
 test('prints lockfile verification in-progress and completion messages', async () => {
   const cwd = '/repo'

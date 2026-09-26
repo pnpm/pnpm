@@ -344,7 +344,7 @@ impl ReporterState {
     /// Which events render at the configured `--loglevel`, mirroring the
     /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
     /// request-retry and deprecation streams need `warn`, the visual
-    /// streams (progress, stats, lifecycle, summary, `Done in ...`) need
+    /// streams (progress, stats, summary, `Done in ...`) need
     /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
     /// message level in [`Self::on_pnpm`], so errors always pass.
     /// Dedupe-check issues always pass too — upstream reports them as an
@@ -356,9 +356,23 @@ impl ReporterState {
             | LogEvent::Pnpm(_)
             | LogEvent::Global(_)
             | LogEvent::DedupeCheck(_) => true,
-            LogEvent::RequestRetry(_)
+            LogEvent::Lifecycle(_) => true,
+            LogEvent::IgnoredScripts(_)
+            | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
+            LogEvent::LockfileVerification(log) => match log.message {
+                LockfileVerificationMessage::Started { .. } => {
+                    self.options.max_log_level >= MaxLogLevel::Info
+                }
+                LockfileVerificationMessage::Cached { .. }
+                | LockfileVerificationMessage::Done { .. } => {
+                    self.options.max_log_level >= MaxLogLevel::Warn
+                }
+                LockfileVerificationMessage::Failed { .. } => {
+                    self.options.max_log_level >= MaxLogLevel::Error
+                }
+            },
             _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
     }

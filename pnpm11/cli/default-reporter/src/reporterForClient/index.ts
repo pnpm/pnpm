@@ -1,7 +1,7 @@
 import type * as logs from '@pnpm/core-loggers'
 import type { LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
-import { throttleTime } from 'rxjs/operators'
+import { filter, throttleTime } from 'rxjs/operators'
 
 import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
 import { reportBigTarballProgress } from './reportBigTarballsProgress.js'
@@ -115,6 +115,25 @@ export function reporterForClient (
     )
   }
 
+  if (!showInfo) {
+    outputs.push(
+      reportLifecycleScripts(log$, {
+        appendOnly: true,
+        aggregateOutput: true,
+        hideLifecyclePrefix: opts.hideLifecyclePrefix,
+        cwd,
+        width,
+        logLevel: opts.logLevel,
+        annotateOptionalFailure: true,
+      }),
+      reportLockfileVerification(log$.lockfileVerification.pipe(filter((log) => log.status !== 'started'
+        && (log.status === 'failed' || logLevelNumber === LOG_LEVEL_NUMBER.warn))), {
+        cwd,
+        workspaceDir: opts.pnpmConfig?.workspaceDir,
+      })
+    )
+  }
+
   if (showInfo) {
     if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
       outputs.push(reportExecutionTime(log$.executionTime))
@@ -166,13 +185,17 @@ export function reporterForClient (
         pnpmConfig: opts.pnpmConfig,
       }))
     }
-    outputs.push(
-      reportIgnoredBuilds(log$, {
-        appendOnly: opts.appendOnly,
-        pnpmConfig: opts.pnpmConfig,
-        approveBuildsInstructionText: opts.approveBuildsInstructionText,
-      })
-    )
+    outputs.push(reportIgnoredBuilds(log$, {
+      appendOnly: opts.appendOnly,
+      pnpmConfig: opts.pnpmConfig,
+      approveBuildsInstructionText: opts.approveBuildsInstructionText,
+    }))
+  } else if (logLevelNumber === LOG_LEVEL_NUMBER.warn) {
+    outputs.push(reportIgnoredBuilds(log$, {
+      appendOnly: opts.appendOnly,
+      pnpmConfig: opts.pnpmConfig,
+      approveBuildsInstructionText: opts.approveBuildsInstructionText,
+    }))
   }
 
   return outputs

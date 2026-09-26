@@ -9,8 +9,10 @@ impl ReporterState {
     // --- lifecycle --------------------------------------------------------
 
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
-        if (self.options.append_only || self.options.lifecycle.stream_output)
-            && !self.options.lifecycle.hide_output
+        let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;
+        if quiet
+            || ((self.options.append_only || self.options.lifecycle.stream_output)
+                && !self.options.lifecycle.hide_output)
         {
             let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
@@ -148,7 +150,9 @@ impl ReporterState {
         &mut self,
         message: &LifecycleMessage,
     ) -> Option<String> {
-        if !self.options.lifecycle.aggregate_output {
+        let aggregate_output = self.options.lifecycle.aggregate_output
+            || self.options.max_log_level < crate::MaxLogLevel::Info;
+        if !aggregate_output {
             return Some(self.stream_lifecycle(message));
         }
         let (stage, dep_path, _) = lifecycle_ids(message);
@@ -162,11 +166,31 @@ impl ReporterState {
                 .push(message.clone());
             return None;
         }
+        self.finish_streamed_lifecycle(&key, message)
+    }
+
+    fn finish_streamed_lifecycle(
+        &mut self,
+        key: &str,
+        message: &LifecycleMessage,
+    ) -> Option<String> {
+        let buffered = self.scripts.buffers.remove(key).unwrap_or_default();
+        let LifecycleMessage::Exit { exit_code, optional, .. } = message else { unreachable!() };
+        if (*exit_code == 0 && self.options.max_log_level < crate::MaxLogLevel::Info)
+            || (*optional && self.options.max_log_level == crate::MaxLogLevel::Error)
+        {
+            return None;
+        }
         let mut lines = Vec::new();
-        for buffered in self.scripts.buffers.remove(&key).unwrap_or_default() {
+        for buffered in buffered {
             lines.push(self.stream_lifecycle(&buffered));
         }
-        lines.push(self.stream_lifecycle(message));
+        let exit_line = self.stream_lifecycle(message);
+        if *optional && self.options.max_log_level < crate::MaxLogLevel::Info {
+            lines.push(format!("{exit_line} (skipped as optional)"));
+        } else {
+            lines.push(exit_line);
+        }
         Some(lines.join("\n"))
     }
 
