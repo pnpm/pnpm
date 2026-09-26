@@ -64,7 +64,7 @@ fn restore_originals<Error: From<VersioningError> + fmt::Display>(
     let mut failed_restore = None;
     for update in updates {
         if let Err(source) = pnpm_fs::write_atomic(&update.path, update.original.as_bytes()) {
-            failed_restore.get_or_insert((update.path.clone(), source));
+            failed_restore.get_or_insert_with(|| (update.path.clone(), source));
         }
     }
     match failed_restore {
