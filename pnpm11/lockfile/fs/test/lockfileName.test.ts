@@ -35,6 +35,11 @@ describe('lockfileName', () => {
     await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.abc.yaml')
   })
 
+  test('replaces each UTF-16 code unit of a character outside the Basic Multilingual Plane', async () => {
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('feat/🚀x'))
+    await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.feat!!!x.yaml')
+  })
+
   test('passes cwd to getCurrentBranch', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
     await getWantedLockfileName({ useGitBranchLockfile: true, cwd: '/some/workspace' })

@@ -11,6 +11,11 @@ fn a_branch_name_is_lowercased_and_stripped_of_path_separators() {
 }
 
 #[test]
+fn a_character_outside_the_basic_multilingual_plane_becomes_two_exclamation_marks() {
+    assert_eq!(Lockfile::git_branch_file_name("feat/🚀x"), "pnpm-lock.feat!!!x.yaml");
+}
+
+#[test]
 fn the_branch_file_matcher_requires_literal_dots_and_a_branch_segment() {
     for name in ["pnpm-lock.main.yaml", "pnpm-lock.feature.x.yaml"] {
         assert!(Lockfile::is_git_branch_file_name(name), "{name} is a branch lockfile");
