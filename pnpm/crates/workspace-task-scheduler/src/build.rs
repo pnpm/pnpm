@@ -84,7 +84,7 @@ where
                 continue;
             }
             let settings = self.task_settings(&task_name);
-            let dependencies = self.dependency_keys(&project, &task_name, settings);
+            let dependencies = self.expanded_dependency_keys(&project, &task_name, settings);
             queue.extend(
                 dependencies
                     .iter()
@@ -127,6 +127,47 @@ where
                     .map(|task_name| (project.clone(), (*task_name).to_string(), true))
             })
             .collect()
+    }
+
+    /// The tasks `task_name` at `project` depends on, through the
+    /// invocation's script selector when one named them. A seed naming a
+    /// `/regexp/` selector matches no `tasks` entry itself, so expand its
+    /// `dependsOn` through every script name the selector matched in this
+    /// project: `pnpm -r run '/test/'` then honors the same `tasks`
+    /// declarations as `pnpm -r run test`. A matched script without its
+    /// own `tasks` entry keeps the selector's topological fan-out, so
+    /// every script the selector matches still runs in each dependency.
+    fn expanded_dependency_keys(
+        &self,
+        project: &Path,
+        task_name: &str,
+        settings: Option<&TaskSettings>,
+    ) -> Vec<TaskKey> {
+        if !self.is_seed_name(task_name) {
+            return self.dependency_keys(project, task_name, settings);
+        }
+        let matched = (self.select_scripts)(project, task_name);
+        if matched.is_empty() || (matched.len() == 1 && matched[0] == task_name) {
+            return self.dependency_keys(project, task_name, settings);
+        }
+        let mut dependencies = Vec::new();
+        let mut seen: HashSet<TaskKey> = HashSet::new();
+        for name in &matched {
+            let keys = match self.task_settings(name) {
+                Some(name_settings) => self.dependency_keys(project, name, Some(name_settings)),
+                None => self.dependency_keys(project, task_name, settings),
+            };
+            for dependency in keys {
+                if seen.insert(dependency.clone()) {
+                    dependencies.push(dependency);
+                }
+            }
+        }
+        dependencies
+    }
+
+    fn is_seed_name(&self, task_name: &str) -> bool {
+        self.task_names.contains(&task_name)
     }
 
     /// The tasks `task_name` at `project` depends on, in declaration order

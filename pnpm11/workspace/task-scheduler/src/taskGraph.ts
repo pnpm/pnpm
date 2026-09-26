@@ -71,7 +71,7 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       continue
     }
     const dependencies = new Set<TaskKey>()
-    for (const entry of taskDependsOn(opts.tasks, taskName)) {
+    for (const entry of taskDependsOnForNode(opts, project, taskName)) {
       if (entry.startsWith('^')) {
         const dependencyTaskName = entry.slice(1)
         for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
@@ -103,6 +103,31 @@ function taskConcurrency (tasks: WorkspaceTasks | undefined, taskName: string): 
 
 export function taskKey (project: ProjectRootDir, taskName: string): TaskKey {
   return `${project}\0${taskName}`
+}
+
+/**
+ * The `dependsOn` entries for one node. A seed naming a `/regexp/` script
+ * selector matches no `tasks` entry itself, so expand through every script
+ * name the selector matched in this project: `pnpm -r run '/test/'` then
+ * honors the same `tasks` declarations as `pnpm -r run test`. A matched
+ * script without its own `tasks` entry keeps the selector's topological
+ * fan-out, so every script the selector matches still runs in each
+ * dependency.
+ */
+function taskDependsOnForNode (opts: BuildTaskGraphOptions, project: ProjectRootDir, taskName: string): string[] {
+  if (taskName !== opts.taskName) return taskDependsOn(opts.tasks, taskName)
+  const matched = opts.selectScripts(opts.scriptsByProject(project), taskName)
+  if (matched.length === 0 || (matched.length === 1 && matched[0] === taskName)) {
+    return taskDependsOn(opts.tasks, taskName)
+  }
+  const entries = new Set<string>()
+  for (const name of matched) {
+    const dependsOn = opts.tasks != null && Object.hasOwn(opts.tasks, name)
+      ? taskDependsOn(opts.tasks, name)
+      : taskDependsOn(opts.tasks, taskName)
+    for (const entry of dependsOn) entries.add(entry)
+  }
+  return [...entries]
 }
 
 /**
