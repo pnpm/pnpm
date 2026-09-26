@@ -397,14 +397,10 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
         "node_modules must not be created by --lockfile-only",
     );
 
-    // Add a second project, re-run lockfile-only, and confirm both
-    // importers are recorded. `--no-prefer-frozen-lockfile` forces the
-    // fresh-resolve path: project-2 declares no dependencies, so the
-    // auto-frozen freshness gate deliberately tolerates its missing
-    // importer entry (`allow_missing_dependency_free_importers`, matching
-    // the TypeScript CLI's `allProjectsAreUpToDate`) and would otherwise
-    // short-circuit to the frozen path without ever recording it. The
-    // flag makes the re-resolve unconditional.
+    // Add a second project that declares no dependencies and confirm the
+    // next lockfile-only install records it. A missing importer used to
+    // look up to date, so the install left it out and a later
+    // `--frozen-lockfile` run failed.
     fs::create_dir_all(workspace.join("packages/project-2")).expect("mkdir project-2");
     fs::write(
         workspace.join("packages/project-2/package.json"),
@@ -413,7 +409,7 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     .expect("write project-2 package.json");
 
     pacquet_at(&workspace)
-        .with_args(["install", "--lockfile-only", "--no-prefer-frozen-lockfile"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
 

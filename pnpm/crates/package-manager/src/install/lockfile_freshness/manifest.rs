@@ -143,6 +143,19 @@ pub(in super::super) fn ignored_optional_dependency_names(
         .map(|(name, _)| name.to_string())
         .collect()
 }
+/// Whether the manifest lists any direct dependency, ignored optionals
+/// included. A project that lists none still needs a lockfile importer.
+pub(in super::super) fn manifest_declares_dependencies(manifest: &PackageManifest) -> bool {
+    [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional]
+        .into_iter()
+        .any(|group| {
+            manifest
+                .dependencies([group])
+                .next()
+                .is_some()
+        })
+}
+
 pub(in super::super) fn manifest_has_effective_dependencies(
     manifest: &PackageManifest,
     ignored_optional_matcher: &pnpm_matcher::Matcher,

@@ -189,12 +189,11 @@ fn importer_divergence(
     importer_id: &str,
     manifest_dependencies: &ManifestDependencies<'_>,
 ) -> ImporterDivergence {
+    // A project the lockfile has never recorded still needs an importer
+    // entry when it declares nothing. `--frozen-lockfile` rejects a
+    // workspace package whose importer is absent.
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return if manifest_dependencies.is_empty() {
-            ImporterDivergence::Clean
-        } else {
-            ImporterDivergence::Absorbable
-        };
+        return ImporterDivergence::Absorbable;
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),

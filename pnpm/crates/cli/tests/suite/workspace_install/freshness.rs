@@ -122,6 +122,66 @@ fn workspace_importer_dependencies_meta_is_checked() {
 }
 
 #[test]
+fn added_dependency_free_workspace_package_is_recorded_for_frozen_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "repro", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("packages:\n  - 'web'\n  - 'scripts'\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    fs::create_dir(workspace.join("web")).expect("mkdir web");
+    fs::write(
+        workspace.join("web/package.json"),
+        serde_json::json!({
+            "name": "web",
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write web/package.json");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::create_dir(workspace.join("scripts")).expect("mkdir scripts");
+    fs::write(
+        workspace.join("scripts/package.json"),
+        serde_json::json!({ "name": "scripts" }).to_string(),
+    )
+    .expect("write scripts/package.json");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("scripts:"),
+        "lockfile must record the dependency-free scripts importer:\n{lockfile}",
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({
@@ -159,7 +219,7 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
 }
 
 #[test]
-fn normal_install_accepts_missing_dependency_free_workspace_importer() {
+fn normal_install_records_a_missing_dependency_free_workspace_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({ "name": "pkg-a", "version": "1.0.0" }),
         &serde_json::json!({ "name": "pkg-b", "version": "1.0.0" }),
@@ -186,9 +246,13 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
     )
     .expect("parse retained pnpm-lock.yaml");
     assert!(
-        !retained.importers.contains_key("pkg-b"),
-        "dependency-free pkg-b should not force lockfile regeneration",
+        retained.importers.contains_key("pkg-b"),
+        "dependency-free pkg-b must be written back into the lockfile",
     );
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

@@ -41,6 +41,28 @@ fn moves_a_widened_range_to_the_higher_version_another_importer_locks() {
     );
 }
 #[test]
+fn records_a_dependency_free_project_the_lockfile_has_never_seen() {
+    let existing = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
+    let added = manifest_from(json!({ "name": "scripts" }));
+
+    let updated = try_fast_update_importers(
+        &parsed_lockfile(TWO_IMPORTERS),
+        &[
+            ("a".to_string(), &existing),
+            ("b".to_string(), &existing),
+            ("scripts".to_string(), &added),
+        ],
+    )
+    .expect("a project with no dependencies is recorded without resolving");
+
+    let importer = &updated.importers["scripts"];
+    assert!(importer.dependencies.is_none());
+    assert!(importer.dev_dependencies.is_none());
+    assert!(importer.optional_dependencies.is_none());
+    assert!(updated.importers.contains_key("a"), "existing importers stay");
+}
+
+#[test]
 fn writes_a_new_project_importer_from_the_highest_locked_versions() {
     let added = manifest_from(json!({ "devDependencies": { "child": "^3.0.0" } }));
     let [existing, locks_the_higher_child] = a_new_project_lockfile_projects(&added);
