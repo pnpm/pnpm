@@ -433,6 +433,25 @@ fn files_field_keeps_explicitly_deep_patterns() {
 }
 
 #[test]
+fn files_field_exclusion_prunes_the_directory_it_names() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "src/a.js");
+    touch(root, "test/fixture.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!**/test"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["package.json".to_string(), "src/a.js".into()]);
+}
+
+#[test]
 fn files_field_exclusions_are_not_anchored() {
     let dir = tempdir().unwrap();
     let root = dir.path();
