@@ -85,7 +85,7 @@ async function handleMessage (
   try {
     switch (message.type) {
       case 'extract': {
-        parentPort!.postMessage(addTarballToStore(message))
+        parentPort!.postMessage(await addTarballToStore(message))
         break
       }
       case 'link': {
@@ -221,7 +221,7 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
   }
 }
 
-function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
+async function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
     const calculatedHash = hashBuffer(algorithm, buffer)
@@ -242,7 +242,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId
   }
   const cafs = cafsCache.get(storeDir)!
   const ignore = ignoreFilePattern ? makeIgnoreFromPattern(ignoreFilePattern) : undefined
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true, ignore)
+  let { filesIndex, manifest } = await cafs.addFilesFromTarballBounded(buffer, true, ignore)
   if (appendManifest && manifest == null) {
     manifest = appendManifest
     addManifestToCafs(cafs, filesIndex, appendManifest)

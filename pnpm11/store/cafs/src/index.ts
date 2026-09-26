@@ -11,7 +11,7 @@ import type {
 } from '@pnpm/store.cafs-types'
 
 import { addFilesFromDir } from './addFilesFromDir.js'
-import { addFilesFromTarball } from './addFilesFromTarball.js'
+import { addFilesFromTarball, addFilesFromTarballBounded } from './addFilesFromTarball.js'
 import {
   buildFileMapsFromIndex,
   checkPkgFilesIntegrity,
@@ -68,6 +68,7 @@ export interface CreateCafsOpts {
 export interface CafsFunctions {
   addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
+  addFilesFromTarballBounded: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
   addFile: (buffer: Buffer, mode: number) => FileWriteResult
   getFilePathByModeInCafs: (digest: string, mode: number) => string
 }
@@ -79,6 +80,8 @@ export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: Create
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: (tarballBuffer, readManifest, callIgnore) =>
       addFilesFromTarball(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
+    addFilesFromTarballBounded: async (tarballBuffer, readManifest, callIgnore) =>
+      addFilesFromTarballBounded(addBuffer, tarballBuffer, readManifest, combineIgnore(ignoreFile, callIgnore)),
     addFile: addBuffer,
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
