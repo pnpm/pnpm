@@ -6,5 +6,9 @@ contact_links:
   - name: Question 🤷🏻‍♂️
     url: https://github.com/pnpm/pnpm/discussions/new?category=q-a
     about: Ask questions and discuss with other community members
+  - name: Before you open an issue 📄
+    url: https://github.com/pnpm/pnpm/blob/main/.github/SUPPORT.md
+    about: Where to ask, how to write a report that gets fixed, and how issues are prioritized
   - name: My company is migrating to pnpm and we have several issues/feature requests
     url: https://github.com/pnpm/pnpm/discussions/3787
+    about: Post for your company so we can see which issues affect the most people
