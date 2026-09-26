@@ -13,7 +13,8 @@ test('a project reached through a symlinked ancestor keeps its modules directory
   const rootDir = path.join(tmp, 'link')
   fs.symlinkSync(path.join(tmp, 'real'), rootDir, 'junction')
 
-  expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'node_modules'), rootDir }, {})).toBe(path.join(rootDir, 'node_modules'))
+  expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'node_modules'), rootDir }, { includeDefault: true })).toBe(path.join(rootDir, 'node_modules'))
+  expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'node_modules'), rootDir }, {})).toBeUndefined()
   expect(await getProjectNodePath({ modulesDir: path.join(rootDir, 'vendor'), rootDir }, {})).toBe(path.join(rootDir, 'vendor'))
 })
 

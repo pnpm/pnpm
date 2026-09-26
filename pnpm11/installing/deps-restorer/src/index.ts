@@ -864,7 +864,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       /** Skip linking and due to no project manifest */
       if (!opts.ignorePackageManifest) {
         await Promise.all(selectedProjects.map(async (project) => {
-          const projectModulesDir = await getProjectNodePath(project, opts)
+          const projectModulesDir = await getProjectNodePath(project, { ...opts, includeDefault: true })
           const protectedBins = new Set<string>()
           if (opts.nodeLinker === 'hoisted' || opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
             await linkBinsOfImporter(project, {

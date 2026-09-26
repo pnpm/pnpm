@@ -2967,7 +2967,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     if (!opts.virtualStoreOnly) await Promise.all(projects.map(async (project, index) => {
       let linkedPackages!: string[]
-      const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath })
+      const projectModulesDir = await getProjectNodePath(project, { extendNodePath: opts.extendNodePath, includeDefault: true })
       if (ctx.publicHoistPattern?.length && path.relative(project.rootDir, opts.lockfileDir) === '') {
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
