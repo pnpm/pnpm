@@ -1,5 +1,5 @@
 use super::{
-    Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog, IgnoredScriptsLog,
+    AppliedPatchesLog,    Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog, IgnoredScriptsLog,
     InstallingConfigDepsLog, InstallingConfigDepsStatus, LockfileVerificationMessage, LogLevel,
     MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState, ReporterState, RequestRetryLog,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog,
@@ -53,6 +53,21 @@ impl ReporterState {
             r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
         );
         self.display.frame.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
+    }
+
+    /// One line per patched package with a check mark, as `patch-package`
+    /// prints them.
+    pub(super) fn on_applied_patches(&mut self, log: &AppliedPatchesLog) {
+        if log.package_names.is_empty() {
+            return;
+        }
+        let check = self.rendering.colors.green("\u{2714}");
+        let lines = log.package_names
+            .iter()
+            .map(|name| format!("{name} {check}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        self.display.frame.push_block(format!("Applied patches:\n{lines}"));
     }
 
     /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and

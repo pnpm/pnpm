@@ -5,9 +5,9 @@ use pretty_assertions::assert_eq;
 use serde_json::Value;
 
 use crate::{
-    AddedRoot, BrokenModulesLog, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog,
-    Envelope, FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host,
-    IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileLog,
+    AddedRoot, AppliedPatchesLog, BrokenModulesLog, ContextLog, DedupeCheckLog, DependencyType,
+    DeprecationLog, Envelope, FetchingProgressLog, FetchingProgressMessage, GetHostName, GlobalLog,
+    HookLog, Host, IgnoredScriptsLog, LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileLog,
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod,
     PackageImportMethodLog, PackageManifestLog, PackageManifestMessage, PeerDependencyIssuesLog,
     PnpmErrorLog, PnpmLog, ProgressLog, ProgressMessage, PromptAction, PromptLog, RemovedRoot,

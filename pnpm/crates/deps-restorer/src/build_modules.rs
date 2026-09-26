@@ -253,6 +253,12 @@ pub struct BuildModulesOutput {
     /// folds these into a single `pnpm:ignored-scripts` event.
     pub ignored_builds: Vec<String>,
 
+    /// Sorted, peer-stripped `name@version` keys of the patched packages
+    /// this run put in place, by applying the patch or from the
+    /// side-effects cache. The caller folds these into a single
+    /// `pnpm:applied-patches` event.
+    pub applied_patches: Vec<String>,
+
     /// Sorted dep paths of the snapshots that need a build which
     /// `--ignore-scripts` deferred. Empty when scripts were not
     /// ignored. These become `.modules.yaml`'s `pendingBuilds`, which
@@ -300,44 +306,20 @@ impl BuildModules<'_> {
             self.skipped,
         );
 
-        // Collect peer-stripped keys so the final list is unique and
-        // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
-        // `Mutex` for the same parallelism reason as the dep-state cache.
-        let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+        let tallies = BuildTallies::default();
         let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
             &self.snapshot_context(
                 snapshots,
                 &requires_build_map,
-                &dep_states,
-                &ignored_builds,
-                bin_state,
+                tallies.progress(&dep_states, bin_state),
                 &project_bin_dirs,
             ),
             self.child_concurrency,
         )?;
 
-        // If a scheduler worker panicked while holding the
-        // `ignored_builds` lock, the scheduler will have
-        // already propagated the panic (or returned an Err) — so a
-        // poisoned mutex here can only mean the protected state is
-        // mid-insertion. A `BTreeSet::insert` is one atomic
-        // operation from the data-structure's POV (no torn writes),
-        // so the canonical poison-recovery pattern is safe.
-        let ignored_builds =
-            ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mutated_snapshot_keys = std::mem::take(
-            &mut *bin_state.slot_mutations
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
-        Ok(BuildModulesOutput {
-            ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
-            mutated_slots: !mutated_snapshot_keys.is_empty(),
-            mutated_snapshot_keys,
-        })
+        Ok(tallies.into_output(deferred_builds(requires_build_map.iter(), self.scripts.ignore), bin_state))
     }
 
     fn requires_build_map(
@@ -402,9 +384,7 @@ impl BuildModules<'_> {
         &'a self,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         requires_build_map: &'a HashMap<PackageKey, bool>,
-        dep_states: &'a DepStates,
-        ignored_builds: &'a Mutex<BTreeSet<String>>,
-        bin_state: &'a crate::build_options::BuildBinState,
+        progress: crate::BuildProgress<'a>,
         project_bin_dirs: &'a [PathBuf],
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
@@ -418,13 +398,7 @@ impl BuildModules<'_> {
                 requires_build_map,
                 importers: self.graph.importers,
             },
-            progress: crate::BuildProgress {
-                dep_graph: dep_states.graph.as_ref(),
-                deps_state_cache: &dep_states.cache,
-                ignored_builds,
-                slot_mutations: &bin_state.slot_mutations,
-                refreshed_hoisted_bins: &bin_state.refreshed_hoisted_bins,
-            },
+            progress,
             scripts: self.scripts,
             project_bin_dirs,
 
@@ -499,6 +473,56 @@ impl BuildModules<'_> {
             );
         }
         DepStates { graph, cache }
+    }
+}
+
+/// What the scheduled builds record while they run.
+///
+/// Package keys are peer-stripped and kept in a set so each final list is
+/// unique and sorted lexicographically — matches
+/// `dedupePackageNamesFromIgnoredBuilds`. `Mutex` for the same parallelism
+/// reason as the dep-state cache.
+#[derive(Default)]
+struct BuildTallies {
+    ignored_builds: Mutex<BTreeSet<String>>,
+    applied_patches: Mutex<BTreeSet<String>>,
+}
+
+impl BuildTallies {
+    fn progress<'a>(&'a self, dep_states: &'a DepStates, bin_state: &'a crate::build_options::BuildBinState) -> crate::BuildProgress<'a> {
+        crate::BuildProgress {
+            dep_graph: dep_states.graph.as_ref(),
+            deps_state_cache: &dep_states.cache,
+            ignored_builds: &self.ignored_builds,
+            applied_patches: &self.applied_patches,
+            slot_mutations: &bin_state.slot_mutations,
+            refreshed_hoisted_bins: &bin_state.refreshed_hoisted_bins,
+        }
+    }
+
+    fn into_output(self, deferred_builds: Vec<String>, bin_state: &crate::build_options::BuildBinState) -> BuildModulesOutput {
+        // If a scheduler worker panicked while holding a lock, the
+        // scheduler will have already propagated the panic (or returned
+        // an Err) — so a poisoned mutex here can only mean the protected
+        // state is mid-insertion. A `BTreeSet::insert` is one atomic
+        // operation from the data-structure's POV (no torn writes), so the
+        // canonical poison-recovery pattern is safe.
+        let into_list = |keys: Mutex<BTreeSet<String>>| {
+            keys.into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .into_iter()
+                .collect()
+        };
+        let mutated_snapshot_keys = std::mem::take(
+            &mut *bin_state.slot_mutations.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        BuildModulesOutput {
+            ignored_builds: into_list(self.ignored_builds),
+            applied_patches: into_list(self.applied_patches),
+            deferred_builds,
+            mutated_slots: !mutated_snapshot_keys.is_empty(),
+            mutated_snapshot_keys,
+        }
     }
 }
 

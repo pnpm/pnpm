@@ -250,6 +250,8 @@ pub struct BuildProgress<'a> {
         Option<&'a HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
     pub(crate) deps_state_cache: &'a Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
     pub(crate) ignored_builds: &'a Mutex<BTreeSet<String>>,
+    /// See [`crate::BuildModulesOutput::applied_patches`].
+    pub(crate) applied_patches: &'a Mutex<BTreeSet<String>>,
     /// Recorded before any write that can change a linked slot's contents
     /// (side-effects overlay, patch, lifecycle script) — set pre-attempt, so a
     /// half-applied write still counts. See
@@ -264,5 +266,15 @@ impl BuildProgress<'_> {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(key.clone());
+    }
+}
+
+impl BuildProgress<'_> {
+    pub(crate) fn record_applied_patch(&self, name: &str, version: &str) {
+        // Poison-recover: see `BuildTallies::into_output`.
+        self.applied_patches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(format!("{name}@{version}"));
     }
 }
