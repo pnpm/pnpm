@@ -51,7 +51,7 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
   let finished = false
 
   let entry: PendingEntry | undefined
-  let content: { buffer: Buffer, filled: number } | undefined
+  let content: { parts: Buffer[], received: number } | undefined
   let bytesToSkip = 0
 
   let longLinkPath = ''
@@ -112,25 +112,26 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
   }
 
   /**
-   * Returns the next `size` bytes once they have all arrived, copying them
-   * out of the pushed chunks as they come so that the chunks can be released.
+   * Returns the next `size` bytes once they have all arrived. Until then, the
+   * parser holds only the bytes received, so a header that declares more
+   * content than the archive has does not reserve memory for it.
    */
   function readContent (size: number): Buffer | undefined {
     if (content == null) {
       if (available >= size) return take(size)
-      content = { buffer: Buffer.allocUnsafe(size), filled: 0 }
+      content = { parts: [], received: 0 }
     }
-    while (available > 0 && content.filled < size) {
+    while (available > 0 && content.received < size) {
       const chunk = chunks[0]
-      const n = Math.min(chunk.length - chunkOffset, size - content.filled)
-      chunk.copy(content.buffer, content.filled, chunkOffset, chunkOffset + n)
-      content.filled += n
+      const n = Math.min(chunk.length - chunkOffset, size - content.received)
+      content.parts.push(chunk.subarray(chunkOffset, chunkOffset + n))
+      content.received += n
       discard(n)
     }
-    if (content.filled < size) return undefined
-    const { buffer } = content
+    if (content.received < size) return undefined
+    const { parts } = content
     content = undefined
-    return buffer
+    return Buffer.concat(parts, size)
   }
 
   function take (size: number): Buffer {
@@ -203,6 +204,9 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
       throw new Error(
         `Invalid checksum for TAR header at offset ${headerOffset}. Expected ${expectedCheckSum}, got ${actualCheckSum}`
       )
+    }
+    if (!Number.isSafeInteger(fileSize) || fileSize < 0) {
+      throw new Error(`Invalid file size for TAR header at offset ${headerOffset}`)
     }
 
     let fileName: string

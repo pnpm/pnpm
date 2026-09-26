@@ -369,6 +369,31 @@ test('a truncated tarball is rejected', () => {
   expect(() => parseTarballEntries(tarContent.subarray(0, 1024))).toThrow('Unexpected end of TAR archive at offset 1024')
 })
 
+test('an entry is not allocated from its declared size before its content arrives', () => {
+  const declaredSize = 4 * 1024 * 1024 * 1024
+  const header = createTarballWithEntry('package/index.js', '', { declaredSize }).subarray(0, 512)
+  const parser = createTarballParser(() => {})
+  const arrayBuffersBefore = process.memoryUsage().arrayBuffers
+  parser.push(header)
+  parser.push(Buffer.alloc(1024, 'x'))
+  expect(process.memoryUsage().arrayBuffers - arrayBuffersBefore).toBeLessThan(declaredSize / 4)
+  expect(() => parser.end()).toThrow('Unexpected end of TAR archive at offset 1536')
+})
+
+test('an entry whose size is not a number is rejected', () => {
+  const tarContent = createTarballWithEntry('package/index.js', '', { rawSizeField: 'zzzzzzzzzzz' })
+  expect(() => parseTarballEntries(tarContent)).toThrow('Invalid file size for TAR header at offset 0')
+})
+
+test('nothing is written to the store from a malformed archive', () => {
+  const storeDir = temporaryDirectory()
+  const validEntry = createTarballWithEntry('package/index.js', 'module.exports = 1').subarray(0, 1024)
+  const brokenHeader = Buffer.alloc(512, 'x')
+  expect(() => createCafs(storeDir).addFilesFromTarball(gzipSync(Buffer.concat([validEntry, brokenHeader, Buffer.alloc(1024)]))))
+    .toThrow('Invalid checksum for TAR header at offset 1024')
+  expect(fs.readdirSync(storeDir)).toStrictEqual([])
+})
+
 describe('addFilesFromTarballBounded', () => {
   // All-zero content compresses to a small gzip body.
   const largeFileSize = MAX_IN_MEMORY_TARBALL_SIZE + 1024 * 1024
@@ -433,7 +458,11 @@ function parseTarballEntries (tarContent: Buffer, chunkSize = tarContent.length)
 }
 
 // Helper to create a minimal tarball buffer with a single entry
-function createTarballWithEntry (entryPath: string, content: string | Buffer): Buffer {
+function createTarballWithEntry (
+  entryPath: string,
+  content: string | Buffer,
+  { declaredSize, rawSizeField }: { declaredSize?: number, rawSizeField?: string } = {}
+): Buffer {
   const contentBytes = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
 
   // Create a 512-byte header
@@ -452,7 +481,7 @@ function createTarballWithEntry (entryPath: string, content: string | Buffer): B
   header.write('0000000\0', 116, 8, 'utf8')
 
   // File size at offset 124 (octal, 12 bytes)
-  const sizeOctal = contentBytes.length.toString(8).padStart(11, '0')
+  const sizeOctal = rawSizeField ?? (declaredSize ?? contentBytes.length).toString(8).padStart(11, '0')
   header.write(sizeOctal + '\0', 124, 12, 'utf8')
 
   // Mtime at offset 136 (octal, 12 bytes)

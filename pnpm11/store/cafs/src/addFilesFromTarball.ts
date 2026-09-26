@@ -11,7 +11,7 @@ import bz2 from 'bz2'
 import isGzip from 'is-gzip'
 
 import { parseJsonBufferSync } from './parseJson.js'
-import { createTarballParser, type TarballParser } from './parseTarball.js'
+import { createTarballParser, type OnTarballFile } from './parseTarball.js'
 
 // chunkSize 128KB (8x the Node.js default of 16KB) reduces the number of
 // internal buffer allocations and copies during decompression. Benchmarks
@@ -32,9 +32,7 @@ export function addFilesFromTarball (
   readManifest?: boolean,
   ignore?: (filename: string) => boolean
 ): AddToStoreResult {
-  const extraction = createFilesIndexExtraction(addBufferToCafs, readManifest, ignore)
-  extraction.parser.push(decompressTarball(tarballBuffer))
-  return extraction.finish()
+  return addFilesFromTarContent(addBufferToCafs, decompressTarball(tarballBuffer), readManifest, ignore)
 }
 
 /**
@@ -47,54 +45,77 @@ export async function addFilesFromTarballBounded (
   readManifest?: boolean,
   ignore?: (filename: string) => boolean
 ): Promise<AddToStoreResult> {
-  const extraction = createFilesIndexExtraction(addBufferToCafs, readManifest, ignore)
   const tarContent = isGzip(tarballBuffer)
     ? gunzipUpTo(tarballBuffer, MAX_IN_MEMORY_TARBALL_SIZE)
     : decompressTarball(tarballBuffer)
   if (tarContent != null) {
-    extraction.parser.push(tarContent)
-  } else {
-    const gunzip = createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })
-    gunzip.end(tarballBuffer)
-    for await (const chunk of gunzip) {
-      extraction.parser.push(chunk as Buffer)
-    }
+    return addFilesFromTarContent(addBufferToCafs, tarContent, readManifest, ignore)
   }
-  return extraction.finish()
+  // Files are written to the store as they are decompressed, before the rest
+  // of the archive is validated. Deferring them would mean holding them all.
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, readManifest, ignore)
+  const parser = createTarballParser(filesIndexBuilder.addFile)
+  const gunzip = createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })
+  gunzip.end(tarballBuffer)
+  for await (const chunk of gunzip) {
+    parser.push(chunk as Buffer)
+  }
+  parser.end()
+  return filesIndexBuilder.result()
 }
 
-interface FilesIndexExtraction {
-  parser: TarballParser
-  finish: () => AddToStoreResult
+/**
+ * Parses the whole archive before writing any file to the store, so a
+ * malformed archive leaves nothing behind and a path that appears more than
+ * once is written only once.
+ */
+function addFilesFromTarContent (
+  addBufferToCafs: AddBufferToCafs,
+  tarContent: Buffer,
+  readManifest?: boolean,
+  ignore?: (filename: string) => boolean
+): AddToStoreResult {
+  const files = new Map<string, { mode: number, content: Buffer }>()
+  const parser = createTarballParser((relativePath, mode, content) => {
+    files.set(relativePath, { mode, content })
+  })
+  parser.push(tarContent)
+  parser.end()
+  const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, readManifest, ignore)
+  for (const [relativePath, { mode, content }] of files) {
+    filesIndexBuilder.addFile(relativePath, mode, content)
+  }
+  return filesIndexBuilder.result()
 }
 
-function createFilesIndexExtraction (
+interface FilesIndexBuilder {
+  addFile: OnTarballFile
+  result: () => AddToStoreResult
+}
+
+function createFilesIndexBuilder (
   addBufferToCafs: AddBufferToCafs,
   readManifest?: boolean,
   ignore?: (filename: string) => boolean
-): FilesIndexExtraction {
+): FilesIndexBuilder {
   const filesIndex = new Map() as FilesIndex
   let manifestBuffer: Buffer | undefined
-  const parser = createTarballParser((relativePath, mode, content) => {
-    if (ignore?.(relativePath)) return
-    if (readManifest && relativePath === 'package.json') {
-      manifestBuffer = content
-    }
-    filesIndex.set(relativePath, {
-      mode,
-      size: content.length,
-      ...addBufferToCafs(content, mode),
-    })
-  })
   return {
-    parser,
-    finish: () => {
-      parser.end()
-      return {
-        filesIndex,
-        manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) as DependencyManifest : undefined,
+    addFile: (relativePath, mode, content) => {
+      if (ignore?.(relativePath)) return
+      if (readManifest && relativePath === 'package.json') {
+        manifestBuffer = content
       }
+      filesIndex.set(relativePath, {
+        mode,
+        size: content.length,
+        ...addBufferToCafs(content, mode),
+      })
     },
+    result: () => ({
+      filesIndex,
+      manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) as DependencyManifest : undefined,
+    }),
   }
 }
 
