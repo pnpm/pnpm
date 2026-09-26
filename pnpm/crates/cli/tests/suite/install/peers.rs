@@ -1,6 +1,7 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, bump_mtime, fs, install_with_peer_alias_deps,
-    new_pacquet_command, read_lockfile,
+    AddMockedRegistry, CommandExtra, CommandTempCwd,
+    bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age, bump_mtime, fs,
+    install_with_peer_alias_deps, new_pacquet_command, read_lockfile,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -567,6 +568,95 @@ fn resolution_mode_time_based_applies_under_a_minimum_release_age() {
     assert!(!pnpm_dir.join("@pnpm.e2e+foo@100.1.0").exists());
 
     drop((root, mock_instance));
+}
+
+/// Install `@pnpm.e2e/bravo@1.0.0` under `time-based` with its dependency
+/// `@pnpm.e2e/bravo-dep` overridden to 1.1.0. Bravo is published in 2022-04,
+/// so `time-based` resolves its dependencies against a cutoff one hour later,
+/// and bravo-dep@1.1.0, published in 2022-05, is newer than that cutoff.
+fn time_based_install_with_newer_subdep(
+    minimum_release_age: u64,
+    strict: bool,
+) -> CommandTempCwd<AddMockedRegistry> {
+    let setup = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &setup.workspace;
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let existing = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    let settings = format!(
+        "{existing}resolutionMode: time-based\nminimumReleaseAge: {minimum_release_age}\nminimumReleaseAgeStrict: {strict}\noverrides:\n  \"@pnpm.e2e/bravo-dep\": 1.1.0\n",
+    );
+    fs::write(&workspace_yaml, settings).expect("write pnpm-workspace.yaml");
+    let package_json_content = serde_json::json!({
+        "dependencies": { "@pnpm.e2e/bravo": "1.0.0" },
+    });
+    let manifest_path = workspace.join("package.json");
+    fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
+    setup
+}
+
+#[test]
+fn strict_install_accepts_a_subdep_newer_than_only_the_time_based_cutoff() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = time_based_install_with_newer_subdep(1, true);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let bravo_dep = workspace.join("node_modules/.pnpm/@pnpm.e2e+bravo-dep@1.1.0");
+    assert!(bravo_dep.exists());
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn loose_install_does_not_exclude_a_subdep_newer_than_only_the_time_based_cutoff() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = time_based_install_with_newer_subdep(1, false);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    eprintln!("pnpm-workspace.yaml:\n{yaml}");
+    assert!(!yaml.contains("minimumReleaseAgeExclude"));
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn strict_install_reports_a_time_based_subdep_against_the_minimum_release_age_cutoff() {
+    let CommandTempCwd { pacquet, root, npmrc_info, .. } = time_based_install_with_newer_subdep(
+        bravo_mature_bravo_dep_1_1_0_immature_minimum_release_age(),
+        true,
+    );
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"));
+    assert!(stderr.contains("@pnpm.e2e/bravo-dep@1.1.0"));
+    assert!(stderr.contains("(2022-04-15T"));
+
+    drop((root, npmrc_info));
 }
 
 /// A hoisted (auto-installed) peer is not a dependency the user

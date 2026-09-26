@@ -4,7 +4,7 @@ import { expect, jest, test } from '@jest/globals'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, bravoMatureBravoDep110ImmatureMinimumReleaseAge } from '@pnpm/testing.registry-mock'
 import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
@@ -127,6 +127,47 @@ test('time-based resolution repopulates missing lockfile time entries on re-inst
 
   const lockfileAfterReinstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
   expect(lockfileAfterReinstall.time).toEqual(lockfileAfterFirstInstall.time)
+})
+
+test('a subdependency newer than the time-based cutoff but mature under minimumReleaseAge is not a violation', async () => {
+  const project = prepareEmpty()
+  const violations: string[] = []
+
+  // @pnpm.e2e/bravo@1.0.0 is published in 2022-04, so the time-based cutoff for
+  // its dependencies is one hour later. The override pins bravo-dep to 1.1.0,
+  // published in 2022-05, which a one-minute minimumReleaseAge admits.
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: 1,
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      violations.push(...found.map((v) => `${v.name}@${v.version}`))
+    },
+  })
+
+  expect(violations).toStrictEqual([])
+  expect(project.readLockfile().snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+test('a subdependency newer than minimumReleaseAge is reported against the minimumReleaseAge cutoff under time-based resolution', async () => {
+  prepareEmpty()
+  const reasons: string[] = []
+
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: bravoMatureBravoDep110ImmatureMinimumReleaseAge(),
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      reasons.push(...found.map((v) => `${v.name}@${v.version} ${v.reason}`))
+    },
+  })
+
+  expect(reasons).toHaveLength(1)
+  expect(reasons[0]).toMatch(/^@pnpm\.e2e\/bravo-dep@1\.1\.0 was published at 2022-05-\S+, within the minimumReleaseAge cutoff \(2022-04-15T/)
 })
 
 const matureUpTo101MinimumReleaseAge = bravoDepMatureUpTo101MinimumReleaseAge()
