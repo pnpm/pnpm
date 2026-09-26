@@ -37,7 +37,8 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     auth_headers: &AuthHeaders,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    if_none_match: Option<&str>,
+) -> Result<AttemptedFetch, TarballError> {
     let download = TarballDownload {
         http_client,
         package_url,
@@ -48,19 +49,80 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         ignore_file_pattern,
     };
     if let Some(path) = local_file_tarball_path(package_url) {
-        return download.fetch_local::<Reporter>(&path, attempt).await;
+        return fetch_local_archive::<Reporter>(download, &path, attempt).await;
     }
-    let (client, response_head) = crate::archive_request::request_archive::<Reporter>(
-        http_client,
-        package_url,
-        package_id,
+    fetch_remote::<Reporter>(
+        download,
         auth_headers,
         download_priority,
         attempt,
         revision_addressed,
+        if_none_match,
+    )
+    .await
+}
+
+async fn fetch_local_archive<Reporter: self::Reporter>(
+    download: TarballDownload<'_>,
+    path: &Path,
+    attempt: u32,
+) -> Result<AttemptedFetch, TarballError> {
+    let package_url = download.package_url;
+    let (integrity, files, index) = download.fetch_local::<Reporter>(path, attempt).await?;
+    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
+        integrity,
+        files,
+        index,
+        meta: empty_meta(package_url),
+    })))
+}
+
+async fn fetch_remote<Reporter: self::Reporter>(
+    download: TarballDownload<'_>,
+    auth_headers: &AuthHeaders,
+    download_priority: u64,
+    attempt: u32,
+    revision_addressed: bool,
+    if_none_match: Option<&str>,
+) -> Result<AttemptedFetch, TarballError> {
+    let (client, response_head, meta) = crate::archive_request::request_archive::<Reporter>(
+        download.http_client,
+        download.package_url,
+        download.package_id,
+        auth_headers,
+        download_priority,
+        attempt,
+        revision_addressed,
+        if_none_match,
     )
     .await?;
-    download.extract_response::<Reporter, _>(client, response_head, attempt).await
+    if meta.not_modified {
+        drop(response_head);
+        return Ok(AttemptedFetch::NotModified(meta));
+    }
+    let (integrity, files, index) =
+        download.extract_response::<Reporter, _>(client, response_head, attempt).await?;
+    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive { integrity, files, index, meta })))
+}
+
+pub(crate) struct ExtractedArchive {
+    pub integrity: Integrity,
+    pub files: HashMap<String, PathBuf>,
+    pub index: PackageFilesIndex,
+    pub meta: crate::archive_request::ArchiveResponseMeta,
+}
+
+pub(crate) enum AttemptedFetch {
+    Extracted(Box<ExtractedArchive>),
+    NotModified(crate::archive_request::ArchiveResponseMeta),
+}
+
+fn empty_meta(package_url: &str) -> crate::archive_request::ArchiveResponseMeta {
+    crate::archive_request::ArchiveResponseMeta {
+        not_modified: false,
+        cache_headers: crate::CacheHeaders::default(),
+        final_url: package_url.to_owned(),
+    }
 }
 
 pub(super) struct TarballDownload<'a> {
@@ -208,18 +270,8 @@ impl TarballDownload<'_> {
         let buffer = match buffered {
             Buffered::Complete(buffer) => buffer,
             Buffered::Overflowed(buffer) => {
-                let permit = streaming_extract_semaphore()
-                    .acquire()
-                    .await
-                    .expect("streaming-extract semaphore shouldn't be closed this soon");
-                return self.stream_body::<Reporter, _, _>(
-                    vec![bytes::Bytes::from(buffer)],
-                    stream,
-                    progress,
-                    client,
-                    permit,
-                )
-                .await;
+                return self.stream_overflowed::<Reporter, _, _>(buffer, stream, progress, client)
+                    .await;
             }
         };
         drop(stream);
@@ -233,6 +285,31 @@ impl TarballDownload<'_> {
             self.package_url,
             self.store_dir,
             self.ignore_file_pattern,
+        )
+        .await
+    }
+
+    async fn stream_overflowed<Reporter, Body, Guard>(
+        self,
+        buffer: Vec<u8>,
+        stream: Body,
+        progress: BodyProgress<'_>,
+        client: Guard,
+    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    where
+        Reporter: self::Reporter,
+        Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
+    {
+        let permit = streaming_extract_semaphore()
+            .acquire()
+            .await
+            .expect("streaming-extract semaphore shouldn't be closed this soon");
+        self.stream_body::<Reporter, _, _>(
+            vec![bytes::Bytes::from(buffer)],
+            stream,
+            progress,
+            client,
+            permit,
         )
         .await
     }

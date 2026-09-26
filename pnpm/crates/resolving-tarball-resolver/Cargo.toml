@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-crypto-hash = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-reporter = { workspace = true }
@@ -18,6 +20,7 @@ pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 
+httpdate = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 ssri = { workspace = true }

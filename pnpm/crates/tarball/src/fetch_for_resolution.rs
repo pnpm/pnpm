@@ -2,8 +2,9 @@
 //! through the in-memory cache.
 
 use crate::{
-    CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
-    apply_placeholder_manifest, claim_cache_entry, download::fetch_and_extract_with_retry,
+    CacheHeaders, CacheValue, CachedTarball, MemCache, RetryOpts, TarballError, TarballPackage,
+    apply_placeholder_manifest, claim_cache_entry,
+    download::{AttemptedFetch, fetch_and_extract_conditional},
     package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
     read_subdir_manifest, wait_for_cached_tarball,
 };
@@ -24,6 +25,25 @@ use tokio::sync::{Notify, RwLock};
 pub struct ResolvedTarball {
     pub integrity: Integrity,
     pub manifest: Option<serde_json::Value>,
+    /// Caching headers of the response that produced this archive. Empty
+    /// when the bytes came from the in-memory cache rather than the network.
+    pub cache_headers: CacheHeaders,
+    /// The URL the archive was served from, after redirects.
+    pub final_url: String,
+}
+
+/// A resolve-time fetch that may be satisfied by `304 Not Modified`.
+pub enum TarballResolutionFetch {
+    Resolved(ResolvedTarball),
+    NotModified(NotModifiedResponse),
+}
+
+/// A `304 Not Modified` answer to a conditional archive request.
+#[derive(Debug)]
+pub struct NotModifiedResponse {
+    pub cache_headers: CacheHeaders,
+    /// The URL that answered, after redirects.
+    pub final_url: String,
 }
 
 /// Download a remote tarball during *resolution*, settle its sha512
@@ -90,10 +110,26 @@ struct ExtractedTarball {
     root_manifest: Option<serde_json::Value>,
 }
 
-impl ExtractedTarball {
+struct ExtractedWithValidators {
+    body: ExtractedTarball,
+    cache_headers: CacheHeaders,
+    final_url: String,
+}
+
+impl ExtractedWithValidators {
     fn into_resolved(self) -> ResolvedTarball {
-        ResolvedTarball { integrity: self.integrity, manifest: self.manifest }
+        ResolvedTarball {
+            integrity: self.body.integrity,
+            manifest: self.body.manifest,
+            cache_headers: self.cache_headers,
+            final_url: self.final_url,
+        }
     }
+}
+
+enum FetchedBody {
+    Extracted(ExtractedWithValidators),
+    NotModified(NotModifiedResponse),
 }
 
 impl FetchTarballForResolution<'_> {
@@ -101,9 +137,28 @@ impl FetchTarballForResolution<'_> {
         self,
         mem_cache: Option<&MemCache>,
     ) -> Result<ResolvedTarball, TarballError> {
-        match (mem_cache, self.package.integrity) {
-            (Some(mem_cache), Some(_)) => self.run_pinned::<Reporter>(mem_cache).await,
-            (mem_cache, _) => self.fetch_and_publish::<Reporter>(mem_cache).await,
+        let url = self.package.url.to_string();
+        match self.run_with_cache::<Reporter>(mem_cache, None).await? {
+            TarballResolutionFetch::Resolved(resolved) => Ok(resolved),
+            TarballResolutionFetch::NotModified(_) => {
+                Err(TarballError::HttpStatus(crate::HttpStatusError { url, status: 304 }))
+            }
+        }
+    }
+
+    /// `if_none_match` asks the origin to answer `304` when the stored
+    /// representation is still current. Callers then keep the integrity
+    /// they already recorded for that validator.
+    pub async fn run_with_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: Option<&MemCache>,
+        if_none_match: Option<&str>,
+    ) -> Result<TarballResolutionFetch, TarballError> {
+        match (mem_cache, self.package.integrity, if_none_match) {
+            (Some(mem_cache), Some(_), None) => {
+                self.run_pinned::<Reporter>(mem_cache).await.map(TarballResolutionFetch::Resolved)
+            }
+            (mem_cache, _, _) => self.fetch_and_publish::<Reporter>(mem_cache, if_none_match).await,
         }
     }
 
@@ -137,7 +192,12 @@ impl FetchTarballForResolution<'_> {
         let integrity =
             self.package.integrity.cloned().expect("a pinned read claims a hashed cache identity");
         let manifest = self.manifest_from_cached(&cached).await?;
-        Ok(ResolvedTarball { integrity, manifest })
+        Ok(ResolvedTarball {
+            integrity,
+            manifest,
+            cache_headers: CacheHeaders::default(),
+            final_url: self.package.url.to_owned(),
+        })
     }
 
     async fn manifest_from_cached(
@@ -158,18 +218,24 @@ impl FetchTarballForResolution<'_> {
         cache_lock: Arc<RwLock<CacheValue>>,
         notify: Arc<Notify>,
     ) -> Result<ResolvedTarball, TarballError> {
-        match self.fetch_extracted::<Reporter>().await {
-            Ok(extracted) => {
+        match self.fetch_extracted::<Reporter>(None).await {
+            Ok(FetchedBody::Extracted(extracted)) => {
                 publish_cached_tarball(
                     &cache_lock,
                     &notify,
                     CachedTarball {
-                        files: Arc::clone(&extracted.files),
-                        manifest: extracted.root_manifest.clone(),
+                        files: Arc::clone(&extracted.body.files),
+                        manifest: extracted.body.root_manifest.clone(),
                     },
                 )
                 .await;
                 Ok(extracted.into_resolved())
+            }
+            Ok(FetchedBody::NotModified(_)) => {
+                Err(TarballError::HttpStatus(crate::HttpStatusError {
+                    url: self.package.url.to_string(),
+                    status: 304,
+                }))
             }
             Err(err) => {
                 publish_cache_failure(
@@ -188,23 +254,28 @@ impl FetchTarballForResolution<'_> {
     async fn fetch_and_publish<Reporter: self::Reporter>(
         self,
         mem_cache: Option<&MemCache>,
-    ) -> Result<ResolvedTarball, TarballError> {
-        let extracted = self.fetch_extracted::<Reporter>().await?;
-        if let Some(mem_cache) = mem_cache {
-            insert_available_if_vacant(
-                mem_cache,
-                package_mem_cache_key(
-                    self.package.url,
-                    Some(&extracted.integrity),
-                    self.revision_addressed,
-                ),
-                CachedTarball {
-                    files: Arc::clone(&extracted.files),
-                    manifest: extracted.root_manifest.clone(),
-                },
-            );
+        if_none_match: Option<&str>,
+    ) -> Result<TarballResolutionFetch, TarballError> {
+        match self.fetch_extracted::<Reporter>(if_none_match).await? {
+            FetchedBody::NotModified(response) => Ok(TarballResolutionFetch::NotModified(response)),
+            FetchedBody::Extracted(extracted) => {
+                if let Some(mem_cache) = mem_cache {
+                    insert_available_if_vacant(
+                        mem_cache,
+                        package_mem_cache_key(
+                            self.package.url,
+                            Some(&extracted.body.integrity),
+                            self.revision_addressed,
+                        ),
+                        CachedTarball {
+                            files: Arc::clone(&extracted.body.files),
+                            manifest: extracted.body.root_manifest.clone(),
+                        },
+                    );
+                }
+                Ok(TarballResolutionFetch::Resolved(extracted.into_resolved()))
+            }
         }
-        Ok(extracted.into_resolved())
     }
 
     /// Resolve-time tarball fetches compute integrity from bytes and
@@ -212,24 +283,45 @@ impl FetchTarballForResolution<'_> {
     /// packument requests instead of queuing behind sized downloads.
     async fn fetch_extracted<Reporter: self::Reporter>(
         &self,
-    ) -> Result<ExtractedTarball, TarballError> {
-        let (integrity, mut cas_paths, mut pkg_files_idx) =
-            fetch_and_extract_with_retry::<Reporter>(
-                self.http_client,
-                self.package.url,
-                self.package.integrity,
-                self.package.unpacked_size,
-                UNPRIORITIZED,
-                self.package.id,
-                self.package.url,
-                self.store_dir,
-                self.retry_opts,
-                self.auth_headers,
-                None,
-                None,
-                self.revision_addressed,
-            )
-            .await?;
+        if_none_match: Option<&str>,
+    ) -> Result<FetchedBody, TarballError> {
+        let fetched = fetch_and_extract_conditional::<Reporter>(
+            self.http_client,
+            self.package.url,
+            self.package.integrity,
+            self.package.unpacked_size,
+            UNPRIORITIZED,
+            self.package.id,
+            self.package.url,
+            self.store_dir,
+            self.retry_opts,
+            self.auth_headers,
+            None,
+            None,
+            self.revision_addressed,
+            if_none_match,
+        )
+        .await?;
+        match fetched {
+            AttemptedFetch::NotModified(meta) => {
+                Ok(FetchedBody::NotModified(NotModifiedResponse {
+                    cache_headers: meta.cache_headers,
+                    final_url: meta.final_url,
+                }))
+            }
+            AttemptedFetch::Extracted(extracted) => {
+                self.process_extracted(*extracted).await.map(FetchedBody::Extracted)
+            }
+        }
+    }
+
+    async fn process_extracted(
+        &self,
+        extracted: crate::download::ExtractedArchive,
+    ) -> Result<ExtractedWithValidators, TarballError> {
+        let mut cas_paths = extracted.files;
+        let mut pkg_files_idx = extracted.index;
+        let integrity = extracted.integrity;
         apply_placeholder_manifest(self.store_dir, &mut cas_paths, &mut pkg_files_idx)?;
         let root_manifest = pkg_files_idx.manifest.clone();
         let manifest = match self.manifest_subdir {
@@ -237,7 +329,16 @@ impl FetchTarballForResolution<'_> {
             None => root_manifest.clone(),
         };
         self.record_store_index_row(&integrity, pkg_files_idx);
-        Ok(ExtractedTarball { integrity, files: Arc::new(cas_paths), manifest, root_manifest })
+        Ok(ExtractedWithValidators {
+            body: ExtractedTarball {
+                integrity,
+                files: Arc::new(cas_paths),
+                manifest,
+                root_manifest,
+            },
+            cache_headers: extracted.meta.cache_headers,
+            final_url: extracted.meta.final_url,
+        })
     }
 
     /// File this extraction under the caller's `package_id` — the same

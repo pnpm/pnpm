@@ -1,4 +1,5 @@
 pub use archive_options::*;
+pub use archive_request::CacheHeaders;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
@@ -9,7 +10,9 @@ pub(crate) use extract::{
     normalize_bundled_manifest, oversized_manifest_error, stream_extract_gzipped_channel,
     tar_entry_payload,
 };
-pub use fetch_for_resolution::{FetchTarballForResolution, ResolvedTarball};
+pub use fetch_for_resolution::{
+    FetchTarballForResolution, NotModifiedResponse, ResolvedTarball, TarballResolutionFetch,
+};
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;
 pub(crate) use prefetch::CachedCasPaths;

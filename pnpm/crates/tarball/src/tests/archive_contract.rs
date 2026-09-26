@@ -39,6 +39,7 @@ async fn archive_requests_preserve_the_deployments_redirect_guard() {
         0,
         0,
         false,
+        None,
     )
     .await;
     let error = result.err().expect("off-allowlist redirect must fail");
@@ -87,7 +88,7 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
         RetryOpts { retries: u32::MAX, ..fast_retry_opts() },
         |attempt| {
             crate::archive_request::request_archive::<RecordingReporter>(
-                &client, &url, "fixture", &auth, 0, attempt, false,
+                &client, &url, "fixture", &auth, 0, attempt, false, None,
             )
         },
     )
@@ -184,6 +185,7 @@ async fn archive_network_errors_remove_urls_from_the_source_chain() {
         0,
         u32::MAX,
         false,
+        None,
     )
     .await;
     let error = result.err().expect("closed port must fail");
@@ -232,7 +234,7 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         "Basic secret".to_string(),
     );
     let url = format!("http://registry.example:{}/simple/pkg.whl", address.port());
-    let (_guard, response) = crate::archive_request::request_archive::<SilentReporter>(
+    let (_guard, response, _) = crate::archive_request::request_archive::<SilentReporter>(
         &client,
         &url,
         "python:alpha",
@@ -240,12 +242,68 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         0,
         0,
         false,
+        None,
     )
     .await
     .unwrap();
     eprintln!("response={response:?}");
     assert_eq!(response.bytes().await.unwrap(), "wheel");
     request.assert_async().await;
+}
+
+#[tokio::test]
+async fn archive_requests_accept_not_modified_only_when_sending_a_validator() {
+    let mut server = mockito::Server::new_async().await;
+    let not_modified = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(304)
+        .expect(2)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let auth = AuthHeaders::default();
+    for (if_none_match, accepted) in [(Some(r#""v1""#), true), (Some(" "), false)] {
+        let result = crate::archive_request::request_archive::<SilentReporter>(
+            &client,
+            &url,
+            "fixture",
+            &auth,
+            0,
+            0,
+            false,
+            if_none_match,
+        )
+        .await;
+        assert_eq!(result.is_ok(), accepted, "{if_none_match:?}");
+    }
+    not_modified.assert_async().await;
+}
+
+#[tokio::test]
+async fn archive_response_meta_joins_repeated_cache_control_fields() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_header("cache-control", "max-age=3600")
+        .with_header("cache-control", "no-store")
+        .with_body("archive")
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let (_guard, _response, meta) = crate::archive_request::request_archive::<SilentReporter>(
+        &ThrottledClient::default(),
+        &url,
+        "fixture",
+        &AuthHeaders::default(),
+        0,
+        0,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(meta.cache_headers.cache_control.as_deref(), Some("max-age=3600, no-store"));
 }
 
 impl Container {
@@ -534,10 +592,12 @@ async fn request_archive_quick_retries_transient_connection_reset() {
         0,
         0,
         false,
+        None,
     )
     .await;
 
-    let (_guard, response) = result.expect("quick retry must recover from initial connection drop");
+    let (_guard, response, _) =
+        result.expect("quick retry must recover from initial connection drop");
     assert_eq!(response.status(), 200);
     assert_eq!(response.text().await.unwrap(), "done");
     server_task.await.unwrap();
