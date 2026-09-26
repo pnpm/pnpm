@@ -110,6 +110,18 @@ fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf 
     }
 }
 
+/// Hoisted deploy must not materialize a runtime downloaded for
+/// `engines.runtime` into `node_modules`. Isolated deploy keeps the
+/// virtual-store link. `--no-runtime` and `skipRuntimes` still apply
+/// for every linker.
+pub(super) fn deploy_skips_downloaded_runtimes(
+    node_linker: NodeLinker,
+    skip_runtimes: bool,
+    no_runtime: bool,
+) -> bool {
+    skip_runtimes || no_runtime || node_linker == NodeLinker::Hoisted
+}
+
 pub(super) fn create_deploy_install_config(
     base_config: &Config,
     deploy_dir: &Path,
@@ -202,8 +214,11 @@ impl DeployArgs {
                 .or(Some(false));
             base_install.lockfile_policy.trust = trust_lockfile;
             base_install.lockfile_policy.disable_optimistic_repeat = true;
-            base_install.execution.skip_runtimes =
-                config.skip_runtimes || self.install_args.materialization.no_runtime;
+            base_install.execution.skip_runtimes = deploy_skips_downloaded_runtimes(
+                config.node_linker,
+                config.skip_runtimes,
+                self.install_args.materialization.no_runtime,
+            );
             base_install.resolution.preferred_versions_override = preferred_versions_override;
             base_install.context.lockfile_path = lockfile_path.as_deref();
             base_install.projects.supported_architectures = supported_architectures;
@@ -247,5 +262,20 @@ impl DeployArgs {
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NodeLinker, deploy_skips_downloaded_runtimes};
+
+    #[test]
+    fn hoisted_deploy_skips_downloaded_runtimes() {
+        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Hoisted, false, false));
+        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Isolated, true, false));
+        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Isolated, false, true));
+        assert!(!deploy_skips_downloaded_runtimes(NodeLinker::Isolated, false, false));
+        assert!(!deploy_skips_downloaded_runtimes(NodeLinker::Pnp, false, false));
+        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Pnp, false, true));
     }
 }

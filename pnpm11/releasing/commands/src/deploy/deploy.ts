@@ -165,6 +165,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   await install.handler({
     ...opts,
     deploy: true,
+    runtime: runtimeOptionForDeploy(opts),
     configDependencies: undefined,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
@@ -425,6 +426,7 @@ async function deployFromSharedLockfile (
     await install.handler({
       ...opts,
       deploy: true,
+      runtime: runtimeOptionForDeploy(opts),
       allProjects: undefined,
       allProjectsGraph: undefined,
       selectedProjectsGraph: undefined,
@@ -474,6 +476,15 @@ function getConfiguredVirtualStoreDir (
     return undefined
   }
   return opts.virtualStoreDir
+}
+
+// `engines.runtime` with `onFail: download` is a production dependency so
+// pnpm can run the project's scripts with that Node.js. A hoisted deploy
+// would copy that runtime into `node_modules` next to the app's packages.
+// Isolated deploy keeps it as a virtual-store link.
+function runtimeOptionForDeploy (opts: DeployOptions): boolean | undefined {
+  if (opts.nodeLinker === 'hoisted') return false
+  return opts.runtime
 }
 
 function resolveDeployVirtualStoreDir (
