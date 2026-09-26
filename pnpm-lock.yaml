@@ -6138,6 +6138,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      ci-info:
+        specifier: 'catalog:'
+        version: 4.4.0
       hosted-git-info:
         specifier: 'catalog:'
         version: '@pnpm/hosted-git-info@1.0.0'
@@ -6250,9 +6253,6 @@ importers:
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.9.1(typanion@3.14.0)
-      ci-info:
-        specifier: 'catalog:'
-        version: 4.4.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0

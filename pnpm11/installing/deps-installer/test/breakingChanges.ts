@@ -153,18 +153,50 @@ test('do not fail on non-compatible store when forced during named installation'
   })
 })
 
-test('fail fast with actionable hint on non-TTY when modules purge needs confirmation', async () => {
+test('do not fail on non-compatible node_modules in non-TTY environment', async () => {
   prepareEmpty()
   const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
+  fs.writeFileSync('node_modules/sentinel.txt', 'sentinel')
+
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], opts)
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
   const originalIsTTY = process.stdin.isTTY
   Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+  try {
+    await install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+    })
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
 
+  expect(fs.existsSync('node_modules/sentinel.txt')).toBeFalsy()
+})
+
+test('fail on non-compatible custom modules directory in non-TTY environment', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  await saveModulesYaml('0.50.0', opts.storeDir, 'custom_modules')
+
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
   let err: unknown
   try {
-    await install({}, opts)
+    await install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+      modulesDir: 'custom_modules',
+    })
   } catch (_err: unknown) {
     err = _err
   } finally {
@@ -173,15 +205,43 @@ test('fail fast with actionable hint on non-TTY when modules purge needs confirm
 
   expect(util.types.isNativeError(err)).toBeTruthy()
   if (util.types.isNativeError(err)) {
-    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY')
-    expect(err.message).toContain('no TTY')
-    expect('hint' in err && typeof err.hint === 'string' && err.hint).toContain('confirmModulesPurge')
+    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE')
   }
 })
 
-async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
-  fs.mkdirSync('node_modules')
-  fs.writeFileSync('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
+test('fail on non-compatible symlinked node_modules in non-TTY environment', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  fs.mkdirSync('real_modules')
+  fs.symlinkSync('real_modules', 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')
+  await saveModulesYaml('0.50.0', opts.storeDir, 'real_modules')
+
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+  let err: unknown
+  try {
+    await install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+    })
+  } catch (_err: unknown) {
+    err = _err
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+
+  expect(util.types.isNativeError(err)).toBeTruthy()
+  if (util.types.isNativeError(err)) {
+    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE')
+  }
+})
+
+async function saveModulesYaml (pnpmVersion: string, storeDir: string, dir: string = 'node_modules') {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir)
+  }
+  fs.writeFileSync(path.join(dir, '.modules.yaml'), `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installation is used`, async () => {

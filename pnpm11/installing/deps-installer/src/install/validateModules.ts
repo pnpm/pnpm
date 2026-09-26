@@ -15,6 +15,7 @@ import {
   type RegistriesByScope,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
 import { isSubdir } from 'is-subdir'
 import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
@@ -157,27 +158,39 @@ async function purgeModulesDirsOfImporters (
   if (safeImporters.length === 0) return true
 
   if (opts.confirmModulesPurge ?? true) {
-    if (!process.stdin.isTTY) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
-        hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
-      })
-    }
-    let confirmed: boolean
-    try {
-      confirmed = await confirm({
-        message: safeImporters.length === 1
-          ? `The modules directory at "${safeImporters[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
-          : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
-        default: true,
-      })
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
+    const isInteractive = process.stdin.isTTY && !isCI
+
+    if (isInteractive) {
+      let confirmed: boolean
+      try {
+        confirmed = await confirm({
+          message: safeImporters.length === 1
+            ? `The modules directory at "${safeImporters[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+            : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+          default: true,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+        }
+        throw err
+      }
+      if (!confirmed) {
         throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
       }
-      throw err
-    }
-    if (!confirmed) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+    } else {
+      const areAllSafeTargets = (await Promise.all(safeImporters.map(isSafeAutoPurgeTarget))).every(Boolean)
+      if (!areAllSafeTargets) {
+        throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', 'Aborted removal of non-standard or symlinked modules directory in non-interactive environment', {
+          hint: 'Use a direct, non-symlinked "node_modules" directory, or set "confirmModulesPurge" to "false".',
+        })
+      }
+      for (const importer of safeImporters) {
+        logger.info({
+          message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+          prefix: importer.rootDir,
+        })
+      }
     }
   }
   await Promise.all(safeImporters.map(async (importer) => {
@@ -215,6 +228,26 @@ async function resolveSafePurgeTarget (
     )
   }
   return { ...importer, purgeDir }
+}
+
+async function isSafeAutoPurgeTarget (importer: SafeImporterToPurge): Promise<boolean> {
+  const isDirectNodeModules = path.resolve(importer.rootDir, 'node_modules') === path.resolve(importer.modulesDir) ||
+    (importer.rootDirRealPath != null && path.resolve(importer.rootDirRealPath, 'node_modules') === path.resolve(importer.modulesDir))
+  if (!isDirectNodeModules) {
+    return false
+  }
+  try {
+    const stat = await fs.lstat(importer.modulesDir)
+    if (stat.isSymbolicLink()) {
+      return false
+    }
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return true
+    }
+    return false
+  }
+  return true
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
