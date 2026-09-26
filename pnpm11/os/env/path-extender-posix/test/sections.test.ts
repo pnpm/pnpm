@@ -11,7 +11,7 @@ import {
   replaceSection,
   updateShellConfig,
   wrapSettings,
-} from '../../src/setup/pathExtenderPosix.js'
+} from '../src/path-extender-posix.js'
 
 function opts (overwrite: boolean): AddDirToPosixEnvPathOpts {
   return {

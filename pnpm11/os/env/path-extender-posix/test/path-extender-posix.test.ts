@@ -267,6 +267,40 @@ case ":$PATH:" in
 esac
 # pnpm end`)
   })
+  it('should keep the lines between two pnpm sections when overwriting (pnpm/pnpm#12282)', async () => {
+    const duplicateSection = `# pnpm
+export PNPM_HOME="duplicate_block"
+# pnpm end`
+    fs.writeFileSync(configFile, `# user config
+# pnpm
+export PNPM_HOME="old_home"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+# content between sections that must not be deleted
+${duplicateSection}
+# after sections`, 'utf8')
+    const report = await addDirToPosixEnvPath(pnpmHomeDir, {
+      proxyVarName: 'PNPM_HOME',
+      overwrite: true,
+      configSectionName: 'pnpm',
+    })
+    expect(report.configFile?.changeType).toBe('modified')
+    const configContent = fs.readFileSync(configFile, 'utf8')
+    expect(configContent).toBe(`# user config
+# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+# content between sections that must not be deleted
+${duplicateSection}
+# after sections`)
+  })
 })
 
 describe('Zsh', () => {
