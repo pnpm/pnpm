@@ -463,7 +463,7 @@ const itOnNonWindows = process.platform === 'win32' ? it.skip : it
 
 // A symlink inside an extraction destination can redirect a ZIP entry to a file outside it.
 describe('zip extraction over a symlink', () => {
-  async function extractOverSymlink (plantSymlink: (paths: { targetDir: string, outside: string }) => void): Promise<string> {
+  async function extractOverSymlink (plantSymlink: (paths: { targetDir: string, outside: string }) => void): Promise<{ extraction: Promise<void>, outside: string, targetDir: string }> {
     const dir = temporaryDirectory()
     const outside = path.join(dir, 'outside')
     fs.mkdirSync(outside)
@@ -475,30 +475,30 @@ describe('zip extraction over a symlink', () => {
     const zip = new AdmZip()
     zip.addFile('bin/node', Buffer.from('overwritten'))
     const zipBuffer = zip.toBuffer()
-    await downloadAndUnpackZip(
+    const extraction = downloadAndUnpackZip(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       createMockFetch(zipBuffer) as any,
       { url: 'https://example.com/node.zip', integrity: ssri.fromData(zipBuffer).toString(), basename: '' },
       targetDir
-    ).catch((err: unknown) => {
-      expect(err).toMatchObject({ code: 'ERR_PNPM_PATH_TRAVERSAL' })
-    })
-    return fs.readFileSync(path.join(outside, 'node'), 'utf8')
+    )
+    return { extraction, outside, targetDir }
   }
 
   it('refuses to extract through a symlinked parent directory', async () => {
-    expect(await extractOverSymlink(({ targetDir, outside }) => {
+    const { extraction, outside } = await extractOverSymlink(({ targetDir, outside }) => {
       fs.symlinkSync(outside, path.join(targetDir, 'bin'), 'junction')
-    })).toBe('original')
+    })
+    await expect(extraction).rejects.toMatchObject({ code: 'ERR_PNPM_PATH_TRAVERSAL' })
+    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
   })
 
   itOnNonWindows('replaces a symlinked destination file instead of writing through it', async () => {
-    let targetDir!: string
-    expect(await extractOverSymlink((paths) => {
-      targetDir = paths.targetDir
+    const { extraction, outside, targetDir } = await extractOverSymlink((paths) => {
       fs.mkdirSync(path.join(paths.targetDir, 'bin'))
       fs.symlinkSync(path.join(paths.outside, 'node'), path.join(paths.targetDir, 'bin', 'node'))
-    })).toBe('original')
+    })
+    await extraction
+    expect(fs.readFileSync(path.join(outside, 'node'), 'utf8')).toBe('original')
     expect(fs.lstatSync(path.join(targetDir, 'bin', 'node')).isSymbolicLink()).toBe(false)
     expect(fs.readFileSync(path.join(targetDir, 'bin', 'node'), 'utf8')).toBe('overwritten')
   })
@@ -559,8 +559,11 @@ describe('zip download integrity', () => {
 })
 
 /**
- * Rewrites the uncompressed size recorded for the only entry of a zip, in both
- * its local file header and its central directory record.
+ * Returns a copy of a single-entry zip whose entry declares `size` as its
+ * uncompressed size, in both its local file header and its central directory
+ * record. The input is left unchanged. The zip must start with the entry's
+ * local file header, and the expectations fail if either record is not where
+ * a single-entry zip has it.
  */
 function setDeclaredUncompressedSize (zipBuffer: Buffer, size: number): Buffer {
   const patched = Buffer.from(zipBuffer)

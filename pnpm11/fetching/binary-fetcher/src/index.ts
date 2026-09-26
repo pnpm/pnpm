@@ -252,7 +252,7 @@ async function extractEntries (zipPath: string, { extractionRoot, basename, igno
   try {
     for await (const entry of zipfile.eachEntry()) {
       const entryPath = yauzl.getFileNameLowLevel(entry.generalPurposeBitFlag, entry.fileNameRaw, entry.extraFields, false)
-      // Directory entries are skipped. File extraction creates parent directories implicitly.
+      // Directory entries are optional in a zip, so directories are created from file paths instead.
       if (entryPath.endsWith('/')) continue
       validatePathSecurity(extractionRoot, entryPath)
       if (testEntry) {
