@@ -670,6 +670,40 @@ test('approve-builds works after removing an unrelated dependency (#13891)', asy
   expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
 })
 
+test('removing a dependency without executable scripts does not affect ignoredBuilds of remaining dependencies (#9323)', async () => {
+  const project = prepare({})
+
+  const pendingPkg = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const removedPkg = 'is-positive'
+
+  const firstAdd = execPnpmSync(['add', `${pendingPkg}@1.0.0`])
+  expect(firstAdd.status).toBe(1)
+  expect(firstAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const secondAdd = execPnpmSync(['add', `${removedPkg}@1.0.0`])
+  expect(secondAdd.status).toBe(1)
+  expect(secondAdd.stdout.toString()).toContain('Ignored build scripts:')
+
+  const remove = execPnpmSync(['remove', removedPkg])
+  expect(remove.status).toBe(0)
+
+  const modulesManifest = project.readModulesManifest()
+  const ignoredNames = Array.from(modulesManifest?.ignoredBuilds ?? []).map((depPath) => parse(depPath).name)
+  expect(ignoredNames).toContain(pendingPkg)
+  expect(ignoredNames).not.toContain(removedPkg)
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeFalsy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeFalsy()
+
+  const approve = execPnpmSync(['approve-builds', '--all'])
+  expect(approve.status).toBe(0)
+  expect(approve.stdout.toString()).not.toContain('There are no packages awaiting approval')
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-preinstall.js`)).toBeTruthy()
+  expect(fs.existsSync(`node_modules/${pendingPkg}/generated-by-postinstall.js`)).toBeTruthy()
+
+  const wsManifest = await readWorkspaceManifest(process.cwd())
+  expect(wsManifest!.allowBuilds?.[pendingPkg]).toBe(true)
+})
+
 // Which projects run their own lifecycle scripts is decided by the
 // mutated-importer list the command layer builds: the projects the
 // command was pointed at, plus the workspace root, which the recursive
