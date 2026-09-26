@@ -649,6 +649,101 @@ test('filtered install', async () => {
   }
 })
 
+test('filtered exec installs only the selected projects', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const result = execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'exec', 'node', '-e', "console.log('exec-ok')"], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('exec-ok')
+  expect(fs.existsSync(path.resolve('foo/node_modules'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+})
+
+// A filtered install leaves the projects it did not select without a modules
+// directory, so the next filtered command has to install the project it selects
+// instead of treating the recorded state as up to date
+// (https://github.com/pnpm/pnpm/issues/11865).
+test('exec installs the selected project after a filtered install', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  // the first filtered exec installs `foo` and leaves `bar` without a modules directory
+  execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'exec', 'node', '-e', "console.log('foo-ok')"], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('foo/node_modules'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+
+  const result = execPnpmSync([
+    '--config.verify-deps-before-run=install',
+    '--filter=bar',
+    'exec',
+    'node',
+    '-e',
+    "console.log('bar-ok')",
+  ], { expectSuccess: true })
+
+  expect(result.stdout.toString()).toContain('bar-ok')
+  expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+})
+
 test('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {

@@ -20,7 +20,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -36,7 +36,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (!needsInstall(upToDate, opts)) return
 
-  const command = ['install', ...createInstallArgs(workspaceState?.settings)]
+  const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
 
   switch (opts.verifyDepsBeforeRun) {
@@ -111,7 +111,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
       if (!needsInstall(upToDate, opts)) return
-      command = ['install', ...createInstallArgs(workspaceState?.settings)]
+      command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
     const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
     runPnpmCli(command, { cwd: opts.dir, loglevel, reporter: opts.reporter })
@@ -142,6 +142,22 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
   }
   if (!optional) {
     args.push('--no-optional')
+  }
+  return args
+}
+
+/**
+ * The install that the gate spawns has to select the same projects the command
+ * being gated was filtered to, otherwise a filtered `run` or `exec` would
+ * install every project of the workspace.
+ */
+export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter' | 'filterProd'>): string[] {
+  const args: string[] = []
+  for (const selector of opts.filter ?? []) {
+    args.push(`--filter=${selector}`)
+  }
+  for (const selector of opts.filterProd ?? []) {
+    args.push(`--filter-prod=${selector}`)
   }
   return args
 }

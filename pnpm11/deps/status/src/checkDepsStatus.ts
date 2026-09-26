@@ -82,6 +82,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'selectedProjectsGraph'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
@@ -363,8 +364,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }))
 
-    if (!workspaceState.filteredInstall) {
+    // A filtered install legitimately leaves the projects it did not select
+    // without a modules directory, so a state that records one can only be
+    // held to that requirement for the projects the command being gated
+    // selected. Skipping those as well would let a filtered `run` or `exec`
+    // select a project the filtered install never materialized and run it
+    // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
+    const selectedProjectDirs = workspaceState.filteredInstall
+      ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}))
+      : undefined
+    if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
+        (selectedProjectDirs == null || selectedProjectDirs.has(project.rootDir)) &&
         modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,

@@ -189,7 +189,7 @@ impl RunArgs {
         // Before the manifest is read, so a mistyped command in a
         // directory without a project skips the check instead of
         // spawning a doomed install (see check_deps_status_before_run_at).
-        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        super::verify_deps::verify_deps_before_run(dir, &[dir], config, reporter)?;
         let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
             println!("{}", render_project_commands(manifest.value(), None));

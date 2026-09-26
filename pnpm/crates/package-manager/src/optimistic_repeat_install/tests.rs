@@ -514,6 +514,15 @@ fn workspace_deps_status(
     config: &'static Config,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> RunDepsStatus {
+    workspace_deps_status_for_selected(dir, config, project_manifests, &[])
+}
+
+fn workspace_deps_status_for_selected(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    selected_project_dirs: &[&std::path::Path],
+) -> RunDepsStatus {
     let state = load_workspace_state(dir.path())
         .expect("read the workspace state")
         .expect("a workspace state to have been written");
@@ -534,7 +543,107 @@ fn workspace_deps_status(
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        selected_project_dirs,
     )
+}
+
+fn set_filtered_install(workspace_root: &std::path::Path, filtered_install: bool) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    state.filtered_install = filtered_install;
+    update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// A workspace whose state records a filtered install: the root project was
+/// materialized, `packages/a` was not.
+fn setup_filtered_install_workspace()
+-> (tempfile::TempDir, &'static Config, PackageManifest, PackageManifest) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let project_dir = workspace_root.join("packages/a");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::write(
+        project_dir.join("package.json"),
+        r#"{"name":"a","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let lockfile = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  foo@1.0.0:\n    resolution: {integrity: sha512-aaa}\n\nsnapshots:\n\n  foo@1.0.0: {}\n";
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), lockfile).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.virtual_store_dir).unwrap();
+    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile).unwrap();
+    let config = config.leak();
+
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    projects.insert(
+        project_dir.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("a".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    set_filtered_install(workspace_root, true);
+
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let project_manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
+    (dir, config, root_manifest, project_manifest)
+}
+
+/// A filtered install leaves the projects it did not select without a
+/// modules directory, so the state it records exempts them. The projects
+/// the gated command selected are still held to that requirement:
+/// otherwise a filtered `run` or `exec` could select a project the
+/// filtered install never materialized and run it without its
+/// dependencies (<https://github.com/pnpm/pnpm/issues/11865>).
+#[test]
+fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a filtered install that materialized the selected project is current",
+    );
+
+    fs::remove_dir_all(project_dir.join("node_modules")).unwrap();
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "a selected project the filtered install did not materialize is outdated",
+    );
+
+    assert_eq!(
+        workspace_deps_status(&dir, config, &project_manifests),
+        RunDepsStatus::UpToDate,
+        "an empty selection keeps the exemption a filtered install records",
+    );
+
+    set_filtered_install(dir.path(), false);
+    assert!(
+        matches!(
+            workspace_deps_status(&dir, config, &project_manifests),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "without a filtered install every project with dependencies needs a modules directory",
+    );
 }
 
 fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {

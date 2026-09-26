@@ -26,10 +26,16 @@ use std::borrow::Cow;
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
 /// matching pnpm's catch-all: in the worst case the configured action
 /// runs a redundant install.
+///
+/// `selected_project_dirs` are the project directories the gated command
+/// selected: a state that records a filtered install exempts the projects
+/// that install did not select from the modules-directory requirement, but
+/// the selected ones are still held to it.
 #[must_use]
 pub fn check_deps_status_before_run_at(
     dir: &Path,
     config: &Config,
+    selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
         return cannot_check_deps();
@@ -78,6 +84,7 @@ pub fn check_deps_status_before_run_at(
         &workspace_root,
         &lockfile_root,
         &workspace_state,
+        selected_project_dirs,
     )
 }
 /// The directory the verify-deps-before-run gate serializes its installs
@@ -120,6 +127,7 @@ pub(super) fn check_discovered_deps(
     workspace_root: &Path,
     lockfile_root: &Path,
     workspace_state: &pnpm_workspace_state::WorkspaceState,
+    selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
     let Some(catalogs) = configured_catalogs(config, workspace_manifest) else {
         return cannot_check_deps();
@@ -160,6 +168,7 @@ pub(super) fn check_discovered_deps(
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         workspace_state,
+        selected_project_dirs,
     ))
 }
 /// The manifest the verify-deps gate compares against.

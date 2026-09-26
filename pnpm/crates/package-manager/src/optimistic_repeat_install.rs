@@ -93,7 +93,8 @@ mod settle;
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     direct_dependency_link_dangling, early_repeat_verdict, first_project_missing_modules_dir,
-    modules_dirs_present, project_structure_matches, settle_repeat_install,
+    first_selected_project_missing_modules_dir, modules_dirs_present, project_structure_matches,
+    settle_repeat_install,
 };
 
 use std::{
