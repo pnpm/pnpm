@@ -63,8 +63,7 @@ impl UpdateArgs {
         state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
-        self.check_patches_options()?;
-        self.check_interactive_peer_options()?;
+        self.check_flag_combinations()?;
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
@@ -209,7 +208,7 @@ impl UpdateArgs {
     }
 
     fn prepare_update<'a>(
-        &self,
+        &'a self,
         state: &'a mut State,
         inputs: &'a UpdateInputs,
         packages: &'a [String],
@@ -230,6 +229,7 @@ impl UpdateArgs {
                 },
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,
+                    tag: self.selection.tag.as_deref(),
                     patches: self.selection.patches,
                     save_exact: self.save.exact || state.config.save_exact,
                     save: !self.save.no_save,

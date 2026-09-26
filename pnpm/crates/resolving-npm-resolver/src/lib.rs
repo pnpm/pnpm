@@ -46,7 +46,7 @@ pub use npm_resolver::{
 };
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,
-    parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
+    is_valid_dist_tag, parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec,
     parse_named_registry_specifier_to_registry_package_spec,
 };
 pub use pick_package::{

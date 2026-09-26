@@ -1,7 +1,8 @@
 use super::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, activation::FsRename, check_virtual_shim_conflicts,
-    global_group_config, infer_local_package_alias, replacement_aliases,
-    should_replace_existing_package, snapshot_global_package, update_selectors,
+    FsGlobalRemoval, GlobalPackageBinSnapshot, GlobalVersionTarget, activation::FsRename,
+    check_virtual_shim_conflicts, global_group_config, infer_local_package_alias,
+    replacement_aliases, should_replace_existing_package, snapshot_global_package,
+    update_selectors,
 };
 use crate::{
     cli_args::{
@@ -216,7 +217,7 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true, &HashMap::new()),
+        update_selectors(&dependencies, GlobalVersionTarget::Latest, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
@@ -229,11 +230,24 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false, &HashMap::new()),
+        update_selectors(&dependencies, GlobalVersionTarget::Range, &HashMap::new()),
         dependencies
             .iter()
             .map(|(alias, spec)| format!("{alias}@{spec}"))
             .collect::<Vec<String>>(),
+    );
+    assert_eq!(
+        update_selectors(&dependencies, GlobalVersionTarget::Tag("next"), &HashMap::new()),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
+            "git-pkg@github:user/git-pkg",
+            "remote-tarball-pkg@https://example.com/pkg.tgz",
+            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "named-registry-pkg@gh:^3.0.0",
+            "foo@next",
+            "bar@next",
+        ],
     );
 }
 
@@ -247,7 +261,10 @@ fn a_pinned_dependency_is_held_at_its_installed_version() {
     ];
     let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
 
-    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
+    assert_eq!(
+        update_selectors(&dependencies, GlobalVersionTarget::Latest, &pins),
+        vec!["prerelease@2.0.0", "stable"],
+    );
 }
 
 #[test]

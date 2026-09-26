@@ -3,6 +3,7 @@ use super::{
     fs, is_plain_version_spec, is_valid_old_npm_package_name, lexical_normalize, local_file_path,
     parse_wanted_dependency, safe_read_package_json_from_dir, tool_install_selector,
 };
+use crate::cli_args::outdated::TargetVersion;
 
 /// The packages one global install request asks for: the tokens a
 /// comma-separated request splits into, and whether they may name a tool
@@ -64,14 +65,52 @@ pub(super) fn groups_matching_params(
     Some(filtered)
 }
 
-/// With `--latest`, a dependency is reduced to its bare alias so the newest
-/// registry version is resolved.
-/// The selectors that reinstall a group. With `--latest` a plain version spec
-/// is dropped so the newest release is picked; `pins` holds back the aliases
-/// that would otherwise move backwards.
+/// What `update -g` moves each plain-version dependency to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GlobalVersionTarget<'a> {
+    /// The highest version inside the range the group records. The default.
+    Range,
+    /// The version behind the `latest` dist-tag (`--latest`).
+    Latest,
+    /// The version behind the given dist-tag (`--tag <tag>`).
+    Tag(&'a str),
+}
+
+impl<'a> GlobalVersionTarget<'a> {
+    /// The target the CLI flags select: `--tag` wins, then `--latest`,
+    /// and neither means an in-range update. clap rejects `--latest`
+    /// and `--tag` together, so the two never compete.
+    pub(crate) fn from_flags(latest: bool, tag: Option<&'a str>) -> GlobalVersionTarget<'a> {
+        match tag {
+            Some(tag) => GlobalVersionTarget::Tag(tag),
+            None if latest => GlobalVersionTarget::Latest,
+            None => GlobalVersionTarget::Range,
+        }
+    }
+
+    /// Whether the target can pick a version outside the recorded range,
+    /// which is what a downgrade check guards against.
+    pub(super) fn reaches_past_recorded_range(self) -> bool {
+        self != Self::Range
+    }
+
+    /// The same target as an outdated query's comparison version.
+    pub(crate) fn target_version(self) -> TargetVersion<'a> {
+        match self {
+            GlobalVersionTarget::Range => TargetVersion::WithinRange,
+            GlobalVersionTarget::Latest => TargetVersion::Latest,
+            GlobalVersionTarget::Tag(tag) => TargetVersion::Tag(tag),
+        }
+    }
+}
+
+/// The selectors that reinstall a group. Under `--latest` a plain version
+/// spec is dropped so the newest release is picked, and under `--tag` it is
+/// replaced with the tag; `pins` holds back the aliases that would otherwise
+/// move backwards.
 pub(super) fn update_selectors(
     dependencies: &[(String, String)],
-    latest: bool,
+    target: GlobalVersionTarget<'_>,
     pins: &HashMap<String, String>,
 ) -> Vec<String> {
     dependencies
@@ -79,10 +118,14 @@ pub(super) fn update_selectors(
         .map(|(alias, spec)| {
             if let Some(pin) = pins.get(alias) {
                 format!("{alias}@{pin}")
-            } else if latest && is_plain_version_spec(spec) {
-                alias.clone()
-            } else {
+            } else if !is_plain_version_spec(spec) {
                 format!("{alias}@{spec}")
+            } else {
+                match target {
+                    GlobalVersionTarget::Range => format!("{alias}@{spec}"),
+                    GlobalVersionTarget::Latest => alias.clone(),
+                    GlobalVersionTarget::Tag(tag) => format!("{alias}@{tag}"),
+                }
             }
         })
         .collect()

@@ -360,7 +360,8 @@ fn parse_revision_selector(
 /// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
-fn is_valid_dist_tag(selector: &str) -> bool {
+#[must_use]
+pub fn is_valid_dist_tag(selector: &str) -> bool {
     selector
         .bytes()
         .all(|byte| {

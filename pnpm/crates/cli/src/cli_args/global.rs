@@ -8,6 +8,7 @@
 
 pub use builds::approve_global_builds;
 pub use remove::{handle_global_remove, remove_global_groups};
+pub(crate) use selectors::GlobalVersionTarget;
 pub use selectors::{has_pnpm_cli_dependency, selects_pnpm_cli};
 
 mod activation;
@@ -41,7 +42,7 @@ use cleanup::discard_install_dir_on_error;
 use derive_more::{Display, Error};
 use install::{
     GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, is_plain_version_spec,
-    pins_for_downgrades, run_group_install,
+    run_group_install,
 };
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
@@ -235,12 +236,13 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
 }
 
 /// `pnpm update -g`. Reinstalls each matching group (within its existing
-/// range, or to `--latest`), then swaps its hash symlink to the new dir.
+/// range, or to the version the `--latest` / `--tag` target names), then
+/// swaps its hash symlink to the new dir.
 pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     base_config: &'static Config,
     params: &[String],
     selected_hashes: Option<&HashSet<String>>,
-    latest: bool,
+    version_target: GlobalVersionTarget<'_>,
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<()> {
@@ -280,7 +282,7 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     };
     let up_to_date = target.update_groups::<Reporter>(
         &to_update,
-        latest,
+        version_target,
         range_spec_style,
         supported_architectures,
     )

@@ -934,6 +934,137 @@ fn global_update_latest_keeps_a_package_that_latest_would_downgrade() {
     drop((root, npmrc_info));
 }
 
+/// `update -g --tag <tag>` moves the group to the version behind the named
+/// dist-tag rather than `latest` (pnpm/pnpm#3534).
+#[cfg(unix)]
+#[test]
+fn global_update_tag_resolves_the_named_tag() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.0.0", "next");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@1.0.0"])
+        .assert()
+        .success();
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--tag", "next"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-a@2.0.0"),
+        "the tag's version must be installed, got: {stdout}",
+    );
+
+    drop((root, npmrc_info));
+}
+
+/// A dependency that does not publish the requested dist-tag keeps its
+/// recorded spec instead of aborting the whole group's update: the rest of
+/// the group still moves to the tag.
+#[cfg(unix)]
+#[test]
+fn global_update_tag_keeps_a_dependency_without_the_tag() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.0.0", "next");
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-b", "3.1.0", "latest");
+    // One comma-separated group, so the two dependencies update together.
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@1.0.0,@pnpm.e2e/multi-version-b@3.0.0"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--tag", "next"])
+        .output()
+        .expect("run update -g --tag next");
+    assert!(
+        output.status.success(),
+        "a dependency without the tag must not abort the update: {output:?}",
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stdout.contains(r#"does not publish the "next" dist-tag"#)
+            || stderr.contains(r#"does not publish the "next" dist-tag"#),
+        "the skipped dependency must be reported, stdout: {stdout}, stderr: {stderr}",
+    );
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-a@2.0.0"),
+        "the dependency with the tag must move to it, got: {stdout}",
+    );
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-b@3.0.0"),
+        "the dependency without the tag must keep its recorded spec, got: {stdout}",
+    );
+
+    drop((root, npmrc_info));
+}
+
+/// A tag that points at an older release than the installed one must not
+/// move the global package backwards, the same guarantee `--latest` has.
+#[cfg(unix)]
+#[test]
+fn global_update_tag_keeps_a_package_the_tag_would_downgrade() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@2.1.0"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "next");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--tag", "next"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-a@2.1.0"),
+        "the installed version must be kept, got: {stdout}",
+    );
+
+    drop((root, npmrc_info));
+}
+
 #[cfg(unix)]
 #[test]
 fn unchanged_global_update_reports_already_up_to_date_without_replacing_the_group() {

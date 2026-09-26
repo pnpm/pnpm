@@ -10,7 +10,7 @@ use super::{
         selected_seed_policy,
     },
     selectors::{
-        ParsedSelector, parse_selectors, reject_versioned_latest_selectors,
+        ParsedSelector, parse_selectors, reject_versioned_selectors,
         reject_versions_of_indirect_update_specs,
     },
     workspace::workspace_targets,
@@ -179,9 +179,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdateDecision>, UpdateError> {
     let selectors = parse_selectors(update.selection.packages);
-    if update.version.latest {
-        reject_versioned_latest_selectors(update.selection.packages, &selectors)?;
-    }
+    reject_versioned_selectors(update.version, update.selection.packages, &selectors)?;
     // Snapshot direct dependencies before mutation so matching and rewrites
     // both see the original manifest shape.
     let direct = declared_direct(manifest, &owned.include_direct);
@@ -322,7 +320,7 @@ pub(super) fn apply_update_decision<Reporter: self::Reporter>(
     let workspace_dir_for_catalogs = reconcile_catalog_rewrites::<Reporter>(
         manifest,
         update.config,
-        update.version.latest,
+        update.version.reaches_past_declared_range(),
         &direct,
         &mut plan.rewrites,
         &mut catalog_ctx,
@@ -381,9 +379,9 @@ pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     // Once per command, across every selected project: a selector that is a
     // direct dependency of one project is legitimately versioned even where a
     // sibling only reaches it transitively. `--depth 0` reports
-    // `NoPackageInDependencies` instead, and `--latest` rejects versioned
-    // selectors outright.
-    if !update.version.latest && update.selection.depth > 0 {
+    // `NoPackageInDependencies` instead, and `--latest` / `--tag` reject
+    // versioned selectors outright.
+    if !update.version.reaches_past_declared_range() && update.selection.depth > 0 {
         let selectors = parse_selectors(update.selection.packages);
         let manifests = selected_indices
             .iter()

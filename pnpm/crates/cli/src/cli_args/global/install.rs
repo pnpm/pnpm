@@ -1,10 +1,195 @@
 use super::{
     AddGroups, CatalogMode, Config, Context, DependencyGroup, GlobalPackageBinSnapshot,
-    GlobalPackageInfo, HashMap, HashSet, ImporterDepVersion, Lockfile, PackageBinSource, Path,
-    RangeSpecStyle, Reporter, State, SupportedArchitectures, Version, WorkspaceSettings,
-    add_packages, apply_allow_build, decided_allow_builds, infer_local_package_alias,
-    installed_versions, prompt_approve_install_builds, update_selectors,
+    GlobalPackageInfo, GlobalUpdateResolutionReporter, GlobalVersionTarget, HashMap, HashSet,
+    ImporterDepVersion, IntoDiagnostic, Lockfile, PackageBinSource, Path, RangeSpecStyle, Reporter,
+    State, SupportedArchitectures, Version, WorkspaceSettings, add_packages, apply_allow_build,
+    decided_allow_builds, fs, infer_local_package_alias, installed_versions,
+    prompt_approve_install_builds, update_selectors, warn_global,
 };
+use derive_more::{Display, Error};
+use miette::Diagnostic;
+use pnpm_package_manager::{PickPolicy, create_configured_registry_resolver};
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_resolver_base::{
+    LatestQuery, NoMatchingVersionError, ResolveOptions, WantedDependency,
+};
+
+/// Resolving whether a dependency publishes the `--tag` dist-tag failed.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Failed to resolve {alias}@{tag}: {error}")]
+#[diagnostic(code(ERR_PNPM_GLOBAL_UPDATE_TAG_RESOLUTION))]
+struct GlobalTagResolveError {
+    alias: String,
+    tag: String,
+    #[error(source)]
+    error: pnpm_resolving_resolver_base::ResolveError,
+}
+
+/// The selectors a `--tag` update reinstalls a group with: `alias@<tag>`
+/// for every plain-version dependency the registry publishes the tag for,
+/// the recorded spec for the ones it does not. One dependency without the
+/// tag must not abort the whole group's update.
+pub(super) async fn tag_checked_selectors<Reporter: self::Reporter>(
+    base_config: &'static Config,
+    dependencies: &[(String, String)],
+    tag: &str,
+) -> miette::Result<Vec<String>> {
+    if !dependencies.iter().any(|(_, spec)| is_plain_version_spec(spec)) {
+        return Ok(update_selectors(dependencies, GlobalVersionTarget::Tag(tag), &HashMap::new()));
+    }
+    let policy = PickPolicy::from_config(base_config).map_err(miette::Report::new)?;
+    let http_client = State::new_http_client(base_config).map_err(miette::Report::new)?;
+    let resolver = create_configured_registry_resolver(base_config, http_client, &policy)
+        .map_err(miette::Report::new)?;
+    let resolve_options = tag_resolve_options(&policy);
+    let mut selectors = Vec::with_capacity(dependencies.len());
+    for (alias, spec) in dependencies {
+        selectors.push(
+            tag_selector::<Reporter>(&resolver, &resolve_options, alias, spec, tag).await?,
+        );
+    }
+    Ok(selectors)
+}
+
+/// `alias@<tag>` when the registry publishes `tag` for the dependency, the
+/// recorded spec with a warning when it does not. Every other spec form
+/// says where the package comes from and passes through unchanged.
+async fn tag_selector<Reporter: self::Reporter>(
+    resolver: &DefaultResolver,
+    resolve_options: &ResolveOptions,
+    alias: &str,
+    spec: &str,
+    tag: &str,
+) -> miette::Result<String> {
+    if !is_plain_version_spec(spec) {
+        return Ok(format!("{alias}@{spec}"));
+    }
+    let query = LatestQuery {
+        wanted_dependency: WantedDependency {
+            alias: Some(alias.to_string()),
+            bare_specifier: Some(tag.to_string()),
+            ..WantedDependency::default()
+        },
+        compatible: true,
+    };
+    match resolver.resolve_latest(&query, resolve_options).await {
+        Ok(Some(latest)) if latest.latest_manifest.is_some() => Ok(format!("{alias}@{tag}")),
+        Ok(_) => Ok(warn_and_keep_spec::<Reporter>(alias, spec, tag)),
+        Err(error) if error.is::<NoMatchingVersionError>() => {
+            Ok(warn_and_keep_spec::<Reporter>(alias, spec, tag))
+        }
+        Err(error) => {
+            Err(GlobalTagResolveError { alias: alias.to_string(), tag: tag.to_string(), error }
+                .into())
+        }
+    }
+}
+
+fn warn_and_keep_spec<Reporter: self::Reporter>(alias: &str, spec: &str, tag: &str) -> String {
+    warn_global::<Reporter>(&format!(
+        r#"Skipping "{alias}": it does not publish the "{tag}" dist-tag, so its recorded specifier was kept."#,
+    ));
+    format!("{alias}@{spec}")
+}
+
+fn tag_resolve_options(policy: &PickPolicy) -> ResolveOptions {
+    ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            default_tag: Some("latest".to_string()),
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: policy.published_by,
+            published_by_exclude: policy.published_by_exclude.clone(),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+impl GlobalInstallTarget<'_> {
+    /// Seed the candidate with the group's manifest and resolve the update
+    /// into its lockfile, leaving `node_modules` absent. The selectors it
+    /// returns are the ones the materializing install repeats.
+    pub(super) async fn resolve_update_candidate<Reporter: self::Reporter + 'static>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        install_dir: &Path,
+        version_target: GlobalVersionTarget<'_>,
+        range_spec_style: RangeSpecStyle,
+        supported_architectures: Option<SupportedArchitectures>,
+    ) -> miette::Result<Vec<String>> {
+        fs::copy(pkg.install_dir.join("package.json"), install_dir.join("package.json"))
+            .into_diagnostic()
+            .wrap_err("seed global update manifest")?;
+        let target_selectors = self.target_selectors::<Reporter>(pkg, version_target).await?;
+        // Only a target past the recorded range can pick a version outside
+        // it, so only one needs a downgrade check.
+        let downgrade_check = if version_target.reaches_past_recorded_range() {
+            Box::pin(pins_for_downgrades::<GlobalUpdateResolutionReporter<Reporter>>(
+                self.base_config,
+                self.global_pkg_dir,
+                install_dir,
+                pkg,
+                &target_selectors,
+                range_spec_style,
+                supported_architectures.clone(),
+            ))
+            .await?
+        } else {
+            DowngradeCheck { candidate_resolved: false, pins: HashMap::new() }
+        };
+        let selectors = pin_selectors(target_selectors, &pkg.dependencies, &downgrade_check.pins);
+        if !downgrade_check.candidate_resolved || !downgrade_check.pins.is_empty() {
+            Box::pin(run_group_install::<GlobalUpdateResolutionReporter<Reporter>>(GroupInstall {
+                base_config: self.base_config,
+                global_pkg_dir: self.global_pkg_dir,
+                install_dir,
+                selectors: &selectors,
+                range_spec_style,
+                supported_architectures,
+                allow_build: &[],
+                lockfile_only: true,
+            }))
+            .await?;
+        }
+        Ok(selectors)
+    }
+
+    /// The selectors the update resolves the group's dependencies with.
+    /// `--latest` drops a plain version spec so the newest release is
+    /// picked; `--tag` replaces it with the tag for the dependencies the
+    /// registry publishes it for, and keeps the recorded spec for the
+    /// rest, so one dependency without the tag cannot abort the whole
+    /// group's update.
+    async fn target_selectors<Reporter: self::Reporter>(
+        &self,
+        pkg: &GlobalPackageInfo,
+        version_target: GlobalVersionTarget<'_>,
+    ) -> miette::Result<Vec<String>> {
+        let GlobalVersionTarget::Tag(tag) = version_target else {
+            return Ok(update_selectors(&pkg.dependencies, version_target, &HashMap::new()));
+        };
+        tag_checked_selectors::<Reporter>(self.base_config, &pkg.dependencies, tag).await
+    }
+}
+
+/// Hold the pinned aliases at their installed versions; every other
+/// dependency keeps the selector its target resolved.
+fn pin_selectors(
+    selectors: Vec<String>,
+    dependencies: &[(String, String)],
+    pins: &HashMap<String, String>,
+) -> Vec<String> {
+    dependencies
+        .iter()
+        .zip(selectors)
+        .map(|((alias, _), selector)| {
+            pins.get(alias)
+                .map_or(selector, |pin| format!("{alias}@{pin}"))
+        })
+        .collect()
+}
 
 /// The pnpm home a global group installs into.
 pub(super) struct GlobalInstallTarget<'a> {
@@ -32,9 +217,9 @@ pub(super) struct GroupActivation<'a> {
 }
 
 /// The version to hold each dependency of `pkg` at, for the ones an update would
-/// otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
-/// points at an older release than the one installed whenever that came from
-/// another tag, or from a major that has not been promoted to `latest` yet.
+/// otherwise move backwards. A target past the recorded range (`--latest`, or
+/// `--tag` with a tag that points at an older release) can resolve to a version
+/// older than the one installed, so the caller runs this only for one.
 ///
 /// The versions are resolved into `install_dir` without installing anything, so
 /// a release that is about to be rejected never gets the chance to run its
@@ -49,16 +234,10 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
     global_pkg_dir: &Path,
     install_dir: &Path,
     pkg: &GlobalPackageInfo,
-    latest: bool,
+    target_selectors: &[String],
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
 ) -> miette::Result<DowngradeCheck> {
-    // Only `--latest` can pick a version outside the recorded range, and only a
-    // plain version spec is dropped for it. Everything else resolves within a
-    // range the installed version already satisfies.
-    if !latest {
-        return Ok(DowngradeCheck { candidate_resolved: false, pins: HashMap::new() });
-    }
     let versions_before = installed_versions(&pkg.install_dir);
     // Nothing to compare a resolution against, so nothing to resolve.
     if !pkg.dependencies
@@ -71,7 +250,7 @@ pub(super) async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
         base_config,
         global_pkg_dir,
         install_dir,
-        selectors: &update_selectors(&pkg.dependencies, latest, &HashMap::new()),
+        selectors: target_selectors,
         range_spec_style,
         supported_architectures,
         allow_build: &[],
