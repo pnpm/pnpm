@@ -235,7 +235,7 @@ impl RunCommand for GitUnspawnable {
 
 #[test]
 fn a_failing_git_spawn_yields_no_branches() {
-    assert!(get_branches_containing_head::<GitUnspawnable>(std::path::Path::new(".")).is_empty(),);
+    assert!(get_branches_containing_head::<GitUnspawnable>(std::path::Path::new(".")).is_empty());
 }
 
 #[test]
