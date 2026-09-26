@@ -525,3 +525,51 @@ fn repeat_install_of_a_remote_tarball_reuses_the_lockfile() {
 
     drop((root, mock_instance));
 }
+
+/// A remote tarball whose host returns 405 Method Not Allowed to the HEAD
+/// preflight falls back to GET and resolves the immutable redirect target.
+#[test]
+fn remote_tarball_behind_head_405_falls_back_to_get() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let requested_path = "/pkg-from-tarball.tgz";
+    let canonical_path = "/cdn/pkg-from-tarball-1.0.0.tgz";
+    let mut tarball_server = mockito::Server::new();
+    let canonical_url = format!("{}{canonical_path}", tarball_server.url());
+    let head_mock = tarball_server
+        .mock("HEAD", requested_path)
+        .with_status(405)
+        .create();
+    let redirect_mock = tarball_server
+        .mock("GET", requested_path)
+        .with_status(302)
+        .with_header("location", &canonical_url)
+        .create();
+    let get_mock = tarball_server
+        .mock("GET", canonical_path)
+        .with_status(200)
+        .with_header("cache-control", "immutable")
+        .with_body(minimal_tarball("pkg-from-tarball", "1.0.0"))
+        .create();
+    let requested_url = format!("{}{requested_path}", tarball_server.url());
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "pkg-from-tarball": &requested_url } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(&canonical_url),
+        "lockfile must record post-redirect URL:\n{lockfile}",
+    );
+
+    drop((head_mock, redirect_mock, get_mock, tarball_server, root, mock_instance));
+}

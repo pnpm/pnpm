@@ -188,8 +188,8 @@ impl TarballResolver {
         }
     }
 
-    /// Authorize and authenticate the HEAD preflight like the GET. Only immutable responses
-    /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
+    /// Preflights the URL, falling back from HEAD to GET if the server returns
+    /// 405 Method Not Allowed. Only immutable responses pin the post-redirect URL.
     async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
         if let Some(ctx) = self.fetch_context.as_ref()
             && !ctx.auth_headers.allows_fetch(normalized_bare_specifier)
@@ -198,18 +198,11 @@ impl TarballResolver {
                 url: pnpm_network::redact_url_credentials(normalized_bare_specifier),
             }));
         }
-        let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
-        let mut request = client.head(normalized_bare_specifier);
-        if let Some(value) = self.fetch_context
-            .as_ref()
-            .and_then(|ctx| ctx.auth_headers.for_url(normalized_bare_specifier))
-        {
-            request = request.header("authorization", value);
+        let mut response =
+            self.send_preflight(reqwest::Method::HEAD, normalized_bare_specifier).await?;
+        if response.status() == reqwest::StatusCode::METHOD_NOT_ALLOWED {
+            response = self.send_preflight(reqwest::Method::GET, normalized_bare_specifier).await?;
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
 
         let resolved_url = if response
             .headers()
@@ -223,6 +216,25 @@ impl TarballResolver {
         };
 
         Ok(resolved_url)
+    }
+
+    async fn send_preflight(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+    ) -> Result<reqwest::Response, ResolveError> {
+        let client = self.http_client.acquire_for_url(url).await;
+        let mut request = client.request(method, url);
+        if let Some(value) = self.fetch_context
+            .as_ref()
+            .and_then(|ctx| ctx.auth_headers.for_url(url))
+        {
+            request = request.header("authorization", value);
+        }
+        request
+            .send()
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)
     }
 
     /// Reuse an already-extracted store entry for the dependency whose
