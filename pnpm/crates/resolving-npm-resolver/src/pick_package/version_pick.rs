@@ -1,11 +1,13 @@
 use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
-    PickPackageContext, PickPackageFromMetaOptions, PickPackageOptions, RegistryPackageSpec,
-    RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc, VersionSelectors,
-    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_stable_cached_range_version, pick_version_by_version_range, warn_missing_time_once,
+    PickPackageContext, PickPackageError, PickPackageFromMetaOptions, PickPackageOptions,
+    RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
+    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
+    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
+    warn_missing_time_once,
 };
 use crate::PickPackageFromMetaError;
+use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact
@@ -243,4 +245,109 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
         published_by: picker_opts.published_by,
         published_by_exclude: picker_opts.published_by_exclude,
     }
+}
+
+/// The offline pick: installs can only consume tarballs the store already
+/// holds, so when the pick points at a version the store lacks, re-pick with
+/// every store-missing version blocked and let the newest installable match
+/// win. A range with no cached match keeps the original pick, which the
+/// fetch layer then reports as `ERR_PNPM_NO_OFFLINE_TARBALL`. Exact versions
+/// and dist-tags name one target with no alternative, so only ranges re-pick.
+pub(super) async fn prefer_stored_tarballs<Cache: PackageMetaCache>(
+    picker_opts: &PickerOpts<'_>,
+    ctx: &PickPackageContext<'_, Cache>,
+    spec: &RegistryPackageSpec,
+    meta: &Arc<Package>,
+    picked: Option<Arc<PackageVersion>>,
+) -> Result<Option<Arc<PackageVersion>>, PickPackageError> {
+    let Some(store) = ctx.store_index else { return Ok(picked) };
+    let Some(picked) = picked else { return Ok(None) };
+    if !matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+        return Ok(Some(picked));
+    }
+    // An empty store prefers nothing, so a resolve against one pays no store
+    // queries at all.
+    if store.is_empty() {
+        return Ok(Some(picked));
+    }
+    // The common case first: the picked version is already installable. One
+    // indexed probe on the pick's own integrity — no packument-wide work.
+    let picked_version = picked.version.to_string();
+    let picked_integrity = meta.versions
+        .get(&picked_version)
+        .and_then(|manifest| manifest.dist.integrity.as_ref().map(ToString::to_string));
+    if let Some(integrity) = picked_integrity {
+        let key = store_index_key(&integrity, &format!("{}@{picked_version}", spec.name));
+        if store.contains_key(key).await {
+            return Ok(Some(picked));
+        }
+    }
+    // The pick points at a version the store lacks: find the newest match it
+    // does hold, if any.
+    let keys = tarball_index_keys(spec, meta);
+    let cached_keys = cached_tarball_keys(store.index(), &keys).await;
+    let blocked = store_missing_versions(&cached_keys, &keys);
+    if blocked.is_empty() {
+        return Ok(Some(picked));
+    }
+    let (_, repicked) = pick_from_meta(picker_opts, spec, Arc::clone(meta), Some(&blocked))?;
+    Ok(repicked.or(Some(picked)))
+}
+
+/// One store-index key per version in the packument, in the shape the store
+/// writes tarball rows under; a version whose manifest carries no integrity
+/// has no key and can never be reused from the store.
+fn tarball_index_keys(
+    spec: &RegistryPackageSpec,
+    meta: &Arc<Package>,
+) -> Vec<(String, Option<String>)> {
+    meta.versions
+        .iter()
+        .map(|(version, manifest)| {
+            let key = manifest.dist.integrity
+                .as_ref()
+                .map(|integrity| {
+                    store_index_key(&integrity.to_string(), &format!("{}@{version}", spec.name))
+                });
+            (version.clone(), key)
+        })
+        .collect()
+}
+
+/// The subset of `keys` that has a row in the store index. An index that
+/// cannot be locked or read yields an empty set, treating every version as
+/// uncached: the pick then keeps the newest match and fails at fetch time,
+/// as it did before the store was consulted.
+async fn cached_tarball_keys(
+    store_index: &SharedReadonlyStoreIndex,
+    keys: &[(String, Option<String>)],
+) -> HashSet<String> {
+    let query = keys
+        .iter()
+        .filter_map(|(_, key)| key.clone())
+        .collect::<Vec<_>>();
+    let store_index = Arc::clone(store_index);
+    tokio::task::spawn_blocking(move || {
+        let guard = store_index.lock().ok()?;
+        guard.contains_many(&query).ok()
+    })
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_default()
+}
+
+/// The versions whose tarball the store lacks. These are the candidates an
+/// offline install cannot fetch, so the re-pick excludes them.
+fn store_missing_versions(
+    cached_keys: &HashSet<String>,
+    keys: &[(String, Option<String>)],
+) -> HashSet<String> {
+    keys.iter()
+        .filter(|(_, key)| {
+            key.as_ref()
+                .is_none_or(|key| !cached_keys.contains(key))
+        })
+        .map(|(version, _)| version.clone())
+        .collect()
 }

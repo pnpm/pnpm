@@ -63,6 +63,9 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     pub metadata: crate::RegistryMetadataClient<Cache>,
     pub format: crate::RegistryMetadataFormat,
     pub cache_policy: crate::MetadataCachePolicy,
+    /// Offline store-presence handle, shared with the sibling
+    /// [`crate::NpmResolver`]. See `PickPackageContext::store_index`.
+    pub store_index: Option<crate::pick_package::OfflineStoreAvailability>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NamedRegistryResolver<Cache> {
@@ -196,7 +199,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let base_selectors = overlay_selectors
             .as_ref()
             .or_else(|| opts.version.preferred_versions.get(&spec.name));
-        let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
+        let ctx =
+            self.metadata.pick_context(&self.format, self.cache_policy, self.store_index.as_ref());
 
         let picked = pick_from_registry_with_guard(
             &ctx,

@@ -1352,6 +1352,45 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   }
 })
 
+test('offline resolution prefers a version whose tarball is in the store', async () => {
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = temporaryDirectory()
+  const storeDir = temporaryDirectory()
+
+  {
+    const { resolveFromNpm } = createResolveFromNpm({
+      storeDir: temporaryDirectory(),
+      cacheDir,
+      registriesByScope,
+    })
+
+    // This request will save the package's meta in the store
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
+  }
+
+  {
+    const storeIndex = new StoreIndex(storeDir)
+    storeIndex.set(storeIndexKey(isPositiveMeta.versions['3.0.0'].dist.integrity, 'is-positive@3.0.0'), {
+      algo: 'sha512',
+      files: new Map(),
+    })
+    storeIndex.close()
+  }
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    offline: true,
+    storeDir,
+    cacheDir,
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
 test('prefer offline resolution does not fail when package meta not found in the store', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

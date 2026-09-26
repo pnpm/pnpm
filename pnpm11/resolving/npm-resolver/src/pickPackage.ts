@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
@@ -12,6 +13,7 @@ import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
+import ssri from 'ssri'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { encodeRegistry } from './encodeRegistry.js'
@@ -44,6 +46,16 @@ export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
   set: (key: string, meta: PackageMeta) => void
   has: (key: string) => boolean
+}
+
+/**
+ * Answers whether the store already holds a version's tarball, so an offline
+ * pick can prefer versions that are actually installable. Built by the
+ * resolver factory only when offline resolution is active and a store is
+ * known; the pick treats every version as uncached when it is absent.
+ */
+export interface OfflineStoreChecker {
+  hasTarballInStore: (pkgName: string, version: string, integrity: string | undefined) => boolean
 }
 
 interface RefCountedLimiter {
@@ -213,6 +225,81 @@ function pickMatchingVersionFinal (
 }
 
 /**
+ * The integrity the store keys a version's tarball under: the same value
+ * {@link getIntegrity} derives when the resolver builds the resolution, so a
+ * store-presence query reads the slot the install wrote. Metadata whose
+ * shasum cannot become an integrity describes a version that could never
+ * have been stored, so this reads it as uncached rather than failing a pick
+ * on a manifest entry it did not select.
+ */
+function storeIntegrity (dist: PackageInRegistry['dist']): string | undefined {
+  try {
+    return getIntegrity(dist)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err as { code?: unknown }).code === 'ERR_PNPM_INVALID_TARBALL_INTEGRITY') {
+      return undefined
+    }
+    throw err
+  }
+}
+
+/**
+ * The integrity a registry-published tarball is addressed by: the packument's
+ * `dist.integrity`, or the sha1 integrity derived from the legacy `shasum`.
+ */
+export function getIntegrity (dist: {
+  integrity?: string
+  shasum: string
+  tarball: string
+}): string | undefined {
+  if (dist.integrity) {
+    return dist.integrity
+  }
+  if (!dist.shasum) {
+    return undefined
+  }
+  const integrity = ssri.fromHex(dist.shasum, 'sha1')
+  if (!integrity) {
+    throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
+  }
+  return integrity.toString()
+}
+
+/**
+ * The offline pick. A range is often satisfiable by several versions, but
+ * only those whose tarballs the store already holds are installable without
+ * the network. When the regular pick points at a version the store lacks,
+ * re-pick from the cached subset instead of failing the whole install with
+ * ERR_PNPM_NO_OFFLINE_TARBALL. Exact versions and tags name one target with
+ * no alternative, so they keep the regular pick either way.
+ */
+function pickOffline (
+  ctx: { offline?: boolean, offlineStore?: OfflineStoreChecker },
+  pickerOpts: PickerOptions,
+  spec: RegistryPackageSpec,
+  meta: PackageMeta
+): PackageInRegistry | null {
+  const picked = pickMatchingVersionFinal(pickerOpts, spec, meta)
+  const offlineStore = ctx.offline === true ? ctx.offlineStore : undefined
+  if (picked == null || offlineStore == null || spec.type !== 'range') return picked
+  if (picked.dist != null && offlineStore.hasTarballInStore(picked.name ?? spec.name, picked.version, storeIntegrity(picked.dist))) {
+    return picked
+  }
+  const cachedVersions = Object.fromEntries(
+    Object.entries(meta.versions).filter(([version, manifest]) =>
+      offlineStore.hasTarballInStore(manifest.name ?? spec.name, version, manifest.dist == null ? undefined : storeIntegrity(manifest.dist))
+    )
+  )
+  if (Object.keys(cachedVersions).length === 0) return picked
+  // A dist-tag pointing at a dropped version would steer the range picker to
+  // a version the subset doesn't carry, so keep only tags that survive.
+  const distTags = Object.fromEntries(
+    Object.entries(meta['dist-tags'] ?? {}).filter(([, version]) => cachedVersions[version] != null)
+  )
+  return pickMatchingVersionFinal(pickerOpts, spec, { ...meta, versions: cachedVersions, 'dist-tags': distTags }) ?? picked
+}
+
+/**
  * Packuments promoted into the in-memory cache straight from the on-disk
  * mirror, without registry validation. The mirror may predate versions the
  * registry has, so when a cache hit on such an entry can't satisfy the
@@ -295,6 +382,7 @@ export async function pickPackage (
     metaCache: PackageMetaCache
     cacheDir: string
     offline?: boolean
+    offlineStore?: OfflineStoreChecker
     preferOffline?: boolean
     filterMetadata?: boolean
     ignoreMissingTimeField?: boolean
@@ -341,7 +429,7 @@ export async function pickPackage (
     if (upgrade.upgradedFrom != null) {
       ctx.metaCache.set(cacheKey, metaForCache)
     }
-    const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaForCache)
+    const pickedPackage = pickOffline(ctx, pickerOpts, spec, metaForCache)
     const unverified = unverifiedDiskPackuments.has(metaForCache)
     const stableCachedRangeVersion =
       unverified &&
@@ -398,7 +486,7 @@ export async function pickPackage (
         if (diskMeta != null) {
           return {
             meta: diskMeta,
-            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, diskMeta),
+            pickedPackage: pickOffline(ctx, pickerOpts, spec, diskMeta),
           }
         }
 

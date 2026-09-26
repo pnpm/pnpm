@@ -313,6 +313,18 @@ impl StoreIndex {
         Ok(exists)
     }
 
+    /// `true` iff the index holds at least one row. One indexed probe, so
+    /// callers can cheaply rule out a never-populated store.
+    pub fn has_rows(&self) -> Result<bool, StoreIndexError> {
+        let exists = self.conn
+            .query_row("SELECT EXISTS (SELECT 1 FROM package_index)", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map(|exists| exists != 0)
+            .map_err(|source| StoreIndexError::Read { source })?;
+        Ok(exists)
+    }
+
     /// Collect every key in `package_index`. Useful for tests and store-prune.
     /// Buffers to avoid holding a statement borrow across the returned vector.
     pub fn keys(&self) -> Result<Vec<String>, StoreIndexError> {

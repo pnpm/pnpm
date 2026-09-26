@@ -144,8 +144,22 @@ fn build_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_index: None,
+        store_index: offline_store_index(config),
     }
+}
+
+/// Open the store's package index for an offline resolve, so resolution can
+/// prefer versions whose tarballs the store already holds. `None` when the
+/// store was never initialized — there is nothing to prefer then — or when
+/// online, where the pick needs no store knowledge.
+fn offline_store_index(
+    config: &Config,
+) -> Option<pnpm_resolving_npm_resolver::OfflineStoreAvailability> {
+    if !config.offline {
+        return None;
+    }
+    pnpm_store_dir::StoreIndex::shared_readonly_in(&config.store_dir)
+        .map(pnpm_resolving_npm_resolver::OfflineStoreAvailability::new)
 }
 
 fn build_node_resolver(config: &Config, http_client: &Arc<ThrottledClient>) -> NodeResolver {
@@ -204,5 +218,6 @@ fn build_named_registry_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
+        store_index: offline_store_index(config),
     })
 }

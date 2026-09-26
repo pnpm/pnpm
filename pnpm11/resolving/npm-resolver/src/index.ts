@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
@@ -36,7 +37,7 @@ import {
   isIntegrityAddressedRegistryTarballUrl,
   isValidTarballRevision,
 } from '@pnpm/resolving.tarball-url'
-import { storeIndexKey } from '@pnpm/store.index'
+import { ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type {
   DependencyManifest,
   PackageVersionPolicy,
@@ -52,7 +53,6 @@ import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import { clone } from 'ramda'
 import semver from 'semver'
-import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
@@ -69,6 +69,8 @@ import {
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
 import {
+  getIntegrity,
+  type OfflineStoreChecker,
   type PackageMetaCache,
   pickPackage,
   pickPackageFromFetchedMeta,
@@ -292,6 +294,7 @@ export function createNpmResolver (
       filterMetadata: opts.filterMetadata,
       metaCache,
       offline: opts.offline,
+      offlineStore: createOfflineStoreChecker(opts),
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
@@ -326,6 +329,46 @@ export function createNpmResolver (
       clearFetchCache()
     },
   }
+}
+
+/**
+ * The store-presence checker an offline pick uses to prefer versions whose
+ * tarballs the store already holds (see {@link pickOffline} in pickPackage).
+ * `undefined` unless offline resolution is active and the store was
+ * initialized — a never-populated store has nothing to prefer, and the pick
+ * treats every version as uncached then.
+ */
+/**
+ * One store-index handle per store dir and open mode, shared by every offline
+ * resolver the process creates. A resolver is created per install, but the
+ * store outlives any single install, and each index holds a SQLite
+ * connection plus an exit listener — keeping one per key bounds both to the
+ * number of distinct stores used instead of the number of installs. The mode
+ * (`frozenStore` opens read-only) is part of the key so a read-only handle
+ * never serves a writable store, or the other way around.
+ */
+const offlineStoreCheckers = new Map<string, OfflineStoreChecker>()
+
+function createOfflineStoreChecker (opts: ResolverFactoryOptions): OfflineStoreChecker | undefined {
+  if (opts.offline !== true || opts.storeDir == null) return undefined
+  const frozen = opts.frozenStore === true
+  const cacheKey = `${frozen ? 'readonly' : 'readwrite'}\u0000${opts.storeDir}`
+  let checker = offlineStoreCheckers.get(cacheKey)
+  if (checker == null) {
+    if (!fs.existsSync(path.join(opts.storeDir, 'index.db'))) return undefined
+    // An existing index.db that fails to open is an actionable fault (a
+    // corrupt db, an old Node for the frozen-store immutable URI), so the
+    // constructor error propagates instead of hiding behind a fallback.
+    const storeIndex = frozen
+      ? new ReadOnlyStoreIndex(opts.storeDir)
+      : new StoreIndex(opts.storeDir)
+    checker = {
+      hasTarballInStore: (pkgName, version, integrity) =>
+        integrity != null && storeIndex.has(storeIndexKey(integrity, `${pkgName}@${version}`)),
+    }
+    offlineStoreCheckers.set(cacheKey, checker)
+  }
+  return checker
 }
 
 /**
@@ -1408,24 +1451,6 @@ function detectMinReleaseAgeViolation (args: {
     code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
     reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
   }
-}
-
-function getIntegrity (dist: {
-  integrity?: string
-  shasum: string
-  tarball: string
-}): string | undefined {
-  if (dist.integrity) {
-    return dist.integrity
-  }
-  if (!dist.shasum) {
-    return undefined
-  }
-  const integrity = ssri.fromHex(dist.shasum, 'sha1')
-  if (!integrity) {
-    throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
-  }
-  return integrity.toString()
 }
 
 function createRegistryTarballResolution (

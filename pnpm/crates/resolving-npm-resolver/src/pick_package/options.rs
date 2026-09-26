@@ -1,7 +1,55 @@
 use super::{
-    DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
+    Arc, DateTime, HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path,
     TrustPolicy, Utc, VersionSelectors,
 };
+use pnpm_store_dir::SharedReadonlyStoreIndex;
+
+/// Read-only access to the store's package index for offline picks, wrapped
+/// so the "index has no rows at all" case — where no version can be
+/// preferred — costs one probe per resolve instead of one query per pick.
+#[derive(Clone)]
+pub struct OfflineStoreAvailability {
+    index: SharedReadonlyStoreIndex,
+    has_rows: bool,
+}
+
+impl OfflineStoreAvailability {
+    /// Wrap an already-opened index. A failed probe reads as "no rows": the
+    /// pick then keeps the newest match, exactly as before the store was
+    /// consulted.
+    #[must_use]
+    pub fn new(index: SharedReadonlyStoreIndex) -> Self {
+        let has_rows = index
+            .lock()
+            .is_ok_and(|guard| guard.has_rows().unwrap_or(false));
+        Self { index, has_rows }
+    }
+
+    /// The wrapped index, for readers that consult the store for purposes
+    /// beyond the offline pick.
+    #[must_use]
+    pub fn index(&self) -> &SharedReadonlyStoreIndex {
+        &self.index
+    }
+
+    /// Whether any version's tarball can possibly be preferred.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        !self.has_rows
+    }
+
+    /// Whether the index holds a row under `key`.
+    pub(crate) async fn contains_key(&self, key: String) -> bool {
+        let index = Arc::clone(&self.index);
+        tokio::task::spawn_blocking(move || {
+            index
+                .lock()
+                .is_ok_and(|guard| guard.contains_key(&key).unwrap_or(false))
+        })
+        .await
+        .unwrap_or(false)
+    }
+}
 
 /// Process-shared context every [`super::pick_package`] call reads from.
 /// One per install.
@@ -23,6 +71,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
     pub cache_policy: crate::MetadataCachePolicy,
+    /// Read-only handle on the store's package index, present only for
+    /// offline installs. The offline pick uses it to prefer versions whose
+    /// tarballs the store already holds; versions the store lacks are what
+    /// the fetch layer reports as `ERR_PNPM_NO_OFFLINE_TARBALL`. `None`
+    /// keeps every version eligible, matching the online behavior.
+    pub store_index: Option<&'a OfflineStoreAvailability>,
     pub metadata: MetadataRequestContext<'a, Cache>,
 }
 

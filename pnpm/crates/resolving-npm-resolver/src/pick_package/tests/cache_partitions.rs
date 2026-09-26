@@ -45,6 +45,7 @@ async fn cache_key_separates_abbreviated_from_full() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -95,6 +96,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -115,6 +117,7 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -180,6 +183,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -263,6 +267,7 @@ async fn cache_fast_paths_record_route_through_hook() {
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
+            store_index: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -301,6 +306,7 @@ async fn cache_fast_paths_record_route_through_hook() {
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
+            store_index: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -339,6 +345,7 @@ async fn cache_fast_paths_record_route_through_hook() {
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
+            store_index: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -430,6 +437,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -489,6 +497,7 @@ async fn public_scope_falls_back_to_mirror_on_401() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_index: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

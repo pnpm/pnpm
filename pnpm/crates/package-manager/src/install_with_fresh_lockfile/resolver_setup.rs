@@ -18,8 +18,8 @@ use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, merge_named_registries,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, OfflineStoreAvailability,
+    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 use pnpm_resolving_tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
@@ -284,7 +284,7 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
-            store_index: self.store.index.cloned(),
+            store_index: self.store.index.cloned().map(OfflineStoreAvailability::new),
         })
     }
 
@@ -385,6 +385,7 @@ impl ResolverChainInputs<'_> {
                 prefer_offline: self.config.prefer_offline,
                 ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
+            store_index: self.store.index.cloned().map(OfflineStoreAvailability::new),
         }
     }
 

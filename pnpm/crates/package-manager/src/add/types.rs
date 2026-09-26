@@ -3,7 +3,7 @@ use super::{
     registry::{add_pick_policy, explicit_registry_pick_options, package_registry},
     specifier::declared_specifier,
 };
-use crate::resolution_policy::pick_package_context;
+use crate::resolution_policy::{offline_store_index, pick_package_context};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::PackageVersion;
 use pnpm_resolving_npm_resolver::{
@@ -123,12 +123,14 @@ async fn pick_types_metadata(
     };
     let registry = package_registry(inputs.add.config, &spec.name);
     let policy = add_pick_policy(inputs, &spec.name)?;
+    let store_index = offline_store_index(inputs.add.config);
     let context = pick_package_context(
         inputs.add.http_client,
         inputs.add.config,
         &policy,
         &inputs.resolution.meta_cache,
         &inputs.resolution.fetch_locker,
+        store_index.as_ref(),
     );
     let options = explicit_registry_pick_options(
         inputs.add.config,
