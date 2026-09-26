@@ -40,7 +40,7 @@ export type PathExtenderWindowsReport = EnvVariableChange[]
 export async function addDirToWindowsEnvPath (dir: string, opts?: AddDirToWindowsEnvPathOpts): Promise<PathExtenderWindowsReport> {
   // Use `chcp` to make `reg` use utf8 encoding for output.
   // Otherwise, the non-ascii characters in the environment variables will become garbled characters.
-  const chcpResult = await execa('chcp')
+  const chcpResult = await execa('chcp', [], EXEC_OPTS)
   const cpMatch = /\d+/.exec(chcpResult.stdout as string) ?? []
   if (cpMatch.length === 0) {
     throw new PnpmError('CHCP', `exec chcp failed: ${chcpResult.stderr}`)
@@ -49,13 +49,13 @@ export async function addDirToWindowsEnvPath (dir: string, opts?: AddDirToWindow
   if (chcpResult.failed || !(cpBak > 0)) {
     throw new PnpmError('CHCP', `exec chcp failed: ${cpBak}, ${chcpResult.stderr}`)
   }
-  await execa('chcp', ['65001'])
+  await execa('chcp', ['65001'], EXEC_OPTS)
   try {
     const report = await _addDirToWindowsEnvPath(dir, opts)
     await refreshEnvVars()
     return report
   } finally {
-    await execa('chcp', [cpBak.toString()])
+    await execa('chcp', [cpBak.toString()], EXEC_OPTS)
   }
 }
 
