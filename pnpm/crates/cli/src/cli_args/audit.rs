@@ -68,6 +68,7 @@ use std::{
 
 mod fix;
 mod importers;
+mod packages;
 mod paths;
 mod render;
 mod report;
@@ -100,8 +101,9 @@ pub struct AuditArgs {
     /// Show vulnerabilities and select which ones to fix interactively.
     #[clap(short = 'i', long)]
     pub interactive: bool,
-    /// Audit subcommand. The only supported subcommand is `signatures`,
-    /// which verifies registry signatures for the installed packages.
+    /// Packages to audit instead of the project (`<name>[@<version>]`),
+    /// or the `signatures` subcommand, which verifies registry signatures
+    /// for the installed packages.
     pub params: Vec<String>,
     #[clap(flatten)]
     pub advisories: AdvisoryFilterArgs,
@@ -206,8 +208,8 @@ impl AuditArgs {
         self,
         mut state: State,
     ) -> miette::Result<AuditOutcome> {
-        if let Some(subcommand) = self.params.first() {
-            return self.run_subcommand(subcommand, state).await;
+        if !self.params.is_empty() {
+            return self.run_subcommand(state).await;
         }
 
         let include = self.dependency_options.include(state.config);
@@ -284,11 +286,9 @@ impl AuditArgs {
         Ok(audit_outcome(&report, audit_level))
     }
 
-    /// `audit` takes exactly one subcommand, `signatures`.
-    async fn run_subcommand(&self, subcommand: &str, state: State) -> miette::Result<AuditOutcome> {
-        if subcommand != "signatures" {
-            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
-        }
+    /// `audit` takes exactly one subcommand, `signatures`. Any other first
+    /// parameter names a package, which [`Self::run_packages`] audits.
+    async fn run_subcommand(&self, state: State) -> miette::Result<AuditOutcome> {
         if self.params.len() > 1 {
             return Err(AuditError::UnknownSubcommand {
                 subcommand: self.params
@@ -326,7 +326,19 @@ impl AuditArgs {
         let Some(lockfile) = select_audited_importers(state, lockfile)? else {
             return Ok(None);
         };
-        let lockfile = lockfile.as_ref();
+        self.audit_lockfile(state, lockfile.as_ref(), include, audit_level, lockfile_dir).await
+    }
+
+    /// Request the advisories for `lockfile`. `None` when a registry error
+    /// was swallowed per `--ignore-registry-errors`.
+    async fn audit_lockfile(
+        &self,
+        state: &State,
+        lockfile: &Lockfile,
+        include: Include,
+        audit_level: ConfigAuditLevel,
+        lockfile_dir: &std::path::Path,
+    ) -> miette::Result<Option<AuditReport>> {
         let env_lockfile = EnvLockfile::read(lockfile_dir)
             .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
         match audit(

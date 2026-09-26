@@ -654,24 +654,6 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
 }
 
 #[test]
-fn audit_rejects_unknown_subcommands() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
-    write_minimal_manifest(&workspace);
-
-    let output = pacquet
-        .arg("audit")
-        .arg("unknown")
-        .output()
-        .expect("run pacquet audit");
-
-    assert_failure(&output);
-    assert!(stderr(&output).contains("ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND"));
-    assert!(stderr(&output).contains("Unknown audit subcommand: unknown"));
-}
-
-#[test]
 fn audit_filter_audits_only_the_selected_projects() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
@@ -961,3 +943,5 @@ fn stderr(output: &Output) -> String {
 mod signatures;
 
 mod fixes;
+
+mod packages;

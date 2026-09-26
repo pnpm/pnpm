@@ -1,3 +1,4 @@
+pub(crate) use cache::configure_cache_install;
 pub(crate) use clean::clean_expired_dlx_cache;
 
 use crate::{
