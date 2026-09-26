@@ -356,3 +356,37 @@ fn preserve_symlinks_recreates_an_internal_junction() {
     assert!(pnpm_fs::is_symlink_or_junction(&target.join("dir-link")).unwrap());
     assert_eq!(fs::read(target.join("dir-link/nested.txt")).unwrap(), b"nested");
 }
+
+/// A hoisted duplicate placement is a directory link to another project's
+/// copy. Deleting that project's `node_modules` leaves the link dangling,
+/// and the next install has to replace it with a real directory. Windows
+/// refuses `remove_file` on a directory link or junction, dangling or not.
+#[test]
+fn force_import_replaces_a_dangling_directory_link() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let manifest = write_source(&src_root, "package.json", b"{}");
+    let cas = cas_map(&[("package.json", manifest)]);
+
+    let removed_copy = tmp.path().join("removed-copy");
+    fs::create_dir_all(&removed_copy).unwrap();
+    let target = tmp.path().join("pkg");
+    pnpm_fs::symlink_dir(&removed_copy, &target).unwrap();
+    fs::remove_dir(&removed_copy).unwrap();
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts {
+            force: true,
+            keep_modules_dir: true,
+            ..ImportIndexedDirOpts::default()
+        },
+    )
+    .expect("a dangling directory link must be replaced");
+
+    assert!(!pnpm_fs::is_symlink_or_junction(&target).unwrap());
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{}");
+}
