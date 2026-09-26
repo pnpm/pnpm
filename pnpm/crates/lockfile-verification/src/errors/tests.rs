@@ -42,6 +42,31 @@ fn single_missing_integrity_violation_picks_missing_integrity_variant() {
     assert!(matches!(err, VerifyError::MissingTarballIntegrity { .. }), "got: {err:?}");
 }
 
+/// A single-code batch surfaces the verifier's own code, as the
+/// TypeScript gate does.
+#[test]
+fn single_code_batch_surfaces_the_verifier_code() {
+    for code in [
+        "MINIMUM_RELEASE_AGE_VIOLATION",
+        "TRUST_DOWNGRADE",
+        "MISSING_TARBALL_INTEGRITY",
+        "TARBALL_URL_MISMATCH",
+        "TARBALL_REVISION_MISMATCH",
+        "MISSING_NAMED_REGISTRY",
+        "RESOLUTION_SHAPE_MISMATCH",
+    ] {
+        let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", code, "broken")]);
+        let diagnostic_code = miette::Diagnostic::code(&err).expect("a code").to_string();
+        assert_eq!(diagnostic_code, format!("ERR_PNPM_{code}"));
+    }
+}
+
+#[test]
+fn unknown_single_code_falls_back_to_the_generic_envelope() {
+    let err = VerifyError::from_rendered(&[rendered("acme", "1.0.0", "SOMETHING_NEW", "broken")]);
+    assert!(matches!(err, VerifyError::LockfileResolutionVerification { .. }), "got: {err:?}");
+}
+
 #[test]
 fn mixed_codes_escalate_and_render_code_per_entry() {
     let err = VerifyError::from_rendered(&[

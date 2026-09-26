@@ -352,16 +352,13 @@ fn a_violations_frame_rebuilds_a_verify_error() {
 }
 
 #[test]
-fn tarball_mismatch_maps_to_the_generic_envelope() {
+fn tarball_mismatch_keeps_its_own_variant() {
     let line = br#"{"type":"violations","violations":[{"name":"acme","version":"1.0.0","code":"TARBALL_URL_MISMATCH","reason":"url mismatch"}]}"#;
     let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
         panic!("expected a violations frame");
     };
     let verify_err = build_verify_error(violations);
-    assert!(
-        matches!(verify_err, VerifyError::LockfileResolutionVerification { .. }),
-        "got {verify_err:?}",
-    );
+    assert!(matches!(verify_err, VerifyError::TarballUrlMismatch { .. }), "got {verify_err:?}");
 }
 
 #[test]
