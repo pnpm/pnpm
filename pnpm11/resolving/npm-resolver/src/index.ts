@@ -1387,7 +1387,7 @@ function latestAllowedByPolicy (
  * full-name exclusions (`pkg`) are both honored so an entry already on
  * the user's exclude list isn't re-announced every install.
  */
-function detectMinReleaseAgeViolation (args: {
+export function detectMinReleaseAgeViolation (args: {
   name: string
   version: string
   publishedAt: string | undefined
