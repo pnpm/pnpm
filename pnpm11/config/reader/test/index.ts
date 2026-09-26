@@ -293,6 +293,37 @@ test('maxSockets from the command line wins over pnpm-workspace.yaml, whichever 
   expect(config.maxSockets).toBe(6)
 })
 
+test('a pnpm-workspace.yaml cannot override the derived workspaceManifestFound', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'workspaceManifestFound: false\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.workspaceManifestFound).toBe(true)
+})
+
+test('workspaceManifestFound is false when pnpm-workspace.yaml is absent', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.workspaceManifestFound).toBe(false)
+})
+
 test('maxSockets from the environment wins over pnpm-workspace.yaml', async () => {
   prepareEmpty()
   fs.writeFileSync('pnpm-workspace.yaml', 'maxSockets: 4\n', 'utf8')

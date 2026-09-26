@@ -4079,8 +4079,12 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       allowUnusedPatches: opts.allowUnusedPatches,
       // The reconstructed workspace the server builds from this request has no
       // catalog sections, so forward the catalogs for the server to resolve
-      // `catalog:` specifiers in both dependencies and overrides.
-      catalogs: opts.catalogs,
+      // `catalog:` specifiers in both dependencies and overrides. When no
+      // pnpm-workspace.yaml was found there are no catalogs to forward: an
+      // empty object would still make the server's frozen-settings check
+      // reject the lockfile's recorded catalogs instead of reusing them
+      // (pnpm/pnpm#10551), so send nothing at all.
+      catalogs: opts.ignoreRecordedCatalogs ? undefined : opts.catalogs,
       autoInstallPeers: opts.autoInstallPeers,
       dedupePeers: opts.dedupePeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

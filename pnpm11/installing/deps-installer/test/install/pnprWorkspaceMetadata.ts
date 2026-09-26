@@ -118,6 +118,23 @@ test('pnpr forwards catalogs and overrides so the server can resolve catalog ref
   }))
 })
 
+test('pnpr receives no catalogs when none stand behind the configuration', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    catalogs: { default: { '@tanstack/store': '0.11.0' } },
+    // The config reader reports this when no pnpm-workspace.yaml was found,
+    // so an empty catalogs config is the config, not an emptied catalog.
+    ignoreRecordedCatalogs: true,
+  })
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+  expect(resolveViaPnprServer.mock.calls[0][0].catalogs).toBeUndefined()
+})
+
 test("pnpr forwards every workspace project's name and version", async () => {
   const workspaceRoot = prepareEmpty().dir()
   const appManifest: ProjectManifest = {

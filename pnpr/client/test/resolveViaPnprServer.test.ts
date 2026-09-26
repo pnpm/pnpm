@@ -12,6 +12,7 @@ interface CapturedResolveRequest {
   packageExtensions?: Record<string, unknown>
   allowUnusedPatches?: boolean
   updatePatches?: boolean
+  catalogs?: Record<string, unknown>
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -154,6 +155,26 @@ test('omits updatePatches when the caller has none', async () => {
   const request = await captureResolveRequest({ dependencies: {} })
 
   expect(Object.hasOwn(request, 'updatePatches')).toBe(false)
+})
+
+// The server skips its frozen-install catalogs comparison only when the
+// request carries no catalogs at all: an empty object reads as a workspace
+// that emptied its catalog, which must keep failing the check.
+test('omits catalogs when the caller has none', async () => {
+  const request = await captureResolveRequest({ dependencies: {} })
+
+  expect(Object.hasOwn(request, 'catalogs')).toBe(false)
+})
+
+test('serializes the catalogs the caller has', async () => {
+  const request = await captureResolveRequest({
+    dependencies: {},
+    catalogs: { default: { '@tanstack/store': '0.11.0' } },
+  })
+
+  expect(request).toMatchObject({
+    catalogs: { default: { '@tanstack/store': '0.11.0' } },
+  })
 })
 
 async function captureResolveRequest (

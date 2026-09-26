@@ -560,7 +560,6 @@ export async function getConfig (opts: {
 
     if (pnpmConfig.workspaceDir != null) {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
-      pnpmConfig.workspaceManifestFound = workspaceManifest != null
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
@@ -603,6 +602,11 @@ export async function getConfig (opts: {
           workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
+      // Assigned after the manifest's settings are merged: unknown camelCase
+      // keys of pnpm-workspace.yaml reach the config record, so a file naming
+      // this key would otherwise overwrite what the reader worked out and
+      // disable the frozen-install catalogs check (pnpm/pnpm#10551).
+      pnpmConfig.workspaceManifestFound = workspaceManifest != null
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
