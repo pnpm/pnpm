@@ -903,9 +903,9 @@ fn hoisted_packages_dont_override_direct_dep_bins() {
     drop((root, mock_instance));
 }
 
-/// TS: `should add extra node paths to command shims` (`hoist.ts:790`).
+/// TS: `should not add private hoisted modules to command shims` (`hoist.ts`).
 #[test]
-fn should_add_extra_node_paths_to_command_shims() {
+fn should_not_add_private_hoisted_modules_to_command_shims() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -921,17 +921,16 @@ fn should_add_extra_node_paths_to_command_shims() {
 
     let shim = fs::read_to_string(workspace.join("node_modules/.bin/hello-world-js-bin"))
         .expect("read the command shim");
-    // Inside a relocatable root the shim names the entry relative to its
-    // own directory; on Windows `generate_sh_shim` writes the absolute
-    // path `@zkochan/cmd-shim` writes instead.
+    // Inside a relocatable root the private hoist directory would be named
+    // relative to the shim on Unix and absolutely on Windows.
     let hoisted_modules_entry = if cfg!(windows) {
         "/node_modules/.pnpm/node_modules"
     } else {
         "$basedir_abs/../.pnpm/node_modules"
     };
     assert!(
-        shim.contains(hoisted_modules_entry),
-        "the shim must extend NODE_PATH with the hidden hoisted modules dir \
+        !shim.contains(hoisted_modules_entry),
+        "the shim must not extend NODE_PATH with the hidden hoisted modules dir \
          ({hoisted_modules_entry}):\n{shim}",
     );
 

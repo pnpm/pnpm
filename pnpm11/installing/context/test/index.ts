@@ -39,12 +39,12 @@ test('getContext - extendNodePath false', async () => {
   expect(context.extraNodePaths).toEqual([])
 })
 
-test('getContext - extendNodePath true', async () => {
+test('getContext does not expose private hoisted modules through command shims', async () => {
   const context = await getContext({
     ...DEFAULT_OPTIONS,
     extendNodePath: true,
   })
-  expect(context.extraNodePaths).toEqual([path.join(context.virtualStoreDir, 'node_modules')])
+  expect(context.extraNodePaths).toEqual([])
 })
 
 test('getContext resolves the virtual store through a symlinked modules directory', async () => {

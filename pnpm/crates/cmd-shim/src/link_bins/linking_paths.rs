@@ -123,9 +123,7 @@ impl<'a> LinkingPaths<'a> {
 /// dir when there is one, then the target's own `node_modules` dirs
 /// (pnpm's `getBinNodePaths`), then the caller's extras. An entry that
 /// appears again keeps its first position. With no project dir and no
-/// extras the shims get no `NODE_PATH` at all (`extendNodePath: false`, a
-/// non-isolated linker, or no hoist pattern), matching pnpm's bins
-/// linker.
+/// extras the shims get no `NODE_PATH` at all.
 ///
 /// The result depends only on the package's symlink-resolved
 /// directory — every bin lives under the package root — so a

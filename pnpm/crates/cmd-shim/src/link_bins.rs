@@ -354,11 +354,11 @@ where
 /// Link every bin declared by `packages` into `bins_dir`, applying conflict
 /// resolution between bins of the same name.
 ///
-/// `extra_node_paths` is pnpm's `extraNodePaths` (the hidden hoisted
-/// modules dir under the isolated linker unless `extendNodePath:
-/// false`). When non-empty, each shim carries a `NODE_PATH` block
-/// listing the target's own `node_modules` dirs followed by these
-/// entries; when empty the shims stay `NODE_PATH`-free.
+/// `extra_node_paths` contains caller-supplied paths to append to the
+/// target's own `node_modules` directories. When non-empty, each shim
+/// carries a `NODE_PATH` block listing the target's own directories followed
+/// by these entries; when empty the shims stay `NODE_PATH`-free unless a
+/// project modules directory is configured.
 pub fn link_bins_of_packages<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,

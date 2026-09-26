@@ -107,9 +107,8 @@ pub struct LinkVirtualStoreBins<'a> {
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
-    /// [`shim_link_options`] output — pnpm threads the same
-    /// `extraNodePaths` into slot-internal bin shims as into importer
-    /// bins.
+    /// [`shim_link_options`] output shared by slot-internal and importer
+    /// bin linking.
     pub link_options: &'a LinkBinsOptions,
 }
 

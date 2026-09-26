@@ -85,7 +85,7 @@ test('jest CLI should print the right version when multiple instances of jest ar
   }
 })
 
-test('drupal-js-build should find plugins inside the hidden node_modules directory', async () => {
+test('drupal-js-build should find plugins when they are publicly hoisted', async () => {
   const tmp = tempDir()
   f.copy('tooling-that-needs-node-path', tmp)
   await install({
@@ -99,6 +99,7 @@ test('drupal-js-build should find plugins inside the hidden node_modules directo
     extendNodePath: true,
     fastUnpack: false,
     hoistPattern: '*',
+    publicHoistPattern: '*',
   }))
   expect(fs.existsSync(path.join(tmp, 'index.js'))).toBeTruthy()
 })

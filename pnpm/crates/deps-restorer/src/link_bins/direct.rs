@@ -18,32 +18,13 @@ use std::{
 
 /// The config-derived options for every bin an install links.
 ///
-/// `extra_node_paths` is pnpm's `getExtraNodePaths`: under the isolated
-/// linker with a hoist pattern, every shim written by the install
-/// carries the hidden hoisted modules dir
-/// (`<virtual-store-dir>/node_modules`) on `NODE_PATH`, unless
-/// `extendNodePath: false`. Everything else — the hoisted linker, a
-/// disabled hoist pass — gets no `NODE_PATH` at all.
+/// Private hoisted modules are intentionally absent from bin shims. Putting
+/// that directory on `NODE_PATH` lets a project script resolve undeclared
+/// dependencies when it runs through `node_modules/.bin`.
 #[must_use]
-pub fn shim_link_options(config: &Config, node_linker: NodeLinker) -> LinkBinsOptions {
-    let has_hoist_pattern = config.hoist_pattern
-        .as_ref()
-        .is_some_and(|patterns| !patterns.is_empty());
-    let extra_node_paths = if config.extend_node_path
-        && matches!(node_linker, NodeLinker::Isolated)
-        && has_hoist_pattern
-    {
-        vec![
-            config.virtual_store_dir
-                .join("node_modules")
-                .to_string_lossy()
-                .into_owned(),
-        ]
-    } else {
-        Vec::new()
-    };
+pub fn shim_link_options(config: &Config, _node_linker: NodeLinker) -> LinkBinsOptions {
     LinkBinsOptions {
-        extra_node_paths,
+        extra_node_paths: Vec::new(),
         prefer_symlinked_executables: config.prefer_symlinked_executables.unwrap_or(false),
         relocatable_root: config.modules_dir_anchor().map(Path::to_path_buf),
         project_modules_dir_name: (config.extend_node_path

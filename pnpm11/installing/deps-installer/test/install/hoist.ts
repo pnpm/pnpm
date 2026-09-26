@@ -859,13 +859,13 @@ test('only hoist packages which is in the dependencies tree of the selected proj
   expect(regeneratorVersion).toBe('0.13.9')
 })
 
-test('should add extra node paths to command shims', async () => {
+test('should not add private hoisted modules to command shims', async () => {
   prepareEmpty()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   const cmdShim = fs.readFileSync(path.join('node_modules', '.bin', 'hello-world-js-bin'), 'utf8')
-  expect(cmdShim).toContain('node_modules/.pnpm/node_modules')
+  expect(cmdShim).not.toContain('node_modules/.pnpm/node_modules')
 })
 
 test('should not add extra node paths to command shims, when extend-node-path is set to false', async () => {

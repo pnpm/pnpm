@@ -161,12 +161,7 @@ export async function getContext (
   }
   const ctx: PnpmContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({
-      extendNodePath: opts.extendNodePath,
-      nodeLinker: opts.nodeLinker,
-      hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
-      hoistedModulesDir,
-    }),
+    extraNodePaths: [],
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -276,7 +271,6 @@ export async function getContextForSingleImporter (
   }
 ): Promise<PnpmSingleContext> {
   const {
-    currentHoistPattern,
     hoistedDependencies,
     projects,
     include,
@@ -325,12 +319,7 @@ export async function getContextForSingleImporter (
   const hookedManifest = await opts.readPackageHook?.(manifest, opts.dir) ?? manifest
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({
-      extendNodePath: opts.extendNodePath,
-      nodeLinker: opts.nodeLinker,
-      hoistPattern: currentHoistPattern ?? opts.hoistPattern,
-      hoistedModulesDir,
-    }),
+    extraNodePaths: [],
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -375,20 +364,6 @@ export async function getContextForSingleImporter (
   })
 
   return ctx
-}
-
-function getExtraNodePaths (
-  { extendNodePath = true, hoistPattern, nodeLinker, hoistedModulesDir }: {
-    extendNodePath?: boolean
-    hoistPattern?: string[]
-    nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    hoistedModulesDir: string
-  }
-): string[] {
-  if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
-    return [hoistedModulesDir]
-  }
-  return []
 }
 
 export function arrayOfWorkspacePackagesToMap (
