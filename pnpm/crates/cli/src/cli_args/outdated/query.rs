@@ -5,6 +5,8 @@ use super::{
     configured_catalogs, create_configured_registry_resolver, create_matcher, github_actions,
     parse_catalog_protocol, resolve_from_catalog,
 };
+use pnpm_lockfile_preferred_versions::get_version_selector_type;
+use pnpm_resolving_resolver_base::VersionSelectorType;
 
 /// State shared by every importer inspected in one `outdated` (or
 /// `update --interactive`) run: one resolver and metadata cache, so a
@@ -400,6 +402,22 @@ fn tag_query_misses(
         && error.is::<pnpm_resolving_resolver_base::NoMatchingVersionError>()
 }
 
+fn target_moves(
+    target_version: TargetVersion<'_>,
+    target: &Version,
+    current: &Version,
+    declared: &str,
+) -> bool {
+    match target_version {
+        TargetVersion::Tag(tag) => {
+            target != current
+                || (matches!(get_version_selector_type(declared), Some(VersionSelectorType::Tag))
+                    && declared != tag)
+        }
+        TargetVersion::Latest | TargetVersion::WithinRange => target > current,
+    }
+}
+
 fn outdated_target(
     query: &OutdatedQuery<'_>,
     workspace: &str,
@@ -415,16 +433,9 @@ fn outdated_target(
         .get("deprecated")
         .and_then(serde_json::Value::as_str)
         .map(str::to_string);
-    // A tag target is an exact destination: the user named the tag, so the
-    // dependency is offered whenever the version behind the tag differs
-    // from the installed one, downgrades included — the way a
-    // non-interactive `--tag` update applies them. `latest` and in-range
-    // targets stay newer-only.
-    let target_moves = match query.target_version {
-        TargetVersion::Tag(_) => target != candidate.current,
-        TargetVersion::Latest | TargetVersion::WithinRange => target > candidate.current,
-    };
-    if !(target_moves || (query.include_deprecated && deprecated.is_some())) {
+    if !(target_moves(query.target_version, &target, &candidate.current, candidate.bare_specifier)
+        || (query.include_deprecated && deprecated.is_some()))
+    {
         return None;
     }
     let package_name = target_manifest

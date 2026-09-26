@@ -224,9 +224,10 @@ impl UpdateArgs {
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
     ) -> InteractiveUpdateOptions<'a> {
+        let save = !self.save.no_save;
         InteractiveUpdateOptions {
-            latest: self.selection.latest,
-            tag: self.selection.tag.as_deref(),
+            latest: self.selection.latest && save,
+            tag: if save { self.selection.tag.as_deref() } else { None },
             include_direct,
             include_github_actions: update_actions,
             prompt: self.prompt,

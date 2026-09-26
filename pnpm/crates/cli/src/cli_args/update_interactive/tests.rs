@@ -862,6 +862,64 @@ async fn interactive_tag_update_skips_aliased_dependencies() {
     );
 }
 
+#[tokio::test]
+async fn interactive_tag_update_offers_tag_change_when_resolved_version_matches() {
+    let fixture = UpdateFixture::new();
+
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "next");
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "canary");
+    fixture.write_manifest(&json!({ MULTI_A: "next" }));
+    fixture.update(&["update"]).await;
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "canary"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "2.0.0".to_string())],
+    );
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(fixture.project.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(manifest["dependencies"][MULTI_A], "canary");
+}
+
+#[tokio::test]
+async fn interactive_tag_update_no_save_offers_in_range_version() {
+    let fixture = UpdateFixture::new();
+
+    fixture.set_dist_tag(MULTI_A, "2.0.0", "latest");
+    fixture.write_manifest(&json!({ MULTI_A: "^2.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.set_dist_tag(MULTI_A, "2.1.0", "latest");
+    fixture.set_dist_tag(MULTI_A, "1.0.0", "next");
+
+    let scripted = scripted_prompts();
+    scripted.answer_next(&[MULTI_A]);
+    fixture.update(&["update", "--interactive", "--tag", "next", "--no-save"]).await;
+
+    let prompts = scripted.seen();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(
+        offered(&prompts[0]),
+        [(MULTI_A.to_string(), "2.0.0".to_string(), "2.1.0".to_string())],
+    );
+    assert!(
+        fixture
+            .lockfile_packages()
+            .contains(&format!("{MULTI_A}@2.1.0")),
+    );
+    let manifest: Value = serde_json::from_str(
+        &fs::read_to_string(fixture.project.join("package.json")).expect("read package.json"),
+    )
+    .expect("parse package.json");
+    assert_eq!(manifest["dependencies"][MULTI_A], "^2.0.0");
+}
+
 /// Ports `interactively update should ignore dependencies from the
 /// ignoreDependencies field`.
 #[tokio::test]
