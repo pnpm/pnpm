@@ -4751,6 +4751,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "dunce",
+ "libc",
  "miette 7.6.0",
  "node-semver",
  "pipe-trait",

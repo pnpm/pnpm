@@ -90,6 +90,7 @@ ignoreWorkspaceRootCheck: true
 optional: false
 packageLock: false
 pending: true
+preserveBinName: true
 recursiveInstall: false
 reverse: true
 shellEmulator: true
@@ -107,6 +108,7 @@ useBetaCli: true
     assert_eq!(settings.reporter, Some(ReporterType::Silent));
     assert_eq!(settings.optional, Some(false));
     assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.preserve_bin_name, Some(true));
     assert_eq!(settings.shell_emulator, Some(true));
     assert_eq!(settings.use_beta_cli, Some(true));
     assert_eq!(settings.embed_readme, None);

@@ -376,6 +376,15 @@ pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
     );
 }
 
+#[test]
+fn preserve_bin_name_reads_from_workspace_settings() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preserveBinName: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.preserve_bin_name);
+}
+
 /// The hoisted `nodeLinker` turns the setting on unless the user
 /// configured it — but, like pnpm, the derived `true` exports no
 /// `NODE_PATH`: pnpm computes `extraEnv` before its `nodeLinker`

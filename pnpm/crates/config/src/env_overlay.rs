@@ -254,6 +254,7 @@ impl WorkspaceSettings {
         string_field!(settings, Sys, lockfile_dir, "LOCKFILE_DIR");
         json_field!(settings, Sys, prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
         json_field!(settings, Sys, prefer_symlinked_executables, "PREFER_SYMLINKED_EXECUTABLES");
+        json_field!(settings, Sys, preserve_bin_name, "PRESERVE_BIN_NAME");
         json_field!(settings, Sys, frozen_lockfile, "FROZEN_LOCKFILE");
         json_field!(settings, Sys, deploy_all_files, "DEPLOY_ALL_FILES");
         json_field!(settings, Sys, force_legacy_deploy, "FORCE_LEGACY_DEPLOY");

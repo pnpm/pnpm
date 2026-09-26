@@ -43,6 +43,7 @@ fn write_and_load_round_trip() {
             node_linker: Some(NodeLinker::Isolated),
             optional: Some(true),
             patched_dependencies: Some(patched.clone()),
+            preserve_bin_name: Some(true),
             production: Some(true),
             public_hoist_pattern: Some(vec![]),
             ..Default::default()
@@ -56,6 +57,7 @@ fn write_and_load_round_trip() {
 
     let on_disk = std::fs::read_to_string(&path).expect("read state");
     assert!(on_disk.ends_with('\n'), "upstream appends a trailing newline");
+    assert!(on_disk.contains(r#""preserveBinName": true"#), "got: {on_disk}");
 
     let loaded = load_workspace_state(workspace_dir).expect("load state").expect("file present");
     assert_eq!(loaded, state);

@@ -285,7 +285,10 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+    write_workspace(
+        &workspace,
+        "syncInjectedDepsAfterScripts:\n  - build\nhoistPattern:\n  - '*'\npreserveBinName: true\n",
+    );
 
     // Give project-1 two bins and a build script that drops one of them the
     // way a step regenerating package.json would.
@@ -352,6 +355,10 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
             assert!(
                 Path::new(target).is_relative(),
                 "the shim in {bin_dir:?} must name its target relative to itself:\n{shim}",
+            );
+            assert!(
+                shim.contains("export NODE_PATH="),
+                "the relinked shim lost NODE_PATH:\n{shim}",
             );
         }
     }

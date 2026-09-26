@@ -50,8 +50,7 @@ pub enum InstallError {
         #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
     ),
 
-    // The three `*_DIFF` errors below mirror pnpm's `validateModules`:
-    // a non-plain-install mutation refuses to touch a modules directory
+    // A mutation or filtered install refuses to touch a modules directory
     // whose persisted layout settings disagree with the current config.
     #[display(
         r#"This modules directory was created using a different hoist-pattern value. Run "pnpm install" to recreate the modules directory."#
@@ -70,6 +69,12 @@ pub enum InstallError {
     )]
     #[diagnostic(code(ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF))]
     VirtualStoreDirMaxLengthDiff,
+
+    #[display(
+        r#"This modules directory was created using a different preserve-bin-name value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_PRESERVE_BIN_NAME_DIFF))]
+    PreserveBinNameDiff,
 
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),

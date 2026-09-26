@@ -97,6 +97,7 @@ impl WorkspaceSettings {
             optimistic_repeat_install: as_set(config, "optimisticRepeatInstall"),
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
+            preserve_bin_name: Some(config.preserve_bin_name),
 
             macos_backup: Some(MacosBackupSettings {
                 exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),

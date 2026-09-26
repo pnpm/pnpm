@@ -1,5 +1,6 @@
 #[cfg(unix)]
-use super::is_shim_pointing_at;
+use super::{alias_dir::AliasDirectory, is_shim_pointing_at};
+
 #[cfg(windows)]
 use super::shim_writer::with_extension_appended;
 use super::{FsEnsureExecutableBits, FsReadToString, LinkBinsError, Path, io, remove_stale_bin};
@@ -19,6 +20,78 @@ where
     chmod_tolerating_removal(target_path, |path| {
         Sys::ensure_executable_bits(path, installed_modules_dir)
     })
+}
+
+#[cfg(unix)]
+pub(super) fn link_bin_alias(
+    target_path: &Path,
+    alias_path: &Path,
+    relocatable_root: Option<&Path>,
+) -> Result<(), LinkBinsError> {
+    let alias_dir = alias_path
+        .parent()
+        .ok_or_else(|| alias_dir_error(alias_path, "bin alias has no parent directory"))?;
+    let directory = open_alias_directory(alias_dir)?;
+    let name = alias_path
+        .file_name()
+        .ok_or_else(|| {
+            symlink_error(
+                target_path,
+                alias_path,
+                io::Error::new(io::ErrorKind::InvalidInput, "bin alias has no file name"),
+            )
+        })?;
+    let link_target = if is_within_root(relocatable_root, alias_dir, target_path) {
+        pnpm_fs::relative_path(alias_dir, target_path)
+    } else {
+        target_path.to_path_buf()
+    };
+    if directory
+        .symlink_points_at(name, &link_target)
+        .map_err(|error| symlink_error(target_path, alias_path, error))?
+    {
+        return Ok(());
+    }
+    directory
+        .replace_symlink(name, &link_target)
+        .map_err(|error| symlink_error(target_path, alias_path, error))
+}
+
+/// The `.bin-symlinks` directory of an alias link, created when absent.
+#[cfg(unix)]
+fn open_alias_directory(alias_dir: &Path) -> Result<AliasDirectory, LinkBinsError> {
+    AliasDirectory::open(alias_dir, true)
+        .map_err(|error| LinkBinsError::CreateAliasDir { dir: alias_dir.to_path_buf(), error })?
+        .ok_or_else(|| LinkBinsError::CreateAliasDir {
+            dir: alias_dir.to_path_buf(),
+            error: io::Error::other("bin alias directory was not created"),
+        })
+}
+
+#[cfg(unix)]
+fn alias_dir_error(dir: &Path, reason: &'static str) -> LinkBinsError {
+    LinkBinsError::CreateAliasDir {
+        dir: dir.to_path_buf(),
+        error: io::Error::new(io::ErrorKind::InvalidInput, reason),
+    }
+}
+
+#[cfg(unix)]
+fn symlink_error(target_path: &Path, alias_path: &Path, error: io::Error) -> LinkBinsError {
+    LinkBinsError::SymlinkBin {
+        src: target_path.to_path_buf(),
+        dst: alias_path.to_path_buf(),
+        error,
+    }
+}
+
+#[cfg(not(unix))]
+pub(super) fn link_bin_alias(
+    _target_path: &Path,
+    _alias_path: &Path,
+    _relocatable_root: Option<&Path>,
+) -> Result<(), LinkBinsError> {
+    Ok(())
 }
 
 #[cfg(unix)]

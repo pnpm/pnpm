@@ -52,6 +52,19 @@ fn purge_removes_directory_links_without_following_them() {
     assert!(link_target.join("package.json").exists(), "the purge must not follow the link");
 }
 
+#[test]
+fn purge_removes_the_bin_alias_directory_but_preserves_user_entries() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+    fs::create_dir_all(modules_dir.join(".bin-symlinks")).unwrap();
+    fs::create_dir_all(modules_dir.join(".cache")).unwrap();
+
+    purge_modules_dir_entries(&modules_dir, &Config::new(), None).unwrap();
+
+    assert!(!modules_dir.join(".bin-symlinks").exists());
+    assert!(modules_dir.join(".cache").exists());
+}
+
 /// A shim target no move can keep working, so a tree holding one is refused.
 const ABSOLUTE_TARGET: &str = "/elsewhere/project/node_modules/typescript/bin/tsc";
 

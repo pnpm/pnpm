@@ -1219,10 +1219,98 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
     drop((root, mock_instance));
 }
 
-/// With `preferSymlinkedExecutables`, the isolated linker also
-/// materializes `.bin` entries as symlinks to executable bin files instead of
-/// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
-/// install coverage.
+/// `preserveBinName` keeps the shell shim and the target's `NODE_PATH` while
+/// executing a sibling alias, so Node sees the command name in `process.argv[1]`.
+#[test]
+#[cfg(unix)]
+fn preserve_bin_name_runs_workspace_bins_through_an_alias() {
+    use _utils::{
+        ManifestDeps, WorkspaceFixture, read_manifest, write_executable, write_manifest_value,
+    };
+
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("preferSymlinkedExecutables: true\npreserveBinName: true\n");
+    let consumer = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+    );
+    let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+    let mut provider_manifest = read_manifest(&provider);
+    provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+    write_manifest_value(&provider, &provider_manifest);
+    write_executable(
+        &provider.join("index.js"),
+        "#!/usr/bin/env node\nconsole.log(JSON.stringify({ argv: process.argv[1], filename: __filename }))\n",
+    );
+
+    fixture.run(["install"]);
+
+    let bin = consumer.join("node_modules/.bin/project-2");
+    let alias = consumer.join("node_modules/.bin-symlinks/project-2");
+    assert!(fs::symlink_metadata(&bin).unwrap().is_file());
+    assert!(is_symlink_or_junction(&alias).unwrap());
+    let output = Command::new(&bin).output().expect("run workspace bin");
+    assert!(output.status.success(), "workspace bin failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(alias.to_string_lossy().as_ref()), "argv was: {stdout}");
+    assert!(stdout.contains("index.js"), "filename was: {stdout}");
+}
+
+#[test]
+#[cfg(unix)]
+fn preserve_bin_name_changes_relink_an_unchanged_workspace() {
+    use _utils::{
+        ManifestDeps, WorkspaceFixture, read_manifest, write_executable, write_manifest_value,
+    };
+
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("preferSymlinkedExecutables: true\n");
+    let consumer = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
+    );
+    let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
+    let mut provider_manifest = read_manifest(&provider);
+    provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
+    write_manifest_value(&provider, &provider_manifest);
+    write_executable(
+        &provider.join("index.js"),
+        "#!/usr/bin/env node\nconsole.log(process.argv[1])\n",
+    );
+
+    fixture.run(["install"]);
+
+    let bin = consumer.join("node_modules/.bin/project-2");
+    let alias_dir = consumer.join("node_modules/.bin-symlinks");
+    assert!(is_symlink_or_junction(&bin).unwrap());
+    assert!(!alias_dir.exists());
+
+    let filtered = fixture.command_at(
+        &fixture.workspace,
+        ["--filter", "project-1", "install", "--config.preserve-bin-name=true"],
+    );
+    assert!(!filtered.status.success());
+    assert!(String::from_utf8_lossy(&filtered.stderr).contains("ERR_PNPM_PRESERVE_BIN_NAME_DIFF"));
+
+    fixture.run(["install", "--config.preserve-bin-name=true"]);
+
+    assert!(!is_symlink_or_junction(&bin).unwrap());
+    let alias = alias_dir.join("project-2");
+    assert!(is_symlink_or_junction(&alias).unwrap());
+    let output = Command::new(&bin).output().expect("run preserved workspace bin");
+    assert!(output.status.success(), "workspace bin failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(alias.to_string_lossy().as_ref()), "argv was: {stdout}");
+
+    fixture.run(["install", "--no-preserve-bin-name"]);
+
+    assert!(is_symlink_or_junction(&bin).unwrap());
+    assert!(alias_dir.is_dir());
+    assert!(!alias.exists());
+}
+
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn prefer_symlinked_executables_symlinks_workspace_bins() {

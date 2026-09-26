@@ -3,11 +3,33 @@ use super::{
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
 };
 #[cfg(unix)]
-use super::{is_sh_shim_hardened, is_shim_pointing_at};
+use super::{PathBuf, is_sh_shim_hardened, is_shim_pointing_at, remove_bin};
 #[cfg(unix)]
 use crate::shim::generate_sh_shim;
 #[cfg(unix)]
-use std::fs::metadata;
+use std::{fs::metadata, os::unix::fs::symlink};
+
+#[cfg(unix)]
+fn javascript_package(root: &Path) -> (PathBuf, Value) {
+    let package = root.join("node_modules/foo");
+    create_dir_all(&package).unwrap();
+    let target = package.join("cli.js");
+    write_file(
+        &target,
+        "#!/usr/bin/env node\nconsole.log(JSON.stringify({argv: process.argv[1], filename: __filename}))\n",
+    )
+    .unwrap();
+    let manifest = json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"});
+    (package, serde_json::from_value(manifest).unwrap())
+}
+
+#[cfg(unix)]
+fn is_symlink(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .unwrap()
+        .file_type()
+        .is_symlink()
+}
 
 #[cfg(unix)]
 #[test]
@@ -147,6 +169,227 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn preserve_bin_name_keeps_a_shim_and_runs_the_alias() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest_value) = javascript_package(tmp.path());
+    let target = package.join("cli.js");
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let options = LinkBinsOptions {
+        extra_node_paths: vec!["/tmp/hoisted".into()],
+        prefer_symlinked_executables: true,
+        preserve_bin_name: true,
+        relocatable_root: Some(tmp.path().to_path_buf()),
+        ..LinkBinsOptions::default()
+    };
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest_value))],
+        &bins_dir,
+        &options,
+    )
+    .unwrap();
+
+    let shim = bins_dir.join("foo");
+    let alias = bins_dir
+        .parent()
+        .unwrap()
+        .join(".bin-symlinks/foo");
+    assert!(!is_symlink(&shim));
+    assert!(is_symlink(&alias));
+    assert_eq!(std::fs::read_link(&alias).unwrap(), Path::new("../foo/cli.js"));
+    let shim_body = read_to_string(&shim).unwrap();
+    assert!(shim_body.contains("../.bin-symlinks/foo"));
+    assert!(shim_body.contains("export NODE_PATH="));
+
+    let output = std::process::Command::new(&shim).output().unwrap();
+    assert!(output.status.success(), "bin failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(alias.to_string_lossy().as_ref()), "argv was: {stdout}");
+    assert!(stdout.contains(target.to_string_lossy().as_ref()), "filename was: {stdout}");
+
+    super::remove_bin(&shim).unwrap();
+    assert!(!alias.exists());
+    assert!(alias.parent().unwrap().exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_default_relink_leaves_the_existing_alias_untouched() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let options = LinkBinsOptions { preserve_bin_name: true, ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package.clone(), Arc::new(manifest.clone()))],
+        &bins_dir,
+        &options,
+    )
+    .unwrap();
+    let shim = bins_dir.join("foo");
+    let alias = bins_dir.with_file_name(".bin-symlinks").join("foo");
+    let old_target = std::fs::read_link(&alias).unwrap();
+    std::fs::remove_file(&shim).unwrap();
+    std::fs::create_dir(&shim).unwrap();
+
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .expect_err("the directory squatting the shim path must fail the relink");
+
+    assert!(matches!(error, super::LinkBinsError::WriteShim { .. }));
+    assert_eq!(std::fs::read_link(&alias).unwrap(), old_target);
+}
+
+#[cfg(unix)]
+#[test]
+fn removing_one_alias_keeps_the_alias_directory_when_other_aliases_exist() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let alias_dir = tmp.path().join("node_modules/.bin-symlinks");
+    create_dir_all(&bins_dir).unwrap();
+    create_dir_all(&alias_dir).unwrap();
+    let target = tmp.path().join("target.js");
+    write_file(&target, "target").unwrap();
+    symlink(&target, alias_dir.join("foo")).unwrap();
+    symlink(&target, alias_dir.join("bar")).unwrap();
+    write_file(bins_dir.join("foo"), "shim").unwrap();
+
+    remove_bin(&bins_dir.join("foo")).unwrap();
+
+    assert!(!alias_dir.join("foo").exists());
+    assert!(alias_dir.join("bar").exists());
+    assert!(alias_dir.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn preserve_bin_name_rejects_a_symlinked_alias_directory() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let victim = tmp.path().join("victim");
+    create_dir_all(&victim).unwrap();
+    write_file(victim.join("foo"), "keep").unwrap();
+    let alias_dir = tmp.path().join("node_modules/.bin-symlinks");
+    symlink(&victim, &alias_dir).unwrap();
+
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest))],
+        &tmp.path().join("node_modules/.bin"),
+        &LinkBinsOptions { preserve_bin_name: true, ..LinkBinsOptions::default() },
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, super::LinkBinsError::CreateAliasDir { .. }));
+    assert_eq!(read_to_string(victim.join("foo")).unwrap(), "keep");
+}
+
+#[cfg(unix)]
+#[test]
+fn default_bin_linking_does_not_touch_a_symlinked_alias_directory() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let victim = tmp.path().join("victim");
+    create_dir_all(&victim).unwrap();
+    write_file(victim.join("foo"), "keep").unwrap();
+    let alias_dir = tmp.path().join("node_modules/.bin-symlinks");
+    symlink(&victim, &alias_dir).unwrap();
+
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest))],
+        &tmp.path().join("node_modules/.bin"),
+        &LinkBinsOptions::default(),
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, super::LinkBinsError::RemoveStaleBin { .. }));
+    assert_eq!(read_to_string(victim.join("foo")).unwrap(), "keep");
+}
+
+/// The relocatable root can resolve to a directory the physical bin directory
+/// is not under, when the bin directory is a symlink out of the project. The
+/// aliases beside the link still belong to that bin directory, so a pass that
+/// links the bin without one clears them.
+#[cfg(unix)]
+#[test]
+fn default_linking_cleans_a_stale_alias_when_the_bin_dir_is_outside_the_relocatable_root() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let root = tmp.path().join("project");
+    let outside = tmp.path().join("outside");
+    create_dir_all(&outside).unwrap();
+    let modules_dir = root.join("node_modules");
+    create_dir_all(&modules_dir).unwrap();
+    let bins_dir = modules_dir.join(".bin");
+    symlink(&outside, &bins_dir).unwrap();
+    let target = tmp.path().join("stale.js");
+    write_file(&target, "target").unwrap();
+    let alias = modules_dir.join(".bin-symlinks/foo");
+    create_dir_all(alias.parent().unwrap()).unwrap();
+    symlink(&target, &alias).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(package, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions { relocatable_root: Some(root), ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+
+    assert!(!alias.exists(), "a stale alias must not survive a default linking pass");
+}
+
+#[cfg(unix)]
+#[test]
+fn removing_a_bin_does_not_follow_a_symlinked_alias_directory() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    write_file(&shim, "shim").unwrap();
+    let victim = tmp.path().join("victim");
+    create_dir_all(&victim).unwrap();
+    let victim_bin = victim.join("foo");
+    write_file(&victim_bin, "keep").unwrap();
+    symlink(&victim, bins_dir.with_file_name(".bin-symlinks")).unwrap();
+
+    assert!(remove_bin(&shim).is_err());
+    assert_eq!(read_to_string(victim_bin).unwrap(), "keep");
+}
+
+#[cfg(unix)]
+#[test]
+fn preserve_bin_name_replaces_an_existing_direct_symlink() {
+    let tmp = tempdir().unwrap();
+    let (package, manifest) = javascript_package(tmp.path());
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let package_source = PackageBinSource::new(package, Arc::new(manifest));
+    link_bins_of_packages::<Host>(
+        std::slice::from_ref(&package_source),
+        &bins_dir,
+        &LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() },
+    )
+    .unwrap();
+    let shim = bins_dir.join("foo");
+    assert!(is_symlink(&shim));
+
+    link_bins_of_packages::<Host>(
+        &[package_source],
+        &bins_dir,
+        &LinkBinsOptions {
+            prefer_symlinked_executables: true,
+            preserve_bin_name: true,
+            ..LinkBinsOptions::default()
+        },
+    )
+    .unwrap();
+
+    let alias = bins_dir.with_file_name(".bin-symlinks").join("foo");
+    assert!(!is_symlink(&shim));
+    assert!(is_symlink(&alias));
 }
 
 #[test]

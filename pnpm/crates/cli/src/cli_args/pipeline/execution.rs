@@ -1,10 +1,11 @@
 use super::{
     CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant, IntoDiagnostic,
     LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph, RunContext,
-    RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCache, TaskNode, Value, capture,
-    cargo_cache, env, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_stages, sync_injected_deps,
+    RunReport, ScriptOutput, Status, TaskCache, TaskNode, capture, cargo_cache, env,
+    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    pnp_path_for_execution, run_stages,
 };
+use crate::cli_args::injected_deps::sync_project_injected_deps;
 
 #[derive(Clone, Copy)]
 pub(super) struct RunTaskOptions<'a, 'graph> {
@@ -341,16 +342,7 @@ fn sync_injected_deps_if_configured(
         return Ok(());
     }
     let manifest = graph[node.project.as_path()].package.project.manifest.value();
-    sync_injected_deps(&SyncInjectedDeps {
-        pkg_name: manifest.get("name").and_then(Value::as_str),
-        pkg_root_dir: &node.project,
-        workspace_dir: config.workspace_dir.as_deref(),
-        modules_dir_name: config.modules_dir_name(),
-        workspace_modules_dir: &config.modules_dir,
-        extend_node_path: config.extend_node_path,
-        manifest_before_scripts: Some(manifest),
-        ignored_directories: config.managed_directories(),
-    })?;
+    sync_project_injected_deps(config, &node.project, manifest)?;
     Ok(())
 }
 

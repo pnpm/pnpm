@@ -168,6 +168,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefer_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preserve_bin_name: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,

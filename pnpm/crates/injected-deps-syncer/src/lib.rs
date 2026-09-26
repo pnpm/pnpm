@@ -18,10 +18,10 @@ mod dir_patcher;
 #[cfg(test)]
 mod tests;
 
-use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
+use bin_links::{LinkLayout, SyncBinLinks, bin_names, sync_bin_links};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
 use pnpm_package_manifest::{PackageManifestError, safe_read_project_manifest_from_dir};
 use pnpm_workspace::FindWorkspaceProjectsError;
@@ -77,16 +77,7 @@ pub struct SyncInjectedDeps<'a> {
     pub pkg_name: Option<&'a str>,
     pub pkg_root_dir: &'a Path,
     pub workspace_dir: Option<&'a Path>,
-    /// The name of the workspace's modules directories, `node_modules`
-    /// unless `modulesDir` says otherwise.
-    pub modules_dir_name: &'a std::ffi::OsStr,
-    /// The workspace root's resolved modules directory, which holds the
-    /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
-    /// a path separator puts it deeper than `modules_dir_name` reaches.
-    pub workspace_modules_dir: &'a Path,
-    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
-    /// directory on `NODE_PATH`, as the install's shims do.
-    pub extend_node_path: bool,
+    pub workspace_modules: WorkspaceModules<'a>,
     /// The package's manifest as it was before the scripts ran. A script
     /// that drops a bin leaves its shim behind, and the copies cannot say
     /// which bins they used to have: their `package.json` is hardlinked to
@@ -95,6 +86,21 @@ pub struct SyncInjectedDeps<'a> {
     /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
     /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
+    pub link_options: LinkBinsOptions,
+}
+
+/// The workspace's modules directories, as the install resolved them.
+pub struct WorkspaceModules<'a> {
+    /// The name of the workspace's modules directories, `node_modules`
+    /// unless `modulesDir` says otherwise.
+    pub modules_dir_name: &'a std::ffi::OsStr,
+    /// The workspace root's resolved modules directory, which holds the
+    /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
+    /// a path separator puts it deeper than `modules_dir_name` reaches.
+    pub dir: &'a Path,
+    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
+    /// directory on `NODE_PATH`, as the install's shims do.
+    pub extend_node_path: bool,
 }
 
 /// Bring every injected copy of `pkg_root_dir` back in step with it.
@@ -136,7 +142,7 @@ fn sync_workspace_injected_deps(
     // on this project bypasses that redirect, so it is tracked under the
     // project root instead, and its copy has to be patched from there.
     let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
-    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
+    let modules = read_workspace_modules(opts.workspace_modules.dir)?;
     let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
 
     let mut source_dirs = vec![content_source_dir.clone()];
@@ -188,8 +194,11 @@ fn sync_injected_deps_from_source(
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir,
         ignored_directories: &opts.ignored_directories,
-        modules_dir_name: opts.modules_dir_name,
-        extend_node_path: opts.extend_node_path,
+        layout: LinkLayout {
+            modules_dir_name: opts.workspace_modules.modules_dir_name,
+            extend_node_path: opts.workspace_modules.extend_node_path,
+            link_options: &opts.link_options,
+        },
     })
 }
 
