@@ -487,6 +487,21 @@ describe('shouldFreezeLockfileIfExists', () => {
           preferFrozenLockfile: true,
         }, true)).toBe(false)
       })
+
+      test('is false if lockfileOnly or resolutionOnly is true', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          lockfileOnly: true,
+          preferFrozenLockfile: true,
+        }, true)).toBe(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          resolutionOnly: true,
+          preferFrozenLockfile: true,
+        }, true)).toBe(false)
+      })
     })
   })
 })

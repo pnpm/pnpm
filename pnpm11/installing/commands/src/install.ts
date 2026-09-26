@@ -495,7 +495,8 @@ export function shouldFreezeLockfileIfExists (opts: InstallCommandOptions, onCI:
   if (opts.frozenLockfileIfExists != null) {
     return opts.frozenLockfileIfExists
   }
-  return Boolean(onCI && !opts.lockfileOnly &&
+  return Boolean(onCI && !opts.lockfileOnly && !opts.resolutionOnly &&
     opts.frozenLockfile !== false &&
     opts.preferFrozenLockfile !== false)
 }
+
