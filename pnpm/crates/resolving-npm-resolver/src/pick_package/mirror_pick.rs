@@ -222,13 +222,15 @@ impl PickState<'_> {
             // when offline, so a later cache hit returns this same meta
             // without any network access.
             self.promote_unverified(ctx, opts, &meta);
+            let unfiltered_meta = Arc::clone(&meta);
             let (meta, picked) =
-                pick_from_meta(&self.picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
+                pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
             let (meta, picked) = pick_from_meta_offline(
                 ctx.store_view,
                 &self.cache_key,
                 &self.picker_opts,
                 spec,
+                &unfiltered_meta,
                 meta,
                 picked,
                 opts.blocked_versions,

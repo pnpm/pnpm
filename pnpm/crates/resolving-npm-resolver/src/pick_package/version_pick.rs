@@ -256,11 +256,21 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
 /// ([pnpm/pnpm#10715](https://github.com/pnpm/pnpm/issues/10715)).
 /// An exact-version or tag pick names its target outright — only a range has
 /// older alternatives worth falling back to.
+///
+/// `unfiltered_meta` is the packument before `blocked_versions` filtering:
+/// the memo is keyed by route alone, so it must be derived from metadata no
+/// caller has pre-narrowed, and each caller's block set applies only to its
+/// own final re-pick.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the inputs are independent pick-time values; bundling them moves the fields into a wrapper without removing work"
+)]
 pub(super) async fn pick_from_meta_offline(
     store_view: Option<&OfflineStoreView>,
     route_key: &str,
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
+    unfiltered_meta: &Arc<Package>,
     meta: Arc<Package>,
     picked: Option<Arc<PackageVersion>>,
     blocked_versions: Option<&HashSet<String>>,
@@ -286,7 +296,7 @@ pub(super) async fn pick_from_meta_offline(
     if store_view.holds(&picked_key) {
         return Ok((meta, picked));
     }
-    let Some(narrowed) = store_view.narrowed(route_key, &meta).await else {
+    let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
         return Ok((meta, picked));
     };
     let (narrowed_meta, narrowed_pick) =

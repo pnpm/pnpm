@@ -573,6 +573,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     if upgrade.upgraded {
         ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
+    let unfiltered_meta = Arc::clone(&meta);
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
     let (meta, picked) = if ctx.cache_policy.offline {
         pick_from_meta_offline(
@@ -580,6 +581,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
             cache_key,
             picker_opts,
             spec,
+            &unfiltered_meta,
             meta,
             picked,
             opts.blocked_versions,
@@ -588,12 +590,6 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     } else {
         (meta, picked)
     };
-    if !ctx.cache_policy.offline
-        && !registry_verified
-        && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())
-    {
-        return Ok(None);
-    }
     if !ctx.cache_policy.offline
         && !registry_verified
         && !unverified_pick_is_safe(ctx, spec, opts, &meta, picked.as_ref())

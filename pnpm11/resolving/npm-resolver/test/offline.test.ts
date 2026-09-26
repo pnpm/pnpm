@@ -95,6 +95,23 @@ test('offline resolution keeps preferring the store-held version on a repeat pic
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('offline resolution keeps the newest pick when the store already holds it', async () => {
+  const cacheDir = temporaryDirectory()
+  seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)
+  const storeDir = temporaryDirectory()
+  seedStoreWithVersion(storeDir, 'is-positive', '3.1.0', isPositiveAbbreviatedMeta.versions['3.1.0'].dist.integrity)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir,
+    offline: true,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
 test('offline resolution falls back to the newest version when the store holds none of them', async () => {
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)

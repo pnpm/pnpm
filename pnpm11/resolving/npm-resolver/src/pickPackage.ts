@@ -282,14 +282,14 @@ export function pickPackageFromFetchedMeta (
 }
 
 /**
- * The offline pick: among the versions the range admits, only the ones whose
- * tarball the store already holds can be installed, so the pick is narrowed
- * to those before the usual preferences run. A newer version the store lacks
- * would otherwise win the pick and fail the install later with
- * ERR_PNPM_NO_OFFLINE_TARBALL, even though an in-range version is already in
- * the store (https://github.com/pnpm/pnpm/issues/10715).
+ * The offline pick: when the pick the preferences already made names a version
+ * the store does not hold, the fetcher could only reject it with
+ * ERR_PNPM_NO_OFFLINE_TARBALL, so the packument is narrowed to the store-held
+ * versions and the pick is redone over those. When nothing store-held
+ * satisfies the spec, the unrestricted pick returns so the existing failure
+ * surfaces unchanged (https://github.com/pnpm/pnpm/issues/10715).
  *
- * Returns `undefined` when there is nothing to narrow: not offline, no store
+ * Returns `undefined` when there is nothing to adjust: not offline, no store
  * to check, a spec that names its target outright (an exact version or a tag
  * has no older alternative to fall back to), or no version in the store. The
  * caller then keeps the unrestricted pick with its existing failure modes.
@@ -306,10 +306,27 @@ async function pickVersionFromStore (
   },
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
-  meta: PackageMeta
+  meta: PackageMeta,
+  pickedPackage: PackageInRegistry | null
 ): Promise<PackageInRegistry | undefined> {
   if (ctx.offline !== true || ctx.peekManifestFromStore == null || spec.type !== 'range') {
     return undefined
+  }
+  // Fast path: the pick the preferences already made is installable
+  // offline — one store lookup, no scan.
+  if (pickedPackage != null) {
+    const pickedIntegrity = pickedPackage.dist?.integrity
+    if (typeof pickedIntegrity === 'string' && pickedIntegrity.length > 0) {
+      const storeManifest = await ctx.peekManifestFromStore({
+        id: `${meta['name']}@${pickedPackage.version}` as PkgResolutionId,
+        integrity: pickedIntegrity,
+        name: meta['name'],
+        version: pickedPackage.version,
+      })
+      if (storeManifest != null) {
+        return pickedPackage
+      }
+    }
   }
   const versions = Object.keys(meta.versions)
   if (versions.length === 0) return undefined
@@ -416,7 +433,7 @@ export async function pickPackage (
       spec.type === 'version' ||
       (pickedPackage != null && pickedPackage.version === stableCachedRangeVersion)
     const offlinePickedPackage = ctx.offline === true
-      ? await pickVersionFromStore(ctx, pickerOpts, spec, metaForCache)
+      ? await pickVersionFromStore(ctx, pickerOpts, spec, metaForCache, pickedPackage)
       : undefined
     const cacheResultCanReturn =
       ctx.offline === true ||
@@ -462,7 +479,7 @@ export async function pickPackage (
       if (ctx.offline) {
         if (diskMeta != null) {
           const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, diskMeta)
-          const storePicked = await pickVersionFromStore(ctx, pickerOpts, spec, diskMeta)
+          const storePicked = await pickVersionFromStore(ctx, pickerOpts, spec, diskMeta, pickedPackage)
           return {
             meta: diskMeta,
             pickedPackage: storePicked ?? pickedPackage,
