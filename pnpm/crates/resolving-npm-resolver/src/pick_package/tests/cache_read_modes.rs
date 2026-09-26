@@ -270,6 +270,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

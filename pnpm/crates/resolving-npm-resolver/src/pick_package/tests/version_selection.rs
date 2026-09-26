@@ -313,6 +313,7 @@ async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
+            store_view: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -389,6 +390,7 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
