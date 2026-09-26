@@ -162,35 +162,7 @@ pub(super) fn no_matching_script(
     if fallback_to_exec {
         return exec_fallback(script_name, args, dirs, config, reporter);
     }
-    Err(RunError::NoScript {
-        script: script_name.to_owned(),
-        hint: no_script_hint(script_name, args),
-    }
-    .into())
-}
-
-/// Every argument after the script name belongs to the script, so a
-/// `--filter` there selected no projects.
-fn no_script_hint(script_name: &str, args: &[String]) -> String {
-    let hint = format!(r#"Command "{script_name}" not found."#);
-    if !has_filter_option(args) {
-        return hint;
-    }
-    format!(
-        r#"{hint} Options after the script name are passed to the script. To select workspace projects, put --filter before it: "pnpm --filter <selector> run {script_name}"."#
-    )
-}
-
-fn has_filter_option(args: &[String]) -> bool {
-    args.iter()
-        .take_while(|arg| *arg != "--")
-        .any(|arg| {
-            arg == "-F"
-                || arg == "--filter"
-                || arg == "--filter-prod"
-                || arg.starts_with("--filter=")
-                || arg.starts_with("--filter-prod=")
-        })
+    Err(RunError::no_script(script_name, args).into())
 }
 
 /// The scripts the selector matches. Hidden scripts (names starting

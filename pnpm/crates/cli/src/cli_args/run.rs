@@ -125,6 +125,34 @@ pub enum RunError {
     DryRunNotRecursive,
 }
 
+impl RunError {
+    /// Every argument after the script name belongs to the script, so a
+    /// `--filter` there selected no projects.
+    fn no_script(script_name: &str, args: &[String]) -> Self {
+        let not_found = format!(r#"Command "{script_name}" not found."#);
+        let hint = if has_filter_option(args) {
+            format!(
+                r#"{not_found} Options after the script name are passed to the script. To select workspace projects, put --filter before it: "pnpm --filter <selector> run {script_name}"."#,
+            )
+        } else {
+            not_found
+        };
+        RunError::NoScript { script: script_name.to_owned(), hint }
+    }
+}
+
+fn has_filter_option(args: &[String]) -> bool {
+    args.iter()
+        .take_while(|arg| *arg != "--")
+        .any(|arg| {
+            arg == "-F"
+                || arg == "--filter"
+                || arg == "--filter-prod"
+                || arg.starts_with("--filter=")
+                || arg.starts_with("--filter-prod=")
+        })
+}
+
 impl RunArgs {
     /// Build the positional from a script name and its arguments, for the
     /// paths that synthesize a `run` rather than parsing one.
