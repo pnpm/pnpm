@@ -388,6 +388,10 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
             .expect("write unplanned manifest");
         fs::write(dir.join("hand-edit.js"), "work someone did by hand").expect("write hand edit");
     }
+    // An earlier quarantined copy may hold hand edits too, so it is never overwritten.
+    let earlier_quarantine = modules.join(".ignored/stale");
+    fs::create_dir_all(&earlier_quarantine).expect("create earlier quarantine");
+    fs::write(earlier_quarantine.join("hand-edit.js"), "earlier work").expect("write earlier edit");
 
     let (graph, hierarchy, cas_paths) = flat_layout(
         &lockfile_dir,
@@ -414,7 +418,7 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
 
     assert!(!unplanned.exists(), "unplanned dir at {unplanned:?}");
     assert!(!scoped_unplanned.exists(), "unplanned scoped dir at {scoped_unplanned:?}");
-    for pkg_name in ["stale", "@scope/stale"] {
+    for pkg_name in ["stale_1", "@scope/stale"] {
         let quarantined = modules
             .join(".ignored")
             .join(pkg_name)
@@ -424,6 +428,10 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
             "work someone did by hand",
         );
     }
+    assert_eq!(
+        fs::read_to_string(earlier_quarantine.join("hand-edit.js")).expect("earlier hand edit"),
+        "earlier work",
+    );
     assert!(
         modules
             .join("a")
@@ -486,8 +494,7 @@ fn entries_that_are_not_packages_are_preserved() {
 }
 
 /// `.ignored` is a write destination, so a symlink there redirects the
-/// move out of the project — and `rename_overwrite` clears an occupied
-/// destination before retrying, which would delete on the way.
+/// move out of the project.
 #[test]
 fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
     let tmp = tempfile::tempdir().expect("tempdir");

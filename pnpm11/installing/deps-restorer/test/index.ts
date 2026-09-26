@@ -988,7 +988,7 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   const prefix = f.prepare('workspace2')
 
   const orphans = [
-    { dir: path.join(prefix, 'node_modules/orphan'), ignored: path.join(prefix, 'node_modules/.ignored/orphan') },
+    { dir: path.join(prefix, 'node_modules/orphan'), ignored: path.join(prefix, 'node_modules/.ignored/orphan_1') },
     { dir: path.join(prefix, 'foo/node_modules/orphan'), ignored: path.join(prefix, 'foo/node_modules/.ignored/orphan') },
     { dir: path.join(prefix, 'bar/node_modules/@scope/orphan'), ignored: path.join(prefix, 'bar/node_modules/.ignored/@scope/orphan') },
   ]
@@ -997,6 +997,10 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
     fs.writeFileSync(path.join(dir, 'hand-edit.js'), 'work someone did by hand')
   }
+  // An earlier quarantined copy may hold hand edits too, so it is never overwritten.
+  const earlierQuarantine = path.join(prefix, 'node_modules/.ignored/orphan')
+  fs.mkdirSync(earlierQuarantine, { recursive: true })
+  fs.writeFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'earlier work')
   const toolCache = path.join(prefix, 'foo/node_modules/.cache')
   fs.mkdirSync(toolCache, { recursive: true })
   // Not a package — no `package.json` — so not the linker's to remove, however
@@ -1005,8 +1009,7 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   fs.mkdirSync(buildOutput, { recursive: true })
   fs.writeFileSync(path.join(buildOutput, 'bundle.js'), '')
   // `.ignored` is a write destination, so a symlink there would redirect the
-  // move out of the project — and renameOverwrite clears an occupied
-  // destination before retrying, which would delete on the way.
+  // move out of the project.
   const outsideIgnored = path.join(prefix, '../outside-ignored')
   fs.mkdirSync(outsideIgnored, { recursive: true })
   fs.symlinkSync(outsideIgnored, path.join(prefix, 'bar/node_modules/.ignored'), 'junction')
@@ -1032,6 +1035,7 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
     expect(fs.existsSync(dir)).toBeFalsy()
     expect(fs.readFileSync(path.join(ignored, 'hand-edit.js'), 'utf8')).toBe('work someone did by hand')
   }
+  expect(fs.readFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'utf8')).toBe('earlier work')
   // Nothing may travel through the symlinked `.ignored`, so bar's orphan stays put.
   expect(fs.readdirSync(outsideIgnored)).toStrictEqual([])
   expect(fs.existsSync(path.join(prefix, 'bar/node_modules/@scope/orphan'))).toBeTruthy()

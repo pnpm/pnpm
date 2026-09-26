@@ -26,7 +26,6 @@ import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
-import { renameOverwrite } from 'rename-overwrite'
 
 const limitLinking = pLimit(16)
 
@@ -140,8 +139,8 @@ export async function linkHoistedModules (
  * the tree correct; the bytes are incidental.
  */
 async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfileDir: string): Promise<void> {
-  const ignoredDir = path.join(modulesDir, '.ignored', pkgName)
   removalLogger.debug(dir)
+  let ignoredDir: string | null
   try {
     if (!await makeIgnoredParent(modulesDir, pkgName)) {
       logger.warn({
@@ -150,19 +149,63 @@ async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfi
       })
       return
     }
-    await renameOverwrite(dir, ignoredDir)
+    ignoredDir = await renameToFreeName(dir, path.join(modulesDir, '.ignored', pkgName))
   } catch (err: unknown) {
     logger.warn({
       error: err as Error,
-      message: `Failed to move "${dir}" to "${ignoredDir}"`,
+      message: `Failed to move "${dir}" to "${path.join(modulesDir, '.ignored')}"`,
+      prefix: lockfileDir,
+    })
+    return
+  }
+  if (ignoredDir == null) {
+    logger.warn({
+      message: `Not moving ${pkgName} to "node_modules/.ignored": every free name there is taken`,
       prefix: lockfileDir,
     })
     return
   }
   logger.warn({
-    message: `Moving ${pkgName} to "node_modules/.ignored". It is not in the dependency tree and pnpm has no record of installing it.`,
+    message: `Moving ${pkgName} to "${path.relative(path.dirname(modulesDir), ignoredDir)}". It is not in the dependency tree and pnpm has no record of installing it.`,
     prefix: path.dirname(modulesDir),
   })
+}
+
+const MAX_QUARANTINE_ATTEMPTS = 100
+
+/**
+ * Rename `src` to `dest`, or to `dest_1`, `dest_2`, and so on when that is taken, and
+ * return where it landed. An earlier quarantined copy may itself hold hand
+ * edits, so an occupied name is never overwritten. Returns `null` when every
+ * candidate name is taken.
+ */
+async function renameToFreeName (src: string, dest: string): Promise<string | null> {
+  for (let attempt = 0; attempt < MAX_QUARANTINE_ATTEMPTS; attempt++) {
+    const candidate = attempt === 0 ? dest : `${dest}_${attempt}`
+    // eslint-disable-next-line no-await-in-loop
+    if (await pathExistsNoFollow(candidate)) continue
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await fs.promises.rename(src, candidate)
+      return candidate
+    } catch (err: unknown) {
+      // Another process took the name between the check and the rename.
+      // eslint-disable-next-line no-await-in-loop
+      if (await pathExistsNoFollow(candidate)) continue
+      throw err
+    }
+  }
+  return null
+}
+
+async function pathExistsNoFollow (p: string): Promise<boolean> {
+  try {
+    await fs.promises.lstat(p)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 /**
@@ -171,8 +214,7 @@ async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfi
  * real directory.
  *
  * `mkdir -p` traverses a symlink it finds on the way, so a `.ignored` link
- * would redirect the move — and `renameOverwrite` deletes an occupied
- * destination before retrying — outside the tree pnpm is allowed to touch.
+ * would redirect the move outside the tree pnpm is allowed to touch.
  */
 async function makeIgnoredParent (modulesDir: string, pkgName: string): Promise<boolean> {
   const ignoredDir = await makeRealDir(modulesDir, '.ignored')

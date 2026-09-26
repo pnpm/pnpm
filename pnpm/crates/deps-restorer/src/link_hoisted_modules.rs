@@ -31,7 +31,7 @@ use pnpm_cmd_shim::{
     Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
     collect_packages_in_modules_dir, link_bins_of_packages_cached,
 };
-use pnpm_fs::{read_modules_dir, rename_overwrite};
+use pnpm_fs::{read_modules_dir, rename_to_free_name};
 use pnpm_lockfile::{LockfileResolution, PkgIdWithPatchHash};
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
@@ -266,8 +266,9 @@ fn confined(dir: &Path, confine_root: &Path) -> bool {
 ///
 /// Deleting is reserved for what the previous install recorded placing.
 /// Anything else may hold work someone did by hand, so it is displaced
-/// rather than destroyed. Getting it out of `node_modules` is what makes
-/// the tree correct; the bytes are incidental.
+/// rather than destroyed, and an earlier quarantined copy is never
+/// overwritten. Getting it out of `node_modules` is what makes the tree
+/// correct; the bytes are incidental.
 fn quarantine_dir(unplanned: &UnplannedDir) {
     let ignored_dir = unplanned.modules_dir.join(".ignored").join(&unplanned.pkg_name);
     if !make_ignored_parent(&unplanned.modules_dir, &unplanned.pkg_name) {
@@ -279,12 +280,12 @@ fn quarantine_dir(unplanned: &UnplannedDir) {
         );
         return;
     }
-    if rename_overwrite(&unplanned.dir, &ignored_dir).is_err() {
+    let Ok(Some(quarantined)) = rename_to_free_name(&unplanned.dir, &ignored_dir) else {
         return;
-    }
+    };
     tracing::warn!(
         pkg_name = %unplanned.pkg_name,
-        modules_dir = ?unplanned.modules_dir,
+        ?quarantined,
         "moving a package to \"node_modules/.ignored\": it is not in the dependency tree \
          and pnpm has no record of installing it",
     );
@@ -295,9 +296,8 @@ fn quarantine_dir(unplanned: &UnplannedDir) {
 /// anything but a real directory.
 ///
 /// `create_dir_all` traverses a symlink it finds on the way, so a
-/// `.ignored` link would redirect the move — and [`rename_overwrite`]
-/// removes an occupied destination before retrying — outside the tree
-/// pnpm is allowed to touch.
+/// `.ignored` link would redirect the move outside the tree pnpm is
+/// allowed to touch.
 fn make_ignored_parent(modules_dir: &Path, pkg_name: &str) -> bool {
     let Some(ignored_dir) = make_real_dir(modules_dir, ".ignored") else { return false };
     match pkg_name.split_once('/') {
