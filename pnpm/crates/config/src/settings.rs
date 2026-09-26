@@ -156,9 +156,7 @@ pub struct Config {
     /// `None` outside a workspace.
     pub workspace_package_patterns: Option<Vec<String>>,
 
-    /// Run lifecycle scripts through pnpm's portable shell emulator
-    /// when `scriptShell` is unset. A configured `scriptShell` is
-    /// spawned instead.
+    /// Run lifecycle scripts through pnpm's portable shell emulator.
     pub shell_emulator: bool,
 
     /// Preserve publish-only manifest fields in packed manifests.
@@ -1184,8 +1182,7 @@ pub struct Config {
 
     /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
     /// scripts and `pnpm exec`. `None` selects the platform default
-    /// (`sh` on POSIX, `cmd.exe` on Windows). When this is set, it is
-    /// spawned even if `shellEmulator` is also enabled.
+    /// (`sh` on POSIX, `cmd.exe` on Windows).
     pub script_shell: Option<String>,
 
     /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
