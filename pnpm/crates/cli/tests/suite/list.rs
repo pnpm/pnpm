@@ -98,6 +98,27 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
                 .map(|project| project["name"].as_str().expect("project name"))
                 .collect();
             assert_eq!(names, expected, "shared lockfile: {shared_lockfile}, args: {args:?}");
+
+            let text_args: Vec<&str> = args
+                .iter()
+                .copied()
+                .filter(|arg| *arg != "--json")
+                .collect();
+            let text_output = run_ok(&workspace, &text_args);
+            let positions: Vec<usize> = expected
+                .iter()
+                .map(|name| {
+                    text_output
+                        .find(&format!("{name}@1.0.0"))
+                        .expect("project in text output")
+                })
+                .collect();
+            assert!(
+                positions
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1]),
+                "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}"
+            );
         }
     }
 
