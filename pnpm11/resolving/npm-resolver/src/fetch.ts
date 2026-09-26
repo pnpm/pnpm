@@ -188,8 +188,8 @@ export async function fetchMetadataFromFromRegistry (
             },
           }) as RegistryResponse
         } else if (response.status === 304 && hasValidator && metadataResponseIsUncacheable(response.headers.get('cache-control'))) {
-          // A stale intermediary can answer the revalidation of a mirror
-          // written before pnpm recorded the policy. Ask once without
+          // A mirror without the uncacheable flag still sends validators, and
+          // a stale intermediary can answer them with a 304. Ask once without
           // validators; a second 304 still serves the mirror.
           response = await fetchOpts.fetch(uri, {
             ...requestOptions,
@@ -238,6 +238,8 @@ export async function fetchMetadataFromFromRegistry (
         const jsonText = await response.text()
         const meta = JSON.parse(jsonText) as PackageMeta
         dropIncompletePublishTimes(meta)
+        // Only the response headers decide cacheability, never the body.
+        delete meta.uncacheable
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {

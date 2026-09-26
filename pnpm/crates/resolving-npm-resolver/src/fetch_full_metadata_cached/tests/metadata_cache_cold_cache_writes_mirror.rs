@@ -857,8 +857,8 @@ async fn max_age_zero_metadata_is_refetched_without_validators() {
     second.assert_async().await;
 }
 
-/// A mirror written before pnpm recorded the cache policy still carries
-/// validators. A stale 304 that forbids reuse must not hide a newer publish.
+/// A mirror without the uncacheable flag still sends validators. A stale 304
+/// that forbids reuse must not hide a newer publish.
 #[tokio::test]
 async fn uncacheable_304_to_an_unflagged_mirror_is_refetched_without_validators() {
     let mut server = mockito::Server::new_async().await;

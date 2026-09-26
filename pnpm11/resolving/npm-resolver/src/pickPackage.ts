@@ -1034,7 +1034,7 @@ export async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> 
     const meta = JSON.parse(data.slice(newlineIdx + 1)) as PackageMeta
     dropIncompletePublishTimes(meta)
     meta.etag = headers.etag
-    if (headers.uncacheable === true) meta.uncacheable = true
+    meta.uncacheable = headers.uncacheable === true ? true : undefined
     return meta
   } catch {
     return null

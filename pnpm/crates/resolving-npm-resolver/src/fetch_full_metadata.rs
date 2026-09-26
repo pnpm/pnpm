@@ -171,10 +171,10 @@ impl MetadataHttpClient<'_> {
 ///
 /// A 304 to a revalidation whose `Cache-Control` forbids reuse (see
 /// [`metadata_response_is_uncacheable`]) is asked once more without
-/// validators: a stale intermediary can answer that revalidation for a
-/// mirror written before pnpm recorded the policy. If that request is
-/// answered with a 304 too, it is returned as is and the caller serves its
-/// mirror.
+/// validators. A mirror without the uncacheable flag still sends
+/// validators, and a stale intermediary can answer them with a 304. If the
+/// validator-free request is answered with a 304 too, it is returned as is
+/// and the caller serves its mirror.
 pub(crate) async fn send_metadata_request<'a>(
     opts: &MetadataRequestOptions<'a>,
 ) -> Result<(ThrottledClientGuard<'a>, Response), FetchMetadataError> {

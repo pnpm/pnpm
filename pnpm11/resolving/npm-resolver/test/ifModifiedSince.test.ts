@@ -361,6 +361,36 @@ test('an uncacheable 304 to a mirror without the flag is refetched without valid
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('an uncacheable field in the registry body does not mark the metadata uncacheable', async () => {
+  const cacheDir = temporaryDirectory()
+  const registry = getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+  registry
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, { ...isPositiveMeta, uncacheable: true }, {
+      headers: {
+        etag: '"body-flag"',
+        'cache-control': 'public, max-age=300',
+      },
+    })
+  const resolverOptions = {
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  }
+  const wanted = { alias: 'is-positive', bareSpecifier: '3.1.0' }
+  expect((await createResolveFromNpm(resolverOptions).resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+
+  registry
+    .intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: matchCacheBypassHeaders,
+    })
+    .reply(200, isPositiveMeta)
+  expect((await createResolveFromNpm(resolverOptions).resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
+  expect(getMockAgent().pendingInterceptors()).toHaveLength(1)
+})
+
 test('a failed uncacheable metadata write removes the previous mirror', async () => {
   const cacheDir = temporaryDirectory()
   const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, registriesByScope.default, 'is-positive')
