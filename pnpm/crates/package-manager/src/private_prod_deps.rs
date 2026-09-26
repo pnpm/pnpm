@@ -100,7 +100,7 @@ fn project_is_private(project: &Project) -> bool {
     project.manifest
         .value()
         .get("private")
-        .and_then(|value| value.as_bool())
+        .and_then(serde_json::Value::as_bool)
         == Some(true)
 }
 
@@ -110,8 +110,7 @@ fn project_label(project: &Project) -> String {
         .get("name")
         .and_then(|name| name.as_str())
         .filter(|name| !name.is_empty())
-        .map(str::to_owned)
-        .unwrap_or_else(|| project.root_dir.display().to_string())
+        .map_or_else(|| project.root_dir.display().to_string(), str::to_owned)
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]

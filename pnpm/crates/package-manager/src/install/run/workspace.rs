@@ -532,19 +532,18 @@ pub(super) fn report_private_prod_deps(
     scope: (crate::ProjectMutation, Option<&[pnpm_workspace::Project]>),
 ) -> Result<(), InstallError> {
     let Some(workspace_dir) = workspace.dirs.workspace_dir.as_deref() else { return Ok(()) };
-    let projects = match selection {
-        Some(selection) => selection.all_projects,
-        None => {
-            let (mutation, projects) = scope;
-            let Some(projects) = mutation
-                .is_full_install()
-                .then_some(projects)
-                .flatten()
-            else {
-                return Ok(());
-            };
-            projects
-        }
+    let projects = if let Some(selection) = selection {
+        selection.all_projects
+    } else {
+        let (mutation, projects) = scope;
+        let Some(projects) = mutation
+            .is_full_install()
+            .then_some(projects)
+            .flatten()
+        else {
+            return Ok(());
+        };
+        projects
     };
     let pairs =
         crate::private_workspace_prod_deps(config, workspace_dir, projects, &workspace.catalogs);
