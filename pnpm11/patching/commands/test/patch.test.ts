@@ -153,8 +153,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -170,14 +170,16 @@ describe('patch and commit', () => {
       cacheDir,
       dir: process.cwd(),
       storeDir,
+      patchedDependencies: workspaceManifest?.patchedDependencies,
     }, ['is-positive@1.0.0'])
 
-    const { manifest: updatedManifest } = await readProjectManifest(process.cwd())
-    expect(updatedManifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    const updatedWorkspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(updatedWorkspaceManifest?.patchedDependencies).toBeUndefined()
     expect(fs.existsSync(patchDir)).toBe(false)
 
     const statePath = path.join('node_modules', '.pnpm_patches', 'state.json')
     expect(fs.existsSync(statePath)).toBe(false)
+    expect(fs.existsSync(path.join('node_modules', '.pnpm_patches'))).toBe(false)
   })
 
   test('patch and commit without exact version', async () => {

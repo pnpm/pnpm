@@ -4,7 +4,7 @@ use pnpm_fs::{is_subdir, lexical_normalize};
 use pnpm_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     env, fs, io,
     io::Write,
     path::{Path, PathBuf},
@@ -74,6 +74,22 @@ pub(crate) enum StateFileError {
         #[error(source)]
         source: io::Error,
     },
+
+    #[display("Failed to remove patch state file {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_REMOVE))]
+    Remove {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to remove patch edit directory {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PATCH_STATE_REMOVE_EDIT_DIR))]
+    RemoveEditDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
 pub(crate) fn read_edit_dir_state(
@@ -109,6 +125,92 @@ pub(crate) fn write_edit_dir_state(
         .map_err(|source| StateFileError::Serialize { path: path.clone(), source })?;
     write_state_file_atomically(&path, text.as_bytes())
         .map_err(|source| StateFileError::Write { path, source })
+}
+
+pub(crate) fn clean_patch_state_and_edit_dirs(
+    modules_dir: &Path,
+    patches: &[String],
+) -> Result<(), StateFileError> {
+    let state_dir = modules_dir.join(STATE_DIR);
+    let mut dirs_to_remove = remove_matching_state_entries(modules_dir, patches)?;
+    for patch in patches {
+        dirs_to_remove.insert(state_dir.join(patch));
+    }
+    remove_edit_dirs(&state_dir, &dirs_to_remove)?;
+    remove_state_dir_if_empty(&state_dir);
+    Ok(())
+}
+
+fn remove_matching_state_entries(
+    modules_dir: &Path,
+    patches: &[String],
+) -> Result<HashSet<PathBuf>, StateFileError> {
+    let path = state_file_path(modules_dir);
+    let Some(text) = read_state_file_text(&path)? else {
+        return Ok(HashSet::new());
+    };
+    let mut state: BTreeMap<String, EditDirState> = serde_json::from_str(&text)
+        .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
+    let mut dirs = HashSet::new();
+    let patches_set: HashSet<&str> = patches
+        .iter()
+        .map(String::as_str)
+        .collect();
+    state.retain(|key, entry| {
+        let matches = patches_set.contains(entry.patched_pkg.as_str())
+            || patches
+                .iter()
+                .any(|patch| key.ends_with(patch));
+        if matches {
+            dirs.insert(PathBuf::from(key));
+            false
+        } else {
+            true
+        }
+    });
+    save_or_remove_state_file(&path, &state)?;
+    Ok(dirs)
+}
+
+fn save_or_remove_state_file(
+    path: &Path,
+    state: &BTreeMap<String, EditDirState>,
+) -> Result<(), StateFileError> {
+    if state.is_empty() {
+        if let Err(source) = fs::remove_file(path)
+            && source.kind() != io::ErrorKind::NotFound
+        {
+            return Err(StateFileError::Remove { path: path.to_path_buf(), source });
+        }
+    } else {
+        let text = serde_json::to_string_pretty(state)
+            .map_err(|source| StateFileError::Serialize { path: path.to_path_buf(), source })?;
+        write_state_file_atomically(path, text.as_bytes())
+            .map_err(|source| StateFileError::Write { path: path.to_path_buf(), source })?;
+    }
+    Ok(())
+}
+
+fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
+    for dir in dirs {
+        if dir != state_dir
+            && is_subdir(state_dir, dir)
+            && dir.exists()
+            && let Err(source) = fs::remove_dir_all(dir)
+            && source.kind() != io::ErrorKind::NotFound
+        {
+            return Err(StateFileError::RemoveEditDir { path: dir.clone(), source });
+        }
+    }
+    Ok(())
+}
+
+fn remove_state_dir_if_empty(state_dir: &Path) {
+    if let Ok(mut entries) = fs::read_dir(state_dir)
+        && entries.next().is_none()
+    {
+        let _ = fs::remove_dir(state_dir);
+    }
 }
 
 fn read_state_file_for_write(
