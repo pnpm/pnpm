@@ -12,6 +12,15 @@ pub trait BaseProject {
     fn merged_dependencies(&self, _ignore_dev_deps: bool) -> Vec<(String, String)> {
         Vec::new()
     }
+
+    /// `dependencies` only.
+    ///
+    /// A publishable project may depend on a private workspace project
+    /// from `devDependencies` and still install. The private-dependency
+    /// check reads this list so those edges stay out of it.
+    fn production_dependencies(&self) -> Vec<(String, String)> {
+        Vec::new()
+    }
 }
 
 /// Extends [`BaseProject`] with the manifest fields

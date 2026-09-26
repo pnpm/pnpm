@@ -372,6 +372,10 @@ pub struct WorkspaceSettings {
     pub include_workspace_root: Option<bool>,
     pub ignore_workspace_cycles: Option<bool>,
     pub disallow_workspace_cycles: Option<bool>,
+    /// `disallowPrivateProdDeps` from `pnpm-workspace.yaml`. When
+    /// `true`, a publishable project that lists a private workspace
+    /// project in `dependencies` fails the install. Default `false`.
+    pub disallow_private_prod_deps: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
     /// [`Config::frozen_store`]. Default `false`.

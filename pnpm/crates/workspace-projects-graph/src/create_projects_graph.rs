@@ -25,6 +25,9 @@ pub struct CreateProjectsGraphOptions<'a> {
     /// the `--filter-prod` graph so dependency walks follow production
     /// deps only.
     pub ignore_dev_deps: bool,
+    /// Edges are `dependencies` only. Dev, optional, and peer
+    /// dependencies add no edge. Wins over [`Self::ignore_dev_deps`].
+    pub production_only: bool,
     /// Whether workspace packages are linked. The tri-state mirrors the
     /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
@@ -79,7 +82,7 @@ where
     Pkg: GraphProject,
 {
     let count = projects.len();
-    let fields = snapshot_project_fields(&projects, opts.ignore_dev_deps);
+    let fields = snapshot_project_fields(&projects, opts.ignore_dev_deps, opts.production_only);
     let by_name = index_by_name(&fields.names);
     let by_dir = index_by_dir(&fields.node_keys);
     let lookups = Lookups {
@@ -114,7 +117,11 @@ struct ProjectFields {
     dependency_lists: Vec<Vec<(String, String)>>,
 }
 
-fn snapshot_project_fields<Pkg>(projects: &[Pkg], ignore_dev_deps: bool) -> ProjectFields
+fn snapshot_project_fields<Pkg>(
+    projects: &[Pkg],
+    ignore_dev_deps: bool,
+    production_only: bool,
+) -> ProjectFields
 where
     Pkg: GraphProject,
 {
@@ -133,7 +140,13 @@ where
             .collect(),
         dependency_lists: projects
             .iter()
-            .map(|project| project.merged_dependencies(ignore_dev_deps))
+            .map(|project| {
+                if production_only {
+                    project.production_dependencies()
+                } else {
+                    project.merged_dependencies(ignore_dev_deps)
+                }
+            })
             .collect(),
     }
 }

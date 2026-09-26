@@ -146,6 +146,7 @@ fn create_config(
         include_workspace_root: false,
         ignore_workspace_cycles: false,
         disallow_workspace_cycles: false,
+        disallow_private_prod_deps: false,
         strict_store_pkg_content_check: true,
         frozen_store: false,
         force: false,
