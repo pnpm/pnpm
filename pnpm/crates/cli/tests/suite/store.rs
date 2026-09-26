@@ -654,7 +654,7 @@ fn store_prune_honors_dlx_cache_max_age() {
     }
 }
 
-/// https://github.com/pnpm/pnpm/issues/6929
+/// <https://github.com/pnpm/pnpm/issues/6929>
 #[test]
 fn install_registers_the_project_in_the_store() {
     let CommandTempCwd {
