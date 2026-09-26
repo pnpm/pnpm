@@ -41,12 +41,16 @@ export interface BuildTaskGraphOptions {
   projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
   scriptsByProject: (project: ProjectRootDir) => PackageScripts
   selectScripts: (scripts: PackageScripts, taskName: string) => string[]
-  /** The script the invocation runs; every selected project gets a task named this. */
+  /**
+   * The script the invocation runs; every selected project gets a task named
+   * this, or one per matched script for an expanded selector.
+   */
   taskName: string
   tasks?: WorkspaceTasks
   /**
-   * Whether a task name is a RegExp selector (a `/pattern/` literal), whose
-   * selected scripts the `selectScripts` callback resolves per project.
+   * Whether a task name is a RegExp selector (a `/pattern/` literal). With
+   * `tasks` declared, a selector seeds one task per script `selectScripts`
+   * matches in each project, so each resolves the `dependsOn` of its own name.
    */
   isSelectorTaskName?: (taskName: string) => boolean
 }
@@ -61,8 +65,17 @@ export interface BuildTaskGraphOptions {
 export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
   const graph: TaskGraph = new Map()
   const queue: Array<{ project: ProjectRootDir, taskName: string, requested: boolean }> = []
+  const expandsSelector = expandsSelectorTask(opts)
   for (const project of opts.projectDependencies.keys()) {
-    queue.push({ project, taskName: opts.taskName, requested: true })
+    const matchedScripts = expandsSelector
+      ? opts.selectScripts(opts.scriptsByProject(project), opts.taskName)
+      : []
+    // A project with no matching script keeps a pass-through task under the
+    // selector name.
+    const seedTaskNames = matchedScripts.length > 0 ? matchedScripts : [opts.taskName]
+    for (const taskName of seedTaskNames) {
+      queue.push({ project, taskName, requested: true })
+    }
   }
   // Drained by index: shift() moves every remaining element, which is
   // quadratic over a workspace-sized queue.
@@ -75,9 +88,11 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       existing.requested ||= requested
       continue
     }
-    const scripts = opts.selectScripts(opts.scriptsByProject(project), taskName)
+    const dependsOn = expandsSelector && taskName === opts.taskName
+      ? []
+      : taskDependsOn(opts.tasks, taskName)
     const dependencies = new Set<TaskKey>()
-    for (const entry of taskDependsOnEntries(opts, taskName, scripts)) {
+    for (const entry of dependsOn) {
       if (entry.startsWith('^')) {
         const dependencyTaskName = entry.slice(1)
         for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
@@ -93,7 +108,7 @@ export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
       project,
       taskName,
       concurrency: taskConcurrency(opts.tasks, taskName),
-      scripts,
+      scripts: opts.selectScripts(opts.scriptsByProject(project), taskName),
       requested,
       dependencies: [...dependencies],
     })
@@ -125,33 +140,15 @@ function taskDependsOn (tasks: WorkspaceTasks | undefined, taskName: string): st
 }
 
 /**
- * The `dependsOn` entries of a task: those declared for its name, or — for a
- * RegExp selector task — the union of the entries of every script it
- * selected in the project. A selector task runs its matched scripts as one
- * unit, so a same-project entry naming one of them cannot order anything
- * and is dropped; `^` entries fan out over the project graph as usual.
+ * Whether the invocation's RegExp selector expands into a task per matched
+ * script. Only with `tasks` declared, and not when an exact `tasks` entry
+ * under the selector string itself governs it as a single task.
  */
-function taskDependsOnEntries (
-  opts: BuildTaskGraphOptions,
-  taskName: string,
-  scripts: string[]
-): string[] {
-  if (opts.tasks != null && Object.hasOwn(opts.tasks, taskName)) {
-    return opts.tasks[taskName].dependsOn ?? []
-  }
-  if (opts.isSelectorTaskName?.(taskName) === true) {
-    const entries: string[] = []
-    for (const script of scripts) {
-      for (const entry of taskDependsOn(opts.tasks, script)) {
-        if (!entry.startsWith('^') && scripts.includes(entry)) continue
-        if (!entries.includes(entry)) {
-          entries.push(entry)
-        }
-      }
-    }
-    return entries
-  }
-  return taskDependsOn(opts.tasks, taskName)
+function expandsSelectorTask (opts: BuildTaskGraphOptions): boolean {
+  return opts.tasks != null &&
+    Object.keys(opts.tasks).length > 0 &&
+    !Object.hasOwn(opts.tasks, opts.taskName) &&
+    opts.isSelectorTaskName?.(opts.taskName) === true
 }
 
 export interface SequenceTasksOptions {

@@ -137,10 +137,7 @@ export async function runRecursive (
   }
 
   if (!process.env.npm_lifecycle_event) {
-    for (const node of taskGraph.values()) {
-      if (!node.requested) continue
-      node.scripts = throwOrFilterHiddenScripts(node.scripts, scriptName)
-    }
+    filterHiddenRequestedScripts(taskGraph, scriptName)
   }
 
   // Before anything is dispatched: when no selected project has the script,
@@ -169,7 +166,7 @@ export async function runRecursive (
 
   const result: RecursiveSummary = {}
   for (const node of taskGraph.values()) {
-    result[taskSummaryKey(node)] = { status: 'queued' }
+    result[taskSummaryKey(node, scriptName)] = { status: 'queued' }
   }
   let hasCommand = 0
   let firstError: Error | undefined
@@ -188,7 +185,7 @@ export async function runRecursive (
 
   const runTaskScripts = async (node: TaskNode, key: TaskKey): Promise<TaskCompletion> => {
     const pkg = opts.selectedProjectsGraph[node.project]
-    const summaryKey = taskSummaryKey(node)
+    const summaryKey = taskSummaryKey(node, scriptName)
     // A RegExp selector can match several scripts in one task, but the
     // summary carries a single status per task and countFailures derives
     // the exit code from it. Once one of a task's scripts has failed,
@@ -309,7 +306,7 @@ export async function runRecursive (
       bail: Boolean(opts.bail),
       runTask,
       onTaskSkipped: (node) => {
-        result[taskSummaryKey(node)].status = 'skipped'
+        result[taskSummaryKey(node, scriptName)].status = 'skipped'
       },
     })
 
@@ -390,8 +387,13 @@ function noRequestedScriptError (scriptName: string, opts: RecursiveRunOpts): Pn
     : new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the selected packages has a "${scriptName}" script`)
 }
 
-function taskSummaryKey (node: TaskNode): string {
-  return node.requested ? node.project : `${node.project}#${node.taskName}`
+/**
+ * The task of the script the invocation named keeps the project directory
+ * alone. Every other task qualifies it with the task name: those `dependsOn`
+ * pulled in, and the per-script tasks a RegExp selector expands into.
+ */
+function taskSummaryKey (node: TaskNode, scriptName: string): string {
+  return node.requested && node.taskName === scriptName ? node.project : `${node.project}#${node.taskName}`
 }
 
 function formatSectionName ({
@@ -422,6 +424,30 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
   }
 
   return []
+}
+
+/**
+ * Checked per project, over every requested task: a RegExp selector can seed
+ * one task per matched script, and a project fails only when everything the
+ * selector matched in it is hidden.
+ */
+function filterHiddenRequestedScripts (taskGraph: TaskGraph, scriptName: string): void {
+  const requestedScriptsByProject = new Map<string, string[]>()
+  for (const node of taskGraph.values()) {
+    if (!node.requested) continue
+    const scripts = requestedScriptsByProject.get(node.project) ?? []
+    scripts.push(...node.scripts)
+    requestedScriptsByProject.set(node.project, scripts)
+  }
+  const visibleScriptsByProject = new Map<string, Set<string>>()
+  for (const [project, scripts] of requestedScriptsByProject) {
+    visibleScriptsByProject.set(project, new Set(throwOrFilterHiddenScripts(scripts, scriptName)))
+  }
+  for (const node of taskGraph.values()) {
+    if (!node.requested) continue
+    const visibleScripts = visibleScriptsByProject.get(node.project)!
+    node.scripts = node.scripts.filter((script) => visibleScripts.has(script))
+  }
 }
 
 /**

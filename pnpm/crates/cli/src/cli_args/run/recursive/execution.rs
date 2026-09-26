@@ -15,12 +15,12 @@ pub(super) struct RunSlots {
 }
 
 impl RunSlots {
-    pub(super) fn queued(task_graph: &TaskGraph) -> Self {
+    pub(super) fn queued(task_graph: &TaskGraph, script_name: &str) -> Self {
         RunSlots {
             result: Mutex::new(
                 task_graph
                     .values()
-                    .map(|node| (task_summary_key(node), ExecutionStatus::queued()))
+                    .map(|node| (task_summary_key(node, script_name), ExecutionStatus::queued()))
                     .collect(),
             ),
             has_command: AtomicUsize::new(0),
@@ -58,7 +58,7 @@ pub(super) struct TaskRunner<'a, 'run, 'project> {
 
 impl TaskRunner<'_, '_, '_> {
     pub(super) fn run_task(&self, node: &TaskNode) -> TaskCompletion {
-        let summary_key = task_summary_key(node);
+        let summary_key = task_summary_key(node, self.run.script.script_name);
         let on_started = || {
             self.outcome.result.lock().expect("summary lock is not poisoned")[&summary_key]
                 .status = Status::Running;

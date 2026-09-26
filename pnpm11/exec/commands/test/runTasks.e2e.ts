@@ -148,6 +148,57 @@ test('a RegExp selector runs the dependsOn of the scripts it matches', async () 
   expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
 })
 
+test('a RegExp selector orders the matched scripts by their dependsOn', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('a-build'),
+        test: server.sendLineScript('a-test'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('b-build'),
+        test: server.sendLineScript('b-test'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+    tasks: {
+      build: { dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/^(build|test)$/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
+  expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
+  const executionStatus = readSummary()
+  for (const project of ['project-a', 'project-b']) {
+    expect(executionStatus[`${path.resolve(project)}#build`].status).toBe('passed')
+    expect(executionStatus[`${path.resolve(project)}#test`].status).toBe('passed')
+    expect(executionStatus[path.resolve(project)]).toBeUndefined()
+  }
+})
+
 test('a task with an explicitly empty dependsOn starts without waiting for anything', async () => {
   await using server = await createTestIpcServer()
 
@@ -669,6 +720,34 @@ test('a RegExp selector filters hidden scripts when a visible script also matche
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['/build/'])
+
+  expect(server.getLines()).toStrictEqual(['visible'])
+})
+
+test('a RegExp selector with tasks declared filters a matched hidden script', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        'build:visible': server.sendLineScript('visible'),
+        '.build:hidden': server.sendLineScript('hidden'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      lint: { dependsOn: [] },
+    },
     workspaceDir: process.cwd(),
   }, ['/build/'])
 

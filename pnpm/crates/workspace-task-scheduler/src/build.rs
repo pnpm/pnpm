@@ -70,8 +70,7 @@ where
                 continue;
             }
             let settings = self.task_settings(&task_name);
-            let scripts = (self.select_scripts)(&project, &task_name);
-            let dependencies = self.dependency_keys(&project, &task_name, settings, &scripts);
+            let dependencies = self.dependency_keys(&project, &task_name, settings);
             queue.extend(
                 dependencies
                     .iter()
@@ -79,6 +78,7 @@ where
                         (dependency.project.clone(), dependency.task_name.clone(), false)
                     }),
             );
+            let scripts = (self.select_scripts)(&project, &task_name);
             graph.insert(
                 key,
                 TaskNode {
@@ -110,23 +110,49 @@ where
             .flat_map(|project| {
                 self.task_names
                     .iter()
-                    .map(|task_name| (project.clone(), (*task_name).to_string(), true))
+                    .flat_map(|task_name| self.seed_task_names(project, task_name))
+                    .map(|task_name| (project.clone(), task_name, true))
             })
             .collect()
     }
 
+    /// The tasks a requested name seeds in `project`. A `RegExp` selector
+    /// seeds one task per script it matches when `tasks` are declared, so
+    /// each matched script resolves the `dependsOn` declared for its own
+    /// name and matched scripts that depend on each other run in order. A
+    /// project with no matching script keeps a pass-through task under the
+    /// selector name.
+    fn seed_task_names(&self, project: &Path, task_name: &str) -> Vec<String> {
+        if self.expands_selector(task_name) {
+            let scripts = (self.select_scripts)(project, task_name);
+            if !scripts.is_empty() {
+                return scripts;
+            }
+        }
+        vec![task_name.to_string()]
+    }
+
+    /// Whether `task_name` is a `RegExp` selector the graph expands into the
+    /// scripts it matches. An exact `tasks` entry under the selector string
+    /// itself keeps it a single task governed by that entry.
+    fn expands_selector(&self, task_name: &str) -> bool {
+        self.tasks.is_some()
+            && self.task_settings(task_name).is_none()
+            && (self.is_selector_task)(task_name)
+    }
+
     /// The tasks `task_name` at `project` depends on, in declaration order
-    /// and deduplicated.
+    /// and deduplicated. An expanded selector's task exists only in
+    /// projects the selector matched nothing in, and depends on nothing.
     fn dependency_keys(
         &self,
         project: &Path,
         task_name: &str,
         settings: Option<&TaskSettings>,
-        scripts: &[String],
     ) -> Vec<TaskKey> {
         let entries: Vec<String> = match settings {
             Some(settings) => settings.depends_on.clone().unwrap_or_default(),
-            None if (self.is_selector_task)(task_name) => self.selector_entries(scripts),
+            None if self.expands_selector(task_name) => Vec::new(),
             None => vec![format!("^{task_name}")],
         };
         let mut dependencies: Vec<TaskKey> = Vec::new();
@@ -139,33 +165,6 @@ where
             }
         }
         dependencies
-    }
-
-    /// The `dependsOn` entries of a `RegExp` selector task: the union of the
-    /// entries of every script it selected in the project. A selector task
-    /// runs its matched scripts as one unit, so a same-project entry naming
-    /// one of them cannot order anything and is dropped; `^` entries fan
-    /// out over the project graph as usual.
-    fn selector_entries(&self, scripts: &[String]) -> Vec<String> {
-        let mut entries: Vec<String> = Vec::new();
-        for script in scripts {
-            for entry in self.task_depends_on(script) {
-                if !entry.starts_with('^') && scripts.contains(&entry) {
-                    continue;
-                }
-                if !entries.contains(&entry) {
-                    entries.push(entry);
-                }
-            }
-        }
-        entries
-    }
-
-    fn task_depends_on(&self, task_name: &str) -> Vec<String> {
-        match self.task_settings(task_name) {
-            Some(settings) => settings.depends_on.clone().unwrap_or_default(),
-            None => vec![format!("^{task_name}")],
-        }
     }
 
     /// The tasks one `dependsOn` entry names: a `^`-prefixed entry fans out

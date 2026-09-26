@@ -114,9 +114,9 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     drop(root);
 }
 
-#[test]
-fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+/// `project-a` depends on `project-b`; both declare `build` and `test`, and
+/// the workspace orders `test` after the project's own `build`.
+fn write_build_test_workspace(workspace: &std::path::Path) {
     let scripts = |name: &str| {
         json!({
             "name": name,
@@ -129,7 +129,7 @@ fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
         })
     };
     write_workspace(
-        &workspace,
+        workspace,
         &[("project-a", scripts("project-a")), ("project-b", scripts("project-b"))],
     );
     fs::write(
@@ -142,15 +142,14 @@ fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
         ),
     )
     .expect("write workspace settings");
+}
 
-    pacquet
-        .with_args(["-r", "run", "/test/"])
-        .assert()
-        .success();
-
+fn assert_build_test_order(workspace: &std::path::Path) {
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     let lines: Vec<&str> = order.lines().collect();
-    dbg!(&lines);
+    let mut sorted = lines.clone();
+    sorted.sort_unstable();
+    assert_eq!(sorted, ["project-a-build", "project-a-test", "project-b-build", "project-b-test"]);
     let position = |line: &str| {
         lines
             .iter()
@@ -160,7 +159,77 @@ fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
     assert!(position("project-b-build") < position("project-a-build"));
     assert!(position("project-a-build") < position("project-a-test"));
     assert!(position("project-b-build") < position("project-b-test"));
+}
 
+#[test]
+fn regexp_selector_runs_the_depends_on_of_the_scripts_it_matches() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_build_test_workspace(&workspace);
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .assert()
+        .success();
+
+    assert_build_test_order(&workspace);
+    drop(root);
+}
+
+/// Every script runs once, and `test` waits for the `build` the same
+/// selector matched.
+#[test]
+fn regexp_selector_orders_the_matched_scripts_by_their_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_build_test_workspace(&workspace);
+
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "/^(build|test)$/"])
+        .assert()
+        .success();
+
+    assert_build_test_order(&workspace);
+    // Each matched script is its own task, so each gets its own summary key.
+    let statuses = summary_statuses(&workspace);
+    for task in ["project-a#build", "project-a#test", "project-b#build", "project-b#test"] {
+        assert_eq!(statuses.get(task).map(String::as_str), Some("passed"), "{task}");
+    }
+    assert_eq!(statuses.get("project-a"), None);
+    drop(root);
+}
+
+/// The selector seeds a task per matched script, and the hidden one among
+/// them is dropped as it is when the selector is one task per project.
+#[test]
+fn regexp_selector_with_tasks_skips_a_matched_hidden_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "test": append_line_script("test", "../order.log"),
+                    ".test": append_line_script(".test", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  build:\n    dependsOn: []\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(order.lines().collect::<Vec<_>>(), ["test"]);
     drop(root);
 }
 

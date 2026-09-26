@@ -377,7 +377,7 @@ impl RecursiveRun<'_, '_> {
         let concurrency = run_concurrency(self.args, self.config, prepared.task_graph.len());
         let runs_concurrently = concurrency > 1
             && !is_serial_task_graph(&prepared.task_graph, &prepared.sequenced_tasks);
-        let slots = RunSlots::queued(&prepared.task_graph);
+        let slots = RunSlots::queued(&prepared.task_graph, self.script.script_name);
         let process_tracker = run_process_tracker(bail, runs_concurrently);
         let script_budget = run_script_budget(self.args, self.config, &prepared.task_graph);
         let init_cwd = env::current_dir().unwrap_or_else(|_| self.dir.to_path_buf());
@@ -400,7 +400,8 @@ impl RecursiveRun<'_, '_> {
         };
         let run_task = |node: &TaskNode| runner.run_task(node);
         let on_task_skipped = |node: &TaskNode| {
-            slots.result.lock().expect("summary lock is not poisoned")[&task_summary_key(node)]
+            slots.result.lock().expect("summary lock is not poisoned")
+                [&task_summary_key(node, self.script.script_name)]
                 .status = Status::Skipped;
         };
         schedule_tasks(

@@ -102,21 +102,25 @@ test('a RegExp selector attaches every matching script to the task', () => {
   ])
 })
 
-test('a RegExp selector task depends on what its matched scripts depend on', () => {
+test('a RegExp selector seeds a task per matched script with its own dependsOn', () => {
   const graph = buildGraph({
-    a: { scripts: ['build', 'test'] },
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
   }, '/test/', {
     build: { dependsOn: ['^build'] },
     test: { dependsOn: ['build'] },
   })
 
-  const selectorTask = graph.get(taskKey(dir('a'), '/test/'))!
-  expect(selectorTask.scripts).toStrictEqual(['test'])
-  expect(selectorTask.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.has(taskKey(dir('a'), '/test/'))).toBe(false)
+  const testTask = graph.get(taskKey(dir('a'), 'test'))!
+  expect(testTask.scripts).toStrictEqual(['test'])
+  expect(testTask.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(testTask.requested).toBe(true)
   expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(false)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
 })
 
-test('a RegExp selector task does not depend on a script it also matches', () => {
+test('a RegExp selector orders matched scripts that depend on each other', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['build', 'test'] },
     b: { scripts: ['build', 'test'] },
@@ -125,21 +129,43 @@ test('a RegExp selector task does not depend on a script it also matches', () =>
     test: { dependsOn: ['build'] },
   })
 
-  const selectorTask = graph.get(taskKey(dir('a'), '/^(build|test)$/'))!
-  expect(selectorTask.scripts).toStrictEqual(['build', 'test'])
-  expect(selectorTask.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+  expect(graph.has(taskKey(dir('a'), '/^(build|test)$/'))).toBe(false)
+  expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'test'))!.requested).toBe(true)
+  expect(graph.get(taskKey(dir('a'), 'test'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+  const order = sequenceTasks(graph, { workspaceDir: WORKSPACE_DIR })
+  expect(order.indexOf(taskKey(dir('b'), 'build'))).toBeLessThan(order.indexOf(taskKey(dir('a'), 'build')))
+  expect(order.indexOf(taskKey(dir('a'), 'build'))).toBeLessThan(order.indexOf(taskKey(dir('a'), 'test')))
 })
 
-test('a RegExp selector task with no matched scripts depends on nothing', () => {
+test('a RegExp selector with no matched script is a pass-through that depends on nothing', () => {
   const graph = buildGraph({
     a: { dependencies: ['b'], scripts: ['lint'] },
-    b: { scripts: ['lint'] },
-  }, '/test/')
+    b: { scripts: ['lint', 'test'] },
+  }, '/test/', {
+    lint: {},
+  })
 
-  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([])
+  const passThrough = graph.get(taskKey(dir('a'), '/test/'))!
+  expect(passThrough.requested).toBe(true)
+  expect(passThrough.scripts).toStrictEqual([])
+  expect(passThrough.dependencies).toStrictEqual([])
+  expect(graph.get(taskKey(dir('b'), 'test'))!.requested).toBe(true)
+  expect(graph.has(taskKey(dir('b'), '/test/'))).toBe(false)
 })
 
-test('an exact tasks entry under the selector name wins over the matched scripts', () => {
+test('a RegExp selector without tasks stays one task per project', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['test'] },
+    b: { scripts: ['test', 'test:unit'] },
+  }, '/test/')
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('b'), '/test/')])
+  expect(graph.get(taskKey(dir('b'), '/test/'))!.scripts).toStrictEqual(['test', 'test:unit'])
+})
+
+test('an exact tasks entry under the selector name keeps it one task', () => {
   const graph = buildGraph({
     a: { scripts: ['build', 'test'] },
   }, '/test/', {
@@ -148,6 +174,7 @@ test('an exact tasks entry under the selector name wins over the matched scripts
   })
 
   expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.scripts).toStrictEqual(['test'])
 })
 
 test('a malformed RegExp selector becomes a pass-through task', () => {

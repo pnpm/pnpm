@@ -3,8 +3,8 @@ use super::{Context, IndexMap, IntoDiagnostic, Path, Serialize};
 /// Write the recursive summary to `pnpm-exec-summary.json` under `dir`.
 ///
 /// The per-task map is nested under an `executionStatus` key. Keys are
-/// project directories, `#`-qualified with the task name for tasks
-/// `dependsOn` pulled in — see `task_summary_key`.
+/// project directories, `#`-qualified with the task name for tasks other
+/// than the one the invocation named — see `task_summary_key`.
 pub fn write_recursive_summary(
     dir: &Path,
     summary: &IndexMap<String, ExecutionStatus>,

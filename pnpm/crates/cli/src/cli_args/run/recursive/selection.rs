@@ -9,8 +9,7 @@ use super::{
 };
 
 /// Whether a task name addresses scripts by `RegExp` literal rather than by
-/// name: the graph resolves its `dependsOn` through the scripts it selects
-/// per project instead of through the name itself.
+/// name.
 fn is_selector_task(task_name: &str) -> bool {
     split_regex_literal(task_name).is_some()
 }
@@ -153,7 +152,9 @@ pub(super) fn print_run_dry_run(
 /// within another script, detected by an inherited `npm_lifecycle_event`.
 /// Checked only for the tasks the invocation named: a `dependsOn`
 /// declaration naming a hidden script is a deliberate reference, like a
-/// call from another script.
+/// call from another script. Checked per project, over every requested
+/// task: a `RegExp` selector can seed one task per matched script, and a
+/// project fails only when everything the selector matched in it is hidden.
 pub(super) fn filter_hidden_requested_scripts(
     task_graph: &mut TaskGraph,
     script_name: &str,
@@ -161,9 +162,20 @@ pub(super) fn filter_hidden_requested_scripts(
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(());
     }
+    let mut requested_by_project: IndexMap<PathBuf, Vec<String>> = IndexMap::new();
+    for node in task_graph.values().filter(|node| node.requested) {
+        requested_by_project
+            .entry(node.project.clone())
+            .or_default()
+            .extend(node.scripts.iter().cloned());
+    }
+    let mut visible_by_project: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    for (project, scripts) in requested_by_project {
+        visible_by_project.insert(project, throw_or_filter_hidden_scripts(scripts, script_name)?);
+    }
     for node in task_graph.values_mut().filter(|node| node.requested) {
-        node.scripts =
-            throw_or_filter_hidden_scripts(std::mem::take(&mut node.scripts), script_name)?;
+        let visible = &visible_by_project[&node.project];
+        node.scripts.retain(|script| visible.contains(script));
     }
     Ok(())
 }

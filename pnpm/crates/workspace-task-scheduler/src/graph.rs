@@ -231,11 +231,12 @@ fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
 
 /// The task's key in the recursive summary. The task of the script the
 /// invocation named keeps the project directory alone — the format
-/// existing consumers of `pnpm-exec-summary.json` read — and only tasks
-/// `dependsOn` pulled in qualify it with the task name.
+/// existing consumers of `pnpm-exec-summary.json` read — and every other
+/// task qualifies it with the task name: those `dependsOn` pulled in, and
+/// the per-script tasks a `RegExp` selector expands into.
 #[must_use]
-pub fn task_summary_key(node: &TaskNode) -> String {
-    if node.requested {
+pub fn task_summary_key(node: &TaskNode, invoked_task_name: &str) -> String {
+    if node.requested && node.task_name == invoked_task_name {
         node.project.to_string_lossy().into_owned()
     } else {
         format!("{}#{}", node.project.to_string_lossy(), node.task_name)

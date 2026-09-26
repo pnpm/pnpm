@@ -184,49 +184,85 @@ fn build_selector_graph(
 }
 
 #[test]
-fn regexp_selector_task_depends_on_what_its_matched_scripts_depend_on() {
+fn regexp_selector_seeds_a_task_per_matched_script_with_its_own_depends_on() {
     let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
-    let graph =
-        build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
 
-    let selector_task = &graph[&key("a", "/test/")];
-    assert_eq!(selector_task.scripts, vec!["test"]);
-    assert_eq!(selector_task.dependencies, vec![key("a", "build")]);
+    assert!(!graph.contains_key(&key("a", "/test/")));
+    let test_task = &graph[&key("a", "test")];
+    assert_eq!(test_task.scripts, vec!["test"]);
+    assert_eq!(test_task.dependencies, vec![key("a", "build")]);
+    assert!(test_task.requested);
     assert!(!graph[&key("a", "build")].requested);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
 }
 
 #[test]
-fn regexp_selector_task_does_not_depend_on_a_script_it_also_matches() {
+fn regexp_selector_orders_matched_scripts_that_depend_on_each_other() {
     let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
-    let graph = build_selector_graph(
+    let mut graph = build_selector_graph(
         &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
         "/^(build|test)$/",
         Some(&settings),
     );
 
-    let selector_task = &graph[&key("a", "/^(build|test)$/")];
-    assert_eq!(selector_task.scripts, vec!["build", "test"]);
-    assert_eq!(selector_task.dependencies, vec![key("b", "build")]);
+    assert!(!graph.contains_key(&key("a", "/^(build|test)$/")));
+    assert!(graph[&key("a", "build")].requested);
+    assert!(graph[&key("a", "test")].requested);
+    assert_eq!(graph[&key("a", "test")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    let order = sequence(&mut graph).expect("acyclic");
+    let position = |task: TaskKey| {
+        order
+            .iter()
+            .position(|found| *found == task)
+            .unwrap()
+    };
+    assert!(position(key("b", "build")) < position(key("a", "build")));
+    assert!(position(key("a", "build")) < position(key("a", "test")));
 }
 
 #[test]
-fn regexp_selector_task_with_no_matched_scripts_depends_on_nothing() {
+fn regexp_selector_with_no_matched_script_is_a_pass_through_that_depends_on_nothing() {
+    let settings = tasks(&[("lint", None)]);
     let graph = build_selector_graph(
-        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint"]))],
+        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    let pass_through = &graph[&key("a", "/test/")];
+    assert!(pass_through.requested);
+    assert!(pass_through.scripts.is_empty());
+    assert!(pass_through.dependencies.is_empty());
+    assert!(graph[&key("b", "test")].requested);
+    assert!(!graph.contains_key(&key("b", "/test/")));
+}
+
+#[test]
+fn regexp_selector_without_tasks_stays_one_task_per_project() {
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["test"])), ("b", project(&[], &["test", "test:unit"]))],
         "/test/",
         None,
     );
 
-    assert!(graph[&key("a", "/test/")].dependencies.is_empty());
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("b", "/test/")]);
+    assert_eq!(graph[&key("b", "/test/")].scripts, vec!["test", "test:unit"]);
 }
 
 #[test]
-fn an_exact_tasks_entry_under_the_selector_name_wins_over_the_matched_scripts() {
+fn an_exact_tasks_entry_under_the_selector_name_keeps_it_one_task() {
     let settings = tasks(&[("/test/", Some(&["build"])), ("test", None)]);
     let graph =
         build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
 
     assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "/test/")].scripts, vec!["test"]);
 }
 
 #[test]
