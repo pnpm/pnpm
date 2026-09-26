@@ -140,7 +140,7 @@ export class StoreIndex {
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
     fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(`${storeDir}/index.db`)
+    this.db = openDatabaseSync(`${storeDir}/index.db`)
     // Set busy_timeout FIRST so SQLite's internal busy handler is active
     // during all subsequent operations. On Windows, file locking is mandatory
     // and concurrent processes (e.g. parallel dlx calls) will contend.
@@ -395,7 +395,7 @@ export class ReadOnlyStoreIndex extends StoreIndex {
         `frozenStore opens the store index read-only via a SQLite "immutable" URI, which requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0, but the current version is ${process.versions.node}. Upgrade Node.js, or run without frozenStore.`
       )
     }
-    this.db = new DatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
+    this.db = openDatabaseSync(immutableSqliteUri(`${storeDir}/index.db`))
   }
 
   protected override prepareStatements (): void {
@@ -438,6 +438,25 @@ export class ReadOnlyStoreIndex extends StoreIndex {
   private throwReadOnly (): never {
     throw new PnpmError('FROZEN_STORE_WRITE', FROZEN_STORE_WRITE_MESSAGE)
   }
+}
+
+/**
+ * Runtimes that emulate Node.js may ship a partial `node:sqlite`. StackBlitz
+ * WebContainers' `DatabaseSync` has no methods at all.
+ */
+function openDatabaseSync (location: string): DatabaseSyncType {
+  const db: Partial<DatabaseSyncType> = new DatabaseSync(location)
+  const missingMethods = (['exec', 'prepare', 'close'] as const)
+    .filter((method) => typeof db[method] !== 'function')
+  if (missingMethods.length > 0) {
+    db.close?.()
+    throw new PnpmError(
+      'INCOMPLETE_NODE_SQLITE',
+      `The node:sqlite module of this JavaScript runtime is incomplete: DatabaseSync has no ${missingMethods.map((method) => `${method}()`).join(', ')}`,
+      { hint: 'pnpm keeps its store index in a SQLite database and needs a complete node:sqlite implementation, as provided by Node.js >=22.13. Runtimes that emulate Node.js, such as StackBlitz WebContainers, may provide only a partial one.' }
+    )
+  }
+  return db as DatabaseSyncType
 }
 
 /**

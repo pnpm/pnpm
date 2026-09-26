@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -87,6 +88,24 @@ test('StoreIndex update reports a rollback failure without hiding the update err
   expect(thrown.name).toBe('AggregateError')
   expect(thrown.message).toContain('present')
   expect(thrown.errors).toHaveLength(2)
+})
+
+// https://github.com/pnpm/pnpm/issues/15649
+test('StoreIndex rejects a node:sqlite whose DatabaseSync has no methods', () => {
+  const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+  const descriptors = Object.getOwnPropertyDescriptors(DatabaseSync.prototype)
+  for (const key of Reflect.ownKeys(descriptors)) {
+    if (key !== 'constructor') Reflect.deleteProperty(DatabaseSync.prototype, key)
+  }
+  try {
+    const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+    expect(() => new StoreIndex(storeDir)).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INCOMPLETE_NODE_SQLITE',
+      message: expect.stringContaining('exec(), prepare(), close()'),
+    }))
+  } finally {
+    Object.defineProperties(DatabaseSync.prototype, descriptors)
+  }
 })
 
 // The immutable open only works on a runtime that honors the immutable URI;
