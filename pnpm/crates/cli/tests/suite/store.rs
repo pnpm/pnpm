@@ -598,6 +598,57 @@ fn store_prune_removes_the_private_engine_installs_no_process_holds() {
     assert!(held.dir().exists(), "prune must keep the private install in use");
 }
 
+/// <https://github.com/pnpm/pnpm/issues/2978>
+#[test]
+fn store_add_of_downloaded_tarballs_warms_the_store_for_an_offline_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+                "@pnpm.e2e/bar": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let storage = root.path().join("registry-storage/@pnpm.e2e");
+    pacquet_at(&workspace)
+        .with_args(["store", "add"])
+        .with_arg(storage.join("foo/foo-100.0.0.tgz"))
+        .with_arg(storage.join("bar/bar-100.0.0.tgz"))
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+    for name in ["foo", "bar"] {
+        assert!(
+            workspace
+                .join("node_modules/@pnpm.e2e")
+                .join(name)
+                .join("package.json")
+                .exists(),
+        );
+    }
+    drop(npmrc_info);
+}
+
 /// The resolver chain claims every protocol pnpm supports, but only an
 /// archive can be put in the store. A local dependency is refused by name
 /// rather than failing further down as a resolution-shape mismatch.
