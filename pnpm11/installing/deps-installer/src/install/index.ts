@@ -4048,6 +4048,10 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
         dir: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
         name: p.manifest.name,
         version: p.manifest.version,
+        publishConfig: p.manifest.publishConfig?.directory == null ? undefined : {
+          directory: p.manifest.publishConfig.directory,
+          linkDirectory: p.manifest.publishConfig.linkDirectory,
+        },
         dependencies: p.manifest.dependencies,
         devDependencies: p.manifest.devDependencies,
         optionalDependencies: p.manifest.optionalDependencies,
@@ -4059,6 +4063,10 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       registryUrl: opts.pnprServer!,
       name: projectsList ? undefined : manifest.name,
       version: projectsList ? undefined : manifest.version,
+      publishConfig: projectsList || manifest.publishConfig?.directory == null ? undefined : {
+        directory: manifest.publishConfig.directory,
+        linkDirectory: manifest.publishConfig.linkDirectory,
+      },
       dependencies: projectsList ? undefined : manifest.dependencies,
       devDependencies: projectsList ? undefined : manifest.devDependencies,
       optionalDependencies: projectsList ? undefined : manifest.optionalDependencies,

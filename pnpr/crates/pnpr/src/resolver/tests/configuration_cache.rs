@@ -82,6 +82,38 @@ fn resolution_cache_key_changes_with_project_identity() {
 }
 
 #[test]
+fn resolution_cache_key_changes_with_the_project_publish_config() {
+    let request = |publish_config: serde_json::Value| {
+        serde_json::from_value::<ResolveRequest>(serde_json::json!({
+            "projects": [{
+                "dir": "packages/lib",
+                "name": "lib",
+                "version": "1.0.0",
+                "publishConfig": publish_config
+            }]
+        }))
+        .expect("resolve request parses")
+    };
+    let config = config();
+    // An absent publish directory and an explicit one resolve differently, and
+    // the two halves of the config are independent: only `linkDirectory`
+    // changing must also miss the cache, or a toggled project keeps the link it
+    // was resolved with.
+    let absent = resolution_cache_key(&config, &request(serde_json::Value::Null));
+    let dist = resolution_cache_key(&config, &request(serde_json::json!({ "directory": "dist" })));
+    let build =
+        resolution_cache_key(&config, &request(serde_json::json!({ "directory": "build" })));
+    let unlinked = resolution_cache_key(
+        &config,
+        &request(serde_json::json!({ "directory": "dist", "linkDirectory": false })),
+    );
+
+    assert_ne!(absent, dist);
+    assert_ne!(dist, build);
+    assert_ne!(dist, unlinked);
+}
+
+#[test]
 fn resolution_cache_key_changes_with_dependencies_and_policy() {
     let base = ResolveRequest {
         dependencies: Some(deps(&[("foo", "^1.0.0")])),
