@@ -253,7 +253,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    let source_dirs = dedicated_injected_source_dirs(&projects, normalized_root);
+    let source_dirs = dedicated_injected_source_dirs(&projects, &project_dirs)?;
     project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
     // One `Config::leak` per project: `State::init` needs a
     // `&'static Config`, and a leaked shared reference can't be
@@ -284,19 +284,31 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     Ok(())
 }
 
-/// See [`injected_source_dirs`]. The workspace root is installed alongside
-/// the discovered projects even when it is not one of them.
+/// See [`injected_source_dirs`]. `other_dirs` are the directories installed
+/// alongside `projects` without being discovered, such as the workspace
+/// root. Their manifests are read here, before any lifecycle script runs.
 fn dedicated_injected_source_dirs(
     projects: &[pnpm_workspace::Project],
-    normalized_root: PathBuf,
-) -> std::collections::HashSet<PathBuf> {
-    let mut source_dirs = injected_source_dirs(
+    other_dirs: &[PathBuf],
+) -> miette::Result<std::collections::HashSet<PathBuf>> {
+    let other_manifests = other_dirs
+        .iter()
+        .map(|dir| {
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
+                .map_err(miette::Report::new)
+        })
+        .collect::<miette::Result<Vec<_>>>()?;
+    Ok(injected_source_dirs(
         projects
             .iter()
-            .map(|project| (project.root_dir.as_path(), Some(project.manifest.value()))),
-    );
-    source_dirs.insert(normalized_root);
-    source_dirs
+            .map(|project| (project.root_dir.as_path(), Some(project.manifest.value())))
+            .chain(
+                other_dirs
+                    .iter()
+                    .map(PathBuf::as_path)
+                    .zip(other_manifests.iter().map(Option::as_ref)),
+            ),
+    ))
 }
 
 async fn run_single_node_install<Reporter: self::Reporter + 'static>(
@@ -328,3 +340,7 @@ async fn run_single_node_install<Reporter: self::Reporter + 'static>(
     )?;
     Box::pin(args.run::<Reporter>(state)).await
 }
+
+#[cfg(test)]
+#[path = "install_tests.rs"]
+mod install_tests;
