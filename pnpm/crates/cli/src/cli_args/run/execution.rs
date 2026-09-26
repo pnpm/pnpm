@@ -175,8 +175,10 @@ pub(super) fn no_matching_script(
 pub(super) fn selected_scripts(
     manifest: &PackageManifest,
     script_name: &str,
+    sequential: bool,
 ) -> miette::Result<Vec<String>> {
-    let specified = ScriptSelector::new(script_name)?.select_with_start(manifest.value());
+    let specified =
+        ScriptSelector::new(script_name)?.select_with_start(manifest.value(), sequential);
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(specified);
     }

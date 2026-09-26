@@ -315,7 +315,7 @@ impl<'a> PipelineRun<'a> {
         let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
             let manifest = plan.graph[project].package.project.manifest.value();
             match ScriptSelector::new(task_name) {
-                Ok(selector) => selector.select(manifest),
+                Ok(selector) => selector.select(manifest, false),
                 Err(_) => Vec::new(),
             }
         };
