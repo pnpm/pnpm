@@ -1,7 +1,5 @@
 //! Error types for the npm verifier's network / parsing surface.
 
-use std::fmt;
-
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
@@ -19,10 +17,11 @@ use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
 /// `user:pass@host` basic-auth can't leak into the `Display` /
 /// `Diagnostic` message — which reaches the terminal, CI logs, and
 /// reporters whenever the resolver surfaces the error.
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
     #[display("Failed to resolve {pkg_name} in package mirror {}", pkg_mirror.display())]
+    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
     NoOfflineMeta {
         #[error(not(source))]
         pkg_name: String,
@@ -32,6 +31,7 @@ pub enum FetchMetadataError {
         /// exists on disk, so the message can point at it. See
         /// `legacy_mirror_hint`.
         #[error(not(source))]
+        #[help]
         hint: Option<String>,
     },
 
@@ -42,12 +42,14 @@ pub enum FetchMetadataError {
     #[display(
         "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
     )]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
     OffAllowlist {
         #[error(not(source))]
         url: String,
     },
 
     #[display("Failed to fetch metadata from {url}: {}", walk_reqwest_chain(error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
         url: String,
         #[error(source)]
@@ -60,6 +62,7 @@ pub enum FetchMetadataError {
     /// [`FetchMetadataError::Network`] so the message names the body
     /// read. Both are retried by [`FetchMetadataError::is_transient`].
     #[display("Failed to read metadata response body from {url}: {}", walk_reqwest_chain(error))]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
     BodyRead {
         url: String,
         #[error(source)]
@@ -67,6 +70,7 @@ pub enum FetchMetadataError {
     },
 
     #[display("Failed to decode metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR))]
     Decode {
         url: String,
         #[error(source)]
@@ -81,6 +85,7 @@ pub enum FetchMetadataError {
     /// Kept out of [`FetchMetadataError::is_transient`] for that
     /// reason.
     #[display("Failed to filter metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR))]
     FilterMetadata {
         url: String,
         #[error(source)]
@@ -91,6 +96,7 @@ pub enum FetchMetadataError {
     /// repeats an unsolicited 304 after a cache-bypassing retry, leaving no
     /// body and no validator that could have justified the response.
     #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
+    #[diagnostic(code(ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE))]
     NotModifiedWithoutCache {
         #[error(not(source))]
         pkg_name: String,
@@ -99,44 +105,12 @@ pub enum FetchMetadataError {
     /// The blocking task that deserializes a packument body panicked
     /// or was cancelled by runtime shutdown.
     #[display("Failed to parse metadata from {url}: {error}")]
+    #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_PARSE_TASK))]
     ParseTask {
         url: String,
         #[error(source)]
         error: tokio::task::JoinError,
     },
-}
-
-/// Hand-rolled because [`FetchMetadataError::NoOfflineMeta`]'s help is
-/// conditional on its `hint` field, which the derive macro cannot express.
-impl Diagnostic for FetchMetadataError {
-    fn code(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        let code = match self {
-            FetchMetadataError::NoOfflineMeta { .. } => "ERR_PNPM_NO_OFFLINE_META",
-            FetchMetadataError::OffAllowlist { .. } => "ERR_PNPM_REGISTRY_OFF_ALLOWLIST",
-            FetchMetadataError::Network { .. } => "ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR",
-            FetchMetadataError::BodyRead { .. } => {
-                "ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR"
-            }
-            FetchMetadataError::Decode { .. } => "ERR_PNPM_RESOLVING_NPM_RESOLVER_DECODE_ERROR",
-            FetchMetadataError::FilterMetadata { .. } => {
-                "ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR"
-            }
-            FetchMetadataError::NotModifiedWithoutCache { .. } => {
-                "ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE"
-            }
-            FetchMetadataError::ParseTask { .. } => "ERR_PNPM_RESOLVING_NPM_RESOLVER_PARSE_TASK",
-        };
-        Some(Box::new(code))
-    }
-
-    fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        match self {
-            FetchMetadataError::NoOfflineMeta { hint, .. } => hint
-                .as_ref()
-                .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>),
-            _ => None,
-        }
-    }
 }
 
 /// Explanatory help for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror`
