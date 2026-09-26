@@ -12,7 +12,6 @@ use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::Value;
 use std::{num::NonZeroUsize, path::Path};
-use url::Url;
 
 pub fn open_package_funding<Sys: OpenUrl>(
     spec: &str,
@@ -84,13 +83,9 @@ fn visit_named(nodes: &[DependencyNode], name: &str, visit: &mut impl FnMut(Inst
 }
 
 fn open_source<Sys: OpenUrl>(source: &FundingSource<'_>) {
-    println!("{}:\n{}", source_title(source), sanitize_inline(source.url));
-    // The launcher gets the URL as parsed, percent-encoded, rather than the
-    // manifest's text.
-    let Ok(url) = Url::parse(source.url) else {
-        return;
-    };
-    if let Err(error) = Sys::open_url(url.as_str()) {
+    let url = source.public_url();
+    println!("{}:\n{}", source_title(source), sanitize_inline(&url));
+    if let Err(error) = Sys::open_url(&url) {
         tracing::debug!(target: "pnpm_cli", %error, "could not open browser");
     }
 }
@@ -117,7 +112,7 @@ fn ambiguous_sources_message(
             "{}: {}: {}",
             index + 1,
             source_title(source),
-            sanitize_inline(source.url),
+            sanitize_inline(&source.public_url()),
         ));
     }
     lines.push(format!(
