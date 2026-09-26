@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
@@ -200,7 +201,11 @@ async function switchGlobalPnpm (
   })
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
-  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  const globalBinDir = path.join(opts.pnpmHomeDir, 'bin')
+  if (process.platform === 'win32') {
+    await retireStandaloneExecutable(globalBinDir)
+  }
+  await linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn })
   await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
 
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
@@ -210,7 +215,8 @@ async function switchGlobalPnpm (
   // pre-update version. Detect that case and refresh the legacy shims so the
   // upgrade actually takes effect, then warn the user to run `pnpm setup`
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
-  if (hasLegacyHomeDirShim(opts.pnpmHomeDir)) {
+  const hadStandaloneExecutable = process.platform === 'win32' && await retireStandaloneExecutable(opts.pnpmHomeDir)
+  if (hasLegacyHomeDirShim(opts.pnpmHomeDir) || hadStandaloneExecutable) {
     await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
     globalWarn(
       'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
@@ -382,6 +388,50 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
     return fs.existsSync(path.resolve(path.dirname(shShim), target))
   }
   return fs.existsSync(path.join(pnpmHomeDir, 'pnpm.cmd'))
+}
+
+// A standalone pnpm executable copied into a directory on PATH (pnpm v10
+// installed it into pnpmHomeDir). Windows prefers pnpm.exe over the pnpm.cmd
+// shim that self-update links, so a leftover one keeps running the old version.
+const STANDALONE_EXECUTABLE = 'pnpm.exe'
+const RETIRED_EXECUTABLE_SUFFIX = '.retired'
+
+// Windows refuses to delete a running executable but lets it be renamed, so
+// the executable is renamed first. One that is still running is removed by
+// the next self-update. A native pnpm v12 shim named pnpm carries a sidecar
+// and is not a leftover.
+async function retireStandaloneExecutable (dir: string): Promise<boolean> {
+  await removeRetiredExecutables(dir)
+  const executable = path.join(dir, STANDALONE_EXECUTABLE)
+  if (!fs.existsSync(executable) || fs.existsSync(path.join(dir, '.pnpm-shim-v1-pnpm-target'))) {
+    return false
+  }
+  const retired = path.join(dir, `.${STANDALONE_EXECUTABLE}.${process.pid}${RETIRED_EXECUTABLE_SUFFIX}`)
+  await fs.promises.rename(executable, retired)
+  await removeRetiredExecutable(retired)
+  return true
+}
+
+async function removeRetiredExecutables (dir: string): Promise<void> {
+  let fileNames: string[]
+  try {
+    fileNames = await fs.promises.readdir(dir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  await Promise.all(fileNames
+    .filter((fileName) => fileName.startsWith(`.${STANDALONE_EXECUTABLE}.`) && fileName.endsWith(RETIRED_EXECUTABLE_SUFFIX))
+    .map((fileName) => removeRetiredExecutable(path.join(dir, fileName))))
+}
+
+async function removeRetiredExecutable (retired: string): Promise<void> {
+  try {
+    await fs.promises.rm(retired, { force: true })
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'EPERM' || err.code === 'EBUSY')) return
+    throw err
+  }
 }
 
 // The marker is absent when the shim is not from cmd-shim or pre-dates it.
