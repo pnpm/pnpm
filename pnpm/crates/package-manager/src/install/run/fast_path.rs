@@ -69,6 +69,19 @@ pub(super) fn install_is_already_up_to_date<Reporter: self::Reporter>(
     }));
     Ok(true)
 }
+
+pub(super) fn private_prod_deps_block_shortcut(
+    config: &pnpm_config::Config,
+    workspace: &super::workspace::InstallWorkspace<'_>,
+) -> bool {
+    crate::private_prod_deps_block_short_circuit(
+        config,
+        workspace.dirs.workspace_dir.as_deref(),
+        workspace.loaded_workspace_projects.as_deref(),
+        &workspace.catalogs,
+    )
+}
+
 /// Whether the recorded build state lets the fast path stand.
 ///
 /// A build marker lives in the shared slot, outside every project-state input

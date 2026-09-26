@@ -316,14 +316,7 @@ impl<'w> InstallScope<'w> {
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
     ) -> Result<bool, InstallError> {
-        // This shortcut returns before the install reports the dependency.
-        // Refuse it when the setting is on so that report still runs.
-        if crate::private_prod_deps_block_short_circuit(
-            install.context.config,
-            workspace.dirs.workspace_dir.as_deref(),
-            workspace.loaded_workspace_projects.as_deref(),
-            &workspace.catalogs,
-        ) {
+        if super::fast_path::private_prod_deps_block_shortcut(install.context.config, workspace) {
             return Ok(false);
         }
         install_is_already_up_to_date::<Reporter>(&UpToDateCheck {
@@ -516,41 +509,4 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
     let cycles = crate::install_scope_cycles(config, projects, selected_dirs, Some(catalogs));
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
-}
-
-/// Fail when `disallowPrivateProdDeps` is set and a publishable project
-/// in this install lists a private workspace project in `dependencies`.
-///
-/// Runs before resolution, same as the cycle check. The repeat-install
-/// shortcut calls [`crate::private_workspace_prod_deps`] itself and falls
-/// through to this path when it finds a pair, so turning the setting on
-/// fails an install that would otherwise say it is already up to date.
-pub(super) fn report_private_prod_deps(
-    config: &Config,
-    workspace: &InstallWorkspace<'_>,
-    selection: Option<&crate::WorkspaceInstallSelection<'_>>,
-    scope: (crate::ProjectMutation, Option<&[pnpm_workspace::Project]>),
-) -> Result<(), InstallError> {
-    let Some(workspace_dir) = workspace.dirs.workspace_dir.as_deref() else { return Ok(()) };
-    let projects = if let Some(selection) = selection {
-        selection.all_projects
-    } else {
-        let (mutation, projects) = scope;
-        let Some(projects) = mutation
-            .is_full_install()
-            .then_some(projects)
-            .flatten()
-        else {
-            return Ok(());
-        };
-        projects
-    };
-    let pairs =
-        crate::private_workspace_prod_deps(config, workspace_dir, projects, &workspace.catalogs);
-    if pairs.is_empty() {
-        return Ok(());
-    }
-    Err(InstallError::PrivateWorkspaceProdDep(crate::PrivateWorkspaceProdDepError {
-        message: crate::render_private_prod_deps(&pairs),
-    }))
 }

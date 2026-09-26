@@ -75,18 +75,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
     let state_root = check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
     let lockfile = lazy_wanted_lockfile(check.config, &lockfile_root);
-    if strict_dep_builds_blocks_fast_path(check.config) {
-        return None;
-    }
-    // The repeat-install shortcut does not re-read every workspace
-    // setting. A private production dependency must still fail after the
-    // setting is turned on, including when nothing else changed.
-    if crate::private_prod_deps_block_short_circuit(
-        check.config,
-        workspace_dir_opt.as_deref(),
-        workspace_projects.as_deref(),
-        &catalogs,
-    ) {
+    if fast_path_blocked(check, &workspace_dir_opt, &workspace_projects, &catalogs) {
         return None;
     }
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
@@ -111,6 +100,24 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
         root: state_root,
         project_count: workspace_projects.as_ref().map(Vec::len),
     })
+}
+
+/// The shortcut does not re-read every workspace setting. Turning
+/// `disallowPrivateProdDeps` on, or leaving `strictDepBuilds` unsatisfied,
+/// still has to fail the install.
+fn fast_path_blocked(
+    check: &UpToDateFastPathCheck<'_>,
+    workspace_dir: &Option<PathBuf>,
+    projects: &Option<Vec<pnpm_workspace::Project>>,
+    catalogs: &Catalogs,
+) -> bool {
+    strict_dep_builds_blocks_fast_path(check.config)
+        || crate::private_prod_deps_block_short_circuit(
+            check.config,
+            workspace_dir.as_deref(),
+            projects.as_deref(),
+            catalogs,
+        )
 }
 
 fn fast_path_workspace_context(

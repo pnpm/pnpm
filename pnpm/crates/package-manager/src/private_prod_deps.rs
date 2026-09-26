@@ -47,6 +47,39 @@ pub(crate) fn private_workspace_prod_deps<'a>(
     violations(&graph)
 }
 
+/// Fail when `disallowPrivateProdDeps` is set and a publishable project
+/// in this install lists a private workspace project in `dependencies`.
+///
+/// `selection_projects` is the whole workspace when the install has a
+/// filter. Without one, only a full install is checked.
+pub(crate) fn report_private_prod_deps(
+    config: &Config,
+    workspace_dir: Option<&Path>,
+    catalogs: &Catalogs,
+    selection_projects: Option<&[Project]>,
+    scope: (crate::ProjectMutation, Option<&[Project]>),
+) -> Result<(), PrivateWorkspaceProdDepError> {
+    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
+    let projects = if let Some(projects) = selection_projects {
+        projects
+    } else {
+        let (mutation, projects) = scope;
+        let Some(projects) = mutation
+            .is_full_install()
+            .then_some(projects)
+            .flatten()
+        else {
+            return Ok(());
+        };
+        projects
+    };
+    let pairs = private_workspace_prod_deps(config, workspace_dir, projects, catalogs);
+    if pairs.is_empty() {
+        return Ok(());
+    }
+    Err(PrivateWorkspaceProdDepError { message: render_private_prod_deps(&pairs) })
+}
+
 pub(crate) fn render_private_prod_deps(pairs: &[(String, String)]) -> String {
     pairs
         .iter()
