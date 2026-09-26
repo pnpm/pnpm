@@ -6,7 +6,11 @@ use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::{
     create_global_cache_key, get_hash_link, read_installed_packages, scan_global_packages,
 };
-use std::{collections::HashSet, fs, io, path::Path};
+use std::{
+    collections::HashSet,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 /// A standalone pnpm executable copied into a directory on PATH. pnpm links
 /// itself there as `pnpm` and `pnpm.cmd` shims, and Windows prefers a
@@ -27,11 +31,10 @@ pub(super) fn link_into_global_bin(
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let _global_bin_lock = crate::cli_args::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
-    if cfg!(windows) {
-        retire_standalone_executable(&global_bin)?;
-    }
-    refresh_global_shims(&global_bin, installed, version)?;
-    link_pnpm_bins(installed, &global_bin)?;
+    let retired = if cfg!(windows) { retire_standalone_executable(&global_bin)? } else { None };
+    let linked = refresh_global_shims(&global_bin, installed, version)
+        .and_then(|()| link_pnpm_bins(installed, &global_bin));
+    finish_retirement(retired, linked)?;
 
     let aliases = vec![installed.package_name.to_string()];
     let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
@@ -54,10 +57,10 @@ pub(super) fn link_into_legacy_home_dir(
     pnpm_home_dir: &Path,
     installed: &install_pnpm::InstallPnpmResult,
 ) -> miette::Result<bool> {
-    if !retire_standalone_executable(pnpm_home_dir)? {
+    let Some(retired) = retire_standalone_executable(pnpm_home_dir)? else {
         return Ok(false);
-    }
-    link_pnpm_bins(installed, pnpm_home_dir)?;
+    };
+    finish_retirement(Some(retired), link_pnpm_bins(installed, pnpm_home_dir))?;
     Ok(true)
 }
 
@@ -76,12 +79,21 @@ fn link_pnpm_bins(
     .wrap_err_with(|| format!("link the updated pnpm bins into {}", bin_dir.display()))
 }
 
-/// Move a [`STANDALONE_EXECUTABLE`] in `dir` out of the way. Windows refuses
-/// to delete an executable while it runs but lets it be renamed, so it is
-/// renamed first; one that is still running is removed by the next update.
-/// A native shim named `pnpm` is left to [`refresh_global_shims`]. Returns
-/// whether there was an executable to retire.
-pub(super) fn retire_standalone_executable(dir: &Path) -> miette::Result<bool> {
+/// A [`STANDALONE_EXECUTABLE`] renamed out of the way of the shims being
+/// linked. Windows refuses to delete an executable while it runs but lets it
+/// be renamed.
+#[derive(Debug)]
+pub(super) struct RetiredExecutable {
+    executable: PathBuf,
+    retired: PathBuf,
+}
+
+/// Move a [`STANDALONE_EXECUTABLE`] in `dir` out of the way, first removing
+/// the ones earlier updates retired. A native shim named `pnpm` is left to
+/// [`refresh_global_shims`].
+pub(super) fn retire_standalone_executable(
+    dir: &Path,
+) -> miette::Result<Option<RetiredExecutable>> {
     remove_retired_executables(dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("remove retired pnpm executables from {}", dir.display()))?;
@@ -89,19 +101,43 @@ pub(super) fn retire_standalone_executable(dir: &Path) -> miette::Result<bool> {
     if !executable.is_file()
         || crate::shim_dispatch::native_shim_target(dir, "pnpm").into_diagnostic()?.is_some()
     {
-        return Ok(false);
+        return Ok(None);
     }
     let retired = dir.join(format!(
         ".{STANDALONE_EXECUTABLE}.{}{RETIRED_EXECUTABLE_SUFFIX}",
         std::process::id(),
     ));
     fs::rename(&executable, &retired)
-        .and_then(|()| remove_retired_executable(&retired))
         .into_diagnostic()
         .wrap_err_with(|| {
             format!("move the old pnpm executable at {} aside", executable.display())
         })?;
-    Ok(true)
+    Ok(Some(RetiredExecutable { executable, retired }))
+}
+
+/// Remove `retired` once the shims replacing it are linked, or put it back
+/// when linking failed, so the directory keeps a working pnpm. One that is
+/// still running stays until a later update removes it.
+pub(super) fn finish_retirement(
+    retired: Option<RetiredExecutable>,
+    linked: miette::Result<()>,
+) -> miette::Result<()> {
+    let Some(RetiredExecutable { executable, retired }) = retired else {
+        return linked;
+    };
+    match linked {
+        Ok(()) => remove_retired_executable(&retired)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("remove the old pnpm executable at {}", retired.display())),
+        Err(error) => match fs::rename(&retired, &executable) {
+            Ok(()) => Err(error),
+            Err(restore_error) => Err(error.wrap_err(format!(
+                "restore the old pnpm executable at {} from {}: {restore_error}",
+                executable.display(),
+                retired.display(),
+            ))),
+        },
+    }
 }
 
 fn remove_retired_executables(dir: &Path) -> io::Result<()> {

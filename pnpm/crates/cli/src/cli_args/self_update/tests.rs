@@ -1,6 +1,6 @@
 use super::{
     global_bin::{
-        link_into_global_bin, link_into_legacy_home_dir, refresh_global_shims,
+        finish_retirement, link_into_global_bin, link_into_legacy_home_dir, refresh_global_shims,
         retire_standalone_executable,
     },
     handler, install_pnpm, is_installed_globally, join_messages, version_lt,
@@ -182,10 +182,29 @@ fn self_update_retires_a_standalone_executable() {
     fs::write(bin_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
     fs::write(bin_dir.join(".pnpm.exe.1.retired"), b"retired by an earlier update").unwrap();
 
-    assert!(retire_standalone_executable(&bin_dir).unwrap());
+    let retired = retire_standalone_executable(&bin_dir).unwrap();
+    assert!(retired.is_some());
+    finish_retirement(retired, Ok(())).unwrap();
 
     assert_eq!(fs::read_dir(&bin_dir).unwrap().count(), 0);
-    assert!(!retire_standalone_executable(&bin_dir).unwrap());
+    assert!(retire_standalone_executable(&bin_dir).unwrap().is_none());
+}
+
+/// pnpm/pnpm#9094
+#[test]
+fn self_update_restores_a_standalone_executable_when_linking_fails() {
+    let root = tempfile::tempdir().unwrap();
+    let bin_dir = root.path().join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(bin_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+
+    let retired = retire_standalone_executable(&bin_dir).unwrap();
+    assert!(!bin_dir.join("pnpm.exe").exists());
+    let error = finish_retirement(retired, Err(miette::miette!("link failed"))).unwrap_err();
+
+    assert_eq!(error.to_string(), "link failed");
+    assert_eq!(fs::read(bin_dir.join("pnpm.exe")).unwrap(), b"old standalone pnpm");
+    assert_eq!(fs::read_dir(&bin_dir).unwrap().count(), 1);
 }
 
 /// pnpm/pnpm#9094

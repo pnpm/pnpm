@@ -202,10 +202,8 @@ async function switchGlobalPnpm (
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
   const globalBinDir = path.join(opts.pnpmHomeDir, 'bin')
-  if (process.platform === 'win32') {
-    await retireStandaloneExecutable(globalBinDir)
-  }
-  await linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn })
+  const retiredFromGlobalBin = process.platform === 'win32' ? await retireStandaloneExecutable(globalBinDir) : undefined
+  await linkReplacingRetiredExecutable(retiredFromGlobalBin, () => linkBins(path.join(baseDir, 'node_modules'), globalBinDir, { warn: globalWarn }))
   await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
 
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
@@ -215,9 +213,9 @@ async function switchGlobalPnpm (
   // pre-update version. Detect that case and refresh the legacy shims so the
   // upgrade actually takes effect, then warn the user to run `pnpm setup`
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
-  const hadStandaloneExecutable = process.platform === 'win32' && await retireStandaloneExecutable(opts.pnpmHomeDir)
-  if (hasLegacyHomeDirShim(opts.pnpmHomeDir) || hadStandaloneExecutable) {
-    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+  const retiredFromHomeDir = process.platform === 'win32' ? await retireStandaloneExecutable(opts.pnpmHomeDir) : undefined
+  if (hasLegacyHomeDirShim(opts.pnpmHomeDir) || retiredFromHomeDir != null) {
+    await linkReplacingRetiredExecutable(retiredFromHomeDir, () => linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn }))
     globalWarn(
       'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
       'at PNPM_HOME have been refreshed so the new version is active, but ' +
@@ -396,20 +394,45 @@ function hasLegacyHomeDirShim (pnpmHomeDir: string): boolean {
 const STANDALONE_EXECUTABLE = 'pnpm.exe'
 const RETIRED_EXECUTABLE_SUFFIX = '.retired'
 
+interface RetiredExecutable {
+  executable: string
+  retired: string
+}
+
 // Windows refuses to delete a running executable but lets it be renamed, so
-// the executable is renamed first. One that is still running is removed by
-// the next self-update. A native pnpm v12 shim named pnpm carries a sidecar
-// and is not a leftover.
-async function retireStandaloneExecutable (dir: string): Promise<boolean> {
+// the executable is renamed out of the way of the shims. A native pnpm v12
+// shim named pnpm carries a sidecar and is not a leftover.
+async function retireStandaloneExecutable (dir: string): Promise<RetiredExecutable | undefined> {
   await removeRetiredExecutables(dir)
   const executable = path.join(dir, STANDALONE_EXECUTABLE)
   if (!fs.existsSync(executable) || fs.existsSync(path.join(dir, '.pnpm-shim-v1-pnpm-target'))) {
-    return false
+    return undefined
   }
   const retired = path.join(dir, `.${STANDALONE_EXECUTABLE}.${process.pid}${RETIRED_EXECUTABLE_SUFFIX}`)
   await fs.promises.rename(executable, retired)
-  await removeRetiredExecutable(retired)
-  return true
+  return { executable, retired }
+}
+
+// The retired executable is put back when linking fails, so the directory
+// keeps a working pnpm. One that is still running stays until a later
+// self-update removes it.
+async function linkReplacingRetiredExecutable (retired: RetiredExecutable | undefined, link: () => Promise<unknown>): Promise<void> {
+  try {
+    await link()
+  } catch (linkError: unknown) {
+    if (retired != null) {
+      try {
+        await fs.promises.rename(retired.retired, retired.executable)
+      } catch (restoreError: unknown) {
+        const reason = util.types.isNativeError(restoreError) ? restoreError.message : String(restoreError)
+        throw new PnpmError('SELF_UPDATE_RESTORE_FAILED', `Linking the updated pnpm failed, and ${retired.executable} could not be restored from ${retired.retired}: ${reason}`, { cause: linkError })
+      }
+    }
+    throw linkError
+  }
+  if (retired != null) {
+    await removeRetiredExecutable(retired.retired)
+  }
 }
 
 async function removeRetiredExecutables (dir: string): Promise<void> {
