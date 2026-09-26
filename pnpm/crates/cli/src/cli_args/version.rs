@@ -22,18 +22,19 @@ use pnpm_versioning::{
 
 use serde_json::{Value, json};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
 /// Bump the version of a package: `pnpm version <bump|semver>` applies an
 /// npm-style bump to the current package (or, with `-r`, to every selected
 /// workspace package), while the bare `pnpm version -r` applies the pending
-/// change intents.
+/// change intents. `pnpm version --json` reports the current package version.
 #[derive(Debug, Args)]
 pub struct VersionArgs {
     /// A valid semver version (e.g. 1.2.3) or one of: major, minor, patch,
-    /// premajor, preminor, prepatch, prerelease, from-git. Omit it and pass `-r` to
+    /// premajor, preminor, prepatch, prerelease, from-git. Use `none --json`
+    /// to read current versions without a bump. Omit it and pass `-r` to
     /// apply the pending change intents instead.
     pub params: Vec<String>,
     /// Print what the command would do without changing anything.
@@ -138,9 +139,38 @@ impl VersionArgs {
     ) -> miette::Result<()> {
         match self.params.first().map(String::as_str) {
             None if recursive => self.release_from_intents(config).await,
+            None if self.json => self.report_current_versions(config, dir, false),
             None => Err(VersionError::MissingBump.into()),
+            Some("none") if self.json => self.report_current_versions(config, dir, recursive),
             Some(_) => self.npm_style_bump::<Reporter>(config, dir, recursive),
         }
+    }
+
+    /// Report the package versions already on disk. This path must not run
+    /// lifecycle hooks or perform the git checks used by version bumps.
+    fn report_current_versions(
+        &self,
+        config: &Config,
+        dir: &Path,
+        recursive: bool,
+    ) -> miette::Result<()> {
+        let mut versions = BTreeMap::new();
+        if recursive {
+            let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+            let (projects, _) = discover_workspace_projects(&base, config)?;
+            let selection =
+                select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
+            for pkg_dir in selection.selected.keys() {
+                read_current_version(pkg_dir, &mut versions)?;
+            }
+        } else {
+            read_current_version(dir, &mut versions)?;
+        }
+        if versions.is_empty() {
+            return Err(VersionError::NoPackagesToVersion.into());
+        }
+        println!("{}", serde_json::to_string_pretty(&versions).expect("serialize versions"));
+        Ok(())
     }
 
     fn effective_tag_version_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
@@ -468,6 +498,19 @@ fn package_version_identity(manifest: &PackageManifest) -> Option<(String, Strin
         return None;
     }
     Some((name.to_string(), current.to_string()))
+}
+
+fn read_current_version(
+    pkg_dir: &Path,
+    versions: &mut BTreeMap<String, String>,
+) -> miette::Result<()> {
+    let manifest_path = pnpm_workspace::project_manifest_path(pkg_dir);
+    let manifest = PackageManifest::from_path(manifest_path.clone())
+        .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
+    if let Some((name, version)) = package_version_identity(&manifest) {
+        versions.insert(name, version);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
