@@ -167,9 +167,17 @@ async function _lockfileToHoistedDepGraph (
         const projectDir = path.join(opts.lockfileDir, importerId)
         const modulesDir = path.join(projectDir, 'node_modules')
         const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
-        hierarchy[projectDir] = nextHierarchy
-
         const importer = lockfile.importers[importerId]
+        const hasDeps = Boolean(
+          (importer.dependencies && Object.keys(importer.dependencies).length) ||
+          (importer.devDependencies && Object.keys(importer.devDependencies).length) ||
+          (importer.optionalDependencies && Object.keys(importer.optionalDependencies).length) ||
+          rootDep.dependencies.size > 0
+        )
+        if (hasDeps) {
+          hierarchy[projectDir] = nextHierarchy
+        }
+
         const importerDir = path.join(opts.lockfileDir, importerId)
         symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, importerDir, opts.include)
         directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
