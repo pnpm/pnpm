@@ -138,6 +138,7 @@ export async function lockfileToDepGraph (
     graph,
     locationByDepPath,
     injectionTargetsByDepPath,
+    skippedLocalDepPaths,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -175,6 +176,10 @@ export async function lockfileToDepGraph (
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
+  if (skippedLocalDepPaths.size > 0) {
+    promoteChildrenOfSkippedLocalDeps(lockfile, opts, skippedLocalDepPaths, _getChildrenPaths, directDependenciesByImporterId)
+  }
+
   return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
 }
 
@@ -186,12 +191,14 @@ async function buildGraphFromPackages (
   graph: DependenciesGraph
   locationByDepPath: Record<string, string>
   injectionTargetsByDepPath: Map<string, string[]>
+  skippedLocalDepPaths: Set<DepPath>
 }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const locationByDepPath: Record<string, string> = {}
   // Only populated for directory deps (injected workspace packages)
   const injectionTargetsByDepPath = new Map<string, string[]>()
+  const skippedLocalDepPaths = new Set<DepPath>()
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -232,6 +239,7 @@ async function buildGraphFromPackages (
           message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
           prefix: opts.lockfileDir,
         })
+        skippedLocalDepPaths.add(depPath)
         return
       }
 
@@ -337,7 +345,52 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
-  return { graph, locationByDepPath, injectionTargetsByDepPath }
+  return { graph, locationByDepPath, injectionTargetsByDepPath, skippedLocalDepPaths }
+}
+
+/**
+ * Promotes dependencies of skipped local packages into importer roots so
+ * downstream traversals reach them when the parent package is omitted.
+ */
+function promoteChildrenOfSkippedLocalDeps (
+  lockfile: LockfileObject,
+  opts: Pick<LockfileToDepGraphOptions, 'include'>,
+  skippedLocalDepPaths: Set<DepPath>,
+  getChildren: (allDeps: Record<string, string>, peerDeps: Set<string> | null, importerId: string) => Record<string, string>,
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+): void {
+  const visited = new Set<DepPath>()
+  const promotedDepsByDepPath = new Map<string, { alias: string, ref: string }>()
+  const queue = [...skippedLocalDepPaths]
+  while (queue.length > 0) {
+    const depPath = queue.pop()!
+    if (visited.has(depPath)) continue
+    visited.add(depPath)
+    const pkgSnapshot = lockfile.packages?.[depPath]
+    if (!pkgSnapshot) continue
+    const childDeps = {
+      ...pkgSnapshot.dependencies,
+      ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+    }
+    for (const [alias, ref] of Object.entries(childDeps)) {
+      const childDepPath = dp.refToRelative(ref, alias)
+      if (childDepPath && skippedLocalDepPaths.has(childDepPath)) {
+        queue.push(childDepPath)
+      } else {
+        const key = childDepPath ?? `${alias}@${ref}`
+        promotedDepsByDepPath.set(key, { alias, ref })
+      }
+    }
+  }
+  if (promotedDepsByDepPath.size === 0) return
+  const targetImporterId = directDependenciesByImporterId['.'] ? '.' : Object.keys(directDependenciesByImporterId)[0]
+  if (!targetImporterId) return
+  for (const [key, { alias, ref }] of promotedDepsByDepPath) {
+    const resolved = getChildren({ [alias]: ref }, null, '.')
+    const dir = resolved[alias]
+    if (!dir) continue
+    directDependenciesByImporterId[targetImporterId][key] = dir
+  }
 }
 
 interface GetChildrenPathsContext {
