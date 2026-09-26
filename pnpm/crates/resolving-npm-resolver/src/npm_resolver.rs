@@ -50,7 +50,6 @@ use store_peek::fast_path_pick;
 
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
-use crate::OfflineStoreView;
 use chrono::{DateTime, Utc};
 use node_semver::Version;
 use pnpm_config::{
@@ -72,6 +71,7 @@ use pnpm_resolving_resolver_base::{
 use ssri::{Algorithm, Integrity};
 
 use crate::{
+    OfflineStoreView,
     errors::{
         AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
         InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,

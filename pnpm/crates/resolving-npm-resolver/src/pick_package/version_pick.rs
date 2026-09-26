@@ -6,8 +6,7 @@ use super::{
     pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
     warn_missing_time_once,
 };
-use crate::OfflineStoreView;
-use crate::PickPackageFromMetaError;
+use crate::{OfflineStoreView, PickPackageFromMetaError};
 use pnpm_store_dir::store_index_key;
 
 /// Whether a pick made from a registry-unverified entry can be returned as

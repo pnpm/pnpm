@@ -59,12 +59,13 @@ pub use metadata_cache::{
     shared_picked_manifest_cache,
 };
 
+pub use offline_store::OfflineStoreView;
+
 mod errors;
 
 mod options;
 
 mod offline_store;
-pub use offline_store::OfflineStoreView;
 
 mod mirror_pick;
 
@@ -559,29 +560,63 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         cached.meta,
     )
     .await?;
-    let mut meta = upgrade.meta;
+    let mut meta = Arc::clone(&upgrade.meta);
     // The upgrade fetch (re)validated the packument against the registry.
     let registry_verified = cached.registry_verified || upgrade.upgraded;
     if upgrade.upgraded && !opts.request.dry_run {
-        if let Some(reloaded) = pkg_mirror.and_then(|path| {
-            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata, upgrade.uncacheable)
-        }) {
-            meta = Arc::new(reloaded);
-        }
-        ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+        persist_upgrade_to_mirror(
+            ctx,
+            pkg_mirror,
+            use_filtered_full_metadata,
+            &upgrade,
+            cache_key,
+            &mut meta,
+        );
     }
     if upgrade.upgraded {
         ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
     }
     let unfiltered_meta = Arc::clone(&meta);
     let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
+    finish_cache_hit_pick(
+        ctx,
+        cache_key,
+        picker_opts,
+        spec,
+        &unfiltered_meta,
+        meta,
+        picked,
+        registry_verified,
+        opts,
+    )
+    .await
+}
+
+/// The picks after the release-age upgrade: the plain preference pick, the
+/// offline store adjustment over the unfiltered packument, and the
+/// registry-unverified guard for non-offline picks.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
+)]
+async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    cache_key: &str,
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    unfiltered_meta: &Arc<Package>,
+    meta: Arc<Package>,
+    picked: Option<Arc<PackageVersion>>,
+    registry_verified: bool,
+    opts: &PickPackageOptions<'_>,
+) -> Result<Option<PickPackageResult>, PickPackageError> {
     let (meta, picked) = if ctx.cache_policy.offline {
         pick_from_meta_offline(
             ctx.store_view,
             cache_key,
             picker_opts,
             spec,
-            &unfiltered_meta,
+            unfiltered_meta,
             meta,
             picked,
             opts.blocked_versions,
@@ -597,6 +632,25 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
         return Ok(None);
     }
     Ok(Some(PickPackageResult { meta, picked_package: picked }))
+}
+
+/// Persists a release-age-upgraded packument back to its mirror and the
+/// in-memory cache. `meta` is replaced by the reloaded mirror document when
+/// the persist produced one.
+fn persist_upgrade_to_mirror<Cache: PackageMetaCache>(
+    ctx: &PickPackageContext<'_, Cache>,
+    pkg_mirror: Option<&Path>,
+    use_filtered_full_metadata: bool,
+    upgrade: &UpgradeOutcome,
+    cache_key: &str,
+    meta: &mut Arc<Package>,
+) {
+    if let Some(reloaded) = pkg_mirror.and_then(|path| {
+        persist_upgraded_to_mirror(path, meta, use_filtered_full_metadata, upgrade.uncacheable)
+    }) {
+        *meta = Arc::new(reloaded);
+    }
+    ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(meta));
 }
 
 #[cfg(test)]
