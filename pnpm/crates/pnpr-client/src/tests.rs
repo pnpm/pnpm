@@ -365,6 +365,18 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 }
 
 #[test]
+fn a_missing_integrity_violation_keeps_its_code_and_structural_hint() {
+    let line = br#"{"type":"violations","violations":[{"name":"acme","version":"1.0.0","code":"MISSING_TARBALL_INTEGRITY","reason":"no integrity"},{"name":"bravo","version":"1.0.0","code":"MINIMUM_RELEASE_AGE_VIOLATION","reason":"young"}]}"#;
+    let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
+        panic!("expected a violations frame");
+    };
+    let verify_err = build_verify_error(violations);
+    assert!(verify_err.to_string().contains("[MISSING_TARBALL_INTEGRITY]"), "got {verify_err}");
+    let help = miette::Diagnostic::help(&verify_err).expect("hint").to_string();
+    assert!(!help.contains("relax the policy"), "got: {help}");
+}
+
+#[test]
 fn a_package_frame_parses_its_fetch_hint() {
     let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3}"#;
     let Frame::Package {
