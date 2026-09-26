@@ -5,6 +5,8 @@ export interface SelectedShell {
 }
 
 export function selectShell (scriptShell: string | undefined, platform: NodeJS.Platform, comspec: string | undefined): SelectedShell {
+  // A blank scriptShell is unset.
+  scriptShell = scriptShell || undefined
   if (platform === 'win32') {
     const sh = scriptShell ?? comspec ?? 'cmd'
     if (scriptShell == null || isCmdExe(scriptShell)) {
@@ -26,9 +28,10 @@ export function useShellEmulator (shellEmulator: boolean | undefined, scriptShel
  * quoted for that shell, including when `shellEmulator` is also set.
  */
 export function commandParsedByCmd (scriptShell: string | undefined, platform: NodeJS.Platform, shellEmulator: boolean | undefined): boolean {
-  if (useShellEmulator(shellEmulator, scriptShell)) return false
+  const shell = scriptShell || undefined
+  if (useShellEmulator(shellEmulator, shell)) return false
   if (platform !== 'win32') return false
-  return scriptShell == null || isCmdExe(scriptShell)
+  return shell == null || isCmdExe(shell)
 }
 
 function isCmdExe (shellPath: string): boolean {

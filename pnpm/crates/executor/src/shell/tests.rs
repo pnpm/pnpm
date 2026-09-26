@@ -46,6 +46,17 @@ fn shell_emulator_applies_only_when_script_shell_is_unset() {
 }
 
 #[test]
+fn blank_script_shell_falls_back_like_an_unset_one() {
+    for is_windows in [false, true] {
+        let blank = select_shell(Some(Path::new("")), is_windows).expect("blank shell");
+        let unset = select_shell(None, is_windows).expect("unset shell");
+        assert_eq!(blank, unset, "is_windows={is_windows}");
+    }
+    assert!(use_shell_emulator(true, Some(Path::new(""))));
+    assert!(!use_shell_emulator(false, Some(Path::new(""))));
+}
+
+#[test]
 fn custom_script_shell_wins_on_both_platforms() {
     let custom = Path::new("/usr/local/bin/bash");
     for is_windows in [false, true] {

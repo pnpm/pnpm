@@ -35,6 +35,15 @@ test('passes -c to a scriptShell named cmd on POSIX', () => {
 
 const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
+test('a blank scriptShell falls back like an unset one', () => {
+  expect(selectShell('', 'linux', undefined)).toEqual(selectShell(undefined, 'linux', undefined))
+  expect(selectShell('', 'win32', 'C:\\Windows\\system32\\cmd.exe')).toEqual(
+    selectShell(undefined, 'win32', 'C:\\Windows\\system32\\cmd.exe')
+  )
+  expect(commandParsedByCmd('', 'win32', false)).toBe(true)
+  expect(commandParsedByCmd('', 'win32', true)).toBe(false)
+})
+
 test('shellEmulator applies only when scriptShell is unset', () => {
   expect(useShellEmulator(true, undefined)).toBe(true)
   expect(useShellEmulator(true, '')).toBe(true)
