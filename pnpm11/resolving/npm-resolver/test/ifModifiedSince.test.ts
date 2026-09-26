@@ -100,6 +100,29 @@ test('cached metadata reports NO_OFFLINE_META without registry access when offli
   getMockAgent().assertNoPendingInterceptors()
 })
 
+test('cached metadata names the pre-rename mirror when offline metadata exists only under the old layout', async () => {
+  const cacheDir = temporaryDirectory()
+  const legacyMirrorDir = path.join(cacheDir, FULL_META_DIR, 'registry.npmjs.org')
+  fs.mkdirSync(legacyMirrorDir, { recursive: true })
+  const legacyMirror = path.join(legacyMirrorDir, 'is-positive.jsonl')
+  fs.writeFileSync(legacyMirror, '{}\n{}')
+
+  await expect(fetchFullMetadataCached({
+    fetch,
+    retry: { retries: 0 },
+    timeout: 30_000,
+    fetchWarnTimeoutMs: 30_000,
+  }, 'is-positive', {
+    cacheDir,
+    registry: registriesByScope.default,
+    offline: true,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_OFFLINE_META',
+    hint: expect.stringContaining(legacyMirror),
+  })
+  getMockAgent().assertNoPendingInterceptors()
+})
+
 test('use local cache when registry returns 304 Not Modified', async () => {
   const cacheDir = temporaryDirectory()
   // Write cached metadata with etag to disk in NDJSON format:
