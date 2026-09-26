@@ -161,18 +161,20 @@ async function handle(req) {
       if (!newPkg || typeof newPkg !== "object" || Array.isArray(newPkg)) {
         throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
       }
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
-        const v = newPkg[dep];
-        if (v != null && (typeof v !== "object" || Array.isArray(v))) {
-          throw new BadReadPackageResultError("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
-        }
-        for (const [name, range] of Object.entries(v ?? {})) {
-          if (typeof range !== "string") {
-            throw new BadReadPackageResultError("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
-          }
-        }
+      validatePackageDependencies(newPkg);
+      let response;
+      let serializedPkg;
+      try {
+        response = JSON.stringify({ id, ok: newPkg });
+        serializedPkg = JSON.parse(response).ok;
+      } catch {
+        throw new BadReadPackageResultError("readPackage hook did not return a serializable package manifest object.");
       }
-      send({ ok: newPkg });
+      if (!serializedPkg || typeof serializedPkg !== "object" || Array.isArray(serializedPkg)) {
+        throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
+      }
+      validatePackageDependencies(serializedPkg);
+      process.stdout.write(response + '\n');
     } else if (req.hook === 'beforePacking') {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
@@ -196,4 +198,18 @@ async function handle(req) {
 function describePackage(pkg) {
   if (typeof pkg.name !== "string" || !pkg.name) return "an unnamed package";
   return typeof pkg.version === "string" && pkg.version ? pkg.name + "@" + pkg.version : pkg.name;
+}
+
+function validatePackageDependencies(pkg) {
+  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    const v = pkg[dep];
+    if (v != null && (typeof v !== "object" || Array.isArray(v))) {
+      throw new BadReadPackageResultError("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
+    }
+    for (const [name, range] of Object.entries(v ?? {})) {
+      if (typeof range !== "string") {
+        throw new BadReadPackageResultError("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(pkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
+      }
+    }
+  }
 }
