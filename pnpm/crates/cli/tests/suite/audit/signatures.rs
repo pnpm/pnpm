@@ -342,7 +342,7 @@ snapshots: {}
     assert!(
         stderr(&output).contains("ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY"),
         "stderr:\n{}",
-        stderr(&output)
+        stderr(&output),
     );
 }
 
