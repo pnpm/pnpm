@@ -15,6 +15,7 @@ mod capabilities;
 mod non_interactive;
 
 use std::{
+    collections::BTreeSet,
     fs, io,
     io::Read,
     path::{Path, PathBuf},
@@ -74,8 +75,13 @@ pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
         .is_ok_and(|output| output.success && output.stdout.trim() == "HEAD")
 }
 
-/// The local branches that contain HEAD, sorted, or empty when git cannot
-/// answer — a repository without commits, or no repository at all.
+/// The branches that contain HEAD, sorted, or empty when git cannot answer —
+/// a repository without commits, or no repository at all.
+///
+/// Remote-tracking branches count under their branch name, because a CI
+/// checkout of a commit SHA usually has no local branch at all. The remote
+/// name is taken to be the first segment after `refs/remotes/`, and symbolic
+/// refs such as `origin/HEAD` are skipped.
 ///
 /// An attached HEAD is contained in its own branch and every ancestor branch,
 /// so a caller that wants "the branch HEAD is on" must ask
@@ -84,7 +90,14 @@ pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
 pub fn get_branches_containing_head<Sys: RunCommand>(cwd: &Path) -> Vec<String> {
     let Ok(output) = Sys::run(
         "git",
-        &["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"],
+        &[
+            "for-each-ref",
+            "refs/heads",
+            "refs/remotes",
+            "--contains",
+            "HEAD",
+            "--format=%(refname) %(symref)",
+        ],
         Some(cwd),
     ) else {
         return Vec::new();
@@ -92,14 +105,29 @@ pub fn get_branches_containing_head<Sys: RunCommand>(cwd: &Path) -> Vec<String> 
     if !output.success {
         return Vec::new();
     }
-    let mut branches: Vec<String> = output.stdout
+    let branches: BTreeSet<&str> = output.stdout
         .lines()
-        .map(str::trim)
-        .filter(|branch| !branch.is_empty())
-        .map(String::from)
+        .filter_map(|line| {
+            let (ref_name, symref) = line.split_once(' ')?;
+            symref
+                .trim()
+                .is_empty()
+                .then_some(ref_name)
+        })
+        .filter_map(branch_name_of_ref)
         .collect();
-    branches.sort();
     branches
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
+fn branch_name_of_ref(ref_name: &str) -> Option<&str> {
+    if let Some(branch) = ref_name.strip_prefix("refs/heads/") {
+        return Some(branch);
+    }
+    let (_remote, branch) = ref_name.strip_prefix("refs/remotes/")?.split_once('/')?;
+    Some(branch)
 }
 
 /// The outcomes of reading `.git/HEAD`.

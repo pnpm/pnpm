@@ -182,11 +182,26 @@ impl RunCommand for GitSaysFeatureAndMain {
         assert_eq!(program, "git");
         assert_eq!(
             args,
-            ["for-each-ref", "refs/heads", "--contains", "HEAD", "--format=%(refname:short)"],
+            [
+                "for-each-ref",
+                "refs/heads",
+                "refs/remotes",
+                "--contains",
+                "HEAD",
+                "--format=%(refname) %(symref)",
+            ],
         );
         Ok(CommandOutput {
             success: true,
-            stdout: "main\nfeature\n".to_string(),
+            stdout: [
+                "refs/heads/main ",
+                "refs/heads/feature ",
+                "refs/remotes/origin/HEAD refs/remotes/origin/main",
+                "refs/remotes/origin/main ",
+                "refs/remotes/upstream/fix/login ",
+                "",
+            ]
+            .join("\n"),
             stderr: String::new(),
         })
     }
@@ -209,10 +224,10 @@ impl RunCommand for GitFailsForEachRef {
 }
 
 #[test]
-fn lists_the_local_branches_containing_head_sorted() {
+fn lists_the_local_and_remote_tracking_branches_containing_head_sorted() {
     assert_eq!(
         get_branches_containing_head::<GitSaysFeatureAndMain>(std::path::Path::new(".")),
-        ["feature", "main"],
+        ["feature", "fix/login", "main"],
     );
 }
 

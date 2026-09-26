@@ -31,24 +31,48 @@ export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<strin
 }
 
 /**
- * The local branches that contain HEAD, sorted, or an empty array when git
- * cannot answer — a repository without commits, or no repository at all.
+ * The branches that contain HEAD, sorted, or an empty array when git cannot
+ * answer — a repository without commits, or no repository at all.
+ *
+ * Remote-tracking branches count under their branch name, because a CI
+ * checkout of a commit SHA usually has no local branch at all. The remote
+ * name is taken to be the first segment after `refs/remotes/`, and symbolic
+ * refs such as `origin/HEAD` are skipped.
  *
  * An attached HEAD is contained in its own branch and every ancestor branch,
  * so a caller that wants "the branch HEAD is on" must ask
  * {@link getCurrentBranch} first and use this only when it answers null.
  */
 export async function getBranchesContainingHead (opts: GitCwdOptions = {}): Promise<string[]> {
+  let refList: string
   try {
-    const { stdout } = await execa('git', ['for-each-ref', 'refs/heads', '--contains', 'HEAD', '--format=%(refname:short)'], { cwd: opts.cwd })
-    return String(stdout)
-      .split('\n')
-      .map((branch) => branch.trim())
-      .filter(Boolean)
-      .sort()
+    const { stdout } = await execa('git', ['for-each-ref', 'refs/heads', 'refs/remotes', '--contains', 'HEAD', '--format=%(refname) %(symref)'], { cwd: opts.cwd })
+    refList = String(stdout)
   } catch {
     return []
   }
+  const branches = new Set<string>()
+  for (const line of refList.split('\n')) {
+    const [refName, symref] = line.trim().split(' ')
+    if (!refName || symref) continue
+    const branch = branchNameOfRef(refName)
+    if (branch) {
+      branches.add(branch)
+    }
+  }
+  return [...branches].sort()
+}
+
+function branchNameOfRef (refName: string): string | undefined {
+  if (refName.startsWith('refs/heads/')) {
+    return refName.slice('refs/heads/'.length)
+  }
+  if (refName.startsWith('refs/remotes/')) {
+    const remoteRef = refName.slice('refs/remotes/'.length)
+    const slashIndex = remoteRef.indexOf('/')
+    return slashIndex === -1 ? undefined : remoteRef.slice(slashIndex + 1)
+  }
+  return undefined
 }
 
 /** Returns false when Git cannot verify HEAD or HEAD refers to a branch. */

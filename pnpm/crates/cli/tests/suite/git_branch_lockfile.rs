@@ -441,6 +441,57 @@ fn a_detached_head_reads_the_lockfile_of_the_branch_containing_the_commit() {
     drop((root, mock_instance));
 }
 
+/// A CI checkout of a commit SHA usually has no local branch, only the
+/// remote-tracking ref it fetched. That ref names the branch whose lockfile
+/// the frozen install reads.
+#[test]
+fn a_detached_head_reads_the_lockfile_of_the_remote_tracking_branch_containing_the_commit() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    git(&workspace, &["init", "-q", "-b", "main", "--template="]);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.0.0" }));
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    git(&workspace, &["add", "-A"]);
+    git(&workspace, &["commit", "-qm", "main"]);
+
+    git(&workspace, &["checkout", "-qb", "feature"]);
+    write_dependencies(&workspace, &serde_json::json!({ "@pnpm.e2e/foo": "1.2.0" }));
+    git(&workspace, &["add", "-A"]);
+    git(&workspace, &["commit", "-qm", "feature"]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("pnpm-lock.feature.yaml").exists(),
+        "the branch install writes the branch lockfile",
+    );
+
+    git(&workspace, &["update-ref", "refs/remotes/origin/feature", "HEAD"]);
+    git(&workspace, &["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feature"]);
+    git(&workspace, &["checkout", "-q", "--detach"]);
+    git(&workspace, &["branch", "-q", "-D", "feature"]);
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the shared lockfile stays unwritten on a detached frozen install",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A detached HEAD whose commit belongs to branches that have no lockfile
 /// of their own leaves the read nothing to fall back to, and the frozen
 /// install still reports the absent shared one.
