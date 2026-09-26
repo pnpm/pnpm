@@ -55,6 +55,41 @@ describe('audit', () => {
 
     expect(result.request).toEqual({ foo: ['1.0.0'], constructor: ['1.0.0'] })
   })
+  test('lockfileToAuditRequest() throws LockfileMissingDependencyError on missing direct dependency', () => {
+    expect(() => lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {},
+    }, {})).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY',
+    }))
+  })
+
+  test('lockfileToAuditRequest() throws LockfileMissingDependencyError on missing transitive dependency', () => {
+    expect(() => lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { bar: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY',
+    }))
+  })
+
 
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
     const lockfile = {
