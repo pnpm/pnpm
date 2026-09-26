@@ -7,7 +7,7 @@ jest.unstable_mockModule('@pnpm/network.git-utils', () => ({
 }))
 
 const { getCurrentBranch, getBranchesContainingHead } = await import('@pnpm/network.git-utils')
-const { getWantedLockfileName, getWantedLockfileNames } = await import('../lib/lockfileName.js')
+const { getWantedLockfileName, selectWantedLockfile } = await import('../lib/lockfileName.js')
 
 describe('lockfileName', () => {
   afterEach(() => {
@@ -41,37 +41,53 @@ describe('lockfileName', () => {
     expect(jest.mocked(getCurrentBranch)).toHaveBeenCalledWith({ cwd: '/some/workspace' })
   })
 
-  test('getWantedLockfileNames returns no branch lockfile when useGitBranchLockfile is off', async () => {
+  test('selectWantedLockfile names the shared lockfile when useGitBranchLockfile is off', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
-    await expect(getWantedLockfileNames()).resolves.toEqual([])
+    await expect(selectWantedLockfile()).resolves.toStrictEqual({
+      fileName: WANTED_LOCKFILE,
+      detachedHeadCandidates: [],
+    })
   })
 
-  test('getWantedLockfileNames returns no branch lockfile under mergeGitBranchLockfiles', async () => {
+  test('selectWantedLockfile names the shared lockfile under mergeGitBranchLockfiles', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
     await expect(
-      getWantedLockfileNames({ useGitBranchLockfile: true, mergeGitBranchLockfiles: true })
-    ).resolves.toEqual([])
+      selectWantedLockfile({ useGitBranchLockfile: true, mergeGitBranchLockfiles: true })
+    ).resolves.toStrictEqual({ fileName: WANTED_LOCKFILE, detachedHeadCandidates: [] })
   })
 
-  test('getWantedLockfileNames returns the current branch lockfile', async () => {
+  test('selectWantedLockfile names the current branch lockfile', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('feature/Login'))
-    await expect(getWantedLockfileNames({ useGitBranchLockfile: true })).resolves.toEqual([
-      'pnpm-lock.feature!login.yaml',
-    ])
+    await expect(selectWantedLockfile({ useGitBranchLockfile: true })).resolves.toStrictEqual({
+      fileName: 'pnpm-lock.feature!login.yaml',
+      detachedHeadCandidates: [],
+    })
   })
 
-  test('getWantedLockfileNames returns the lockfiles of the branches containing a detached HEAD', async () => {
+  test('selectWantedLockfile lists the lockfiles of the branches containing a detached HEAD', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
     jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve(['feature', 'main']))
-    await expect(getWantedLockfileNames({ useGitBranchLockfile: true })).resolves.toEqual([
-      'pnpm-lock.feature.yaml',
-      'pnpm-lock.main.yaml',
-    ])
+    await expect(selectWantedLockfile({ useGitBranchLockfile: true })).resolves.toStrictEqual({
+      fileName: WANTED_LOCKFILE,
+      detachedHeadCandidates: ['pnpm-lock.feature.yaml', 'pnpm-lock.main.yaml'],
+    })
   })
 
-  test('getWantedLockfileNames returns no branch lockfile when nothing contains the detached HEAD', async () => {
+  test('selectWantedLockfile skips a detached HEAD candidate too long to be a file name', async () => {
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+    jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve(['a'.repeat(250), 'main']))
+    await expect(selectWantedLockfile({ useGitBranchLockfile: true })).resolves.toStrictEqual({
+      fileName: WANTED_LOCKFILE,
+      detachedHeadCandidates: ['pnpm-lock.main.yaml'],
+    })
+  })
+
+  test('selectWantedLockfile has no candidates when nothing contains the detached HEAD', async () => {
     jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
     jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve([]))
-    await expect(getWantedLockfileNames({ useGitBranchLockfile: true })).resolves.toEqual([])
+    await expect(selectWantedLockfile({ useGitBranchLockfile: true })).resolves.toStrictEqual({
+      fileName: WANTED_LOCKFILE,
+      detachedHeadCandidates: [],
+    })
   })
 })

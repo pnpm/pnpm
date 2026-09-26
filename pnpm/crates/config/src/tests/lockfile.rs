@@ -97,3 +97,11 @@ pub fn a_detached_head_leaves_the_install_on_the_shared_lockfile() {
     assert_eq!(config.git_branch_lockfile_name, None);
     assert_eq!(config.wanted_lockfile_name(), "pnpm-lock.yaml");
 }
+
+/// A branch name that makes the lockfile name longer than a filesystem
+/// allows cannot have a lockfile on disk, so it is not a candidate.
+#[test]
+pub fn a_detached_head_skips_candidates_too_long_to_be_a_file_name() {
+    let branches = ["a".repeat(250), "main".to_string()];
+    assert_eq!(crate::layout::detached_head_candidates(&branches), ["pnpm-lock.main.yaml"],);
+}

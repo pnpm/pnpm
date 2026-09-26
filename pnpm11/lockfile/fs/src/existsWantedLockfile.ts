@@ -1,9 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-
-import { getWantedLockfileNames } from './lockfileName.js'
+import { selectWantedLockfile } from './lockfileName.js'
 
 interface ExistsNonEmptyWantedLockfileOptions {
   useGitBranchLockfile?: boolean
@@ -14,16 +12,16 @@ export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: Exist
   useGitBranchLockfile: false,
   mergeGitBranchLockfiles: false,
 }): Promise<boolean> {
-  const wantedLockfileNames: string[] = await getWantedLockfileNames(opts)
-  // On a detached HEAD the read falls back to the lockfiles of the branches
-  // containing the commit; any of them counts, as does the shared lockfile
-  // they are tried before. Everywhere else the branch lockfile, when one is
-  // named, is the only file that counts.
-  const names = wantedLockfileNames.length > 0
-    ? [...wantedLockfileNames, WANTED_LOCKFILE]
-    : [WANTED_LOCKFILE]
-  const existence = await Promise.all(names.map((name) => fileExists(path.join(pkgPath, name))))
-  return existence.includes(true)
+  const { fileName, detachedHeadCandidates } = await selectWantedLockfile(opts)
+  if (detachedHeadCandidates.length === 0) {
+    return fileExists(path.join(pkgPath, fileName))
+  }
+  /* eslint-disable no-await-in-loop */
+  for (const candidate of [...detachedHeadCandidates, fileName]) {
+    if (await fileExists(path.join(pkgPath, candidate))) return true
+  }
+  /* eslint-enable no-await-in-loop */
+  return false
 }
 
 function fileExists (filePath: string): Promise<boolean> {

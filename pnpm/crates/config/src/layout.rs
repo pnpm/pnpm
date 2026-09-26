@@ -462,14 +462,8 @@ impl Config {
         if !self.use_git_branch_lockfile || self.merge_git_branch_lockfiles {
             return;
         }
-        let branches = get_branches_containing_head::<GitHost>(cwd);
-        if branches.is_empty() {
-            return;
-        }
-        self.git_branch_lockfile_candidates = branches
-            .iter()
-            .map(|branch| Lockfile::git_branch_file_name(branch))
-            .collect();
+        self.git_branch_lockfile_candidates =
+            detached_head_candidates(&get_branches_containing_head::<GitHost>(cwd));
     }
 
     /// Record the settings `settings` sets in [`Self::explicit_settings`],
@@ -661,4 +655,16 @@ pub(crate) fn project_relative_modules_dir<'a>(
         && components.all(|component| matches!(component, std::path::Component::Normal(_)))
         && modules_dir.ends_with(relative))
     .then_some(relative)
+}
+
+/// The lockfile names of `branches`, without the ones longer than a
+/// filesystem allows: such a file cannot be on disk, and probing it fails
+/// with `ENAMETOOLONG` instead of reporting it absent.
+pub(crate) fn detached_head_candidates(branches: &[String]) -> Vec<String> {
+    const MAX_FILE_NAME_LENGTH: usize = 255;
+    branches
+        .iter()
+        .map(|branch| Lockfile::git_branch_file_name(branch))
+        .filter(|file_name| file_name.len() <= MAX_FILE_NAME_LENGTH)
+        .collect()
 }
