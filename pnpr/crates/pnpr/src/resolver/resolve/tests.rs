@@ -329,3 +329,49 @@ fn assert_workspace_link(lockfile: &Lockfile, importer: &str, alias: &str, expec
         version => panic!("expected workspace link, got {version:?}"),
     }
 }
+
+#[test]
+fn a_frozen_request_without_catalogs_reuses_a_lockfile_with_recorded_catalogs() {
+    // The deploy-style client sends no catalogs at all: with no
+    // pnpm-workspace.yaml, the lockfile's recorded snapshot is the only
+    // catalog configuration there is, so the reuse must go through
+    // (pnpm/pnpm#10551).
+    let config = Config::new();
+    let request: ResolveRequest = serde_json::from_value(serde_json::json!({
+        "frozenLockfile": true,
+        "ignoreManifestCheck": true,
+        "lockfile": {
+            "lockfileVersion": "9.0",
+            "importers": { ".": {} },
+            "catalogs": {
+                "default": { "lib": { "specifier": "^1.0.0", "version": "1.2.3" } },
+            },
+        },
+    }))
+    .expect("resolve request parses");
+
+    assert!(super::fresh_frozen_input_lockfile(&config, &request).is_some());
+}
+
+#[test]
+fn a_frozen_request_with_an_empty_catalogs_object_reports_catalog_drift() {
+    // An explicit empty map means the client had a workspace manifest and it
+    // declares no catalogs, so recorded catalogs with nothing behind them
+    // must refuse the frozen reuse rather than be treated like an omission.
+    let config = Config::new();
+    let request: ResolveRequest = serde_json::from_value(serde_json::json!({
+        "frozenLockfile": true,
+        "ignoreManifestCheck": true,
+        "catalogs": {},
+        "lockfile": {
+            "lockfileVersion": "9.0",
+            "importers": { ".": {} },
+            "catalogs": {
+                "default": { "lib": { "specifier": "^1.0.0", "version": "1.2.3" } },
+            },
+        },
+    }))
+    .expect("resolve request parses");
+
+    assert!(super::fresh_frozen_input_lockfile(&config, &request).is_none());
+}
