@@ -550,7 +550,22 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
     cmd += `@${prog} ${args} ${target} ${progArgs}%*\r\n`
   }
 
-  return cmd
+  return withUtf8Codepage(cmd)
+}
+
+function withUtf8Codepage (cmd: string): string {
+  if (Buffer.byteLength(cmd) === cmd.length) return cmd
+  const header = '@SETLOCAL\r\n'
+  return `${header}\
+@SET "_PNPM_CODEPAGE="\r
+@FOR /F "tokens=2 delims=:" %%a IN ('"%SystemRoot%\\System32\\chcp.com"') DO @SET "_PNPM_CODEPAGE=%%a"\r
+@"%SystemRoot%\\System32\\chcp.com" 65001 >NUL\r
+@SET "ERRORLEVEL="\r
+${cmd.slice(header.length)}\
+@SET "_PNPM_EXIT_CODE=%ERRORLEVEL%"\r
+@IF DEFINED _PNPM_CODEPAGE @"%SystemRoot%\\System32\\chcp.com" %_PNPM_CODEPAGE% >NUL\r
+@EXIT /B %_PNPM_EXIT_CODE%\r
+`
 }
 
 /**
