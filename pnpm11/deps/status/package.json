@@ -40,6 +40,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.read-package-hook": "workspace:*",
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
@@ -49,7 +50,8 @@
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "semver": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -59,7 +61,8 @@
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

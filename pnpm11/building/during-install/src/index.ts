@@ -1,16 +1,19 @@
 import assert from 'node:assert'
+import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
+import { DirLock } from '@pnpm/fs.dir-lock'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -27,12 +30,21 @@ import type {
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 import pDefer, { type DeferredPromise } from 'p-defer'
+import { pathExists } from 'path-exists'
 import { pickBy } from 'ramda'
 
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
 export type { DepsStateCache }
+
+const NEEDS_BUILD_MARKER = '.pnpm-needs-build'
+const STARTED_BUILD_MARKER_CONTENT = 'started'
+const SLOT_LOCK_DIR = '.pnpm-build.lock'
+const SLOT_LOCK_WAIT_MS = 10 * 60_000
+// Comfortably above how long a build can take, so a live holder never has its lock stolen mid-build.
+const SLOT_LOCK_ABANDONED_MS = 30 * 60_000
 
 export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
@@ -47,6 +59,11 @@ export async function buildModules<T extends string> (
     extraEnv?: Record<string, string>
     ignoreScripts?: boolean
     lockfileDir: string
+    /**
+     * The root project's `engines.runtime` Node version, which keys the
+     * side-effects cache of every package that does not pin its own.
+     */
+    nodeVersion?: string
     optional: boolean
     preferSymlinkedExecutables?: boolean
     unsafePerm: boolean
@@ -64,6 +81,15 @@ export async function buildModules<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
+    /**
+     * The `node_modules` directories of the installed projects and the hoisted
+     * one. A skipped optional dependency's links are removed from them.
+     */
+    linkedModulesDirs?: string[]
+    skipped?: Set<DepPath>
   }
 ): Promise<{ ignoredBuilds?: IgnoredBuilds }> {
   if (!rootDepPaths.length) return {}
@@ -72,15 +98,9 @@ export async function buildModules<T extends string> (
   }
   // postinstall hooks
 
-  // Resolved `engines.runtime` Node version (when the project pins
-  // one) so each per-snapshot side-effects-cache key reflects the
-  // script-runner Node. Computed once over the install-wide graph
-  // and threaded into [`buildDependency`] via [`buildDepOpts`].
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
   const buildDepOpts = {
     ...opts,
     builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
-    nodeVersion,
     warn,
   }
   const dependencyGraph = buildGraph<T>(depGraph, rootDepPaths)
@@ -238,6 +258,15 @@ async function buildDependency<T extends string> (
     pnprServer?: string
     remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
     supportedArchitectures?: SupportedArchitectures
+    engineStrict?: boolean
+    /** Node version the installability check used. Separate from the script runner. */
+    engineNodeVersion?: string
+    /**
+     * The `node_modules` directories of the installed projects and the hoisted
+     * one. A skipped optional dependency's links are removed from them.
+     */
+    linkedModulesDirs?: string[]
+    skipped?: Set<DepPath>
     warn: (message: string) => void
   }
 ): Promise<void> {
@@ -251,7 +280,13 @@ async function buildDependency<T extends string> (
     opts.builtHoistedDeps[depNode.depPath] = pDefer()
   }
   let buildSucceeded = false
+  let slotLock: DirLock | undefined
   try {
+    if (opts.enableGlobalVirtualStore && (depNode.patch != null || !opts.ignoreScripts)) {
+      const slotBuild = await lockSlotForBuild(depNode, opts.lockfileDir)
+      if (slotBuild == null) return
+      slotLock = slotBuild.lock
+    }
     await linkBinsOfDependencies(depNode, depGraph, opts)
     let isPatched = false
     if (depNode.patch) {
@@ -262,6 +297,30 @@ async function buildDependency<T extends string> (
         )
       }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
+      if (isPatched && opts.engineStrict) {
+        const patched = await safeReadPackageJsonFromDir(depNode.dir)
+        if (patched == null) {
+          throw new PnpmError(
+            'PATCHED_MANIFEST_UNREADABLE',
+            `Cannot read the patched package.json of ${depPath}`
+          )
+        }
+        const installable = packageIsInstallable(depPath, {
+          name: patched.name ?? '',
+          version: patched.version ?? '0.0.0',
+          engines: patched.engines,
+        }, {
+          engineStrict: !depNode.optional,
+          lockfileDir: opts.lockfileDir,
+          nodeVersion: opts.engineNodeVersion ?? opts.nodeVersion,
+          optional: depNode.optional,
+          supportedArchitectures: opts.supportedArchitectures,
+        })
+        if (installable === false) {
+          await removeIncompatibleOptional(depPath, depNode, depGraph, opts)
+          return
+        }
+      }
     }
     // A patch can add install scripts - or a binding.gyp, which the lifecycle
     // runner turns into `node-gyp rebuild` - to a package that published
@@ -292,10 +351,16 @@ async function buildDependency<T extends string> (
       unsafePerm: opts.unsafePerm || false,
       userAgent: opts.userAgent,
     })
+    // A package whose build was withheld - the allow-build policy said so, or
+    // ignoreScripts did - must not be cached as if it were built. The entry
+    // the patch alone produced would replay on the install that finally runs
+    // the build, and the scripts would never get their chance.
+    const buildPending = requiresBuild && ignoreScripts
     // Remove the .pnpm-needs-build marker before uploading side effects,
     // so it doesn't get cached as part of the package's side effects diff.
-    if (opts.enableGlobalVirtualStore) {
-      await fs.unlink(path.join(depNode.dir, '.pnpm-needs-build')).catch(() => {})
+    // A withheld build keeps it, so the install that runs the build finds it.
+    if (opts.enableGlobalVirtualStore && !buildPending) {
+      await fs.unlink(path.join(depNode.dir, NEEDS_BUILD_MARKER)).catch(() => {})
     }
     // frozenStore opens the store read-only, so the side-effects cache (which
     // lives in the store) cannot be written. extendInstallOptions already forces
@@ -306,11 +371,6 @@ async function buildDependency<T extends string> (
       opts.pnprServer != null &&
       opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
-    // A package whose build was withheld - the allow-build policy said so, or
-    // ignoreScripts did - must not be cached as if it were built. The entry
-    // the patch alone produced would replay on the install that finally runs
-    // the build, and the scripts would never get their chance.
-    const buildPending = requiresBuild && ignoreScripts
     if ((isPatched || hasSideEffects) && !buildPending && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
@@ -350,17 +410,12 @@ async function buildDependency<T extends string> (
     buildSucceeded = true
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
-    // In GVS mode, remove the entire hash directory so the next install
-    // sees the directory is absent, re-fetches, and re-builds.
-    if (opts.enableGlobalVirtualStore) {
-      // `depNode.modules` is `<hashDir>/node_modules`, so its parent is the
-      // hash directory for scoped and unscoped names alike. Deriving it from
-      // `depNode.dir` instead would land on `node_modules` for a scoped name,
-      // whose extra path segment makes `../..` one level short.
-      const hashDir = path.dirname(depNode.modules)
-      await fs.rm(hashDir, { recursive: true, force: true })
-    }
     if (depNode.optional) {
+      // Without the lock another install may be writing into the shared
+      // slot, so the slot is kept, marked for the next install to rebuild.
+      if (!opts.enableGlobalVirtualStore || slotLock != null) {
+        await removeSkippedOptionalDependency(depNode, opts)
+      }
       // TODO: add parents field to the log
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
@@ -376,6 +431,7 @@ async function buildDependency<T extends string> (
     }
     throw err
   } finally {
+    await slotLock?.release()
     if (buildSucceeded) {
       const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
       if (hoistedLocationsOfDep) {
@@ -395,6 +451,201 @@ async function buildDependency<T extends string> (
       opts.builtHoistedDeps[depNode.depPath].resolve()
     }
   }
+}
+
+/**
+ * Serializes builds into one global virtual store slot across processes, and
+ * marks the slot as mid-build before the build writes into it. Resolves to
+ * `undefined` when another install built the slot while this one waited for
+ * its lock, or when another install's build of it did not finish.
+ */
+async function lockSlotForBuild<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<{ lock?: DirLock } | undefined> {
+  const marker = path.join(depNode.dir, NEEDS_BUILD_MARKER)
+  const awaitingBuild = await pathExists(marker)
+  const lock = await lockGlobalVirtualStoreSlot(depNode.modules)
+  if (await isStartedBuildMarker(marker) || (awaitingBuild && !await pathExists(marker))) {
+    await lock?.release()
+    return undefined
+  }
+  await markBuildStarted(depNode, lockfileDir)
+  return { lock }
+}
+
+/**
+ * Takes the lock that serializes writes into one global virtual store slot
+ * across processes: builds, and re-imports of a slot that still carries its
+ * `.pnpm-needs-build` marker. `slotModulesDir` is the slot's `node_modules`.
+ * Resolves to `undefined` when the lock cannot be taken, and the caller then
+ * writes without it: the lock avoids a race, and a race lost is better than
+ * an install that refuses to run.
+ */
+export async function lockGlobalVirtualStoreSlot (slotModulesDir: string): Promise<DirLock | undefined> {
+  const lockPath = path.join(path.dirname(slotModulesDir), SLOT_LOCK_DIR)
+  try {
+    return await DirLock.acquire(lockPath, { waitMs: SLOT_LOCK_WAIT_MS, abandonedMs: SLOT_LOCK_ABANDONED_MS })
+  } catch (err: unknown) {
+    logger.debug({ message: `Failed to lock ${lockPath}`, error: err })
+    return undefined
+  }
+}
+
+/**
+ * Whether the slot's build started and then failed, or its process died,
+ * leaving files the build may have changed. Only a re-import of the pristine
+ * files, which rewrites the marker empty, makes it safe to build. A missing
+ * marker resolves to `false`; any other read failure rejects, since the slot's
+ * state is then unknown.
+ */
+async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
+  try {
+    const content = await fs.readFile(markerPath, 'utf8')
+    return content === STARTED_BUILD_MARKER_CONTENT
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
+/**
+ * A successful build removes the marker. A failed patch or build script, or a
+ * process that dies mid-build, leaves it in place instead of the slot being
+ * removed, because other projects may already link the shared slot. The next
+ * install that reaches it then re-imports its pristine files and builds again.
+ */
+async function markBuildStarted<T extends string> (depNode: DependenciesGraphNode<T>, lockfileDir: string): Promise<void> {
+  try {
+    await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), STARTED_BUILD_MARKER_CONTENT)
+  } catch (err: unknown) {
+    assert(util.types.isNativeError(err))
+    if ('code' in err && err.code === 'ENOENT') return
+    logger.warn({
+      error: err,
+      message: `Failed to mark ${depNode.dir} as mid-build`,
+      prefix: lockfileDir,
+    })
+  }
+}
+
+async function removeIncompatibleOptional<T extends string> (
+  depPath: T,
+  depNode: DependenciesGraphNode<T>,
+  depGraph: DependenciesGraph<T>,
+  opts: {
+    enableGlobalVirtualStore?: boolean
+    hoistedLocations?: Record<string, string[]>
+    linkedModulesDirs?: string[]
+    lockfileDir: string
+    skipped?: Set<DepPath>
+  }
+): Promise<void> {
+  depNode.installable = false
+  opts.skipped?.add(depNode.depPath)
+  if (opts.hoistedLocations != null) {
+    const copies = opts.hoistedLocations[depNode.depPath] ?? []
+    await removeAll([depNode.dir, ...copies.map((location) => path.join(opts.lockfileDir, location))])
+    return
+  }
+  const removed = await linksTo(depNode.dir, opts.linkedModulesDirs ?? [])
+  // A global virtual store slot, and the links between slots, are shared with
+  // every other project that resolves to them.
+  if (!opts.enableGlobalVirtualStore) {
+    removed.push(depNode.dir)
+    for (const node of Object.values(depGraph) as Array<DependenciesGraphNode<T>>) {
+      for (const [alias, child] of Object.entries(node.children)) {
+        if (child !== depPath) continue
+        const link = containedNodeModulesLink(node.modules, alias)
+        if (link != null) removed.push(link)
+      }
+    }
+  }
+  await removeAll(removed)
+}
+
+async function removeAll (paths: string[]): Promise<void> {
+  await Promise.all(paths.map(async (target) => fs.rm(target, { recursive: true, force: true })))
+}
+
+async function linksTo (target: string, modulesDirs: string[]): Promise<string[]> {
+  const realTarget = await realpathOrUndefined(target)
+  if (realTarget == null) return []
+  const candidates = (await Promise.all(modulesDirs.map(listModulesDirEntries))).flat()
+  const matches = await Promise.all(candidates.map(async (candidate) =>
+    await realpathOrUndefined(candidate) === realTarget ? candidate : undefined
+  ))
+  return matches.filter((match): match is string => match != null)
+}
+
+/**
+ * The links in a `node_modules` directory, including those inside scope
+ * directories. A scope directory that is itself a link is not followed.
+ */
+async function listModulesDirEntries (modulesDir: string): Promise<string[]> {
+  const entries = await readdirOrEmpty(modulesDir)
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const entryPath = path.join(modulesDir, entry.name)
+    if (entry.name.startsWith('@') && entry.isDirectory()) {
+      return (await readdirOrEmpty(entryPath))
+        .filter((scoped) => scoped.isSymbolicLink())
+        .map((scoped) => path.join(entryPath, scoped.name))
+    }
+    return entry.isSymbolicLink() ? [entryPath] : []
+  }))
+  return nested.flat()
+}
+
+async function readdirOrEmpty (dir: string): Promise<Dirent[]> {
+  try {
+    return await fs.readdir(dir, { withFileTypes: true })
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return []
+    throw err
+  }
+}
+
+async function realpathOrUndefined (target: string): Promise<string | undefined> {
+  try {
+    return await fs.realpath(target)
+  } catch (err: unknown) {
+    // A dangling or cyclic link resolves to nothing, so it cannot point at the target.
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ELOOP')) return undefined
+    throw err
+  }
+}
+
+function containedNodeModulesLink (modulesDir: string, alias: string): string | undefined {
+  const nodeModulesDir = path.resolve(modulesDir)
+  const link = path.resolve(nodeModulesDir, alias)
+  const relative = path.relative(nodeModulesDir, link)
+  if (
+    relative === '' ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) return undefined
+  return link
+}
+
+/**
+ * Remove every installed copy of an optional dependency whose build failed,
+ * so a consumer that probes for it finds it absent rather than half-built.
+ * The next install finds the directory missing and retries the build.
+ * Under the global virtual store this removes the package directory of the
+ * shared slot, whose lock the caller holds. The slot keeps its lock and its
+ * dependency links, and every project that links it finds the package absent.
+ * A hoisted location outside the lockfile directory is never removed.
+ * Rejects if a removal fails, so the package is not reported as skipped.
+ */
+async function removeSkippedOptionalDependency<T extends string> (
+  depNode: DependenciesGraphNode<T>,
+  opts: { hoistedLocations?: Record<string, string[]>, lockfileDir: string }
+): Promise<void> {
+  const dirs = new Set([
+    depNode.dir,
+    ...(opts.hoistedLocations?.[depNode.depPath] ?? [])
+      .map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
+      .filter((dir) => isStrictSubdir(opts.lockfileDir, dir)),
+  ])
+  await Promise.all(Array.from(dirs, (dir) => fs.rm(dir, { recursive: true, force: true })))
 }
 
 export async function linkBinsOfDependencies<T extends string> (

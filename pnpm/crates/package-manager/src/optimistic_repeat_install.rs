@@ -384,7 +384,13 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
         layout: crate::RepeatInstallLayout { included, .. },
         ..
     } = check;
-    match has_local_file_dep_requiring_install(check) {
+    let Ok(parsed_overrides) = crate::install::parse_config_overrides(config, catalogs) else {
+        return Some("pnpm.overrides cannot be parsed");
+    };
+    let overrides = parsed_overrides
+        .as_deref()
+        .unwrap_or(&[]);
+    match has_local_file_dep_requiring_install(check, overrides) {
         Ok(true) => {
             return Some(
                 "a dependency is a local file dependency and its contents may have changed",
@@ -393,16 +399,12 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
         Ok(false) => {}
         Err(reason) => return Some(reason),
     }
-    match has_local_file_override(config, catalogs) {
-        Ok(true) => {
-            return Some(
-                "an override maps to a local file dependency and its contents may have changed",
-            );
-        }
-        Err(reason) => return Some(reason),
-        Ok(false) => {}
+    if has_local_file_override(overrides) {
+        return Some(
+            "an override maps to a local file dependency and its contents may have changed",
+        );
     }
-    if has_local_file_package_extension(config, included, catalogs) {
+    if has_local_file_package_extension(config, included, catalogs, overrides) {
         return Some(
             "a package extension injects a local file dependency and its contents may have changed",
         );

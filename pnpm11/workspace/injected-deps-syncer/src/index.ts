@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
@@ -84,6 +85,36 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
     resolvedTargetDirs,
     workspaceDir: opts.workspaceDir,
   })
+}
+
+export interface SyncInjectedDepsOfModulesDirOptions {
+  /** The directory whose lockfile lists the injected dependencies. */
+  lockfileDir: string
+  /** The modules directory that holds the `.modules.yaml` of `lockfileDir`. */
+  modulesDir: string
+  /** The sources whose copies are synced. Copies of other sources keep their contents. */
+  sourceDirs: ReadonlySet<string>
+}
+
+/**
+ * Brings the injected copies listed in one modules directory back in step
+ * with their sources. A project with its own lockfile injects copies of
+ * workspace projects whose lifecycle scripts run in their own install, so
+ * nothing else syncs those copies after the scripts run.
+ */
+export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModulesDirOptions): Promise<void> {
+  const modules = await readModulesManifest(opts.modulesDir)
+  if (!modules?.injectedDeps) return
+  await Promise.all(Object.entries(modules.injectedDeps).map(async ([sourceId, targetDirs]) => {
+    const sourceDir = path.resolve(opts.lockfileDir, sourceId)
+    if (!opts.sourceDirs.has(sourceDir) || targetDirs.length === 0) return
+    // A publish directory the build did not produce leaves the copies alone
+    // rather than emptying them.
+    if (!fs.existsSync(sourceDir)) return
+    const resolvedTargetDirs = targetDirs.map((targetDir) => path.resolve(opts.lockfileDir, targetDir))
+    const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
+    await Promise.all(patchers.map(patcher => patcher.apply()))
+  }))
 }
 
 /** The commands a package declares, or none when it declares no bins. */

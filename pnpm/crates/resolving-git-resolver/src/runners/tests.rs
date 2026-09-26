@@ -6,7 +6,7 @@ use super::{RealGitProbe, RealGitRunner, ls_remote_command};
 use crate::{git_resolver::GitProbe, resolve_ref::GitCommandRunner};
 
 fn args(ref_: Option<&str>) -> Vec<String> {
-    ls_remote_command(None, "--upload-pack=malicious", ref_)
+    ls_remote_command(None, &[], "--upload-pack=malicious", ref_)
         .get_args()
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect()
@@ -17,6 +17,30 @@ fn resolve_separates_options_from_the_repository_and_ref() {
     assert_eq!(
         args(Some("--help")),
         ["ls-remote", "--", "--upload-pack=malicious", "--help", "--help^{}",],
+    );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/12705>
+#[test]
+fn ls_remote_applies_pinned_settings_before_the_subcommand() {
+    let args: Vec<String> = ls_remote_command(
+        None,
+        &["http.curloptResolve=git.example:443:8.8.8.8".to_string()],
+        "https://git.example/repo.git",
+        None,
+    )
+    .get_args()
+    .map(|arg| arg.to_string_lossy().into_owned())
+    .collect();
+    assert_eq!(
+        args,
+        [
+            "-c",
+            "http.curloptResolve=git.example:443:8.8.8.8",
+            "ls-remote",
+            "--",
+            "https://git.example/repo.git",
+        ],
     );
 }
 
@@ -91,7 +115,7 @@ async fn head_probe_retries_transient_statuses_to_exhaustion() {
 // spawn fail; the message asserted here is the one a user without git gets.
 #[tokio::test]
 async fn a_missing_git_binary_is_reported_as_one() {
-    let runner = RealGitRunner { git_bin: Some("/nonexistent/git".into()) };
+    let runner = RealGitRunner { git_bin: Some("/nonexistent/git".into()), connect_guard: None };
 
     let err = runner.ls_remote("https://github.com/foo/bar.git", None).await.unwrap_err();
 
@@ -103,7 +127,7 @@ async fn a_missing_git_binary_is_reported_as_one() {
 
 #[test]
 fn ls_remote_never_waits_on_a_terminal_or_ssh_prompt() {
-    let cmd = ls_remote_command(None, "some-repo", None);
+    let cmd = ls_remote_command(None, &[], "some-repo", None);
     let envs: BTreeMap<String, String> = cmd
         .get_envs()
         .map(|(name, value)| {

@@ -1,5 +1,8 @@
 use super::configuration::{RunAnchors, apply_update_config};
-use crate::{State, cli_args::reporter::ReporterType};
+use crate::{
+    State,
+    cli_args::reporter::{ReporterFlags, ReporterType},
+};
 use miette::Context;
 use pnpm_config::Config;
 use std::{
@@ -23,6 +26,7 @@ pub(crate) type CommandFuture<'a, Output = ()> =
 /// The closures are built in [`CliArgs::run`](crate::cli_args::cli_command::CliArgs::run).
 pub(crate) struct RunCtx<'a> {
     pub(crate) effective_reporter: &'a AtomicU8,
+    pub(crate) reporter_flags: ReporterFlags,
     /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
     /// command, so a `package.json` script of the same name must not
     /// override it. See [`crate::pm_prefix`].

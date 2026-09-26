@@ -16,6 +16,10 @@ pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
+pub use ip_network::IpNetwork;
+
+mod ip_network;
+
 mod logging;
 use logging::build_log_config;
 
@@ -284,6 +288,11 @@ pub struct RoutePolicy {
     /// Operator-declared public routes, matched by registry prefix
     /// and/or package pattern.
     pub public: Vec<PublicRoute>,
+    /// Non-public networks the resolver may still connect to, such as the
+    /// one an internal upstream registry sits on. The resolver refuses every
+    /// other loopback, private, link-local, and reserved address, except for
+    /// this server's own `public_url` host.
+    pub allowed_private_networks: Vec<IpNetwork>,
 }
 
 /// One operator-declared public route. A fetch matches when its registry
@@ -514,16 +523,18 @@ fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
     Ok(parsed.origin().ascii_serialization())
 }
 
-fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
-    match file {
-        None => RoutePolicy::default(),
-        Some(file) => RoutePolicy {
-            public: file.public
-                .into_iter()
-                .map(|route| PublicRoute { registry: route.registry, package: route.package })
-                .collect(),
-        },
-    }
+fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryError> {
+    let Some(file) = file else { return Ok(RoutePolicy::default()) };
+    Ok(RoutePolicy {
+        public: file.public
+            .into_iter()
+            .map(|route| PublicRoute { registry: route.registry, package: route.package })
+            .collect(),
+        allowed_private_networks: file.allowed_private_networks
+            .iter()
+            .map(|network| IpNetwork::parse(network))
+            .collect::<Result<_, _>>()?,
+    })
 }
 
 /// Minimum length for an operator-configured `secret:`. A shorter value makes

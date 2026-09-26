@@ -84,3 +84,28 @@ pub fn safe_read_project_manifest_from_dir(
     }
     Ok(None)
 }
+
+/// The manifest of the project enclosing `target` whose `publishConfig.directory`
+/// resolves to `target`, or `None` when no ancestor publishes from it.
+///
+/// This serves local dependencies, so each ancestor's manifest is picked in
+/// the default order.
+pub fn find_parent_publish_manifest(target: &Path) -> Result<Option<Value>, PackageManifestError> {
+    let normalized_target = pnpm_fs::lexical_normalize(target);
+    for parent in normalized_target.ancestors().skip(1) {
+        let Some(manifest) =
+            safe_read_project_manifest_from_dir(parent, ManifestFormat::default())?
+        else {
+            continue;
+        };
+        let is_publish_dir = manifest
+            .get("publishConfig")
+            .and_then(|config| config.get("directory"))
+            .and_then(Value::as_str)
+            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
+        if is_publish_dir {
+            return Ok(Some(manifest));
+        }
+    }
+    Ok(None)
+}

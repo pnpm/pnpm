@@ -45,6 +45,8 @@ pub(super) struct SlotLink<'s> {
     snapshot: &'s SnapshotEntry,
     package_id: &'s str,
     source_is_mutable: bool,
+    /// See [`crate::SlotImportSource::source_exists`].
+    source_exists: bool,
 }
 pub(super) struct TarballFetch<'a, AllowBuild> {
     download: &'a IngestTarballToStore<'a>,
@@ -93,11 +95,14 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
         Err(err) => Err(err),
     }
 }
+/// Returns the file map alongside whether the source directory existed to
+/// walk. See [`crate::SlotImportSource::source_exists`] for why the caller
+/// needs that distinction.
 pub(super) fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
     include_only_package_files: bool,
-) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+) -> Result<(HashMap<String, PathBuf>, bool), InstallPackageBySnapshotError> {
     let directory = lexical_normalize(&workspace_root.join(&dir_resolution.directory));
     let output = pnpm_directory_fetcher::DirectoryFetcher {
         directory,
@@ -108,7 +113,7 @@ pub(super) fn fetch_directory_resolution(
     }
     .run()
     .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
-    Ok(output.files_map)
+    Ok((output.files_map, output.exists))
 }
 /// `pnpm:progress` `resolved` for a frozen-lockfile snapshot the
 /// cold-batch path is about to fetch: one event per (resolved)
@@ -167,8 +172,8 @@ impl InstallPackageBySnapshot<'_> {
         // then the file map points at mutable source even though the
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
-        let cas_paths = match custom.cas_paths {
-            Some(paths) => paths,
+        let (cas_paths, source_exists) = match custom.cas_paths {
+            Some(paths) => (paths, true),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
@@ -180,10 +185,16 @@ impl InstallPackageBySnapshot<'_> {
             }
         };
         self.link_slot::<Reporter>(
-            SlotLink { package_key, snapshot, package_id: &package_id, source_is_mutable },
+            SlotLink {
+                package_key,
+                snapshot,
+                package_id: &package_id,
+                source_is_mutable,
+                source_exists,
+            },
             &cas_paths,
         )?;
-        Ok(InstalledPackage { cas_paths, source_is_mutable })
+        Ok(InstalledPackage { cas_paths, source_is_mutable, source_exists })
     }
 
     fn ingest<'d>(
@@ -227,18 +238,22 @@ impl InstallPackageBySnapshot<'_> {
         }
     }
 
+    /// Returns the fetched CAS paths alongside whether the source they came
+    /// from existed. Always `true` except for a directory resolution; see
+    /// [`crate::SlotImportSource::source_exists`].
     async fn fetch_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: SnapshotFetch<'_>,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<(HashMap<String, PathBuf>, bool), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         // Named local so both git fetchers can borrow it across their
         // `.await` without depending on temporary-lifetime extension.
         let allow_build = self.allow_build();
         match fetch.resolution {
-            LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
-                self.fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build).await
-            }
+            LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => self
+                .fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build)
+                .await
+                .map(|cas_paths| (cas_paths, true)),
             LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
                 // `dependenciesMeta[*].injected = true`). The source
@@ -266,9 +281,10 @@ impl InstallPackageBySnapshot<'_> {
             // `BinaryResolution` extractor.
             LockfileResolution::Binary(binary) => {
                 self.fetch_binary::<Reporter>(binary, fetch.package_key).await
+                    .map(|cas_paths| (cas_paths, true))
             }
-            LockfileResolution::Variations(variations) => {
-                self.fetch_binary::<Reporter>(
+            LockfileResolution::Variations(variations) => self
+                .fetch_binary::<Reporter>(
                     binary_variant_for_host(
                         variations,
                         fetch.package_key,
@@ -277,10 +293,11 @@ impl InstallPackageBySnapshot<'_> {
                     fetch.package_key,
                 )
                 .await
-            }
-            LockfileResolution::Git(git_resolution) => {
-                self.fetch_git::<Reporter>(&fetch, git_resolution, &allow_build).await
-            }
+                .map(|cas_paths| (cas_paths, true)),
+            LockfileResolution::Git(git_resolution) => self
+                .fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
+                .await
+                .map(|cas_paths| (cas_paths, true)),
             // A custom-typed resolution cannot be materialized without
             // a custom fetcher that claims it.
             LockfileResolution::Custom(custom) => {
@@ -346,6 +363,7 @@ impl InstallPackageBySnapshot<'_> {
             },
             source: crate::SlotImportSource {
                 is_mutable: slot.source_is_mutable,
+                source_exists: slot.source_exists,
                 force: false,
                 build_marker: None,
                 needs_build: requires_build_from_cas_paths(cas_paths)

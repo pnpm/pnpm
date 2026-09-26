@@ -147,11 +147,20 @@ fn build_modules_collects_ignored_builds() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -221,11 +230,20 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -295,11 +313,20 @@ fn mutated_slots_is_true_when_a_script_runs() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -368,11 +395,20 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: true,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -437,11 +473,20 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -521,11 +566,20 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -602,11 +656,20 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -771,11 +834,20 @@ fn using_side_effects_cache_skips_rebuild() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,
@@ -914,11 +986,20 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            prepend_node_path: ScriptsPrependNodePath::Never,
+            path: crate::ScriptPath {
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                extra_bin_paths: &[],
+                private_hoisting: false,
+            },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
             ignore: false,
+            patched_engines: crate::PatchedEngineCheck {
+                engine_strict: false,
+                node_version: None,
+                virtual_store_dir: None,
+            },
         },
 
         allow_build_policy: &policy,

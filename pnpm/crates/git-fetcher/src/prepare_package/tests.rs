@@ -375,3 +375,20 @@ fn explicitly_denied_preparation_keeps_source_without_running_scripts() {
     assert!(result.ignored_build);
     assert_eq!(fs::read_to_string(result.pkg_dir.join("index.js")).unwrap(), "module.exports = 42");
 }
+
+#[test]
+fn prepare_scripts_run_with_strict_dep_builds_off() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "records-strict-dep-builds", "version": "1.0.0",
+            "scripts": {
+                "prepare": r#"node -e "require('fs').writeFileSync('strict-dep-builds.txt', String(process.env.pnpm_config_strict_dep_builds))""#,
+            },
+        }),
+    );
+    let result = prepare_package::<SilentReporter>(&opts(true, false), dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(fs::read_to_string(result.pkg_dir.join("strict-dep-builds.txt")).unwrap(), "false");
+}

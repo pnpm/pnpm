@@ -1,10 +1,14 @@
 //! Running one package's build scripts.
 
+mod patched_engines;
 mod side_effects;
+mod slot_to_build;
+use patched_engines::skip_incompatible_optional;
 use side_effects::{
     FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
     upload_side_effects_cache,
 };
+use slot_to_build::slot_to_build;
 
 use std::sync::atomic::Ordering;
 
@@ -13,8 +17,8 @@ use super::{
     PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    run_postinstall_hooks, slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -25,6 +29,7 @@ pub(crate) struct BuildOneSnapshot<'a> {
     pub graph: crate::BuildSnapshotInputs<'a>,
     pub progress: crate::BuildProgress<'a>,
     pub scripts: crate::BuildScriptOptions<'a>,
+    pub(crate) project_bin_dirs: &'a [PathBuf],
     pub(crate) allow_build_policy: &'a AllowBuildPolicy,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
 }
@@ -48,6 +53,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
+        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
         return Ok(());
     }
 
@@ -76,35 +82,28 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
+    let Some((pkg_dir, slot_lock)) = slot_to_build(context, snapshot_key, candidate)? else {
         return Ok(());
     };
-    if !pkg_dir.exists() {
-        return Ok(());
-    }
 
-    // Per-snapshot `extra_bin_paths`. Isolated leaves it empty;
-    // hoisted gathers every ancestor's `node_modules/.bin` up to
-    // `lockfile_dir` so a lifecycle script invoked at a nested
-    // hoisted location can resolve bins added by parents.
-    let extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, context.directories.lockfile_dir)
-    } else {
-        Vec::new()
-    };
+    let extra_bin_paths = snapshot_extra_bin_paths(context, &pkg_dir);
 
     // Apply the patch before running postinstall hooks. A snapshot
     // with a patch entry but no resolved `patch_file_path` is a hard
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let is_patched = apply_configured_patch(context, snapshot_key, candidate.patch)?;
+    let Some(is_patched) = apply_configured_patch::<Reporter>(context, snapshot_key, candidate)?
+    else {
+        return Ok(());
+    };
 
     let Some(has_side_effects) = run_snapshot_scripts::<Reporter>(
         context,
         snapshot_key,
         &pkg_dir,
         &extra_bin_paths,
+        slot_lock.as_ref(),
         (candidate.should_run_scripts, optional, &candidate.name, &candidate.version),
     )?
     else {
@@ -114,7 +113,7 @@ fn build_candidate<Reporter: self::Reporter>(
     clear_global_virtual_store_build_markers(
         context,
         snapshot_key,
-        candidate.patch.is_some() || candidate.should_run_scripts,
+        (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
     );
 
     upload_side_effects_cache(
@@ -131,6 +130,21 @@ fn build_candidate<Reporter: self::Reporter>(
     );
 
     Ok(())
+}
+
+/// The directories a snapshot's build scripts get on `PATH` besides the ones
+/// the executor derives from `pkg_dir`. Hoisted gathers every ancestor's
+/// `node_modules/.bin` up to `lockfile_dir`, so a script at a nested hoisted
+/// location can resolve bins added by parents. Both linkers then add the
+/// pinned runtime's `node`.
+fn snapshot_extra_bin_paths(context: &BuildOneSnapshot<'_>, pkg_dir: &Path) -> Vec<PathBuf> {
+    let mut extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
+        bin_dirs_in_all_parent_dirs(pkg_dir, context.directories.lockfile_dir)
+    } else {
+        Vec::new()
+    };
+    extra_bin_paths.extend_from_slice(context.project_bin_dirs);
+    extra_bin_paths
 }
 
 /// A snapshot whose build scripts or patch this install applies, with
@@ -156,6 +170,9 @@ struct BuildCandidate<'c> {
     /// suppressed by the rebuild-selection gate after it.
     force_rebuild: bool,
     should_run_scripts: bool,
+    /// `--ignore-scripts` left the build scripts for a later install to run
+    /// in the same global-virtual-store slot, so its marker has to stay.
+    build_pending: bool,
 }
 
 impl<'c> BuildCandidate<'c> {
@@ -178,7 +195,16 @@ impl<'c> BuildCandidate<'c> {
             &dep_path,
             (requires_build, force_rebuild),
         );
-        Some(Self { metadata_key, patch, name, version, force_rebuild, should_run_scripts })
+        let build_pending = requires_build && context.scripts.ignore;
+        Some(Self {
+            metadata_key,
+            patch,
+            name,
+            version,
+            force_rebuild,
+            should_run_scripts,
+            build_pending,
+        })
     }
 }
 
@@ -273,12 +299,12 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
 /// Every copy is patched, not just the primary slot. Under the hoisted linker
 /// a version conflict nests further copies under their consumers; leaving
 /// those unpatched would silently run the very code the patch replaces.
-fn apply_configured_patch(
+fn apply_configured_patch<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    patch: Option<&pnpm_patching::ExtendedPatchInfo>,
-) -> Result<bool, BuildModulesError> {
-    let Some(patch) = patch else { return Ok(false) };
+    candidate: &BuildCandidate<'_>,
+) -> Result<Option<bool>, BuildModulesError> {
+    let Some(patch) = candidate.patch else { return Ok(Some(false)) };
     let patch_file_path = patch.patch_file_path
         .as_deref()
         .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
@@ -289,13 +315,12 @@ fn apply_configured_patch(
         if !patched_dir.exists() {
             continue;
         }
-        apply_patch_to_dir(&patched_dir, patch_file_path)
-            .inspect_err(|_| {
-                discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
-            })
-            .map_err(BuildModulesError::PatchApply)?;
+        apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
-    Ok(true)
+    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate)? {
+        return Ok(None);
+    }
+    Ok(Some(true))
 }
 
 // A removed GVS slot may have been imported pristine while its cached build row survived.
@@ -318,6 +343,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
+    slot_lock: Option<&pnpm_fs::DirLock>,
     run: (bool, bool, &str, &str),
 ) -> Result<Option<bool>, BuildModulesError> {
     let (should_run_scripts, optional, name, version) = run;
@@ -330,11 +356,22 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     match result {
         Ok(ran) => Ok(Some(ran)),
         Err(err) => {
-            // Before the optional-skip return, so a failed optional build
-            // leaves no half-built slot behind either.
-            discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
+            }
+            // A global virtual store slot is removed only by an install that
+            // holds its lock. A rebuild may re-run the scripts of a slot other
+            // projects use with a working build, and without the lock another
+            // install may be writing into the slot. A kept slot stays marked
+            // for the next install to rebuild.
+            if !context.directories.layout.enable_global_virtual_store()
+                || (context.rebuild.is_none() && slot_lock.is_some())
+            {
+                discard_skipped_optional_dependency(
+                    context.pkg_roots(),
+                    context.directories.lockfile_dir,
+                    snapshot_key,
+                )?;
             }
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
                 level: LogLevel::Debug,
@@ -373,7 +410,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: context.scripts.prepend_node_path,
+            prepend_node_path: context.scripts.path.prepend_node_path,
             shell: context.scripts.shell,
             shell_emulator: context.scripts.shell_emulator,
             wd_bin_dir: None,

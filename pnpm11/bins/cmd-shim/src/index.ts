@@ -61,7 +61,21 @@ export interface Options {
   nodeExecPath?: string
 
   prependToPath?: string
+
+  /**
+   * The directory the shell shim computes its relative target from, as
+   * {@link getShShimDir} returns it. Computed when omitted.
+   */
+  shShimDir?: string
 }
+
+export interface GetShShimDirOptions {
+  /** The shim directory with its symlinks resolved, when the caller already has it. */
+  physicalDir?: string
+  fs?: ShimDirFs
+}
+
+export type ShimDirFs = Pick<typeof fs.promises, 'lstat' | 'realpath'>
 
 /**
  * @internal
@@ -73,7 +87,7 @@ type InternalOptions = Options & Required<Pick<Options, keyof typeof DEFAULT_OPT
   requireSource?: boolean
 }
 
-type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'stat' | 'unlink' | 'writeFile'>
+type FsPromises = Pick<typeof fs.promises, 'chmod' | 'lstat' | 'mkdir' | 'readFile' | 'realpath' | 'stat' | 'unlink' | 'writeFile'>
 
 /**
  * Callback functions to generate scripts for shims.
@@ -115,7 +129,7 @@ const extensionToProgramMap = new Map([
 
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = {...DEFAULT_OPTIONS, ...opts} as InternalOptions
-  opts_.fs_ = opts_.fs ? opts_.fs.promises : (gfsPromises as unknown as FsPromises)
+  opts_.fs_ = opts_.fs ? opts_.fs.promises : ({ ...gfsPromises, lstat: fs.promises.lstat, realpath: fs.promises.realpath } as unknown as FsPromises)
   return opts_
 }
 
@@ -231,6 +245,40 @@ function unquoteSh (raw: string): string {
 const SH_NODE_PATH_EXPORT = '\n  export NODE_PATH='
 
 /**
+ * Node normalizes the `..` segments of a relative target lexically, so they
+ * climb from the shim's physical directory. It is set before the Windows-form
+ * `$basedir_win` is derived, so the paths handed to a Windows runtime are
+ * physical too.
+ */
+const SH_SHIM_BASEDIR_ABS_PRELUDE = `\
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+`
+
+/**
+ * Whether a shell shim anchors its target on its physical directory exactly
+ * when its target, relative to the shim's directory, needs it. Keep this in
+ * step with pacquet's `is_sh_shim_basedir_anchor_current`.
+ */
+export function isShimBasedirAnchorCurrent (shimContent: string, relativeTarget: string): boolean {
+  return shimContent.includes(SH_SHIM_BASEDIR_ABS_PRELUDE) !== path.isAbsolute(relativeTarget)
+}
+
+/**
+ * The POSIX relative target path stored in `shimContent`. Returns `undefined`
+ * when the shim does not anchor on a relative target.
+ */
+export function readShRelativeTarget (shimContent: string): string | undefined {
+  const marker = '"$basedir_abs/'
+  const start = shimContent.indexOf(marker)
+  if (start === -1) return undefined
+  const valueStart = start + marker.length
+  const end = shimContent.indexOf('"', valueStart)
+  if (end === -1) return undefined
+  return shimContent.slice(valueStart, end)
+}
+
+/**
  * Try to unlink, but ignore errors.
  * Any problems will surface later.
  *
@@ -243,7 +291,68 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
   await writeShimsPreCommon(to, opts)
-  return writeAllShims(src, to, srcRuntimeInfo, opts)
+  const shShimDir = opts.shShimDir ?? await getShShimDir(src, to, { fs: opts.fs_ })
+  return writeAllShims(src, to, srcRuntimeInfo, { ...opts, shShimDir })
+}
+
+/**
+ * The shell shim climbs to a relative target from its physical directory, so
+ * the relative target is computed from there too. That is the shim's own
+ * directory unless a symlink lies on the way. Then it is the physical
+ * directory, placed under the lexical ancestor it shares with `src` when it
+ * lies under that ancestor's physical path, which also keeps a `subst` drive
+ * on Windows.
+ */
+export async function getShShimDir (src: string, to: string, opts: GetShShimDirOptions = {}): Promise<string> {
+  const dir = path.dirname(to)
+  const fs_ = opts.fs ?? fs.promises
+  const physicalDir = opts.physicalDir ?? await getPhysicalShimDir(dir, fs_)
+  if (physicalDir === dir) return dir
+  let ancestor = dir
+  while (!isSubdirOrEqual(ancestor, src)) {
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) return physicalDir
+    ancestor = parent
+  }
+  const physicalAncestor = await fs_.realpath(ancestor)
+  return isSubdirOrEqual(physicalAncestor, physicalDir)
+    ? path.join(ancestor, path.relative(physicalAncestor, physicalDir))
+    : physicalDir
+}
+
+/**
+ * `dir` with its symlinks resolved, as the shell shim's `cd -P` resolves them.
+ * On Windows `dir` is resolved only when a symlink or junction lies on its
+ * path, since `realpath` also resolves a `subst` drive, which the MSYS shell
+ * does not. A missing ancestor counts as no link. Rejects with the error of
+ * any other failed `lstat`, or of `realpath`.
+ */
+export async function getPhysicalShimDir (dir: string, fs_: ShimDirFs = fs.promises): Promise<string> {
+  if (isWindows && !await hasLinkOnPath(dir, fs_)) return dir
+  return fs_.realpath(dir)
+}
+
+async function hasLinkOnPath (dir: string, fs_: ShimDirFs): Promise<boolean> {
+  const ancestors = [dir]
+  for (let parent = path.dirname(dir); parent !== ancestors.at(-1); parent = path.dirname(parent)) {
+    ancestors.push(parent)
+  }
+  const isLink = await Promise.all(ancestors.map(async (ancestor) => isSymbolicLink(ancestor, fs_)))
+  return isLink.includes(true)
+}
+
+async function isSymbolicLink (file: string, fs_: ShimDirFs): Promise<boolean> {
+  try {
+    return (await fs_.lstat(file)).isSymbolicLink()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
+function isSubdirOrEqual (parent: string, child: string): boolean {
+  const relative = path.relative(parent, child)
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
 }
 
 function writeShimsPreCommon (target: string, opts: InternalOptions) {
@@ -254,7 +363,7 @@ function writeShimsPreCommon (target: string, opts: InternalOptions) {
  * Replaces the shell shim and the enabled CMD/PowerShell siblings with executable files.
  * Resolves when all writes and permission changes finish; rejects if any fail.
  */
-function writeAllShims (src: string, to: string, srcRuntimeInfo: RuntimeInfo, opts: Options) {
+function writeAllShims (src: string, to: string, srcRuntimeInfo: RuntimeInfo, opts: InternalOptions) {
   const opts_ = ingestOptions(opts)
   const generatorAndExts: ShimGenExtTuple[] = [{ generator: generateShShim, extension: '' }]
   if (opts_.createCmdFile) {
@@ -393,21 +502,22 @@ async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, 
  */
 function generateCmdShim (src: string, to: string, opts: InternalOptions): string {
   const shTarget = path.relative(path.dirname(to), src)
-  let target = shTarget.split('/').join('\\')
+  let target = cmdEscape(shTarget.split('/').join('\\'))
   const quotedPathToTarget = path.isAbsolute(target) ? `"${target}"` : `"%~dp0\\${target}"`
   let longProg
   let prog = opts.prog
-  let args = opts.args || ''
-  const nodePath = normalizePathEnvVar(opts.nodePath).win32
-  const prependToPath = normalizePathEnvVar(opts.prependToPath).win32
+  let args = cmdEscape(opts.args || '')
+  const nodePath = cmdEscape(normalizePathEnvVar(opts.nodePath).win32)
+  const prependToPath = cmdEscape(normalizePathEnvVar(opts.prependToPath).win32)
   if (!prog) {
     prog = quotedPathToTarget
     args = ''
     target = ''
   } else if (prog === 'node' && opts.nodeExecPath) {
-    prog = `"${opts.nodeExecPath}"`
+    prog = `"${cmdEscape(opts.nodeExecPath)}"`
     target = quotedPathToTarget
   } else {
+    prog = cmdEscape(prog)
     longProg = `"%~dp0\\${prog}.exe"`
     target = quotedPathToTarget
   }
@@ -453,15 +563,16 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
  * @return The content of shim.
  */
 function generateShShim (src: string, to: string, opts: InternalOptions): string {
-  let shTarget = path.relative(path.dirname(to), src)
+  let shTarget = path.relative(opts.shShimDir ?? path.dirname(to), src)
   let shProg = opts.prog && opts.prog.split('\\').join('/')
   let shLongProg: string | undefined
   let shLongProgExe = ''
   let shProgExe = ''
   let shProgHasExe = false
   shTarget = shTarget.split('\\').join('/')
-  const quotedPathToTarget = path.isAbsolute(shTarget) ? `"${shTarget}"` : `"$basedir/${shTarget}"`
-  const quotedPathToTargetWin = path.isAbsolute(shTarget) ? `"${shTarget}"` : `"$basedir_win/${shTarget}"`
+  const isTargetAbsolute = path.isAbsolute(shTarget)
+  const quotedPathToTarget = isTargetAbsolute ? `"${shTarget}"` : `"$basedir_abs/${shTarget}"`
+  const quotedPathToTargetWin = isTargetAbsolute ? `"${shTarget}"` : `"$basedir_win/${shTarget}"`
   let shTargetWin = ''
   let args = opts.args || ''
   const isCmdRuntime = opts.prog === 'cmd' || opts.prog === 'cmd.exe'
@@ -530,7 +641,7 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
 done
 basedir=$(command -p printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
-basedir_win="$basedir"
+${isTargetAbsolute ? '' : SH_SHIM_BASEDIR_ABS_PRELUDE}basedir_win="$basedir"
 exe=""
 msys=""
 
@@ -606,11 +717,16 @@ else
 fi
 `
       } else {
+        // On Cygwin and MSYS, the program on PATH is usually a native Windows
+        // one, such as node.exe. Cygwin doesn't convert POSIX path arguments
+        // for it, so it gets the win32 form of the target.
         return `\
 if [ -n "$exe" ] && [ -x ${shLongProgExe} ]; then
   exec ${shLongProgExe} ${execArgs} ${shTargetWin} ${progArgs}"$@"
 elif [ -x ${shLongProg} ]; then
   exec ${shLongProg} ${execArgs} ${shTarget} ${progArgs}"$@"
+elif [ -n "$msys" ] && command -v ${shProg} >/dev/null 2>&1; then
+  exec ${shProg} ${execArgs} ${shTargetWin} ${progArgs}"$@"
 elif command -v ${shProg} >/dev/null 2>&1; then
   exec ${shProg} ${execArgs} ${shTarget} ${progArgs}"$@"
 elif [ -n "$exe" ] && command -v ${shProgExe} >/dev/null 2>&1; then
@@ -801,6 +917,14 @@ function normalizePathEnvVar (nodePath: undefined | string | string[]): Normaliz
     result[i] = {win32, posix}
   }
   return result
+}
+
+/**
+ * Escape `text` for a `.cmd` file, where `%` would otherwise expand as a
+ * variable reference, even inside double quotes.
+ */
+function cmdEscape (text: string): string {
+  return text.replaceAll('%', '%%')
 }
 
 function shSingleQuote (text: string): string {

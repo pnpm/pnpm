@@ -200,6 +200,8 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
 ) -> Result<(), InstallError> {
     pnpm_lockfile_verification::verify_lockfile_dependency_names(context.wanted_lockfile)
         .map_err(InstallError::LockfileVerification)?;
+    pnpm_lockfile_verification::verify_lockfile_importer_snapshot_links(context.wanted_lockfile)
+        .map_err(InstallError::LockfileVerification)?;
     // Nothing to materialize means no fetch to overlap; verify
     // eagerly before the up-to-date early return.
     verify_up_to_date_lockfile::<Reporter>(

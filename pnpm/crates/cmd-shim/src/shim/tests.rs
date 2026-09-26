@@ -177,7 +177,7 @@ case `command -p uname -a` in"#
         "WSL2 branch must enable .exe fallback only after wslpath succeeds, body was:\n{body}",
     );
     assert!(
-        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir/../typescript/bin/tsc\" \"$@\"\nfi\n"),
+        body.contains("if [ -n \"$exe\" ] && [ -x \"$basedir/node.exe\" ]; then\n  exec \"$basedir/node.exe\"  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif [ -x \"$basedir/node\" ]; then\n  exec \"$basedir/node\"  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$msys\" ] && command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelif command -v node >/dev/null 2>&1; then\n  exec node  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nelif [ -n \"$exe\" ] && command -v node.exe >/dev/null 2>&1; then\n  exec node.exe  \"$basedir_win/../typescript/bin/tsc\" \"$@\"\nelse\n  exec node  \"$basedir_abs/../typescript/bin/tsc\" \"$@\"\nfi\n"),
         "exec block must preserve the generated sh shim fallback order, body was:\n{body}",
     );
     assert!(
@@ -276,7 +276,7 @@ fn generate_sh_shim_emits_direct_exec_when_no_runtime() {
     let shim = Path::new("/proj/node_modules/.bin/cli");
     let body = generate_sh_shim(target, shim, None, &[], None);
     assert!(
-        body.contains("exec \"$basedir/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir_abs/../foo/bin/cli\"  \"$@\"\nexit $?\n"),
         "no-runtime arm must exec the target directly, body:\n{body}",
     );
     assert!(body.ends_with("# cmd-shim-target=/proj/node_modules/foo/bin/cli\n"));
@@ -289,7 +289,7 @@ fn generate_sh_shim_threads_args_when_prog_is_none() {
     let runtime = ScriptRuntime { prog: None, args: "--flag".to_string() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
     assert!(
-        body.contains("exec \"$basedir/../cli\" --flag \"$@\"\nexit $?\n"),
+        body.contains("exec \"$basedir_abs/../cli\" --flag \"$@\"\nexit $?\n"),
         "args must be threaded into the no-prog arm, body:\n{body}",
     );
 }
@@ -426,15 +426,15 @@ fn strip_exe_suffix_is_case_insensitive() {
 }
 
 #[test]
-fn generate_sh_shim_uses_windows_target_only_for_exe_branches() {
+fn generate_sh_shim_uses_windows_target_only_for_exe_and_msys_branches() {
     let target = Path::new("/proj/node_modules/foo/src.bat");
     let shim = Path::new("/proj/node_modules/.bin/foo");
     let runtime = ScriptRuntime { prog: Some("cmd".into()), args: "/C".into() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
-        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe execution branches, body was:\n{body}",
+        body.contains("if [ -n \"$msys\" ]; then\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe //C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd //C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  fi\nelse\n  if [ -n \"$exe\" ] && [ -x \"$basedir/cmd.exe\" ]; then\n    exec \"$basedir/cmd.exe\" /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif [ -x \"$basedir/cmd\" ]; then\n    exec \"$basedir/cmd\" /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$msys\" ] && command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  elif command -v cmd >/dev/null 2>&1; then\n    exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  elif [ -n \"$exe\" ] && command -v cmd.exe >/dev/null 2>&1; then\n    exec cmd.exe /C \"$basedir_win/../foo/src.bat\" \"$@\"\n  else\n    exec cmd /C \"$basedir_abs/../foo/src.bat\" \"$@\"\n  fi\nfi\n"),
+        "cmd sh shim must escape switches only for MSYS and use Windows-form targets only for .exe and MSYS execution branches, body was:\n{body}",
     );
 }
 
@@ -446,7 +446,7 @@ fn generate_sh_shim_checks_path_before_exe_fallback() {
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
 
     assert!(
-        body.contains("elif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir/../foo/src.sh\" \"$@\"\nfi\n"),
+        body.contains("elif [ -n \"$msys\" ] && command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_win/../foo/src.sh\" \"$@\"\nelif command -v sh >/dev/null 2>&1; then\n  exec sh  \"$basedir_abs/../foo/src.sh\" \"$@\"\nelif [ -n \"$exe\" ] && command -v sh.exe >/dev/null 2>&1; then\n  exec sh.exe  \"$basedir_win/../foo/src.sh\" \"$@\"\nelse\n  exec sh  \"$basedir_abs/../foo/src.sh\" \"$@\"\nfi\n"),
         "PATH fallback must prefer POSIX runtimes and gate .exe fallback, body was:\n{body}",
     );
 }
@@ -668,6 +668,40 @@ fn generate_cmd_shim_emits_direct_exec_when_no_runtime() {
     assert!(
         body.contains(r#"@"%~dp0\..\cli""#),
         "no-runtime arm must exec the target directly, body:\n{body}",
+    );
+}
+
+#[test]
+fn generate_cmd_shim_escapes_percent_in_paths() {
+    let target = Path::new("/50% off/pkg/cli");
+    let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
+    let node_path = ["/50% off/proj/node_modules".to_string()];
+    let body = generate_cmd_shim(target, shim, None, &node_path);
+
+    assert!(
+        body.contains(r"50%% off\proj\node_modules;%NODE_PATH%"),
+        "NODE_PATH entries must escape `%`, body:\n{body}",
+    );
+    assert!(
+        body.contains(r#"@"%~dp0\..\..\..\50%% off\pkg\cli""#),
+        "the target path must escape `%`, body:\n{body}",
+    );
+}
+
+#[test]
+fn generate_cmd_shim_escapes_percent_in_prog_and_args() {
+    let target = Path::new("/proj/pkg/cli");
+    let shim = Path::new("/proj/node_modules/.bin/cli.cmd");
+    let runtime = ScriptRuntime { prog: Some("/50%OS%bin/sh".into()), args: "-x %OS%".into() };
+    let body = generate_cmd_shim(target, shim, Some(&runtime), &[]);
+
+    assert!(
+        body.contains(r#"@IF EXIST "%~dp0\/50%%OS%%bin/sh.exe""#),
+        "the long prog must escape `%`, body:\n{body}",
+    );
+    assert!(
+        body.contains("  /50%%OS%%bin/sh -x %%OS%% "),
+        "the prog and its args must escape `%`, body:\n{body}",
     );
 }
 
@@ -1132,4 +1166,82 @@ fn a_shim_run_from_git_bash_hands_node_the_windows_node_path() {
         .expect("run the shim under Git Bash");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), node_path);
+}
+
+/// Cygwin, unlike MSYS2, starts the native Windows `node` found on `PATH`
+/// without rewriting POSIX path arguments, so `node` looked for the target
+/// under `C:\cygdrive\c\...` (pnpm/pnpm#12845). Git Bash behaves the same way
+/// when `MSYS2_ARG_CONV_EXCL` excludes every argument from conversion.
+#[cfg(windows)]
+#[test]
+fn a_shim_hands_node_on_path_the_windows_target_without_msys_path_conversion() {
+    let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
+    let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("tool.js");
+    std::fs::write(&target, "process.stdout.write('SHIM_OK')\n").unwrap();
+    let shim = tmp.path().join("tool");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let body = generate_sh_shim(&target, &shim, Some(&runtime), &[], None);
+    std::fs::write(&shim, body).unwrap();
+
+    // Run the shim by its absolute POSIX path, as a PATH lookup does, so the
+    // shim's basedir is a POSIX path.
+    let output = std::process::Command::new(&bash)
+        .args(["--noprofile", "--norc", "-c", r#"exec "$(cygpath -u "$1")""#, "bash"])
+        .arg(&shim)
+        .env("MSYS2_ARG_CONV_EXCL", "*")
+        .output()
+        .expect("run the shim under Git Bash");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "SHIM_OK");
+}
+
+/// Node normalizes the `..` of its script path lexically. Run through a
+/// symlinked package directory, a shim whose target climbed from the lexical
+/// `$basedir` would hand Node a path in the project's own `node_modules`.
+#[cfg(unix)]
+#[test]
+fn a_shim_run_through_a_symlinked_package_dir_names_its_target_physically() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let virtual_store_dir = root.join("node_modules/.pnpm/vite@6.0.0/node_modules");
+    let bin_dir = virtual_store_dir.join("vite/node_modules/.bin");
+    let target = virtual_store_dir.join("esbuild/bin/esbuild");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::write(&target, "").unwrap();
+    std::os::unix::fs::symlink(virtual_store_dir.join("vite"), root.join("node_modules/vite"))
+        .unwrap();
+    // Stands in for `node`: prints the script path it was handed.
+    write_executable(&bin_dir.join("node"), "#!/bin/sh\nprintf '%s' \"$1\"\n");
+    let shim = bin_dir.join("esbuild");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[], None));
+
+    let output = std::process::Command::new("node_modules/vite/node_modules/.bin/esbuild")
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr:\n{stderr}");
+    let script_path = PathBuf::from(String::from_utf8(output.stdout).unwrap());
+    assert_eq!(lexical_normalize(&script_path), target);
+}
+
+/// The `.exe` branches hand Node `$basedir_win`, so it has to be derived from
+/// the physical directory as well.
+#[test]
+fn the_windows_form_basedir_is_derived_from_the_physical_dir() {
+    let target = Path::new("/proj/node_modules/.pnpm/a@1.0.0/node_modules/b/cli.js");
+    let shim = Path::new("/proj/node_modules/.pnpm/a@1.0.0/node_modules/a/node_modules/.bin/b");
+    let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
+    let body = generate_sh_shim(target, shim, Some(&runtime), &[], None);
+    let anchor = body
+        .find(r#"basedir="$basedir_abs""#)
+        .expect("the shim must anchor $basedir on its physical directory");
+    let windows_form = body
+        .find(r#"basedir_win="$basedir""#)
+        .expect("the shim must derive a Windows-form basedir");
+    assert!(anchor < windows_form, "body was:\n{body}");
 }

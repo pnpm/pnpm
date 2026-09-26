@@ -103,6 +103,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {

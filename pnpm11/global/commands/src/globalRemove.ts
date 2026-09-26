@@ -20,7 +20,6 @@ export async function handleGlobalRemove (
   params: string[]
 ): Promise<void> {
   const globalDir = opts.globalPkgDir!
-  const globalBinDir = opts.bin!
 
   // Find all groups that contain the packages to remove (dedup by hash)
   const groupsToRemove = new Map<string, GlobalPackageInfo>()
@@ -31,18 +30,36 @@ export async function handleGlobalRemove (
     }
     groupsToRemove.set(pkg.hash, pkg)
   }
+  await removeGlobalGroups({ globalPkgDir: globalDir, bin: opts.bin }, [...groupsToRemove.values()])
+}
+
+/**
+ * Removes the given global groups with their hash links and the bins they
+ * own. Without `bin`, only the groups are removed.
+ */
+export async function removeGlobalGroups (
+  opts: {
+    globalPkgDir: string
+    bin?: string
+  },
+  groups: GlobalPackageInfo[]
+): Promise<void> {
+  const globalDir = opts.globalPkgDir
+  const globalBinDir = opts.bin
 
   // Bins shared with (and owned by) groups that survive this removal must
   // not be unlinked, or we'd delete another global package's bin.
-  const ownership = await getGlobalBinOwnership(globalDir, [...groupsToRemove.values()], new Set())
+  const ownership = await getGlobalBinOwnership(globalDir, groups, new Set())
 
   await Promise.all(
     ownership.groups.map(async ({ info: pkg, binNames }) => {
-      await Promise.all(
-        binNames
-          .filter((binName) => !ownership.protectedBins.has(binName))
-          .map((binName) => removeBin(path.join(globalBinDir, binName)))
-      )
+      if (globalBinDir) {
+        await Promise.all(
+          binNames
+            .filter((binName) => !ownership.protectedBins.has(binName))
+            .map((binName) => removeBin(path.join(globalBinDir, binName)))
+        )
+      }
       await fs.promises.rm(getHashLink(globalDir, pkg.hash), { force: true })
       if (isSubdir(globalDir, pkg.installDir)) {
         await fs.promises.rm(pkg.installDir, { recursive: true, force: true })

@@ -53,7 +53,7 @@ import {
   type UpdateMatchingFunction,
   type WantedDependency,
 } from '@pnpm/installing.deps-resolver'
-import { extendProjectsWithTargetDirs, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
+import { extendProjectsWithTargetDirs, getInjectedDeps, headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import { type Modules, readModulesManifest, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
@@ -82,6 +82,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, removePackageMap, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { findLockedRootNodeRuntime } from '@pnpm/lockfile.utils'
 import {
   allProjectsAreUpToDate,
   catalogResolutionIsStale,
@@ -504,10 +505,6 @@ export async function mutateModules (
       ...(extraOpts.peer === true || (hasCliOpts && cliOpts.peer === true) ? { peerDependencies: true } : {}),
     }
     ctx.include = opts.include
-  }
-
-  if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
   const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
@@ -1440,6 +1437,12 @@ export async function mutateModules (
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
           if (wantedDep.bareSpecifier != null && isProjectRelativePath(wantedDep.bareSpecifier)) continue
+          if (
+            wantedDep.prevSpecifier != null &&
+            parseCatalogProtocol(wantedDep.prevSpecifier) != null &&
+            wantedDep.bareSpecifier !== wantedDep.prevSpecifier &&
+            isExplicitDistTagSpecifier(wantedDep.bareSpecifier)
+          ) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
@@ -2243,6 +2246,10 @@ function getPerDepCatalogName (
   return globalSaveCatalogName ?? 'default'
 }
 
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
+}
+
 export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
@@ -2377,12 +2384,13 @@ function rootProjectRunsPreinstallEarly (
  * from a manifest it writes `dependencies` into and nothing else.
  * `optionalDependencies` are the exception, because every package in the
  * graph can declare one and dropping the group drops those too, which no
- * importer's manifest shows.
+ * importer's manifest shows. An importer's own `optionalDependencies` drop
+ * with its `dependencies`.
  */
 function materializesGroupSubset (include: IncludedDependencies, projects: ImporterToUpdate[]): boolean {
   if (!include.optionalDependencies) return true
   return projects.some(({ manifest }) =>
-    (!include.dependencies && !isEmpty(manifest.dependencies ?? {})) ||
+    (!include.dependencies && (!isEmpty(manifest.dependencies ?? {}) || !isEmpty(manifest.optionalDependencies ?? {}))) ||
     (!include.devDependencies && !isEmpty(manifest.devDependencies ?? {}))
   )
 }
@@ -2690,7 +2698,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
-          linkedDep.optional && !opts.include.optionalDependencies ||
+          linkedDep.optional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
         )),
       linkedDependenciesByProjectId ?? {}
@@ -2702,11 +2710,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (!dep) {
           include = false
         } else {
-          const isDev = Boolean(manifest.devDependencies?.[dep.name])
-          const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+          const isDev = Object.hasOwn(manifest.devDependencies ?? {}, alias)
+          const isOptional = Object.hasOwn(manifest.optionalDependencies ?? {}, alias)
           include = !(
             isDev && !opts.include.devDependencies ||
-            isOptional && !opts.include.optionalDependencies ||
+            isOptional && !(opts.include.dependencies && opts.include.optionalDependencies) ||
             !isDev && !isOptional && !opts.include.dependencies
           )
         }
@@ -2896,6 +2904,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
+          engineStrict: installabilityUnderForce(opts).engineStrict,
+          engineNodeVersion: opts.nodeVersion,
+          linkedModulesDirs: [
+            ...opts.allProjects.map((project) => pathAbsolute(project.modulesDir ?? opts.modulesDir ?? 'node_modules', project.rootDir)),
+            ctx.hoistedModulesDir,
+          ],
+          skipped: ctx.skipped,
           allowBuild: opts.allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
@@ -2905,6 +2920,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraEnv,
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
+          nodeVersion: findLockedRootNodeRuntime(newLockfile)?.version,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           rootModulesDir: ctx.virtualStoreDir,
@@ -2935,7 +2951,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       logger.info({ message, prefix })
     }
     if (result.newDepPaths?.length && !opts.virtualStoreOnly) {
-      const newPkgs = props<DepPath, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
+      const newPkgs = props<DepPath, DependenciesGraphNode>(
+        result.newDepPaths.filter((depPath) => !ctx.skipped.has(depPath)),
+        dependenciesGraph
+      )
       await linkAllBins(newPkgs, dependenciesGraph, {
         extraNodePaths: ctx.extraNodePaths,
         optional: opts.include.optionalDependencies,
@@ -2999,7 +3018,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }))
 
-    const projectsWithTargetDirs = getProjectsWithTargetDirs(projects, newLockfile, dependenciesGraph)
+    const injectionTargetsByDepPath = getInjectionTargetsByDepPath(newLockfile, dependenciesGraph)
+    const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath, opts.lockfileDir)
     const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
@@ -3022,12 +3042,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         ) {
           return Promise.resolve()
         }
-        const injectedDeps: Record<string, string[]> = {}
-        for (const project of projectsWithTargetDirs) {
-          if (project.targetDirs.length > 0) {
-            injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
-          }
-        }
+        const injectedDeps = getInjectedDeps(injectionTargetsByDepPath, opts.lockfileDir)
         return writeModulesManifest(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedDependencies: result.newHoistedDependencies,
@@ -3596,17 +3611,16 @@ function dedupePackageNamesFromIgnoredBuilds (ignoredBuilds: IgnoredBuilds): str
 }
 
 /**
- * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages
- * and extend projects with their target directories.
+ * Build injectionTargetsByDepPath from the dependenciesGraph for injected workspace packages.
  * The dependenciesGraph already has the correct `dir` values after `extendGraph` is applied
  * (which uses the correct hash-based paths when global virtual store is enabled).
  */
-function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
-  projects: T[],
+function getInjectionTargetsByDepPath (
   lockfile: LockfileObject,
   dependenciesGraph: DependenciesGraph
-): Array<T & { id: ProjectId, stages: string[], targetDirs: string[] }> {
+): Map<string, string[]> {
   const injectionTargetsByDepPath = new Map<string, string[]>()
+
   if (lockfile.packages) {
     for (const [depPath, { resolution }] of Object.entries(lockfile.packages)) {
       if (resolution?.type === 'directory') {
@@ -3617,7 +3631,7 @@ function getProjectsWithTargetDirs<T extends { id: ProjectId }> (
       }
     }
   }
-  return extendProjectsWithTargetDirs(projects, injectionTargetsByDepPath)
+  return injectionTargetsByDepPath
 }
 
 /**

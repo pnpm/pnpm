@@ -317,6 +317,19 @@ test('getHoistableOptionalPeers picks the highest version that satisfies all the
   })
 })
 
+test('getHoistableOptionalPeers skips the candidates the importer rejects', () => {
+  const hoist = (acceptsCandidate: (name: string, version: string) => boolean) => getHoistableOptionalPeers({
+    foo: ['*'],
+  }, {
+    foo: {
+      '1.0.0': 'version',
+      '2.0.0': 'version',
+    },
+  }, [], acceptsCandidate)
+  expect(hoist((_, version) => version !== '2.0.0')).toStrictEqual({ foo: '1.0.0' })
+  expect(hoist(() => false)).toStrictEqual({})
+})
+
 test('getHoistableOptionalPeers handles version selector with weight', () => {
   expect(getHoistableOptionalPeers({
     jsdom: ['*'],

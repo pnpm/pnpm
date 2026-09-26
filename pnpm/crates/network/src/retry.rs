@@ -22,7 +22,7 @@ use std::{future::Future, time::Duration};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
 use crate::{
-    AuthHeaders, SecureAuthResponse, ThrottledClient, ThrottledClientGuard, is_certificate_error,
+    AuthHeaders, SecureAuthResponse, ThrottledClient, ThrottledClientGuard, is_permanent_error,
     redact_url_credentials, redact_url_for_display,
 };
 
@@ -164,7 +164,7 @@ pub async fn send_with_retry_at_priority<'client>(
                 attempt += 1;
             }
             Ok(response) => return Ok((client, response)),
-            Err(error) if attempt < retry_opts.retries && !is_certificate_error(&error) => {
+            Err(error) if attempt < retry_opts.retries && !is_permanent_error(&error) => {
                 drop(client);
                 let delay = retry_opts.delay_for(attempt);
                 warn_retry_error(url, error, attempt, retry_opts, delay);
@@ -265,7 +265,7 @@ pub(crate) async fn get_secure_bytes(
         |error| match error {
             SecureAttemptError::Response(_) => true,
             SecureAttemptError::Request(error) => {
-                !error.is_builder() && !error.is_redirect() && !is_certificate_error(error)
+                !error.is_builder() && !error.is_redirect() && !is_permanent_error(error)
             }
         },
         || async {

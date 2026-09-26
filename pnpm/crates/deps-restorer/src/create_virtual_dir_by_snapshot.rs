@@ -105,8 +105,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
-        let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let (slot, _slot_lock, interrupted_build) = self.open_slot()?;
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
             &slot.save_path,
@@ -167,6 +166,26 @@ impl CreateVirtualDirBySnapshot<'_> {
         Ok(())
     }
 
+    /// The slot's directories, and whether it carries a `.pnpm-needs-build`
+    /// marker. The marker is also there while another install builds the
+    /// slot, which a forced re-import would clobber, so a marked slot is
+    /// returned with its lock held.
+    fn open_slot(
+        &self,
+    ) -> Result<(SlotPaths, Option<pnpm_fs::DirLock>, bool), CreateVirtualDirError> {
+        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
+        let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
+        if !marker.is_file() {
+            return Ok((slot, None, false));
+        }
+        let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
+            self.layout,
+            self.dependencies.package_key,
+        );
+        let interrupted_build = marker.is_file();
+        Ok((slot, lock, interrupted_build))
+    }
+
     /// The method this slot's files are imported with — the configured one,
     /// unless a build or patch is still going to write them.
     fn import_method(&self) -> PackageImportMethod {
@@ -207,7 +226,12 @@ impl CreateVirtualDirBySnapshot<'_> {
             cas_paths,
             slot_import_opts(
                 self.layout,
-                (interrupted_build, self.source.is_mutable, self.source.force),
+                SlotForceInputs {
+                    interrupted_build,
+                    source_is_mutable: self.source.is_mutable,
+                    source_exists: self.source.source_exists,
+                    force_import: self.source.force,
+                },
             ),
         )
         .map_err(CreateVirtualDirError::ImportIndexedDir)
@@ -343,14 +367,37 @@ fn cas_paths_with_build_marker(
     Some(paths)
 }
 
+/// Inputs to [`slot_import_opts`]'s force decision, named instead of
+/// positional: four `bool`s in a tuple stopped being safe to read at a
+/// glance once `source_exists` joined `source_is_mutable`.
+#[derive(Clone, Copy)]
+struct SlotForceInputs {
+    interrupted_build: bool,
+    source_is_mutable: bool,
+    /// See [`crate::SlotImportSource::source_exists`]. Ignored unless
+    /// `source_is_mutable` is also set.
+    source_exists: bool,
+    force_import: bool,
+}
+
 fn slot_import_opts(
     layout: &crate::VirtualStoreLayout,
-    slot: (bool, bool, bool),
+    slot: SlotForceInputs,
 ) -> ImportIndexedDirOpts {
-    let (interrupted_build, source_is_mutable, force_import) = slot;
+    let SlotForceInputs {
+        interrupted_build,
+        source_is_mutable,
+        source_exists,
+        force_import,
+    } = slot;
     // Mutable sources can reuse a slot for different contents, so a complete
     // import may be stale.
     let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
+    // A mutable source that is currently missing must never be forced, even by
+    // interrupted_build or force_import — see SlotImportSource::source_exists.
+    if source_is_mutable && !source_exists {
+        return ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() };
+    }
     if interrupted_build || source_is_mutable || force_import {
         return ImportIndexedDirOpts {
             force: true,

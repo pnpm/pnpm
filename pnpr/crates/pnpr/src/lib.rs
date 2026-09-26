@@ -23,7 +23,7 @@ pub use pnpr_auth::{
 pub use pnpr_config::{
     AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
     DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig,
-    LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
+    IpNetwork, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
     PublicRoute, RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings,
     Teams, TokensConfig, UpstreamConfig, default_cache_dir,
 };

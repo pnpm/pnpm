@@ -11,7 +11,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -24,6 +24,7 @@ import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import type { TarballResolution } from '@pnpm/lockfile.types'
 import {
+  findLockedRootNodeRuntime,
   type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -46,6 +47,7 @@ import type {
 } from '@pnpm/types'
 import { hardLinkDir } from '@pnpm/worker'
 import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
+import { strict as isStrictSubdir } from 'is-subdir'
 import pLimit from 'p-limit'
 import semver from 'semver'
 
@@ -311,11 +313,11 @@ async function _rebuild (
 ): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: IgnoredBuilds }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile, opts.supportedArchitectures)
   const depsStateCache: DepsStateCache = {}
-  // Resolved `engines.runtime` Node version (when one is pinned) —
-  // every side-effects-cache key computed below is anchored to it so
+  // The root project's `engines.runtime` Node version (when one is
+  // pinned) anchors every side-effects-cache key computed below, so
   // the prefix tracks the script-runner Node rather than pnpm's own
   // `process.version`.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(depGraph))
+  const nodeVersion = findLockedRootNodeRuntime(ctx.currentLockfile)?.version
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map<DepPath, DepPath[]>()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
@@ -438,13 +440,14 @@ async function _rebuild (
       }
     }
     try {
-      const extraBinPaths = ctx.extraBinPaths
+      let extraBinPaths: string[]
       if (opts.nodeLinker !== 'hoisted') {
         const modules = pkgModulesDir(depPath)
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        extraBinPaths = ctx.extraBinPaths
       } else {
-        extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
+        extraBinPaths = [...ctx.extraBinPaths, ...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir)]
       }
       const resolution = (pkgSnapshot.resolution as TarballResolution)
       let sideEffectsCacheKey: string | undefined
@@ -514,6 +517,14 @@ async function _rebuild (
     } catch (err: unknown) {
       assert(util.types.isNativeError(err))
       if (pkgSnapshot.optional) {
+        // Other projects may link a global virtual store slot, so it is kept.
+        if (!gvsDirByDepPath.has(depPath)) {
+          // Hoisted package roots come from .modules.yaml, which is not validated.
+          const rootsToRemove = opts.nodeLinker === 'hoisted'
+            ? pkgRoots.filter((root) => isStrictSubdir(opts.lockfileDir, root))
+            : pkgRoots
+          await Promise.all(rootsToRemove.map((root) => fs.promises.rm(root, { recursive: true, force: true })))
+        }
         // TODO: add parents field to the log
         skippedOptionalDependencyLogger.debug({
           details: err.toString(),

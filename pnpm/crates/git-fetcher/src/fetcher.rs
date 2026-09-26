@@ -13,10 +13,14 @@
 pub(crate) mod tests;
 
 pub use bundles::{cache_checkout_bundles, checkout_cached_bundles};
+pub(crate) use remote::should_use_shallow;
 pub use revision::{checkout_existing_revision, checkout_revision, checkout_submodules_offline};
 
 mod bundles;
+mod remote;
 mod revision;
+
+use remote::download_commit;
 
 use crate::{
     GitSource, GitSourceCache,
@@ -308,6 +312,8 @@ pub struct CheckoutOptions<'a> {
     pub git_bin: Option<&'a Path>,
     /// Existing, empty directory to check the repo out into.
     pub dest: &'a Path,
+    /// `git -c` settings for the commands that reach the remote.
+    pub git_config: &'a [String],
 }
 
 /// Materialize `repo` at `commit` into `dest`, verifying that the
@@ -317,13 +323,7 @@ pub struct CheckoutOptions<'a> {
 /// [`read_git_manifest`], which need the same working tree for
 /// different reasons.
 pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError> {
-    let &CheckoutOptions {
-        repo,
-        commit,
-        git_shallow_hosts,
-        git_bin,
-        dest,
-    } = opts;
+    let &CheckoutOptions { repo, commit, git_bin, dest, .. } = opts;
     if !is_valid_commit_hash(commit) {
         return Err(GitFetcherError::InvalidCommit {
             commit: commit.to_string(),
@@ -335,16 +335,7 @@ pub fn checkout_commit(opts: &CheckoutOptions<'_>) -> Result<(), GitFetcherError
     }
 
     let git_bin = git_bin.unwrap_or_else(|| Path::new("git"));
-    // `--` keeps the repository positional out of git's option parser,
-    // belt and braces with the `is_safe_repo_arg` check above.
-    if should_use_shallow(repo, git_shallow_hosts) {
-        exec_git_with(git_bin, &["init"], Some(dest))?;
-        exec_git_with(git_bin, &["remote", "add", "origin", "--", repo], Some(dest))?;
-        exec_git_with(git_bin, &["fetch", "--depth", "1", "origin", commit], Some(dest))?;
-    } else {
-        exec_git_with(git_bin, &["clone", "--", repo, &dest.to_string_lossy()], None)?;
-    }
-
+    download_commit(opts, git_bin)?;
     exec_git_with(git_bin, &["checkout", commit], Some(dest))?;
     let received = exec_git_with(git_bin, &["rev-parse", "HEAD"], Some(dest))?;
     let received_trimmed = received.trim();
@@ -385,6 +376,8 @@ pub struct GitManifestQuery<'a> {
     pub git_shallow_hosts: &'a [String],
     /// See [`crate::GitSource::git_bin`].
     pub git_bin: Option<&'a Path>,
+    /// See [`CheckoutOptions::git_config`].
+    pub git_config: &'a [String],
 }
 
 /// Read the `package.json` of the package a `Git` resolution points at.
@@ -404,14 +397,17 @@ pub async fn read_git_manifest(
 ) -> Result<Option<Value>, GitFetcherError> {
     tokio::task::block_in_place(|| {
         let source = query.source_cache
-            .get(&GitSource {
-                cache: query.source_cache,
-                path: query.path,
-                repo: query.repo,
-                commit: query.commit,
-                shallow_hosts: query.git_shallow_hosts,
-                git_bin: query.git_bin,
-            })
+            .get_with_config(
+                &GitSource {
+                    cache: query.source_cache,
+                    path: query.path,
+                    repo: query.repo,
+                    commit: query.commit,
+                    shallow_hosts: query.git_shallow_hosts,
+                    git_bin: query.git_bin,
+                },
+                query.git_config,
+            )
             .map_err(GitFetcherError::SharedSource)?;
         // Same guarded join the install pass uses: the sub-path is
         // repo-rooted, and a `path` that climbs out of the checkout
@@ -437,41 +433,6 @@ fn is_safe_repo_arg(repo: &str) -> bool {
     !repo.is_empty() && !repo.starts_with('-') && !repo.contains('\0')
 }
 
-/// True iff `repo` parses to a host that pacquet should clone via the
-/// shallow `init` + `fetch --depth 1` path.
-pub(crate) fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
-    if allowed_hosts.is_empty() {
-        return false;
-    }
-    let Some(host) = extract_host(repo) else { return false };
-    allowed_hosts
-        .iter()
-        .any(|allowed| allowed == host)
-}
-
-/// Pluck the host portion out of a git URL. Handles the three forms
-/// git resolution produces: `https://host/path/...`,
-/// `git+ssh://user@host/path/...`, and `git://host/path/...`. Falls
-/// through to `None` for `file://` paths and SSH-style
-/// `user@host:path/...` (those don't appear in `git_shallow_hosts`
-/// defaults and a future PR can flesh them out if needed).
-fn extract_host(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))
-        .or_else(|| url.strip_prefix("git://"))
-        .or_else(|| url.strip_prefix("git+ssh://"))
-        .or_else(|| url.strip_prefix("git+https://"))?;
-    let authority_end = rest.find('/').unwrap_or(rest.len());
-    let authority = &rest[..authority_end];
-    let host = authority
-        .rsplit('@')
-        .next()
-        .unwrap_or(authority);
-    let host = host.split(':').next().unwrap_or(host);
-    if host.is_empty() { None } else { Some(host) }
-}
-
 /// On Windows, prepend `-c core.longpaths=true` to every git
 /// invocation so paths beyond 260 characters don't break checkout.
 fn prefix_git_args() -> &'static [&'static str] {
@@ -487,6 +448,7 @@ fn prefix_git_args() -> &'static [&'static str] {
 
 pub(crate) fn prepare_git_cmd(
     bin: &Path,
+    config: &[String],
     args: &[&str],
     cwd: Option<&Path>,
 ) -> Result<Command, GitFetcherError> {
@@ -503,6 +465,9 @@ pub(crate) fn prepare_git_cmd(
     }
     for arg in prefix_git_args() {
         cmd.arg(arg);
+    }
+    for setting in config {
+        cmd.arg("-c").arg(setting);
     }
     cmd.args(args);
     if reaches_remote(args) {
@@ -536,7 +501,17 @@ pub(crate) fn exec_git_with(
     args: &[&str],
     cwd: Option<&Path>,
 ) -> Result<String, GitFetcherError> {
-    let mut cmd = prepare_git_cmd(bin, args, cwd)?;
+    exec_git_with_config(bin, &[], args, cwd)
+}
+
+/// [`exec_git_with`] with `git -c` settings ahead of the subcommand.
+pub(crate) fn exec_git_with_config(
+    bin: &Path,
+    config: &[String],
+    args: &[&str],
+    cwd: Option<&Path>,
+) -> Result<String, GitFetcherError> {
+    let mut cmd = prepare_git_cmd(bin, config, args, cwd)?;
     let output = cmd
         .output()
         .map_err(|err| {

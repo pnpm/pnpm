@@ -50,6 +50,9 @@ pub(super) struct ImporterHoistDependencies {
     /// Empty until the caller assigns it; see
     /// [`crate::ImporterPeerOptions::resolve_peers_from_workspace_root`].
     pub(super) workspace_root_deps: Arc<Vec<WorkspaceRootDep>>,
+    /// `alias → version` of the workspace root's direct dependencies,
+    /// assigned together with `workspace_root_deps`.
+    pub(super) workspace_root_dep_versions: Arc<HashMap<String, String>>,
     /// `alias → bare_specifier` as declared. Stands in wherever the
     /// resolver reports no normalized form — a plain `"19.2.0"` arrives
     /// as `None`.
@@ -98,6 +101,7 @@ impl super::ImporterHoistState {
             dependencies: ImporterHoistDependencies {
                 direct,
                 workspace_root_deps: Arc::default(),
+                workspace_root_dep_versions: Arc::default(),
                 wanted_specifier_by_alias: seeds.wanted_specifier_by_alias,
                 hoisted_peer_provider_node_ids: HashSet::default(),
                 parent_pkg_aliases: seeds.parent_pkg_aliases,

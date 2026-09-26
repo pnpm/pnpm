@@ -57,6 +57,35 @@ fn two_project_workspace(
     fixture
 }
 
+fn three_project_workspace(
+    pkg_a: &serde_json::Value,
+    pkg_b: &serde_json::Value,
+    pkg_c: &serde_json::Value,
+) -> CommandTempCwd<AddMockedRegistry> {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        fixture.workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let workspace_yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'pkg-a'\n  - 'pkg-b'\n  - 'pkg-c'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    for (name, manifest) in [("pkg-a", pkg_a), ("pkg-b", pkg_b), ("pkg-c", pkg_c)] {
+        fs::create_dir(fixture.workspace.join(name)).expect("mkdir pkg");
+        fs::write(fixture.workspace.join(name).join("package.json"), manifest.to_string())
+            .expect("write package.json");
+    }
+    fixture
+}
+
 fn assert_frozen_outdated(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -556,6 +585,226 @@ fn removal_override_prevents_optional_peer_resolution_from_a_sibling_workspace_p
         pkg_b.dev_dependencies
             .as_ref()
             .is_some_and(|deps| deps.contains_key(&peer_c)),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Installs `pkg-a`, which has an optional peer on a package whose own
+/// `@pnpm/y` peer wants `^2.0.0`, next to `pkg-b`, which provides that
+/// package with `@pnpm/y@2.0.0`. Returns `pkg-a`'s resolved version of
+/// the optional peer's dependent.
+fn install_optional_peer_user_next_to_sibling(
+    pkg_a_deps: &serde_json::Value,
+    root_deps: Option<&serde_json::Value>,
+) -> String {
+    let mut pkg_a_dependencies =
+        serde_json::json!({ "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0" });
+    pkg_a_dependencies
+        .as_object_mut()
+        .expect("dependencies object")
+        .extend(
+            pkg_a_deps
+                .as_object()
+                .expect("pkg-a deps object")
+                .clone(),
+        );
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": pkg_a_dependencies,
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    if let Some(root_deps) = root_deps {
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true, "dependencies": root_deps })
+                .to_string(),
+        )
+        .expect("write root package.json");
+    }
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version = importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user");
+    drop((root, mock_instance));
+    version
+}
+
+/// Regression for [#13989](https://github.com/pnpm/pnpm/issues/13989):
+/// a sibling's package is not hoisted as an optional peer into an
+/// importer that provides one of its own peers at a version it rejects.
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_whose_peers_the_importer_rejects() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "@pnpm/y": "1.0.0" }),
+            None,
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_when_importer_aliases_conflicting_peer() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "my-y": "npm:@pnpm/y@1.0.0" }),
+            None,
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_supplied_when_alias_precedes_canonical_accepting_peer() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({
+                "my-y": "npm:@pnpm/y@1.0.0",
+                "@pnpm/y": "2.0.0",
+            }),
+            None,
+        ),
+        "1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))",
+    );
+}
+
+#[test]
+fn optional_peer_is_supplied_when_canonical_precedes_alias_accepting_peer() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({
+                "@pnpm/y": "2.0.0",
+                "my-y": "npm:@pnpm/y@1.0.0",
+            }),
+            None,
+        ),
+        "1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))",
+    );
+}
+
+#[test]
+fn optional_peer_is_not_supplied_by_a_sibling_whose_peers_the_workspace_root_rejects() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({}),
+            Some(&serde_json::json!({ "@pnpm/y": "1.0.0" })),
+        ),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn optional_peer_is_not_supplied_when_root_hoists_incompatible_peer_in_same_wave() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = three_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-c",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm/y": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let root_pkg = serde_json::json!({
+        "name": "root",
+        "private": true,
+        "dependencies": { "@pnpm.e2e/has-optional-y-v1": "1.0.0" },
+    });
+    fs::write(workspace.join("package.json"), root_pkg.to_string())
+        .expect("write root package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version = importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user");
+    drop((root, mock_instance));
+    assert_eq!(version, "1.0.0");
+}
+
+#[test]
+fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
+    assert_eq!(
+        install_optional_peer_user_next_to_sibling(
+            &serde_json::json!({ "@pnpm/y": "2.0.0" }),
+            None,
+        ),
+        "1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))",
+    );
+}
+
+/// The provider is left only in the wanted lockfile, so the lockfile is
+/// what describes its peers.
+#[test]
+fn optional_peer_is_not_supplied_from_the_lockfile_by_a_package_whose_peers_the_importer_rejects() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/y-v2-peer-user": "1.0.0", "@pnpm/y": "2.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::write(
+        workspace.join("pkg-a/package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user": "1.0.0", "@pnpm/y": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a/package.json");
+    fs::write(
+        workspace.join("pkg-b/package.json"),
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm/y": "2.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b/package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user"),
+        "1.0.0",
     );
 
     drop((root, mock_instance));

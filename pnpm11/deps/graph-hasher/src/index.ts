@@ -27,33 +27,6 @@ function extractRuntimeNodeVersion (snapshotKey: string): string | undefined {
 }
 
 /**
- * Scan an iterable of lockfile snapshot keys for the resolved
- * `engines.runtime` / `devEngines.runtime` Node version and return
- * its bare version string (e.g. `"22.11.0"`), or `undefined` when
- * no snapshot pins a runtime.
- *
- * Pnpm's runtime resolver writes the pinned Node into the lockfile as
- * a snapshot with key `node@runtime:<version>[(<peers>)]`
- * (see [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts)).
- * The first such key found is treated as authoritative. This is fine
- * as an install-wide fallback (project-pin in the typical case), but
- * snapshots that pin their own Node still need
- * {@link readSnapshotRuntimePin} to get a per-snapshot result.
- *
- * Callers typically pass `Object.keys(lockfile.packages ?? {})` — the
- * in-memory `LockfileObject` merges the on-disk `packages:` and
- * `snapshots:` sections under a single `packages` field, so its keys
- * include every snapshot key the install will hash.
- */
-export function findRuntimeNodeVersion (snapshotKeys: Iterable<string>): string | undefined {
-  for (const key of snapshotKeys) {
-    const version = extractRuntimeNodeVersion(key)
-    if (version != null) return version
-  }
-  return undefined
-}
-
-/**
  * Read a single graph node's own `engines.runtime` Node pin from its
  * `children` map. The resolver desugars `engines.runtime` declared on
  * a dependency's manifest into `dependencies.node: 'runtime:<version>'`
@@ -153,9 +126,9 @@ export function calcDepState<T extends string> (
      * `depPath` doesn't itself pin a Node: per-snapshot pins take
      * precedence so the side-effects-cache key reflects the actual
      * script-runner Node the bin linker would spawn for the package
-     * (see {@link readSnapshotRuntimePin}). Typically computed once
-     * per install via {@link findRuntimeNodeVersion} over the
-     * lockfile's snapshot keys.
+     * (see {@link readSnapshotRuntimePin}). Typically the root
+     * project's pin, from `findLockedRootNodeRuntime` in
+     * `@pnpm/lockfile.utils`.
      */
     nodeVersion?: string
   }
@@ -261,8 +234,8 @@ export interface GraphNodeHashOptions {
    * {@link readSnapshotRuntimePin} so the GVS engine hash matches
    * the Node the bin linker would actually spawn for each package
    * (see [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts)).
-   * Typically obtained via {@link findRuntimeNodeVersion} over the
-   * lockfile's snapshot keys. `undefined` falls back to
+   * Typically the root project's pin, from `findLockedRootNodeRuntime`
+   * in `@pnpm/lockfile.utils`. `undefined` falls back to
    * {@link engineName}'s default (system `node --version`, with
    * `process.version` as a last resort).
    */

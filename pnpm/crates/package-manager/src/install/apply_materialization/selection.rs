@@ -173,8 +173,7 @@ pub(super) async fn package_map_engine_name(
     config: &'static Config,
     current: &Lockfile,
 ) -> Option<String> {
-    let runtime_major =
-        crate::install_frozen_lockfile::find_runtime_node_major(current.snapshots.as_ref());
+    let runtime_major = crate::install_frozen_lockfile::find_runtime_node_major(&current.importers);
     let configured_major = config.node_version
         .as_deref()
         .and_then(crate::install_frozen_lockfile::parse_major_from_version);

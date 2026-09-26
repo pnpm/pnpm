@@ -77,12 +77,18 @@ pub(super) fn installability_skip(
     state: &WalkState<'_>,
     pkg_key: &PackageKey,
     metadata: &pnpm_lockfile::PackageMetadata,
-    optional: bool,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Result<bool, HoistedDepGraphError> {
     if state.opts.include_incompatible_packages {
         return Ok(false);
     }
-    let manifest = manifest_for_installability(pkg_key, metadata);
+    let mut manifest = manifest_for_installability(pkg_key, metadata);
+    let optional = snapshot.is_some_and(|snapshot| snapshot.optional);
+    if state.opts.installability.engine_strict
+        && crate::installability::snapshot_is_patched(pkg_key, snapshot)
+    {
+        manifest.engines = None;
+    }
     let install_opts = InstallabilityOptions {
         engine_strict: state.opts.installability.engine_strict,
         optional,

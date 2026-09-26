@@ -5,7 +5,7 @@ import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
+import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
@@ -13,7 +13,7 @@ import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { findLockedRootNodeRuntime, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
@@ -37,6 +37,7 @@ import {
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { difference, zipWith } from 'ramda'
+import semver from 'semver'
 
 import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
@@ -421,7 +422,9 @@ export async function resolveDependencies (
       if (dep.normalizedBareSpecifier == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
+        ? dep.version
+        : dep.normalizedBareSpecifier
     }
   }
 
@@ -491,6 +494,10 @@ export async function resolveDependencies (
     wantedToBeSkippedPackageIds,
     resolutionPolicyViolations,
   }
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {
@@ -665,19 +672,19 @@ function extendGraph (
     enableGlobalVirtualStore?: boolean
     lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
+    wantedLockfile: LockfileObject
   }
 ): DependenciesGraph {
   const pkgMetaIter = iterateGraphPkgMetaEntries(graph, !opts.enableGlobalVirtualStore)
   // Only use allowBuild for engine-agnostic hash optimization when GVS is on
   const allowBuild = opts.enableGlobalVirtualStore ? opts.allowBuild : undefined
-  // Anchor every snapshot's engine hash to the project-pinned Node
-  // version (from `engines.runtime` / `devEngines.runtime`) when the
-  // resolver produced one — the graph carries it as a
-  // `node@runtime:<version>` key. Without this, GVS slots for
-  // approved-build packages would hash under the runner's
-  // `process.version` instead of the script-runner Node, splitting
-  // the cache between pinned and non-pinned installs on the same host.
-  const nodeVersion = findRuntimeNodeVersion(Object.keys(graph))
+  // Anchor every snapshot's engine hash to the root project's pinned
+  // Node version (from `engines.runtime` / `devEngines.runtime`).
+  // Without this, GVS slots for approved-build packages would hash
+  // under the runner's `process.version` instead of the script-runner
+  // Node, splitting the cache between pinned and non-pinned installs
+  // on the same host.
+  const nodeVersion = findLockedRootNodeRuntime(opts.wantedLockfile)?.version
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
     allowBuild,
     supportedArchitectures: opts.supportedArchitectures,

@@ -42,6 +42,27 @@ fn deploy_manifest_hook_reuses_unchanged_arc() {
 
     assert!(Arc::ptr_eq(&manifest, &transformed));
 }
+
+#[test]
+fn deploy_manifest_hook_copies_linked_dependencies() {
+    let manifest = Arc::new(serde_json::json!({
+        "dependencies": { "a": "link:./a", "registry": "^1.0.0", "file": "file:./file" },
+        "devDependencies": { "b": "link:../b" },
+        "optionalDependencies": { "c": "link:./c" },
+    }));
+
+    let transformed = apply_deploy_manifest_hook_to_arc(Arc::clone(&manifest));
+
+    assert_eq!(
+        *transformed,
+        serde_json::json!({
+            "dependencies": { "a": "file:./a", "registry": "^1.0.0", "file": "file:./file" },
+            "devDependencies": { "b": "file:../b" },
+            "optionalDependencies": { "c": "file:./c" },
+        }),
+    );
+    assert_eq!(manifest["dependencies"]["a"], "link:./a");
+}
 // The `readPackage` hook rewrites a resolved package's
 // dependency range, and resolution honors it. `@pnpm.e2e/pkg-with-1-dep`
 // depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, which would resolve

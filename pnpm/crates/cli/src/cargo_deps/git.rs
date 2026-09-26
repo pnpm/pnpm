@@ -440,6 +440,7 @@ fn checkout_source(options: &VendorSourceOptions<'_>) -> Result<tempfile::TempDi
         git_shallow_hosts: options.git_shallow_hosts,
         git_bin: None,
         dest: checkout.path(),
+        git_config: &[],
     })
     .map_err(|error| {
         let error = redact_and_sanitize(&error.to_string());

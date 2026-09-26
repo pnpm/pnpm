@@ -39,7 +39,7 @@ pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
     BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs,
+    BuildSnapshotInputs, PatchedEngineCheck, ScriptPath,
 };
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
@@ -92,6 +92,7 @@ pub use version_policy::*;
 pub use virtual_store_layout::*;
 
 mod custom_fetcher;
+mod gvs_slot_lock;
 mod installed_hoisted_state;
 mod shared_side_effects;
 

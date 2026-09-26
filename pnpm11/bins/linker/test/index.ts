@@ -30,6 +30,7 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
+const BASEDIR_ABS_LINE = 'basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?'
 const PRINTF_BASEDIR_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
@@ -161,6 +162,21 @@ test('linkBins() keeps or rewrites the NODE_PATH of an existing bin according to
   const projectWithoutExtras = await relink({ projectModulesDir })
   expect(projectWithoutExtras.kept).toBe(false)
   expect(projectWithoutExtras.entries[0]).toMatch(/\/vendor$/)
+})
+
+test('linkBins() keeps an existing bin whose shim is larger than 4 KiB', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(f.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+  const extraNodePaths = [path.join(modulesDir, 'x'.repeat(2048))]
+
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  expect(fs.statSync(binLocation).size).toBeGreaterThan(4 * 1024)
+
+  fs.appendFileSync(binLocation, '# sentinel\n')
+  await linkBins(modulesDir, binTarget, { warn, extraNodePaths })
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
 })
 
 // A shim written on Windows keeps its posix entries in `new_node_path` and
@@ -319,6 +335,87 @@ test('linkBins() replaces a shim that resolves its helpers with node_modules on 
   expect(content).toContain(helperPathFilterLine)
   expect(content).not.toContain('# outdated-helper-path')
 })
+
+// A shim whose relative target climbs from the lexical shim directory still
+// carries a matching target marker and hardened header.
+test('linkBins() replaces a shim whose relative target climbs from the lexical basedir', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const outdated = fs.readFileSync(binLocation, 'utf8')
+    .replace(`${BASEDIR_ABS_LINE}\n`, '')
+    .replace('basedir="$basedir_abs"\n', '')
+    .replaceAll('"$basedir_abs/', '"$basedir/')
+  expect(outdated).not.toContain('basedir_abs')
+  fs.writeFileSync(binLocation, outdated, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(`${BASEDIR_ABS_LINE}\n`)
+  expect(content).toContain('"$basedir_abs/')
+})
+
+test('linkBins() replaces a shim whose relative target does not match the physical bin directory', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const original = fs.readFileSync(binLocation, 'utf8')
+  const stale = original.replace('"$basedir_abs/', '"$basedir_abs/../stale/')
+  expect(stale).not.toEqual(original)
+  fs.writeFileSync(binLocation, stale, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).not.toContain('stale')
+})
+
+// The shell shim resolves its directory with `cd -P`, which follows a junction
+// in the MSYS shell as it follows a symlink in a POSIX shell.
+test('linkBins() computes a relative target from the physical bin directory when the bin directory is a link', async () => {
+  const root = temporaryDirectory()
+  const modulesDir = path.join(root, 'node_modules')
+  const pkgDir = path.join(modulesDir, 'tool')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'cli.js' }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'cli.js'), '#!/usr/bin/env node\n', 'utf8')
+  const physicalBinsDir = path.join(root, 'storage', 'deep', 'bin')
+  fs.mkdirSync(physicalBinsDir, { recursive: true })
+  const binsDir = path.join(root, 'bin')
+  fs.symlinkSync(physicalBinsDir, binsDir, 'junction')
+
+  await linkBins(modulesDir, binsDir, { warn: jest.fn() })
+
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toContain('"$basedir_abs/../../../node_modules/tool/cli.js"')
+})
+
+test('linkBins() keeps a shim whose size exceeds 4KB but stays within the shim size limit', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const binLocation = path.join(binTarget, 'simple')
+  const padding = '# ' + 'x'.repeat(5 * 1024) + '\n'
+  fs.appendFileSync(binLocation, `${padding}# sentinel\n`)
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+  expect(fs.readFileSync(binLocation, 'utf8')).toContain('# sentinel')
+})
+
 
 testOnPosix('linkBins() repairs a non-executable source when the existing bin references it', async () => {
   const binTarget = temporaryDirectory()
@@ -504,6 +601,7 @@ test('linkBins() does not link own bins', async () => {
 test('linkBinsOfPackages()', async () => {
   const binTarget = temporaryDirectory()
   const simpleFixture = f.prepare('simple-fixture')
+  const linkedCommandNames = new Set<string>()
 
   await linkBinsOfPackages(
     [
@@ -512,9 +610,11 @@ test('linkBinsOfPackages()', async () => {
         manifest: (await import(path.join(simpleFixture, 'node_modules/simple/package.json'))).default,
       },
     ],
-    binTarget
+    binTarget,
+    { linkedCommandNames }
   )
 
+  expect([...linkedCommandNames]).toEqual(['simple'])
   expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)
@@ -917,7 +1017,7 @@ test('linkBinsOfPackages() rewrites a shim written for a missing target once the
   fs.writeFileSync(path.join(pkgDir, 'bin', 'tool'), '#!/usr/bin/env node\nconsole.log(\'built\')\n')
   await linkBinsOfPackages([pkg], binsDir)
 
-  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir\//)
+  expect(fs.readFileSync(path.join(binsDir, 'tool'), 'utf8')).toMatch(/exec node +"\$basedir_abs\//)
   if (IS_WINDOWS) {
     expect(fs.readFileSync(path.join(binsDir, `tool${CMD_EXTENSION}`), 'utf8')).toMatch('node')
   }
@@ -1037,6 +1137,11 @@ describe('enable prefer-symlinked-executables', () => {
     const binTarget = temporaryDirectory()
     const warn = jest.fn()
     const simpleFixture = f.prepare('simple-fixture')
+    const sourceFile = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      fs.chmodSync(sourceFile, 0o700)
+    }
+    const sourceMode = fs.statSync(sourceFile).mode & 0o777
 
     await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
 
@@ -1054,7 +1159,9 @@ describe('enable prefer-symlinked-executables', () => {
     if (EXECUTABLE_SHEBANG_SUPPORTED) {
       const binFile = path.join(binTarget, 'simple')
       const stat = fs.statSync(binFile)
-      expect(stat.mode).toBe(parseInt('100755', 8))
+      // The target gains the execute bits it lacks, keeping the read and write
+      // bits that the fixture gave it.
+      expect(stat.mode & 0o777).toBe(sourceMode | 0o111)
       expect(stat.isFile()).toBe(true)
       const stdout = spawnSync(binFile).stdout.toString('utf-8')
       expect(stdout).toMatch('hello_world')
@@ -1170,6 +1277,33 @@ describe('node binary linking', () => {
     expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
     // No cmd-shim should be created since we return early
     expect(fs.existsSync(path.join(binTarget, `node${CMD_EXTENSION}`))).toBe(false)
+  })
+
+  // https://github.com/pnpm/pnpm/issues/5411
+  testOnWindows('linkBinsOfPackages() replaces a dangling node.exe symlink', async () => {
+    const binTarget = temporaryDirectory()
+    const nodeDir = temporaryDirectory()
+
+    fs.writeFileSync(path.join(nodeDir, 'node.exe'), 'fake-node-binary', 'utf8')
+    const exePath = path.join(binTarget, 'node.exe')
+    fs.symlinkSync(path.join(temporaryDirectory(), 'missing', 'node.exe'), exePath, 'file')
+
+    await linkBinsOfPackages(
+      [
+        {
+          location: nodeDir,
+          manifest: {
+            name: 'node',
+            version: '20.0.0',
+            bin: { node: 'node.exe' },
+          },
+        },
+      ],
+      binTarget
+    )
+
+    expect(fs.lstatSync(exePath).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(exePath, 'utf8')).toBe('fake-node-binary')
   })
 
   testOnWindows('linkBinsOfPackages() does not warn when node.exe is already the correct hardlink', async () => {

@@ -6,7 +6,7 @@
 use super::{
     AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
     add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
-    run_capture_chcp_with,
+    run_capture_chcp_with, update_env_variable_with,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -27,6 +27,65 @@ fn matches_the_name_case_insensitively() {
 #[test]
 fn missing_value_returns_none() {
     assert!(get_env_value_from_registry(SAMPLE, "NOT_THERE").is_none());
+}
+
+/// An unrelated variable whose name holds a multi-byte character must not
+/// stop the search, even when its byte length exceeds the name we look for.
+#[test]
+fn skips_an_unrelated_name_holding_a_multibyte_character() {
+    let output = "    ABCä    REG_SZ    ignored\r\n    Path    REG_EXPAND_SZ    C:\\tools\r\n";
+    assert_eq!(get_env_value_from_registry(output, "Path").as_deref(), Some(r"C:\tools"));
+
+    let output = "    ABCDEFGHä    REG_SZ    ignored\r\n";
+    assert!(get_env_value_from_registry(output, "PNPM_HOME").is_none());
+}
+
+#[test]
+fn rewrites_a_matching_value_when_the_registry_type_is_wrong() {
+    let registry_output =
+        "    PNPM_HOME    REG_EXPAND_SZ    C:\\pnpm\r\n    Path    REG_EXPAND_SZ    C:\\old\r\n";
+    let mut writes = Vec::new();
+
+    let change = update_env_variable_with(
+        registry_output,
+        "PNPM_HOME",
+        r"C:\pnpm",
+        false,
+        false,
+        |name, value, expandable_string| {
+            writes.push((name.to_string(), value.to_string(), expandable_string));
+            Ok(())
+        },
+    )
+    .expect("matching value with wrong registry type should be repaired");
+
+    assert_eq!(change.old_value.as_deref(), Some(r"C:\pnpm"));
+    assert_eq!(change.new_value, r"C:\pnpm");
+    assert_eq!(writes, vec![(String::from("PNPM_HOME"), String::from(r"C:\pnpm"), false)]);
+}
+
+#[test]
+fn skips_a_matching_value_when_the_registry_type_is_correct() {
+    let registry_output =
+        "    PNPM_HOME    REG_SZ    C:\\pnpm\r\n    Path    REG_EXPAND_SZ    C:\\old\r\n";
+    let mut writes = Vec::new();
+
+    let change = update_env_variable_with(
+        registry_output,
+        "PNPM_HOME",
+        r"C:\pnpm",
+        false,
+        false,
+        |name, value, expandable_string| {
+            writes.push((name.to_string(), value.to_string(), expandable_string));
+            Ok(())
+        },
+    )
+    .expect("matching value with the correct registry type should be left unchanged");
+
+    assert_eq!(change.old_value.as_deref(), Some(r"C:\pnpm"));
+    assert_eq!(change.new_value, r"C:\pnpm");
+    assert!(writes.is_empty());
 }
 
 #[test]

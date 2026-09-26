@@ -19,11 +19,7 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
     let store_node_path = ["/store/links/node_modules".to_string()];
     let body = generate_sh_shim(store_target, shim, Some(&runtime), &store_node_path, Some(root));
     eprintln!("BODY:\n{body}");
-    assert_eq!(
-        body.contains("basedir_abs"),
-        cfg!(unix),
-        "relative exec paths use the physical shim directory",
-    );
+    assert!(body.contains("basedir_abs"), "relative exec paths use the physical shim directory");
     let posix_node_path = if cfg!(windows) {
         "  new_node_path='/store/links/node_modules'\n"
     } else {

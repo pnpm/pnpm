@@ -6,6 +6,59 @@ pub const EXEC_MASK: u32 = 0b001_001_001;
 /// All can read and execute, but only owner can write (`rwxr-xr-x`).
 pub const EXEC_MODE: u32 = 0b111_101_101;
 
+/// All can read and write (`rw-rw-rw-`), the create mode for
+/// non-executable entries.
+pub const BASE_FILE_MODE: u32 = 0b110_110_110;
+
+/// The mode a fresh store write gives an entry of `executable`'s class
+/// under `umask`. The store creates every file this way
+/// (`StoreDir::write_cas_file`), so materializing a store file at this
+/// mode is what a store write would have produced, whatever umask
+/// populated the store (pnpm/pnpm#3807).
+#[must_use]
+pub fn store_entry_mode(executable: bool, umask: u32) -> u32 {
+    (if executable { EXEC_MODE } else { BASE_FILE_MODE }) & !umask & 0o777
+}
+
+/// The process's current umask, read once: the CLI never changes it, and
+/// the import hot path would otherwise pay two `umask(2)` syscalls per
+/// file.
+#[cfg(unix)]
+#[must_use]
+pub fn current_umask() -> u32 {
+    static UMASK: std::sync::LazyLock<u32> = std::sync::LazyLock::new(|| {
+        // SAFETY: `umask` is always safe to call. Reading the mask requires
+        // setting it, so both calls are made back to back with nothing in
+        // between but the other `umask` call, and this runs once per process
+        // behind a `LazyLock` initializer. A file another thread creates in
+        // that window gets the unmasked creation mode, which carries no
+        // executable bit and does not match any desired mode, so the import
+        // tiers copy it instead of linking it.
+        let mask = unsafe { libc::umask(0) };
+        // SAFETY: Restores the mask the call above read, making the read
+        // invisible to every other thread.
+        unsafe { libc::umask(mask) };
+        widen_mode(mask)
+    });
+    *UMASK
+}
+
+/// `libc::umask` speaks `mode_t`, a `u16` on macOS and a `u32` on Linux.
+/// `Into` is the one widening both platforms' clippy accepts: a cast is
+/// `cast_lossless` on macOS and `u32::from` is `useless_conversion` on
+/// Linux.
+#[cfg(unix)]
+fn widen_mode(mode: impl Into<u32>) -> u32 {
+    mode.into()
+}
+
+/// [`current_umask`] on platforms without mode bits: nothing to mask.
+#[cfg(not(unix))]
+#[must_use]
+pub fn current_umask() -> u32 {
+    0
+}
+
 /// Whether a file mode has *any* executable bit set (`u+x`, `g+x`, or
 /// `o+x`). Matches pnpm's `modeIsExecutable` and is therefore the rule
 /// pacquet must follow when deciding whether a CAFS blob gets the

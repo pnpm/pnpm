@@ -31,6 +31,47 @@ fn write_workspace(workspace: &Path, names: &[&str]) {
     }
 }
 
+#[test]
+fn recursive_pack_silent_suppresses_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_args(["-r", "pack", "--silent"])
+        .assert()
+        .success()
+        .stdout("")
+        .stderr("");
+
+    for name in ["project-1", "project-2"] {
+        let manifest = read_manifest_from_tarball(&workspace.join(format!("{name}-1.0.0.tgz")));
+        assert_eq!(manifest["name"], name);
+    }
+    drop(root);
+}
+
+#[test]
+fn recursive_pack_silent_preserves_json_output() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    let assertion = pacquet
+        .with_args(["-r", "pack", "--silent", "--json"])
+        .assert()
+        .success()
+        .stderr("");
+    let results: Vec<serde_json::Value> =
+        serde_json::from_slice(&assertion.get_output().stdout).expect("parse pack JSON");
+    dbg!(&results);
+    assert_eq!(results.len(), 2);
+    for result in results {
+        let tarball = result["filename"].as_str().expect("packed filename");
+        let manifest = read_manifest_from_tarball(&workspace.join(tarball));
+        assert_eq!(manifest["name"], result["name"]);
+    }
+    drop(root);
+}
+
 /// `pacquet -r --filter <name> pack` packs only the `--filter`-selected
 /// project, leaving the rest unpacked — the same selection `run -r` /
 /// `exec -r` apply, since all three share `select_recursive_projects`.

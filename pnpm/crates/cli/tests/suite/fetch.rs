@@ -1,3 +1,4 @@
+use crate::_utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::STORE_VERSION;
@@ -174,7 +175,7 @@ fn fetch_dev_drops_prod_and_optional() {
     );
     assert!(
         !virtual_dep(&workspace, OPTIONAL_DEP).exists(),
-        "`fetch --dev` must not fetch optional deps (they follow production)",
+        "`fetch --dev` must not fetch the project's optional deps (they follow production)",
     );
     assert_no_importer_links(&workspace);
 
@@ -303,6 +304,57 @@ fn fetch_runs_a_build_script_that_calls_a_sibling_dependency_bin() {
         pkg_dir.join("generated-by-postinstall.js").exists(),
         "the postinstall script must have run to completion",
     );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `fetch fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is
+/// missing` ([pnpm/pnpm#5268](https://github.com/pnpm/pnpm/issues/5268)).
+#[test]
+fn fetch_fails_with_patch_not_found_when_a_patch_file_is_missing() {
+    const PATCHED_DEP: &str = "@pnpm.e2e/console-log";
+    const PATCH: &str = include_str!(
+        "../../../../../pnpm11/installing/commands/test/__fixtures__/patchedDependencies/console-log-replace-1st-line.patch"
+    );
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/console-log.patch"), PATCH).expect("write patch file");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        format!("\n  '{PATCHED_DEP}': patches/console-log.patch"),
+    );
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { PATCHED_DEP: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("patches")).expect("remove patches dir");
+
+    let output = pacquet_at(&workspace)
+        .with_arg("fetch")
+        .output()
+        .expect("run pnpm fetch");
+
+    assert!(!output.status.success(), "fetch must fail without the patch file");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, splitting the temp path.
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
+    assert!(unwrapped.contains("console-log.patch"), "stderr: {stderr}");
 
     drop((root, mock_instance));
 }

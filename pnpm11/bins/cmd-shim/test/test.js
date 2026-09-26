@@ -14,6 +14,7 @@ import {
   isShimNodePath,
   isShimPointingAt,
   readShNodePath,
+  readShRelativeTarget,
 } from '@pnpm/bins.cmd-shim'
 
 /**
@@ -71,7 +72,7 @@ describe('missing source', () => {
   test('infers the runtime from the extension', async () => {
     const src = path.resolve(fixtures, 'dist', 'missing.js')
     await cmdShim(src, to, { createCmdFile: true, fs })
-    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir\/dist\/missing\.js" "\$@"\n/)
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir_abs\/dist\/missing\.js" "\$@"\n/)
     assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
   })
 
@@ -79,7 +80,7 @@ describe('missing source', () => {
     const src = path.resolve(fixtures, 'missing')
     await cmdShim(src, to, { createCmdFile: false, fs })
     const content = fs.readFileSync(to, 'utf8')
-    assert.match(content, /\nexec "\$basedir\/missing" +"\$@"\n/)
+    assert.match(content, /\nexec "\$basedir_abs\/missing" +"\$@"\n/)
     assert.doesNotMatch(content, /exec node/)
   })
 
@@ -172,6 +173,41 @@ describe('env shebang with NODE_PATH', () => {
     await testFile(t, to, '\n', process.platform === 'win32' ? 'env.shim (windows)' : 'env.shim')
     await testFile(t, `${to}${cmdExtension}`, '\r\n')
     await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('paths containing %', () => {
+  const src = path.resolve(fixtures, '50% off', 'src.env')
+  const to = path.resolve(fixtures, 'percent.shim')
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, '#!/usr/bin/env node\nconsole.log(/hi/)\n')
+    return cmdShim(src, to, {
+      nodePath: ['/50% off/node_modules'],
+      prependToPath: '/50% off/bin',
+      nodeExecPath: '/50% off/node',
+      createCmdFile: true,
+      fs,
+    })
+  })
+
+  test('are escaped in the cmd shim', async () => {
+    const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@SET "NODE_PATH=\\50%% off\\node_modules;%NODE_PATH%"'), content)
+    assert.ok(content.includes('"%~dp0\\50%% off\\src.env"'), content)
+    assert.ok(content.includes('@SET "PATH=\\50%% off\\bin:%PATH%"'), content)
+    assert.ok(content.includes('"/50%% off/node"'), content)
+  })
+
+  test('are escaped in the shebang program of the cmd shim', async () => {
+    const shebangSrc = path.resolve(fixtures, 'percent-prog.sh')
+    const shebangTo = path.resolve(fixtures, 'percent-prog.shim')
+    await fs.promises.writeFile(shebangSrc, '#!/50%OS%bin/sh -x %OS%\necho hi\n')
+    await cmdShim(shebangSrc, shebangTo, { createCmdFile: true, fs })
+    const content = await fs.promises.readFile(`${shebangTo}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@IF EXIST "%~dp0\\/50%%OS%%bin/sh.exe"'), content)
+    assert.ok(content.includes('  /50%%OS%%bin/sh  -x %%OS%% '), content)
   })
 })
 
@@ -350,6 +386,25 @@ fi
 `
     assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
     assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+})
+
+describe('readShRelativeTarget', () => {
+  test('extracts relative target anchored on basedir_abs', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), '../foo/bin/cli.js')
+  })
+
+  test('returns undefined when shim has no basedir_abs anchor', () => {
+    const shim = `
+exec "$basedir/node" "/abs/path/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), undefined)
   })
 })
 

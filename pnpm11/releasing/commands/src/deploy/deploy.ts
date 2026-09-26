@@ -156,9 +156,11 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   }
 
   await writeInheritedPackageManager(deployDir, opts.enginePinManifest)
-  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
-  if (deployedProject) {
-    deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
+  const deployNodeModules = path.join(deployDir, 'node_modules')
+  if (opts.allProjects) {
+    for (const project of opts.allProjects) {
+      project.modulesDir = path.relative(project.rootDir, deployNodeModules)
+    }
   }
   await install.handler({
     ...opts,
@@ -212,7 +214,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
       ...opts.hooks,
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
-        deployHook,
+        pkg => deployHook(pkg, { convertLinksToFileProtocol: true }),
       ],
     },
     frozenLockfile: false,
@@ -447,7 +449,7 @@ async function deployFromSharedLockfile (
         ...opts.hooks,
         readPackage: [
           ...(opts.hooks?.readPackage ?? []),
-          deployHook,
+          pkg => deployHook(pkg),
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },

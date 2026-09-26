@@ -460,6 +460,7 @@ impl<'a> CreateVirtualStore<'a> {
 
                 store_index_writer: self.fetching.store_index_writer,
             },
+            self.importers,
         )
         .await;
     }

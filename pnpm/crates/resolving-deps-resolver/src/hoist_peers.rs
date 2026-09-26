@@ -180,6 +180,7 @@ pub fn get_hoistable_optional_peers(
         all_preferred_versions,
         workspace_root_deps,
         &HashMap::default(),
+        &|_, _| true,
     )
 }
 
@@ -188,6 +189,7 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
     all_preferred_versions: &PreferredVersions,
     workspace_root_deps: &[WorkspaceRootDep],
     locked_peer_versions: &HashMap<String, HashSet<String>>,
+    accepts_candidate: &dyn Fn(&str, &str) -> bool,
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
@@ -197,6 +199,7 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
             ranges,
             find_workspace_root_dep(workspace_root_deps, peer_name),
             locked_peer_versions.get(peer_name),
+            &|version| accepts_candidate(peer_name, version),
         );
         if let Some(version) = version {
             optional_dependencies.insert(peer_name.clone(), version.to_string());
@@ -214,6 +217,7 @@ fn max_hoistable_optional_version(
     ranges: &[String],
     root_dep: Option<&WorkspaceRootDep>,
     locked_versions: Option<&HashSet<String>>,
+    accepts_candidate: &dyn Fn(&str) -> bool,
 ) -> Option<Version> {
     // An unparsable range is satisfied by nothing, so bailing on the
     // peer matches failing the check per candidate.
@@ -252,6 +256,7 @@ fn max_hoistable_optional_version(
                     root_range.as_ref(),
                     &parsed_ranges,
                 )
+                .filter(|_| accepts_candidate(version_str))
             })
             .max()
     };

@@ -432,12 +432,10 @@ describe('calcGraphNodeHash', () => {
   })
 
   it('cross-pinning siblings produce distinct engine prefixes in the same install', () => {
-    // Two siblings with different `engines.runtime` declarations
-    // surface the bug this test guards: under PR #11689's
-    // install-wide resolution they'd share the same engine major in
-    // the GVS hash (whichever `findRuntimeNodeVersion` happened to
-    // match first), even though the bin linker would route their
-    // lifecycle scripts through different downloaded Nodes.
+    // Two siblings with different `engines.runtime` declarations must
+    // not share the install-wide engine major in the GVS hash: the bin
+    // linker routes their lifecycle scripts through different
+    // downloaded Nodes.
     const graph: DepsGraph<DepPath> = {
       ['pins-22@1.0.0' as DepPath]: {
         children: { node: 'node@runtime:22.11.0' as DepPath },

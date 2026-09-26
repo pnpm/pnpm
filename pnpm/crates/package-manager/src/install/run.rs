@@ -172,6 +172,8 @@ where
         );
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
+        owned.projects.dependency_groups =
+            super::project_dependency_groups(std::mem::take(&mut owned.projects.dependency_groups));
         let rollback_guard = if install.should_prune_catalogs(&options) {
             install.prune_workspace_catalogs(
                 &options,

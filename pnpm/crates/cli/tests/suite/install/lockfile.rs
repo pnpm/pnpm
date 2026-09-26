@@ -885,7 +885,7 @@ fn a_prod_install_records_every_group_and_materializes_only_production() {
 #[test]
 fn a_dev_install_records_every_group_and_materializes_only_development() {
     // `@pnpm.e2e/hello-world-js-bin` alone: a dev-only install drops the
-    // optional dependencies along with the production ones.
+    // project's optional dependencies along with the production ones.
     assert_group_filter_reaches_materialization_only(
         "--dev",
         ("@pnpm.e2e/pkg-with-1-dep", "100.0.0"),

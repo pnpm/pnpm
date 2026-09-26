@@ -15,6 +15,8 @@ use pnpm_testing_utils::{
 use serde_json::json;
 use std::{fmt::Write, fs, path::Path};
 
+mod output;
+
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -582,24 +584,28 @@ fn pack_preserves_on_disk_executable_file_permissions() {
 
 #[test]
 fn pack_json_preserves_lifecycle_streams_before_the_result() {
-    assert_pack_json_lifecycle_streams(None, false);
+    assert_pack_json_lifecycle_streams(None, false, &[]);
 }
 
 #[test]
 fn pack_json_preserves_lifecycle_streams_before_the_error() {
     for stage in ["prepack", "prepare", "postpack"] {
-        assert_pack_json_lifecycle_streams(Some(stage), false);
+        assert_pack_json_lifecycle_streams(Some(stage), false, &[]);
     }
 }
 
 #[test]
 fn recursive_pack_json_preserves_lifecycle_streams_before_the_error() {
     for stage in ["prepack", "prepare", "postpack"] {
-        assert_pack_json_lifecycle_streams(Some(stage), true);
+        assert_pack_json_lifecycle_streams(Some(stage), true, &[]);
     }
 }
 
-fn assert_pack_json_lifecycle_streams(failing_stage: Option<&str>, recursive: bool) {
+fn assert_pack_json_lifecycle_streams(
+    failing_stage: Option<&str>,
+    recursive: bool,
+    flags: &[&str],
+) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     if recursive {
         fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
@@ -633,6 +639,7 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
 
     let output = pacquet
         .with_args(["pack", "--json"])
+        .with_args(flags)
         .with_args(recursive.then_some("--recursive"))
         .with_env("FAILING_STAGE", failing_stage.unwrap_or(""))
         .output()
@@ -730,6 +737,57 @@ fn pack_reports_a_workspace_peer_without_a_version() {
         r#"Cannot resolve workspace protocol of dependency "pkg-b" because its package.json has no "version" field."#,
     );
     assert_diagnostic_contains(&stderr, r#"Add a "version" field to the package.json of "pkg-b"."#);
+
+    drop(root);
+}
+
+fn init_package_with_dotenv() -> CommandTempCwd<()> {
+    let temp = CommandTempCwd::init();
+    fs::write(
+        temp.workspace.join("package.json"),
+        json!({ "name": "pkg-with-dotenv", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(temp.workspace.join(".env"), "SECRET=1\n").expect("write .env");
+    temp
+}
+
+#[test]
+fn pack_warns_about_an_unlisted_dotenv_file() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_arg("pack")
+        .output()
+        .expect("run pack");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    let combined = format!("{stdout}{stderr}");
+    assert!(combined.contains("dotenv files that may contain secrets"));
+    assert!(combined.contains("  .env\n"));
+    assert!(workspace.join("pkg-with-dotenv-1.0.0.tgz").is_file());
+
+    drop(root);
+}
+
+#[test]
+fn pack_json_keeps_the_dotenv_warning_out_of_its_output() {
+    let CommandTempCwd { pacquet, root, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    assert_eq!(stderr, "");
+    let result: serde_json::Value = serde_json::from_str(&stdout).expect("parse pack JSON");
+    let files = result["files"].as_array().expect("files array");
+    assert!(files.contains(&json!({ "path": ".env" })));
 
     drop(root);
 }

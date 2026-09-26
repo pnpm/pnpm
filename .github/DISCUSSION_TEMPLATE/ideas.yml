@@ -1,19 +1,16 @@
-name: Feature Request 💡
-description: Suggest a new feature for pnpm
 labels: ['type: feature']
-type: Feature
 body:
   - type: markdown
     attributes:
       value: |
-              These issues are for **concrete and actionable proposals**. If you just have
-              a general problem that you would like to brainstorm, open a Discussion instead [here](https://github.com/pnpm/pnpm/discussions).
+              Use this form to request a new feature or an improvement to an existing one.
+              Issues are for bug reports only.
   - type: markdown
     attributes:
       value: |
               If this feature affects many people in a company/big team, create a post for your company in the following discussion:
               [https://github.com/pnpm/pnpm/discussions/3787](https://github.com/pnpm/pnpm/discussions/3787)
-              and link the issue in your post.
+              and link this discussion in your post.
 
               This will help us prioritize issues that affect more people.
   - type: checkboxes

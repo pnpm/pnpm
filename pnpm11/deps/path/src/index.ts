@@ -117,6 +117,14 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
+/**
+ * Whether the package at `depPath` is itself patched. A patched peer nested in
+ * the peers suffix does not count.
+ */
+export function hasPatchHash (depPath: string): boolean {
+  return indexOfDepPathSuffix(depPath).patchHashIndex !== -1
+}
+
 export function removePeersSuffix (relDepPath: string): string {
   const { peersIndex } = indexOfDepPathSuffix(relDepPath)
   if (peersIndex !== -1) {

@@ -91,6 +91,33 @@ describeOnWindows('sh shim NODE_PATH invoked from Git Bash', () => {
   })
 })
 
+describeOnWindows('sh shim running node from PATH without MSYS path conversion', () => {
+  // Regression for pnpm/pnpm#12845: Cygwin, unlike MSYS2, starts the native
+  // Windows node found on PATH without rewriting POSIX path arguments, so node
+  // looked for the target under C:\cygdrive\c\... Git Bash behaves the same way
+  // when MSYS2_ARG_CONV_EXCL excludes every argument from conversion.
+  test('passes the Windows form of the target to node', async () => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log("SHIM_OK")\n', 'utf8')
+    const shim = path.join(tempDir, 'tool')
+    await cmdShim(target, shim, { createCmdFile: false, createPwshFile: false })
+
+    const bash = process.env.PROGRAMFILES
+      ? path.join(process.env.PROGRAMFILES, 'Git', 'bin', 'bash.exe')
+      : 'bash'
+    // Run the shim by its absolute POSIX path, as a PATH lookup does, so the
+    // shim's basedir is a POSIX path.
+    const r = spawnSync(bash, ['--noprofile', '--norc', '-c', 'exec "$(cygpath -u "$1")"', 'bash', shim], {
+      encoding: 'utf8',
+      env: { ...process.env, MSYS2_ARG_CONV_EXCL: '*' },
+    })
+
+    assert.equal(r.status, 0, `bash exited ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout.trim(), 'SHIM_OK')
+  })
+})
+
 describeOnPosix('sh shim binstub uses exec', () => {
   // Regression for the binstub bug: without `exec`, the shell process
   // wraps the wrapped binary, so signals sent to the shim do not reach
@@ -479,5 +506,54 @@ describeOnPosix('sh shim picks its Windows path converter', () => {
       [BASEDIR, ''],
       'WSL2 with no converter at all must not claim a Windows exe'
     )
+  })
+})
+
+describeOnPosix('sh shim run through a symlinked package directory', () => {
+  // Node normalizes the `..` of its script path lexically, so a target reached
+  // from `node_modules/vite/node_modules/.bin` must not climb out of the
+  // `node_modules/vite` symlink.
+  test('runs the target in the virtual store', async () => {
+    const root = fs.realpathSync(temporaryDirectory())
+    const virtualStoreDir = path.join(root, 'node_modules/.pnpm/vite@6.0.0/node_modules')
+    const binDir = path.join(virtualStoreDir, 'vite/node_modules/.bin')
+    const target = path.join(virtualStoreDir, 'esbuild/bin/esbuild')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(__filename)\n', 'utf8')
+    fs.symlinkSync(path.join(virtualStoreDir, 'vite'), path.join(root, 'node_modules/vite'))
+    await cmdShim(target, path.join(binDir, 'esbuild'), { createCmdFile: false })
+
+    const r = spawnSync('node_modules/vite/node_modules/.bin/esbuild', {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    assert.equal(r.status, 0, `shim exited ${r.status}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout, target)
+  })
+})
+
+describeOnPosix('sh shim written through a symlinked bin directory', () => {
+  // The shim climbs from its physical directory, so a bin directory that is a
+  // symlink to a deeper directory must not shift the relative target.
+  test('runs the target', async () => {
+    const root = fs.realpathSync(temporaryDirectory())
+    const target = path.join(root, 'pkg/cli.js')
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, '#!/usr/bin/env node\nprocess.stdout.write(__filename)\n', 'utf8')
+    const physicalBinDir = path.join(root, 'storage/deep/bin')
+    fs.mkdirSync(physicalBinDir, { recursive: true })
+    fs.symlinkSync(physicalBinDir, path.join(root, 'bin'))
+    await cmdShim(target, path.join(root, 'bin/tool'), { createCmdFile: false })
+
+    const r = spawnSync(path.join(root, 'bin/tool'), {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    assert.equal(r.status, 0, `shim exited ${r.status}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout, target)
   })
 })

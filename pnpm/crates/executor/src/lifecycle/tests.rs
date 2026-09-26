@@ -1,6 +1,7 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
-    output::STREAMED_OUTPUT_CHUNK_BYTES, read_lifecycle_manifest, run_postinstall_hooks,
+    output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
+    read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::{ManifestFormat, PackageManifestError};
@@ -37,6 +38,7 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
         .pump_stream(
             Cursor::new(vec![b'a'; STREAMED_OUTPUT_CHUNK_BYTES + trailing_bytes]),
             LifecycleStdio::Stdout,
+            PumpLink::new().0,
         )
         .join()
         .expect("output pump");

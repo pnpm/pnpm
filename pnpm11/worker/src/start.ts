@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -28,6 +27,7 @@ import { packForStorage, ReadOnlyStoreIndex, StoreIndex, storeIndexKey } from '@
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
 
 import { equalOrSemverEqual } from './equalOrSemverEqual.js'
+import { hashBuffer } from './hashBuffer.js'
 import type {
   AddDirToStoreMessage,
   HardLinkDirMessage,
@@ -224,7 +224,7 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
 function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId, appendManifest, ignoreFilePattern }: TarballExtractMessage) {
   if (integrity) {
     const { algorithm, hexDigest } = parseIntegrity(integrity)
-    const calculatedHash: string = crypto.hash(algorithm, buffer, 'hex')
+    const calculatedHash = hashBuffer(algorithm, buffer)
     if (calculatedHash !== hexDigest) {
       return {
         status: 'error',
@@ -279,7 +279,7 @@ function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile, pkgId
 }
 
 function calcIntegrity (buffer: Buffer): string {
-  const calculatedHash: string = crypto.hash('sha512', buffer, 'hex')
+  const calculatedHash = hashBuffer('sha512', buffer)
   return formatIntegrity('sha512', calculatedHash)
 }
 

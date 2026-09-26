@@ -38,6 +38,7 @@ use install::init_shared_state;
 use miette::Context;
 
 use pnpm_config::{Config, Host};
+use pnpm_injected_deps_syncer::{injected_source_dirs, sync_injected_deps_of_modules_dir};
 use pnpm_network::ThrottledClient;
 use pnpm_package_manager::{PathNode, graph_sequencer};
 use pnpm_reporter::Reporter;
@@ -206,6 +207,10 @@ struct DedicatedProjectRuns<'a> {
     /// them succeeded and they cover the workspace. See
     /// [`prune_after_dedicated_installs`].
     prune_excludes: bool,
+    /// Whether the command installs the projects' dependencies, so that
+    /// their injected copies are synced once all of them ran. See
+    /// [`sync_dedicated_injected_deps`].
+    sync_injected_deps: bool,
 }
 
 impl DedicatedProjectRuns<'_> {
@@ -217,6 +222,13 @@ impl DedicatedProjectRuns<'_> {
         self.run_projects(run).await?;
         if self.prune_excludes && self.projects.covers_workspace {
             prune_after_dedicated_installs(self.config)?;
+        }
+        if self.sync_injected_deps {
+            let project_dirs: Vec<PathBuf> = self.projects.dependencies
+                .keys()
+                .cloned()
+                .collect();
+            sync_dedicated_injected_deps(self.config, &project_dirs, &self.projects.names)?;
         }
         Ok(())
     }
@@ -280,6 +292,27 @@ fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
     };
     pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
         .wrap_err("prune the workspace manifest")
+}
+
+/// With a shared lockfile, an injected workspace project is synced into its
+/// copies after its own lifecycle scripts run. With a lockfile per project,
+/// every project is installed on its own, so the copies that `project_dirs`
+/// hold of each other are synced once all of them ran their scripts.
+fn sync_dedicated_injected_deps(
+    config: &Config,
+    project_dirs: &[PathBuf],
+    names: &HashMap<PathBuf, String>,
+) -> miette::Result<()> {
+    if config.ignore_scripts || config.virtual_store_only {
+        return Ok(());
+    }
+    let source_dirs = injected_source_dirs(project_dirs, config.preferred_manifest_format)?;
+    for project_dir in project_dirs {
+        let modules_dir =
+            config.project_modules_dir(project_dir, names.get(project_dir).map(String::as_str));
+        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, &source_dirs)?;
+    }
+    Ok(())
 }
 
 /// The selection in build order. Sequenced over borrowed paths: cloning a

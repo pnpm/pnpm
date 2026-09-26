@@ -56,6 +56,7 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
+    "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "p-limit": "catalog:",
     "semver": "catalog:"

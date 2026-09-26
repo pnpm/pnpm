@@ -64,6 +64,9 @@
       "path": "../../engine/runtime/system-version"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../installing/client"
     },
     {

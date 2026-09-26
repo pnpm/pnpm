@@ -1,7 +1,7 @@
 pub(crate) mod specs;
 pub(crate) use specs::{
-    has_local_file_override, has_local_file_package_extension, is_local_file_spec,
-    is_unambiguous_local_file_spec,
+    has_local_file_override, has_local_file_package_extension, is_dep_replaced_by_override,
+    is_local_file_spec, is_unambiguous_local_file_spec,
 };
 mod workspace;
 
@@ -9,6 +9,7 @@ use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
     OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
+use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::{LockfileResolution, PkgName, is_local_tarball_path};
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
@@ -86,8 +87,9 @@ pub(crate) fn frozen_local_tarballs_to_verify(
 /// `catalog:` specs are dereferenced through the workspace catalogs.
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
+    overrides: &[VersionOverride],
 ) -> Result<bool, &'static str> {
-    let tarballs = match scan_local_tarball_deps(check) {
+    let tarballs = match scan_local_tarball_deps(check, overrides) {
         LocalTarballScan::RequiresInstall => return Ok(true),
         LocalTarballScan::Candidates(tarballs) => tarballs,
     };
@@ -124,14 +126,17 @@ enum LocalTarballScan {
     Candidates(Vec<LocalTarballDependency>),
 }
 
-fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
+fn scan_local_tarball_deps(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    overrides: &[VersionOverride],
+) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
         ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
         ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
         (
             "optionalDependencies",
             DependencyGroup::Optional,
-            check.layout.included.optional_dependencies,
+            check.layout.included.includes_project_optional_dependencies(),
         ),
     ];
     let workspace_packages = if check.config.inject_workspace_packages {
@@ -148,6 +153,7 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             manifest,
             &fields,
             &mut tarballs,
+            overrides,
         ) {
             return LocalTarballScan::RequiresInstall;
         }
@@ -162,6 +168,7 @@ fn scan_project_manifest_tarballs(
     manifest: &pnpm_package_manifest::PackageManifest,
     fields: &[(&str, DependencyGroup, bool); 3],
     tarballs: &mut Vec<LocalTarballDependency>,
+    overrides: &[VersionOverride],
 ) -> bool {
     for (field, group, group_included) in fields {
         if !group_included {
@@ -175,6 +182,7 @@ fn scan_project_manifest_tarballs(
             group: *group,
             inject_workspace_packages: check.config.inject_workspace_packages,
             workspace_packages,
+            overrides,
         };
         if !scan_field_tarballs(&scan, manifest, tarballs) {
             return false;
@@ -195,6 +203,7 @@ struct FieldTarballScan<'a> {
     group: DependencyGroup,
     inject_workspace_packages: bool,
     workspace_packages: &'a workspace::WorkspacePackageMap<'a>,
+    overrides: &'a [VersionOverride],
 }
 
 /// `false` when a `file:` dependency in this field cannot be resolved to a
@@ -255,10 +264,13 @@ fn local_tarball_candidate(
     alias: &str,
     spec: &serde_json::Value,
 ) -> LocalTarballCandidate {
-    let Some(spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
-    let resolved_spec = resolve_catalog_spec(scan, alias, spec);
+    let Some(raw_spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
+    let resolved_spec = resolve_catalog_spec(scan, alias, raw_spec);
     let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Skip };
     if !is_local_file_spec(spec) {
+        return LocalTarballCandidate::Skip;
+    }
+    if is_dep_replaced_by_override(scan.overrides, alias, raw_spec) {
         return LocalTarballCandidate::Skip;
     }
     let must_be_local = is_unambiguous_local_file_spec(spec);

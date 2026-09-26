@@ -526,6 +526,78 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   }, [])
 })
 
+test('rebuild removes an optional dependency whose build failed', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'install',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
+  ])
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall/package.json')).toBeTruthy()
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: true,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+  }, [])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall')).toBeFalsy()
+})
+
+test('rebuild keeps a global virtual store slot whose optional build failed', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    '  "@pnpm.e2e/failing-postinstall": true',
+    '',
+  ].join('\n'))
+
+  await execa('node', [
+    pnpmBin,
+    'install',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--ignore-scripts',
+  ])
+  const pkgVersionDir = path.join(storeDir, STORE_VERSION, 'links/@pnpm.e2e/failing-postinstall/1.0.0')
+  const hash = fs.readdirSync(pkgVersionDir)[0]
+  const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/failing-postinstall')
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: true,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+  }, [])
+
+  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
+})
+
 test('rebuilds in the global virtual store when the approval was granted after the install', async () => {
   prepare()
   const cacheDir = path.resolve('cache')

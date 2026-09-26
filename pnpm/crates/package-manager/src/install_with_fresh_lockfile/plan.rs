@@ -3,7 +3,8 @@ use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use std::collections::{BTreeMap, HashSet};
 
@@ -135,7 +136,7 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     let (engine_name, deferred_engine_name) =
         pnpm_deps_restorer::materialization_plan::resolve_engine_name(
             install.drivers.config.enable_global_virtual_store,
-            lockfiles.initial.snapshots.as_ref(),
+            &lockfiles.initial.importers,
             host_node.as_ref(),
         )
         .await;
@@ -272,9 +273,9 @@ pub(super) fn is_partial_workspace_selection(
 }
 pub(super) fn include_transitive_optional_dependencies(
     is_full_install: bool,
-    dependency_groups: &[DependencyGroup],
+    included: IncludedDependencies,
 ) -> bool {
-    !is_full_install || dependency_groups.contains(&DependencyGroup::Optional)
+    !is_full_install || included.optional_dependencies
 }
 /// The importers the materialization closure walks, or `None` when the
 /// built lockfile needs no narrowing.

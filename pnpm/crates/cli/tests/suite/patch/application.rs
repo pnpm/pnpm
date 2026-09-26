@@ -470,6 +470,31 @@ fn install_level_name_only_patch_that_does_not_apply_fails() {
     assert_patch_apply_failure("is-positive");
 }
 
+/// TS: `patch package should fail when the patch file is missing`
+/// (`patch.ts:928`).
+#[test]
+fn install_level_missing_patch_file_fails() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::remove_file(workspace.join("patches/is-positive.patch")).expect("remove patch file");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+
+    assert!(!output.status.success(), "a missing patch file should fail the install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Patch file not found"), "stderr: {stderr}");
+    // miette wraps the report at the terminal width, splitting the temp path.
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
+    assert!(unwrapped.contains("is-positive.patch"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
 /// Install `@pnpm.e2e/gypfile-false` under `patch`, with no `allowBuilds` entry
 /// for it, and report whether the install succeeded alongside its output.
 fn install_gypfile_false_under_patch(patch: &str) -> (bool, String) {

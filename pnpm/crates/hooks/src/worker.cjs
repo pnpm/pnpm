@@ -160,6 +160,11 @@ async function handle(req) {
         if (v != null && (typeof v !== "object" || Array.isArray(v))) {
           throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + pnpmfilePath);
         }
+        for (const [name, range] of Object.entries(v ?? {})) {
+          if (typeof range !== "string") {
+            throw new Error("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property. Hook imported via " + pnpmfilePath);
+          }
+        }
       }
       send({ ok: newPkg });
     } else if (req.hook === 'beforePacking') {
@@ -176,4 +181,9 @@ async function handle(req) {
   } catch (err) {
     send({ err: err && err.stack ? err.stack : String(err) });
   }
+}
+
+function describePackage(pkg) {
+  if (typeof pkg.name !== "string" || !pkg.name) return "an unnamed package";
+  return typeof pkg.version === "string" && pkg.version ? pkg.name + "@" + pkg.version : pkg.name;
 }

@@ -103,7 +103,8 @@ impl LockfileWalk<'_> {
         };
         let layout =
             lockfile_layout(layout_config, manifest_dir, &licensed.lockfile_dir, &lockfile)?;
-        let package_dirs = PackageDirs::new(layout_config, &licensed.lockfile_dir, layout)?;
+        let package_dirs =
+            PackageDirs::new(layout_config, &licensed.lockfile_dir, manifest_dir, layout)?;
         let belongs_to = collect_dependencies(
             &lockfile,
             &licensed.importer_ids,
@@ -245,8 +246,7 @@ pub(super) fn lockfile_layout(
     let layout = virtual_store_layout_for_lockfile(
         config,
         effective_node_version,
-        lockfile.snapshots.as_ref(),
-        lockfile.packages.as_ref(),
+        lockfile,
         Some(&allow_build_policy),
         Some(lockfile_dir),
     );

@@ -3,17 +3,13 @@
 //! out of the archive for a tarball, off disk for a directory — once a
 //! [`LocalPackageSpec`] has been chosen.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pnpm_package_manifest::{
-    ManifestFormat, PackageManifestError, safe_read_package_json_from_dir,
-    safe_read_project_manifest_from_dir,
+    PackageManifestError, find_parent_publish_manifest, safe_read_package_json_from_dir,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{LatestInfo, LatestQuery, PkgResolutionId, ResolveResult};
@@ -400,7 +396,9 @@ fn synthesize_fallback_manifest(
             path: spec.fetch_spec.display().to_string(),
         });
     }
-    if let Some(manifest) = find_parent_publish_manifest(&spec.fetch_spec)? {
+    if let Some(manifest) =
+        find_parent_publish_manifest(&spec.fetch_spec).map_err(ResolveLocalError::ReadManifest)?
+    {
         return Ok(manifest);
     }
     let name = spec.fetch_spec
@@ -408,28 +406,6 @@ fn synthesize_fallback_manifest(
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     Ok(serde_json::json!({ "name": name }))
-}
-
-fn find_parent_publish_manifest(
-    fetch_spec: &Path,
-) -> Result<Option<serde_json::Value>, ResolveLocalError> {
-    let normalized_target = pnpm_fs::lexical_normalize(fetch_spec);
-    for parent in normalized_target.ancestors().skip(1) {
-        let Some(manifest) = safe_read_project_manifest_from_dir(parent, ManifestFormat::default())
-            .map_err(ResolveLocalError::ReadManifest)?
-        else {
-            continue;
-        };
-        let is_publish_dir = manifest
-            .get("publishConfig")
-            .and_then(|config| config.get("directory"))
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
-        if is_publish_dir {
-            return Ok(Some(manifest));
-        }
-    }
-    Ok(None)
 }
 
 /// Map a [`PackageManifestError`] from

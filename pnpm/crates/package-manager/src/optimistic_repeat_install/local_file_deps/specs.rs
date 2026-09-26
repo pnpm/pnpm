@@ -2,6 +2,7 @@ use crate::optimistic_repeat_install::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, Config, IncludedDependencies,
     WantedDependency, resolve_from_catalog,
 };
+use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::is_local_tarball_path;
 
 /// Whether a `catalog:` spec dereferences (through the workspace
@@ -27,23 +28,39 @@ pub(crate) fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, s
     }
 }
 
-/// Whether any `pnpm.overrides` entry maps to a local file specifier.
-/// An override redirects every matching dependency in the graph to its
-/// specifier, so a local file override makes the installed contents
-/// depend on that directory or tarball the same way a direct local file
-/// dependency does. A parse failure returns its own distinct reason —
-/// not the local-file reason, which would misattribute the cause.
-pub(crate) fn has_local_file_override(
-    config: &Config,
+/// Whether any override maps to a local file specifier.
+pub(crate) fn has_local_file_override(overrides: &[VersionOverride]) -> bool {
+    overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier))
+}
+
+/// Whether the dependency's specifier is (or resolves through a
+/// catalog to) a local file specifier and no generic (parentless)
+/// override replaces it. Parent-scoped overrides (`parent>dep`)
+/// never suppress the bail-out: whether they apply depends on which
+/// package the dependency belongs to. Convergence overrides (`pkg@`)
+/// never suppress the bail-out: they apply only to plain semver ranges.
+pub(crate) fn is_effective_local_file_dep(
     catalogs: &Catalogs,
-) -> Result<bool, &'static str> {
-    match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => {
-            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
-        }
-        Ok(None) => Ok(false),
-        Err(_) => Err("pnpm.overrides cannot be parsed"),
-    }
+    overrides: &[VersionOverride],
+    alias: &str,
+    spec: &str,
+) -> bool {
+    (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
+        && !is_dep_replaced_by_override(overrides, alias, spec)
+}
+
+pub(crate) fn is_dep_replaced_by_override(
+    overrides: &[VersionOverride],
+    alias: &str,
+    spec: &str,
+) -> bool {
+    overrides
+        .iter()
+        .any(|entry| {
+            !entry.converge
+                && entry.parent_pkg.is_none()
+                && crate::overrides::matches_target(&entry.target_pkg, alias, spec)
+        })
 }
 
 /// Whether any `packageExtensions` entry injects a dependency with a
@@ -59,6 +76,7 @@ pub(crate) fn has_local_file_package_extension(
     config: &Config,
     included: IncludedDependencies,
     catalogs: &Catalogs,
+    overrides: &[VersionOverride],
 ) -> bool {
     let Some(extensions) = config.package_extensions.as_ref() else {
         return false;
@@ -75,8 +93,7 @@ pub(crate) fn has_local_file_package_extension(
                 .any(|deps| {
                     deps.iter()
                         .any(|(alias, spec)| {
-                            is_local_file_spec(spec)
-                                || catalog_resolves_to_local_file(catalogs, alias, spec)
+                            is_effective_local_file_dep(catalogs, overrides, alias, spec)
                         })
                 })
         })

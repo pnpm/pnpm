@@ -2,8 +2,9 @@ use super::{
     Arc, Client, ClientBuildInputs, ClientPair, DEFAULT_FETCH_MIN_SPEED_KI_BPS,
     DEFAULT_FETCH_WARN_TIMEOUT_MS, Duration, ForInstallsError, HostSocketLimit, NetworkSettings,
     NoProxyMatcher, PerRegistryTls, PrioritySemaphore, ProxyConfig, ProxyRouting, RedirectGuard,
-    ThrottledClient, TlsConfig, build_client_with_root_fallback, configured_proxy,
-    default_network_concurrency, ignore_warning, load_node_extra_ca_certs, merge_tls, tls,
+    Resolve, ThrottledClient, TlsConfig, build_client_with_root_fallback, configured_proxy,
+    default_network_concurrency, ignore_warning, load_node_extra_ca_certs, merge_tls,
+    native_dns_resolver, tls,
 };
 
 impl ThrottledClient {
@@ -55,8 +56,8 @@ impl ThrottledClient {
     ///
     /// Hostnames resolve through the platform's `getaddrinfo` behind a
     /// process-wide four-lookup cap shared by every client, matching
-    /// Node's libuv DNS pool. `configure_dns` documents why no pure-Rust
-    /// resolver is used on any platform.
+    /// Node's libuv DNS pool. [`native_dns_resolver`]
+    /// documents why no pure-Rust resolver is used on any platform.
     #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
@@ -104,7 +105,14 @@ impl ThrottledClient {
         per_registry: &PerRegistryTls,
         settings: &NetworkSettings,
     ) -> Result<Self, ForInstallsError> {
-        Self::for_installs_with_redirect(proxy, tls, per_registry, settings, None)
+        Self::for_installs_with_redirect(
+            proxy,
+            tls,
+            per_registry,
+            settings,
+            None,
+            native_dns_resolver(),
+        )
     }
 
     /// Like [`Self::for_installs`] with an optional redirect guard.
@@ -117,7 +125,14 @@ impl ThrottledClient {
         settings: &NetworkSettings,
         redirect_guard: Option<&RedirectGuard>,
     ) -> Result<Self, ForInstallsError> {
-        Self::for_installs_with_redirect(proxy, tls, per_registry, settings, redirect_guard)
+        Self::for_installs_with_redirect(
+            proxy,
+            tls,
+            per_registry,
+            settings,
+            redirect_guard,
+            native_dns_resolver(),
+        )
     }
 
     /// Like [`Self::new_for_installs`] but installs `redirect_guard` as the
@@ -133,6 +148,17 @@ impl ThrottledClient {
     pub fn new_for_installs_with_redirect_guard(
         is_allowed: impl Fn(&reqwest::Url) -> bool + Send + Sync + 'static,
     ) -> Self {
+        Self::new_for_installs_with_guards(is_allowed, native_dns_resolver())
+    }
+
+    /// Like [`Self::new_for_installs_with_redirect_guard`], resolving
+    /// hostnames through `dns_resolver`. A [`GuardedDnsResolver`](crate::GuardedDnsResolver)
+    /// there checks the address every connection is opened to.
+    #[must_use]
+    pub fn new_for_installs_with_guards(
+        is_allowed: impl Fn(&reqwest::Url) -> bool + Send + Sync + 'static,
+        dns_resolver: Arc<dyn Resolve>,
+    ) -> Self {
         let redirect_guard: RedirectGuard = Arc::new(is_allowed);
         Self::for_installs_with_redirect(
             &ProxyConfig::default(),
@@ -140,6 +166,7 @@ impl ThrottledClient {
             &PerRegistryTls::default(),
             &NetworkSettings::default(),
             Some(&redirect_guard),
+            dns_resolver,
         )
         .expect("default proxy + TLS configs carry no URLs/PEMs and cannot fail")
     }
@@ -150,6 +177,7 @@ impl ThrottledClient {
         per_registry: &PerRegistryTls,
         settings: &NetworkSettings,
         redirect_guard: Option<&RedirectGuard>,
+        dns_resolver: Arc<dyn Resolve>,
     ) -> Result<Self, ForInstallsError> {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
@@ -167,6 +195,7 @@ impl ThrottledClient {
             no_proxy: Arc::clone(&proxy_routing.no_proxy),
             extra_ca_certs,
             redirect_guard,
+            dns_resolver,
         };
         let build_client = |effective_tls: &TlsConfig, forbid_redirects: bool| {
             build_client_with_root_fallback(&inputs, effective_tls, forbid_redirects)

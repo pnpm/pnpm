@@ -36,3 +36,23 @@ test('deployHook()', () => {
     },
   })
 })
+
+test('deployHook copies linked dependencies from every dependency field', () => {
+  expect(deployHook({
+    dependencies: { a: 'link:./a', registry: '^1.0.0', file: 'file:./file' },
+    devDependencies: { b: 'link:../b' },
+    optionalDependencies: { c: 'link:./c' },
+  }, { convertLinksToFileProtocol: true })).toStrictEqual({
+    dependencies: { a: 'file:./a', registry: '^1.0.0', file: 'file:./file' },
+    devDependencies: { b: 'file:../b' },
+    optionalDependencies: { c: 'file:./c' },
+    dependenciesMeta: {},
+  })
+})
+
+test('deployHook preserves links when installing a shared deploy lockfile', () => {
+  expect(deployHook({ dependencies: { self: 'link:.' } })).toStrictEqual({
+    dependencies: { self: 'link:.' },
+    dependenciesMeta: {},
+  })
+})

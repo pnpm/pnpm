@@ -20,6 +20,7 @@ export async function getConfig (
   opts: {
     excludeReporter: boolean
     globalDirShouldAllowWrite?: boolean
+    skipGlobalBinDirCheck?: boolean
     workspaceDir: string | undefined
     onlyInheritDlxSettingsFromLocal?: boolean
     forSelfUpdate?: boolean
@@ -29,6 +30,7 @@ export async function getConfig (
   const { config, context, warnings } = await _getConfig({
     cliOptions,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
+    skipGlobalBinDirCheck: opts.skipGlobalBinDirCheck,
     packageManager,
     workspaceDir: opts.workspaceDir,
     onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,

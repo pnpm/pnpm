@@ -14,6 +14,7 @@
 //! [`lockfile_verification_is_cached()`],
 //! [`lockfile_verification_is_cached_by_content()`],
 //! [`verify_lockfile_dependency_names()`],
+//! [`verify_lockfile_importer_snapshot_links()`],
 //! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],
 //! [`VerifyError`], and [`RenderedViolation`] — the last lets a caller
 //! that resolved violations out-of-process (e.g. the pnpr client
@@ -34,7 +35,7 @@ pub use verify_lockfile_resolutions::{
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, ReplacedEntries, VerifyLockfileResolutionsOptions,
     collect_resolution_policy_violations, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, verify_lockfile_dependency_names,
-    verify_lockfile_resolutions,
+    verify_lockfile_importer_snapshot_links, verify_lockfile_resolutions,
 };
 
 mod cache;

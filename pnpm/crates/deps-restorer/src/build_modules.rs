@@ -10,8 +10,9 @@ pub(crate) use build_requirements::deferred_builds;
 pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
-    materialize_side_effects, slot_carries_overlay,
+    PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    is_started_build_marker, mark_global_virtual_store_build_started, materialize_side_effects,
+    slot_carries_overlay,
 };
 
 mod build_requirements;
@@ -24,7 +25,7 @@ use build_requirements::{
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_graph::build_graph,
-    import_indexed_dir, store_index_key_for_resolution,
+    find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 
@@ -57,6 +58,15 @@ pub enum BuildModulesError {
 
     #[diagnostic(transparent)]
     PatchApply(#[error(source)] PatchApplyError),
+
+    /// Incompatible engine requirements after applying patches.
+    #[diagnostic(transparent)]
+    PatchedEngines(#[error(source)] Box<pnpm_package_is_installable::InstallabilityError>),
+
+    /// Failure reading patched manifest.
+    #[display("Cannot read the patched package.json of {dep_path}")]
+    #[diagnostic(code(ERR_PNPM_PATCHED_MANIFEST_UNREADABLE))]
+    PatchedManifestUnreadable { dep_path: String },
 
     /// `ERR_PNPM_PATCH_FILE_PATH_MISSING` — fired when a snapshot's
     /// resolved patch carries a hash but
@@ -108,6 +118,25 @@ pub enum BuildModulesError {
     /// stored `added` / `deleted` diff on top of the pristine files.
     #[diagnostic(transparent)]
     MaterializeSideEffects(#[error(source)] ImportIndexedDirError),
+
+    /// A global-virtual-store slot's `.pnpm-needs-build` marker exists but
+    /// cannot be read, so whether another install's build left the slot
+    /// half-built is unknown.
+    #[display("Failed to read the build marker at {}: {source}", path.display())]
+    ReadBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    /// An optional dependency's build failed and the package could not be
+    /// removed, so it would stay installed half-built.
+    #[display("Failed to remove {}, an optional dependency whose build failed: {source}", path.display())]
+    RemoveSkippedOptionalDependency {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 }
 
 /// Drives a forced rebuild of already-installed packages. Constructed by
@@ -255,6 +284,7 @@ impl BuildModules<'_> {
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
         let slot_mutations = std::sync::atomic::AtomicBool::new(false);
+        let project_bin_dirs = self.project_bin_dirs(snapshots);
         schedule_builds::<Reporter>(
             &build_graph,
             &self.snapshot_context(
@@ -263,6 +293,7 @@ impl BuildModules<'_> {
                 &dep_states,
                 &ignored_builds,
                 &slot_mutations,
+                &project_bin_dirs,
             ),
             self.child_concurrency,
         )?;
@@ -299,6 +330,48 @@ impl BuildModules<'_> {
         })
     }
 
+    /// The project directories every dependency build script gets on `PATH`
+    /// after the ones walked up from its own package: the root project's
+    /// runtime `node`, the privately hoisted `node_modules/.bin`, and the
+    /// configured extra bin paths (the workspace root's `node_modules/.bin`).
+    /// The runtime comes first so a hoisted package's `node` bin cannot
+    /// replace the Node.js whose version keys the slot.
+    ///
+    /// A global virtual store slot has no `node_modules` ancestor inside the
+    /// project, so without these its scripts would miss them. They are given
+    /// on purpose although the slot hash records only the runtime's version:
+    /// `NODE_PATH` already exposes the root and hoisted `node_modules` to the
+    /// same scripts, and builds that run a tool they do not declare would
+    /// fail without them.
+    fn project_bin_dirs(&self, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> Vec<PathBuf> {
+        let hoisted_bin_dir = self.scripts.path.private_hoisting
+            .then_some(self.scripts.patched_engines.virtual_store_dir)
+            .flatten()
+            .map(|virtual_store_dir| virtual_store_dir.join("node_modules").join(".bin"));
+        self.runtime_node_bin_dir(snapshots)
+            .into_iter()
+            .chain(hoisted_bin_dir)
+            .chain(self.scripts.path.extra_bin_paths.iter().cloned())
+            .collect()
+    }
+
+    /// The directory holding the `node` binary of the root project's
+    /// `node@runtime:` dependency, the one that keys the engine part of every
+    /// built slot's hash. `None` when `--no-runtime` skipped the runtime.
+    fn runtime_node_bin_dir(
+        &self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    ) -> Option<PathBuf> {
+        let runtime_key = find_root_runtime_node_key(self.graph.importers, snapshots)?;
+        if self.skipped.contains(runtime_key) {
+            return None;
+        }
+        let pkg_dir =
+            PkgRoots { layout: self.directories.layout, by_key: self.directories.pkg_roots_by_key }
+                .canonical(runtime_key)?;
+        Some(if cfg!(windows) { pkg_dir } else { pkg_dir.join("bin") })
+    }
+
     fn snapshot_context<'a>(
         &'a self,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
@@ -306,6 +379,7 @@ impl BuildModules<'_> {
         dep_states: &'a DepStates,
         ignored_builds: &'a Mutex<BTreeSet<String>>,
         slot_mutations: &'a std::sync::atomic::AtomicBool,
+        project_bin_dirs: &'a [PathBuf],
     ) -> build_one_snapshot::BuildOneSnapshot<'a> {
         build_one_snapshot::BuildOneSnapshot {
             cache: self.cache,
@@ -315,6 +389,7 @@ impl BuildModules<'_> {
                 packages: self.graph.packages,
                 patches: self.graph.patches,
                 requires_build_map,
+                importers: self.graph.importers,
             },
             progress: crate::BuildProgress {
                 dep_graph: dep_states.graph.as_ref(),
@@ -323,6 +398,7 @@ impl BuildModules<'_> {
                 slot_mutations,
             },
             scripts: self.scripts,
+            project_bin_dirs,
 
             allow_build_policy: self.allow_build_policy,
 

@@ -213,7 +213,7 @@ function classifyDeps (ctx: PickPkgsContext, depEdges: DepEdge[], opts: PickPkgs
       // TODO: depPath is not the package ID. Should be fixed
       incompatible.set(depPath, !opts.includeIncompatiblePackages && checkPackageInstallability(
         pkgSnapshot.id ?? depPath,
-        toInstallabilityManifest(depPath, pkgSnapshot),
+        toInstallabilityManifest(depPath, pkgSnapshot, opts.engineStrict),
         {
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: true,
@@ -248,7 +248,7 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
       opts.includeIncompatiblePackages ||
       packageIsInstallable(
         pkgSnapshot.id ?? depPath,
-        toInstallabilityManifest(depPath, pkgSnapshot),
+        toInstallabilityManifest(depPath, pkgSnapshot, opts.engineStrict),
         {
           // A subtree hanging off an `optionalDependencies` entry stays
           // best-effort: the dependency is installed so its dependent is not
@@ -269,11 +269,17 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
   }
 }
 
-function toInstallabilityManifest (depPath: DepPath, pkgSnapshot: PackageSnapshots[DepPath]): InstallabilityManifest {
+function toInstallabilityManifest (
+  depPath: DepPath,
+  pkgSnapshot: PackageSnapshots[DepPath],
+  engineStrict: boolean
+): InstallabilityManifest {
   return {
     ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
     cpu: pkgSnapshot.cpu,
-    engines: pkgSnapshot.engines,
+    // A patch can change `engines` after this pass. The published range is
+    // checked again from the patched manifest once the patch is applied.
+    engines: engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
     os: pkgSnapshot.os,
     libc: pkgSnapshot.libc,
   }
@@ -358,7 +364,7 @@ function toImporterDepPaths (
     .map(importer => [
       ...(opts.include.dependencies ? toDepRefs(importer.dependencies, false) : []),
       ...(opts.include.devDependencies ? toDepRefs(importer.devDependencies, false) : []),
-      ...(opts.include.optionalDependencies ? toDepRefs(importer.optionalDependencies, true) : []),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? toDepRefs(importer.optionalDependencies, true) : []),
     ])
     .map(refs => opts.skipRuntimes ? refs.filter(({ ref }) => !ref.startsWith('runtime:')) : refs)
 

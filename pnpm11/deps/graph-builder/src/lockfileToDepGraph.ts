@@ -170,7 +170,7 @@ export async function lockfileToDepGraph (
     const rootDeps = {
       ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
       ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
-      ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
     }
     directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
@@ -205,7 +205,7 @@ async function buildGraphFromPackages (
       const pkg = {
         name: pkgName,
         version: pkgVersion,
-        engines: pkgSnapshot.engines,
+        engines: opts.engineStrict && dp.hasPatchHash(depPath) ? undefined : pkgSnapshot.engines,
         cpu: pkgSnapshot.cpu,
         os: pkgSnapshot.os,
         libc: pkgSnapshot.libc,

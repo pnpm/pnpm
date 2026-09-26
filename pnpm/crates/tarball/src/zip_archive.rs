@@ -436,11 +436,10 @@ impl ZipExtraction {
 }
 
 /// Run [`fetch_and_extract_zip_once`] under pnpm's retry policy.
-/// Same shape as [`crate::download::fetch_and_extract_with_retry`]: HTTP 401 / 403 /
-/// 404 fail fast, every other error retries with exponential
-/// backoff until [`RetryOpts::retries`] is exhausted. On success
-/// emits `pnpm:progress fetched` once per (resolved) package, same
-/// as the tarball path.
+/// Same shape as [`crate::download::fetch_and_extract_with_retry`]:
+/// permanent errors fail fast, while transient errors retry with
+/// exponential backoff until [`RetryOpts::retries`] is exhausted.
+/// On success, emit `pnpm:progress fetched` once per resolved package.
 // 10 arguments — over the default clippy threshold for the same
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a

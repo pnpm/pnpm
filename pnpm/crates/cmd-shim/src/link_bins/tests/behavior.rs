@@ -556,3 +556,157 @@ fn choose_bins_matches_exclusions_case_insensitively_only_on_windows() {
     let expected: &[&str] = if cfg!(windows) { &[] } else { &["shared"] };
     assert_eq!(chosen, expected);
 }
+
+/// A shim without the physical directory anchor still carries a matching
+/// target marker, so a warm reinstall has to notice the missing anchor and
+/// replace it.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
+    use crate::shim::{generate_sh_shim, is_shim_pointing_at};
+
+    const PRELUDE: &str = r#"basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?"#;
+    let manifest = json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let mut outdated = String::new();
+    for line in generate_sh_shim(&target, &shim, None, &[], None)
+        .lines()
+        .filter(|line| !line.starts_with("basedir_abs=") && *line != r#"basedir="$basedir_abs""#)
+    {
+        outdated.push_str(&line.replace("$basedir_abs/", "$basedir/"));
+        outdated.push('\n');
+    }
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &shim, &target),
+        "precondition: the outdated shim carries a matching target marker",
+    );
+    assert!(!outdated.contains("basedir_abs"), "precondition: the outdated shim has no anchor");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(body.contains(PRELUDE), "the reinstall must anchor the shim, body was:\n{body}");
+    assert!(body.contains(r#""$basedir_abs/../foo/cli.js""#), "body was:\n{body}");
+}
+
+/// A POSIX shim climbs to its target from its physical directory, so the
+/// relative target has to be computed from there too. Linked through a bin
+/// directory that is a symlink one level deeper, a target computed from the
+/// lexical directory would resolve under the symlink's destination.
+#[cfg(unix)]
+#[test]
+fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
+    use crate::path_util::lexical_normalize;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    let tmp = tempdir().unwrap();
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let pkg = root.join("pkg");
+    create_dir_all(&pkg).unwrap();
+    let target = pkg.join("cli.js");
+    write_file(&target, "#!/usr/bin/env node\n").unwrap();
+    let physical_bins_dir = root.join("storage/deep/bin");
+    create_dir_all(&physical_bins_dir).unwrap();
+    let bins_dir = root.join("bin");
+    symlink(&physical_bins_dir, &bins_dir).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+    // Stands in for `node`: prints the script path it was handed.
+    let node = physical_bins_dir.join("node");
+    write_file(&node, "#!/bin/sh\nprintf '%s' \"$1\"\n").unwrap();
+    std::fs::set_permissions(&node, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let output = std::process::Command::new(bins_dir.join("tool")).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stderr:\n{stderr}");
+    let script_path = PathBuf::from(String::from_utf8(output.stdout).unwrap());
+    assert_eq!(lexical_normalize(&script_path), target);
+}
+
+/// A shim whose relative target was computed from a different directory than
+/// the physical bin directory still carries the anchor and a matching target
+/// marker, so a warm reinstall has to compare the relative target and replace
+/// it.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
+    use crate::shim::{generate_sh_shim, is_shim_pointing_at};
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().unwrap();
+    let root = std::fs::canonicalize(tmp.path()).unwrap();
+    let pkg = root.join("pkg");
+    create_dir_all(&pkg).unwrap();
+    let target = pkg.join("cli.js");
+    write_file(&target, "#!/usr/bin/env node\n").unwrap();
+    let physical_bins_dir = root.join("storage/deep/bin");
+    create_dir_all(&physical_bins_dir).unwrap();
+    let bins_dir = root.join("bin");
+    symlink(&physical_bins_dir, &bins_dir).unwrap();
+    let shim = bins_dir.join("tool");
+    let stale = generate_sh_shim(&target, &shim, None, &[], None);
+    write_file(&shim, &stale).unwrap();
+    assert!(
+        is_shim_pointing_at(&stale, &shim, &target),
+        "precondition: the stale shim carries a matching target marker",
+    );
+    assert!(stale.contains(r#""$basedir_abs/../pkg/cli.js""#), "precondition, body was:\n{stale}");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
+}
+
+/// The MSYS shell's `cd -P` resolves a junction the way a POSIX shell
+/// resolves a symlink, so on Windows a bin directory reached through one has
+/// its relative target computed from the junction's destination too.
+#[cfg(windows)]
+#[test]
+fn a_shim_in_a_junctioned_bin_dir_names_its_target_from_the_physical_dir() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    let pkg = root.join("pkg");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let physical_bins_dir = root
+        .join("storage")
+        .join("deep")
+        .join("bin");
+    create_dir_all(&physical_bins_dir).unwrap();
+    let bins_dir = root.join("bin");
+    pnpm_fs::symlink_dir(&physical_bins_dir, &bins_dir).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(json!({"name": "tool", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(bins_dir.join("tool")).unwrap();
+    assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
+}
