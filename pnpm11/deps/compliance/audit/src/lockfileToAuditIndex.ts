@@ -1,4 +1,5 @@
 import * as dp from '@pnpm/deps.path'
+import { LockfileMissingDependencyError } from '@pnpm/error'
 import { DepType, type DepTypes, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import {
@@ -109,6 +110,9 @@ export function lockfileToAuditRequest (
   // untrusted lockfile cannot overflow the call stack.
   const makeVisitor = (graphDepTypes: DepTypes, graphOptionalOnly: Set<DepPath>) => {
     return (rootStep: LockfileWalkerStep): void => {
+      if (rootStep.missing.length > 0) {
+        throw new LockfileMissingDependencyError(rootStep.missing[0])
+      }
       const stack: Array<{ dependencies: LockfileWalkerStep['dependencies'], next: number }> = [{ dependencies: rootStep.dependencies, next: 0 }]
       while (stack.length > 0) {
         const frame = stack[stack.length - 1]
@@ -126,7 +130,11 @@ export function lockfileToAuditRequest (
             optionalOnly: graphOptionalOnly.has(depPath),
           })
         }
-        stack.push({ dependencies: next().dependencies, next: 0 })
+        const nextStep = next()
+        if (nextStep.missing.length > 0) {
+          throw new LockfileMissingDependencyError(nextStep.missing[0])
+        }
+        stack.push({ dependencies: nextStep.dependencies, next: 0 })
       }
     }
   }

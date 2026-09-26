@@ -304,6 +304,47 @@ importers:
     assert_failure(&output);
     assert!(stderr(&output).contains("ERR_PNPM_AUDIT_NO_PACKAGES"), "stderr:\n{}", stderr(&output));
 }
+#[test]
+fn audit_signatures_errors_when_lockfile_has_unresolved_dependency() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    fs::write(workspace.join(".npmrc"), "registry=https://registry.npmjs.org/\n")
+        .expect("write .npmrc");
+    write_minimal_manifest(&workspace);
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      missing-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages: {}
+
+snapshots: {}
+",
+    )
+    .expect("write lockfile");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("signatures")
+        .output()
+        .expect("run audit signatures");
+
+    assert_failure(&output);
+    assert!(
+        stderr(&output).contains("ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY"),
+        "stderr:\n{}",
+        stderr(&output)
+    );
+}
 
 #[test]
 fn audit_signatures_rejects_extra_subcommand_argument() {
