@@ -6,8 +6,10 @@
 //! the URL carries inline `user:password@`, that takes precedence and
 //! is encoded as a `Basic` header even when no per-host token matches.
 //!
-//! Configuration readers build the map once per install from their native
-//! credential sources, and request code consults it on every metadata fetch
+//! Configuration readers build the map from their native credential sources.
+//! [`AuthHeaders::replace_credentials`] swaps it in place after
+//! `pnpm:devPreinstall` rewrites `.npmrc`, so holders of the same value see
+//! the new token. Request code consults it on every metadata fetch
 //! and archive download. The lookup
 //! walks parts of the *request* URL: a tarball served from a CDN on a
 //! different host than the registry only matches keys keyed at the
@@ -29,7 +31,7 @@ use crate::{
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, RwLock},
 };
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
@@ -128,8 +130,15 @@ pub enum MetadataCacheScope {
 /// shared [`Mutex`] held. Cloning the headers shares the cache.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
+/// Credential maps shared by every [`Arc`] clone of one [`AuthHeaders`].
+///
+/// An install reads `.npmrc` before `pnpm:devPreinstall`, then that script
+/// may rewrite the user npmrc. [`AuthHeaders::replace_credentials`] swaps
+/// these maps in place so fetchers that already hold the `Arc` send the
+/// new token. A [`Clone`] of the struct copies the maps, so a later
+/// replace does not leak into that copy.
 #[derive(Default, Clone)]
-pub struct AuthHeaders {
+struct Credentials {
     /// Keys are the nerf-darted form (`//host[:port]/path/`). Each value
     /// is either a ready-to-send header (`Bearer abc123`,
     /// `Basic Zm9vOmJhcg==`) or an un-executed `tokenHelper` command,
@@ -145,17 +154,22 @@ pub struct AuthHeaders {
     /// The longest registry key per package scope, measured the same
     /// way as `max_parts`.
     max_scoped_parts_by_scope: HashMap<String, usize>,
-    /// Server-side route hook. When set, it owns every auth lookup and
-    /// the client-forwarded credentials above are ignored. See
-    /// [`UpstreamRouteHook`].
-    route_hook: Option<Arc<dyn UpstreamRouteHook>>,
-    require_secure_transport: bool,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
     /// touches the resolution cache only on a `TokenHelper` match, so a
     /// map of only baked headers pays nothing regardless.
     has_token_helpers: bool,
+}
+
+#[derive(Default)]
+pub struct AuthHeaders {
+    credentials: RwLock<Credentials>,
+    /// Server-side route hook. When set, it owns every auth lookup and
+    /// the client-forwarded credentials above are ignored. See
+    /// [`UpstreamRouteHook`].
+    route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+    require_secure_transport: bool,
     token_helpers: TokenHelpers,
 }
 
@@ -176,6 +190,15 @@ struct TokenHelpers {
     token_helper_runner: Option<TokenHelperRunner>,
 }
 
+impl TokenHelpers {
+    fn clear_resolved(&self) {
+        self.resolved_token_helpers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+    }
+}
+
 /// One resolved credential slot: either a baked header value or a
 /// `tokenHelper` command still to be executed. Keeping both in the same
 /// map preserves pnpm's single longest-path-prefix lookup — a
@@ -190,15 +213,28 @@ enum AuthEntry {
     TokenHelper(Vec<String>),
 }
 
+impl Clone for AuthHeaders {
+    fn clone(&self) -> Self {
+        let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+        Self {
+            credentials: RwLock::new(creds.clone()),
+            route_hook: self.route_hook.clone(),
+            require_secure_transport: self.require_secure_transport,
+            token_helpers: self.token_helpers.clone(),
+        }
+    }
+}
+
 impl fmt::Debug for AuthHeaders {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Header values carry credentials, so the maps' *contents* must
         // never reach a log line; show only key counts plus whether a
         // server route hook is overriding lookup.
+        let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
         f.debug_struct("AuthHeaders")
-            .field("by_uri", &self.by_uri.len())
-            .field("scoped_by_scope", &self.scoped_by_scope.len())
-            .field("has_token_helpers", &self.has_token_helpers)
+            .field("by_uri", &creds.by_uri.len())
+            .field("scoped_by_scope", &creds.scoped_by_scope.len())
+            .field("has_token_helpers", &creds.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
             .field("require_secure_transport", &self.require_secure_transport)
             .finish_non_exhaustive()
@@ -218,9 +254,25 @@ impl AuthHeaders {
     /// authorization for any URL.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_uri.is_empty()
-            && self.scoped_by_scope.is_empty()
+        let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
+        creds.by_uri.is_empty()
+            && creds.scoped_by_scope.is_empty()
             && self.route_hook.is_none()
+    }
+
+    /// Replace the credential maps of this value.
+    ///
+    /// Every [`Arc`] clone of `self` observes the replacement. A
+    /// [`Clone`] of the struct does not: it copied the maps. `tokenHelper`
+    /// entries stay lazy; any memo of a helper that already ran is dropped
+    /// so the next lookup executes the command from the new map.
+    /// [`Self::with_route_hook`] and [`Self::with_secure_transport`] on
+    /// `self` are left as they are.
+    pub fn replace_credentials(&self, other: Self) {
+        let creds =
+            other.credentials.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
+        *self.credentials.write().unwrap_or_else(std::sync::PoisonError::into_inner) = creds;
+        self.token_helpers.clear_resolved();
     }
 
     /// Overlay a ready-to-send `Authorization` header at `url`.
@@ -244,8 +296,9 @@ impl AuthHeaders {
         if uri.is_empty() {
             return;
         }
-        self.max_parts = self.max_parts.max(uri.split('/').count());
-        self.by_uri.insert(uri, AuthEntry::Header(header));
+        let mut creds = self.credentials.write().unwrap_or_else(std::sync::PoisonError::into_inner);
+        creds.max_parts = creds.max_parts.max(uri.split('/').count());
+        creds.by_uri.insert(uri, AuthEntry::Header(header));
     }
 
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
@@ -377,13 +430,15 @@ impl AuthHeaders {
             .max()
             .unwrap_or(0);
         AuthHeaders {
-            by_uri,
-            scoped_by_scope,
-            max_parts,
-            max_scoped_parts_by_scope,
+            credentials: RwLock::new(Credentials {
+                by_uri,
+                scoped_by_scope,
+                max_parts,
+                max_scoped_parts_by_scope,
+                has_token_helpers,
+            }),
             route_hook: None,
             require_secure_transport: false,
-            has_token_helpers,
             token_helpers: TokenHelpers::default(),
         }
     }
@@ -427,8 +482,9 @@ impl AuthHeaders {
         // A `tokenHelper` entry has no static string to forward — it would
         // have to be executed — so it is skipped here. This map feeds the
         // pnpr wire shape, which carries only resolved header strings.
+        let creds = self.credentials.read().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut result = AuthHeadersByScope::new();
-        for (uri, entry) in &self.by_uri {
+        for (uri, entry) in &creds.by_uri {
             if let AuthEntry::Header(value) = entry {
                 result
                     .entry(uri.clone())
@@ -436,7 +492,7 @@ impl AuthHeaders {
                     .insert(DEFAULT_REGISTRY_SCOPE.to_owned(), value.clone());
             }
         }
-        for (scope, scoped_by_uri) in &self.scoped_by_scope {
+        for (scope, scoped_by_uri) in &creds.scoped_by_scope {
             for (registry_uri, entry) in scoped_by_uri {
                 if let AuthEntry::Header(value) = entry {
                     result

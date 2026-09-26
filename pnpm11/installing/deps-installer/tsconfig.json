@@ -67,6 +67,9 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../config/reader"
+    },
+    {
       "path": "../../config/version-policy"
     },
     {

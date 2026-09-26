@@ -1,4 +1,5 @@
 import { nerfDart } from '@pnpm/config.registry-auth-key'
+import { PnpmError } from '@pnpm/error'
 import type { RegistryConfig } from '@pnpm/types'
 
 import { type AuthHeaders, type AuthHeadersByScope, getAuthHeadersByScope, getAuthHeadersFromCreds } from './getAuthHeadersFromConfig.js'
@@ -22,17 +23,68 @@ interface ScopedAuthHeaderLookup {
   maxParts: number
 }
 
-export function createGetAuthHeaderByURI (
-  configByUri: Record<string, RegistryConfig>
-): (uri: string, opts?: GetAuthHeaderOptions) => string | undefined {
+interface AuthHeaderState {
+  authHeaders: AuthHeaders
+  lookup: AuthHeaderLookup
+  empty: boolean
+}
+
+const authHeaderReloaders = new WeakMap<object, Set<(configByUri: Record<string, RegistryConfig>) => void>>()
+
+function buildAuthHeaderState (configByUri: Record<string, RegistryConfig>): AuthHeaderState {
   const authHeaders = getAuthHeadersFromCreds(configByUri)
   const registryURIs = Object.keys(authHeaders.authHeaderValueByURI)
   const scopedAuthHeaderValueByScope = getScopedAuthHeaderValueByScope(authHeaders.scopedAuthHeaderValueByURI)
-  if (registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0) return (uri: string) => basicAuth(new URL(uri))
-  return getAuthHeaderByURI.bind(null, authHeaders, {
-    maxParts: getMaxParts(registryURIs),
-    scopedAuthHeaderValueByScope,
-  })
+  return {
+    authHeaders,
+    empty: registryURIs.length === 0 && Object.keys(scopedAuthHeaderValueByScope).length === 0,
+    lookup: {
+      maxParts: getMaxParts(registryURIs),
+      scopedAuthHeaderValueByScope,
+    },
+  }
+}
+
+export function createGetAuthHeaderByURI (
+  configByUri: Record<string, RegistryConfig>
+): (uri: string, opts?: GetAuthHeaderOptions) => string | undefined {
+  const state = buildAuthHeaderState(configByUri)
+  const refresh = (next: Record<string, RegistryConfig>) => {
+    const rebuilt = buildAuthHeaderState(next)
+    state.authHeaders = rebuilt.authHeaders
+    state.lookup = rebuilt.lookup
+    state.empty = rebuilt.empty
+  }
+  const reloaders = authHeaderReloaders.get(configByUri) ?? new Set()
+  reloaders.add(refresh)
+  authHeaderReloaders.set(configByUri, reloaders)
+  return (uri: string, opts?: GetAuthHeaderOptions) => {
+    if (state.empty) return basicAuth(new URL(uri))
+    return getAuthHeaderByURI(state.authHeaders, state.lookup, uri, opts)
+  }
+}
+
+/**
+ * Rebuild every auth-header lookup created from this `configByUri` object.
+ * `pnpm:devPreinstall` can write a new token into the user npmrc; the install
+ * updates `configByUri` in place and then calls this so registry fetches in
+ * the same process send the new credential. `tokenHelper` is executed when
+ * the lookup is rebuilt, the same as on the initial read.
+ */
+export function reloadAuthHeaders (
+  configByUri: Record<string, RegistryConfig>,
+  opts?: { required?: boolean }
+): void {
+  const reloaders = authHeaderReloaders.get(configByUri)
+  if (reloaders == null || reloaders.size === 0) {
+    if (opts?.required === true) {
+      throw new PnpmError('AUTH_HEADERS_NOT_LOADED',
+        'Cannot refresh registry auth after pnpm:devPreinstall because no auth lookup was created from this config',
+        { hint: 'The install client and the post-script reload must share one configByUri object.' })
+    }
+    return
+  }
+  for (const refresh of reloaders) refresh(configByUri)
 }
 
 function getMaxParts (uris: string[]): number {

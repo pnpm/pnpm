@@ -5997,6 +5997,9 @@ importers:
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
+      '@pnpm/config.reader':
+        specifier: workspace:*
+        version: link:../../config/reader
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
