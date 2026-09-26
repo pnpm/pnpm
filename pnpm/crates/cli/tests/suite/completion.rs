@@ -613,6 +613,76 @@ fn completion_server_respects_workspace_root_selection() {
     }
 }
 
+/// <https://github.com/pnpm/pnpm/issues/14655>
+#[test]
+fn completion_server_completes_project_bins_after_exec() {
+    let project = TempDir::new().unwrap();
+    let nested = project.path().join("src");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::write(project.path().join("package.json"), r#"{"scripts":{"hello":"echo hi"}}"#)
+        .unwrap();
+    write_bins(project.path(), &["foo", "foobar", "bar"]);
+    for (words, expected) in [
+        (vec!["pnpm", "exec", ""], "bar\nfoo\nfoobar\n"),
+        (vec!["pnpm", "exec", "foo"], "foo\nfoobar\n"),
+        (vec!["pn", "exec", "--shell-mode", "b"], "bar\n"),
+        (vec!["pnpm", "--silent", "exec", "b"], "bar\n"),
+        (vec!["pnpm", "exec", "foo", ""], ""),
+        (vec!["pnpm", "exec", "--", ""], ""),
+    ] {
+        for directory in [project.path(), nested.as_path()] {
+            let output = pacquet()
+                .current_dir(directory)
+                .args(["completion-server", "--"])
+                .args(&words)
+                .output()
+                .unwrap();
+            assert_eq!(stdout(output), expected, "{directory:?}: {words:?}");
+        }
+    }
+}
+
+#[test]
+fn completion_server_completes_bins_of_the_selected_project() {
+    let project = TempDir::new().unwrap();
+    let child = project.path().join("child");
+    let without_bins = project.path().join("without-bins");
+    std::fs::create_dir(&child).unwrap();
+    std::fs::create_dir(&without_bins).unwrap();
+    std::fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - child\n").unwrap();
+    std::fs::write(project.path().join("package.json"), "{}").unwrap();
+    std::fs::write(child.join("package.json"), "{}").unwrap();
+    std::fs::write(without_bins.join("package.json"), "{}").unwrap();
+    write_bins(project.path(), &["root-bin"]);
+    write_bins(&child, &["child-bin"]);
+    for (directory, words, expected) in [
+        (&child, vec!["pnpm", "exec", ""], "child-bin\n"),
+        (&child, vec!["pnpm", "-w", "exec", ""], "root-bin\n"),
+        (&child, vec!["pnpm", "exec", "--workspace-root", ""], "root-bin\n"),
+        (&project.path().to_path_buf(), vec!["pnpm", "-C", "child", "exec", ""], "child-bin\n"),
+        (&without_bins, vec!["pnpm", "exec", ""], ""),
+    ] {
+        let output = pacquet()
+            .current_dir(directory)
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), expected, "{directory:?}: {words:?}");
+    }
+}
+
+fn write_bins(project: &std::path::Path, names: &[&str]) {
+    let bins_dir = project.join("node_modules/.bin");
+    std::fs::create_dir_all(&bins_dir).unwrap();
+    let extensions: &[&str] = if cfg!(windows) { &["", ".cmd", ".ps1"] } else { &[""] };
+    for name in names {
+        for extension in extensions {
+            std::fs::write(bins_dir.join(format!("{name}{extension}")), "").unwrap();
+        }
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn completion_powershell_preserves_literal_script_names() {
