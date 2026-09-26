@@ -119,7 +119,7 @@ impl WorkspaceSettings {
         // types, plus the ones `from_resolved` reports only when set.
         resets.extend(same_named! {
             hoist_pattern, public_hoist_pattern, state_dir, lockfile_dir, npmrc_auth_file,
-            global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir,
+            global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir, fallback_store_dir,
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
             registry, scope, pnpr_server, cargo, python, tools, remote_side_effects_cache,

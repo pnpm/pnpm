@@ -148,6 +148,7 @@ fn create_config(
         disallow_workspace_cycles: false,
         strict_store_pkg_content_check: true,
         frozen_store: false,
+        fallback_store_dir: None,
         force: false,
         side_effects_cache: true,
         side_effects_cache_readonly: false,

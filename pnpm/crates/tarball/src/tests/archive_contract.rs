@@ -345,6 +345,7 @@ fn zip_ingestion<'a>(input: &'a IngestTarballToStore<'a>) -> IngestZipArchiveToS
             strict_pkg_content_check: input.store.strict_pkg_content_check,
             verified_files_cache: Arc::clone(&input.store.verified_files_cache),
             prefetched_cas_paths: input.store.prefetched_cas_paths,
+            fallback_dir: None,
         },
 
         requester: input.requester,
@@ -418,6 +419,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                     strict_pkg_content_check: true,
                     verified_files_cache: Arc::default(),
                     prefetched_cas_paths: None,
+                    fallback_dir: None,
                 },
 
                 requester: "contract test",
@@ -495,6 +497,7 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
                     strict_pkg_content_check: true,
                     verified_files_cache: Arc::default(),
                     prefetched_cas_paths: None,
+                    fallback_dir: None,
                 },
 
                 requester: "contract test",

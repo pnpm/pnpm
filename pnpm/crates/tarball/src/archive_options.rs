@@ -63,6 +63,10 @@ pub struct ArchiveStoreContext<'a> {
     /// the per-snapshot `SQLite` + integrity-check round-trip is skipped
     /// for every key already resolved by the prefetch.
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
+    /// Read-only store to copy a package from when this store misses it
+    /// (`fallbackStoreDir`). Its files are copied into [`Self::dir`], each
+    /// checked against its recorded digest, before the package is used.
+    pub fallback_dir: Option<&'static StoreDir>,
 }
 
 #[derive(Clone, Copy)]

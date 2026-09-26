@@ -19,6 +19,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "fetching-concurrency",
     "force-ignores-platform",
     "frozen-store",
+    "fallback-store-dir",
     "git-checks",
     "git-shallow-hosts",
     "global-bin-dir",

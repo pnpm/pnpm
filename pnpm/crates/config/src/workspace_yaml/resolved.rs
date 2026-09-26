@@ -69,6 +69,7 @@ impl WorkspaceSettings {
             // relative setting against wherever the hook's answer is
             // applied from.
             store_dir: as_set(config, "storeDir"),
+            fallback_store_dir: as_set(config, "fallbackStoreDir"),
             modules_dir: as_set(config, "modulesDir"),
             virtual_store_dir: as_set(config, "virtualStoreDir"),
             global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),

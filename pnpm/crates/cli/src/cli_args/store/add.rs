@@ -227,6 +227,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
             strict_pkg_content_check: args.config.strict_store_pkg_content_check,
             verified_files_cache: args.store.verified_files_cache,
             prefetched_cas_paths: None,
+            fallback_dir: args.config.fallback_store(),
         },
 
         requester: args.requester,

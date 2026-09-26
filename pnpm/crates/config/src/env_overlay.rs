@@ -234,6 +234,7 @@ impl WorkspaceSettings {
         json_field!(settings, Sys, enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(settings, Sys, global_shims, "GLOBAL_SHIMS");
         string_field!(settings, Sys, global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
+        string_field!(settings, Sys, fallback_store_dir, "FALLBACK_STORE_DIR");
         string_field!(settings, Sys, global_dir, "GLOBAL_DIR");
         string_field!(settings, Sys, global_bin_dir, "GLOBAL_BIN_DIR");
         enum_field!(

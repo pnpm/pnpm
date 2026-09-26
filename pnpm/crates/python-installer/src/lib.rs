@@ -227,6 +227,7 @@ impl PythonPrepare<'_> {
                 strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::default(),
                 prefetched_cas_paths: None,
+                fallback_dir: self.context.config.fallback_store(),
             },
             wheels: BTreeMap::new(),
             sources: sources::Sources::new(self),

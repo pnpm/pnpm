@@ -418,6 +418,9 @@ impl EnvInstallerContext {
             network,
             store: pnpm_env_installer::ConfigDependencyStore {
                 dir: Box::leak(Box::new(config.store_dir.clone())),
+                fallback_dir: config
+                    .fallback_store()
+                    .map(|fallback| &*Box::leak(Box::new(fallback.clone()))),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 package_import_method: config.package_import_method,

@@ -161,6 +161,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
+        if let Some(v) = self.fallback_store_dir.take() {
+            config.fallback_store_dir = Some(Box::new(StoreDir::from(resolve(base_dir, &v))));
+        }
     }
 
     /// Registry endpoints, their credentials, and the caches keyed by them.

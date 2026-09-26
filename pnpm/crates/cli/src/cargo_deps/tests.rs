@@ -258,42 +258,43 @@ fn creates_the_cargo_checksum_manifest_from_cas_files() {
     );
 }
 
-#[tokio::test]
-async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let store_dir = Box::leak(Box::new(StoreDir::from(temp_dir.path().join("store"))));
+const DEMO_CARGO_TOML: &[u8] = b"[package]\nname = \"demo\"\nversion = \"1.0.0\"\n";
+const DEMO_SOURCE: &[u8] = b"pub fn trusted() {}\n";
+
+fn temp_store(temp_dir: &tempfile::TempDir, name: &str) -> &'static StoreDir {
+    let store_dir = Box::leak(Box::new(StoreDir::from(temp_dir.path().join(name))));
     store_dir.init().unwrap();
-    let cargo_toml = b"[package]\nname = \"demo\"\nversion = \"1.0.0\"\n";
-    let source = b"pub fn trusted() {}\n";
-    let (cargo_toml_path, cargo_toml_hash) = store_dir.write_cas_file(cargo_toml, false).unwrap();
-    let (source_path, source_hash) = store_dir.write_cas_file(source, false).unwrap();
+    store_dir
+}
+
+/// Index `demo@1.0.0` in `store_dir` as a raw crate archive holding
+/// [`DEMO_CARGO_TOML`] and [`DEMO_SOURCE`]. Returns the crate and the
+/// CAS paths of its files.
+fn seed_demo_crate(store_dir: &StoreDir) -> (LockedCrate, Vec<std::path::PathBuf>) {
+    let mut cas_paths = Vec::new();
+    let mut file = |content: &[u8]| {
+        let (path, hash) = store_dir.write_cas_file(content, false).unwrap();
+        cas_paths.push(path);
+        CafsFileInfo {
+            digest: format!("{hash:x}"),
+            mode: 0o644,
+            size: content.len() as u64,
+            checked_at: None,
+        }
+    };
     let files = HashMap::from([
-        (
-            "Cargo.toml".to_string(),
-            CafsFileInfo {
-                digest: format!("{cargo_toml_hash:x}"),
-                mode: 0o644,
-                size: cargo_toml.len() as u64,
-                checked_at: None,
-            },
-        ),
-        (
-            "src/lib.rs".to_string(),
-            CafsFileInfo {
-                digest: format!("{source_hash:x}"),
-                mode: 0o644,
-                size: source.len() as u64,
-                checked_at: None,
-            },
-        ),
+        ("Cargo.toml".to_string(), file(DEMO_CARGO_TOML)),
+        ("src/lib.rs".to_string(), file(DEMO_SOURCE)),
     ]);
     let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     let integrity = Integrity::from_hex(checksum, Algorithm::Sha256).unwrap();
-    let package_id = "crate:demo@1.0.0";
     StoreIndex::open_in(store_dir)
         .unwrap()
         .set(
-            &ArchiveStoreProjection::RawArchive.store_index_key(&integrity.to_string(), package_id),
+            &ArchiveStoreProjection::RawArchive.store_index_key(
+                &integrity.to_string(),
+                "crate:demo@1.0.0",
+            ),
             &PackageFilesIndex {
                 manifest: None,
                 requires_build: Some(false),
@@ -310,15 +311,16 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
         version: "1.0.0".to_string(),
         checksum: checksum.to_string(),
     };
-    let slot = package.store_slot(store_dir.root());
-    fs::create_dir_all(slot.join("src")).unwrap();
-    fs::write(slot.join("package.json"), "{}").unwrap();
-    fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
-    fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
-    fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
-    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+    (package, cas_paths)
+}
 
-    materialize::<SilentReporter>(MaterializeOptions {
+async fn materialize_offline(
+    package: LockedCrate,
+    store_dir: &'static StoreDir,
+    fallback_dir: Option<&'static StoreDir>,
+) -> miette::Result<(String, std::path::PathBuf)> {
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+    let result = materialize::<SilentReporter>(MaterializeOptions {
         package,
         fetching: crate::cargo_deps::materialize::CrateDownload {
             http_client: Arc::new(ThrottledClient::default()),
@@ -335,25 +337,61 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
         },
         store: crate::cargo_deps::materialize::CrateStore {
             dir: store_dir,
+            fallback_dir,
             index: StoreIndex::shared_readonly_in(store_dir),
             index_writer: Arc::clone(&store_index_writer),
             verified_files_cache: SharedVerifiedFilesCache::default(),
-            logged_methods: Arc::new(AtomicU8::new(0)),
-            import_method: pnpm_config::PackageImportMethod::default(),
+            import: crate::cargo_deps::materialize::CrateImport {
+                method: pnpm_config::PackageImportMethod::default(),
+                logged_methods: Arc::new(AtomicU8::new(0)),
+            },
             verify_integrity: true,
             strict_pkg_content_check: true,
         },
     })
-    .await
-    .unwrap();
+    .await;
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "").await;
+    result
+}
 
-    assert_eq!(fs::read(slot.join("Cargo.toml")).unwrap(), cargo_toml);
-    assert_eq!(fs::read(slot.join("src/lib.rs")).unwrap(), source);
+#[tokio::test]
+async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let store_dir = temp_store(&temp_dir, "store");
+    let (package, cas_paths) = seed_demo_crate(store_dir);
+    let slot = package.store_slot(store_dir.root());
+    fs::create_dir_all(slot.join("src")).unwrap();
+    fs::write(slot.join("package.json"), "{}").unwrap();
+    fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
+    fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
+    fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
+
+    materialize_offline(package, store_dir, None).await.unwrap();
+
+    assert_eq!(fs::read(slot.join("Cargo.toml")).unwrap(), DEMO_CARGO_TOML);
+    assert_eq!(fs::read(slot.join("src/lib.rs")).unwrap(), DEMO_SOURCE);
     assert!(slot.join(".cargo-checksum.json").is_file());
-    assert!(cargo_toml_path.is_file());
-    assert!(source_path.is_file());
+    for path in cas_paths {
+        assert!(path.is_file(), "{path:?}");
+    }
+}
+
+/// <https://github.com/pnpm/pnpm/issues/3392>
+#[tokio::test]
+async fn copies_a_crate_missing_from_the_store_from_the_fallback_store() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let store_dir = temp_store(&temp_dir, "store");
+    let fallback_dir = temp_store(&temp_dir, "fallback");
+    let (package, _) = seed_demo_crate(fallback_dir);
+
+    let (_, slot) = materialize_offline(package, store_dir, Some(fallback_dir))
+        .await
+        .unwrap();
+
+    assert!(slot.starts_with(store_dir.root()), "{slot:?}");
+    assert_eq!(fs::read(slot.join("Cargo.toml")).unwrap(), DEMO_CARGO_TOML);
+    assert_eq!(fs::read(slot.join("src/lib.rs")).unwrap(), DEMO_SOURCE);
 }
 
 #[test]

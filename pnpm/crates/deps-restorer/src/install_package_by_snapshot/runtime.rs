@@ -308,6 +308,7 @@ impl BinaryArchiveFetch<'_> {
                 strict_pkg_content_check: self.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
+                fallback_dir: self.config.fallback_store(),
             },
 
             requester: self.requester,
@@ -349,6 +350,7 @@ impl BinaryArchiveFetch<'_> {
                 strict_pkg_content_check: self.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
+                fallback_dir: self.config.fallback_store(),
             },
 
             requester: self.requester,

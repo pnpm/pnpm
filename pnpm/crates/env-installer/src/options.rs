@@ -63,6 +63,7 @@ fn scope_of(name: &str) -> Option<usize> {
 #[derive(Clone, Copy)]
 pub struct ConfigDependencyStore {
     pub dir: &'static StoreDir,
+    pub fallback_dir: Option<&'static StoreDir>,
     pub verify_integrity: bool,
     pub strict_pkg_content_check: bool,
     pub package_import_method: PackageImportMethod,

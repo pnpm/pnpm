@@ -256,6 +256,13 @@ pub struct Config {
     #[default(_code = "default_store_dir::<Host>()")]
     pub store_dir: StoreDir,
 
+    /// A read-only store (`fallbackStoreDir`) that packages missing from
+    /// [`store_dir`](Self::store_dir) are copied from before pnpm downloads
+    /// them. Its index is read without locks, so nothing may write to it
+    /// during an install. Share it only between mutually trusted users.
+    /// Read [`Self::fallback_store`] rather than this field.
+    pub fallback_store_dir: Option<Box<StoreDir>>,
+
     /// Skip the filesystem probe when loading configuration for checks that
     /// do not use the package store. Store consumers must load configuration
     /// with this disabled to select a store on the project's volume.

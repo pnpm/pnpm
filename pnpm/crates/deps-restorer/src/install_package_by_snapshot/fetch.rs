@@ -225,6 +225,7 @@ impl InstallPackageBySnapshot<'_> {
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.fetching.verified_files_cache),
                 prefetched_cas_paths: self.fetching.prefetched_cas_paths,
+                fallback_dir: config.fallback_store(),
             },
 
             requester: self.ctx.requester,

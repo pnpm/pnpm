@@ -160,6 +160,7 @@ fn options<'a>(
         },
         store: crate::ConfigDependencyStore {
             dir: harness.store_dir,
+            fallback_dir: None,
             verify_integrity: true,
             strict_pkg_content_check: true,
             package_import_method: pnpm_config::PackageImportMethod::default(),
@@ -301,6 +302,8 @@ fn contains_entry_named(dir: &Path, name: &str) -> bool {
 mod configuration;
 
 mod dependencies;
+
+mod fallback_store;
 
 mod integrity;
 
