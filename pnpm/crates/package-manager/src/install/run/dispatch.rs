@@ -463,6 +463,7 @@ impl<'r> Settled<'r, '_> {
             workspace_packages: workspace.workspace_packages.as_ref(),
             config: install.context.config,
             catalogs: &workspace.catalogs,
+            ignore_recorded_catalogs: !workspace.catalog_context_present,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
             scope: FreshnessScope {
                 ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,

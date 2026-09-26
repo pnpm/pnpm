@@ -374,6 +374,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'workspaceManifestFound'
 | 'workspacePackagePatterns'
 | 'extraEnv'
 | 'resolutionMode'
@@ -433,6 +434,11 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   }
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
+    // Only an explicit `false` from the config reader (no pnpm-workspace.yaml
+    // was found) skips the frozen-install catalogs check. An unset flag — the
+    // way every other install-like command passes its options — keeps the
+    // check on.
+    ignoreRecordedCatalogs: opts.workspaceManifestFound === false,
     rebuildHandler: commands?.rebuild,
     frozenLockfileIfExists: shouldFreezeLockfileIfExists(opts),
     include,

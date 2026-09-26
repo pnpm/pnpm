@@ -892,3 +892,55 @@ fn a_dev_install_records_every_group_and_materializes_only_development() {
         1,
     );
 }
+
+#[test]
+fn a_frozen_install_without_a_workspace_manifest_accepts_the_recorded_catalogs() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "catalog:\n  '@pnpm.e2e/pkg-with-1-dep': 100.0.0\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "cataloged-root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "catalog:",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // A production artifact copies only `package.json` and the lockfile: no
+    // `pnpm-workspace.yaml` exists, so the catalogs the lockfile records are
+    // the only catalog configuration there is (pnpm/pnpm#10551).
+    let deploy = root.path().join("deploy");
+    std::fs::create_dir_all(&deploy).expect("create the deploy directory");
+    fs::copy(workspace.join("package.json"), deploy.join("package.json"))
+        .expect("copy package.json");
+    fs::copy(workspace.join("pnpm-lock.yaml"), deploy.join("pnpm-lock.yaml"))
+        .expect("copy pnpm-lock.yaml");
+    // The artifact ships without the registry the mock serves from, so the
+    // install has to be pointed at it the way a CI runner would be.
+    fs::copy(&npmrc_path, deploy.join(".npmrc")).expect("copy .npmrc");
+
+    new_pacquet_command(&deploy)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(deploy.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+
+    drop((root, mock_instance));
+}

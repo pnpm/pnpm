@@ -114,6 +114,10 @@ pub(super) fn check_projects_content(
             // the checksum would cost a Node worker on the path that exists to avoid
             // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
+            // The check needs a `pnpm-workspace.yaml` behind the catalogs to
+            // compare against; without one, the lockfile's own snapshot is
+            // the only configuration there is (pnpm/pnpm#10551).
+            ignore_recorded_catalogs: !check.is_workspace_install,
             dedupe_peers,
         },
     ) {

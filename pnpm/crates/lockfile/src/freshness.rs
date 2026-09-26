@@ -31,6 +31,11 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    /// Skips the catalogs comparison, for an install whose directory has no
+    /// `pnpm-workspace.yaml`: the catalogs the lockfile records are then the
+    /// only catalog configuration there is, and a frozen install resolves
+    /// from the lockfile anyway (pnpm/pnpm#10551).
+    pub ignore_recorded_catalogs: bool,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -365,7 +370,9 @@ fn check_recorded_config(
     lockfile: &Lockfile,
     check: &LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
-    if !all_catalogs_are_up_to_date(check.catalogs, lockfile.catalogs.as_ref()) {
+    if !check.ignore_recorded_catalogs
+        && !all_catalogs_are_up_to_date(check.catalogs, lockfile.catalogs.as_ref())
+    {
         return Err(StalenessReason::CatalogsChanged {
             lockfile: lockfile.catalogs.clone(),
             config: check.catalogs.clone(),

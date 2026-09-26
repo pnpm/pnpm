@@ -108,6 +108,7 @@ async fn workspace_manifests_satisfy(
             workspace_packages: workspace_packages.as_ref(),
             config: check.config,
             catalogs: check.catalogs,
+            ignore_recorded_catalogs: workspace_manifest.is_none(),
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
@@ -154,6 +155,10 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
+    /// Whether no `pnpm-workspace.yaml` stands behind `catalogs`, so the
+    /// catalogs the lockfile records are the only configuration there is
+    /// and the catalogs comparison is skipped (pnpm/pnpm#10551).
+    pub(super) ignore_recorded_catalogs: bool,
     pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) scope: FreshnessScope,
 }
@@ -320,6 +325,7 @@ pub(super) async fn check_lockfile_freshness(
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
             pnpmfile_checksum: super::pnpmfile_checksum_check(inputs, pnpmfile_checksum.as_deref()),
+            ignore_recorded_catalogs: inputs.ignore_recorded_catalogs,
             dedupe_peers: inputs.config.dedupe_peers,
         },
     )?;
@@ -462,6 +468,7 @@ pub(crate) fn parse_config_overrides(
 pub(crate) struct CheckLockfileSettingsDriftOptions<'a> {
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+    pub ignore_recorded_catalogs: bool,
     pub dedupe_peers: bool,
 }
 
@@ -474,6 +481,7 @@ pub(crate) fn check_lockfile_settings_drift(
     let CheckLockfileSettingsDriftOptions {
         parsed_overrides,
         pnpmfile_checksum,
+        ignore_recorded_catalogs,
         dedupe_peers,
     } = opts;
     let overrides_map: Option<std::collections::HashMap<String, String>> =
@@ -494,6 +502,7 @@ pub(crate) fn check_lockfile_settings_drift(
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
+            ignore_recorded_catalogs,
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers,
