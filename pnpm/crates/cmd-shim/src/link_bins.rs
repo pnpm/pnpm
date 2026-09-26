@@ -9,7 +9,7 @@ use crate::{
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
+        ScriptRuntime, generate_cmd_shim_in, generate_pwsh_shim_in, generate_sh_shim_in,
         is_sh_shim_basedir_anchor_current, is_sh_shim_hardened, is_shim_pointing_at,
         search_script_runtime,
     },
@@ -326,6 +326,10 @@ pub struct LinkBinsOptions {
     /// hoisted linker. Bin targets inside it get their executable bits the
     /// way targets under `node_modules` do.
     pub installed_modules_dir: Option<PathBuf>,
+    /// Name each shim target with a normalized absolute path, with no `.`
+    /// or `..` segment. `self-update` sets this for the pnpm home bin
+    /// directory, which sits beside the global install.
+    pub absolute_bin_paths: bool,
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link

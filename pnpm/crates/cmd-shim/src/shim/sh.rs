@@ -1,5 +1,6 @@
 use super::{
-    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, relative_target,
+    NodePathEnvVar, Path, ScriptRuntime, normalize_node_path_env_var, normalized_absolute_target,
+    relative_target,
     relocatable::{
         BASEDIR_ABS_PRELUDE, is_within_root, marker_target, sh_node_path_entries,
         shim_target_markers,
@@ -30,8 +31,23 @@ pub fn generate_sh_shim(
     node_path: &[String],
     relocatable_root: Option<&Path>,
 ) -> String {
+    generate_sh_shim_in(target_path, shim_path, runtime, node_path, relocatable_root, false)
+}
+
+pub(crate) fn generate_sh_shim_in(
+    target_path: &Path,
+    shim_path: &Path,
+    runtime: Option<&ScriptRuntime>,
+    node_path: &[String],
+    relocatable_root: Option<&Path>,
+    absolute_target: bool,
+) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
-    let sh_target = relative_target(target_path, shim_path);
+    let sh_target = if absolute_target {
+        normalized_absolute_target(target_path, false)
+    } else {
+        relative_target(target_path, shim_path)
+    };
     let absolute = Path::new(&sh_target).is_absolute();
     let mut sh = String::from(SH_SHIM_HEADER);
     let physical_basedir = !absolute || is_within_root(relocatable_root, shim_dir, shim_dir);

@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
-import { cmdShim, readShNodePath } from '@pnpm/bins.cmd-shim'
+import { cmdShim, readShNodePath, readShRelativeTarget, shimClimbsWithDotDot } from '@pnpm/bins.cmd-shim'
 import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'
@@ -980,6 +980,69 @@ test('linkBins() fix window shebang line', async () => {
       expect(stat.isFile()).toBe(true)
     }
   }
+})
+
+test('linkBins() writes a normalized absolute pnpm home shim', async () => {
+  const root = temporaryDirectory()
+  const binsDir = path.join(root, 'bin')
+  const pkgDir = path.join(root, 'global', 'v11', '3253-19f44c69299', 'node_modules', '@pnpm', 'exe')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: '@pnpm/exe',
+    version: '11.10.0',
+    bin: { pnpm: 'pnpm' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'pnpm'), 'This file intentionally left blank\n')
+  const modulesDir = path.join(root, 'global', 'v11', '3253-19f44c69299', 'node_modules')
+  const shimPath = path.join(binsDir, 'pnpm')
+  const target = path.resolve(pkgDir, 'pnpm').replaceAll('\\', '/')
+
+  await linkBins(modulesDir, binsDir, { warn: () => {} })
+  expect(fs.readFileSync(shimPath, 'utf8')).toContain('$basedir_abs/../global/')
+
+  await linkBins(modulesDir, binsDir, { absolute: true, warn: () => {} })
+  const absoluteShim = fs.readFileSync(shimPath, 'utf8')
+  expect(absoluteShim).toContain(`"${target}"`)
+  expect(absoluteShim).not.toContain('$basedir/../')
+  expect(absoluteShim).not.toContain('/../')
+
+  fs.writeFileSync(shimPath, `${absoluteShim}# keep-me\n`)
+  await linkBins(modulesDir, binsDir, { absolute: true, warn: () => {} })
+  expect(fs.readFileSync(shimPath, 'utf8')).toContain('# keep-me\n')
+})
+
+test('linkBins() rewrites a home shim that climbs through $basedir', async () => {
+  const root = temporaryDirectory()
+  const binsDir = path.join(root, 'bin')
+  const pkgDir = path.join(root, 'global', 'v11', '3253-19f44c69299', 'node_modules', '@pnpm', 'exe')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: '@pnpm/exe',
+    version: '11.10.0',
+    bin: { pnpm: 'pnpm' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'pnpm'), 'This file intentionally left blank\n')
+  const modulesDir = path.join(root, 'global', 'v11', '3253-19f44c69299', 'node_modules')
+  const shimPath = path.join(binsDir, 'pnpm')
+  const target = path.resolve(pkgDir, 'pnpm').replaceAll('\\', '/')
+
+  await linkBins(modulesDir, binsDir, { warn: () => {} })
+  const planted = fs.readFileSync(shimPath, 'utf8')
+    .split('\n')
+    .filter((line) => !line.startsWith('basedir_abs=') && line !== 'basedir="$basedir_abs"')
+    .join('\n')
+    .replaceAll('$basedir_abs/', '$basedir/')
+  fs.writeFileSync(shimPath, planted)
+  expect(planted).toContain('$basedir/../')
+  expect(planted).not.toContain('basedir_abs')
+  expect(shimClimbsWithDotDot(planted)).toBe(true)
+  expect(readShRelativeTarget(planted)).toBeUndefined()
+
+  await linkBins(modulesDir, binsDir, { absolute: true, warn: () => {} })
+  const rewritten = fs.readFileSync(shimPath, 'utf8')
+  expect(rewritten).toContain(`"${target}"`)
+  expect(rewritten).not.toContain('$basedir/../')
+  expect(shimClimbsWithDotDot(rewritten)).toBe(false)
 })
 
 test("linkBins() creates a bin that points to a path that doesn't exist yet", async () => {

@@ -200,7 +200,10 @@ async function switchGlobalPnpm (
   })
 
   // Link bins to pnpmHomeDir/bin so the updated pnpm is the active global binary
-  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), { warn: globalWarn })
+  await linkBins(path.join(baseDir, 'node_modules'), path.join(opts.pnpmHomeDir, 'bin'), {
+    absolute: true,
+    warn: globalWarn,
+  })
   await unlinkReplacedPnpmInstalls(opts.globalPkgDir, baseDir)
 
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
@@ -211,7 +214,10 @@ async function switchGlobalPnpm (
   // upgrade actually takes effect, then warn the user to run `pnpm setup`
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
   if (hasLegacyHomeDirShim(opts.pnpmHomeDir)) {
-    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, { warn: globalWarn })
+    await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir, {
+      absolute: true,
+      warn: globalWarn,
+    })
     globalWarn(
       'Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm shims ' +
       'at PNPM_HOME have been refreshed so the new version is active, but ' +

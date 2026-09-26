@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-import { cmdShim, getExeExtension, getPhysicalShimDir, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget } from '@pnpm/bins.cmd-shim'
+import { cmdShim, getExeExtension, getPhysicalShimDir, getShShimDir, isShimBasedirAnchorCurrent, isShimForMissingTarget, isShimNodePath, isShimPointingAt, readShRelativeTarget, shimClimbsWithDotDot } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -355,6 +355,12 @@ export interface LinkBinOptions {
    * the directory again once the builds ran.
    */
   heldBackBinsDirs?: Set<string>
+  /**
+   * Write each shim target as a normalized absolute path, with no `.` or
+   * `..` segment. `pnpm self-update` sets this for the pnpm home bin
+   * directory, which sits beside the global install.
+   */
+  absolute?: boolean
 }
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions & { physicalBinsDir: string }): Promise<void> {
@@ -382,13 +388,19 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions 
       const content = await fs.readFile(externalBinPath, 'utf8')
       const expectedRelativeTarget = path.relative(shShimDir, cmd.path).split('\\').join('/')
       const storedRelativeTarget = readShRelativeTarget(content)
-      const isRelativeTargetCurrent = path.isAbsolute(expectedRelativeTarget)
+      const isRelativeTargetCurrent = opts.absolute
         ? storedRelativeTarget == null
-        : storedRelativeTarget === expectedRelativeTarget
+        : path.isAbsolute(expectedRelativeTarget)
+          ? storedRelativeTarget == null
+          : storedRelativeTarget === expectedRelativeTarget
       isCorrectlyLinked = isShimPointingAt(content, cmd.path) && isShimHardened(content) &&
         (!IS_WINDOWS || existsSync(`${externalBinPath}.cmd`)) &&
+        (!opts.absolute || !shimClimbsWithDotDot(content)) &&
         (!isShimForMissingTarget(content) || await isMissing(cmd.path)) &&
-        isShimBasedirAnchorCurrent(content, path.relative(binsDir, cmd.path)) &&
+        isShimBasedirAnchorCurrent(
+          content,
+          opts.absolute ? path.resolve(cmd.path) : path.relative(binsDir, cmd.path)
+        ) &&
         isRelativeTargetCurrent &&
         (
           (opts.extraNodePaths == null && opts.projectModulesDir == null) ||
@@ -470,6 +482,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinOptions 
       ]))
     }
     await cmdShim(cmd.path, externalBinPath, {
+      absolute: opts?.absolute,
       createPwshFile: POWER_SHELL_IS_SUPPORTED && cmd.makePowerShellShim,
       nodePath,
       nodeExecPath: cmd.nodeExecPath,
