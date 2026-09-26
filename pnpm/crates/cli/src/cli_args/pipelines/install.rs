@@ -1,9 +1,9 @@
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, InstallArgs, InstallFamily, InstallFamilyPlan,
-    Path, PathBuf, Reporter, RuntimePolicy, State, ThrottledClient, dedicated_project_name,
-    discover_workspace_projects, ecosystem_install, init_dedicated_project_state,
-    prepare_root_config, project_names, prune_after_dedicated_installs, select_install_family,
-    sync_dedicated_injected_deps,
+    Arc, Config, Context, DedicatedProjectRuns, DedicatedSync, InstallArgs, InstallFamily,
+    InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State, ThrottledClient,
+    dedicated_project_name, discover_workspace_projects, ecosystem_install,
+    init_dedicated_project_state, injected_source_dirs, prepare_root_config, project_names,
+    prune_after_dedicated_installs, select_install_family, sync_dedicated_injected_deps,
 };
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
@@ -253,6 +253,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
+    let source_dirs = dedicated_injected_source_dirs(&projects, &project_dirs)?;
     project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
     // One `Config::leak` per project: `State::init` needs a
     // `&'static Config`, and a leaked shared reference can't be
@@ -274,9 +275,40 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
         prune_after_dedicated_installs(cfg)?;
     }
     if !(args.lockfile.only || args.materialization.dry_run) {
-        sync_dedicated_injected_deps(cfg, &project_dirs, &names)?;
+        sync_dedicated_injected_deps(
+            cfg,
+            &project_dirs,
+            &DedicatedSync { names: &names, source_dirs: &source_dirs },
+        )?;
     }
     Ok(())
+}
+
+/// See [`injected_source_dirs`]. `other_dirs` are the directories installed
+/// alongside `projects` without being discovered, such as the workspace
+/// root. Their manifests are read here, before any lifecycle script runs.
+fn dedicated_injected_source_dirs(
+    projects: &[pnpm_workspace::Project],
+    other_dirs: &[PathBuf],
+) -> miette::Result<std::collections::HashSet<PathBuf>> {
+    let other_manifests = other_dirs
+        .iter()
+        .map(|dir| {
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
+                .map_err(miette::Report::new)
+        })
+        .collect::<miette::Result<Vec<_>>>()?;
+    Ok(injected_source_dirs(
+        projects
+            .iter()
+            .map(|project| (project.root_dir.as_path(), Some(project.manifest.value())))
+            .chain(
+                other_dirs
+                    .iter()
+                    .map(PathBuf::as_path)
+                    .zip(other_manifests.iter().map(Option::as_ref)),
+            ),
+    ))
 }
 
 async fn run_single_node_install<Reporter: self::Reporter + 'static>(
@@ -308,3 +340,7 @@ async fn run_single_node_install<Reporter: self::Reporter + 'static>(
     )?;
     Box::pin(args.run::<Reporter>(state)).await
 }
+
+#[cfg(test)]
+#[path = "install_tests.rs"]
+mod install_tests;

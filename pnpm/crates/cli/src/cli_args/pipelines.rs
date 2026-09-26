@@ -142,6 +142,9 @@ pub(crate) struct DedicatedProjects {
     /// Whether the selection is every workspace project, so that the run
     /// leaves no project's lockfile behind its manifest.
     covers_workspace: bool,
+    /// The sources whose injected copies are synced once every project ran
+    /// its lifecycle scripts, taken from the manifests read before they ran.
+    injected_source_dirs: HashSet<PathBuf>,
 }
 
 impl DedicatedProjects {
@@ -157,7 +160,18 @@ impl DedicatedProjects {
                 || selection.selected_dirs
                     .iter()
                     .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root));
-        DedicatedProjects { dependencies: selection.project_dependencies, names, covers_workspace }
+        let injected_source_dirs = injected_source_dirs(
+            selection.projects
+                .iter()
+                .filter(|project| selection.project_dependencies.contains_key(&project.root_dir))
+                .map(|project| (project.root_dir.as_path(), Some(project.manifest.value()))),
+        );
+        DedicatedProjects {
+            dependencies: selection.project_dependencies,
+            names,
+            covers_workspace,
+            injected_source_dirs,
+        }
     }
 
     fn is_empty(&self) -> bool {
@@ -226,7 +240,14 @@ impl DedicatedProjectRuns<'_> {
                 .keys()
                 .cloned()
                 .collect();
-            sync_dedicated_injected_deps(self.config, &project_dirs, &self.projects.names)?;
+            sync_dedicated_injected_deps(
+                self.config,
+                &project_dirs,
+                &DedicatedSync {
+                    names: &self.projects.names,
+                    source_dirs: &self.projects.injected_source_dirs,
+                },
+            )?;
         }
         Ok(())
     }
@@ -299,18 +320,28 @@ fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
 fn sync_dedicated_injected_deps(
     config: &Config,
     project_dirs: &[PathBuf],
-    names: &HashMap<PathBuf, String>,
+    sync: &DedicatedSync<'_>,
 ) -> miette::Result<()> {
     if config.ignore_scripts || config.virtual_store_only {
         return Ok(());
     }
-    let source_dirs = injected_source_dirs(project_dirs)?;
     for project_dir in project_dirs {
-        let modules_dir =
-            config.project_modules_dir(project_dir, names.get(project_dir).map(String::as_str));
-        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, &source_dirs)?;
+        let modules_dir = config.project_modules_dir(
+            project_dir,
+            sync.names.get(project_dir).map(String::as_str),
+        );
+        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, sync.source_dirs)?;
     }
     Ok(())
+}
+
+/// What [`sync_dedicated_injected_deps`] needs to know about the projects
+/// beyond their directories.
+pub(super) struct DedicatedSync<'a> {
+    /// See [`DedicatedProjects::names`].
+    pub(super) names: &'a HashMap<PathBuf, String>,
+    /// See [`injected_source_dirs`].
+    pub(super) source_dirs: &'a HashSet<PathBuf>,
 }
 
 /// The selection in build order. Sequenced over borrowed paths: cloning a
