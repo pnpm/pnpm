@@ -117,7 +117,116 @@ fn build_graph(
         },
         task_name,
         tasks: task_settings,
+        is_selector_task: |_| false,
     })
+}
+
+/// [`build_graph`] with a `select_scripts` that reads `/pattern/` task names
+/// as `RegExp` selectors, the way the CLI's run command does.
+fn build_selector_graph(
+    projects: &[(&'static str, FakeProject)],
+    task_name: &str,
+    task_settings: Option<&IndexMap<String, TaskSettings>>,
+) -> TaskGraph {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
+        })
+        .collect();
+    build_task_graph(&BuildTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            let scripts = &scripts_by_dir[project];
+            if scripts
+                .iter()
+                .any(|script| script == task_name)
+            {
+                return vec![task_name.to_string()];
+            }
+            let Some(pattern) = task_name
+                .strip_prefix('/')
+                .and_then(|body| body.strip_suffix('/'))
+            else {
+                return Vec::new();
+            };
+            let Ok(pattern) = regex::Regex::new(pattern) else {
+                return Vec::new();
+            };
+            scripts
+                .iter()
+                .filter(|script| pattern.is_match(script))
+                .cloned()
+                .collect()
+        },
+        task_name,
+        tasks: task_settings,
+        is_selector_task: |name| name.starts_with('/') && name.ends_with('/'),
+    })
+}
+
+#[test]
+fn regexp_selector_task_depends_on_what_its_matched_scripts_depend_on() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph =
+        build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
+
+    let selector_task = &graph[&key("a", "/test/")];
+    assert_eq!(selector_task.scripts, vec!["test"]);
+    assert_eq!(selector_task.dependencies, vec![key("a", "build")]);
+    assert!(!graph[&key("a", "build")].requested);
+}
+
+#[test]
+fn regexp_selector_task_does_not_depend_on_a_script_it_also_matches() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    let selector_task = &graph[&key("a", "/^(build|test)$/")];
+    assert_eq!(selector_task.scripts, vec!["build", "test"]);
+    assert_eq!(selector_task.dependencies, vec![key("b", "build")]);
+}
+
+#[test]
+fn regexp_selector_task_with_no_matched_scripts_depends_on_nothing() {
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint"]))],
+        "/test/",
+        None,
+    );
+
+    assert!(graph[&key("a", "/test/")].dependencies.is_empty());
+}
+
+#[test]
+fn an_exact_tasks_entry_under_the_selector_name_wins_over_the_matched_scripts() {
+    let settings = tasks(&[("/test/", Some(&["build"])), ("test", None)]);
+    let graph =
+        build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("a", "build")]);
 }
 
 #[test]

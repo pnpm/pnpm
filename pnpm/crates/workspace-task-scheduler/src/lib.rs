@@ -95,6 +95,10 @@ where
     /// named this.
     pub task_name: &'a str,
     pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    /// Whether a task name is a `RegExp` selector (a `/pattern/` literal),
+    /// whose selected scripts the `select_scripts` callback resolves per
+    /// project.
+    pub is_selector_task: fn(&str) -> bool,
 }
 
 pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts>

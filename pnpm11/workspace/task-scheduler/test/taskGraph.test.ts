@@ -102,6 +102,54 @@ test('a RegExp selector attaches every matching script to the task', () => {
   ])
 })
 
+test('a RegExp selector task depends on what its matched scripts depend on', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build', 'test'] },
+  }, '/test/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  const selectorTask = graph.get(taskKey(dir('a'), '/test/'))!
+  expect(selectorTask.scripts).toStrictEqual(['test'])
+  expect(selectorTask.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+  expect(graph.get(taskKey(dir('a'), 'build'))!.requested).toBe(false)
+})
+
+test('a RegExp selector task does not depend on a script it also matches', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/^(build|test)$/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  const selectorTask = graph.get(taskKey(dir('a'), '/^(build|test)$/'))!
+  expect(selectorTask.scripts).toStrictEqual(['build', 'test'])
+  expect(selectorTask.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
+})
+
+test('a RegExp selector task with no matched scripts depends on nothing', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['lint'] },
+    b: { scripts: ['lint'] },
+  }, '/test/')
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([])
+})
+
+test('an exact tasks entry under the selector name wins over the matched scripts', () => {
+  const graph = buildGraph({
+    a: { scripts: ['build', 'test'] },
+  }, '/test/', {
+    '/test/': { dependsOn: ['build'] },
+    test: { dependsOn: [] },
+  })
+
+  expect(graph.get(taskKey(dir('a'), '/test/'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+})
+
 test('a malformed RegExp selector becomes a pass-through task', () => {
   const graph = buildGraph({
     a: { scripts: ['build'] },
@@ -339,6 +387,7 @@ function buildGraph (
     selectScripts,
     taskName,
     tasks,
+    isSelectorTaskName: (name) => name.startsWith('/') && name.endsWith('/'),
   })
 }
 

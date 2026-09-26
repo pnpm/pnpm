@@ -369,6 +369,7 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
     selectScripts: getSpecifiedScripts,
     taskName: scriptName,
     tasks: opts.sort ? opts.tasks : undefined,
+    isSelectorTaskName: isRegExpSelector,
   })
   if (opts.reverse) {
     taskGraph = reverseTaskGraph(taskGraph)
@@ -421,4 +422,18 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
   }
 
   return []
+}
+
+/**
+ * Whether a task name addresses scripts by RegExp literal rather than by
+ * name. A selector carrying flags is shaped like one but is rejected by
+ * `tryBuildRegExpFromCommand`; it is a selector here too, so the graph
+ * treats it the way `getSpecifiedScripts` does.
+ */
+function isRegExpSelector (taskName: string): boolean {
+  try {
+    return tryBuildRegExpFromCommand(taskName) != null
+  } catch {
+    return true
+  }
 }
