@@ -35,7 +35,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
     unsaved: UnsavedManifests,
     mut prepared: SelectedUpdatePreparation,
 ) -> Result<(), UpdateError> {
-    let update = write_saved_selected_state(update, &site, &prepared, selected.projects)?;
+    let update = saved_selected_update_options(update, &site, &prepared, selected.projects)?;
 
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
         targets: std::mem::take(&mut prepared.bump_targets),
@@ -77,7 +77,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
     unsaved: UnsavedManifests,
     mut prepared: UpdatePreparation,
 ) -> Result<(), UpdateError> {
-    let update = write_saved_single_state(update, &site, &prepared, manifest)?;
+    let update = saved_single_update_options(update, &prepared, manifest)?;
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(&site.workspace_root, manifest_dir(manifest));
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
@@ -103,6 +103,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
 
     finish_single_update::<Reporter>(
         update,
+        &site,
         manifest,
         &prepared,
         &importer_id,
@@ -118,40 +119,14 @@ pub(super) struct UnsavedManifests {
     pub(super) hooked_paths: HashSet<PathBuf>,
     pub(super) lockfile_specifiers: Option<Vec<(PathBuf, PackageManifest)>>,
 }
-/// Write the override entries an update moved into the workspace manifest,
-/// and hand back update options whose config carries them, so this run's
-/// resolve sees the moved pins rather than the ones startup read. The
-/// write precedes the install the way the catalog write does, so a resolve
-/// that re-reads the workspace manifest and the config agree.
-///
-/// `update` unchanged when nothing moved.
-fn write_moved_overrides<'a>(
-    update: UpdateOptions<'a>,
-    site: &UpdateSite,
-    updated_overrides: &[(String, String)],
-) -> Result<UpdateOptions<'a>, UpdateError> {
-    if updated_overrides.is_empty() {
-        return Ok(update);
-    }
-    pnpm_workspace_manifest_writer::set_overrides(
-        &site.workspace_root,
-        updated_overrides
-            .iter()
-            .map(|(key, value)| (key.as_str(), value.as_str())),
-    )
-    .map_err(UpdateError::WriteOverrides)?;
-    let mut config = update.config.clone();
-    let overrides = config.overrides.get_or_insert_with(indexmap::IndexMap::new);
-    for (key, value) in updated_overrides {
-        overrides.insert(key.clone(), value.clone());
-    }
-    Ok(UpdateOptions { config: Box::leak(Box::new(config)), ..update })
-}
-/// The `pnpm-workspace.yaml` writes a saving selected-projects update
-/// performs before its install: the catalogs it rewrote, then the overrides
-/// it moved. Hands back update options whose config carries the moved
-/// overrides; `update` unchanged when the run does not save.
-fn write_saved_selected_state<'a>(
+/// The update options a saving selected-projects update runs its install
+/// under: the catalogs it rewrote are written first for the resolve to
+/// re-read, and the config carries the moved overrides so the resolve
+/// answers to the moved pins rather than the ones startup read. The moved
+/// overrides themselves are persisted by [`settle_selected_update`] once
+/// the install succeeds, so a failed install leaves the workspace manifest
+/// as it was.
+fn saved_selected_update_options<'a>(
     update: UpdateOptions<'a>,
     site: &UpdateSite,
     prepared: &SelectedUpdatePreparation,
@@ -167,15 +142,16 @@ fn write_saved_selected_state<'a>(
         projects,
     )
     .map_err(UpdateError::WriteWorkspaceManifest)?;
-    write_moved_overrides(update, site, &prepared.updated_overrides)
+    Ok(update_with_moved_overrides(update, &prepared.updated_overrides))
 }
-/// The `pnpm-workspace.yaml` writes a saving single-project update performs
-/// before its install: the catalogs it rewrote, then the overrides it moved.
-/// See [`write_saved_selected_state`] for why these writes precede the
-/// install.
-fn write_saved_single_state<'a>(
+/// The update options a saving single-project update runs its install
+/// under: the catalogs it rewrote are written first for the resolve to
+/// re-read, and the config carries the moved overrides so the resolve
+/// answers to the moved pins rather than the ones startup read. See
+/// [`saved_selected_update_options`] for why the overrides themselves wait
+/// for the install to succeed.
+fn saved_single_update_options<'a>(
     update: UpdateOptions<'a>,
-    site: &UpdateSite,
     prepared: &UpdatePreparation,
     manifest: &PackageManifest,
 ) -> Result<UpdateOptions<'a>, UpdateError> {
@@ -189,7 +165,26 @@ fn write_saved_single_state<'a>(
         manifest,
     )
     .map_err(UpdateError::WriteWorkspaceManifest)?;
-    write_moved_overrides(update, site, &prepared.updated_overrides)
+    Ok(update_with_moved_overrides(update, &prepared.updated_overrides))
+}
+/// Resolve this run against the overrides it moved: the config carries the
+/// moved pins in place of the ones startup read, so the resolve, the
+/// lockfile settings it records, and the freshness checks all answer to
+/// them. The resolve reads overrides from the config, never the workspace
+/// manifest on disk — that write belongs to the settle phase.
+fn update_with_moved_overrides<'a>(
+    update: UpdateOptions<'a>,
+    updated_overrides: &[(String, String)],
+) -> UpdateOptions<'a> {
+    if updated_overrides.is_empty() {
+        return update;
+    }
+    let mut config = update.config.clone();
+    let overrides = config.overrides.get_or_insert_with(indexmap::IndexMap::new);
+    for (key, value) in updated_overrides {
+        overrides.insert(key.clone(), value.clone());
+    }
+    UpdateOptions { config: Box::leak(Box::new(config)), ..update }
 }
 /// What the resolve seeds from: the pins it keeps or drops, the versions it
 /// prefers, and the catalogs as the update rewrote them.
