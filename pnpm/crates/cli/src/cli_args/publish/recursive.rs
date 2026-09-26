@@ -12,7 +12,7 @@ use crate::cli_args::{
         AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
         select_recursive_projects,
     },
-    registry_client::build_publish_client,
+    registry_client::{build_publish_client, build_registry_client},
     workspace_packages::build_workspace_package_manifest_map,
 };
 use miette::{Context, IntoDiagnostic};
@@ -156,17 +156,16 @@ impl PublishArgs {
             return Ok(Vec::new());
         }
 
-        let http_client = build_publish_client(config)?;
-        let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let (opts, to_publish) =
-            self.select_candidates::<Reporter>(graph, config, stage, &network, workspace_root)
-                .await?;
+            self.select_candidates::<Reporter>(graph, config, stage, workspace_root).await?;
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published", dir);
             return self.finish_recursive_publish(workspace_root, &opts, Ok(Vec::new()));
         }
 
+        let http_client = build_publish_client(config)?;
+        let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
@@ -210,10 +209,13 @@ impl PublishArgs {
         graph: &pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'_>>,
         config: &Config,
         stage: bool,
-        network: &PublishNetwork<'_>,
         workspace_root: &Path,
     ) -> miette::Result<(pnpm_publish::PublishPackedPkgOptions, HashSet<PathBuf>)> {
         let opts = self.checked_recursive_publish_options(config, stage)?;
+        // The candidate probes are metadata requests, so they don't get the
+        // publish client's longer timeout.
+        let http_client = build_registry_client(config)?;
+        let network = &PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let to_publish =
             self.projects_to_publish(graph, config, network.client, retry_opts_from_config(config))
                 .await;
