@@ -34,3 +34,28 @@ test('getPkgInfo handles missing pkgSnapshot without crashing', () => {
   expect(result.pkgInfo.resolved).toBeUndefined()
   expect(result.pkgInfo.optional).toBeUndefined()
 })
+
+test('resolvePackagePath returns virtualStoreDir for unsafe package name', async () => {
+  const { resolvePackagePath } = await import('../src/resolvePackagePath.js')
+  const virtualStoreDir = path.resolve('node_modules/.pnpm')
+
+  const isolatedPath = resolvePackagePath({
+    depPath: 'pkg@1.0.0',
+    name: '../../../../escape',
+    alias: 'alias',
+    virtualStoreDir,
+    virtualStoreDirMaxLength: 120,
+    nodeLinker: 'isolated',
+  })
+  expect(isolatedPath).toBe(virtualStoreDir)
+
+  const hoistedPath = resolvePackagePath({
+    depPath: 'pkg@1.0.0',
+    name: '../../../../escape',
+    alias: 'alias',
+    virtualStoreDir,
+    virtualStoreDirMaxLength: 120,
+    nodeLinker: 'hoisted',
+  })
+  expect(hoistedPath).toBe(virtualStoreDir)
+})

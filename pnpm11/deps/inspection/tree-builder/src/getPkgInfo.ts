@@ -62,6 +62,10 @@ export interface GetPkgInfoOpts {
    * This is needed for subdependencies when using global virtual store.
    */
   readonly parentDir?: string
+
+  readonly nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  readonly hoistedLocations?: Record<string, string[]>
+  readonly lockfileDir?: string
 }
 
 export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readManifest: () => DependencyManifest } {
@@ -125,6 +129,11 @@ export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readM
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       modulesDir: opts.modulesDir,
       parentDir: opts.parentDir,
+      nodeLinker: opts.nodeLinker,
+      hoistedLocations: opts.hoistedLocations,
+      lockfileDir: opts.lockfileDir,
+      projectDir: opts.linkedPathBaseDir,
+      version,
     })
     : path.resolve(opts.linkedPathBaseDir, opts.ref.slice(5))
 

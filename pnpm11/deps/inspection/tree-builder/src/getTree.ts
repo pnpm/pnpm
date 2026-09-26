@@ -34,7 +34,10 @@ export interface BaseTreeOpts {
   showDedupedSearchMatches?: boolean
   graph: DependencyGraph
   materializationCache: MaterializationCache
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  hoistedLocations?: Record<string, string[]>
 }
+
 
 interface GetTreeOpts extends BaseTreeOpts {
   maxDepth: number

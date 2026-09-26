@@ -343,4 +343,24 @@ test('fails with WORKSPACE_DIR_NOT_FOUND when workspace directory does not exist
   expect(result.stdout.toString()).toContain('ERR_PNPM_WORKSPACE_DIR_NOT_FOUND')
 })
 
+test('list shows correct package path when nodeLinker is hoisted', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  await execPnpm(['install', '--config.node-linker=hoisted'])
+
+  const { stdout } = execPnpmSync(['list', '--json', '--depth', '1'])
+  const result = JSON.parse(stdout.toString())
+  expect(result[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].path).toBe(
+    path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep')
+  )
+  expect(
+    result[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].path
+  ).toBe(
+    path.resolve('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  )
+})
+
 
