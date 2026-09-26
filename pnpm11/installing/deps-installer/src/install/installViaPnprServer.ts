@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { toRegistryDeclarations } from '@pnpm/config.normalize-registries'
 import { PnpmError } from '@pnpm/error'
-import { makeProjectNodePathOption, runLifecycleHook } from '@pnpm/exec.lifecycle'
+import { runLifecycleHook } from '@pnpm/exec.lifecycle'
 import type { RangeSpecStyle } from '@pnpm/installing.deps-resolver'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import {
@@ -31,6 +31,7 @@ import {
 } from './installPredicates.js'
 import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from './mutationTypes.js'
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
+import { createRootHookOptions } from './rootProjectHooks.js'
 import { verifyLockfileFileOffline, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
@@ -169,24 +170,7 @@ async function runRootProjectHooks (
   const rootProjectManifest = (allInstallProjects ?? [{ rootDir, manifest }])
     .find((project) => project.rootDir === lockfileDir)?.manifest ??
     await safeReadProjectManifestOnly(lockfileDir)
-  const rootModulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
-  const rootHookOpts = {
-    depPath: lockfileDir,
-    extraBinPaths: opts.extraBinPaths,
-    extraEnv: {
-      ...opts.extraEnv,
-      ...await makeProjectNodePathOption({ modulesDir: rootModulesDir, rootDir: lockfileDir }, opts),
-    },
-    pkgRoot: lockfileDir,
-    rootModulesDir,
-    wdBinDir: path.join(rootModulesDir, '.bin'),
-    scriptShell: opts.scriptShell,
-    scriptsPrependNodePath: opts.scriptsPrependNodePath,
-    shellEmulator: opts.shellEmulator,
-    stdio: opts.ownLifecycleHooksStdio,
-    unsafePerm: opts.unsafePerm || false,
-    userAgent: opts.userAgent,
-  }
+  const rootHookOpts = await createRootHookOptions(lockfileDir, opts)
   if (installRunsDevPreinstall(opts) && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
     await runLifecycleHook(DEV_PREINSTALL, rootProjectManifest, rootHookOpts)
   }

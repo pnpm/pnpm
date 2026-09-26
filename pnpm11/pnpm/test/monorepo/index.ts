@@ -2819,3 +2819,69 @@ test('pnpm install --frozen-lockfile checks a plain-range workspace child of a d
     execPnpm(['install', '--frozen-lockfile'])
   ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
 })
+
+test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'member\\n\')"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('root\n')
+  expect(fs.existsSync('packages/member/order.txt')).toBe(false)
+})
+
+test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --ignore-scripts is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install', '--ignore-scripts'])
+
+  expect(fs.existsSync('order.txt')).toBe(false)
+})
