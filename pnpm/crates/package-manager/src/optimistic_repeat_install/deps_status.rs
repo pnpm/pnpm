@@ -2,11 +2,12 @@
 
 use super::{
     Config, Host, Lockfile, LockfileConflictCheckFailure, ManifestStat, NodeLinker,
-    OptimisticRepeatInstallCheck, WorkspaceState, catalogs_cache_matches,
+    OptimisticRepeatInstallCheck, Path, WorkspaceState, catalogs_cache_matches,
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
-    first_project_missing_modules_dir, first_setting_drift, modified_manifests_match_lockfile,
-    patches_modified_since, pnpmfiles_drift, project_structure_matches,
+    first_project_missing_modules_dir, first_selected_project_missing_modules_dir,
+    first_setting_drift, modified_manifests_match_lockfile, patches_modified_since,
+    pnpmfiles_drift, project_structure_matches,
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
     update_workspace_state,
 };
@@ -41,10 +42,17 @@ pub enum RunDepsStatus {
 /// `state` arrives from the caller, which already had to load it to
 /// decide whether a check is possible at all (a missing state is
 /// "Cannot check whether dependencies are outdated").
+///
+/// `selected_project_dirs` are the project directories the gated command
+/// selected. A state that records a filtered install exempts the projects
+/// that install did not select from the modules-directory requirement, but
+/// the selected ones are still held to it; an empty selection keeps that
+/// exemption for every project.
 #[must_use]
 pub fn check_deps_status_before_run(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
 ) -> RunDepsStatus {
     let install_args = install_args_from_state(state);
     let outdated =
@@ -56,7 +64,7 @@ pub fn check_deps_status_before_run(
     let relocated = relocated_state(state, check.workspace_root, check.project_manifests);
     let moved = relocated.is_some();
     let state = relocated.as_ref().unwrap_or(state);
-    if let Some(issue) = first_static_drift(check, state, moved) {
+    if let Some(issue) = first_static_drift(check, state, moved, selected_project_dirs) {
         return outdated(issue);
     }
 
@@ -112,9 +120,10 @@ fn first_static_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     moved: bool,
+    selected_project_dirs: &[&Path],
 ) -> Option<String> {
     first_lockfile_or_setting_drift(check, state)
-        .or_else(|| first_workspace_drift(check, state, moved))
+        .or_else(|| first_workspace_drift(check, state, moved, selected_project_dirs))
 }
 
 fn first_lockfile_or_setting_drift(
@@ -161,6 +170,7 @@ fn first_workspace_drift(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     moved: bool,
+    selected_project_dirs: &[&Path],
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -172,11 +182,18 @@ fn first_workspace_drift(
     if !project_structure_matches(state, project_manifests) {
         return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
     }
-    // A filtered install legitimately leaves unselected projects
-    // without a modules directory.
-    if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(check)
-    {
+    // A filtered install legitimately leaves the projects it did not
+    // select without a modules directory, so a state that records one
+    // exempts them. The projects the gated command selected are still
+    // held to it: without that, a filtered run or exec could select a
+    // project the filtered install never materialized and run it without
+    // its dependencies (https://github.com/pnpm/pnpm/issues/11865).
+    let missing_modules_dir = if state.filtered_install {
+        first_selected_project_missing_modules_dir(check, selected_project_dirs)
+    } else {
+        first_project_missing_modules_dir(check)
+    };
+    if let Some(id) = missing_modules_dir {
         return Some(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",
         ));

@@ -105,7 +105,12 @@ impl ExecArgs {
         reporter: ReporterType,
     ) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
-        super::verify_deps::verify_deps_before_run(dirs.project, config, reporter)?;
+        super::verify_deps::verify_deps_before_run(
+            dirs.project,
+            &[dirs.project],
+            config,
+            reporter,
+        )?;
         let status =
             spawn_in_dir(&command, dirs, config, self.shell_mode, ScriptOutput::Inherit, None)?;
         if !status.success() {

@@ -227,6 +227,31 @@ pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> 
 pub(super) fn first_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Option<String> {
+    first_missing_modules_dir(check, |_| true)
+}
+/// [`first_project_missing_modules_dir`] restricted to the projects the gate
+/// selected.
+///
+/// A filtered install legitimately leaves the projects it did not select
+/// without a modules directory, but the projects the gated command selected
+/// still have to have one: without that, a filtered `run` or `exec` could
+/// select a project the filtered install never materialized and run it
+/// without its dependencies.
+pub(super) fn first_selected_project_missing_modules_dir(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    selected_project_dirs: &[&Path],
+) -> Option<String> {
+    first_missing_modules_dir(check, |root_dir| {
+        let root_dir = lexical_normalize(root_dir);
+        selected_project_dirs
+            .iter()
+            .any(|selected| lexical_normalize(selected) == root_dir)
+    })
+}
+fn first_missing_modules_dir(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    is_selected: impl Fn(&Path) -> bool,
+) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -240,6 +265,9 @@ pub(super) fn first_project_missing_modules_dir(
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
+            if !is_selected(root_dir) {
+                return None;
+            }
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
             let installed = !manifest_has_runtime_deps(manifest)
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {

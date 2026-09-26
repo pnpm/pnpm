@@ -201,6 +201,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        &[],
     );
 
     assert!(matches!(
@@ -715,6 +716,7 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
             manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         &state,
+        &[],
     );
 
     assert!(
