@@ -449,6 +449,119 @@ fn hoisted_patch_reaches_every_nested_copy_of_a_package() {
     drop((root, mock_instance));
 }
 
+/// Prepends a line to `index.js`. The hunk's context still matches, at an
+/// offset, on a copy that already carries the patch, so a second
+/// application duplicates the line instead of being rejected.
+const IS_POSITIVE_PREPEND_PATCH: &str = concat!(
+    "diff --git a/index.js b/index.js\n",
+    "--- a/index.js\n",
+    "+++ b/index.js\n",
+    "@@ -1,3 +1,4 @@\n",
+    "+// patched\n",
+    " 'use strict';\n",
+    " \n",
+    " module.exports = function (n) {\n",
+);
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/7565>.
+///
+/// Under the hoisted linker, a workspace project's dependency whose
+/// version conflicts with the root's version of the same package nests a
+/// copy under EACH consumer. Every copy has to carry the patch exactly
+/// once, and a reinstall must not apply the patch a second time on top
+/// of the copies the previous install already patched.
+#[test]
+fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": {
+                "is-positive": "3.1.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PREPEND_PATCH)
+        .expect("write patch file");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+    workspace_yaml.push_str(
+        "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    );
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    for project in ["pkg-a", "pkg-b"] {
+        let dir = workspace.join("packages").join(project);
+        fs::create_dir_all(&dir).expect("create workspace project");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": project,
+                "version": "0.0.0",
+                "private": true,
+                "dependencies": {
+                    "is-positive": "1.0.0",
+                },
+            })
+            .to_string(),
+        )
+        .expect("write project package.json");
+    }
+
+    let assert_patched_copies = |workspace: &Path| {
+        for project in ["pkg-a", "pkg-b"] {
+            let nested = workspace
+                .join("packages")
+                .join(project)
+                .join("node_modules/is-positive");
+            assert_eq!(
+                fs::read_to_string(nested.join("package.json"))
+                    .ok()
+                    .and_then(|manifest| serde_json::from_str::<Value>(&manifest).ok())
+                    .and_then(|manifest| manifest["version"].as_str().map(ToOwned::to_owned)),
+                Some("1.0.0".to_string()),
+                "expected the conflicting is-positive@1.0.0 to nest under {project}",
+            );
+            let index_js =
+                fs::read_to_string(nested.join("index.js")).expect("read the patched index.js");
+            assert_eq!(
+                index_js.matches("// patched").count(),
+                1,
+                "the patch must reach the nested copy under {project} exactly once: {index_js}",
+            );
+        }
+    };
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert_patched_copies(&workspace);
+
+    // A reinstall touches nothing, so it must neither lose the patch nor
+    // apply it a second time.
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert_patched_copies(&workspace);
+
+    // A reinstall that restores one wiped project's copy must patch that
+    // copy from pristine files and leave the surviving copy untouched.
+    remove_dir_if_exists(&workspace.join("packages/pkg-a/node_modules"));
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert_patched_copies(&workspace);
+
+    drop((root, mock_instance));
+}
+
 /// TS: `patch package should fail when the exact version patch fails to
 /// apply` (`patch.ts:508`).
 #[test]
