@@ -56,13 +56,15 @@ const AUTH_CFG_KEYS = [
  *
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
- * 2. **Security & trust policy:** these reflect the user's or organization's
+ * 2. **Node.js download mirrors:** same idea for Node.js runtime tarballs when
+ *    those URIs are declared in `pnpm-workspace.yaml`.
+ * 3. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
- * 3. **Catalogs:** the `catalog:` protocol resolves package versions through
+ * 4. **Catalogs:** the `catalog:` protocol resolves package versions through
  *    workspace catalog entries; without them, `pnpm dlx pkg@catalog:...` cannot
  *    look up the requested version.
- * 4. **Fetch retry/timeout:** governs how the client talks to the registry.
+ * 5. **Fetch retry/timeout:** governs how the client talks to the registry.
  *    These reflect the same network environment as a regular install.
  *
  * Other settings are intentionally excluded. These are the ones that control
@@ -74,6 +76,7 @@ const AUTH_CFG_KEYS = [
  * | Category                       | Inherited by dlx? | Examples                                         |
  * |--------------------------------|--------------------|--------------------------------------------------|
  * | Registry & auth                | Yes                | registry, _authToken, ca                         |
+ * | Node.js download mirrors       | Yes                | nodeDownloadMirrors (workspace/custom tarballs)   |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
  * | Catalogs                       | Yes                | catalogs                                         |
  * | Fetch retry/timeout            | Yes                | fetchRetries, fetchTimeout                       |
@@ -81,6 +84,10 @@ const AUTH_CFG_KEYS = [
  * | Workspace settings             | No                 | link-workspace-packages, shared-workspace-lockfile|
  * | Resolution strategy            | No                 | resolution-mode, dedupe-peers                     |
  */
+const NODE_DOWNLOAD_MIRRORS_CFG_KEYS = [
+  'nodeDownloadMirrors',
+] satisfies Array<keyof Config>
+
 const SECURITY_POLICY_CFG_KEYS = [
   'minimumReleaseAge',
   'minimumReleaseAgeExclude',
@@ -123,6 +130,10 @@ function isAuthCfgKey (cfgKey: keyof Config): cfgKey is typeof AUTH_CFG_KEYS[num
   return (AUTH_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
 
+function isNodeDownloadMirrorsCfgKey (cfgKey: keyof Config): cfgKey is typeof NODE_DOWNLOAD_MIRRORS_CFG_KEYS[number] {
+  return (NODE_DOWNLOAD_MIRRORS_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
+}
+
 function isSecurityPolicyCfgKey (cfgKey: keyof Config): cfgKey is typeof SECURITY_POLICY_CFG_KEYS[number] {
   return (SECURITY_POLICY_CFG_KEYS as Array<keyof Config>).includes(cfgKey)
 }
@@ -158,7 +169,13 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config) || isCatalogsCfgKey(key as keyof Config) || isFetchCfgKey(key as keyof Config)) {
+    if (
+      isAuthCfgKey(key as keyof Config) ||
+      isNodeDownloadMirrorsCfgKey(key as keyof Config) ||
+      isSecurityPolicyCfgKey(key as keyof Config) ||
+      isCatalogsCfgKey(key as keyof Config) ||
+      isFetchCfgKey(key as keyof Config)
+    ) {
       result[key] = localCfg[key as keyof Config]
     }
   }
