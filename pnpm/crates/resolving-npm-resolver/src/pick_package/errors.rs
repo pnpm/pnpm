@@ -32,9 +32,7 @@ pub enum PickPackageError {
         spec_name: String,
         spec_fetch_spec: String,
         pkg_mirror: PathBuf,
-        /// Set when the pre-`#14081` mirror for the same registry still
-        /// exists on disk, so the message can point at it. See
-        /// `legacy_mirror_hint`.
+        /// Explanatory hint when a legacy mirror for the same registry exists on disk.
         #[error(not(source))]
         #[help]
         hint: Option<String>,

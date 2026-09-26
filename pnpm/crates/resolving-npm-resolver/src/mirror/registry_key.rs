@@ -105,13 +105,8 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     Ok(key)
 }
 
-/// The pre-`#14081` registry key: `<host>[+<port>]`, with no scheme, path
-/// segments, or hash suffix — the shape metadata mirrors used before they
-/// were keyed on the full registry URL (`node-registry-fetch`'s
-/// `encode-registry`, ported verbatim: the URL's host, and its port only
-/// when the port is not the scheme's default). `None` for a registry URL
-/// [`get_registry_name`] would itself reject, since there is then nothing
-/// to compare against.
+/// Format the legacy registry directory name `<host>[+<port>]` from a registry URL.
+/// Returns `None` when the registry URL does not parse or has no host.
 #[must_use]
 pub fn get_legacy_registry_name(registry: &str) -> Option<String> {
     let parsed = reqwest::Url::parse(registry).ok()?;

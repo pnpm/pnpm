@@ -845,7 +845,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 
 /**
  * Hint for `NO_OFFLINE_META`: whether the package's metadata sits on disk
- * under the pre-#14081 mirror path, which this pnpm version no longer reads.
+ * under the legacy mirror path, which this pnpm version no longer reads.
  * `undefined` when no such mirror exists, so the base error message stands
  * on its own.
  */
@@ -863,11 +863,9 @@ export async function legacyMirrorHint (cacheDir: string, metaDir: string, regis
 }
 
 /**
- * The pre-#14081 mirror path for a registry: `<host>[:<port>]` with `:`
- * replaced by `+`, and no scheme, path segments, or hash suffix — the
- * `encode-registry` package's encoding, before metadata mirrors were keyed
- * on the full registry URL. `null` for a registry URL {@link getPkgMirrorPath}
- * would itself reject, since there is then nothing to compare against.
+ * The legacy mirror path for a registry: `<host>[:<port>]` with `:`
+ * replaced by `+`, and no scheme, path segments, or hash suffix.
+ * `null` for a registry URL {@link getPkgMirrorPath} would itself reject.
  */
 function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string | null {
   let url: URL

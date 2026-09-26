@@ -264,12 +264,8 @@ fn mirror_path_for(
     }
 }
 
-/// The pre-`#14081` mirror path for the same package, used only to detect a
-/// cache that predates the rename and explain an offline
-/// `ERR_PNPM_NO_OFFLINE_META`. Unlike [`mirror_path_for`], this ignores
-/// [`scoped_meta_dir`]: a legacy mirror was written before per-descriptor
-/// private-metadata scoping existed, so it can only ever sit under the
-/// unscoped directory.
+/// Locate the legacy mirror path for `pkg_name` in `opts.cache_dir`.
+/// Unlike [`mirror_path_for`], this checks only the unscoped directory.
 fn legacy_mirror_path_for(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,

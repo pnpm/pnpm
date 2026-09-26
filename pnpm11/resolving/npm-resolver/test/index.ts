@@ -1296,7 +1296,7 @@ test('offline resolution fails when package meta not found in the store', async 
     )
 })
 
-test('offline resolution failure names the pre-#14081 mirror when metadata is cached under the old layout', async () => {
+test('offline resolution failure names the legacy mirror when metadata is cached under the old layout', async () => {
   const cacheDir = temporaryDirectory()
   const legacyMirrorDir = path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org')
   fs.mkdirSync(legacyMirrorDir, { recursive: true })

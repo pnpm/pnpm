@@ -157,10 +157,8 @@ fn get_registry_name_cannot_collide_with_an_earlier_pnpm_version() {
     assert_eq!(get_registry_name("https://nexus/npm/").expect("encode"), "https%3A+nexus%2Fnpm");
 }
 
-/// [`get_legacy_registry_name`] reproduces `encode-registry`, the package
-/// mirror keys were built from before `#14081`: the URL's host, with `:`
-/// replaced by `+` for a non-default port, and no scheme, path, or hash
-/// suffix at all.
+/// [`get_legacy_registry_name`] reproduces `encode-registry`: the URL's host, with `:`
+/// replaced by `+` for a non-default port, and no scheme, path, or hash suffix.
 #[test]
 fn get_legacy_registry_name_matches_the_pre_rename_encoding() {
     assert_eq!(

@@ -27,9 +27,7 @@ pub enum FetchMetadataError {
         pkg_name: String,
         #[error(not(source))]
         pkg_mirror: std::path::PathBuf,
-        /// Set when the pre-`#14081` mirror for the same registry still
-        /// exists on disk, so the message can point at it. See
-        /// `legacy_mirror_hint`.
+        /// Explanatory hint when a legacy mirror for the same registry exists on disk.
         #[error(not(source))]
         #[help]
         hint: Option<String>,
@@ -113,9 +111,7 @@ pub enum FetchMetadataError {
     },
 }
 
-/// Explanatory help for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror`
-/// exists: the package's metadata is on disk, just under the pre-`#14081`
-/// mirror path this pnpm version no longer reads.
+/// Format the help text for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror` exists on disk.
 #[must_use]
 pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
     format!(
