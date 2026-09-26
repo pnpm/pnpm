@@ -263,6 +263,7 @@ impl ConfigOverrides {
         }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
+        }
     }
 }
 

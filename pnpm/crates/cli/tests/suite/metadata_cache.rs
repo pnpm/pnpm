@@ -3,7 +3,7 @@
 
 use crate::_utils;
 
-use _utils::pacquet_in;
+use _utils::{flatten_report, pacquet_in};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -105,12 +105,9 @@ fn no_metadata_cache_flag_does_not_read_the_mirror() {
         .get_output()
         .clone();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let message = stderr
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let report = flatten_report(&stderr);
     assert!(
-        message.contains("Failed to resolve @pnpm.e2e/pkg-with-1-dep@100.0.0"),
+        report.contains(&flatten_report("Failed to resolve @pnpm.e2e/pkg-with-1-dep@100.0.0")),
         "an offline install that skips the mirror must find no metadata:\n{stderr}",
     );
 
