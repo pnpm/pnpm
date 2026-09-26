@@ -118,3 +118,27 @@ fn resolve_only_install_does_not_register_the_project() {
         assert!(!store_dir.projects().exists(), "{args:?}");
     }
 }
+
+#[test]
+fn up_to_date_dry_run_does_not_register_the_project() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
+    fs::remove_dir_all(store_dir.projects()).expect("clear the project registry");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--dry-run"])
+        .assert()
+        .success();
+
+    assert!(!store_dir.projects().exists());
+}

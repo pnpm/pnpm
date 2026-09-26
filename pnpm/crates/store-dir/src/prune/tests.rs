@@ -46,6 +46,20 @@ fn prune_keeps_everything_when_no_projects() {
 }
 
 #[test]
+fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
+    let project = tempdir().unwrap();
+    fs::create_dir_all(project.path().join("node_modules/left-pad")).unwrap();
+    register_project(&store_dir, project.path()).expect("register");
+
+    store_dir.prune().expect("prune");
+
+    assert!(slot.exists());
+}
+
+#[test]
 fn prune_removes_dead_project_slots_and_keeps_live_slots() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());

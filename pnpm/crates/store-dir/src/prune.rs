@@ -136,6 +136,13 @@ impl StoreDir {
             }
         }
 
+        // Projects without the global virtual store register too, and frozen
+        // store installs don't, so no link from any registered project leaves
+        // the slots' users as unknown as an empty registry does.
+        if reachable.is_empty() {
+            eprintln!("No registered project uses the global virtual store");
+            return Ok(());
+        }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
             eprintln!(
