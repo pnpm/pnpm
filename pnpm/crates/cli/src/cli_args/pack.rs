@@ -229,6 +229,7 @@ impl PackArgs {
                 ),
                 before_packing_hooks: shared.before_packing_hooks,
                 workspace_packages,
+                bumped_workspace_packages: None,
             },
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: self.pack_gzip_level,

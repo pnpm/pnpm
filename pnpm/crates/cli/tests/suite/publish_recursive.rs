@@ -901,4 +901,5 @@ fn recursive_publish_resolves_workspace_protocol_without_node_modules() {
     drop(root);
 }
 
+mod new_version;
 mod wait;

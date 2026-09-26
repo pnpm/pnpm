@@ -9,6 +9,7 @@
 //! lives in [`recursive`].
 
 pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+mod new_version;
 mod options;
 mod recursive;
 mod wait;
@@ -32,7 +33,11 @@ use pnpm_publish::{
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::Arc,
+};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]
@@ -110,6 +115,15 @@ impl PublishedPackages {
     }
 }
 
+/// The workspace-side inputs one directory's pack needs: the discovered
+/// workspace packages, and the subset whose manifests this run rewrote with
+/// `--new-version` — those resolve from the workspace manifests rather than
+/// the installed copies at pack time.
+struct WorkspacePackingInputs<'a> {
+    packages: Option<&'a Arc<HashMap<String, WorkspacePackageManifest>>>,
+    bumped: Option<&'a Arc<HashSet<String>>>,
+}
+
 impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
     /// returning nothing — output is printed here. Handles the single-package
@@ -164,15 +178,45 @@ impl PublishArgs {
         let publish_branch = self.flags.git.publish_branch.as_deref();
         let git_checks = config.git_checks && !self.flags.git.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch, config.ci)?;
+        let bumped = self.apply_new_version(dir, config, recursive)?;
 
         if recursive {
-            let published =
-                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
+            let published = self.run_recursive::<Reporter>(
+                dir,
+                config,
+                stage,
+                &before_packing_hooks,
+                bumped.as_ref(),
+            )
+            .await?;
             return Ok(PublishedPackages::Recursive(published));
         }
+        let summary = self.publish_single::<Reporter>(
+            dir,
+            config,
+            stage,
+            &before_packing_hooks,
+            bumped.as_ref(),
+        )
+        .await?;
+        Ok(PublishedPackages::Single(Box::new(summary)))
+    }
 
-        let otp = resolve_otp_from_env::<Host>(self.flags.registry.otp.clone());
-        let opts = self.publish_options(config, otp, stage);
+    /// Publish the package at `dir` (or the tarball it names): pack it, send
+    /// it to the registry, and return the summary.
+    async fn publish_single<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+        stage: bool,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
+        bumped: Option<&Arc<HashSet<String>>>,
+    ) -> miette::Result<PublishSummary> {
+        let opts = self.publish_options(
+            config,
+            resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
+            stage,
+        );
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
@@ -193,13 +237,13 @@ impl PublishArgs {
                     config,
                     &opts,
                     &network,
-                    &before_packing_hooks,
-                    None,
+                    before_packing_hooks,
+                    WorkspacePackingInputs { packages: None, bumped },
                 )
                 .await
                 .map_err(|failure| failure.error)?
             };
-        Ok(PublishedPackages::Single(Box::new(summary)))
+        Ok(summary)
     }
 
     /// Publish a pre-built tarball: extract its manifest and hand the bytes
@@ -239,15 +283,11 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        packing: WorkspacePackingInputs<'_>,
     ) -> Result<PublishSummary, PublishFailure<miette::Report>> {
-        let packed = self.pack_directory::<Reporter>(
-            project_dir,
-            config,
-            before_packing_hooks,
-            workspace_packages,
-        )
-        .await?;
+        let packed =
+            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks, packing)
+                .await?;
         let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
             .await
             .map_err(|failure| PublishFailure {
@@ -268,7 +308,7 @@ impl PublishArgs {
         project_dir: &Path,
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        packing: WorkspacePackingInputs<'_>,
     ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
@@ -296,7 +336,7 @@ impl PublishArgs {
             config,
             pack_destination.path(),
             before_packing_hooks,
-            workspace_packages,
+            packing,
         )
         .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
@@ -347,9 +387,9 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        packing: WorkspacePackingInputs<'_>,
     ) -> miette::Result<PackResult> {
-        let workspace_packages = workspace_packages
+        let workspace_packages = packing.packages
             .cloned()
             .or_else(|| {
                 crate::cli_args::workspace_packages::discover_workspace_package_manifests(
@@ -362,6 +402,7 @@ impl PublishArgs {
             config,
             before_packing_hooks,
             workspace_packages,
+            packing.bumped,
         )?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),

@@ -335,6 +335,7 @@ impl PackManifestOptions {
                 skip_manifest_obfuscation: self.skip_obfuscation,
                 embed_readme: self.embed_readme,
                 workspace_packages: self.workspace_packages.as_deref(),
+                bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
             },
         )
         .map_err(PackError::CreateManifest)?;
