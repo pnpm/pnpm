@@ -105,6 +105,10 @@ test.each([
       virtualStoreDirMaxLength: 120,
     })
 
+    if (store === 'internal') {
+      expect(() => fs.lstatSync(path.join(virtualStoreDir, 'node_modules/@types/fixture')))
+        .toThrow(expect.objectContaining({ code: 'ENOENT' }))
+    }
     const resolveTypes = () => createRequire(path.join(parent, 'index.js')).resolve('@types/fixture/index.d.ts')
     if (resolves) {
       expect(resolveTypes()).toBe(path.join(types, 'index.d.ts'))

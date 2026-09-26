@@ -440,6 +440,7 @@ impl<'a> HoistPass<'a> {
             let normalized = alias.to_lowercase();
             self.hoisted_aliases.remove(&normalized);
             self.place_child(alias, node_id);
+            // A skipped root dependency must not be replaced by a different transitive version.
             self.hoisted_aliases.insert(normalized);
         }
     }
