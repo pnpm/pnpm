@@ -34,6 +34,10 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_AUDIT_PACKAGES_WITH_PROJECT_OPTION))]
     ProjectOptionWithPackages,
 
+    #[display("{name} is named more than once. Audit each version in a separate command")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_DUPLICATE_PACKAGE))]
+    DuplicatePackage { name: String },
+
     #[display("Unknown audit subcommand: {subcommand}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_UNKNOWN_SUBCOMMAND))]
     UnknownSubcommand { subcommand: String },

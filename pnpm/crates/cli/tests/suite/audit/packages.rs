@@ -183,3 +183,26 @@ fn audit_package_rejects_options_that_change_a_project() {
         stderr(&output),
     );
 }
+
+#[test]
+fn audit_package_rejects_a_package_named_twice() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let audit_registry = mockito::Server::new();
+    write_npmrc(&workspace, &audit_registry.url(), npmrc_info.mock_instance.url());
+
+    let output = pacquet_cmd(
+        &workspace,
+        ["audit", "@pnpm.e2e/audit-multi-version@1.0.0", "@pnpm.e2e/audit-multi-version@2.0.0"],
+    )
+    .output()
+    .expect("run pacquet audit");
+
+    assert_failure(&output);
+    assert!(
+        stderr(&output).contains("ERR_PNPM_AUDIT_DUPLICATE_PACKAGE"),
+        "stderr:\n{}",
+        stderr(&output),
+    );
+    drop((root, npmrc_info));
+}
