@@ -1132,6 +1132,79 @@ test('linkBins() should handle bin field pointing to a directory gracefully', as
   expect(globalWarn).toHaveBeenCalled()
 })
 
+test('linkBinsOfPackages() does not emit global warning when warnOnMissingBin is false', async () => {
+  const binTarget = temporaryDirectory()
+  const binIsDirFixture = f.prepare('bin-is-directory')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(binIsDirFixture, 'node_modules/invalid-bin'),
+        manifest: {
+          name: 'invalid-bin',
+          version: '1.0.0',
+          bin: './dist',
+        },
+      },
+    ],
+    binTarget,
+    { warnOnMissingBin: false }
+  )
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
+test('linkBinsOfPackages() per-package warnOnMissingBin: false suppresses only that package in a mixed call', async () => {
+  const binTarget = temporaryDirectory()
+  const binIsDirFixture = f.prepare('bin-is-directory')
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(binIsDirFixture, 'node_modules/invalid-bin'),
+        manifest: {
+          name: 'invalid-bin-warn',
+          version: '1.0.0',
+          bin: { 'invalid-warn': './dist' },
+        },
+      },
+      {
+        location: path.join(binIsDirFixture, 'node_modules/invalid-bin'),
+        manifest: {
+          name: 'invalid-bin-suppressed',
+          version: '1.0.0',
+          bin: { 'invalid-suppressed': './dist' },
+        },
+        warnOnMissingBin: false,
+      },
+    ],
+    binTarget
+  )
+
+  expect(globalWarn).toHaveBeenCalledTimes(1)
+})
+
+test('linkBinsOfPackages() does not emit global warning when bin target does not exist and warnOnMissingBin is false', async () => {
+  const binTarget = temporaryDirectory()
+
+  await linkBinsOfPackages(
+    [
+      {
+        location: path.join(temporaryDirectory(), 'my-workspace-pkg'),
+        manifest: {
+          name: 'my-cli',
+          version: '1.0.0',
+          bin: 'dist/cli.js',
+        },
+      },
+    ],
+    binTarget,
+    { warnOnMissingBin: false }
+  )
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})
+
 describe('enable prefer-symlinked-executables', () => {
   test('linkBins()', async () => {
     const binTarget = temporaryDirectory()
