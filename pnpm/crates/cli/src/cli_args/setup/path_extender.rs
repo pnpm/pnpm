@@ -119,14 +119,14 @@ pub(crate) enum PathExtenderError {
         character: char,
     },
 
-    #[display("Currently '{env_name}' is set to '{wanted_value}'")]
+    #[display("Currently '{env_name}' is set to '{current_value}'")]
     #[diagnostic(
         code(ERR_PNPM_BAD_ENV_FOUND),
         help("If you want to override the existing env variable, use the --force option")
     )]
     BadEnvFound {
         env_name: String,
-        wanted_value: String,
+        current_value: String,
     },
 
     #[display("exec chcp failed: {message}")]
