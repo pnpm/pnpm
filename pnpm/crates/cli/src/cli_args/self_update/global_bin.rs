@@ -42,6 +42,10 @@ pub(super) fn link_into_global_bin(
     unlink_replaced_engine_groups(&global_pkg_dir, &cache_hash)
 }
 
+pub(super) const LEGACY_HOME_DIR_WARNING: &str = "Detected a pnpm v10 installation layout at \
+    PNPM_HOME. The pnpm executable there was replaced with shims of the new version, but pnpm \
+    expects bins in PNPM_HOME/bin. Run \"pnpm setup\" to add PNPM_HOME/bin to your PATH.";
+
 /// pnpm v10 put the standalone executable straight into `PNPM_HOME` and that
 /// directory on PATH, while an update links into `PNPM_HOME/bin`. Replace
 /// that executable with shims of the updated pnpm, so PATH reaches the
@@ -129,7 +133,7 @@ fn remove_retired_executable(path: &Path) -> io::Result<()> {
         Err(error)
             if matches!(
                 error.kind(),
-                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied,
             ) =>
         {
             Ok(())

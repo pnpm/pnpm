@@ -514,12 +514,7 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
         && let Some(pnpm_home_dir) = default_pnpm_home_dir::<Host>()
         && link_into_legacy_home_dir(&pnpm_home_dir, &result)?
     {
-        warn::<Reporter>(
-            prefix,
-            "Detected a pnpm v10 installation layout at PNPM_HOME. The pnpm executable there \
-             was replaced with shims of the new version, but pnpm expects bins in PNPM_HOME/bin. \
-             Run \"pnpm setup\" to add PNPM_HOME/bin to your PATH.",
-        );
+        warn::<Reporter>(prefix, global_bin::LEGACY_HOME_DIR_WARNING);
     }
 
     if result.already_existed {
