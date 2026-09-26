@@ -539,6 +539,17 @@ fn hoisted_patch_reaches_every_workspace_projects_copy_exactly_once() {
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     assert_patched_copies(&workspace);
 
+    // A reinstall that restores one wiped project's copy must patch that
+    // copy from pristine files and leave the surviving copy untouched.
+    remove_dir_if_exists(
+        &workspace
+            .join("packages")
+            .join("pkg-a")
+            .join("node_modules"),
+    );
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert_patched_copies(&workspace);
+
     drop((root, mock_instance));
 }
 
