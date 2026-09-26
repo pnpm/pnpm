@@ -451,6 +451,28 @@ fn files_field_exclusion_prunes_the_directory_it_names() {
     assert_eq!(out, vec!["package.json".to_string(), "src/a.js".into()]);
 }
 
+// A `files` entry that names a file is held up for packing whatever the
+// entries around it say, so a package that keeps one generated file out of
+// an excluded directory it ships the rest of still gets that file.
+#[test]
+fn files_field_exclusion_keeps_a_file_the_field_names_inside_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "dist/app.js");
+    touch(root, "dist/index.d.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!dist", "dist/index.d.ts"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, vec!["dist/index.d.ts".to_string(), "package.json".into()]);
+}
+
 #[test]
 fn files_field_exclusions_are_not_anchored() {
     let dir = tempdir().unwrap();
