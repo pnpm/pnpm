@@ -3,7 +3,7 @@ import url from 'node:url'
 
 import { expect, test } from '@jest/globals'
 
-import { type ConfigPair, type GetSchema, parseEnvVars, type Schema } from '../src/env.js'
+import { type ConfigPair, type GetSchema, parseAllowBuilds, parseEnvVars, type Schema } from '../src/env.js'
 
 function assertSchemaKey (key: string): void {
   const strictlyKebabCase = key
@@ -114,6 +114,33 @@ test('parseEnvVars works with objects', () => {
     numberMember: undefined,
     nullMember: undefined,
     arrayMember: undefined,
+  })
+})
+
+test('parseEnvVars works with allowBuilds', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(parseAllowBuilds), {
+    HOME: '/home/fake-user',
+    PATH: '/bin:/usr/bin:/usr/local/bin:/home/fake-user/.bin:/home/fake-user/share/local/bin',
+    pnpm_config_valid_allow_builds: '{"foo":true,"bar":false}',
+    pnpm_config_string_value: '{"foo":"true"}',
+    pnpm_config_empty: '{}',
+    pnpm_config_number_member: '{"foo":42}',
+    pnpm_config_nested_object: '{"foo":{"nested":true}}',
+    pnpm_config_array_member: '{"foo":[1,2]}',
+    pnpm_config_not_an_object: '"just a string"',
+    pnpm_config_an_array: '[1,2,3]',
+    pnpm_config_null_value: 'null',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    validAllowBuilds: { foo: true, bar: false },
+    stringValue: { foo: 'true' },
+    empty: {},
+    numberMember: undefined,
+    nestedObject: undefined,
+    arrayMember: undefined,
+    notAnObject: undefined,
+    anArray: undefined,
+    nullValue: undefined,
   })
 })
 
