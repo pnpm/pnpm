@@ -132,3 +132,18 @@ fn recreates_a_link_removed_before_ownership_inspection() {
     update_stale_hoist_symlink(&target, &link, root.path(), root.path()).unwrap();
     assert_eq!(std::fs::canonicalize(link).unwrap(), std::fs::canonicalize(target).unwrap());
 }
+
+#[cfg(windows)]
+#[test]
+fn rechecks_a_junction_completed_after_its_metadata_was_read() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("index.js"), "module.exports = 2").unwrap();
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    std::fs::remove_dir(&link).unwrap();
+    junction::create(&target, &link).unwrap();
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
