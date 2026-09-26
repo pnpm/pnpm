@@ -12,7 +12,7 @@ pub(crate) fn split_allow_build_selectors(values: &[String]) -> Vec<String> {
         .iter()
         .flat_map(|value| {
             if value.contains(':') {
-                vec![value.clone()]
+                vec![value.trim().to_string()]
             } else {
                 value
                     .split(',')
