@@ -245,7 +245,7 @@ async function extractEntries (zipPath: string, { extractionRoot, basename, igno
   const testEntry = toStatelessTester(ignoreEntry)
 
   await fsPromises.mkdir(extractionRoot, { recursive: true })
-  const realRoot = await fsPromises.realpath(extractionRoot)
+  const createdDirs = new Set<string>()
   // File names are decoded here rather than by yauzl so that an unsafe path is
   // rejected by validatePathSecurity, with its error code.
   const zipfile = await yauzl.openPromise(zipPath, { decodeStrings: false })
@@ -261,23 +261,38 @@ async function extractEntries (zipPath: string, { extractionRoot, basename, igno
           : entryPath
         if (testEntry(relative)) continue
       }
-      await extractEntry(zipfile, entry, { realRoot, target: path.join(extractionRoot, entryPath) })
+      await mkdirWithoutFollowingSymlinks(extractionRoot, path.dirname(entryPath), createdDirs)
+      await extractEntry(zipfile, entry, path.join(extractionRoot, entryPath))
     }
   } finally {
     zipfile.close()
   }
 }
 
-async function extractEntry (
-  zipfile: yauzl.ZipFile,
-  entry: yauzl.Entry,
-  { realRoot, target }: { realRoot: string, target: string }
-): Promise<void> {
-  const parentDir = path.dirname(target)
-  await fsPromises.mkdir(parentDir, { recursive: true })
-  if (!isSubdir(realRoot, await fsPromises.realpath(parentDir))) {
-    throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract "${target}" through a symlink that leads outside of the target directory`)
+/**
+ * Creates `relativeDir` under `root` one segment at a time, refusing any segment
+ * that already exists as something other than a directory. A symlink or junction
+ * there could otherwise lead the extraction outside of `root`.
+ */
+async function mkdirWithoutFollowingSymlinks (root: string, relativeDir: string, createdDirs: Set<string>): Promise<void> {
+  let dir = root
+  for (const segment of relativeDir.split('/')) {
+    if (segment === '' || segment === '.') continue
+    dir = path.join(dir, segment)
+    if (createdDirs.has(dir)) continue
+    try {
+      await fsPromises.mkdir(dir) // eslint-disable-line no-await-in-loop
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      if (!(await fsPromises.lstat(dir)).isDirectory()) { // eslint-disable-line no-await-in-loop
+        throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
+      }
+    }
+    createdDirs.add(dir)
   }
+}
+
+async function extractEntry (zipfile: yauzl.ZipFile, entry: yauzl.Entry, target: string): Promise<void> {
   // A later entry with the same path replaces an earlier one. The file is
   // removed rather than opened for writing, so that a symlink at the path is
   // replaced instead of followed.
