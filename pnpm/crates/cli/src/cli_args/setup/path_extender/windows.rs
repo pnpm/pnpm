@@ -61,15 +61,22 @@ fn add_dir_to_windows_env_path_inner(
             false,
             opts.overwrite,
         )?);
-        let path_entry = match opts.proxy_var_sub_dir {
-            Some(sub_dir) => format!(r"%{proxy}%\{sub_dir}"),
-            None => format!("%{proxy}%"),
-        };
+        let path_entry = windows_path_entry(dir, opts.proxy_var_sub_dir);
         changes.push(add_to_path(&registry_output, &path_entry, opts.position)?);
     } else {
         changes.push(add_to_path(&registry_output, &added_dir, opts.position)?);
     }
     Ok(changes)
+}
+
+fn windows_path_entry(dir: &Path, sub_dir: Option<&str>) -> String {
+    match sub_dir {
+        Some(sub_dir) => dir
+            .join(sub_dir)
+            .to_string_lossy()
+            .replace('/', r"\"),
+        None => dir.to_string_lossy().replace('/', r"\"),
+    }
 }
 
 fn update_env_variable(

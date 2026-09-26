@@ -207,9 +207,9 @@ fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExte
     Ok(())
 }
 
-/// Persistently add `dir` to the user's `PATH`. The proxy-variable
-/// indirection (`PNPM_HOME` → `$PNPM_HOME/bin`) keeps the `PATH` entry
-/// stable when the home directory moves.
+/// Persistently add `dir` to the user's `PATH`. POSIX shells may use
+/// proxy-variable indirection; Windows writes the resolved directory because
+/// user `Path` entries do not expand other user environment variables.
 pub(super) fn add_dir_to_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,

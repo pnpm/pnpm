@@ -6,7 +6,7 @@
 use super::{
     AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
     add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
-    run_capture_chcp_with, update_env_variable_with,
+    run_capture_chcp_with, update_env_variable_with, windows_path_entry,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -89,6 +89,12 @@ fn skips_a_matching_value_when_the_registry_type_is_correct() {
 }
 
 #[test]
+fn uses_the_literal_directory_for_the_windows_path_entry() {
+    assert_eq!(windows_path_entry(Path::new(r"C:\pnpm"), Some("bin")), r"C:\pnpm\bin");
+    assert_eq!(windows_path_entry(Path::new(r"C:\pnpm"), None), r"C:\pnpm");
+}
+
+#[test]
 fn first_number_extracts_the_code_page() {
     assert_eq!(first_number("Active code page: 437"), Some(437));
     assert_eq!(first_number("no digits"), None);
@@ -121,13 +127,13 @@ fn render_report_lists_changed_variables() {
         EnvVariableChange {
             variable: "Path".to_string(),
             old_value: Some(r"C:\old".to_string()),
-            new_value: r"%PNPM_HOME%;C:\old".to_string(),
+            new_value: r"C:\pnpm\bin;C:\old".to_string(),
         },
     ];
     let report = super::super::render_windows_report(&changes);
     assert!(report.config_file.is_none());
     assert_eq!(report.old_settings, r"Path=C:\old");
-    assert_eq!(report.new_settings, "PNPM_HOME=C:\\pnpm\nPath=%PNPM_HOME%;C:\\old");
+    assert_eq!(report.new_settings, "PNPM_HOME=C:\\pnpm\nPath=C:\\pnpm\\bin;C:\\old");
 }
 
 #[test]
