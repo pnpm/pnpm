@@ -25,6 +25,8 @@ async fn a_returned_manifest_pnpm_cannot_use_reads_apart_from_a_throwing_hook() 
         "module.exports = { hooks: { readPackage (pkg) {} } }",
         "module.exports = { hooks: { readPackage () { return 'a string' } } }",
         "module.exports = { hooks: { readPackage () { return new String('a string') } } }",
+        "module.exports = { hooks: { readPackage () { return { toJSON () { return 'not a manifest' } } } } }",
+        "module.exports = { hooks: { readPackage () { return { toJSON () { return { dependencies: 1 } } } } } }",
         "module.exports = { hooks: { readPackage (pkg) { pkg.dependencies = 1; return pkg } } }",
         "module.exports = { hooks: { readPackage (pkg) { pkg.dependencies['ms'] = undefined; return pkg } } }",
     ];
@@ -37,9 +39,11 @@ async fn a_returned_manifest_pnpm_cannot_use_reads_apart_from_a_throwing_hook() 
         );
     }
 
-    for source in
-        ["module.exports = { hooks: { readPackage () { throw new Error('boom') } } }", "/boom"]
-    {
+    for source in [
+        "module.exports = { hooks: { readPackage () { throw new Error('boom') } } }",
+        "module.exports = { hooks: { readPackage () { const err = new Error('boom'); err.unusableManifest = true; throw err } } }",
+        "/boom",
+    ] {
         let err = super::read_package_error(source).await;
         eprintln!("err = {err}");
         assert!(

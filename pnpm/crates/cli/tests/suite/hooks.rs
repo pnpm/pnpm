@@ -1333,6 +1333,14 @@ fn read_package_rejects_a_manifest_it_cannot_use() {
         ("return undefined", "readPackage hook did not return a package manifest object."),
         ("return 'a string'", "readPackage hook did not return a package manifest object."),
         ("return new String('bad')", "readPackage hook did not return a package manifest object."),
+        (
+            "return { toJSON() { return 'not a manifest' } }",
+            "readPackage hook did not return a package manifest object.",
+        ),
+        (
+            "return { toJSON() { return { dependencies: 1 } } }",
+            "property 'dependencies' must be an object",
+        ),
         ("return [1]", "readPackage hook did not return a package manifest object."),
         ("pkg.dependencies = 1", "property 'dependencies' must be an object"),
     ] {
@@ -1344,12 +1352,8 @@ fn assert_bad_read_package_dep_range(range: &str, described: &str) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } }).to_string(
-        ),
-    )
-    .expect("write package.json");
+    let manifest = serde_json::json!({ "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         format!(
@@ -1389,8 +1393,7 @@ fn read_package_rejects_a_non_string_dependency_range() {
     }
 }
 
-#[test]
-fn a_throwing_read_package_hook_stays_a_pnpmfile_failure() {
+fn assert_throwing_read_package(statement: &str) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -1402,17 +1405,9 @@ fn a_throwing_read_package_hook_stays_a_pnpmfile_failure() {
     .expect("write package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        r"module.exports = {
-  hooks: {
-    readPackage (pkg) {
-      if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {
-        throw new Error('the hook gave up');
-      }
-      return pkg;
-    }
-  }
-};
-",
+        format!(
+            "module.exports = {{ hooks: {{ readPackage (pkg) {{ if (pkg.name === '@pnpm.e2e/pkg-with-1-dep') {{ {statement} }} return pkg; }} }} }};\n",
+        ),
     )
     .expect("write pnpmfile");
 
@@ -1432,6 +1427,16 @@ fn a_throwing_read_package_hook_stays_a_pnpmfile_failure() {
     );
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn a_throwing_read_package_hook_stays_a_pnpmfile_failure() {
+    for statement in [
+        "throw new Error('the hook gave up');",
+        "const err = new Error('the hook gave up'); err.unusableManifest = true; throw err;",
+    ] {
+        assert_throwing_read_package(statement);
+    }
 }
 
 /// An error message with the whitespace taken out. The reporter wraps a

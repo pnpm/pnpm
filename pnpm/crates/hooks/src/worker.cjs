@@ -160,26 +160,24 @@ async function handle(req) {
       ) {
         throw unusableManifest("readPackage hook did not return a package manifest object.");
       }
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
-        const v = newPkg[dep];
-        if (
-          v != null &&
-          (typeof v !== "object" || Array.isArray(v) || Object.prototype.toString.call(v) !== "[object Object]")
-        ) {
-          throw unusableManifest("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
-        }
-        for (const [name, range] of Object.entries(v ?? {})) {
-          if (typeof range !== "string") {
-            throw unusableManifest("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(newPkg) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
-          }
-        }
-      }
+      validateManifestDependencies(newPkg);
+      let jsonPkg;
       try {
-        JSON.stringify(newPkg);
+        const serialized = JSON.stringify(newPkg);
+        jsonPkg = serialized === undefined ? undefined : JSON.parse(serialized);
       } catch {
         throw unusableManifest("readPackage hook returned a package manifest that cannot be represented as JSON.");
       }
-      send({ ok: newPkg });
+      if (
+        !jsonPkg ||
+        typeof jsonPkg !== "object" ||
+        Array.isArray(jsonPkg) ||
+        Object.prototype.toString.call(jsonPkg) !== "[object Object]"
+      ) {
+        throw unusableManifest("readPackage hook did not return a package manifest object.");
+      }
+      validateManifestDependencies(jsonPkg);
+      send({ ok: jsonPkg });
     } else if (req.hook === 'beforePacking') {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);
@@ -193,15 +191,34 @@ async function handle(req) {
     }
   } catch (err) {
     const failure = { err: err && err.stack ? err.stack : String(err) };
-    if (err && err.unusableManifest) failure.unusableManifest = true;
+    if (err && unusableManifestErrors.has(err)) failure.unusableManifest = true;
     send(failure);
   }
 }
 
+const unusableManifestErrors = new WeakSet();
+
 function unusableManifest(message) {
   const err = new Error(message + " Hook imported via " + pnpmfilePath);
-  err.unusableManifest = true;
+  unusableManifestErrors.add(err);
   return err;
+}
+
+function validateManifestDependencies(manifest) {
+  for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    const v = manifest[dep];
+    if (
+      v != null &&
+      (typeof v !== "object" || Array.isArray(v) || Object.prototype.toString.call(v) !== "[object Object]")
+    ) {
+      throw unusableManifest("readPackage hook returned package manifest object's property '" + dep + "' must be an object.");
+    }
+    for (const [name, range] of Object.entries(v ?? {})) {
+      if (typeof range !== "string") {
+        throw unusableManifest("readPackage hook returned an invalid range for '" + name + "' in the '" + dep + "' of " + describePackage(manifest) + ". Expected a string, got " + (range === null ? "null" : typeof range) + ". To remove the dependency, delete the property.");
+      }
+    }
+  }
 }
 
 function describePackage(pkg) {
