@@ -1,6 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
+    borrow::Cow,
     env,
     ffi::OsString,
     io,
@@ -103,6 +104,59 @@ pub fn select_shell(
         args: vec![OsString::from("-c")],
         windows_verbatim_args: false,
     })
+}
+
+/// The text `shell` executes for `command`.
+///
+/// A Bourne shell that stays the script's parent holds a terminal `SIGINT`
+/// until the foreground command exits. Without a trap, dash and zsh die
+/// from that signal even when the command handled it and exited with a
+/// status, which pnpm would report as a lifecycle failure
+/// (<https://github.com/pnpm/pnpm/issues/9945>). The trap makes every such
+/// shell do what bash does: re-raise `SIGINT` when the command died from it
+/// (status 130), and otherwise carry on with the rest of the script. A
+/// second interrupt always re-raises, so `Ctrl+C` can still stop a loop of
+/// builtins.
+pub(crate) fn script_body<'a>(shell: &SelectedShell, command: &'a str) -> Cow<'a, str> {
+    if !returns_interrupted_child_status(shell) {
+        return Cow::Borrowed(command);
+    }
+    Cow::Owned(format!("{INTERRUPT_STATUS_TRAP}{command}"))
+}
+
+/// `sh -c` prefix. `$?` must be read first: it is the interrupted command's
+/// status only until the trap runs a command of its own. The first handled
+/// interrupt replaces the trap with one that always re-raises, which keeps
+/// the state out of any shell variable a script could set.
+const INTERRUPT_STATUS_TRAP: &str = "\
+trap 'if [ \"$?\" -eq 130 ]; then trap - INT; kill -s INT $$; fi; trap \"trap - INT; kill -s INT $$\" INT' INT; ";
+
+fn returns_interrupted_child_status(shell: &SelectedShell) -> bool {
+    if shell.windows_verbatim_args {
+        return false;
+    }
+    let Some(flag) = shell.args.first().and_then(|arg| arg.to_str()) else {
+        return false;
+    };
+    if flag != "-c" {
+        return false;
+    }
+    matches!(
+        shell_program_name(&shell.program).as_str(),
+        "sh" | "dash" | "bash" | "ash" | "zsh" | "ksh" | "mksh",
+    )
+}
+
+fn shell_program_name(program: &Path) -> String {
+    let mut name = program
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if name.ends_with(".exe") {
+        name.truncate(name.len() - 4);
+    }
+    name
 }
 
 fn cmd_exe_args() -> Vec<OsString> {

@@ -11,12 +11,47 @@ const terminalScript = path.join(import.meta.dirname, '../../../__utils__/script
 const shutdownTimeout = 10_000
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
 
-const markers = ['started.txt', 'shut-down.txt', 'forced.txt'].map((name) => path.join(fixture, name))
+const markers = ['started.txt', 'shut-down.txt', 'forced.txt', 'after.txt'].map((name) => path.join(fixture, name))
 
 afterEach(() => {
   for (const marker of markers) {
     fs.rmSync(marker, { force: true })
   }
+})
+
+// A shell that stays the script's parent holds the terminal's SIGINT. On
+// dash the shell returns the script's own status once the script has
+// handled the signal and exited, so a clean shutdown is not a failed
+// lifecycle script.
+// https://github.com/pnpm/pnpm/issues/9945
+skipOnWindows('Ctrl+C leaves a script behind a shell with the script\'s own exit status', () => {
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    runScript,
+    'dev-behind-shell',
+  ], { encoding: 'utf8', timeout: shutdownTimeout })
+  expect(error).toBeUndefined()
+  expect(fs.existsSync(markers[1])).toBe(true)
+  expect(stdout).not.toContain('lifecycle failed')
+  expect(stdout).not.toContain('ELIFECYCLE')
+  expect(status).toBe(0)
+})
+
+// After a command handles a terminal SIGINT, the rest of the script runs in
+// every shell, as bash runs it. dash on its own would die from the signal.
+skipOnWindows('Ctrl+C handled by a command lets the rest of the script run', () => {
+  const { stdout, status, error } = spawnSync('python3', [
+    terminalScript,
+    process.execPath,
+    runScript,
+    'dev-then-more',
+  ], { encoding: 'utf8', timeout: shutdownTimeout })
+  expect(error).toBeUndefined()
+  expect(fs.existsSync(markers[1])).toBe(true)
+  expect(fs.existsSync(markers[3])).toBe(true)
+  expect(stdout).not.toContain('lifecycle failed')
+  expect(status).toBe(0)
 })
 
 skipOnWindows('Ctrl+C in a terminal interrupts the child once', () => {

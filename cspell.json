@@ -234,6 +234,7 @@
     "minioadmin",
     "mintimeout",
     "mkfifo",
+    "mksh",
     "mmap",
     "monorepolint",
     "montudor",
