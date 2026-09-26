@@ -69,6 +69,7 @@ mod file_dep_inside_package;
 mod file_selector_agreement;
 mod find_hash;
 mod forced_install;
+mod fund;
 mod git_branch_lockfile;
 mod git_hosted_install;
 mod global;
