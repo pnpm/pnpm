@@ -16,6 +16,7 @@ pub use unmatched::UnmatchedFilters;
 mod dependencies;
 mod execution_args;
 mod importer_selection;
+mod selection_order;
 mod unmatched;
 
 use crate::{
@@ -44,6 +45,7 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
 };
+
 use unmatched::unmatched_filters;
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -170,19 +172,6 @@ impl<'a> RecursiveSelection<'a> {
     /// suffices when nothing narrowed the run.
     pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
         self.all.as_ref().unwrap_or(&self.selected)
-    }
-
-    /// Sequence selected projects through the full workspace graph, using
-    /// production-only edges for projects selected only by `--filter-prod`.
-    pub fn sequenced_dirs(&self) -> Vec<PathBuf> {
-        sequence_graph_by_project(&self.selected, |project_dir| {
-            if self.prod_only_selected.contains(project_dir) {
-                self.prod_all.as_ref().expect("production-only selection has a production graph")
-            } else {
-                self.full_graph()
-            }
-        })
-        .order
     }
 }
 
