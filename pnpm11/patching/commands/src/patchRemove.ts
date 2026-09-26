@@ -94,14 +94,22 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
         await fs.rmdir(dir)
       }
     } catch {}
+  }))
+
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
   await Promise.all(patchesToRemove.map(async (patch) => {
     const editDir = path.join(pnpmPatches, patch)
-    deleteEditDirState({ editDir, modulesDir })
+    deleteEditDirState({ editDir, modulesDir, patchedPkg: patch })
     await fs.rm(editDir, { recursive: true, force: true })
   }))
+  try {
+    const files = await fs.readdir(pnpmPatches)
+    if (!files.length) {
+      await fs.rmdir(pnpmPatches)
+    }
+  } catch {}
 
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,

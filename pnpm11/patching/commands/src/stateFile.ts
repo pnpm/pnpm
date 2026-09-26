@@ -40,16 +40,20 @@ export function writeEditDirState (opts: WriteEditDirStateOptions): void {
   })
 }
 
-export interface DeleteEditDirStateOptions extends ReadEditDirStateOptions {}
+export interface DeleteEditDirStateOptions {
+  modulesDir: string
+  editDir?: string
+  patchedPkg?: string
+}
 
 export function deleteEditDirState (opts: DeleteEditDirStateOptions): void {
   modifyStateFile(opts.modulesDir, state => {
-    const key = createEditDirKey(opts)
-    delete state[key]
-    const resolvedKey = path.resolve(opts.editDir) as EditDir
-    delete state[resolvedKey]
-    for (const k of Object.keys(state)) {
-      if (k === opts.editDir || path.resolve(k) === resolvedKey) {
+    const resolvedKey = opts.editDir ? path.resolve(opts.editDir) : undefined
+    for (const [k, entry] of Object.entries(state)) {
+      if (
+        (opts.patchedPkg && entry.patchedPkg === opts.patchedPkg) ||
+        (opts.editDir && (k === opts.editDir || path.resolve(k) === resolvedKey))
+      ) {
         delete state[k as EditDir]
       }
     }
@@ -69,6 +73,12 @@ function modifyStateFile (modulesDir: string, modifyState: (state: State) => voi
     fs.writeFileSync(filePath, JSON.stringify(state, undefined, 2))
   } else if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath)
+    try {
+      const dir = path.dirname(filePath)
+      if (fs.readdirSync(dir).length === 0) {
+        fs.rmdirSync(dir)
+      }
+    } catch {}
   }
 }
 

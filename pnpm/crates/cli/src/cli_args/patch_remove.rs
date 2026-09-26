@@ -1,4 +1,7 @@
-use crate::State;
+use crate::{
+    State,
+    cli_args::patch_state::{StateFileError, clean_patch_state_and_edit_dirs},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
@@ -21,7 +24,7 @@ pub struct PatchRemoveArgs {
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
-pub enum PatchRemoveError {
+pub(crate) enum PatchRemoveError {
     #[display("There are no patches that need to be removed")]
     #[diagnostic(code(ERR_PNPM_NO_PATCHES_TO_REMOVE))]
     NoPatchesToRemove,
@@ -71,13 +74,16 @@ pub enum PatchRemoveError {
     },
 
     #[diagnostic(transparent)]
+    StateFile(#[error(source)] StateFileError),
+
+    #[diagnostic(transparent)]
     UpdateWorkspaceManifest(#[error(source)] UpdateWorkspaceManifestError),
 }
 
 impl PatchRemoveArgs {
     /// Remove the patches and return the `patchedDependencies` now
     /// recorded in the workspace, for the install that follows to run with.
-    pub async fn run(
+    pub(crate) async fn run(
         self,
         dir: &Path,
         state: State,
@@ -86,38 +92,23 @@ impl PatchRemoveArgs {
             state.config.patched_dependencies.clone().unwrap_or_default();
         let patches_to_remove =
             patches_to_remove(self.patches, &patched_dependencies, &DialoguerPatchRemovePrompt)?;
-        for patch in &patches_to_remove {
-            if !patched_dependencies.contains_key(patch) {
-                return Err(PatchRemoveError::PatchNotFound { patch: patch.clone() });
-            }
-        }
+        validate_patches_exist(&patches_to_remove, &patched_dependencies)?;
 
         let lockfile_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let ctx = PatchRemovalContext::new(
             &lockfile_dir,
             state.config.patches_dir.as_deref().unwrap_or("patches"),
         )?;
-        let targets = patches_to_remove
-            .iter()
-            .map(|patch| {
-                let patch_file = patched_dependencies
-                    .get(patch)
-                    .ok_or_else(|| PatchRemoveError::PatchNotFound { patch: patch.clone() })?;
-                PatchRemovalTarget::new(patch, patch_file, &ctx)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let remaining_patch_files =
-            remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
+        let targets = collect_removal_targets(&patches_to_remove, &patched_dependencies, &ctx)?;
+        let remaining = remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
 
-        for target in &targets {
-            if !remaining_patch_files.contains(&target.target_path) {
-                unlink_patch_if_exists(target)?;
-            }
-        }
+        unlink_removed_patches(&targets, &remaining)?;
         for target in &targets {
             patched_dependencies.shift_remove(&target.patch);
         }
         remove_empty_patch_dirs(&targets)?;
+        clean_patch_state_and_edit_dirs(&state.config.modules_dir, &patches_to_remove)
+            .map_err(PatchRemoveError::StateFile)?;
 
         pnpm_workspace_manifest_writer::set_patched_dependencies(
             &lockfile_dir,
@@ -127,6 +118,46 @@ impl PatchRemoveArgs {
 
         Ok(patched_dependencies)
     }
+}
+
+fn validate_patches_exist(
+    patches: &[String],
+    patched_dependencies: &IndexMap<String, String>,
+) -> Result<(), PatchRemoveError> {
+    for patch in patches {
+        if !patched_dependencies.contains_key(patch) {
+            return Err(PatchRemoveError::PatchNotFound { patch: patch.clone() });
+        }
+    }
+    Ok(())
+}
+
+fn collect_removal_targets(
+    patches: &[String],
+    patched_dependencies: &IndexMap<String, String>,
+    ctx: &PatchRemovalContext,
+) -> Result<Vec<PatchRemovalTarget>, PatchRemoveError> {
+    patches
+        .iter()
+        .map(|patch| {
+            let patch_file = patched_dependencies
+                .get(patch)
+                .ok_or_else(|| PatchRemoveError::PatchNotFound { patch: patch.clone() })?;
+            PatchRemovalTarget::new(patch, patch_file, ctx)
+        })
+        .collect()
+}
+
+fn unlink_removed_patches(
+    targets: &[PatchRemovalTarget],
+    remaining: &HashSet<PathBuf>,
+) -> Result<(), PatchRemoveError> {
+    for target in targets {
+        if !remaining.contains(&target.target_path) {
+            unlink_patch_if_exists(target)?;
+        }
+    }
+    Ok(())
 }
 
 fn patches_to_remove(
