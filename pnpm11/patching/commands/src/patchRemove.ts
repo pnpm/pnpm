@@ -96,9 +96,23 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     } catch {}
   }))
 
+  await updatePatchedDependencies(patchedDependencies, {
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+  })
+
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  const realModulesDir = await realpathIfExists(modulesDir)
+  const realPnpmPatches = await realpathIfExists(pnpmPatches)
+  if (
+    realModulesDir != null &&
+    realPnpmPatches != null &&
+    !isSubdirectory(realModulesDir, realPnpmPatches)
+  ) {
+    throw new PnpmError('PATCHES_DIR_OUTSIDE_PROJECT', 'The .pnpm_patches directory is outside the modules directory')
+  }
   await Promise.all(patchesToRemove.map(async (patch) => {
     const editDir = path.join(pnpmPatches, patch)
     deleteEditDirState({ editDir, modulesDir, patchedPkg: patch })
@@ -110,11 +124,6 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       await fs.rmdir(pnpmPatches)
     }
   } catch {}
-
-  await updatePatchedDependencies(patchedDependencies, {
-    ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-  })
 
   await install.handler({
     ...opts,

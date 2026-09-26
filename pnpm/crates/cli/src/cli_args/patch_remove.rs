@@ -107,14 +107,13 @@ impl PatchRemoveArgs {
             patched_dependencies.shift_remove(&target.patch);
         }
         remove_empty_patch_dirs(&targets)?;
-        clean_patch_state_and_edit_dirs(&state.config.modules_dir, &patches_to_remove)
-            .map_err(PatchRemoveError::StateFile)?;
-
         pnpm_workspace_manifest_writer::set_patched_dependencies(
             &lockfile_dir,
             &patched_dependencies,
         )
         .map_err(PatchRemoveError::UpdateWorkspaceManifest)?;
+        clean_patch_state_and_edit_dirs(&state.config.modules_dir, &patches_to_remove)
+            .map_err(PatchRemoveError::StateFile)?;
 
         Ok(patched_dependencies)
     }
