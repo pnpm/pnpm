@@ -36,6 +36,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     revision_addressed: bool,
     if_none_match: Option<&str>,
 ) -> Result<(ThrottledClientGuard<'client>, reqwest::Response, ArchiveResponseMeta), TarballError> {
+    let if_none_match = if_none_match.filter(|etag| !etag.trim().is_empty());
     if !auth_headers.allows_fetch(package_url) {
         return Err(TarballError::OffAllowlist {
             url: pnpm_network::redact_url_credentials(package_url),
@@ -156,7 +157,7 @@ fn build_archive_request(
     if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
         request = request.header("authorization", value);
     }
-    if let Some(etag) = if_none_match.filter(|etag| !etag.is_empty()) {
+    if let Some(etag) = if_none_match {
         request = request.header(reqwest::header::IF_NONE_MATCH, etag);
     }
     request

@@ -251,6 +251,35 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
     request.assert_async().await;
 }
 
+#[tokio::test]
+async fn archive_requests_accept_not_modified_only_when_sending_a_validator() {
+    let mut server = mockito::Server::new_async().await;
+    let not_modified = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(304)
+        .expect(2)
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let auth = AuthHeaders::default();
+    for (if_none_match, accepted) in [(Some(r#""v1""#), true), (Some(" "), false)] {
+        let result = crate::archive_request::request_archive::<SilentReporter>(
+            &client,
+            &url,
+            "fixture",
+            &auth,
+            0,
+            0,
+            false,
+            if_none_match,
+        )
+        .await;
+        assert_eq!(result.is_ok(), accepted, "{if_none_match:?}");
+    }
+    not_modified.assert_async().await;
+}
+
 impl Container {
     const ALL: [Self; 2] = [Self::TarGz, Self::Zip];
 
