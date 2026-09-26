@@ -51,7 +51,13 @@ pub fn generate_pwsh_shim(
         }
     }
 
-    pwsh
+    with_utf8_bom(pwsh)
+}
+
+/// Windows PowerShell 5.1 decodes a script without a byte order mark using the
+/// ANSI code page, so non-ASCII text in the shim needs a UTF-8 BOM.
+fn with_utf8_bom(pwsh: String) -> String {
+    if pwsh.is_ascii() { pwsh } else { format!("\u{FEFF}{pwsh}") }
 }
 
 fn write_pwsh_invocation(pwsh: &mut String, command: &str, indent: &str) {
