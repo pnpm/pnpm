@@ -44,6 +44,7 @@
 //! wall-clock by the dedup factor and putting the resolve walk
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
+pub use errors::PickPackageError;
 pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
 pub use options::{
     MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, PackagePickPolicy,
@@ -57,6 +58,8 @@ pub use metadata_cache::{
     PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+
+mod errors;
 
 mod options;
 
@@ -103,8 +106,8 @@ use crate::{
         scoped_meta_dir,
     },
     pick_package_from_meta::{
-        PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, dominant_lockfile_version, filter_pkg_metadata_versions,
+        PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
+        dominant_lockfile_version, filter_pkg_metadata_versions,
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_stable_cached_range_version, pick_version_by_version_range,
     },
@@ -119,56 +122,6 @@ use crate::{
 pub struct PickPackageResult {
     pub meta: Arc<Package>,
     pub picked_package: Option<Arc<PackageVersion>>,
-}
-
-/// Failure modes for [`pick_package`]. Distinguishes the pure-pick
-/// errors ([`PickPackageError::Pick`]) from the fetch / IO errors so
-/// the install layer can route them through different reporters
-/// (a missing time gets a warning; a network failure gets a retry
-/// prompt).
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum PickPackageError {
-    /// `ERR_PNPM_INVALID_PACKAGE_NAME`: a package name contains a `/`
-    /// but doesn't begin with a `@scope/` prefix.
-    #[display("Package name {pkg_name} is invalid, it should have a @scope")]
-    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
-    InvalidPackageName {
-        #[error(not(source))]
-        pkg_name: String,
-    },
-    /// `ERR_PNPM_NO_OFFLINE_META`: offline mode is active and the
-    /// on-disk mirror doesn't have the package.
-    #[display("Failed to resolve {spec_name}@{spec_fetch_spec} in package mirror {pkg_mirror:?}")]
-    #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
-    NoOfflineMeta {
-        #[error(not(source))]
-        spec_name: String,
-        spec_fetch_spec: String,
-        pkg_mirror: PathBuf,
-    },
-    /// Underlying picker error (no versions, unpublished, missing
-    /// time, etc.). The picker errors are described on
-    /// [`PickPackageFromMetaError`].
-    #[diagnostic(transparent)]
-    Pick(PickPackageFromMetaError),
-    /// Underlying metadata-fetch error (network, decode, 304 with
-    /// no cache, etc.). Bubbles up from
-    /// [`fetch_full_metadata_cached()`].
-    #[diagnostic(transparent)]
-    Fetch(FetchMetadataError),
-}
-
-impl From<PickPackageFromMetaError> for PickPackageError {
-    fn from(error: PickPackageFromMetaError) -> Self {
-        PickPackageError::Pick(error)
-    }
-}
-
-impl From<FetchMetadataError> for PickPackageError {
-    fn from(error: FetchMetadataError) -> Self {
-        PickPackageError::Fetch(error)
-    }
 }
 
 /// Resolve `spec` to a [`PackageVersion`] backed by the registry
@@ -253,6 +206,9 @@ struct PickState<'a> {
     full_metadata: bool,
     use_filtered_full_metadata: bool,
     pkg_mirror: Option<PathBuf>,
+    /// The unscoped metadata directory this pick's shape selects, before a
+    /// `Private` route relocates it.
+    base_meta_dir: &'static str,
     cache_key: String,
     /// `updateChecksums` must reach the conditional registry request, so it
     /// can't be served from the in-memory cache — which may hold a
@@ -287,21 +243,8 @@ impl<'a> PickState<'a> {
         // mirror. `Public` for the CLI, leaving the global mirror unchanged.
         let scope = ctx.metadata.http.auth_headers.metadata_scope(&url, Some(&spec.name));
 
-        // The per-registry answer is authoritative when the caller can give
-        // one: it already folds in the reasons that hold for every registry,
-        // so a registry that carries `time` is free to stay on abbreviated
-        // metadata while the others do not.
-        let policy_wants_full_metadata =
-            ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
-                needs_full_metadata(opts.registry)
-            });
-        let full_metadata = opts.request.optional || policy_wants_full_metadata;
-        let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
-        let base_meta_dir = if full_metadata {
-            if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
-        } else {
-            ABBREVIATED_META_DIR
-        };
+        let (full_metadata, use_filtered_full_metadata, base_meta_dir) =
+            Self::metadata_shape(ctx, opts);
 
         // A `Private` route relocates the mirror under its descriptor
         // namespace so it can never be read by a caller who doesn't reproduce
@@ -331,8 +274,33 @@ impl<'a> PickState<'a> {
             full_metadata,
             use_filtered_full_metadata,
             pkg_mirror,
+            base_meta_dir,
             use_mem_cache: !opts.request.update_checksums,
         }
+    }
+
+    /// Whether this pick wants full metadata, whether that full metadata is
+    /// filtered, and the mirror directory that selection reads/writes. The
+    /// per-registry answer is authoritative when the caller can give one: it
+    /// already folds in the reasons that hold for every registry, so a
+    /// registry that carries `time` is free to stay on abbreviated metadata
+    /// while the others do not.
+    fn metadata_shape<Cache: PackageMetaCache>(
+        ctx: &PickPackageContext<'_, Cache>,
+        opts: &PickPackageOptions<'_>,
+    ) -> (bool, bool, &'static str) {
+        let policy_wants_full_metadata =
+            ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
+                needs_full_metadata(opts.registry)
+            });
+        let full_metadata = opts.request.optional || policy_wants_full_metadata;
+        let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
+        let base_meta_dir = if full_metadata {
+            if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+        } else {
+            ABBREVIATED_META_DIR
+        };
+        (full_metadata, use_filtered_full_metadata, base_meta_dir)
     }
 
     async fn cached_pick<Cache: PackageMetaCache>(

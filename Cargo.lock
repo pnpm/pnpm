@@ -6050,6 +6050,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-patching",
  "pnpm-resolving-jsr-specifier-parser",
+ "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-semver-include-prerelease",

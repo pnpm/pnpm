@@ -402,7 +402,9 @@ export async function pickPackage (
           }
         }
 
-        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`, {
+          hint: await legacyMirrorHint(ctx.cacheDir, metaDir, opts.registry, spec.name),
+        })
       }
 
       if (diskMeta != null) {
@@ -839,6 +841,41 @@ function canonicalizeRegistry (registry: string): string {
  */
 export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string {
   return path.join(cacheDir, metaDir, encodeRegistry(registry), `${encodePkgName(pkgName)}.jsonl`)
+}
+
+/**
+ * Hint for `NO_OFFLINE_META`: whether the package's metadata sits on disk
+ * under the legacy mirror path, which this pnpm version no longer reads.
+ * `undefined` when no such mirror exists, so the base error message stands
+ * on its own.
+ */
+export async function legacyMirrorHint (cacheDir: string, metaDir: string, registry: string, pkgName: string): Promise<string | undefined> {
+  const legacyMirror = getLegacyPkgMirrorPath(cacheDir, metaDir, registry, pkgName)
+  if (legacyMirror == null) return undefined
+  try {
+    await fs.access(legacyMirror)
+  } catch {
+    return undefined
+  }
+  return `The cache layout for registry metadata changed in pnpm 11.27 and 12.4. ${legacyMirror} holds a mirror ` +
+    'from an older pnpm version, which this offline install cannot read. Run one online install to repopulate ' +
+    'the cache under the new layout, then retry offline.'
+}
+
+/**
+ * The legacy mirror path for a registry: `<host>[:<port>]` with `:`
+ * replaced by `+`, and no scheme, path segments, or hash suffix.
+ * `null` for a registry URL {@link getPkgMirrorPath} would itself reject.
+ */
+function getLegacyPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string | null {
+  let url: URL
+  try {
+    url = new URL(registry)
+  } catch {
+    return null
+  }
+  if (url.host === '') return null
+  return path.join(cacheDir, metaDir, url.host.replace(':', '+'), `${encodePkgName(pkgName)}.jsonl`)
 }
 
 /**

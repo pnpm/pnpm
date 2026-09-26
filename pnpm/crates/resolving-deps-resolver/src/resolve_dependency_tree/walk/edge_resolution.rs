@@ -472,6 +472,7 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::NoMatchingVersion(_)
             | ResolveDependencyTreeError::RegistryResponse(_)
             | ResolveDependencyTreeError::GitResolve(_)
+            | ResolveDependencyTreeError::Pick(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
 }

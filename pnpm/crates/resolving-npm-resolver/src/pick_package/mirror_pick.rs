@@ -4,6 +4,7 @@ use super::{
     TrustPolicy, dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
     pick_from_meta_fast, pick_stable_cached_range_version,
 };
+use crate::{errors::legacy_mirror_hint, mirror::get_legacy_pkg_mirror_path};
 
 impl PickState<'_> {
     /// The picks a read-only mirror can answer without taking the fetch
@@ -187,10 +188,20 @@ impl PickState<'_> {
         let meta = self.mirror_meta(disk_meta).await;
         if ctx.cache_policy.offline {
             let Some(meta) = meta else {
+                let legacy_mirror = ctx.metadata.cache_dir.and_then(|dir| {
+                    get_legacy_pkg_mirror_path(dir, self.base_meta_dir, opts.registry, &spec.name)
+                });
+                let hint = match legacy_mirror {
+                    Some(path) if tokio::fs::try_exists(&path).await.unwrap_or(false) => {
+                        Some(legacy_mirror_hint(&path))
+                    }
+                    _ => None,
+                };
                 return Err(PickPackageError::NoOfflineMeta {
                     spec_name: spec.name.clone(),
                     spec_fetch_spec: spec.fetch_spec.clone(),
                     pkg_mirror: self.pkg_mirror.clone().unwrap_or_default(),
+                    hint,
                 });
             };
             // `maybe_upgrade_abbreviated_meta_for_release_age` short-circuits

@@ -1,4 +1,5 @@
 use super::child_seeds::landed_on_prior_entry;
+mod map_resolve_error;
 mod shared_workspace_resolution_cache;
 mod stale_pin_refresh;
 

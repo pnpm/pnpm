@@ -24,6 +24,7 @@ use pnpm_catalogs_resolver::{CatalogAnchor, CatalogResolutionError};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
+use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
     ResolveOptions, Resolver, WantedDependency,
@@ -243,6 +244,12 @@ pub enum ResolveDependencyTreeError {
     /// `ERR_PNPM_GIT_RESOLVE_FAILED` code.
     #[diagnostic(transparent)]
     GitResolve(#[error(source)] GitResolveError),
+
+    /// The npm resolver's cache/fetch orchestration failed — most often
+    /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
+    /// [`PickPackageError`] itself carries.
+    #[diagnostic(transparent)]
+    Pick(#[error(source)] PickPackageError),
 
     /// An optional dependency failed to resolve while the wanted
     /// lockfile still holds a package entry satisfying the wanted
