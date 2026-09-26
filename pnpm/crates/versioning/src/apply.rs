@@ -4,7 +4,6 @@ use std::{
     path::Path,
 };
 
-use pnpm_package_manifest::ManifestFormat;
 use serde::Serialize;
 
 use crate::{
@@ -48,9 +47,6 @@ pub struct AppliedRelease {
 ///
 /// A private project is never published, so no tarball can ever carry its
 /// prose: its releases use `repository` storage whatever is configured.
-///
-/// Each released project's version is written to the manifest selected in
-/// `manifest_format`'s precedence order.
 pub fn apply_release_plan(
     plan: &ReleasePlan,
     workspace_dir: &Path,
@@ -58,14 +54,13 @@ pub fn apply_release_plan(
     all_intents: &[ChangeIntent],
     versioning: Option<&VersioningSettings>,
     confirmed_published: &HashSet<String>,
-    manifest_format: ManifestFormat,
 ) -> Result<Vec<AppliedRelease>, VersioningError> {
     let storage = ReleaseStorage {
         configured: changelog_storage(versioning),
         private_dirs: private_project_dirs(projects, workspace_dir),
     };
 
-    let applied = write_new_versions(plan, manifest_format)?;
+    let applied = write_new_versions(plan)?;
     for release in &plan.releases {
         write_changelog_section(release, workspace_dir, storage.of(&release.dir))?;
     }
@@ -107,16 +102,12 @@ impl ReleaseStorage {
 }
 
 /// Stamp every released manifest with its new version.
-fn write_new_versions(
-    plan: &ReleasePlan,
-    manifest_format: ManifestFormat,
-) -> Result<Vec<AppliedRelease>, VersioningError> {
+fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, VersioningError> {
     let mut applied = Vec::with_capacity(plan.releases.len());
     for release in &plan.releases {
-        let manifest_path =
-            pnpm_package_manifest::project_manifest_path(&release.root_dir, manifest_format);
-        let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
-            .map_err(VersioningError::Manifest)?;
+        let mut manifest =
+            pnpm_package_manifest::PackageManifest::from_path(release.manifest_path.clone())
+                .map_err(VersioningError::Manifest)?;
         manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
         manifest.save().map_err(VersioningError::Manifest)?;
         applied.push(AppliedRelease {

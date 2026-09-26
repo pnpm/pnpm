@@ -63,6 +63,10 @@ fn make_workspace(pkgs: &[FixturePkg<'_>]) -> Workspace {
             )
             .expect("write package.json");
             WorkspaceProject {
+                manifest_path: pnpm_package_manifest::project_manifest_path(
+                    &root_dir,
+                    ManifestFormat::default(),
+                ),
                 root_dir,
                 private: false,
                 name: Some((*name).to_string()),
@@ -117,7 +121,6 @@ fn apply_bumps_manifests_writes_changelogs_records_the_ledger_and_deletes_consum
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
     let mut applied_names: Vec<String> = applied
@@ -183,7 +186,6 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &intents,
         Some(&versioning),
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -196,6 +198,7 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
     let graduated_projects = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
         private: false,
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("cli".to_string()),
         version: Some("2.1.0-alpha.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -218,7 +221,6 @@ fn intent_files_consumed_only_by_lane_prereleases_survive_until_graduation() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -253,7 +255,6 @@ fn a_none_only_intent_is_garbage_collected_by_a_run_with_an_empty_plan() {
         &intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
@@ -285,7 +286,6 @@ fn registry_storage_parks_the_section_and_defers_intent_gc() {
         &intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -323,7 +323,6 @@ fn registry_storage_commits_a_private_project_section_and_collects_its_intent() 
         &intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -360,7 +359,6 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
         &first_intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -369,6 +367,7 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
         private: false,
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -385,16 +384,8 @@ fn registry_storage_collects_an_intent_and_its_section_once_confirmed() {
     .expect("plan assembles");
     assert!(empty_plan.releases.is_empty());
     let confirmed = HashSet::from(["lib@1.1.0".to_string()]);
-    apply_release_plan(
-        &empty_plan,
-        workspace.dir.path(),
-        &released,
-        &intents,
-        None,
-        &confirmed,
-        ManifestFormat::default(),
-    )
-    .expect("plan applies");
+    apply_release_plan(&empty_plan, workspace.dir.path(), &released, &intents, None, &confirmed)
+        .expect("plan applies");
 
     assert_eq!(read_change_intents(workspace.dir.path()).expect("intents read").len(), 0);
     assert!(
@@ -427,7 +418,6 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
         &first_intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -453,6 +443,7 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
         WorkspaceProject {
             root_dir: workspace.projects[0].root_dir.clone(),
             private: false,
+            manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
             name: Some("lib".to_string()),
             version: Some("1.1.0".to_string()),
             prod_dependencies: Vec::new(),
@@ -460,6 +451,7 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
         WorkspaceProject {
             root_dir: workspace.projects[1].root_dir.clone(),
             private: false,
+            manifest_path: workspace.projects[1].root_dir.clone().join("package.json"),
             name: Some("cli".to_string()),
             version: Some("2.0.1".to_string()),
             prod_dependencies: vec![ManifestDependency {
@@ -480,16 +472,8 @@ fn registry_storage_collects_a_dependency_only_release_section_when_confirmed() 
     )
     .expect("plan assembles");
     let confirmed = HashSet::from(["lib@1.1.0".to_string(), "cli@2.0.1".to_string()]);
-    apply_release_plan(
-        &empty_plan,
-        workspace.dir.path(),
-        &released,
-        &intents,
-        None,
-        &confirmed,
-        ManifestFormat::default(),
-    )
-    .expect("plan applies");
+    apply_release_plan(&empty_plan, workspace.dir.path(), &released, &intents, None, &confirmed)
+        .expect("plan applies");
 
     // The dependency-only section is collected even though it has no ledger entry.
     assert!(
@@ -528,13 +512,13 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
         &first_intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
     let released = [WorkspaceProject {
         root_dir: workspace.projects[0].root_dir.clone(),
         private: false,
+        manifest_path: workspace.projects[0].root_dir.clone().join("package.json"),
         name: Some("lib".to_string()),
         version: Some("1.1.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -557,7 +541,6 @@ fn registry_storage_keeps_an_intent_whose_release_is_not_confirmed() {
         &intents,
         None,
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -581,8 +564,8 @@ fn prepend_keeps_the_title_above_the_new_section_even_without_a_trailing_newline
 
 #[test]
 fn apply_updates_the_selected_json5_manifest_without_creating_json() {
-    let workspace = make_workspace(&[("lib", "1.0.0", &[])]);
-    let root_dir = &workspace.projects[0].root_dir;
+    let mut workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let root_dir = workspace.projects[0].root_dir.clone();
     fs::remove_file(root_dir.join("package.json")).expect("remove the fixture JSON manifest");
     let manifest_path = root_dir.join("package.json5");
     fs::write(
@@ -592,6 +575,10 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
     .expect("write the JSON5 manifest");
     let yaml = "name: alternate\nversion: 9.0.0\n";
     fs::write(root_dir.join("package.yaml"), yaml).expect("write the alternate YAML manifest");
+    // The fixture swaps the manifest files after the projects were built;
+    // discovery resolves the path once the files exist, so mirror that here.
+    workspace.projects[0].manifest_path =
+        pnpm_package_manifest::project_manifest_path(&root_dir, ManifestFormat::default());
     let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
     write_change_intent(workspace.dir.path(), &releases, "Fixed a bug.").expect("intent writes");
     let intents = read_change_intents(workspace.dir.path()).expect("intents read");
@@ -613,7 +600,6 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
@@ -638,6 +624,45 @@ fn apply_updates_the_selected_json5_manifest_without_creating_json() {
 }
 
 #[test]
+fn apply_writes_the_manifest_discovery_selected_over_a_coexisting_package_json() {
+    let mut workspace = make_workspace(&[("lib", "1.0.0", &[])]);
+    let root_dir = workspace.projects[0].root_dir.clone();
+    let json = fs::read_to_string(root_dir.join("package.json")).expect("read package.json");
+    let manifest_path = root_dir.join("package.json5");
+    fs::write(&manifest_path, "{ name: 'lib', version: '1.0.0' }\n")
+        .expect("write the JSON5 manifest");
+    workspace.projects[0].manifest_path = manifest_path.clone();
+    let releases = IndexMap::from([("lib".to_string(), IntentBumpType::Patch)]);
+    write_change_intent(workspace.dir.path(), &releases, "Fixed a bug.").expect("intent writes");
+    let intents = read_change_intents(workspace.dir.path()).expect("intents read");
+    let ledger = read_ledger(workspace.dir.path()).expect("ledger reads");
+    let plan = assemble_release_plan(
+        &workspace.projects,
+        workspace.dir.path(),
+        &intents,
+        &ledger,
+        None,
+        &AssembleReleasePlanOptions::default(),
+    )
+    .expect("plan assembles");
+
+    apply_release_plan(
+        &plan,
+        workspace.dir.path(),
+        &workspace.projects,
+        &intents,
+        Some(&repository()),
+        &HashSet::new(),
+    )
+    .expect("plan applies");
+
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
+        .expect("read the updated manifest");
+    assert_eq!(manifest.value()["version"], "1.0.1");
+    assert_eq!(fs::read_to_string(root_dir.join("package.json")).expect("read JSON"), json);
+}
+
+#[test]
 fn apply_bumps_package_yaml_manifest() {
     let dir = tempfile::tempdir().expect("create temp workspace");
     let root_dir = dir.path().join("lib");
@@ -647,6 +672,10 @@ fn apply_bumps_package_yaml_manifest() {
     let projects = vec![WorkspaceProject {
         root_dir: root_dir.clone(),
         private: false,
+        manifest_path: pnpm_package_manifest::project_manifest_path(
+            &root_dir,
+            ManifestFormat::default(),
+        ),
         name: Some("lib".to_string()),
         version: Some("1.0.0".to_string()),
         prod_dependencies: Vec::new(),
@@ -671,7 +700,6 @@ fn apply_bumps_package_yaml_manifest() {
         &intents,
         Some(&repository()),
         &HashSet::new(),
-        ManifestFormat::default(),
     )
     .expect("plan applies");
 
