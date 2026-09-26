@@ -125,9 +125,11 @@ pub(crate) fn script_body<'a>(shell: &SelectedShell, command: &'a str) -> Cow<'a
 }
 
 /// `sh -c` prefix. `$?` must be read first: it is the interrupted command's
-/// status only until the trap runs a command of its own.
+/// status only until the trap runs a command of its own. The first handled
+/// interrupt replaces the trap with one that always re-raises, which keeps
+/// the state out of any shell variable a script could set.
 const INTERRUPT_STATUS_TRAP: &str = "\
-trap 'if [ \"$?\" -eq 130 ] || [ -n \"${pnpm_sigint-}\" ]; then trap - INT; kill -s INT $$; fi; pnpm_sigint=1' INT; ";
+trap 'if [ \"$?\" -eq 130 ]; then trap - INT; kill -s INT $$; fi; trap \"trap - INT; kill -s INT $$\" INT' INT; ";
 
 fn returns_interrupted_child_status(shell: &SelectedShell) -> bool {
     if shell.windows_verbatim_args {

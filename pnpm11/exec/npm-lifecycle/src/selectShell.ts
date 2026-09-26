@@ -22,8 +22,10 @@ export function scriptBody (shell: SelectedShell, command: string): string {
 }
 
 // `$?` must be read first: it is the interrupted command's status only until
-// the trap runs a command of its own.
-const INTERRUPT_STATUS_TRAP = "trap 'if [ \"$?\" -eq 130 ] || [ -n \"${pnpm_sigint-}\" ]; then trap - INT; kill -s INT $$; fi; pnpm_sigint=1' INT; "
+// the trap runs a command of its own. The first handled interrupt replaces the
+// trap with one that always re-raises, which keeps the state out of any shell
+// variable a script could set.
+const INTERRUPT_STATUS_TRAP = "trap 'if [ \"$?\" -eq 130 ]; then trap - INT; kill -s INT $$; fi; trap \"trap - INT; kill -s INT $$\" INT' INT; "
 
 const BOURNE_SHELLS = new Set(['sh', 'dash', 'bash', 'ash', 'zsh', 'ksh', 'mksh'])
 
