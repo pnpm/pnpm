@@ -27,7 +27,7 @@ pub(super) fn report_current_versions(
         let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let (projects, _) = discover_workspace_projects(&base, config)?;
         let selection =
-            select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         for pkg_dir in selection.selected.keys() {
             read_current_version(pkg_dir, &mut versions)?;
         }
