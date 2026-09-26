@@ -442,21 +442,7 @@ impl Config {
         }
         let Ok(cwd) = Sys::current_dir() else { return };
         let Some(branch) = get_current_branch::<GitHost>(&cwd) else {
-            // Candidates serve the plain `gitBranchLockfile` read, whose
-            // branch file the loader tries before the shared one. Merge
-            // mode folds every branch lockfile in regardless of the
-            // branch, so it needs no candidates.
-            if !self.use_git_branch_lockfile || self.merge_git_branch_lockfiles {
-                return;
-            }
-            let branches = get_branches_containing_head::<GitHost>(&cwd);
-            if branches.is_empty() {
-                return;
-            }
-            self.git_branch_lockfile_candidates = branches
-                .iter()
-                .map(|branch| Lockfile::git_branch_file_name(branch))
-                .collect();
+            self.apply_detached_head_branch_candidates(&cwd);
             return;
         };
         if pattern_decides {
@@ -466,6 +452,24 @@ impl Config {
         if self.use_git_branch_lockfile {
             self.git_branch_lockfile_name = Some(Lockfile::git_branch_file_name(&branch));
         }
+    }
+
+    /// Fill [`Self::git_branch_lockfile_candidates`] for a detached HEAD
+    /// under plain `gitBranchLockfile`, whose branch file the loader tries
+    /// before the shared one. Merge mode folds every branch lockfile in
+    /// regardless of the branch, so it needs no candidates.
+    fn apply_detached_head_branch_candidates(&mut self, cwd: &Path) {
+        if !self.use_git_branch_lockfile || self.merge_git_branch_lockfiles {
+            return;
+        }
+        let branches = get_branches_containing_head::<GitHost>(cwd);
+        if branches.is_empty() {
+            return;
+        }
+        self.git_branch_lockfile_candidates = branches
+            .iter()
+            .map(|branch| Lockfile::git_branch_file_name(branch))
+            .collect();
     }
 
     /// Record the settings `settings` sets in [`Self::explicit_settings`],
