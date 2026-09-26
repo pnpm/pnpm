@@ -654,6 +654,23 @@ fn recursive_version_none_json_reports_workspace_versions_without_bumping() {
 }
 
 #[test]
+fn recursive_version_none_json_rejects_duplicate_package_names() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (_, pkg_b) = write_two_package_workspace(&workspace);
+    let manifest = r#"{"name":"pkg-a","version":"2.3.0"}"#;
+    write_manifest(&pkg_b, manifest);
+
+    let output = pacquet_recursive_version(&workspace, &["-r", "version", "none", "--json"]);
+
+    assert!(!output.status.success());
+    let stderr = stderr_of(&output);
+    assert!(stderr.contains("ERR_PNPM_DUPLICATE_PACKAGE_NAME"), "{stderr}");
+    assert!(stderr.contains("pkg-a"), "{stderr}");
+    assert_eq!(manifest_text(&pkg_b), manifest);
+    drop(root);
+}
+
+#[test]
 fn bumps_major_minor_and_patch() {
     for (bump, expected) in [("major", "2.0.0"), ("minor", "1.3.0"), ("patch", "1.2.4")] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
