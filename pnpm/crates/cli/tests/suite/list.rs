@@ -121,16 +121,29 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
             );
         }
 
+        let project_b_manifest = workspace.join("packages/b/package.json");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "devDependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("write dev-only workspace edge");
         let output = run_ok(
             &workspace,
-            &["--filter-prod", "./packages/*", "-r", "list", "--depth", "-1", "--json"],
+            &["--filter-prod", "a", "--filter-prod", "c", "-r", "list", "--depth", "-1", "--json"],
         );
         let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
         let names: Vec<&str> = projects
             .iter()
             .map(|project| project["name"].as_str().expect("project name"))
             .collect();
-        assert_eq!(names, ["c", "b", "a"], "shared lockfile: {shared_lockfile}");
+        assert_eq!(names, ["a", "c"], "shared lockfile: {shared_lockfile}");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("restore project manifest");
     }
 
     drop(root);
