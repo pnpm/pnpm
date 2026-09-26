@@ -117,7 +117,7 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
                 positions
                     .windows(2)
                     .all(|pair| pair[0] < pair[1]),
-                "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}"
+                "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}",
             );
         }
     }
