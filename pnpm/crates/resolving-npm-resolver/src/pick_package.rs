@@ -102,8 +102,8 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_legacy_pkg_mirror_path, get_pkg_mirror_path, load_meta, load_meta_async,
-        save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
+        get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed, save_meta_ndjson,
+        scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
@@ -206,10 +206,9 @@ struct PickState<'a> {
     full_metadata: bool,
     use_filtered_full_metadata: bool,
     pkg_mirror: Option<PathBuf>,
-    /// The pre-`#14081` mirror path for the same registry, checked only when
-    /// [`PickPackageError::NoOfflineMeta`] is about to be raised. See
-    /// `legacy_mirror_hint`.
-    legacy_pkg_mirror: Option<PathBuf>,
+    /// The unscoped metadata directory this pick's shape selects, before a
+    /// `Private` route relocates it.
+    base_meta_dir: &'static str,
     cache_key: String,
     /// `updateChecksums` must reach the conditional registry request, so it
     /// can't be served from the in-memory cache — which may hold a
@@ -247,13 +246,13 @@ impl<'a> PickState<'a> {
         let (full_metadata, use_filtered_full_metadata, base_meta_dir) =
             Self::metadata_shape(ctx, opts);
 
-        let (pkg_mirror, legacy_pkg_mirror) = Self::mirror_paths(
-            ctx.metadata.cache_dir,
-            &scope,
-            base_meta_dir,
-            opts.registry,
-            &spec.name,
-        );
+        // A `Private` route relocates the mirror under its descriptor
+        // namespace so it can never be read by a caller who doesn't reproduce
+        // the same descriptor; a `Public` route keeps the global mirror.
+        let pkg_mirror = ctx.metadata.cache_dir.and_then(|dir| {
+            let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
+            get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
+        });
 
         PickState {
             picker_opts: PickerOpts {
@@ -275,7 +274,7 @@ impl<'a> PickState<'a> {
             full_metadata,
             use_filtered_full_metadata,
             pkg_mirror,
-            legacy_pkg_mirror,
+            base_meta_dir,
             use_mem_cache: !opts.request.update_checksums,
         }
     }
@@ -302,27 +301,6 @@ impl<'a> PickState<'a> {
             ABBREVIATED_META_DIR
         };
         (full_metadata, use_filtered_full_metadata, base_meta_dir)
-    }
-
-    /// The current mirror path (scoped to a private route when applicable)
-    /// and its pre-`#14081` counterpart. The `Private` route relocates the
-    /// current mirror under its descriptor namespace so it can never be read
-    /// by a caller who doesn't reproduce the same descriptor; the legacy
-    /// path stays unscoped, since it predates that scoping and can only
-    /// ever sit under the unscoped directory. `cache_dir: None` yields
-    /// `(None, None)`.
-    fn mirror_paths(
-        cache_dir: Option<&Path>,
-        scope: &MetadataCacheScope,
-        base_meta_dir: &str,
-        registry: &str,
-        pkg_name: &str,
-    ) -> (Option<PathBuf>, Option<PathBuf>) {
-        let Some(dir) = cache_dir else { return (None, None) };
-        let meta_dir = scoped_meta_dir(scope, base_meta_dir);
-        let pkg_mirror = get_pkg_mirror_path(dir, &meta_dir, registry, pkg_name).ok();
-        let legacy_pkg_mirror = get_legacy_pkg_mirror_path(dir, base_meta_dir, registry, pkg_name);
-        (pkg_mirror, legacy_pkg_mirror)
     }
 
     async fn cached_pick<Cache: PackageMetaCache>(

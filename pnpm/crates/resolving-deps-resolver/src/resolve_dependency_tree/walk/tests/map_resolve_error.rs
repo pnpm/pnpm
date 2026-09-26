@@ -1,10 +1,12 @@
 use miette::Diagnostic;
 use pnpm_resolving_npm_resolver::PickPackageError;
 
-use super::super::workspace_resolution::map_resolve_error;
+use super::super::{
+    edge_resolution::is_droppable_resolve_error, workspace_resolution::map_resolve_error,
+};
 
 #[test]
-fn keeps_the_code_and_help_of_a_pick_package_error() {
+fn keeps_the_code_and_help_of_a_pick_package_error_and_stays_droppable() {
     let err = map_resolve_error(Box::new(PickPackageError::NoOfflineMeta {
         spec_name: "acme".to_string(),
         spec_fetch_spec: "^1.0.0".to_string(),
@@ -23,4 +25,5 @@ fn keeps_the_code_and_help_of_a_pick_package_error() {
             .as_deref(),
         Some("legacy mirror hint"),
     );
+    assert!(is_droppable_resolve_error(&err), "an optional edge must still skip it");
 }
