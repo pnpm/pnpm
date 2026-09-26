@@ -57,6 +57,19 @@ fn anchor_files_entry(pattern: &str) -> String {
 /// ancestor directories taking precedence. The ancestor scan runs only
 /// when some entry excludes anything.
 pub(super) fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
+    let listed = matcher.matched_path_or_any_parents(rel, false);
+    if !listed.is_ignore() {
+        return false;
+    }
+    // A `files` entry that names a file is held up for packing whatever the
+    // entries around it say, so a field that excludes a directory still
+    // ships a file it names inside that directory.
+    if listed
+        .inner()
+        .is_some_and(|glob| glob.original().trim_start_matches('/') == rel)
+    {
+        return true;
+    }
     if matcher.num_whitelists() > 0 {
         let path = Path::new(rel);
         if path
@@ -67,7 +80,7 @@ pub(super) fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
             return false;
         }
     }
-    matcher.matched_path_or_any_parents(rel, false).is_ignore()
+    true
 }
 
 /// Normalize a manifest field path by stripping leading `./` and `/`.
