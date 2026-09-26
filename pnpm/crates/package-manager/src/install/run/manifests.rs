@@ -291,9 +291,9 @@ fn root_runs_own_scripts(scope: &RootHooksScope<'_>, normalized_root: &Path) -> 
     .iter()
     .any(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
 }
-/// `project_manifests` with `packageExtensions` applied — pnpm's built-in
-/// compatibility set and the user's, in that order, matching what the
-/// resolver hands the rest of the install.
+/// `project_manifests` with the user's `packageExtensions` applied, matching
+/// what the resolver hands the rest of the install. pnpm's built-in
+/// compatibility set only extends dependency manifests, never a project's.
 ///
 /// Empty when no extension applies, so the caller keeps using the manifests
 /// it read from disk rather than a set of identical clones.
@@ -301,37 +301,22 @@ pub(super) fn extend_project_manifests(
     config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Result<Vec<(PathBuf, PackageManifest)>, InstallError> {
-    let compat_extender = (!config.ignore_compatibility_db).then(
-        crate::compat_package_extensions::compat_package_extender,
-    );
-    let extender = match config.package_extensions.as_ref() {
-        Some(extensions) => crate::PackageExtender::new(extensions)
-            .map(|extender| (!extender.is_empty()).then_some(extender))
-            .map_err(InstallError::InvalidPackageExtensionSelector)?,
-        None => None,
-    };
-    let selects = |manifest: &PackageManifest| {
-        compat_extender.is_some_and(|extender| extender.matches(manifest.value()))
-            || extender
-                .as_ref()
-                .is_some_and(|extender| extender.matches(manifest.value()))
-    };
-    // A workspace project is rarely named by an extension — pnpm's
-    // compatibility set names published packages — so this usually finds
-    // nothing and the caller keeps the manifests it read from disk.
-    if !project_manifests.iter().any(|(_, manifest)| selects(manifest)) {
+    let Some(extensions) = config.package_extensions.as_ref() else { return Ok(Vec::new()) };
+    let extender = crate::PackageExtender::new(extensions)
+        .map_err(InstallError::InvalidPackageExtensionSelector)?;
+    // A workspace project is rarely named by an extension, so this usually
+    // finds nothing and the caller keeps the manifests it read from disk.
+    if !project_manifests
+        .iter()
+        .any(|(_, manifest)| extender.matches(manifest.value()))
+    {
         return Ok(Vec::new());
     }
     Ok(project_manifests
         .iter()
         .map(|(project_dir, manifest)| {
             let mut extended = (*manifest).clone();
-            if let Some(compat_extender) = compat_extender {
-                compat_extender.apply(extended.value_mut());
-            }
-            if let Some(extender) = extender.as_ref() {
-                extender.apply(extended.value_mut());
-            }
+            extender.apply(extended.value_mut());
             (project_dir.clone(), extended)
         })
         .collect())
