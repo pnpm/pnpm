@@ -10,8 +10,15 @@
 //! [`ProxyKeys`] is that merged view: layers overwrite the keys they set,
 //! and [`ProxyKeys::resolve`] turns it into the
 //! [`pnpm_network::ProxyConfig`] the network layer consumes.
+//!
+//! Operating-system proxy settings (Windows Internet Settings, macOS
+//! system proxies) are the last source. They fill a slot only when no
+//! config layer and no environment variable named it. An empty
+//! environment variable is a value: it shadows the OS and resolves to
+//! no proxy. An empty config value still falls through.
 
 use crate::npmrc_auth::parse_no_proxy;
+use crate::os_proxy::OsProxy;
 use pnpm_network::ProxyConfig;
 
 /// One proxy key's merged value.
@@ -30,7 +37,8 @@ pub enum ProxyValue {
     Unset,
     Url(String),
     /// Proxying is off. Unlike [`Self::Unset`] this does not fall through
-    /// to the environment. Only the legacy `proxy` key has this form —
+    /// to the environment or the operating-system proxy. Only the legacy
+    /// `proxy` key has this form —
     /// `https-proxy` and `http-proxy` are tested for truthiness, so a
     /// `false` there reads as unset.
     Disabled,
@@ -93,6 +101,9 @@ pub struct ProxyKeys {
     /// shadows the variables below it and resolves to no proxy at the
     /// client.
     pub env: ProxyEnv,
+    /// Windows or macOS proxy settings captured with the environment.
+    /// Consulted only for slots that config and the environment left unset.
+    pub(crate) os: OsProxy,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -107,7 +118,7 @@ impl ProxyKeys {
     /// Run the cascade over the merged keys.
     #[must_use]
     pub fn resolve(&self) -> ProxyConfig {
-        let https = match self.https_proxy.url() {
+        let mut https = match self.https_proxy.url() {
             Some(url) => Resolved::Url(url),
             None => match &self.legacy_proxy {
                 ProxyValue::Disabled => Resolved::Disabled,
@@ -115,7 +126,7 @@ impl ProxyKeys {
                 ProxyValue::Unset => self.env.https_proxy.as_deref().into(),
             },
         };
-        let http = match self.http_proxy.url() {
+        let mut http = match self.http_proxy.url() {
             Some(url) => Resolved::Url(url),
             None => match https {
                 Resolved::Url(url) => Resolved::Url(url),
@@ -126,10 +137,20 @@ impl ProxyKeys {
                     .into(),
             },
         };
+        if matches!(https, Resolved::Unset) {
+            https = self.os.https.as_deref().into();
+        }
+        if matches!(http, Resolved::Unset) {
+            http = self.os.http
+                .as_deref()
+                .or_else(|| https.url())
+                .into();
+        }
         let no_proxy = self.no_proxy
             .url()
             .or_else(|| self.noproxy.url())
             .or(self.env.no_proxy.as_deref())
+            .or(self.os.bypass.as_deref())
             .map(parse_no_proxy);
         ProxyConfig { https_proxy: https.into_url(), http_proxy: http.into_url(), no_proxy }
     }
@@ -139,18 +160,23 @@ impl ProxyKeys {
 ///
 /// [`Self::Disabled`] and [`Self::Unset`] both end as "no proxy", but only
 /// `Disabled` stops the walk — see [`ProxyValue::Disabled`].
+#[derive(Clone, Copy)]
 enum Resolved<'a> {
     Url(&'a str),
     Disabled,
     Unset,
 }
 
-impl Resolved<'_> {
-    fn into_url(self) -> Option<String> {
+impl<'a> Resolved<'a> {
+    fn url(self) -> Option<&'a str> {
         match self {
-            Self::Url(url) => Some(url.to_string()),
+            Self::Url(url) => Some(url),
             Self::Disabled | Self::Unset => None,
         }
+    }
+
+    fn into_url(self) -> Option<String> {
+        self.url().map(str::to_string)
     }
 }
 
@@ -159,3 +185,6 @@ impl<'a> From<Option<&'a str>> for Resolved<'a> {
         value.map_or(Self::Unset, Self::Url)
     }
 }
+
+#[cfg(test)]
+mod tests;

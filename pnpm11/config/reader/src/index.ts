@@ -47,6 +47,7 @@ import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest.js'
 import { loadNpmrcConfig } from './loadNpmrcFiles.js'
 import { inheritDlxConfig, pickIniConfig } from './localConfig.js'
 import { npmDefaults } from './npmDefaults.js'
+import { currentOsProxy, type OsProxy, resolveProxyFromSources } from './osProxy.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -121,6 +122,12 @@ export async function getConfig (opts: {
   }
   workspaceDir?: string | undefined
   env?: Record<string, string | undefined>
+  /**
+   * Operating-system proxy used when config and the environment leave a
+   * slot unset. Tests pass this so they do not read the machine. Omitted
+   * in production, where Windows and macOS settings are read directly.
+   */
+  osProxy?: OsProxy
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
   /**
@@ -147,6 +154,7 @@ export async function getConfig (opts: {
   }
 
   const env = opts.env ?? process.env
+  const osProxy = opts.osProxy ?? currentOsProxy()
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
 
@@ -434,7 +442,8 @@ export async function getConfig (opts: {
   pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(
     npmrcResult.trustedConfig,
     trustedNetworkConfigs.configByUri ?? {},
-    env
+    env,
+    osProxy
   )
   pnpmConfig.configByUri = { ...networkConfigs.configByUri }
 
@@ -914,19 +923,25 @@ export async function getConfig (opts: {
     pnpmConfig.virtualStoreType = pnpmConfig.enableGlobalVirtualStore ? 'global' : 'project'
     explicitlySetKeys.add('virtualStoreType')
   }
-  if (!pnpmConfig.httpsProxy) {
-    // An empty `proxy=` is unset, so it must not suppress the environment
-    // fallback. `false` and `null` keep their meaning: proxying is off.
-    const legacyProxy = pnpmConfig.proxy === '' ? undefined : pnpmConfig.proxy
-    pnpmConfig.httpsProxy = legacyProxy ?? getProcessEnv('https_proxy')
-  }
-  if (!pnpmConfig.httpProxy) {
-    pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
-  }
-  if (!pnpmConfig.noProxy) {
+  // An empty `proxy=` is unset, so it must not suppress the environment
+  // fallback. `false` keeps proxying off and does not fall through to the
+  // environment or the operating system.
+  const resolvedProxy = resolveProxyFromSources({
+    httpsProxy: pnpmConfig.httpsProxy,
+    httpProxy: pnpmConfig.httpProxy,
+    proxy: pnpmConfig.proxy,
+    noProxy: pnpmConfig.noProxy,
     // @ts-expect-error
-    pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
-  }
+    noproxy: pnpmConfig['noproxy'],
+    envHttpsProxy: getEnvValue(env, 'https_proxy'),
+    envHttpProxy: getEnvValue(env, 'http_proxy'),
+    envProxy: getEnvValue(env, 'proxy'),
+    envNoProxy: getEnvValue(env, 'no_proxy'),
+    os: osProxy,
+  })
+  pnpmConfig.httpsProxy = resolvedProxy.httpsProxy as typeof pnpmConfig.httpsProxy
+  pnpmConfig.httpProxy = resolvedProxy.httpProxy as typeof pnpmConfig.httpProxy
+  pnpmConfig.noProxy = resolvedProxy.noProxy as typeof pnpmConfig.noProxy
   switch (pnpmConfig.nodeLinker) {
     case 'pnp':
       pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
@@ -1043,25 +1058,25 @@ export async function getConfig (opts: {
   return { config, context, warnings }
 }
 
-function getProcessEnv (env: string): string | undefined {
-  return process.env[env] ??
-    process.env[env.toUpperCase()] ??
-    process.env[env.toLowerCase()]
-}
-
 function createPackageManagerNetworkConfig (
   trustedConfig: Record<string, unknown>,
   configByUri: PackageManagerNetworkConfig['configByUri'],
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  osProxy: OsProxy
 ): PackageManagerNetworkConfig {
-  const httpsProxy = getProxyValue(
-    trustedConfig['https-proxy'] ?? trustedConfig.proxy,
-    getEnvValue(env, 'https_proxy')
-  )
-  const httpProxy = getProxyValue(
-    trustedConfig['http-proxy'],
-    httpsProxy ?? getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
-  )
+  const httpsSetting = trustedConfig['https-proxy'] ?? trustedConfig.proxy
+  const httpsDisabled = httpsSetting === false || httpsSetting === null
+  const httpsFromUpper = getProxyValue(httpsSetting, getEnvValue(env, 'https_proxy'))
+  const httpsProxy = httpsDisabled ? undefined : httpsFromUpper ?? osProxy.httpsProxy
+  const httpSetting = trustedConfig['http-proxy']
+  const httpDisabled = httpSetting === false || httpSetting === null
+  const envHttpProxy = getEnvValue(env, 'http_proxy') ?? getEnvValue(env, 'proxy')
+  const httpFromUpper = getProxyValue(httpSetting, httpsFromUpper ?? envHttpProxy)
+  const httpProxy = httpDisabled
+    ? undefined
+    : httpFromUpper ?? (httpsDisabled ? undefined : osProxy.httpProxy ?? (httpsFromUpper == null ? osProxy.httpsProxy : undefined))
+  const noProxyFromUpper = trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')
+  const noProxy = noProxyFromUpper == null ? osProxy.noProxy : noProxyFromUpper
   return {
     ca: trustedConfig.ca as string | string[] | undefined,
     cert: trustedConfig.cert as string | string[] | undefined,
@@ -1070,7 +1085,7 @@ function createPackageManagerNetworkConfig (
     httpsProxy,
     key: trustedConfig.key as string | undefined,
     localAddress: trustedConfig['local-address'] as string | undefined,
-    noProxy: (trustedConfig['no-proxy'] ?? trustedConfig.noproxy ?? getEnvValue(env, 'no_proxy')) as string | boolean | undefined,
+    noProxy: noProxy as string | boolean | undefined,
     strictSsl: trustedConfig['strict-ssl'] as boolean | undefined,
   }
 }
