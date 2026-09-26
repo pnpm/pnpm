@@ -117,8 +117,12 @@ fn client_builder(
     trust_roots: TrustRoots,
     forbid_redirects: bool,
 ) -> Result<reqwest::ClientBuilder, ForInstallsError> {
-    let mut builder =
-        default_client_builder(inputs.settings).dns_resolver(Arc::clone(&inputs.dns_resolver));
+    // `no_proxy` also stops reqwest from reading the proxy environment
+    // variables itself. `ProxyConfig` has already resolved them, and a
+    // resolved "no proxy", such as `proxy=false`, must stay that way.
+    let mut builder = default_client_builder(inputs.settings)
+        .dns_resolver(Arc::clone(&inputs.dns_resolver))
+        .no_proxy();
     if let Some(url) = inputs.https.clone() {
         builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&inputs.no_proxy)));
     }
