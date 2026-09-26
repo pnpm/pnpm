@@ -38,6 +38,9 @@ export function addFilesFromTarball (
 /**
  * Same as {@link addFilesFromTarball}, but a gzip archive that decompresses to
  * more than {@link MAX_IN_MEMORY_TARBALL_SIZE} is decompressed as a stream.
+ * A streamed archive's files are written to the store as they are read, so
+ * when it is corrupt or truncated, the files before the failure stay in the
+ * store unreferenced.
  */
 export async function addFilesFromTarballBounded (
   addBufferToCafs: AddBufferToCafs,
@@ -51,8 +54,6 @@ export async function addFilesFromTarballBounded (
   if (tarContent != null) {
     return addFilesFromTarContent(addBufferToCafs, tarContent, readManifest, ignore)
   }
-  // Files are written to the store as they are decompressed, before the rest
-  // of the archive is validated. Deferring them would mean holding them all.
   const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, readManifest, ignore)
   const parser = createTarballParser(filesIndexBuilder.addFile)
   const gunzip = createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })
