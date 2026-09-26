@@ -142,19 +142,40 @@ pub(super) fn shim_node_path(
     if project_node_path.is_none() && extra_node_paths.is_empty() {
         return Vec::new();
     }
-    let own = if !extra_node_paths.is_empty()
-        || project_node_path.is_some_and(|path| !Path::new(path).ends_with("node_modules"))
-    {
-        if let Some(resolved) = &pkg.resolved_location {
-            bin_node_paths(resolved)
-        } else {
-            let dir = dunce::canonicalize(&pkg.location)
-                .unwrap_or_else(|_| pkg.location.clone());
-            bin_node_paths(&dir)
-        }
+    let own = if should_include_package_node_paths(project_node_path, extra_node_paths) {
+        package_node_paths(pkg)
     } else {
         Vec::new()
     };
+    merge_node_paths(project_node_path, own, extra_node_paths)
+}
+
+fn should_include_package_node_paths(
+    project_node_path: Option<&str>,
+    extra_node_paths: &[String],
+) -> bool {
+    !extra_node_paths.is_empty()
+        || project_node_path.is_some_and(|path| !Path::new(path).ends_with("node_modules"))
+}
+
+fn package_node_paths(pkg: &PackageBinSource) -> Vec<String> {
+    pkg.resolved_location
+        .as_deref()
+        .map_or_else(
+            || {
+                let dir = dunce::canonicalize(&pkg.location)
+                    .unwrap_or_else(|_| pkg.location.clone());
+                bin_node_paths(&dir)
+            },
+            bin_node_paths,
+        )
+}
+
+fn merge_node_paths(
+    project_node_path: Option<&str>,
+    own: Vec<String>,
+    extra_node_paths: &[String],
+) -> Vec<String> {
     let mut merged: Vec<String> = project_node_path
         .map(str::to_string)
         .into_iter()
