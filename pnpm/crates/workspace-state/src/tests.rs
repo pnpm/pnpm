@@ -218,19 +218,18 @@ fn update_surfaces_write_file_error_when_target_is_a_directory() {
         matches!(err, UpdateWorkspaceStateError::WriteFile { .. }),
         "expected WriteFile error, got {err:?}",
     );
+    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
 }
 
-/// The write-path tests below assert where the bytes land, not what is
-/// in them, so the payload stays empty.
-fn empty_state() -> WorkspaceState {
-    WorkspaceState {
-        last_validated_timestamp: 0,
-        projects: BTreeMap::new(),
-        pnpmfiles: vec![],
-        filtered_install: false,
-        config_dependencies: None,
-        settings: WorkspaceStateSettings::default(),
-    }
+#[test]
+fn update_leaves_no_temp_file_beside_the_state_file() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("write state");
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("overwrite state");
+
+    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
 }
 
 fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
@@ -246,43 +245,6 @@ fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
         .collect();
     names.sort();
     names
-}
-
-/// The temp file the write goes through is disarmed before the
-/// rename, so nothing deletes it on drop any more. A successful
-/// rename has to be what removes it from the directory.
-#[test]
-fn write_leaves_no_temp_file_beside_the_state_file() {
-    let tmp = tempdir().expect("create temp dir");
-    let workspace_dir = tmp.path();
-
-    update_workspace_state(workspace_dir, &empty_state()).expect("write state");
-    update_workspace_state(workspace_dir, &empty_state()).expect("overwrite state");
-
-    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
-}
-
-/// A rename that cannot succeed still has to clean up after the
-/// disarmed temp file. Renaming onto a directory fails outright on
-/// Unix (`IsADirectory` / `NotADirectory`), which the retry
-/// classifier leaves alone; on Windows the same setup reports
-/// `ERROR_ACCESS_DENIED`, which *is* retried, so this stays Unix-only
-/// rather than burning the retry budget.
-#[cfg(unix)]
-#[test]
-fn failed_rename_reports_write_error_and_leaves_no_temp_file() {
-    let tmp = tempdir().expect("create temp dir");
-    let workspace_dir = tmp.path();
-    let target = get_file_path(workspace_dir);
-    std::fs::create_dir_all(&target).expect("seed a directory where the state file goes");
-
-    let err = update_workspace_state(workspace_dir, &empty_state())
-        .expect_err("renaming onto a directory should fail");
-    assert!(
-        matches!(err, UpdateWorkspaceStateError::WriteFile { .. }),
-        "expected WriteFile error, got {err:?}",
-    );
-    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
 }
 
 /// The write survives another process holding the destination open
@@ -307,7 +269,7 @@ fn transient_lock_on_the_state_file_does_not_fail_the_write() {
 
     let tmp = tempdir().expect("create temp dir");
     let workspace_dir = tmp.path();
-    update_workspace_state(workspace_dir, &empty_state()).expect("seed state file");
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("seed state file");
 
     let handle = std::fs::OpenOptions::new()
         .read(true)
@@ -323,7 +285,7 @@ fn transient_lock_on_the_state_file_does_not_fail_the_write() {
         drop(handle);
     });
 
-    update_workspace_state(workspace_dir, &empty_state())
+    update_workspace_state(workspace_dir, &WorkspaceState::default())
         .expect("the write should wait the transient lock out");
     let waited = started.elapsed();
 

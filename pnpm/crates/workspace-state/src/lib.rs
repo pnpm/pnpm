@@ -237,10 +237,10 @@ pub enum UpdateWorkspaceStateError {
 /// Writes to a temporary file in the same directory, then atomically
 /// renames it into place, so a concurrent reader — pnpm or pacquet —
 /// never observes a half-written file
-/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)). The rename
-/// itself retries the transient Windows file locks a concurrent holder
-/// of the destination produces
-/// ([#14550](https://github.com/pnpm/pnpm/issues/14550)).
+/// ([#12020](https://github.com/pnpm/pnpm/issues/12020)). Two pnpm
+/// processes installing one workspace at once both write it, so the
+/// rename retries the transient lock errors Windows raises for the other
+/// writer's handle.
 ///
 /// The serialized bytes are `JSON.stringify(state, undefined, 2) + '\n'`:
 /// `serde_json`'s pretty printer uses the same 2-space indent and `": "`

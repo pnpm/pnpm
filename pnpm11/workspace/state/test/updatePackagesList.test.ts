@@ -7,7 +7,7 @@ import { preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { getFilePath } from '../src/filePath.js'
-import { loadWorkspaceState, updateWorkspaceState, updateWorkspaceStateOrWarn } from '../src/index.js'
+import { loadWorkspaceState, updateWorkspaceState } from '../src/index.js'
 
 const originalLoggerDebug = logger.debug
 afterEach(() => {
@@ -89,13 +89,13 @@ test('updateWorkspaceState()', async () => {
   }))
 })
 
-test('updateWorkspaceStateOrWarn() does not throw when cache file writing fails', async () => {
+test('updateWorkspaceState() does not throw when cache file writing fails', async () => {
   preparePackages([])
   const workspaceDir = process.cwd()
   const cacheFile = getFilePath(workspaceDir)
   await fs.promises.mkdir(cacheFile, { recursive: true })
 
-  await expect(updateWorkspaceStateOrWarn({
+  await expect(updateWorkspaceState({
     pnpmfiles: [],
     workspaceDir,
     allProjects: [],

@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
-import { logger } from '@pnpm/logger'
+import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
+import { globalWarn, logger } from '@pnpm/logger'
 import type { ConfigDependencies } from '@pnpm/types'
 import { pathTemp } from 'path-temp'
 
@@ -26,33 +26,13 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
-  await fs.promises.mkdir(cacheDir, { recursive: true })
-  const tmp = pathTemp(cacheDir)
+  const tempFile = pathTemp(cacheDir)
   try {
-    await fs.promises.writeFile(tmp, workspaceStateJSON)
-    renameFileWithRetry(tmp, cacheFile)
-  } catch (err) {
-    await fs.promises.unlink(tmp).catch(() => {})
-    throw err
-  }
-}
-
-/**
- * Records the workspace state, reporting a failed write as a warning.
- *
- * The state file is a cache: losing a write only costs the next command a
- * repeat of the content check, so a write failure must not fail a command
- * whose real work has already succeeded
- * (https://github.com/pnpm/pnpm/issues/14550).
- */
-export async function updateWorkspaceStateOrWarn (opts: UpdateWorkspaceStateOptions): Promise<void> {
-  try {
-    await updateWorkspaceState(opts)
+    await fs.promises.mkdir(cacheDir, { recursive: true })
+    await fs.promises.writeFile(tempFile, workspaceStateJSON)
+    await renameFileWithRetryAsync(tempFile, cacheFile)
   } catch (err: unknown) {
-    const reason = util.types.isNativeError(err) ? err.message : String(err)
-    logger.warn({
-      message: `Failed to update the workspace state: ${reason}`,
-      prefix: opts.workspaceDir,
-    })
+    await fs.promises.rm(tempFile, { force: true }).catch(() => {})
+    globalWarn(`Failed to write the workspace state: ${util.types.isNativeError(err) ? err.message : String(err)}`)
   }
 }
