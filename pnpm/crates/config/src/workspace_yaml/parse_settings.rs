@@ -101,7 +101,11 @@ fn first_unresolved_placeholder<Sys: EnvVar>(text: &str) -> Option<String> {
     let all_dropped = dropped_placeholders(&resolvable, &unresolved, None);
     read_text(&resolve_placeholders(text, &all_dropped, |_| true))?;
 
-    for (idx, (_, var)) in unresolved.iter().enumerate() {
+    for (idx, (_, var)) in unresolved
+        .iter()
+        .take((MAX_DOCUMENT_READS - 1) as usize)
+        .enumerate()
+    {
         let candidate = dropped_placeholders(&resolvable, &unresolved, Some(idx));
         if read_text(&resolve_placeholders(text, &candidate, |_| true)).is_none() {
             return Some(var.clone());
