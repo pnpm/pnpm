@@ -280,12 +280,19 @@ fn run_empty_start_script_hits_server_js_guard() {
 /// <https://github.com/pnpm/pnpm/issues/4655>
 #[test]
 fn run_missing_script_hints_at_filter_after_script_name() {
+    assert_filter_hint(&["--filter", "@local/b", "--watch"], "--filter");
+    assert_filter_hint(&["-F", "@local/b"], "--filter");
+    assert_filter_hint(&["--filter-prod=@local/b"], "--filter-prod");
+}
+
+fn assert_filter_hint(script_args: &[&str], filter_option: &str) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let manifest = json!({ "name": "root", "version": "0.0.0" }).to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
     let output = pacquet
-        .with_args(["run", "build", "--filter", "@local/b", "--watch"])
+        .with_args(["run", "build"])
+        .with_args(script_args)
         .output()
         .expect("spawn pacquet run");
     assert!(!output.status.success(), "a missing script must fail");
@@ -295,10 +302,8 @@ fn run_missing_script_hints_at_filter_after_script_name() {
         .collect::<Vec<_>>()
         .join(" ");
     assert!(stderr.contains("ERR_PNPM_NO_SCRIPT"), "should surface NO_SCRIPT:\n{stderr}");
-    assert!(
-        stderr.contains(r#""pnpm --filter <selector> run build""#),
-        "should show the filter before the script name:\n{stderr}",
-    );
+    let command = format!(r#""pnpm {filter_option} <selector> run build""#);
+    assert!(stderr.contains(&command), "{script_args:?} should suggest {command}:\n{stderr}");
 
     drop(root);
 }
