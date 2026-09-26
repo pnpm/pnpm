@@ -11,7 +11,8 @@ use crate::cli_args::{
 };
 use miette::Context;
 use pnpm_reporter::SilentReporter;
-use std::path::PathBuf;
+use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use std::{collections::HashSet, path::PathBuf};
 use tempfile::TempDir;
 
 impl AuditArgs {
@@ -33,6 +34,7 @@ impl AuditArgs {
         {
             return Err(AuditError::ProjectOptionWithPackages.into());
         }
+        reject_duplicate_names(&self.params)?;
         let (temp_dir, manifest_path) = create_throwaway_project()?;
         configure_cache_install(
             config,
@@ -73,6 +75,20 @@ impl AuditArgs {
         correct_inferred_patched_versions(&mut report, config, state.http_client.as_ref()).await;
         self.render_report(report, config, project_dir, audit_level)
     }
+}
+
+/// One throwaway manifest holds one entry per name, so a second spec for
+/// a name would replace the first and leave it unaudited.
+fn reject_duplicate_names(specs: &[String]) -> Result<(), AuditError> {
+    let mut seen = HashSet::new();
+    for spec in specs {
+        if let Some(name) = parse_wanted_dependency(spec).alias
+            && !seen.insert(name.clone())
+        {
+            return Err(AuditError::DuplicatePackage { name });
+        }
+    }
+    Ok(())
 }
 
 /// A temporary directory holding an empty `package.json`, removed on drop.
