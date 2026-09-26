@@ -21,6 +21,28 @@ fn git_commit_and_tag_are_created_by_default() {
 }
 
 #[test]
+fn git_commit_includes_the_bumped_jsr_manifests() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    init_git(&workspace);
+    write_manifest(&workspace, r#"{"name":"@scope/pkg","version":"1.0.0"}"#);
+    fs::write(workspace.join("jsr.json"), r#"{"name":"@scope/pkg","version":"1.0.0"}"#)
+        .expect("write jsr.json");
+    fs::write(workspace.join("jsr.jsonc"), r#"{"name":"@scope/pkg","version":"1.0.0"}"#)
+        .expect("write jsr.jsonc");
+    git_commit_all(&workspace, "init");
+
+    let output = pacquet_version(&workspace, &["patch"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert_eq!(
+        git_stdout(&workspace, &["show", "--name-only", "--format=", "HEAD"]),
+        "jsr.json\njsr.jsonc\npackage.json",
+    );
+    assert_eq!(git_stdout(&workspace, &["status", "--porcelain"]), "");
+    drop(root);
+}
+
+#[test]
 fn tag_version_prefix_replaces_the_default_v() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     init_git(&workspace);

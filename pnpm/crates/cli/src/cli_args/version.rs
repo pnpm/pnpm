@@ -16,8 +16,8 @@ use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
-    read_ledger,
+    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, jsr_manifest_updates,
+    read_change_intents, read_ledger,
 };
 
 use serde_json::{Value, json};
@@ -29,7 +29,8 @@ use std::{
 /// Bump the version of a package: `pnpm version <bump|semver>` applies an
 /// npm-style bump to the current package (or, with `-r`, to every selected
 /// workspace package), while the bare `pnpm version -r` applies the pending
-/// change intents.
+/// change intents. Both also set the version in a `jsr.json` or `jsr.jsonc`
+/// next to each bumped `package.json`.
 #[derive(Debug, Args)]
 pub struct VersionArgs {
     /// A valid semver version (e.g. 1.2.3) or one of: major, minor, patch,
@@ -303,11 +304,19 @@ impl VersionArgs {
             .as_object_mut()
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
+        let jsr_updates = jsr_manifest_updates(pkg_dir, &new_version)?;
         if !self.dry_run {
             manifest
                 .save()
                 .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+            for update in &jsr_updates {
+                update.write()?;
+            }
         }
+        let jsr_manifest_paths = jsr_updates
+            .into_iter()
+            .map(|update| update.path)
+            .collect();
 
         let change = VersionChange {
             name,
@@ -315,6 +324,7 @@ impl VersionArgs {
             new_version,
             path: pkg_dir.to_path_buf(),
             manifest_path,
+            jsr_manifest_paths,
         };
         run_version_lifecycle_hook::<Reporter>("version", &change, config, init_cwd, self.dry_run)?;
         Ok(Some(change))
@@ -335,6 +345,7 @@ impl VersionArgs {
             new_version: current.to_string(),
             path: pkg_dir.to_path_buf(),
             manifest_path: manifest_path.to_path_buf(),
+            jsr_manifest_paths: Vec::new(),
         };
         run_version_lifecycle_hook::<Reporter>(
             "preversion",
@@ -443,7 +454,7 @@ fn project_scripts_bin_dir_and_env(
 }
 
 /// One package's version bump: what it was, what it became, and where its
-/// manifest lives.
+/// manifests live.
 #[derive(Debug)]
 struct VersionChange {
     name: String,
@@ -451,6 +462,8 @@ struct VersionChange {
     new_version: String,
     path: PathBuf,
     manifest_path: PathBuf,
+    /// The `jsr.json` / `jsr.jsonc` files bumped alongside `manifest_path`.
+    jsr_manifest_paths: Vec<PathBuf>,
 }
 
 fn package_version_identity(manifest: &PackageManifest) -> Option<(String, String)> {

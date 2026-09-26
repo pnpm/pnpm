@@ -119,6 +119,10 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED))]
     InvariantsViolated { message: String },
 
+    #[display("Invalid JSR manifest {}: {reason}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_JSR_MANIFEST))]
+    InvalidJsrManifest { path: PathBuf, reason: String },
+
     #[display("Failed to read {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
     Read { path: PathBuf, source: std::io::Error },
