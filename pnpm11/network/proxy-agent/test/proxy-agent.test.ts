@@ -85,3 +85,21 @@ test('proxy credentials that are not URL-encoded are rejected', () => {
   }
   expect(() => getProxyAgent('https://foo.com/bar', opts)).toThrow("Couldn't parse proxy URL")
 })
+
+test('an omitted strictSsl does not reuse the proxy agent created for strictSsl: false', () => {
+  const httpsProxy = 'https://strict-ssl.proxy:1234'
+  const insecure = getProxyAgent('https://foo.com/bar', { httpsProxy, strictSsl: false }) as unknown as HttpsProxyAgentInternals
+  const secure = getProxyAgent('https://foo.com/bar', { httpsProxy }) as unknown as HttpsProxyAgentInternals
+  expect(insecure.connectOpts).toHaveProperty('rejectUnauthorized', false)
+  expect(secure.connectOpts).toHaveProperty('rejectUnauthorized', true)
+})
+
+test('proxy agents with different connection settings are not shared', () => {
+  const httpsProxy = 'https://settings.proxy:1234'
+  const getConnectOpts = (opts: { maxSockets?: number, timeout?: number }) =>
+    (getProxyAgent('https://foo.com/bar', { httpsProxy, ...opts }) as unknown as HttpsProxyAgentInternals).connectOpts
+  expect(getConnectOpts({ maxSockets: 1 })).toHaveProperty('maxSockets', 1)
+  expect(getConnectOpts({ maxSockets: 2 })).toHaveProperty('maxSockets', 2)
+  expect(getConnectOpts({ timeout: 1 })).toHaveProperty('timeout', 2)
+  expect(getConnectOpts({ timeout: 2 })).toHaveProperty('timeout', 3)
+})

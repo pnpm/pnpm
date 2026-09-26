@@ -32,21 +32,10 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
     ...pickSettingByUrl(opts.clientCertificates, uri),
   }
 
-  const key = [
-    `https:${isHttps.toString()}`,
-    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
-    `strict-ssl:${
-      isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'
-    }`,
-    `ca:${isHttps && (ca?.toString()) || '>no-ca<'}`,
-    `cert:${isHttps && (cert?.toString()) || '>no-cert<'}`,
-    `key:${isHttps && (certKey?.toString()) || '>no-key<'}`,
-  ].join(':')
-
-  if (AGENT_CACHE.peek(key)) {
-    return AGENT_CACHE.get(key)
-  }
-
+  // Node.js verifies certificates unless told otherwise, so an omitted
+  // strictSsl must not share a cached agent with an explicit false.
+  const strictSsl = opts.strictSsl ?? true
+  const maxSockets = opts.maxSockets ?? DEFAULT_MAX_SOCKETS
   // If opts.timeout is zero, set the agentTimeout to zero as well. A timeout
   // of zero disables the timeout behavior (OS limits still apply). Else, if
   // opts.timeout is a non-zero value, set it to timeout + 1, to ensure that
@@ -56,6 +45,23 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
     typeof opts.timeout !== 'number' || opts.timeout === 0
       ? 0
       : opts.timeout + 1
+
+  const key = [
+    `https:${isHttps.toString()}`,
+    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
+    `max-sockets:${maxSockets}`,
+    `timeout:${agentTimeout}`,
+    `strict-ssl:${
+      isHttps ? strictSsl.toString() : '>no-strict-ssl<'
+    }`,
+    `ca:${isHttps && (ca?.toString()) || '>no-ca<'}`,
+    `cert:${isHttps && (cert?.toString()) || '>no-cert<'}`,
+    `key:${isHttps && (certKey?.toString()) || '>no-key<'}`,
+  ].join(':')
+
+  if (AGENT_CACHE.peek(key)) {
+    return AGENT_CACHE.get(key)
+  }
 
   // NOTE: localAddress is passed to the agent here even though it is an
   // undocumented option of the agent's constructor.
@@ -69,13 +75,13 @@ function getNonProxyAgent (uri: string, opts: AgentOptions): Agent | undefined {
       cert,
       key: certKey,
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-      rejectUnauthorized: opts.strictSsl,
+      maxSockets,
+      rejectUnauthorized: strictSsl,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     : new HttpAgent({
       localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+      maxSockets,
       timeout: agentTimeout,
     } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   AGENT_CACHE.set(key, agent)

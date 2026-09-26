@@ -36,13 +36,20 @@ export function getProxyAgent (uri: string, opts: ProxyAgentOptions): Agent | un
   const proxyUri = getProxyUri(parsedUri, opts)
   if (!proxyUri) return
   const isHttps = parsedUri.protocol === 'https:'
+  // Node.js verifies certificates unless told otherwise, so an omitted
+  // strictSsl must not share a cached agent with an explicit false.
+  const strictSsl = opts.strictSsl ?? true
+  const maxSockets = opts.maxSockets ?? DEFAULT_MAX_SOCKETS
+  const timeout = toAgentTimeout(opts.timeout)
 
   const key = [
     `https:${isHttps.toString()}`,
     `proxy:${proxyUri.protocol}//${proxyUri.username}:${proxyUri.password}@${proxyUri.host}:${proxyUri.port}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
+    `max-sockets:${maxSockets}`,
+    `timeout:${timeout}`,
     `strict-ssl:${
-      isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'
+      isHttps ? strictSsl.toString() : '>no-strict-ssl<'
     }`,
     `ca:${(isHttps && opts.ca?.toString()) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert?.toString()) || '>no-cert<'}`,
@@ -52,7 +59,7 @@ export function getProxyAgent (uri: string, opts: ProxyAgentOptions): Agent | un
   if (AGENT_CACHE.peek(key)) {
     return AGENT_CACHE.get(key)
   }
-  const proxy = getProxy(proxyUri, opts, isHttps)
+  const proxy = getProxy(proxyUri, { ...opts, maxSockets, strictSsl, timeout }, isHttps)
   if (proxy) AGENT_CACHE.set(key, proxy)
   return proxy
 }
@@ -105,10 +112,10 @@ function getProxy (
     ca?: string | string[]
     cert?: string | string[]
     key?: string
-    timeout?: number
+    timeout: number
     localAddress?: string
-    maxSockets?: number
-    strictSsl?: boolean
+    maxSockets: number
+    strictSsl: boolean
   },
   isHttps: boolean
 ) {
@@ -118,12 +125,9 @@ function getProxy (
     cert: opts.cert,
     key: opts.key,
     localAddress: opts.localAddress,
-    maxSockets: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    maxSockets: opts.maxSockets,
     rejectUnauthorized: opts.strictSsl,
-    timeout:
-      typeof opts.timeout !== 'number' || opts.timeout === 0
-        ? 0
-        : opts.timeout + 1,
+    timeout: opts.timeout,
   }
 
   if (proxyUrl.protocol === 'http:' || proxyUrl.protocol === 'https:') {
@@ -137,6 +141,10 @@ function getProxy (
     return new SocksProxyAgent(proxyUrl, proxyOpts)
   }
   return undefined
+}
+
+function toAgentTimeout (timeout: number | undefined): number {
+  return typeof timeout !== 'number' || timeout === 0 ? 0 : timeout + 1
 }
 
 function getAuth (user: { username?: string, password?: string }) {
