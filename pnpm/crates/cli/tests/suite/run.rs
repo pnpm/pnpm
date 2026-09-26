@@ -770,11 +770,10 @@ fn assert_no_bail_lets_siblings_finish(workspace_concurrency: &str) {
     drop(root);
 }
 
-/// `shellEmulator` runs scripts in pacquet's own shell instead of the
-/// platform's, which is what makes a script written for `sh` portable to
-/// Windows. The tests prove the emulator took over by pointing
-/// `scriptShell` at a path that could never be spawned: the script still
-/// runs, and without the setting the same configuration fails.
+/// `shellEmulator` runs scripts in pacquet's own shell when `scriptShell`
+/// is unset, which is what makes a script written for `sh` portable to
+/// Windows. A configured `scriptShell` is spawned even when the emulator
+/// is also enabled.
 mod shell_emulator {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
@@ -783,22 +782,27 @@ mod shell_emulator {
     use std::{fs, path::Path};
 
     fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
+        write_configured_project(workspace, scripts, None, shell_emulator);
+    }
+
+    fn write_configured_project(
+        workspace: &Path,
+        scripts: &serde_json::Value,
+        script_shell: Option<&Path>,
+        shell_emulator: bool,
+    ) {
         let manifest =
             json!({ "name": "test", "version": "0.0.0", "scripts": scripts }).to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-        let unspawnable_shell = workspace.join("no-such-shell");
-        fs::write(
-            workspace.join("pnpm-workspace.yaml"),
-            format!(
-                "scriptShell: {}\nshellEmulator: {shell_emulator}\n",
-                unspawnable_shell.display(),
-            ),
-        )
-        .expect("write pnpm-workspace.yaml");
+        let mut yaml = format!("shellEmulator: {shell_emulator}\n");
+        if let Some(script_shell) = script_shell {
+            yaml.push_str(&format!("scriptShell: '{}'\n", script_shell.display()));
+        }
+        fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
     }
 
     #[test]
-    fn runs_the_script_without_the_configured_shell() {
+    fn runs_the_script_in_the_emulator() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
 
@@ -860,7 +864,13 @@ mod shell_emulator {
     #[test]
     fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
+        let missing_shell = workspace.join("no-such-shell");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            Some(&missing_shell),
+            false,
+        );
 
         pacquet
             .with_args(["run", "build"])
@@ -881,6 +891,75 @@ mod shell_emulator {
             .output()
             .expect("spawn pacquet run");
         assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+
+        drop(root);
+    }
+
+    #[test]
+    fn a_missing_script_shell_fails_even_when_the_emulator_is_enabled() {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let missing_shell = workspace.join("no-such-shell");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "echo emulated > marker.txt" }),
+            Some(&missing_shell),
+            true,
+        );
+
+        let output = pacquet
+            .with_args(["run", "build"])
+            .output()
+            .expect("spawn pacquet run");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let unwrapped: String = stderr
+            .chars()
+            .filter(|&c| !c.is_whitespace() && c != '│')
+            .collect();
+        assert!(!output.status.success(), "got: {output:?}");
+        assert!(
+            unwrapped.contains("TheconfiguredscriptShellwasnotfound")
+                && unwrapped.contains(&missing_shell.display().to_string()),
+            "the error must name the configured scriptShell, got: {stderr}",
+        );
+        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
+
+        drop(root);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn configured_script_shell_runs_when_the_emulator_is_enabled() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let shim = workspace.join("probe-shell.sh");
+        fs::write(
+            &shim,
+            "#!/bin/sh\n\
+             printf '%s\\n' \"$2\" >> \"$(dirname \"$0\")/shell-invocations.txt\"\n\
+             exec /bin/sh -c \"$2\"\n",
+        )
+        .expect("write the probe shell");
+        fs::set_permissions(&shim, fs::Permissions::from_mode(0o755))
+            .expect("make the probe shell executable");
+        write_configured_project(
+            &workspace,
+            &json!({ "build": "export FOO=from-bash" }),
+            Some(&shim),
+            true,
+        );
+
+        pacquet
+            .with_args(["run", "build"])
+            .assert()
+            .success();
+
+        let logged = fs::read_to_string(workspace.join("shell-invocations.txt"))
+            .expect("read the probe shell's log");
+        assert!(
+            logged.contains("export FOO=from-bash"),
+            "the configured shell must run the script, got {logged}",
+        );
 
         drop(root);
     }

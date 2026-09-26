@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { lifecycle } from '@pnpm/exec.npm-lifecycle'
+import { commandParsedByCmd, lifecycle } from '@pnpm/exec.npm-lifecycle'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import chalk from 'chalk'
@@ -96,9 +96,12 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       }
       break
   }
+  const scriptShell = typeof opts.scriptShell === 'string' && opts.scriptShell !== ''
+    ? opts.scriptShell
+    : undefined
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
-    const escapedArgs = isWindows() && !opts.shellEmulator
+    const escapedArgs = commandParsedByCmd(scriptShell, isWindows() ? 'win32' : 'linux', opts.shellEmulator)
       ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
       : shellQuote(opts.args)
     m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
@@ -147,7 +150,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     raiseOnInterrupt: opts.raiseOnInterrupt,
     runConcurrently: true,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
-    scriptShell: opts.scriptShell,
+    scriptShell,
     shellEmulator: opts.shellEmulator,
     stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,

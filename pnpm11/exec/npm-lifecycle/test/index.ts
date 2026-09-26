@@ -134,6 +134,26 @@ test('rejects when the spawn observer fails', async () => {
   expect(childClosed).toBe(true)
 })
 
+skipOnWindows('runs a configured scriptShell when shellEmulator is also set', async () => {
+  const wd = temporaryDirectory()
+  const shim = path.join(wd, 'probe-shell.sh')
+  fs.writeFileSync(
+    shim,
+    '#!/bin/sh\nprintf \'%s\\n\' "$2" >> "$(dirname "$0")/shell-invocations.txt"\nexec /bin/sh -c "$2"\n',
+    { mode: 0o755 },
+  )
+
+  await lifecycle({ name: 'probe', version: '1.0.0', scripts: { postinstall: 'export FOO=1' } }, 'postinstall', wd, {
+    stdio: 'pipe',
+    log: makeLog(),
+    dir: wd,
+    scriptShell: shim,
+    shellEmulator: true,
+  })
+
+  expect(fs.readFileSync(path.join(wd, 'shell-invocations.txt'), 'utf8')).toContain('export FOO=1')
+})
+
 test('runs lifecycle scripts with the shell emulator', async () => {
   let spawned = false
 

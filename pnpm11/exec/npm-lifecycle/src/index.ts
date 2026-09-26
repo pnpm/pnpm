@@ -13,7 +13,7 @@ import uidNumber from 'uid-number'
 import { extendPath } from './extendPath.js'
 import { makePackageManagerEnv } from './makePackageManagerEnv.js'
 import { missingScriptShellError, SCRIPT_SHELL_NOT_FOUND } from './missingScriptShell.js'
-import { selectShell } from './selectShell.js'
+import { selectShell, useShellEmulator } from './selectShell.js'
 import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsInOwnProcessGroup } from './signals.js'
 import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
@@ -21,6 +21,7 @@ export { makePackageManagerEnv } from './makePackageManagerEnv.js'
 export type { ProcessGroupWatchdog, RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
 export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup, watchProcessGroup } from './signals.js'
 export type { LifecycleChildProcess } from './spawn.js'
+export { commandParsedByCmd } from './selectShell.js'
 
 export interface LifecycleLog {
   info (...args: unknown[]): void
@@ -352,7 +353,8 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
     conf.gid = owner.gid ^ 0
   }
 
-  const { sh, shFlag, windowsVerbatimArguments } = selectShell(opts.scriptShell || undefined, process.platform, process.env.comspec)
+  const scriptShell = opts.scriptShell || undefined
+  const { sh, shFlag, windowsVerbatimArguments } = selectShell(scriptShell, process.platform, process.env.comspec)
   if (windowsVerbatimArguments) {
     conf.windowsVerbatimArguments = true
   }
@@ -361,7 +363,7 @@ function runCmdAs (run: ScriptRun, owner: { uid: number, gid: number } | null, c
   opts.log.verbose('lifecycle', logId(pkg, stage), 'CWD:', wd)
   opts.log.silly('lifecycle', logId(pkg, stage), 'Args:', [shFlag, cmd])
 
-  if (opts.shellEmulator) {
+  if (useShellEmulator(opts.shellEmulator, scriptShell)) {
     runEmulated(run, cb)
     return
   }

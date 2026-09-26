@@ -1,6 +1,4 @@
-use super::{
-    RunScript, ScriptOutput, build_command, parsed_by_windows_shell, posix_quote, run_script,
-};
+use super::{RunScript, ScriptOutput, build_command, parsed_by_cmd, posix_quote, run_script};
 use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
@@ -45,11 +43,21 @@ fn build_command_appends_json_quoted_args_for_the_windows_shell() {
 }
 
 #[test]
-fn only_a_native_windows_run_is_parsed_by_the_windows_shell() {
-    assert!(parsed_by_windows_shell(true, false));
-    assert!(!parsed_by_windows_shell(true, true));
-    assert!(!parsed_by_windows_shell(false, false));
-    assert!(!parsed_by_windows_shell(false, true));
+fn only_cmd_parses_extra_arguments() {
+    assert!(parsed_by_cmd(false, true));
+    assert!(!parsed_by_cmd(true, true));
+    assert!(!parsed_by_cmd(false, false));
+    assert!(!parsed_by_cmd(true, false));
+}
+
+#[test]
+fn bash_quoting_keeps_a_windows_path_intact() {
+    let arg = r"C:\Program Files\tool\";
+    assert_eq!(build_command("node", &[arg.to_string()], false), r"node 'C:\Program Files\tool\'");
+    assert_eq!(
+        build_command("node", &[arg.to_string()], true),
+        r#"node "C:\\Program Files\\tool\\""#,
+    );
 }
 
 fn manifest() -> serde_json::Value {

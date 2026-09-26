@@ -55,6 +55,12 @@ pub struct SelectedShell {
     pub windows_verbatim_args: bool,
 }
 
+/// `shellEmulator` selects the built-in shell only when `scriptShell` is
+/// unset. A configured shell is the one that runs the script.
+pub fn use_shell_emulator(shell_emulator: bool, script_shell: Option<&Path>) -> bool {
+    shell_emulator && script_shell.is_none()
+}
+
 /// Pick the shell to spawn a lifecycle script under.
 ///
 /// `is_windows` lets tests drive both branches without `#[cfg(windows)]`

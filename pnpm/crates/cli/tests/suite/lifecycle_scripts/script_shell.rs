@@ -81,6 +81,52 @@ fn runs_the_projects_own_scripts_and_dev_preinstall_under_it() {
 }
 
 #[test]
+fn configured_shell_still_runs_when_the_emulator_is_enabled() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "name": "project-with-a-configured-shell",
+        "version": "1.0.0",
+        "scripts": {
+            "pnpm:devPreinstall": "echo dev-preinstall-marker",
+            "postinstall": "echo postinstall-marker",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    let log = install_probe_shell(&workspace);
+    append_workspace_yaml_key(&workspace, "shellEmulator", true);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let scripts = logged_scripts(&log);
+    assert!(
+        scripts
+            .iter()
+            .any(|script| script.contains("dev-preinstall-marker")),
+        "pnpm:devPreinstall should run under the configured shell, got {scripts:?}",
+    );
+    assert!(
+        scripts
+            .iter()
+            .any(|script| script.contains("postinstall-marker")),
+        "the project's postinstall should run under the configured shell, got {scripts:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn runs_dependency_build_scripts_under_it() {
     let CommandTempCwd {
         pacquet,
