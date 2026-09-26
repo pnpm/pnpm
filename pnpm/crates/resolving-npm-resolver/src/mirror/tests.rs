@@ -590,6 +590,7 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None, false).expect("save");
     let file = std::fs::OpenOptions::new()
+        .read(true)
         .write(true)
         .open(&mirror)
         .expect("open");
@@ -616,6 +617,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
     let file = std::fs::OpenOptions::new()
+        .read(true)
         .write(true)
         .open(&mirror)
         .expect("open");
@@ -647,6 +649,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
     let file = std::fs::OpenOptions::new()
+        .read(true)
         .write(true)
         .open(&mirror)
         .expect("open");

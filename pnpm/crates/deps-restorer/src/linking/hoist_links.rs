@@ -8,6 +8,9 @@ use crate::{
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
+use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_matcher::create_matcher;
+use std::collections::{HashMap, HashSet};
 
 /// What [`write_hoist_links`] put on disk.
 pub(super) struct HoistLinks {
@@ -41,6 +44,7 @@ pub(super) fn write_hoist_links(
     config: &Config,
     layout: &VirtualStoreLayout,
     link_options: &LinkBinsOptions,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> Result<HoistLinks, LinkPhaseError> {
     let HoistPlan { graph, result, skipped, .. } = plan;
     let private_hoist_dir = config.virtual_store_dir.join("node_modules");
@@ -55,6 +59,9 @@ pub(super) fn write_hoist_links(
         &skipped,
     )
     .map_err(LinkPhaseError::HoistSymlink)?;
+    if let Some(snaps) = snapshots {
+        write_gvs_hoist_links(&graph, config, layout, snaps, &skipped)?;
+    }
     link_direct_dep_bins_resolved(
         &private_hoist_dir,
         &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
@@ -65,4 +72,32 @@ pub(super) fn write_hoist_links(
         hoisted_dependencies: result.hoisted_dependencies,
         publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
     })
+}
+
+fn write_gvs_hoist_links(
+    graph: &HashMap<PackageKey, crate::HoistGraphNode>,
+    config: &Config,
+    layout: &VirtualStoreLayout,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    skipped: &HashSet<PackageKey>,
+) -> Result<(), LinkPhaseError> {
+    let private_pattern = create_matcher(
+        config.hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    let public_pattern = create_matcher(
+        config.public_hoist_pattern
+            .as_deref()
+            .unwrap_or(&[]),
+    );
+    crate::create_gvs_hoisted_children_symlinks(
+        graph,
+        &private_pattern,
+        &public_pattern,
+        layout,
+        snapshots,
+        skipped,
+    )
+    .map_err(LinkPhaseError::HoistSymlink)
 }
