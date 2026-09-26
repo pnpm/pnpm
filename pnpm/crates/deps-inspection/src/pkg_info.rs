@@ -3,6 +3,8 @@
 //! Rust counterpart of the TypeScript tree-builder's `getPkgInfo` and
 //! `resolvePackagePath`.
 
+pub use resolve_path::{collect_hoisted_dirs, is_unsafe_path_component, resolve_package_path};
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
@@ -42,18 +44,23 @@ pub struct InspectionLayout {
     pub lockfile_dir: PathBuf,
     /// Absolute, symlink-resolved `node_modules` of the lockfile root.
     pub modules_dir: PathBuf,
+    pub modules_dir_name: PathBuf,
     /// Absolute virtual store directory (`<modules_dir>/.pnpm` unless
     /// the modules manifest points elsewhere, e.g. a global store).
     pub virtual_store_dir: PathBuf,
     pub virtual_store_dir_max_length: usize,
     pub store_dir: Option<PathBuf>,
+    pub is_hoisted: bool,
+    pub hoisted_dirs: BTreeMap<String, Vec<PathBuf>>,
 }
+
+mod resolve_path;
 
 impl InspectionLayout {
     /// Whether the virtual store lives outside the project's
     /// `node_modules` (global virtual store), in which case package
     /// paths must be resolved through symlinks.
-    fn is_global_virtual_store(&self) -> bool {
+    pub(crate) fn is_global_virtual_store(&self) -> bool {
         !is_subdir(&self.modules_dir, &self.virtual_store_dir)
             && self.virtual_store_dir != self.modules_dir
     }
@@ -93,7 +100,7 @@ pub fn get_pkg_info(
         None => LockedPkg::unlocked(edge),
     };
     let full_package_path = if let Some(dep_path) = &edge.dep_path {
-        resolve_package_path(&env.layout, dep_path, &locked.name, &edge.alias, ctx)
+        resolve_package_path(&env.layout, dep_path, &locked.name, &locked.version, &edge.alias, ctx)
     } else {
         let link_target = edge.link_target.as_deref().unwrap_or("");
         lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
@@ -269,72 +276,6 @@ fn resolved_tarball_url(
         }
         _ => None,
     }
-}
-
-/// A lockfile-derived path component that could escape the directory
-/// it is joined under — the same guard `pnpm licenses` applies before
-/// dereferencing store paths built from lockfile keys. Rooted and
-/// prefixed components are rejected by shape, not `is_absolute()`:
-/// on Windows a rooted-but-prefixless `\escape` (or a prefix-only
-/// `C:evil`) is not "absolute" yet still replaces the join base.
-#[must_use]
-pub fn is_unsafe_path_component(component: &str) -> bool {
-    Path::new(component)
-        .components()
-        .any(|part| {
-            matches!(
-                part,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_),
-            )
-        })
-}
-
-/// Filesystem path of a package addressed by `dep_path`. For a local
-/// virtual store the path is constructed directly; for a global
-/// virtual store the symlink through the parent's `node_modules` is
-/// resolved instead. A name that could traverse outside the virtual
-/// store is never joined or dereferenced.
-pub fn resolve_package_path(
-    layout: &InspectionLayout,
-    dep_path: &PkgNameVerPeer,
-    name: &str,
-    alias: &str,
-    ctx: &EdgeContext<'_>,
-) -> PathBuf {
-    let store_name = dep_path.to_virtual_store_name(layout.virtual_store_dir_max_length);
-    if is_unsafe_path_component(&store_name) || is_unsafe_path_component(name) {
-        return layout.virtual_store_dir.clone();
-    }
-    let constructed = layout.virtual_store_dir
-        .join(store_name)
-        .join("node_modules")
-        .join(name);
-
-    if !layout.is_global_virtual_store() || is_unsafe_path_component(alias) {
-        return constructed;
-    }
-
-    let node_modules_dir = match &ctx.parent_dir {
-        Some(parent_dir) => {
-            let mut dir = parent_dir
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_default();
-            // Scoped parents live one level deeper (`node_modules/@scope/pkg`).
-            if dir
-                .file_name()
-                .is_some_and(|component| component.to_string_lossy().starts_with('@'))
-                && let Some(grandparent) = dir.parent()
-            {
-                dir = grandparent.to_path_buf();
-            }
-            dir
-        }
-        None => layout.modules_dir.clone(),
-    };
-    dunce::canonicalize(node_modules_dir.join(alias)).unwrap_or(constructed)
 }
 
 #[cfg(test)]

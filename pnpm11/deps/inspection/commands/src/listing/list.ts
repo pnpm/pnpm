@@ -96,6 +96,7 @@ export type ListCommandOptions = Pick<Config,
 | 'optional'
 | 'production'
 | 'modulesDir'
+| 'nodeLinker'
 | 'resolvePeersFromWorkspaceRoot'
 | 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
@@ -266,6 +267,7 @@ interface RenderOptions {
   virtualStoreDirMaxLength: number
   finders?: Record<string, Finder>
   findBy?: string[]
+  nodeLinker?: Config['nodeLinker']
 }
 
 function getListOptions (opts: RenderOptions) {
@@ -288,5 +290,7 @@ function getListOptions (opts: RenderOptions) {
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,
+    nodeLinker: opts.nodeLinker,
   }
 }
+

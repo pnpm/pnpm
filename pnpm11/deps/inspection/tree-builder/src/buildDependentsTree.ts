@@ -87,6 +87,7 @@ interface BuildDependentsTreeOptions {
   lockfile: LockfileObject
   nameFormatter?: NameFormatter
   resolvePeersFromWorkspaceRoot?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependentsTree (
@@ -117,6 +118,9 @@ export async function buildDependentsTree (
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
+    nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations,
+    lockfileDir: opts.lockfileDir,
   })
 
   const trees = collectMatchedTrees(search, {
@@ -282,6 +286,9 @@ function resolvePackageNodes (
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+    hoistedLocations?: Record<string, string[]>
+    lockfileDir?: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()

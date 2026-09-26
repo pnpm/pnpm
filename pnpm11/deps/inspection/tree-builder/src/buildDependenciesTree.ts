@@ -60,6 +60,7 @@ export interface BuildDependenciesTreeOptions {
   modulesDir?: string
   resolvePeersFromWorkspaceRoot?: boolean
   virtualStoreDirMaxLength: number
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependenciesTree (
@@ -224,6 +225,8 @@ function createTreeOptions ({ treeOpts, modules, modulesDir, registriesByScope, 
     modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? treeOpts.virtualStoreDirMaxLength,
+    nodeLinker: modules?.nodeLinker ?? treeOpts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations,
   }
 }
 
