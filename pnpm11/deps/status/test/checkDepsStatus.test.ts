@@ -2511,6 +2511,103 @@ describe('checkDepsStatus - deduped sibling without a modules directory', () => 
   })
 })
 
+describe('checkDepsStatus - filtered install', () => {
+  beforeEach(() => {
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
+
+  async function checkAfterFilteredInstall (selectedProject: 'root' | 'pkg-a') {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
+    try {
+      const lastValidatedTimestamp = Date.now() - 10_000
+      const beforeLastValidation = lastValidatedTimestamp - 10_000
+      const rootDir = workspaceDir as ProjectRootDir
+      const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
+      const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
+      const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: '1.0.0' } }
+      const siblingManifest = { name: 'pkg-a', version: '1.0.0', dependencies: { foo: '1.0.0' } }
+      const mockWorkspaceState: WorkspaceState = {
+        lastValidatedTimestamp,
+        pnpmfiles: [],
+        settings: {
+          excludeLinksFromLockfile: false,
+          linkWorkspacePackages: true,
+          preferWorkspacePackages: true,
+        },
+        projects: {
+          [rootDir]: { name: 'root', version: '1.0.0' },
+          [siblingDir]: { name: 'pkg-a', version: '1.0.0' },
+        },
+        filteredInstall: true,
+      }
+      const lockfilePath = path.join(workspaceDir, 'pnpm-lock.yaml')
+      await fs.writeFile(lockfilePath, "lockfileVersion: '9.0'\n")
+      await fs.utimes(lockfilePath, beforeLastValidation / 1000, beforeLastValidation / 1000)
+
+      const beforeValidation = {
+        mtime: new Date(beforeLastValidation),
+        mtimeMs: beforeLastValidation,
+        isDirectory: () => true,
+      } as unknown as Stats
+      jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+      jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
+        filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
+      // The filtered install materialized the root's modules directory and left
+      // the project it did not select without one.
+      const existingModulesDirs = new Set([path.join(rootDir, 'node_modules')])
+      jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
+        if (existingModulesDirs.has(filePath)) return beforeValidation
+        if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
+        return undefined
+      })
+      jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
+
+      const rootProject = { rootDir, rootDirRealPath, manifest: rootManifest, writeProjectManifest: async () => {} }
+      const siblingProject = {
+        rootDir: siblingDir,
+        rootDirRealPath: siblingDir as unknown as ProjectRootDirRealPath,
+        manifest: siblingManifest,
+        writeProjectManifest: async () => {},
+      }
+      const rootNode = { dependencies: [], package: rootProject }
+      const siblingNode = { dependencies: [], package: siblingProject }
+      const opts: CheckDepsStatusOptions = {
+        allProjects: [rootProject, siblingProject],
+        selectedProjectsGraph: selectedProject === 'root' ? { [rootDir]: rootNode } : { [siblingDir]: siblingNode },
+        workspaceDir,
+        rootProjectManifest: rootManifest,
+        rootProjectManifestDir: workspaceDir,
+        pnpmfile: [],
+        ...mockWorkspaceState.settings,
+      }
+      return await checkDepsStatus(opts)
+    } finally {
+      await fs.rm(workspaceDir, { force: true, recursive: true })
+    }
+  }
+
+  // A filtered install legitimately leaves the projects it did not select
+  // without a modules directory, so their absence must not report the tree as
+  // outdated.
+  it('is up to date when the filtered install materialized the selected project', async () => {
+    const result = await checkAfterFilteredInstall('root')
+
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
+
+  // The project the command selected still needs its dependencies, or a
+  // filtered `run`/`exec` would run against a missing modules directory
+  // (https://github.com/pnpm/pnpm/issues/11865).
+  it('is outdated when the selected project has no modules directory yet', async () => {
+    const result = await checkAfterFilteredInstall('pkg-a')
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+  })
+})
+
 describe('checkDepsStatus - moved project', () => {
   beforeEach(() => {
     jest.resetModules()

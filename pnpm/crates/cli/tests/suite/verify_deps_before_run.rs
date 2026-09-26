@@ -1037,6 +1037,116 @@ fn filtered_exec_installs_only_the_selected_projects() {
     drop(root);
 }
 
+/// Under dedicated per-project lockfiles the gate installs inside each selected
+/// project directory, where the command's selectors need not select the
+/// project. A recursive filtered run must not hand them to that install: a
+/// selector that matches nothing would install nothing, while an install in a
+/// project directory already covers the project.
+#[test]
+fn separate_lockfiles_recursive_exec_installs_the_selected_projects() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: install\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    for name in ["project", "other"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({}),
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--recursive",
+            "--filter",
+            "./packages/project",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("filtered")"#,
+        ])
+        .output()
+        .expect("spawn recursive pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the recursive filtered exec must succeed in a per-project-lockfile workspace:\n{stderr}",
+    );
+    assert_eq!(stdout, "filtered");
+    assert!(
+        !stderr.contains("Scope: 0 of"),
+        "the gate install must not select nothing in a project directory:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A filtered install leaves the projects it did not select without a modules
+/// directory, so the next filtered command has to install the project it
+/// selects instead of treating the recorded state as up to date
+/// ([pnpm/pnpm#11865](https://github.com/pnpm/pnpm/issues/11865)).
+#[test]
+fn exec_installs_the_selected_project_after_a_filtered_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for name in ["foo", "bar"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+        );
+    }
+
+    // the first filtered exec installs `foo` and leaves `bar` without a modules directory
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", r#"process.stdout.write("foo-ok")"#])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("packages/foo/node_modules").exists(),
+        "the first filtered exec must install the project it selected",
+    );
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the first filtered exec must not install the project it did not select",
+    );
+
+    // the second filtered exec must install `bar` instead of treating the
+    // recorded filtered install as up to date
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "bar", "exec", "node", "-e", r#"process.stdout.write("bar-ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the second filtered exec must succeed:\n{stderr}");
+    assert_eq!(stdout, "bar-ok");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
+        "the second filtered exec must install the dependencies of the project it selected:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

@@ -226,20 +226,49 @@ pub(super) fn first_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> Option<String> {
-    first_project_without_modules_dir(check)
-        .or_else(|| first_project_missing_recorded_hoisted_modules_dir(check, state))
+    first_missing_modules_dir(check, state, |_| true)
 }
-
-/// The hoisted linker gives a sibling its own modules directory only for
-/// the dependencies it nests there, so [`first_project_without_modules_dir`]
-/// cannot require one. The last install recorded which siblings have one
-/// ([`pnpm_workspace_state::ProjectEntry::has_modules_dir`]); this returns
-/// the first of them that no longer does. The workspace root is left out:
-/// the workspace state is stored in its `node_modules`, and
-/// [`first_project_without_modules_dir`] covers it.
-fn first_project_missing_recorded_hoisted_modules_dir(
+/// [`first_project_missing_modules_dir`] restricted to the projects the gate
+/// selected.
+///
+/// A filtered install legitimately leaves the projects it did not select
+/// without a modules directory, but the projects the gated command selected
+/// still have to have one: without that, a filtered `run` or `exec` could
+/// select a project the filtered install never materialized and run it
+/// without its dependencies.
+pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
+    selected_project_dirs: &[&Path],
+) -> Option<String> {
+    first_missing_modules_dir(check, state, |root_dir| {
+        let root_dir = lexical_normalize(root_dir);
+        selected_project_dirs
+            .iter()
+            .any(|selected| lexical_normalize(selected) == root_dir)
+    })
+}
+/// The first project that needs a modules directory and lacks one, over the
+/// projects `is_selected` accepts.
+fn first_missing_modules_dir<F: Fn(&Path) -> bool>(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    is_selected: F,
+) -> Option<String> {
+    first_project_without_modules_dir(check, &is_selected)
+        .or_else(|| first_project_missing_recorded_hoisted_modules_dir(check, state, &is_selected))
+}
+
+/// The hoisted linker gives a sibling its own modules directory only for the
+/// dependencies it nests there, so `first_project_without_modules_dir` cannot
+/// require one. The last install recorded which siblings have one
+/// (`ProjectEntry::has_modules_dir`); this returns the first of them that no
+/// longer does. The workspace root is left out: the workspace state lives in
+/// its modules directory, and `first_project_without_modules_dir` covers it.
+fn first_project_missing_recorded_hoisted_modules_dir<F: Fn(&Path) -> bool>(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    is_selected: &F,
 ) -> Option<String> {
     if check.layout.node_linker != NodeLinker::Hoisted {
         return None;
@@ -247,7 +276,8 @@ fn first_project_missing_recorded_hoisted_modules_dir(
     check.project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
-            let missing = lexical_normalize(root_dir) != lexical_normalize(check.workspace_root)
+            let missing = is_selected(root_dir)
+                && lexical_normalize(root_dir) != lexical_normalize(check.workspace_root)
                 && state.projects
                     .get(&*root_dir.to_string_lossy())
                     .is_some_and(|entry| entry.has_modules_dir)
@@ -256,8 +286,8 @@ fn first_project_missing_recorded_hoisted_modules_dir(
         })
 }
 
-/// Where the hoisted linker nests the dependencies of the workspace project
-/// at `root_dir` that it cannot hoist to the root. The walker always uses
+/// Where the hoisted linker nests the dependencies of the workspace project at
+/// `root_dir` that it cannot hoist to the root. The walker always uses
 /// `node_modules` here, whatever `modulesDir` says.
 pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
     root_dir.join("node_modules")
@@ -268,15 +298,18 @@ fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
         .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
 }
 
-/// The first project that declares dependencies but has no modules
-/// directory where its linker needs one. Under the hoisted linker only the
-/// root's is required.
+/// The first project that declares dependencies but has no modules directory
+/// where its linker needs one. Under the hoisted linker only the root's is
+/// required.
 ///
-/// Under `dedupeDirectDeps` a sibling whose every direct dependency
-/// resolves to the same target as the root's gets nothing linked, so the
-/// linker never creates its modules directory; such a sibling is installed
-/// all the same and does not count as missing one.
-fn first_project_without_modules_dir(check: &OptimisticRepeatInstallCheck<'_>) -> Option<String> {
+/// Under `dedupeDirectDeps` a sibling whose every direct dependency resolves to
+/// the same target as the root's gets nothing linked, so the linker never
+/// creates its modules directory; such a sibling is installed all the same and
+/// does not count as missing one.
+fn first_project_without_modules_dir<F: Fn(&Path) -> bool>(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    is_selected: &F,
+) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -290,6 +323,9 @@ fn first_project_without_modules_dir(check: &OptimisticRepeatInstallCheck<'_>) -
     project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
+            if !is_selected(root_dir) {
+                return None;
+            }
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
             let installed = !manifest_has_runtime_deps(manifest)
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
