@@ -199,22 +199,48 @@ impl PkgRoots<'_> {
         }
     }
 
-    /// Every on-disk directory holding a snapshot's package.
+    /// Every distinct on-disk directory holding a snapshot's package.
     ///
     /// The isolated linker gives each snapshot exactly one virtual-store
     /// slot, so this is [`Self::canonical`] in a one-element list. The
     /// hoisted linker can place the same snapshot at several paths — a
     /// version conflict keeps a package out of the root and the walker
-    /// nests a copy under each consumer that needs it.
+    /// nests a copy under each consumer that needs it. Two recorded
+    /// locations may also alias one directory: the hoisted linker
+    /// replaces a duplicate placement with a symlink to the location
+    /// imported first (see [`crate::symlink_package()`]), so both paths
+    /// resolve to the same files. Those collapse here — a write has to
+    /// reach each distinct directory once, not once per recorded path.
     pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
         match self.by_key {
-            Some(map) => map
-                .get(key)
-                .cloned()
-                .unwrap_or_default(),
+            Some(map) => match map.get(key) {
+                Some(dirs) => dedupe_aliased_dirs(dirs),
+                None => Vec::new(),
+            },
             None => vec![virtual_store_dir_for_key(self.layout, key)],
         }
     }
+}
+
+/// Collapse locations that resolve to one directory, keeping the recorded
+/// (non-canonicalized) paths so consumers keep writing where the walker
+/// placed them. Single-location snapshots — the common case — skip the
+/// canonicalization entirely.
+fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    if dirs.len() == 1 {
+        return dirs.to_vec();
+    }
+    let mut seen = std::collections::HashSet::with_capacity(dirs.len());
+    let mut distinct = Vec::with_capacity(dirs.len());
+    for dir in dirs {
+        // A path that fails to canonicalize is kept: the directory may
+        // genuinely be gone, and the caller's own `exists()` handling
+        // decides what that means.
+        if seen.insert(dir.canonicalize().unwrap_or_else(|_| dir.clone())) {
+            distinct.push(dir.clone());
+        }
+    }
+    distinct
 }
 
 /// Re-import a snapshot's package directory from the side-effects cache
