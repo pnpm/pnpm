@@ -42,18 +42,18 @@ export function getProxyAgent (uri: string, opts: ProxyAgentOptions): Agent | un
   const maxSockets = opts.maxSockets ?? DEFAULT_MAX_SOCKETS
   const timeout = toAgentTimeout(opts.timeout)
 
+  // The TLS settings apply to the connection to an https: proxy as well, so
+  // they are part of the key even when the destination is plain http:.
   const key = [
     `https:${isHttps.toString()}`,
     `proxy:${proxyUri.protocol}//${proxyUri.username}:${proxyUri.password}@${proxyUri.host}:${proxyUri.port}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${maxSockets}`,
     `timeout:${timeout}`,
-    `strict-ssl:${
-      isHttps ? strictSsl.toString() : '>no-strict-ssl<'
-    }`,
-    `ca:${(isHttps && opts.ca?.toString()) || '>no-ca<'}`,
-    `cert:${(isHttps && opts.cert?.toString()) || '>no-cert<'}`,
-    `key:${(isHttps && opts.key) || '>no-key<'}`,
+    `strict-ssl:${strictSsl.toString()}`,
+    `ca:${opts.ca?.toString() ?? '>no-ca<'}`,
+    `cert:${opts.cert?.toString() ?? '>no-cert<'}`,
+    `key:${opts.key ?? '>no-key<'}`,
   ].join(':')
 
   if (AGENT_CACHE.peek(key)) {

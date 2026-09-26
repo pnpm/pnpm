@@ -2,6 +2,8 @@ import { expect, test } from '@jest/globals'
 import { getProxyAgent } from '@pnpm/network.proxy-agent'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 
+type HttpProxyAgentInternals = HttpsProxyAgentInternals
+
 interface HttpsProxyAgentInternals {
   connectOpts: unknown
   proxy: URL
@@ -102,4 +104,12 @@ test('proxy agents with different connection settings are not shared', () => {
   expect(getConnectOpts({ maxSockets: 2 })).toHaveProperty('maxSockets', 2)
   expect(getConnectOpts({ timeout: 1 })).toHaveProperty('timeout', 2)
   expect(getConnectOpts({ timeout: 2 })).toHaveProperty('timeout', 3)
+})
+
+test('an http: destination behind an https: proxy does not reuse the agent created for strictSsl: false', () => {
+  const httpsProxy = 'https://http-destination.proxy:1234'
+  const insecure = getProxyAgent('http://foo.com/bar', { httpProxy: httpsProxy, strictSsl: false }) as unknown as HttpProxyAgentInternals
+  const secure = getProxyAgent('http://foo.com/bar', { httpProxy: httpsProxy }) as unknown as HttpProxyAgentInternals
+  expect(insecure.connectOpts).toHaveProperty('rejectUnauthorized', false)
+  expect(secure.connectOpts).toHaveProperty('rejectUnauthorized', true)
 })
