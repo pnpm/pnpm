@@ -96,7 +96,7 @@ HKEY_CURRENT_USER\\Environment
 })
 
 test('successful first time installation', async () => {
-  const currentPathInRegistry = '%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;%USERPROFILE%\\.config\\etc;'
+  const currentPathInRegistry = 'C:\\Users\\Jozef Steinhübl\\bin;%USERPROFILE%\\AppData\\Local\\Microsoft\\WindowsApps;'
 
   execaMock.mockResolvedValueOnce({
     failed: false,
@@ -142,11 +142,14 @@ HKEY_CURRENT_USER\\Environment
       newValue: `%PNPM_HOME%;${currentPathInRegistry}`,
     },
   ])
+  expect(execaMock).toHaveBeenNthCalledWith(1, 'chcp', [], { windowsHide: false })
+  expect(execaMock).toHaveBeenNthCalledWith(2, 'chcp', ['65001'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(3, 'reg', ['query', regKey], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(4, 'reg', ['add', regKey, '/v', 'PNPM_HOME', '/t', 'REG_SZ', '/d', pnpmHomeDirNormalized, '/f'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(5, 'reg', ['add', regKey, '/v', 'Path', '/t', 'REG_EXPAND_SZ', '/d', `%PNPM_HOME%;${currentPathInRegistry}`, '/f'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(6, 'setx', ['REFRESH_ENV_VARS', '1'], { windowsHide: false })
   expect(execaMock).toHaveBeenNthCalledWith(7, 'reg', ['delete', regKey, '/v', 'REFRESH_ENV_VARS', '/f'], { windowsHide: false })
+  expect(execaMock).toHaveBeenNthCalledWith(8, 'chcp', ['936'], { windowsHide: false })
 })
 
 test('successful first time installation with proxyVarSubDir', async () => {
