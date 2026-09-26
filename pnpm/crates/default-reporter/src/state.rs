@@ -343,10 +343,13 @@ impl ReporterState {
 
     /// Which events render at the configured `--loglevel`, mirroring the
     /// tiers in `@pnpm/cli.default-reporter`'s `reporterForClient`: the
-    /// request-retry and deprecation streams need `warn`, the visual
-    /// streams (progress, stats, summary, `Done in ...`) need
+    /// request-retry, deprecation, and ignored-builds streams need `warn`,
+    /// the visual streams (progress, stats, summary, `Done in ...`) need
     /// `info`, and the `pnpm` / `pnpm:global` misc streams filter per
     /// message level in [`Self::on_pnpm`], so errors always pass.
+    /// Lifecycle events always pass: below `info`, [`Self::on_lifecycle`]
+    /// buffers each script and prints only failed ones. A supply-chain
+    /// verdict needs `warn`, a failed verification only `error`.
     /// Dedupe-check issues always pass too — upstream reports them as an
     /// error-level log (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in
     /// `reportError.ts`).
@@ -355,8 +358,8 @@ impl ReporterState {
             LogEvent::Lockfile(_)
             | LogEvent::Pnpm(_)
             | LogEvent::Global(_)
-            | LogEvent::DedupeCheck(_) => true,
-            LogEvent::Lifecycle(_) => true,
+            | LogEvent::DedupeCheck(_)
+            | LogEvent::Lifecycle(_) => true,
             LogEvent::IgnoredScripts(_)
             | LogEvent::RequestRetry(_)
             | LogEvent::Deprecation(_)

@@ -5,4 +5,4 @@
 "pacquet": patch
 ---
 
-Kept failed install script output and supply-chain verdicts visible with quiet log levels.
+Installs with `--loglevel warn` or `--loglevel error` now print the full output of a failed install script. The output of successful scripts, including the root project's own install hooks, stays hidden. With `--loglevel warn`, pnpm also prints supply-chain verification verdicts and ignored build script warnings.
