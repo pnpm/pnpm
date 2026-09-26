@@ -21,11 +21,8 @@
     "prepare.js",
     "dist/",
     "pn.cmd",
-    "pn.ps1",
     "pnpx.cmd",
-    "pnpx.ps1",
-    "pnx.cmd",
-    "pnx.ps1"
+    "pnx.cmd"
   ],
   "scripts": {
     "preinstall": "node setup.js",
