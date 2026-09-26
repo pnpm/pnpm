@@ -383,7 +383,8 @@ pub struct ReleasableProject {
 
 /// The projects a change intent may demand a release from: named, carrying a
 /// valid semver version, and not frozen by `versioning.ignore`. Matches the
-/// participant set of the release-plan assembler.
+/// participant set of the release-plan assembler, except that private
+/// packages are omitted when `versioning.includePrivatePackages` is `false`.
 pub fn releasable_projects(
     projects: &[WorkspaceProject],
     workspace_dir: &Path,
@@ -401,6 +402,9 @@ pub fn releasable_projects(
                 return None;
             };
             if Version::parse(version).is_err() {
+                return None;
+            }
+            if project.private && matches!(versioning.include_private_packages, Some(false)) {
                 return None;
             }
             let dir = to_project_dir(workspace_dir, &project.root_dir);
