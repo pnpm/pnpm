@@ -129,8 +129,8 @@ pub struct AddInstallArgs {
     pub dedupe: crate::cli_args::install_options::AutoDedupeArgs,
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
-    /// its scripts instead. May be repeated.
-    #[clap(long = "allow-build")]
+    /// its scripts instead. Repeat or comma-separate for multiple.
+    #[clap(long = "allow-build", value_delimiter = ',')]
     pub allow_build: Vec<String>,
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]

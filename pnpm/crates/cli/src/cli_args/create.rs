@@ -15,8 +15,8 @@ pub struct CreateArgs {
     pub command: Vec<String>,
 
     /// Package names allowed to run lifecycle (build) scripts during
-    /// the install. May be repeated.
-    #[clap(long = "allow-build")]
+    /// the install. Repeat or comma-separate for multiple.
+    #[clap(long = "allow-build", value_delimiter = ',')]
     pub allow_build: Vec<String>,
 
     /// Run the command inside of a shell. Uses `/bin/sh` on UNIX and

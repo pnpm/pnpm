@@ -97,6 +97,28 @@ fn add_allow_build_collects_repeated_values() {
 }
 
 #[test]
+fn allow_build_splits_comma_separated_values() {
+    let args = add_args(&["pacquet", "add", "foo", "--allow-build=esbuild,sharp,!core-js"]);
+    assert_eq!(args.install.allow_build, ["esbuild", "sharp", "!core-js"]);
+
+    let args = install_args(&["pacquet", "install", "--allow-build", "esbuild,sharp"]);
+    assert_eq!(args.allow_build(), ["esbuild", "sharp"]);
+
+    match command(&["pacquet", "dlx", "--allow-build=esbuild,sharp", "cowsay", "a,b"]) {
+        CliCommand::Dlx(dlx) => {
+            assert_eq!(dlx.allow_build, ["esbuild", "sharp"]);
+            assert_eq!(dlx.command, ["cowsay", "a,b"], "the command's own arguments are not split");
+        }
+        other => panic!("expected dlx, got {other:?}"),
+    }
+
+    match command(&["pacquet", "create", "--allow-build=esbuild,sharp", "vite"]) {
+        CliCommand::Create(create) => assert_eq!(create.allow_build, ["esbuild", "sharp"]),
+        other => panic!("expected create, got {other:?}"),
+    }
+}
+
+#[test]
 fn store_is_an_alias_of_store_dir() {
     for argv in [
         ["pacquet", "--store", "custom-store", "install"].as_slice(),
