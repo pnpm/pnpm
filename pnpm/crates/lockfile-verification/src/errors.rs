@@ -13,8 +13,14 @@ This can mean the lockfile is stale, or that someone committed a \
 lockfile that bypassed the policy locally — inspect recent changes \
 to pnpm-lock.yaml before trusting it. If the changes look expected, \
 run \"pnpm clean --lockfile\" and then \"pnpm install\" to rebuild from \
-a fresh resolution. Alternatively, relax the policy that flagged \
-them.";
+a fresh resolution. If the fresh resolution still fails and you trust \
+the affected packages, relax the policy that flagged them.";
+
+const STRUCTURAL_HINT: &str = "The lockfile contains entries that pnpm cannot verify, \
+whatever the configured policies. This can mean the lockfile is stale, or that it was \
+tampered with — inspect recent changes to pnpm-lock.yaml before trusting it. If the \
+changes look expected, run \"pnpm clean --lockfile\" and then \"pnpm install\" to \
+rebuild from a fresh resolution.";
 
 const INVALID_ALIAS_HINT: &str = "A dependency alias becomes a directory under node_modules, \
 so it must be a valid npm package name — a single `name` or `@scope/name` with no leading \
@@ -72,7 +78,7 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_MISSING_TARBALL_INTEGRITY), help("{STRUCTURAL_HINT}"))]
     MissingTarballIntegrity {
         #[error(not(source))]
         count: usize,
@@ -80,7 +86,7 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{STRUCTURAL_HINT}"))]
     ResolutionShapeMismatch {
         #[error(not(source))]
         count: usize,
@@ -88,11 +94,15 @@ pub enum VerifyError {
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION), help("{HINT}"))]
+    #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION))]
     LockfileResolutionVerification {
         #[error(not(source))]
         count: usize,
         breakdown: String,
+        /// The structural hint unless every entry failed a relaxable policy,
+        /// since relaxing a policy cannot clear any other entry.
+        #[help]
+        hint: &'static str,
     },
 
     /// One or more dependency aliases in the lockfile are not valid npm
@@ -163,8 +173,14 @@ impl VerifyError {
         let count = violations.len();
         let breakdown = violation_breakdown(violations, mixed);
 
+        let hint = if distinct_codes.iter().all(|code| is_policy_violation(code)) {
+            HINT
+        } else {
+            STRUCTURAL_HINT
+        };
+
         if mixed {
-            VerifyError::LockfileResolutionVerification { count, breakdown }
+            VerifyError::LockfileResolutionVerification { count, breakdown, hint }
         } else {
             // Safe: distinct_codes has exactly one element.
             let code = *distinct_codes
@@ -187,10 +203,19 @@ impl VerifyError {
                 // Unknown verifier code (future-proofing): fall back
                 // to the generic envelope rather than fabricating a
                 // variant we don't have.
-                _ => VerifyError::LockfileResolutionVerification { count, breakdown },
+                _ => VerifyError::LockfileResolutionVerification { count, breakdown, hint },
             }
         }
     }
+}
+
+/// Whether a policy the user can relax produced this violation code.
+fn is_policy_violation(code: &str) -> bool {
+    matches!(
+        code,
+        pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION
+            | pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE,
+    )
 }
 
 /// Bound the printed list and omit the trailing newline from the error text.

@@ -71,6 +71,7 @@ test('throws with the verifier-supplied code and reason on a single failure', as
 
   await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
     code: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION',
+    hint: expect.stringMatching(/If the changes look expected[\s\S]*If the fresh resolution still fails and you trust the affected packages, relax the policy that flagged them\./),
     message: expect.stringMatching(/is-odd@0\.1\.2 was published yesterday/),
   })
 })
@@ -116,6 +117,53 @@ test('throws a generic code with per-entry codes in the breakdown when violation
     // Per-entry code is included in the breakdown so the user can see
     // which policy each line tripped.
     message: expect.stringMatching(/is-odd@0\.1\.2 \[MINIMUM_RELEASE_AGE_VIOLATION\][\s\S]*untrusted@1\.0\.0 \[TRUST_DOWNGRADE\]/),
+  })
+})
+
+test.each([
+  'MISSING_TARBALL_INTEGRITY',
+  'TARBALL_URL_MISMATCH',
+  'TARBALL_REVISION_MISMATCH',
+  'MISSING_NAMED_REGISTRY',
+])('does not suggest relaxing a policy for %s, alone or in a mixed batch', async (code) => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'broken@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const structuralOnly = wrap(async (_, { name }) =>
+    name === 'broken' ? { ok: false, code, reason: 'broken' } : { ok: true }
+  )
+  const mixed = wrap(async (_, { name }) =>
+    name === 'broken'
+      ? { ok: false, code, reason: 'broken' }
+      : { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+  )
+
+  await expect(verifyLockfileResolutions(lockfile, [structuralOnly])).rejects.toMatchObject({
+    code: `ERR_PNPM_${code}`,
+    hint: expect.not.stringMatching(/relax the policy/),
+  })
+  await expect(verifyLockfileResolutions(lockfile, [mixed])).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    hint: expect.not.stringMatching(/relax the policy/),
+  })
+})
+
+test('does not suggest relaxing a policy when a mixed batch includes a structural violation', async () => {
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'no-integrity@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'is-odd') {
+      return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+    }
+    return { ok: false, code: 'MISSING_TARBALL_INTEGRITY', reason: 'has no "integrity" field' }
+  })
+
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+    hint: expect.not.stringMatching(/relax the policy/),
   })
 })
 
@@ -427,6 +475,7 @@ test('rejects a registry-style depPath backed by a git resolution, even with no 
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+    hint: expect.not.stringMatching(/relax the policy/),
     message: expect.stringMatching(/foo@1\.0\.0/),
   })
 })

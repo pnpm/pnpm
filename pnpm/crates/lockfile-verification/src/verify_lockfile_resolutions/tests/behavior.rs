@@ -94,7 +94,7 @@ async fn mixed_code_batch_escalates() {
     )
     .await
     .expect_err("mixed batch must surface as Err");
-    let VerifyError::LockfileResolutionVerification { count, breakdown } = err else {
+    let VerifyError::LockfileResolutionVerification { count, breakdown, .. } = err else {
         panic!("expected LockfileResolutionVerification, got: {err:?}");
     };
     assert_eq!(count, 2);
