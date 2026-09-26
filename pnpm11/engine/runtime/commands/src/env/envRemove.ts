@@ -9,6 +9,8 @@ import { globalWarn } from '@pnpm/logger'
 
 import type { NvmNodeCommandOptions } from './node.js'
 
+const realpathJs = util.promisify(fs.realpath)
+
 function matchesNodeVersion (actualVersion: string, requestedVersion: string): boolean {
   return actualVersion === requestedVersion || actualVersion.startsWith(`${requestedVersion}.`)
 }
@@ -59,7 +61,10 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
       .map(async (entry) => {
         const linkPath = path.join(globalDir, entry.name)
         try {
-          const installDir = await fs.promises.realpath(linkPath)
+          // The JS realpath, like scanGlobalPackages, keeps Windows 8.3 short
+          // names, so the install dir still lies under the configured global dir.
+          // fs.promises.realpath is the native one, which expands them.
+          const installDir = await realpathJs(linkPath)
           let groupPkg: unknown
           try {
             groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
