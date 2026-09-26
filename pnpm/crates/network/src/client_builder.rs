@@ -117,23 +117,17 @@ fn client_builder(
     trust_roots: TrustRoots,
     forbid_redirects: bool,
 ) -> Result<reqwest::ClientBuilder, ForInstallsError> {
-    let mut builder =
-        default_client_builder(inputs.settings).dns_resolver(Arc::clone(&inputs.dns_resolver));
-    let mut saw_proxy = false;
+    // `no_proxy` also stops reqwest from reading the proxy environment
+    // variables itself. `ProxyConfig` has already resolved them, and a
+    // resolved "no proxy", such as `proxy=false`, must stay that way.
+    let mut builder = default_client_builder(inputs.settings)
+        .dns_resolver(Arc::clone(&inputs.dns_resolver))
+        .no_proxy();
     if let Some(url) = inputs.https.clone() {
         builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&inputs.no_proxy)));
-        saw_proxy = true;
     }
     if let Some(url) = inputs.http.clone() {
         builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&inputs.no_proxy)));
-        saw_proxy = true;
-    }
-    // `ClientBuilder` turns the operating-system proxy on unless a proxy
-    // was added or this is called. The resolved config is already the
-    // decision, including "no proxy" when an empty env var shadows the OS,
-    // so the builder must not discover a second one.
-    if !saw_proxy {
-        builder = builder.no_proxy();
     }
     // Lowest-priority additive roots; `apply_tls` layers the `.npmrc`
     // ca/cafile roots on top next.

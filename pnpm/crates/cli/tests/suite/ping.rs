@@ -249,3 +249,42 @@ fn fails_on_a_network_failure() {
     );
     drop(root);
 }
+
+#[test]
+fn proxy_false_ignores_proxy_environment_variables() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let mock = ping_mock(&mut server, "")
+        .with_status(200)
+        .with_body("{}")
+        .create();
+    let auth_file = empty_auth_file(root.path());
+    fs::write(workspace.join(".npmrc"), "proxy=false\n").expect("write .npmrc");
+    let dead_proxy = "http://0.0.0.0:1";
+
+    let output = pacquet_at(&workspace)
+        .with_env("HTTP_PROXY", dead_proxy)
+        .with_env("http_proxy", dead_proxy)
+        .with_env("HTTPS_PROXY", dead_proxy)
+        .with_env("https_proxy", dead_proxy)
+        .with_env("ALL_PROXY", dead_proxy)
+        .with_env("all_proxy", dead_proxy)
+        .without_env("NO_PROXY")
+        .without_env("no_proxy")
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("ping")
+        .with_arg("--registry")
+        .with_arg(&registry)
+        .output()
+        .expect("spawn pacquet ping");
+
+    mock.assert();
+    assert!(
+        output.status.success(),
+        "proxy=false must reach the registry directly (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    drop((root, server));
+}
