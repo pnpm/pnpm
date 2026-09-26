@@ -401,10 +401,7 @@ pub fn releasable_projects(
             let (Some(name), Some(version)) = (&project.name, &project.version) else {
                 return None;
             };
-            if Version::parse(version).is_err() {
-                return None;
-            }
-            if project.private && matches!(versioning.include_private_packages, Some(false)) {
+            if !project_has_releasable_version(project, version, versioning) {
                 return None;
             }
             let dir = to_project_dir(workspace_dir, &project.root_dir);
@@ -418,6 +415,16 @@ pub fn releasable_projects(
         .collect();
     releasable.sort_by(|left, right| left.reference.cmp(&right.reference));
     releasable
+}
+
+/// Private packages stay releasable unless `includePrivatePackages` is `false`.
+fn project_has_releasable_version(
+    project: &WorkspaceProject,
+    version: &str,
+    versioning: &VersioningSettings,
+) -> bool {
+    Version::parse(version).is_ok()
+        && (!project.private || !matches!(versioning.include_private_packages, Some(false)))
 }
 
 /// Extracts the manifest fields the release-plan assembler consumes from the
