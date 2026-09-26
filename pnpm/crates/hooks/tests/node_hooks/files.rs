@@ -70,6 +70,31 @@ fn calc_pnpmfile_paths_skips_non_plugins_and_missing_dirs() {
     );
 }
 
+#[test]
+fn find_pnpmfiles_loads_config_dependency_plugins_between_global_and_project() {
+    let tmp = TempDir::new().expect("temp dir");
+    let root = tmp.path();
+    let plugin_dir = root.join("node_modules/.pnpm-config/pnpm-plugin-a");
+    std::fs::create_dir_all(&plugin_dir).expect("create plugin dir");
+    std::fs::write(plugin_dir.join("pnpmfile.cjs"), "module.exports = {}").expect("write plugin");
+    std::fs::write(root.join(".pnpmfile.cjs"), "module.exports = {}").expect("write project");
+    let global = root.join("global.cjs");
+    std::fs::write(&global, "module.exports = {}").expect("write global");
+
+    let config_dependencies: std::collections::BTreeMap<String, &str> =
+        [("pnpm-plugin-a".to_string(), "1.0.0"), ("not-a-plugin".to_string(), "1.0.0")].into();
+    let paths = finder::find_pnpmfiles(
+        root,
+        finder::PnpmfileSelection {
+            global: Some(&global),
+            config_dependencies: Some(&config_dependencies),
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(paths, vec![global, plugin_dir.join("pnpmfile.cjs"), root.join(".pnpmfile.cjs")]);
+}
+
 #[tokio::test]
 async fn custom_fetcher_works_with_mjs_pnpmfile() {
     let tmp = TempDir::new().expect("temp dir");

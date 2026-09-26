@@ -7,11 +7,10 @@ use super::{
 use miette::WrapErr;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
-/// application order: config-dependency plugin pnpmfiles (lexical
-/// order) first, then the workspace-root `.pnpmfile.{cjs,mjs}`. Shared
-/// by the `updateConfig` install hook and the `beforePacking`
-/// pack/publish hook so both apply the same pnpmfile set, matching
-/// pnpm's single loaded hooks object.
+/// application order (see [`finder::find_pnpmfiles`]). Shared by the
+/// `updateConfig` install hook and the `beforePacking` pack/publish hook
+/// so both apply the same pnpmfile set as the install's other hooks,
+/// matching pnpm's single loaded hooks object.
 pub fn resolve_pnpmfile_paths(
     config: &Config,
     root_dir: &Path,
@@ -19,23 +18,9 @@ pub fn resolve_pnpmfile_paths(
     if config.ignore_pnpmfile {
         return Ok(Vec::new());
     }
-    finder::validate_configured_pnpmfiles(pnpm_package_manager::pnpmfile_selection(config))?;
-    let config_modules_dir = root_dir.join("node_modules").join(".pnpm-config");
-    let mut pnpmfiles: Vec<PathBuf> = match config.config_dependencies.as_ref() {
-        Some(deps) => finder::calc_pnpmfile_paths_of_plugin_deps(
-            &config_modules_dir,
-            deps.keys().map(String::as_str),
-        ),
-        None => Vec::new(),
-    };
-    for pnpmfile in
-        finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
-    {
-        if !pnpmfiles.contains(&pnpmfile) {
-            pnpmfiles.push(pnpmfile);
-        }
-    }
-    Ok(pnpmfiles)
+    let selection = pnpm_package_manager::pnpmfile_selection(config);
+    finder::validate_configured_pnpmfiles(selection)?;
+    Ok(finder::find_pnpmfiles(root_dir, selection))
 }
 
 /// Whether preparing configuration can run an `updateConfig` hook.

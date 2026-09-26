@@ -568,11 +568,9 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by
-/// the freshness check: today just the workspace pnpmfile.
-/// Config-dependency plugin pnpmfiles are tracked via the
-/// `config_dependencies` comparison instead. An install that ignores
-/// the pnpmfile records none, so the next install that honors it again
-/// sees the list change and re-validates.
+/// the freshness check: every pnpmfile the install loads. An install
+/// that ignores the pnpmfile records none, so the next install that
+/// honors it again sees the list change and re-validates.
 pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<String> {
     if config.ignore_pnpmfile {
         return Vec::new();

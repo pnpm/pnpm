@@ -21,7 +21,11 @@ fn load_with_global(
     let global = write_pnpmfile(global_dir.path(), ".pnpmfile.cjs", global_source);
     finder::load_pnpmfiles(
         project_dir.path(),
-        finder::PnpmfileSelection { configured: Some(&[project]), global: Some(&global) },
+        finder::PnpmfileSelection {
+            configured: Some(&[project]),
+            global: Some(&global),
+            ..Default::default()
+        },
     )
     .expect("pnpmfiles load")
     .expect("at least one pnpmfile configured")

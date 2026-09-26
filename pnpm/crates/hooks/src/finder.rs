@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -37,23 +38,50 @@ pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
 /// own and stays out of `pnpmfileChecksum`, so nothing that trusts the checksum
 /// may treat it as accounted for — the same split pnpm's `requireHooks` makes
 /// with `includeInChecksum: false`.
+///
+/// The plugins among `config_dependencies` load between the two, and count
+/// toward the checksum like the project's own pnpmfile.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PnpmfileSelection<'a> {
     pub configured: Option<&'a [PathBuf]>,
     pub global: Option<&'a Path>,
+    pub config_dependencies: Option<&'a dyn ConfigDependencyNames>,
 }
 
+/// The names a project declares under `configDependencies`, whatever each
+/// entry records beside its name.
+pub trait ConfigDependencyNames: std::fmt::Debug + Sync {
+    fn config_dependency_names(&self) -> Box<dyn Iterator<Item = &str> + '_>;
+}
+
+impl<Value: std::fmt::Debug + Sync> ConfigDependencyNames for BTreeMap<String, Value> {
+    fn config_dependency_names(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(self.keys().map(String::as_str))
+    }
+}
+
+/// The pnpmfiles `selection` names under `root`, in the order their hooks
+/// run: the global pnpmfile, the pnpmfiles of config-dependency plugins
+/// installed under `root`, then the project's own.
 #[must_use]
 pub fn find_pnpmfiles(root: &Path, selection: PnpmfileSelection<'_>) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = selection.global
         .map(Path::to_path_buf)
         .into_iter()
         .collect();
+    let plugins = selection.config_dependencies
+        .map(|dependencies| {
+            calc_pnpmfile_paths_of_plugin_deps(
+                &root.join("node_modules").join(".pnpm-config"),
+                dependencies.config_dependency_names(),
+            )
+        })
+        .unwrap_or_default();
     let project = match selection.configured {
         Some(configured) => configured.to_vec(),
         None => find_pnpmfile(root).into_iter().collect(),
     };
-    for path in project {
+    for path in plugins.into_iter().chain(project) {
         if !paths.contains(&path) {
             paths.push(path);
         }

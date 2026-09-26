@@ -455,6 +455,63 @@ fn ignore_pnpmfile_skips_a_config_dependency_plugin_pnpmfile() {
     drop((root, mock_instance));
 }
 
+/// A config-dependency plugin's pnpmfile takes part in the install like the
+/// project's own: its `readPackage` hook shapes the resolved graph, and the
+/// lockfile's `pnpmfileChecksum` answers for it, so a frozen install accepts
+/// the lockfile the plugin shaped.
+#[test]
+fn config_dependency_plugin_read_package_hook_shapes_the_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/pnpm-plugin-read-package': 1.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load wanted lockfile")
+        .expect("wanted lockfile");
+    let foo_key: pnpm_lockfile::PackageKey =
+        "@pnpm.e2e/foo@100.0.0".parse().expect("parse the foo snapshot key");
+    let bar_name = pnpm_lockfile::PkgName::parse("@pnpm.e2e/bar").expect("parse bar's name");
+    let foo_snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&foo_key))
+        .expect("foo snapshot");
+    dbg!(foo_snapshot);
+    assert!(
+        foo_snapshot.dependencies
+            .as_ref()
+            .is_some_and(|dependencies| dependencies.contains_key(&bar_name)),
+        "the plugin's readPackage hook adds bar to foo",
+    );
+    assert!(lockfile.pnpmfile_checksum.is_some(), "the plugin's pnpmfile is checksummed");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("node_modules/.pnpm/@pnpm.e2e+bar@100.0.0").exists(),
+        "the frozen install materializes the dependency the plugin added",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Two branches that each added a config dependency conflict inside the
 /// env document — the *first* YAML document of `pnpm-lock.yaml` — where
 /// the main lockfile's own conflict recovery never looks.
