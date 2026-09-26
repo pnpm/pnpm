@@ -8,8 +8,9 @@ use pnpm_network::MetadataCacheScope;
 
 use super::{
     ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    encode_pkg_name, get_pkg_mirror_path, get_registry_name, load_meta, load_meta_headers,
-    load_meta_with_hold_cap, save_meta_indexed, scoped_meta_dir,
+    encode_pkg_name, get_legacy_pkg_mirror_path, get_legacy_registry_name, get_pkg_mirror_path,
+    get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap, save_meta_indexed,
+    scoped_meta_dir,
 };
 
 #[test]
@@ -154,6 +155,62 @@ fn get_registry_name_cannot_collide_with_an_earlier_pnpm_version() {
     }
     assert_eq!(get_registry_name("https://nexus_npm/").expect("encode"), "https%3A+nexus_npm");
     assert_eq!(get_registry_name("https://nexus/npm/").expect("encode"), "https%3A+nexus%2Fnpm");
+}
+
+/// [`get_legacy_registry_name`] reproduces `encode-registry`: the URL's host, with `:`
+/// replaced by `+` for a non-default port, and no scheme, path, or hash suffix.
+#[test]
+fn get_legacy_registry_name_matches_the_pre_rename_encoding() {
+    assert_eq!(
+        get_legacy_registry_name("https://registry.npmjs.org/").expect("legacy encode"),
+        "registry.npmjs.org",
+    );
+    assert_eq!(
+        get_legacy_registry_name("https://npm.example:8443/").expect("legacy encode"),
+        "npm.example+8443",
+    );
+    assert_eq!(
+        get_legacy_registry_name("https://npm.example:443/").expect("legacy encode"),
+        "npm.example",
+    );
+    assert_eq!(
+        get_legacy_registry_name("http://localhost:4873/").expect("legacy encode"),
+        "localhost+4873",
+    );
+}
+
+#[test]
+fn get_legacy_registry_name_none_for_a_hostless_url() {
+    assert_eq!(get_legacy_registry_name("not a url"), None);
+}
+
+#[test]
+fn get_legacy_pkg_mirror_path_sits_next_to_the_current_mirror() {
+    let cache_dir = TempDir::new().expect("tempdir");
+    let current = get_pkg_mirror_path(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.npmjs.org/",
+        "acme",
+    )
+    .expect("current path");
+    let legacy = get_legacy_pkg_mirror_path(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.npmjs.org/",
+        "acme",
+    )
+    .expect("legacy path");
+    assert_eq!(legacy.file_name(), current.file_name(), "same package, same file name");
+    assert_ne!(legacy, current, "legacy and current mirrors never collide");
+    assert_eq!(
+        legacy,
+        cache_dir
+            .path()
+            .join(ABBREVIATED_META_DIR)
+            .join("registry.npmjs.org")
+            .join("acme.jsonl"),
+    );
 }
 
 /// `http` metadata can be rewritten in transit and must never be handed to

@@ -1296,6 +1296,30 @@ test('offline resolution fails when package meta not found in the store', async 
     )
 })
 
+test('offline resolution failure names the legacy mirror when metadata is cached under the old layout', async () => {
+  const cacheDir = temporaryDirectory()
+  const legacyMirrorDir = path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org')
+  fs.mkdirSync(legacyMirrorDir, { recursive: true })
+  const legacyMirror = path.join(legacyMirrorDir, 'is-positive.jsonl')
+  fs.writeFileSync(legacyMirror, '{}\n{}')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    offline: true,
+    storeDir: temporaryDirectory(),
+    cacheDir,
+    registriesByScope,
+  })
+
+  let thrown!: PnpmError
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
+  } catch (err) {
+    thrown = err as PnpmError
+  }
+  expect(thrown.code).toBe('ERR_PNPM_NO_OFFLINE_META')
+  expect(thrown.hint).toContain(legacyMirror)
+})
+
 test('offline resolution succeeds when package meta is found in the store', async () => {
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

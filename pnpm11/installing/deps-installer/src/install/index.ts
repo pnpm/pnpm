@@ -94,7 +94,7 @@ import {
   unresolvedOptionalDependencies,
 } from '@pnpm/lockfile.verification'
 import { logger, streamParser } from '@pnpm/logger'
-import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
+import { groupPatchedDependenciesWithPaths, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
@@ -4219,25 +4219,6 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     // pending writes on disk and diverge from lifecycle expectations.
     await opts.storeController.close()
   }
-}
-
-function groupPatchedDependenciesWithPaths (
-  patchedDependencies: Record<string, string> | undefined,
-  resolvedPatchedDependencies: Record<string, string> | undefined
-): PatchGroupRecord | undefined {
-  if (!patchedDependencies) return undefined
-  if (!resolvedPatchedDependencies) return groupPatchedDependencies(patchedDependencies)
-  return groupPatchedDependencies(Object.fromEntries(
-    Object.entries(patchedDependencies).map(([key, hash]) => {
-      let patchFilePath: string | undefined = resolvedPatchedDependencies[key]
-      if (!patchFilePath) {
-        const lastAt = key.lastIndexOf('@')
-        const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-        patchFilePath = resolvedPatchedDependencies[pkgName]
-      }
-      return [key, { hash, patchFilePath }]
-    })
-  ))
 }
 
 function getUntrackedPnpmfileReadPackageHook (

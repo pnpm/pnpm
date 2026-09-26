@@ -79,10 +79,14 @@ pub fn upload_with_diff(
     ))
 }
 
-/// Set-difference over file digests + modes.
+/// Set-difference over file digests, and over modes where the host records them.
 ///
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
 /// `current`  — the rehashed map produced by [`add_files_from_dir()`].
+///
+/// Off Unix [`add_files_from_dir()`] reports a fixed mode, so a mode
+/// difference from `base` is not a change the build made. Those
+/// differences are ignored. A digest change is still recorded.
 ///
 /// Both fields of the returned [`SideEffectsDiff`] use `Option<…>` with
 /// `skip_serializing_if = is_none` (see `SideEffectsDiff`), so an empty
@@ -110,7 +114,9 @@ pub fn calculate_diff(
             (None, Some(now)) => {
                 added.insert(file.to_string(), clone_info(now));
             }
-            (Some(before), Some(now)) if before.digest != now.digest || before.mode != now.mode => {
+            (Some(before), Some(now))
+                if before.digest != now.digest || (cfg!(unix) && before.mode != now.mode) =>
+            {
                 added.insert(file.to_string(), clone_info(now));
             }
             _ => {}

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
@@ -110,11 +111,21 @@ export async function syncInjectedDepsOfModulesDir (opts: SyncInjectedDepsOfModu
     if (!opts.sourceDirs.has(sourceDir) || targetDirs.length === 0) return
     // A publish directory the build did not produce leaves the copies alone
     // rather than emptying them.
-    if (!fs.existsSync(sourceDir)) return
+    if (!await dirExists(sourceDir)) return
     const resolvedTargetDirs = targetDirs.map((targetDir) => path.resolve(opts.lockfileDir, targetDir))
     const patchers = await DirPatcher.fromMultipleTargets(sourceDir, resolvedTargetDirs)
     await Promise.all(patchers.map(patcher => patcher.apply()))
   }))
+}
+
+async function dirExists (dir: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(dir)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 /** The commands a package declares, or none when it declares no bins. */

@@ -1700,9 +1700,15 @@ importers:
       '@pnpm/installing.context':
         specifier: workspace:*
         version: link:../../installing/context
+      '@pnpm/installing.deps-restorer':
+        specifier: workspace:*
+        version: link:../../installing/deps-restorer
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../../installing/modules-yaml
+      '@pnpm/lockfile.settings-checker':
+        specifier: workspace:*
+        version: link:../../lockfile/settings-checker
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -1718,6 +1724,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 2.0.0
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -9411,6 +9420,9 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: 'link:'

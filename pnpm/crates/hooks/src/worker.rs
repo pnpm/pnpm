@@ -75,8 +75,13 @@ pub struct FetcherCapabilities {
 
 struct Pending {
     log: LogFn,
-    done: oneshot::Sender<Result<Value, String>>,
+    done: oneshot::Sender<Result<Value, WorkerError>>,
     callbacks: Option<FetcherCallbackSender>,
+}
+
+enum WorkerError {
+    Execution(String),
+    BadReadPackageResult(String),
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -372,7 +377,10 @@ impl NodeWorker {
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(message))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(WorkerError::Execution(message)))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(WorkerError::BadReadPackageResult(message)))) => {
+                Err(HookError::BadReadPackageResult { message })
+            }
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
@@ -392,7 +400,9 @@ fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mute
             dispatch_line(&pending, &stdin, &line);
         }
         for (_, request) in pending.lock().unwrap().drain() {
-            let _ = request.done.send(Err("pnpmfile worker exited".to_string()));
+            let _ = request.done.send(Err(WorkerError::Execution(
+                "pnpmfile worker exited".to_string(),
+            )));
         }
     });
 }
@@ -420,7 +430,13 @@ fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &st
 
     let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
     let result = match message.get("err").and_then(Value::as_str) {
-        Some(err) => Err(err.to_string()),
+        Some(err)
+            if message.get("code").and_then(Value::as_str)
+                == Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") =>
+        {
+            Err(WorkerError::BadReadPackageResult(err.to_string()))
+        }
+        Some(err) => Err(WorkerError::Execution(err.to_string())),
         None => Ok(message
             .get("ok")
             .cloned()

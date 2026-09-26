@@ -269,3 +269,33 @@ test('a corrupted side-effects cache is ignored', async () => {
 
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
 })
+
+// https://github.com/pnpm/pnpm/issues/15667
+test('a build with nothing to restore runs again when the package ships an executable file', async () => {
+  prepareEmpty()
+  const log = path.resolve('outside-log')
+  fs.writeFileSync(log, '')
+  process.env.PNPM_E2E_OUTSIDE_LOG = log
+  try {
+    const opts = testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      allowBuilds: { '@pnpm.e2e/postinstall-writes-outside-package': true },
+    })
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/postinstall-writes-outside-package@1.1.0'], opts)
+    expect(fs.readFileSync(log, 'utf8')).toBe('x')
+
+    rimrafSync('node_modules')
+    await install(manifest, testDefaults({
+      fastUnpack: false,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+      storeDir: opts.storeDir,
+      allowBuilds: { '@pnpm.e2e/postinstall-writes-outside-package': true },
+    }))
+    expect(fs.readFileSync(log, 'utf8')).toBe('xx')
+  } finally {
+    delete process.env.PNPM_E2E_OUTSIDE_LOG
+  }
+})

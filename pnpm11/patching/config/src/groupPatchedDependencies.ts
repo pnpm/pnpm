@@ -49,3 +49,22 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, st
 
   return result
 }
+
+export function groupPatchedDependenciesWithPaths (
+  patchedDependencies: Record<string, string> | undefined,
+  resolvedPatchedDependencies: Record<string, string> | undefined
+): PatchGroupRecord | undefined {
+  if (!patchedDependencies) return undefined
+  if (!resolvedPatchedDependencies) return groupPatchedDependencies(patchedDependencies)
+  return groupPatchedDependencies(Object.fromEntries(
+    Object.entries(patchedDependencies).map(([key, hash]) => {
+      let patchFilePath: string | undefined = resolvedPatchedDependencies[key]
+      if (!patchFilePath) {
+        const lastAt = key.lastIndexOf('@')
+        const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
+        patchFilePath = resolvedPatchedDependencies[pkgName]
+      }
+      return [key, { hash, patchFilePath }]
+    })
+  ))
+}

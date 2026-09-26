@@ -1,11 +1,11 @@
 use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
-    PickPackageContext, PickPackageFromMetaError, PickPackageFromMetaOptions, PickPackageOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
-    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
-    warn_missing_time_once,
+    PickPackageContext, PickPackageFromMetaOptions, PickPackageOptions, RegistryPackageSpec,
+    RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc, VersionSelectors,
+    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
+    pick_stable_cached_range_version, pick_version_by_version_range, warn_missing_time_once,
 };
+use crate::PickPackageFromMetaError;
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact

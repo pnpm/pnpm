@@ -7,7 +7,7 @@ import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
-import { withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
+import { isTransientFileLockError, withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
 import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -695,14 +695,23 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
 
 /**
  * A junction is created as an empty directory that gets its reparse point
- * afterwards, so a concurrent hoist can find an empty plain directory in its
- * place for a moment. A junction completed after `stat` was read lists its
+ * afterwards, so a concurrent hoist can find a plain directory in its place
+ * for a moment. Until then its creator holds it open without sharing, so
+ * listing it fails with a transient file-lock error, which counts as a
+ * junction in creation. A junction completed after `stat` was read lists its
  * target's entries, so a non-empty directory is checked again. Always false
- * off Windows. Rejects if `dest` can no longer be listed or inspected.
+ * off Windows. Rejects with any other listing or inspection error.
  */
 async function mayBeJunctionInCreation (dest: string, stat: fs.Stats): Promise<boolean> {
   if (process.platform !== 'win32' || !stat.isDirectory()) return false
-  if ((await fs.promises.readdir(dest)).length === 0) return true
+  let entries: string[]
+  try {
+    entries = await fs.promises.readdir(dest)
+  } catch (err: unknown) {
+    if (isTransientFileLockError(err)) return true
+    throw err
+  }
+  if (entries.length === 0) return true
   return (await fs.promises.lstat(dest)).isSymbolicLink()
 }
 
