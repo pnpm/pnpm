@@ -76,7 +76,11 @@ fn directory_resolutions_are_sent_as_normalized_absolute_paths() {
     );
     let request = rel_fixture.build_json();
     let node = &request["nodes"]["foo@file:../packages/foo"];
-    assert_eq!(node["directory"], "/workspace/root/packages/foo");
+    let expected = pnpm_fs::lexical_normalize(Path::new("/workspace/root/packages/foo"));
+    assert_eq!(
+        node["directory"].as_str().expect("directory string"),
+        expected.to_str().expect("expected string"),
+    );
 }
 
 #[test]
