@@ -10,6 +10,23 @@ pub struct FundingSource<'a> {
     pub url: &'a str,
 }
 
+impl FundingSource<'_> {
+    /// The URL without any credentials embedded in it, as it is printed and
+    /// handed to the browser.
+    pub fn public_url(&self) -> String {
+        let Ok(mut url) = Url::parse(self.url) else {
+            return self.url.to_string();
+        };
+        if url.username().is_empty() && url.password().is_none() {
+            return self.url.to_string();
+        }
+        // Both fail only for URLs that cannot carry credentials.
+        let _ = url.set_username("");
+        let _ = url.set_password(None);
+        url.into()
+    }
+}
+
 /// `funding` with its string shorthands expanded to `{ "url": ... }`, the
 /// shape `npm fund --json` reports.
 pub fn normalize_funding(funding: &Value) -> Value {

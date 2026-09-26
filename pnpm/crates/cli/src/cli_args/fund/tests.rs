@@ -283,6 +283,23 @@ fn open_package_funding_reads_a_directory() {
 }
 
 #[test]
+fn funding_urls_are_printed_and_opened_without_credentials() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let manifest = json!({ "name": "secret", "version": "1.0.0", "funding": "https://user:token@example.com/fund" });
+    let projects = [project(
+        root.path(),
+        json!({ "name": "root", "version": "1.0.0" }),
+        vec![installed(root.path(), &manifest, Vec::new())],
+    )];
+
+    let expected = ["root@1.0.0", "└── https://example.com/fund", "    └── secret@1.0.0", ""];
+    assert_eq!(render_human(&FundingReport::build(&projects[0])), expected.join("\n"));
+    open_package_funding::<RecordingBrowser>("secret", None, root.path(), &projects)
+        .expect("open secret");
+    assert_eq!(opened_urls(), ["https://example.com/fund"]);
+}
+
+#[test]
 fn open_package_funding_fails_without_a_valid_source() {
     let root = tempfile::tempdir().expect("create temp dir");
     let unfunded =
