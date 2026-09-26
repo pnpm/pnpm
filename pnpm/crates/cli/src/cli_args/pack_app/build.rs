@@ -300,7 +300,10 @@ pub(super) fn run_command(command: &mut Command, label: &str) -> miette::Result<
     Ok(())
 }
 
-fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette::Result<()> {
+pub(super) fn write_runtime_install_manifest(
+    install_dir: &Path,
+    target_id: &str,
+) -> miette::Result<()> {
     fs::create_dir_all(install_dir)
         .into_diagnostic()
         .wrap_err_with(|| {
@@ -311,7 +314,7 @@ fn write_runtime_install_manifest(install_dir: &Path, target_id: &str) -> miette
         format!(
             "{}\n",
             serde_json::to_string_pretty(&serde_json::json!({
-                "name": format!("pacquet-pack-app-{target_id}"),
+                "name": format!("pnpm-pack-app-{target_id}"),
                 "private": true,
             }))
             .expect("serialize the runtime install manifest"),
