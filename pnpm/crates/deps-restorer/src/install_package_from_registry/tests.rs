@@ -111,6 +111,7 @@ fn create_config(
         merge_git_branch_lockfiles: false,
         merge_git_branch_lockfiles_branch_pattern: Vec::new(),
         git_branch_lockfile_name: None,
+        git_branch_lockfile_candidates: Vec::new(),
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,

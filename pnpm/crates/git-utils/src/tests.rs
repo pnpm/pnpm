@@ -211,7 +211,7 @@ impl RunCommand for GitFailsForEachRef {
 #[test]
 fn lists_the_local_branches_containing_head_sorted() {
     assert_eq!(
-        get_branches_containing_head::<GitSaysFeatureAndMain>(&std::path::Path::new(".")),
+        get_branches_containing_head::<GitSaysFeatureAndMain>(std::path::Path::new(".")),
         ["feature", "main"],
     );
 }
@@ -219,11 +219,11 @@ fn lists_the_local_branches_containing_head_sorted() {
 #[test]
 fn a_failed_branch_listing_is_empty() {
     assert!(
-        get_branches_containing_head::<GitFailsForEachRef>(&std::path::Path::new(".")).is_empty()
+        get_branches_containing_head::<GitFailsForEachRef>(std::path::Path::new(".")).is_empty()
     );
 }
 
 #[test]
 fn a_branch_listing_with_no_matches_is_empty() {
-    assert!(get_branches_containing_head::<GitSaysNothing>(&std::path::Path::new(".")).is_empty());
+    assert!(get_branches_containing_head::<GitSaysNothing>(std::path::Path::new(".")).is_empty());
 }
