@@ -538,11 +538,8 @@ function hoistGraph<T extends string> (
     // build the alias map and the id map
     .forEach((depNode) => {
       for (const [childAlias, childNodeId] of Object.entries<T>(depNode.children)) {
-        const privateRootDependency = opts.privateRootAliases.has(childAlias)
-        if (privateRootDependency && currentSpecifiers.get(childAlias) !== childNodeId) continue
         const node = opts.graph[childNodeId as T]
-        if (privateRootDependency && node?.depPath != null && opts.skipped.has(node.depPath)) continue
-        const hoist = privateRootDependency ? 'private' : opts.getAliasHoistType(childAlias)
+        const hoist = getChildHoistType(childAlias, childNodeId, node)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
         // if this alias has already been taken, skip it
@@ -571,6 +568,14 @@ function hoistGraph<T extends string> (
     hoistedDependencies,
     hoistedDependenciesByNodeId,
     hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
+  }
+
+  function getChildHoistType (childAlias: string, childNodeId: T, node: DependenciesGraphNode<T> | undefined): 'public' | 'private' | false {
+    if (!opts.privateRootAliases.has(childAlias)) return opts.getAliasHoistType(childAlias)
+    // Only the root's own version of a root dependency may take its alias, and a skipped one keeps it reserved.
+    if (currentSpecifiers.get(childAlias) !== childNodeId) return false
+    if (node?.depPath != null && opts.skipped.has(node.depPath)) return false
+    return 'private'
   }
 }
 
