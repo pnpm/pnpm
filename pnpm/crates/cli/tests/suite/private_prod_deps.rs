@@ -50,7 +50,7 @@ fn disallow_private_prod_deps_fails_the_install() {
     let output = install(&workspace).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains(ERROR_CODE), "{stderr}");
-    assert!(stderr.contains("app depends on private workspace package secret"), "{stderr}",);
+    assert!(stderr.contains("app depends on private workspace package secret"), "{stderr}");
 }
 
 #[test]
@@ -118,5 +118,5 @@ fn the_install_fails_after_the_setting_is_turned_on() {
     let output = install(&workspace).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains(ERROR_CODE), "{stderr}");
-    assert!(stderr.contains("app depends on private workspace package secret"), "{stderr}",);
+    assert!(stderr.contains("app depends on private workspace package secret"), "{stderr}");
 }
