@@ -285,14 +285,21 @@ fn open_package_funding_reads_a_directory() {
 #[test]
 fn funding_urls_are_printed_and_opened_without_credentials() {
     let root = tempfile::tempdir().expect("create temp dir");
-    let manifest = json!({ "name": "secret", "version": "1.0.0", "funding": "https://user:token@example.com/fund" });
-    let projects = [project(
-        root.path(),
-        json!({ "name": "root", "version": "1.0.0" }),
-        vec![installed(root.path(), &manifest, Vec::new())],
-    )];
+    let manifest =
+        |name: &str, url: &str| json!({ "name": name, "version": "1.0.0", "funding": url });
+    let dependencies = vec![
+        installed(root.path(), &manifest("plain", "https://example.com/fund"), Vec::new()),
+        installed(
+            root.path(),
+            &manifest("secret", "https://user:token@example.com/fund"),
+            Vec::new(),
+        ),
+    ];
+    let projects =
+        [project(root.path(), json!({ "name": "root", "version": "1.0.0" }), dependencies)];
 
-    let expected = ["root@1.0.0", "└── https://example.com/fund", "    └── secret@1.0.0", ""];
+    let expected =
+        ["root@1.0.0", "└── https://example.com/fund", "    └── plain@1.0.0, secret@1.0.0", ""];
     assert_eq!(render_human(&FundingReport::build(&projects[0])), expected.join("\n"));
     open_package_funding::<RecordingBrowser>("secret", None, root.path(), &projects)
         .expect("open secret");
