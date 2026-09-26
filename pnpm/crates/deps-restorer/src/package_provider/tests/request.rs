@@ -26,25 +26,22 @@ fn empty_graph_skips_the_provider() {
 
 #[test]
 fn request_contains_closed_graph_over_installed_keys() {
+    let deps = &[("bar", "2.0.0"), ("baz", "3.0.0"), ("linked", "link:../linked")];
+    let opt_baz = SnapshotEntry { optional: true, ..SnapshotEntry::default() };
     let mut fixture = Fixture::new()
-        .with(
-            "foo@1.0.0",
-            snapshot_with_deps(&[("bar", "2.0.0"), ("baz", "3.0.0"), ("linked", "link:../linked")]),
-            tarball_metadata(),
-        )
+        .with("foo@1.0.0", snapshot_with_deps(deps), tarball_metadata())
         .with("bar@2.0.0", SnapshotEntry::default(), tarball_metadata())
-        .with(
-            "baz@3.0.0",
-            SnapshotEntry { optional: true, ..SnapshotEntry::default() },
-            tarball_metadata(),
-        );
+        .with("baz@3.0.0", opt_baz, tarball_metadata());
     fixture.skipped.insert_installability(key("baz@3.0.0"));
 
     let request = fixture.build_json();
     assert_eq!(request["protocol"], 1);
     let expected_gc_root =
-        pnpm_fs::lexical_normalize(Path::new("/workspace/node_modules/.pnpm-nix"));
-    assert_eq!(request["gcRootDir"], expected_gc_root.to_str().expect("expected string"));
+        pnpm_fs::lexical_normalize(&fixture.lockfile_dir.join("node_modules/.pnpm-nix"));
+    assert_eq!(
+        request["gcRootDir"].as_str().expect("gcRootDir string"),
+        expected_gc_root.to_str().expect("expected string"),
+    );
 
     let nodes = request["nodes"].as_object().expect("nodes object");
     assert!(nodes.contains_key("foo@1.0.0"));

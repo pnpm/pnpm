@@ -40,11 +40,8 @@ pub(crate) fn build_provider_request(
         return Ok(None);
     }
 
-    let gc_root_dir = inputs.lockfile_dir
-        .join("node_modules")
-        .join(".pnpm-nix")
-        .to_string_lossy()
-        .into_owned();
+    let gc_root = inputs.lockfile_dir.join("node_modules/.pnpm-nix");
+    let gc_root_dir = pnpm_fs::lexical_normalize(&gc_root).to_string_lossy().into_owned();
     Ok(Some(ProviderRequestBundle {
         request: ProviderRequest { protocol: PROTOCOL_VERSION, gc_root_dir, nodes },
         key_by_dep_path,
