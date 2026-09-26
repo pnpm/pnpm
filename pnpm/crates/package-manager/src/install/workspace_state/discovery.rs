@@ -6,7 +6,7 @@ use super::{
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
 };
-use std::{borrow::Cow, ffi::OsStr};
+use std::borrow::Cow;
 
 /// Discovery twin of [`install_already_up_to_date`](crate::install::workspace_state::install_already_up_to_date) for the
 /// verify-deps-before-run gate: assemble the same
@@ -290,8 +290,7 @@ fn virtual_store_dir_for(config: &Config, lockfile_root: &Path) -> std::path::Pa
     } else if config.virtual_store_dir.starts_with(lockfile_root) {
         config.virtual_store_dir.clone()
     } else {
-        let modules = config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-        lockfile_root.join(modules).join(".pnpm")
+        lockfile_root.join(&config.modules_dir).join(".pnpm")
     }
 }
 
