@@ -74,3 +74,9 @@ describe('envReplaceLossy', () => {
     expect(envReplaceLossy('\\\\${foo}', ENV)).toEqual({ value: '\\foo_value', unresolved: [] })
   })
 })
+
+test('does not read properties inherited from Object.prototype', () => {
+  expect(() => envReplace('${toString}', {})).toThrow('Failed to replace env in config: ${toString}')
+  expect(envReplace('${constructor-fallback}', {})).toBe('fallback')
+  expect(envReplaceLossy('${toString}', {})).toEqual({ value: '', unresolved: ['${toString}'] })
+})
