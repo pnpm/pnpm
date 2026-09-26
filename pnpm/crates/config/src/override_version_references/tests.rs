@@ -1,4 +1,4 @@
-use super::resolve_version_references;
+use super::{merge_root_resolutions_and_resolve_references, resolve_version_references};
 use crate::workspace_yaml::LoadWorkspaceYamlError;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
@@ -174,4 +174,103 @@ fn a_reference_prefers_json_over_a_coexisting_json5_manifest() {
 
     dbg!(&overrides);
     assert_eq!(overrides, overrides_map(&[("is-odd", "3.0.1")]));
+}
+
+#[test]
+fn root_resolutions_merge_with_workspace_overrides() {
+    let root = root_with_manifest(&serde_json::json!({
+        "resolutions": {
+            "is-positive": "1.0.0",
+            "is-odd": "3.0.0",
+        },
+    }));
+    let mut overrides = Some(overrides_map(&[("is-number", "7.0.0"), ("is-odd", "3.0.1")]));
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("merge resolutions and overrides");
+
+    assert_eq!(
+        overrides.expect("overrides present"),
+        overrides_map(&[("is-positive", "1.0.0"), ("is-odd", "3.0.1"), ("is-number", "7.0.0"),]),
+    );
+}
+
+#[test]
+fn root_resolutions_populate_empty_workspace_overrides() {
+    let root = root_with_manifest(&serde_json::json!({
+        "resolutions": { "is-odd": "3.0.1" },
+    }));
+    let mut overrides = None;
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("merge resolutions");
+
+    assert_eq!(overrides.expect("overrides populated"), overrides_map(&[("is-odd", "3.0.1")]));
+}
+
+#[test]
+fn workspace_overrides_preserved_when_no_root_resolutions() {
+    let root = root_with_manifest(&serde_json::json!({
+        "dependencies": { "is-odd": "3.0.1" },
+    }));
+    let mut overrides = Some(overrides_map(&[("is-odd", "3.0.1")]));
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("merge overrides");
+
+    assert_eq!(overrides.expect("overrides preserved"), overrides_map(&[("is-odd", "3.0.1")]));
+}
+
+#[test]
+fn resolutions_with_version_references_resolve_against_direct_dependencies() {
+    let root = root_with_manifest(&serde_json::json!({
+        "dependencies": { "is-odd": "3.0.1" },
+        "resolutions": { "is-even>is-odd": "$is-odd" },
+    }));
+    let mut overrides = None;
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("resolve version references in resolutions");
+
+    assert_eq!(
+        overrides.expect("overrides resolved"),
+        overrides_map(&[("is-even>is-odd", "3.0.1")]),
+    );
+}
+
+#[test]
+fn root_resolutions_merge_fails_on_malformed_root_manifest() {
+    let root = TempDir::new().expect("create a temp dir for the root");
+    std::fs::write(root.path().join("package.json"), "{ not json }")
+        .expect("write malformed root manifest");
+    let mut overrides = None;
+
+    let error = merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect_err("fail on malformed manifest");
+
+    assert!(matches!(error, LoadWorkspaceYamlError::ReadRootManifest { .. }));
+}
+
+#[test]
+fn root_resolutions_merge_ignores_non_object_root_manifest() {
+    let root = TempDir::new().expect("create a temp dir for the root");
+    std::fs::write(root.path().join("package.json"), "null")
+        .expect("write non-object root manifest");
+    let mut overrides = Some(overrides_map(&[("is-odd", "3.0.1")]));
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("ignore non-object manifest");
+
+    assert_eq!(overrides.expect("overrides preserved"), overrides_map(&[("is-odd", "3.0.1")]));
+}
+
+#[test]
+fn root_resolutions_merge_ignores_missing_root_manifest() {
+    let root = TempDir::new().expect("create a temp dir for the root");
+    let mut overrides = Some(overrides_map(&[("is-odd", "3.0.1")]));
+
+    merge_root_resolutions_and_resolve_references(&mut overrides, root.path())
+        .expect("ignore missing manifest");
+
+    assert_eq!(overrides.expect("overrides preserved"), overrides_map(&[("is-odd", "3.0.1")]));
 }

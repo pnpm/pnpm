@@ -6908,3 +6908,35 @@ test('getConfig() does not fall back to a valid older variable when the canonica
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
 })
+
+test('root resolutions are merged with workspace overrides', async () => {
+  prepare({
+    resolutions: {
+      'is-positive': '1.0.0',
+      'is-odd': '3.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    overrides: {
+      'is-number': '7.0.0',
+      'is-odd': '3.0.1',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.overrides).toStrictEqual({
+    'is-positive': '1.0.0',
+    'is-odd': '3.0.1',
+    'is-number': '7.0.0',
+  })
+})
+

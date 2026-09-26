@@ -100,6 +100,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'overrides'
 | 'pnprServer'
 | 'remoteSideEffectsCache'
 | 'production'
