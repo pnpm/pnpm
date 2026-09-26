@@ -109,11 +109,19 @@ fn not_modified_renews_freshness_from_its_own_headers() {
 }
 
 #[test]
-fn vary_star_is_never_reused() {
+fn only_accept_encoding_variants_are_reused() {
     let vary =
         |value: &str| CacheHeaders { vary: Some(value.to_owned()), ..CacheHeaders::default() };
-    assert!(super::varies_on_everything(&vary("*")));
-    assert!(super::varies_on_everything(&vary("Accept-Encoding, *")));
-    assert!(!super::varies_on_everything(&vary("Accept-Encoding")));
-    assert!(!super::varies_on_everything(&CacheHeaders::default()));
+    assert!(super::varies_between_requests(&vary("*")));
+    assert!(super::varies_between_requests(&vary("Accept-Encoding, *")));
+    assert!(super::varies_between_requests(&vary("User-Agent")));
+    assert!(!super::varies_between_requests(&vary("accept-encoding")));
+    assert!(!super::varies_between_requests(&CacheHeaders::default()));
+}
+
+#[test]
+fn repeated_max_age_takes_the_shortest_lifetime() {
+    assert_eq!(CacheControl::parse("max-age=0, max-age=3600").max_age, Some(0));
+    assert_eq!(CacheControl::parse("max-age=3600, max-age=60").max_age, Some(60));
+    assert_eq!(CacheControl::parse("max-age=3600, max-age=bad").max_age, None);
 }

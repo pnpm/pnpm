@@ -111,8 +111,10 @@ impl TarballResolutionRecord {
 impl CacheControl {
     /// Directive names are case-insensitive. A `max-age` that is not a
     /// non-negative integer is ignored, so the response is revalidated.
+    /// Repeated `max-age` directives yield the shortest lifetime.
     pub(crate) fn parse(header: &str) -> Self {
         let mut parsed = Self { no_store: false, no_cache: false, immutable: false, max_age: None };
+        let mut max_age: Option<Option<u64>> = None;
         for directive in header.split(',') {
             let (name, value) = directive
                 .split_once('=')
@@ -125,10 +127,19 @@ impl CacheControl {
                 "no-store" => parsed.no_store = true,
                 "no-cache" => parsed.no_cache = true,
                 "immutable" => parsed.immutable = true,
-                "max-age" => parsed.max_age = value.and_then(parse_delta_seconds),
+                "max-age" => {
+                    let seconds = value.and_then(parse_delta_seconds);
+                    max_age = Some(match max_age {
+                        None => seconds,
+                        Some(previous) => previous
+                            .zip(seconds)
+                            .map(|(a, b)| a.min(b)),
+                    });
+                }
                 _ => {}
             }
         }
+        parsed.max_age = max_age.flatten();
         parsed
     }
 }
@@ -159,13 +170,16 @@ fn initial_age_ms(headers: &CacheHeaders, now_ms: u64) -> u64 {
     age_ms.max(apparent_ms)
 }
 
-/// `Vary: *` means no later request can be served from this response.
-pub(crate) fn varies_on_everything(headers: &CacheHeaders) -> bool {
+/// Whether `Vary` names a request header that can differ between installs,
+/// or `*`. pnpm sends the same `Accept-Encoding` on every request, so a
+/// response that varies only on it is reusable.
+pub(crate) fn varies_between_requests(headers: &CacheHeaders) -> bool {
     headers.vary
         .as_deref()
         .is_some_and(|vary| {
             vary.split(',')
-                .any(|field| field.trim() == "*")
+                .map(str::trim)
+                .any(|field| !field.is_empty() && !field.eq_ignore_ascii_case("accept-encoding"))
         })
 }
 
