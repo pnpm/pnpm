@@ -85,6 +85,7 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
             (vec![], vec!["c", "b", "a"]),
             (vec!["--prod", "--only-projects"], vec!["c", "b", "a"]),
             (vec!["--no-sort"], vec!["a", "b", "c"]),
+            (vec!["--no-sort", "--reverse"], vec!["a", "b", "c"]),
             (vec!["--reverse"], vec!["a", "b", "c"]),
         ] {
             let mut args =
