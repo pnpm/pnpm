@@ -55,6 +55,17 @@ pub struct SelectedShell {
     pub windows_verbatim_args: bool,
 }
 
+/// `shellEmulator` selects the built-in shell only when `scriptShell` is
+/// unset. A blank value is unset, the same as the TypeScript runner.
+/// A configured shell is the one that runs the script.
+pub fn use_shell_emulator(shell_emulator: bool, script_shell: Option<&Path>) -> bool {
+    shell_emulator && configured_script_shell(script_shell).is_none()
+}
+
+fn configured_script_shell(script_shell: Option<&Path>) -> Option<&Path> {
+    script_shell.filter(|path| !path.as_os_str().is_empty())
+}
+
 /// Pick the shell to spawn a lifecycle script under.
 ///
 /// `is_windows` lets tests drive both branches without `#[cfg(windows)]`
@@ -63,6 +74,7 @@ pub fn select_shell(
     script_shell: Option<&Path>,
     is_windows: bool,
 ) -> Result<SelectedShell, ScriptShellError> {
+    let script_shell = configured_script_shell(script_shell);
     if is_windows
         && let Some(p) = script_shell
         && is_windows_batch_file(p)

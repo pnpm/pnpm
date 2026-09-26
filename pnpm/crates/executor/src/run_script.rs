@@ -4,7 +4,9 @@ use crate::{
     make_env::{EnvOptions, build_env, path_value},
     process_tracker::{ProcessTracker, spawn_child},
     script_exit::ScriptExit,
-    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
+    shell::{
+        ScriptShellError, SelectedShell, missing_script_shell, select_shell, use_shell_emulator,
+    },
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -87,24 +89,24 @@ pub struct RunScript<'a> {
 /// Run a single user script in the foreground, sending its output where
 /// [`RunScript::output`] says.
 pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
+    // A configured `scriptShell` is spawned even when `shellEmulator` is
+    // set. The shell is still selected first so a `.bat` / `.cmd` shell
+    // is rejected before anything runs.
+    let emulate = use_shell_emulator(opts.execution.shell_emulator, opts.execution.shell);
+    let shell =
+        select_shell(opts.execution.shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
     let command = build_command(
         opts.invocation.script,
         opts.invocation.args,
-        parsed_by_windows_shell(cfg!(windows), opts.execution.shell_emulator),
+        parsed_by_cmd(emulate, shell.windows_verbatim_args),
     );
-
-    // The `scriptShell` value is validated even when the emulator will
-    // run the script, matching pnpm's `runLifecycleHook`, which rejects a
-    // `.bat` / `.cmd` shell before it looks at `shellEmulator`.
-    let shell =
-        select_shell(opts.execution.shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
 
     let child_env = child_env(opts, &command);
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
         let streamed = StreamedScript { dep_path, stage: opts.invocation.stage, wd: &wd, emit };
-        return run_streamed(opts, &shell, &command, &child_env, streamed);
+        return run_streamed(opts, &shell, &command, &child_env, streamed, emulate);
     }
 
     if !opts.silent {
@@ -114,7 +116,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
         let _ = writeln!(stderr, "$ {command}");
     }
 
-    if opts.execution.shell_emulator {
+    if emulate {
         return execute_emulated(
             &command,
             opts.pkg_root,
@@ -177,9 +179,10 @@ fn run_streamed(
     command: &str,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
+    emulate: bool,
 ) -> Result<ScriptExit, RunScriptError> {
     streamed.started(command);
-    let status = if opts.execution.shell_emulator {
+    let status = if emulate {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(
             command,
@@ -254,10 +257,12 @@ fn spawn_error(opts: &RunScript<'_>, command: &str, source: io::Error) -> RunScr
     }
 }
 
-/// Whether `cmd` will parse the script. The shell emulator is a POSIX
-/// shell on every platform, so only a native Windows run reaches `cmd`.
-fn parsed_by_windows_shell(windows: bool, shell_emulator: bool) -> bool {
-    windows && !shell_emulator
+/// Whether `cmd` will parse the script. JSON quoting is only for that
+/// case. The shell emulator and a non-cmd `scriptShell` both get POSIX
+/// quoting, so a Windows path such as `C:\Program Files\tool\` stays one
+/// argument.
+fn parsed_by_cmd(emulate: bool, windows_verbatim_args: bool) -> bool {
+    !emulate && windows_verbatim_args
 }
 
 /// Append shell-quoted `args` to `script`: per-argument JSON quoting when

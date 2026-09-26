@@ -1,4 +1,6 @@
-use super::{ScriptShellError, SelectedShell, missing_script_shell, select_shell};
+use super::{
+    ScriptShellError, SelectedShell, missing_script_shell, select_shell, use_shell_emulator,
+};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, io, path::Path};
 
@@ -32,6 +34,26 @@ fn windows_default_uses_cmd_with_d_s_c_and_verbatim_args() {
         program == "cmd" || program.ends_with("cmd.exe"),
         "expected cmd or *cmd.exe, got {program:?}",
     );
+}
+
+#[test]
+fn shell_emulator_applies_only_when_script_shell_is_unset() {
+    assert!(use_shell_emulator(true, None));
+    assert!(!use_shell_emulator(false, None));
+    let bash = Path::new(r"C:\Program Files\Git\bin\bash.exe");
+    assert!(!use_shell_emulator(true, Some(bash)));
+    assert!(!use_shell_emulator(false, Some(bash)));
+}
+
+#[test]
+fn blank_script_shell_falls_back_like_an_unset_one() {
+    for is_windows in [false, true] {
+        let blank = select_shell(Some(Path::new("")), is_windows).expect("blank shell");
+        let unset = select_shell(None, is_windows).expect("unset shell");
+        assert_eq!(blank, unset, "is_windows={is_windows}");
+    }
+    assert!(use_shell_emulator(true, Some(Path::new(""))));
+    assert!(!use_shell_emulator(false, Some(Path::new(""))));
 }
 
 #[test]

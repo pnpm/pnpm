@@ -36,9 +36,7 @@ mod project_scripts_in_a_workspace;
 mod script_shell;
 
 /// `shellEmulator` extends to every lifecycle script an install runs,
-/// not only to `pnpm run`. Each test points `scriptShell` at a path that
-/// could never be spawned, so an install that still succeeds proves the
-/// built-in shell took over.
+/// not only to `pnpm run`, when `scriptShell` is unset.
 mod shell_emulator;
 
 /// A `scriptShell` that does not exist fails the spawn with an error that

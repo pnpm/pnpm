@@ -8,7 +8,9 @@ use crate::{
     script_working_dir::{
         emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
     },
-    shell::{ScriptShellError, SelectedShell, missing_script_shell, select_shell},
+    shell::{
+        ScriptShellError, SelectedShell, missing_script_shell, select_shell, use_shell_emulator,
+    },
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
@@ -344,12 +346,9 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     let built = lifecycle_env(stage, script, opts, manifest, parent_env);
     let path_env = prepare_lifecycle_path(opts, stage, &built)?;
 
-    // Pick the shell up front so a misconfigured `scriptShell` fails
-    // before we touch the filesystem (TMPDIR etc. already created
-    // above — that's a minor leak, but the env is built before the
-    // shell pick anyway). The pick also runs when the emulator will
-    // take over below, because pnpm rejects a `.bat` / `.cmd`
-    // `scriptShell` regardless of `shellEmulator`.
+    // Pick the shell before spawning. A `.bat` / `.cmd` `scriptShell`
+    // is rejected here even when `shellEmulator` is set, because a
+    // configured shell is spawned rather than emulated.
     let shell = select_shell(opts.execution.shell, cfg!(windows))
         .map_err(|source| LifecycleScriptError::ScriptShell {
             dep_path: opts.dep_path.to_string(),
@@ -366,7 +365,7 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
-    let status = if opts.execution.shell_emulator {
+    let status = if use_shell_emulator(opts.execution.shell_emulator, opts.execution.shell) {
         run_in_emulator::<Reporter>(script, opts, stage, &child_env, &pkg_root_str)?
     } else {
         run_in_shell::<Reporter>(&shell, script, opts, stage, &child_env, &pkg_root_str)?
