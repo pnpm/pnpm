@@ -3,7 +3,7 @@ pub(crate) use clean::clean_expired_dlx_cache;
 use crate::{
     State,
     cli_args::{
-        add::{AllowBuildError, add_package},
+        add::{AllowBuildError, add_package, split_allow_build_selectors},
         catalogs::configured_catalogs,
         exec::set_package_manager_env,
         supported_architectures::SupportedArchitecturesArgs,
@@ -66,7 +66,7 @@ pub struct DlxArgs {
 
     /// Package names allowed to run lifecycle (build) scripts during
     /// the dlx install. Repeat or comma-separate for multiple.
-    #[clap(long = "allow-build", value_delimiter = ',')]
+    #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
 
     /// Run the command inside of a shell. Uses `/bin/sh` on UNIX and
@@ -175,7 +175,8 @@ impl DlxArgs {
         let Some((bin_command, args)) = self.command.split_first() else {
             return Err(DlxError::MissingCommand.into());
         };
-        if self.allow_build.iter().any(String::is_empty) {
+        let allow_build = split_allow_build_selectors(&self.allow_build);
+        if allow_build.iter().any(String::is_empty) {
             return Err(AllowBuildError::MissingPackage.into());
         }
 
@@ -203,7 +204,7 @@ impl DlxArgs {
         let cached_dir = cache::get_or_prepare_cache::<Reporter>(
             config,
             &pkgs,
-            &self.allow_build,
+            &allow_build,
             &supported_architectures,
         )
         .await?;

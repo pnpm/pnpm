@@ -134,6 +134,6 @@ pub struct InstallMaterializationArgs {
     /// Package names allowed to run lifecycle (build) scripts during this
     /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
     /// its scripts instead. Repeat or comma-separate for multiple.
-    #[clap(long = "allow-build", value_delimiter = ',')]
+    #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
 }
