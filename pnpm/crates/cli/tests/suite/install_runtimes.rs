@@ -566,11 +566,13 @@ fn assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(global_vi
     let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
     assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
     // The hoisted bins are linked after the first build, so build again.
+    fs::remove_file(&lifecycle_marker).unwrap();
     command(&workspace)
         .with_env("PATH", &empty_path)
         .with_args(["rebuild", "dependency"])
         .assert()
         .success();
+    assert!(lifecycle_marker.exists(), "the rebuild did not run the install script");
     let fake_node_marker = workspace.join("node_modules/dependency/fake-node-ran");
     assert!(!fake_node_marker.exists(), "the hoisted `node` bin shadowed the runtime");
 
