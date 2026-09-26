@@ -153,6 +153,26 @@ test('patch-remove keeps missing patch files as no-ops', async () => {
   }))
 })
 
+testOnNonWindows('patch-remove rejects symlinked .pnpm_patches outside modules directory', async () => {
+  const projectDir = path.join(tempRoot, 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const outsideDir = path.join(tempRoot, 'outside')
+  const goodPatch = path.join(projectDir, 'patches/good.patch')
+  fs.mkdirSync(path.dirname(goodPatch), { recursive: true })
+  fs.writeFileSync(goodPatch, 'good patch', 'utf8')
+  fs.mkdirSync(modulesDir, { recursive: true })
+  fs.mkdirSync(path.join(outsideDir, 'good'), { recursive: true })
+  fs.symlinkSync(outsideDir, path.join(modulesDir, '.pnpm_patches'), 'dir')
+
+  await expect(patchRemove.handler(createOptions(projectDir, {
+    good: 'patches/good.patch',
+  }), ['good'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCHES_DIR_OUTSIDE_PROJECT',
+  })
+
+  expect(fs.existsSync(path.join(outsideDir, 'good'))).toBe(true)
+})
+
 function createOptions (
   projectDir: string,
   patchedDependencies: Record<string, string>

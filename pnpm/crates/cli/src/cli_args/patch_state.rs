@@ -132,7 +132,17 @@ pub(crate) fn clean_patch_state_and_edit_dirs(
     patches: &[String],
 ) -> Result<(), StateFileError> {
     let state_dir = modules_dir.join(STATE_DIR);
-    let mut dirs_to_remove = remove_matching_state_entries(modules_dir, patches)?;
+    reject_state_symlink_if_exists(&state_dir)?;
+    if let (Ok(real_modules_dir), Ok(real_state_dir)) =
+        (dunce::canonicalize(modules_dir), dunce::canonicalize(&state_dir))
+        && !is_subdir(&real_modules_dir, &real_state_dir)
+    {
+        return Err(StateFileError::UnsafePath {
+            path: state_dir,
+            reason: "must stay under the modules directory",
+        });
+    }
+    let mut dirs_to_remove = remove_matching_state_entries(modules_dir, &state_dir, patches)?;
     for patch in patches {
         dirs_to_remove.insert(state_dir.join(patch));
     }
@@ -143,9 +153,10 @@ pub(crate) fn clean_patch_state_and_edit_dirs(
 
 fn remove_matching_state_entries(
     modules_dir: &Path,
+    state_dir: &Path,
     patches: &[String],
 ) -> Result<HashSet<PathBuf>, StateFileError> {
-    let path = state_file_path(modules_dir);
+    let path = checked_state_file_path_for_read(modules_dir)?;
     let Some(text) = read_state_file_text(&path)? else {
         return Ok(HashSet::new());
     };
@@ -156,11 +167,12 @@ fn remove_matching_state_entries(
         .iter()
         .map(String::as_str)
         .collect();
+    let target_keys: HashSet<String> = patches
+        .iter()
+        .map(|patch| edit_dir_key(&state_dir.join(patch)))
+        .collect::<Result<_, _>>()?;
     state.retain(|key, entry| {
-        let matches = patches_set.contains(entry.patched_pkg.as_str())
-            || patches
-                .iter()
-                .any(|patch| key.ends_with(patch));
+        let matches = patches_set.contains(entry.patched_pkg.as_str()) || target_keys.contains(key);
         if matches {
             dirs.insert(PathBuf::from(key));
             false
@@ -192,9 +204,16 @@ fn save_or_remove_state_file(
 }
 
 fn remove_edit_dirs(state_dir: &Path, dirs: &HashSet<PathBuf>) -> Result<(), StateFileError> {
+    let canonical_state_dir = dunce::canonicalize(state_dir).ok();
     for dir in dirs {
-        if dir != state_dir
-            && is_subdir(state_dir, dir)
+        let is_under_state = (dir != state_dir && is_subdir(state_dir, dir))
+            || canonical_state_dir
+                .as_ref()
+                .is_some_and(|parent| {
+                    dunce::canonicalize(dir)
+                        .is_ok_and(|child| child != *parent && is_subdir(parent, &child))
+                });
+        if is_under_state
             && dir.exists()
             && let Err(source) = fs::remove_dir_all(dir)
             && source.kind() != io::ErrorKind::NotFound
