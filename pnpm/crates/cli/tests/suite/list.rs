@@ -120,6 +120,17 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
                 "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}",
             );
         }
+
+        let output = run_ok(
+            &workspace,
+            &["--filter-prod", "./packages/*", "-r", "list", "--depth", "-1", "--json"],
+        );
+        let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+        let names: Vec<&str> = projects
+            .iter()
+            .map(|project| project["name"].as_str().expect("project name"))
+            .collect();
+        assert_eq!(names, ["c", "b", "a"], "shared lockfile: {shared_lockfile}");
     }
 
     drop(root);
