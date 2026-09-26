@@ -103,7 +103,6 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
       const headerOffset = consumed
       const header = take(BLOCK_SIZE)
       const nextEntry = parseHeader(header, headerOffset)
-      if (nextEntry == null) continue
       if (entryHasContent(nextEntry.fileType)) {
         entry = nextEntry
       } else {
@@ -186,7 +185,7 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
     }
   }
 
-  function parseHeader (header: Buffer, headerOffset: number): PendingEntry | undefined {
+  function parseHeader (header: Buffer, headerOffset: number): PendingEntry {
     // The file type is a single byte at offset 156 in the header
     const fileType = header[FILE_TYPE_OFFSET]
     let fileSize: number
