@@ -156,6 +156,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         request: crate::MetadataPickRequest {
             dry_run: false,
             optional: false,
+            refresh_metadata: false,
             update_checksums: false,
         },
     }
