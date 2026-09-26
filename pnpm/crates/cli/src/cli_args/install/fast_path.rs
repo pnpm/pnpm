@@ -116,11 +116,15 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
-            || self.materialization.dry_run
             || self.materialization.force
             || self.materialization.verify_deps_before_run_install
             || !self.materialization.allow_build.is_empty()
         {
+            return false;
+        }
+        // The fast path registers the project in the store, which a dry run
+        // must not write.
+        if self.materialization.dry_run {
             return false;
         }
         if config.cargo.enabled || config.python.enabled || config.catalog_prune {
