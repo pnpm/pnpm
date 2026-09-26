@@ -8,7 +8,7 @@ class BadEnvVariableError extends PnpmError {
   public wantedValue: string
   public currentValue: string
   constructor ({ envName, wantedValue, currentValue }: { envName: string, wantedValue: string, currentValue: string }) {
-    super('BAD_ENV_FOUND', `Currently '${envName}' is set to '${wantedValue}'`)
+    super('BAD_ENV_FOUND', `Currently '${envName}' is set to '${currentValue}'`)
     this.envName = envName
     this.wantedValue = wantedValue
     this.currentValue = currentValue

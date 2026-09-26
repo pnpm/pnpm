@@ -89,6 +89,29 @@ fn skips_a_matching_value_when_the_registry_type_is_correct() {
 }
 
 #[test]
+fn refuses_to_replace_a_different_value_and_names_the_current_one() {
+    let registry_output =
+        "    PNPM_HOME    REG_SZ    C:\\old-pnpm\r\n    Path    REG_EXPAND_SZ    C:\\old\r\n";
+    let mut writes = Vec::new();
+
+    let err = update_env_variable_with(
+        registry_output,
+        "PNPM_HOME",
+        r"C:\pnpm",
+        false,
+        false,
+        |name, value, expandable_string| {
+            writes.push((name.to_string(), value.to_string(), expandable_string));
+            Ok(())
+        },
+    )
+    .expect_err("a different value should not be overwritten without --force");
+
+    assert_eq!(err.to_string(), r"Currently 'PNPM_HOME' is set to 'C:\old-pnpm'");
+    assert!(writes.is_empty());
+}
+
+#[test]
 fn first_number_extracts_the_code_page() {
     assert_eq!(first_number("Active code page: 437"), Some(437));
     assert_eq!(first_number("no digits"), None);
