@@ -163,5 +163,7 @@ fn treats_a_directory_its_creator_holds_exclusively_as_a_junction_in_creation() 
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
         .open(&link)
         .unwrap();
+    let listing_error = std::fs::read_dir(&link).unwrap_err();
+    assert!(pnpm_fs::is_transient_file_lock_error(&listing_error), "{listing_error:?}");
     assert!(super::may_be_junction_in_creation(&link, &in_progress));
 }

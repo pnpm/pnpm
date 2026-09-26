@@ -164,7 +164,7 @@ function createFileLockRetry (): FileLockRetry {
   }
 }
 
-function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
+export function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
   return (process.platform === 'win32' || isWsl()) &&
     util.types.isNativeError(err) &&
     'code' in err &&
