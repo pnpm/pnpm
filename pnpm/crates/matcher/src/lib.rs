@@ -1,13 +1,13 @@
 //! Literal-star matching and ordered include/ignore pattern lists.
 //!
-//! The pattern syntax is intentionally tiny: `*` is the only wildcard
-//! (matching any sequence of characters, including empty), every other
-//! character is matched literally. Pattern lists also interpret a leading
-//! `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
+//! The pattern syntax is intentionally tiny: `*` matches any sequence of
+//! characters (including empty) and `?` matches exactly one character;
+//! every other character is matched literally. Pattern lists also interpret
+//! a leading `!` as an ignore rule; [`WildcardMatcher`] treats it literally.
 //!
 //! The glob matcher is hand-rolled rather than backed by a regex engine:
-//! the only wildcard is `*`, so a literal "starts with", "ends with", and
-//! "contains in order" walk is enough.
+//! segments between `*` wildcards are matched with a literal walk, and `?`
+//! positions are checked via a character-by-character scan.
 
 use std::sync::Arc;
 
@@ -198,21 +198,18 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     }
 }
 
-/// A compiled glob pattern. The only wildcard is `*` (matches any
-/// sequence including empty); every other character is literal. The
-/// match is anchored — pattern must consume the whole input.
+/// A compiled glob pattern. `*` matches any sequence of characters (including
+/// empty) and `?` matches exactly one character; every other character is
+/// literal. The match is anchored — the pattern must consume the whole input.
 
 #[derive(Clone)]
 pub struct WildcardMatcher {
-    /// Segments between `*`s. For pattern `a*b*c` this is
-    /// `["a", "b", "c"]`. For `*` alone it is `["", ""]`. For pure
-    /// literal `foo` it is `["foo"]` and `had_wildcard` is false.
     segments: Arc<[String]>,
     had_wildcard: bool,
+    had_single_wildcard: bool,
 }
 
 impl WildcardMatcher {
-    /// Compiles a pattern. A leading `!` is literal, not an ignore rule.
     #[must_use]
     pub fn new(pattern: &str) -> Self {
         let segments: Vec<String> = pattern
@@ -220,38 +217,97 @@ impl WildcardMatcher {
             .map(str::to_owned)
             .collect();
         let had_wildcard = segments.len() > 1;
-        WildcardMatcher { segments: segments.into(), had_wildcard }
+        let had_single_wildcard = pattern.contains('?');
+        WildcardMatcher { segments: segments.into(), had_wildcard, had_single_wildcard }
     }
 
-    /// Returns whether the pattern consumes the whole input.
     #[must_use]
     pub fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
-            return self.segments[0] == input;
+            if !self.had_single_wildcard {
+                return self.segments[0] == input;
+            }
+            return segment_matches_exact(&self.segments[0], input);
         }
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
-        let Some(rest) = input.strip_prefix(first.as_str()) else { return false };
-        if first.len() + last.len() > input.len() {
+        let Some(rest) = strip_prefix_pattern(input, first.as_str()) else {
             return false;
-        }
-        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
-        // The prefix-strip already advanced past `first`; the
-        // suffix-strip already accounted for `last`. Walk the
-        // middle segments greedily.
+        };
+        let Some(middle) = strip_suffix_pattern(rest, last.as_str()) else {
+            return false;
+        };
         contains_in_order(middle, &self.segments[1..self.segments.len() - 1])
     }
 }
 
-/// Whether `segments` all occur in `input`, in order and without overlap.
-/// An empty segment is two adjacent wildcards and constrains nothing.
+fn segment_matches_exact(pattern: &str, input: &str) -> bool {
+    let mut pat_chars = pattern.chars();
+    let mut inp_chars = input.chars();
+    loop {
+        match (pat_chars.next(), inp_chars.next()) {
+            (None, None) => return true,
+            (Some('?'), Some(_)) => continue,
+            (Some(p), Some(i)) if p == i => continue,
+            _ => return false,
+        }
+    }
+}
+
+fn strip_prefix_pattern<'a>(input: &'a str, pattern: &str) -> Option<&'a str> {
+    let pat_chars = pattern.chars();
+    let mut inp_chars = input.char_indices();
+    for p in pat_chars {
+        let (_, c) = inp_chars.next()?;
+        if p != '?' && p != c {
+            return None;
+        }
+    }
+    let remainder_start = inp_chars.next().map_or(input.len(), |(idx, _)| idx);
+    Some(&input[remainder_start..])
+}
+
+fn strip_suffix_pattern<'a>(input: &'a str, pattern: &str) -> Option<&'a str> {
+    let pat_chars = pattern.chars().rev();
+    let mut inp_chars = input.char_indices().rev();
+    let mut last_idx = input.len();
+    for p in pat_chars {
+        let (idx, c) = inp_chars.next()?;
+        if p != '?' && p != c {
+            return None;
+        }
+        last_idx = idx;
+    }
+    Some(&input[..last_idx])
+}
+
+fn find_segment(input: &str, pattern: &str) -> Option<(usize, usize)> {
+    if pattern.is_empty() {
+        return Some((0, 0));
+    }
+    if !pattern.contains('?') {
+        let idx = input.find(pattern)?;
+        return Some((idx, pattern.len()));
+    }
+    for (start_idx, _) in input.char_indices() {
+        let slice = &input[start_idx..];
+        if let Some(rest) = strip_prefix_pattern(slice, pattern) {
+            let match_len = slice.len() - rest.len();
+            return Some((start_idx, match_len));
+        }
+    }
+    None
+}
+
 fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
     for segment in segments {
         if segment.is_empty() {
             continue;
         }
-        let Some(index) = input.find(segment.as_str()) else { return false };
-        input = &input[index + segment.len()..];
+        let Some((idx, len)) = find_segment(input, segment.as_str()) else {
+            return false;
+        };
+        input = &input[idx + len..];
     }
     true
 }
