@@ -100,6 +100,12 @@ pub fn parse_manifest(contents: &str) -> serde_json::Result<Value> {
     serde_json::from_str(strip_utf8_bom(contents))
 }
 
+/// [`parse_manifest`] for a JSON5 manifest, which also covers JSONC, with the
+/// nesting limit `package.json5` reads are held to.
+pub fn parse_json5_manifest(contents: &str) -> Result<Value, json5::Error> {
+    crate::json5::parse(strip_utf8_bom(contents))
+}
+
 /// [`parse_manifest`] for manifest bytes that have not been decoded yet,
 /// such as an entry read straight out of a tarball.
 pub fn parse_manifest_bytes(bytes: &[u8]) -> serde_json::Result<Value> {
