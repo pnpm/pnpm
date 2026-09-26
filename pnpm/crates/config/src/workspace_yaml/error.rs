@@ -20,6 +20,9 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    #[display("Failed to replace env in config: {var}")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR))]
+    ConfigUnresolvedEnvVar { var: String },
     /// The registry URL is redacted before it reaches this variant.
     #[display("The \"registries\" key {registry} embeds credentials")]
     #[diagnostic(

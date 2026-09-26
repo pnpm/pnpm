@@ -1,4 +1,7 @@
-use super::{BTreeMap, EnvVar, IndexMap, RegistryEntry, env_replace_lossy, placeholder_ranges};
+use super::{
+    BTreeMap, EnvVar, IndexMap, LoadWorkspaceYamlError, RegistryEntry, env_replace_lossy,
+    placeholder_ranges,
+};
 
 /// Flatten a `noProxy` yaml scalar into the raw string form the `.npmrc`
 /// spelling of the key would carry. `true` becomes the literal token the
@@ -24,6 +27,7 @@ pub(super) fn has_env_placeholder(value: &str) -> bool {
 
 /// A `${VAR}` / `${VAR:-fallback}` placeholder of a document, and the text
 /// resolving it puts in its place.
+#[derive(Clone)]
 pub(super) struct Placeholder {
     pub(super) range: std::ops::Range<usize>,
     pub(super) resolved: String,
@@ -95,58 +99,87 @@ fn is_bare_token(value: &str) -> bool {
             })
 }
 
-pub(super) fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {
+pub(super) fn substitute_optional_string<Sys: EnvVar>(
+    value: &mut Option<String>,
+) -> Result<(), LoadWorkspaceYamlError> {
     if let Some(value) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        let (substituted, unresolved) = env_replace_lossy::<Sys>(value);
+        if let Some(first) = unresolved.into_iter().next() {
+            return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
+        }
         *value = substituted;
     }
+    Ok(())
 }
 
-pub(super) fn substitute_json_string<Sys: EnvVar>(value: &mut Option<serde_json::Value>) {
+pub(super) fn substitute_json_string<Sys: EnvVar>(
+    value: &mut Option<serde_json::Value>,
+) -> Result<(), LoadWorkspaceYamlError> {
     if let Some(serde_json::Value::String(value)) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        let (substituted, unresolved) = env_replace_lossy::<Sys>(value);
+        if let Some(first) = unresolved.into_iter().next() {
+            return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
+        }
         *value = substituted;
     }
+    Ok(())
 }
 
 pub(super) fn substitute_optional_string_map<Sys: EnvVar>(
     value: &mut Option<BTreeMap<String, String>>,
-) {
+) -> Result<(), LoadWorkspaceYamlError> {
     if let Some(value) = value {
         for map_value in value.values_mut() {
-            let (substituted, _) = env_replace_lossy::<Sys>(map_value);
+            let (substituted, unresolved) = env_replace_lossy::<Sys>(map_value);
+            if let Some(first) = unresolved.into_iter().next() {
+                return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
+            }
             *map_value = substituted;
         }
     }
+    Ok(())
 }
 
 /// Expands `${VAR}` in the half of each `registries` entry that carries the
 /// request destination: the value of a scope route, the key of a declaration.
 pub(super) fn substitute_registry_entries<Sys: EnvVar>(
     value: &mut Option<IndexMap<String, RegistryEntry>>,
-) {
-    let Some(map) = value.take() else { return };
-    *value = Some(
-        map.into_iter()
-            .map(|(key, entry)| match entry {
-                RegistryEntry::ScopeRoute(url) => {
-                    let (substituted, _) = env_replace_lossy::<Sys>(&url);
-                    (key, RegistryEntry::ScopeRoute(substituted))
+) -> Result<(), LoadWorkspaceYamlError> {
+    let Some(map) = value.take() else { return Ok(()) };
+    let mut substituted_map = IndexMap::with_capacity(map.len());
+    for (key, entry) in map {
+        match entry {
+            RegistryEntry::ScopeRoute(url) => {
+                let (substituted, unresolved) = env_replace_lossy::<Sys>(&url);
+                if let Some(first) = unresolved.into_iter().next() {
+                    return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
                 }
-                RegistryEntry::Declaration(declaration) => {
-                    let (substituted, _) = env_replace_lossy::<Sys>(&key);
-                    (substituted, RegistryEntry::Declaration(declaration))
+                substituted_map.insert(key, RegistryEntry::ScopeRoute(substituted));
+            }
+            RegistryEntry::Declaration(declaration) => {
+                let (substituted, unresolved) = env_replace_lossy::<Sys>(&key);
+                if let Some(first) = unresolved.into_iter().next() {
+                    return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
                 }
-            })
-            .collect(),
-    );
+                substituted_map.insert(substituted, RegistryEntry::Declaration(declaration));
+            }
+        }
+    }
+    *value = Some(substituted_map);
+    Ok(())
 }
 
-pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<String>>) {
+pub(super) fn substitute_optional_inner_string<Sys: EnvVar>(
+    value: &mut Option<Option<String>>,
+) -> Result<(), LoadWorkspaceYamlError> {
     if let Some(Some(value)) = value {
-        let (substituted, _) = env_replace_lossy::<Sys>(value);
+        let (substituted, unresolved) = env_replace_lossy::<Sys>(value);
+        if let Some(first) = unresolved.into_iter().next() {
+            return Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var: first });
+        }
         *value = substituted;
     }
+    Ok(())
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
