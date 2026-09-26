@@ -14,6 +14,7 @@ import {
   type RegistriesByScope,
 } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
 import { isSubdir } from 'is-subdir'
 import { pathAbsolute } from 'path-absolute'
 import { equals } from 'ramda'
@@ -226,10 +227,9 @@ async function purgeModulesDirsOfImporters (
 }
 
 async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
-  if (!process.stdin.isTTY) {
-    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
-      hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
-    })
+  if (!process.stdin.isTTY || isCI) {
+    await confirmNonInteractivePurge(safeImporters)
+    return
   }
   let confirmed: boolean
   try {
@@ -247,6 +247,26 @@ async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void
   }
   if (!confirmed) {
     throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+  }
+}
+
+/**
+ * Without a TTY there is nobody to answer the prompt, so the purge proceeds
+ * only for targets a user would not be surprised to see recreated: a real
+ * `node_modules` directory directly inside the project.
+ */
+async function confirmNonInteractivePurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
+  const areAllSafeTargets = (await Promise.all(safeImporters.map(isSafeAutoPurgeTarget))).every(Boolean)
+  if (!areAllSafeTargets) {
+    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', 'Aborted removal of non-standard or symlinked modules directory in non-interactive environment', {
+      hint: 'Use a direct, non-symlinked "node_modules" directory, or set "confirmModulesPurge" to "false".',
+    })
+  }
+  for (const importer of safeImporters) {
+    logger.info({
+      message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+      prefix: importer.rootDir,
+    })
   }
 }
 
@@ -283,6 +303,20 @@ async function resolveSafePurgeTarget (
     )
   }
   return { ...importer, purgeDir }
+}
+
+async function isSafeAutoPurgeTarget (importer: SafeImporterToPurge): Promise<boolean> {
+  const isDirectNodeModules = path.resolve(importer.rootDir, 'node_modules') === path.resolve(importer.modulesDir) ||
+    (importer.rootDirRealPath != null && path.resolve(importer.rootDirRealPath, 'node_modules') === path.resolve(importer.modulesDir))
+  if (!isDirectNodeModules) {
+    return false
+  }
+  try {
+    return !(await fs.lstat(importer.modulesDir)).isSymbolicLink()
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return true
+    throw err
+  }
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {
