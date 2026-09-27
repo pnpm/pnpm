@@ -135,6 +135,15 @@ function canReuseStableCachedRange (
  */
 export const UNVALIDATED_MIRROR_MAX_AGE_MS = 5 * 60 * 1000
 
+/**
+ * A mirror dated in the future, for example after the clock was set back,
+ * has an unknown age and is not reused.
+ */
+function isYoungerThanUnvalidatedMirrorMaxAge (mtime: Date): boolean {
+  const age = Date.now() - mtime.getTime()
+  return age >= 0 && age < UNVALIDATED_MIRROR_MAX_AGE_MS
+}
+
 function canReuseFreshUnvalidatedMirror (
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -510,13 +519,20 @@ export async function pickPackage (
         }
       }
     }
+    // Undefined until the headers are read, so the conditional request below
+    // does not read them a second time.
+    let mirrorHeaders: MetaHeaders | null | undefined
     if (canReuseFreshUnvalidatedMirror(spec, opts)) {
-      const headers = diskMeta != null
-        ? { etag: diskMeta.etag }
+      mirrorHeaders = diskMeta != null
+        ? metaHeadersOf(diskMeta)
         : await limit(async () => loadMetaHeaders(pkgMirror))
-      if (headers != null && (headers.etag == null || headers.etag === '')) {
+      if (
+        mirrorHeaders != null &&
+        (mirrorHeaders.etag == null || mirrorHeaders.etag === '') &&
+        mirrorHeaders.uncacheable !== true
+      ) {
         const mtime = await limit(async () => getFileMtime(pkgMirror))
-        if (mtime != null && Date.now() - mtime.getTime() < UNVALIDATED_MIRROR_MAX_AGE_MS) {
+        if (mtime != null && isYoungerThanUnvalidatedMirrorMaxAge(mtime)) {
           diskMeta = diskMeta ?? await limit(loadMetaCondensed)
           if (
             diskMeta != null &&
@@ -560,12 +576,10 @@ export async function pickPackage (
       // This avoids reading and parsing the full metadata file (which can be megabytes)
       // when the registry returns 200 and the old metadata would be discarded anyway.
       const cacheHeaders = diskMeta != null
-        ? {
-          etag: diskMeta.etag,
-          modified: diskMeta.modified ?? diskMeta.time?.modified,
-          uncacheable: diskMeta.uncacheable,
-        }
-        : await limit(async () => loadMetaHeaders(pkgMirror))
+        ? metaHeadersOf(diskMeta)
+        : mirrorHeaders !== undefined
+          ? mirrorHeaders
+          : await limit(async () => loadMetaHeaders(pkgMirror))
       const uncacheable = cacheHeaders?.uncacheable === true
       const conditional = await ctx.fetch(spec.name, {
         authHeaderValue: opts.authHeaderValue,
@@ -1041,6 +1055,14 @@ interface MetaHeaders {
   etag?: string
   modified?: string
   uncacheable?: boolean
+}
+
+function metaHeadersOf (meta: PackageMeta): MetaHeaders {
+  return {
+    etag: meta.etag,
+    modified: meta.modified ?? meta.time?.modified,
+    uncacheable: meta.uncacheable,
+  }
 }
 
 /**

@@ -5,9 +5,10 @@ use super::{
     dominant_lockfile_version, get_file_mtime, load_meta_async, pick_from_meta,
     pick_from_meta_fast, pick_stable_cached_range_version,
 };
-use crate::{errors::legacy_mirror_hint, mirror::get_legacy_pkg_mirror_path};
-
-use crate::mirror::load_meta_headers_async;
+use crate::{
+    errors::legacy_mirror_hint,
+    mirror::{MetaHeaders, get_legacy_pkg_mirror_path, load_meta_headers_async},
+};
 
 /// Registries that omit `ETag` cannot answer `If-None-Match` with 304, so a
 /// warm revalidation downloads the whole packument. A public mirror younger
@@ -26,11 +27,12 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
+        let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await;
         // A registry that forbade caching must not be answered from the
         // mirror on an online pick. Offline and prefer-offline still may.
         if !ctx.cache_policy.offline
             && !ctx.cache_policy.prefer_offline
-            && self.mirror_is_uncacheable().await
+            && headers.as_ref().is_some_and(|headers| headers.uncacheable)
         {
             return None;
         }
@@ -40,7 +42,9 @@ impl PickState<'_> {
         if let Some(result) = self.dominant_version_pick(ctx, spec, opts, disk_meta).await {
             return Some(result);
         }
-        if let Some(result) = self.fresh_unvalidated_mirror_pick(ctx, spec, opts, disk_meta).await {
+        if let Some(result) =
+            self.fresh_unvalidated_mirror_pick(ctx, spec, opts, headers.as_ref(), disk_meta).await
+        {
             return Some(result);
         }
         self.published_by_pick(ctx, spec, opts, disk_meta).await
@@ -82,7 +86,7 @@ impl PickState<'_> {
 
     /// `true` when the mirror's header line says the last response forbade caching.
     pub(super) async fn mirror_is_uncacheable(&self) -> bool {
-        crate::mirror::load_meta_headers_async(self.pkg_mirror.as_deref()).await
+        load_meta_headers_async(self.pkg_mirror.as_deref()).await
             .is_some_and(|headers| headers.uncacheable)
     }
 
@@ -137,6 +141,7 @@ impl PickState<'_> {
         ctx: &PickPackageContext<'_, Cache>,
         spec: &RegistryPackageSpec,
         opts: &PickPackageOptions<'_>,
+        headers: Option<&MetaHeaders>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
         if !Self::range_can_reuse_unvalidated_mirror(ctx, spec, opts)
@@ -144,7 +149,7 @@ impl PickState<'_> {
         {
             return None;
         }
-        let headers = load_meta_headers_async(self.pkg_mirror.as_deref()).await?;
+        let headers = headers?;
         if headers.etag
             .as_deref()
             .is_some_and(|etag| !etag.is_empty())
@@ -152,7 +157,10 @@ impl PickState<'_> {
             return None;
         }
         let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
-        if Utc::now().signed_duration_since(mtime) >= UNVALIDATED_MIRROR_MAX_AGE {
+        // A mirror dated in the future, for example after the clock was set
+        // back, has an unknown age and is not reused.
+        let age = Utc::now().signed_duration_since(mtime);
+        if age < chrono::TimeDelta::zero() || age >= UNVALIDATED_MIRROR_MAX_AGE {
             return None;
         }
         let meta = self.mirror_meta(disk_meta).await?;

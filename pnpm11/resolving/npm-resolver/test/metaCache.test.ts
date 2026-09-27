@@ -338,6 +338,36 @@ test('pnpm update does not reuse a fresh mirror that has no etag', async () => {
   expect(fetchedNames).toEqual(['foo'])
 })
 
+test.each([
+  ['the registry forbade caching it', { uncacheable: true }, undefined],
+  ['its modification time is in the future', {}, new Date(Date.now() + 60 * 60_000)],
+])('a mirror without an etag is not reused when %s', async (_, body, mtime) => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined, body))
+  if (mtime != null) {
+    utimesSync(pkgMirror, mtime, mtime)
+  }
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, jsonText: JSON.stringify(meta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
 test('normal range resolution fetches when the cache is missing its lockfile version', async () => {
   const staleMeta = fooMeta()
   const freshMeta = fooMeta()
