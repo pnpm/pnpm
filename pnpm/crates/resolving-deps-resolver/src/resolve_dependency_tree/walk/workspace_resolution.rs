@@ -422,7 +422,7 @@ pub(super) fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError
     };
     match err.downcast::<PickPackageError>() {
         Ok(pick) => ResolveDependencyTreeError::Pick(*pick),
-        Err(err) => ResolveDependencyTreeError::Resolve(err.to_string()),
+        Err(err) => ResolveDependencyTreeError::Resolve(err),
     }
 }
 
