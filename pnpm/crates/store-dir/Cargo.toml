@@ -34,15 +34,13 @@ tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 url = { workspace = true }
 
-# Enable `sha2`'s `asm` feature on non-MSVC targets only. The feature
+# Enable `sha2`'s `asm` feature on non-Windows targets only. The feature
 # activates the `sha2-asm` crate (hand-written `.S` assembly files for
 # x86_64 SHA-256/512) plus sha2's aarch64 NEON backend gated on runtime
 # FEAT_SHA512 detection. MSVC's `cl.exe` doesn't parse GAS-syntax `.S`
 # files, so enabling `asm` on `target_env = "msvc"` fails the Windows
 # build with `LNK1181: cannot open input file ...sha512_x64.o`.
-# Non-MSVC Windows (e.g. windows-gnu via mingw) would work, but we
-# build with MSVC in CI so gate it off there specifically.
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
+[target.'cfg(not(windows))'.dependencies]
 sha2 = { workspace = true, features = ["asm"] }
 
 [target.'cfg(windows)'.dependencies]
