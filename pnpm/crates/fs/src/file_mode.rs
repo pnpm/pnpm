@@ -399,17 +399,17 @@ fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
 /// [`add_dir_mode_bits`] for a new directory its owner cannot open, which a
 /// umask that removes owner read (such as `0o477`) produces. `fchmodat` with
 /// `AT_SYMLINK_NOFOLLOW` needs no read access and still refuses a symlink.
-/// Only a directory this process owns is changed.
+/// Only an owner-unreadable directory this process owns is changed.
 #[cfg(unix)]
 fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
-    use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
     let meta = match std::fs::symlink_metadata(path) {
         Ok(meta) => meta,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     };
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } {
+    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o400 != 0 {
         return Ok(());
     }
     let mode = meta.mode() & 0o7777;
@@ -417,21 +417,37 @@ fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
     if merged == mode {
         return Ok(());
     }
+    match chmod_without_following(path, merged) {
+        // A C library without no-follow `fchmodat` (glibc before 2.32). The
+        // guards above limit the path chmod to an owner-unreadable directory
+        // this process owns, as the TypeScript fallback does.
+        Err(error) if error.raw_os_error() == Some(libc::EOPNOTSUPP) => ignore_unchangeable(
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(merged)),
+        ),
+        result => ignore_unchangeable(result),
+    }
+}
+
+/// `fchmodat` with `AT_SYMLINK_NOFOLLOW`: changes `path`'s mode without
+/// opening it and without following a symlink there.
+#[cfg(unix)]
+fn chmod_without_following(path: &Path, mode: u32) -> io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
     let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
-    let merged = narrow_mode::<libc::mode_t>(merged)?;
+    let mode = narrow_mode::<libc::mode_t>(mode)?;
     // SAFETY: `c_path` is a valid NUL-terminated path that outlives the call.
-    let status = unsafe {
-        libc::fchmodat(libc::AT_FDCWD, c_path.as_ptr(), merged, libc::AT_SYMLINK_NOFOLLOW)
-    };
-    if status == 0 {
-        return Ok(());
+    let status =
+        unsafe { libc::fchmodat(libc::AT_FDCWD, c_path.as_ptr(), mode, libc::AT_SYMLINK_NOFOLLOW) };
+    if status == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+}
+
+#[cfg(unix)]
+fn ignore_unchangeable(result: io::Result<()>) -> io::Result<()> {
+    match result {
+        Err(error) if is_unchangeable(&error) => Ok(()),
+        other => other,
     }
-    let error = io::Error::last_os_error();
-    if is_unchangeable(&error) || error.raw_os_error() == Some(libc::EOPNOTSUPP) {
-        return Ok(());
-    }
-    Err(error)
 }
 
 /// Bits [`grant_inherited_dir_mode`] adds to a new directory under a
