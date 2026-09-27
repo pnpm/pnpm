@@ -168,14 +168,16 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
 
 /// Permission bits a new file takes from its parent directory.
 ///
-/// Read and write bits come from the directory, so a group-writable store
-/// stays group-writable for the next user. Execute bits are copied only when
+/// Read bits and group-write come from the directory, so a group-writable
+/// store stays group-writable for the next user. Other-write is never
+/// copied: a world-writable sticky store protects its entries, not their
+/// contents. Execute bits are copied only when
 /// `executable` is set, and only for classes that can search the directory.
 /// Setuid, setgid, and sticky are not copied onto a file. Owner read and
 /// write are always set so the creating process can finish the write.
 #[must_use]
 pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
-    let mut mode = parent_mode & 0o666;
+    let mut mode = parent_mode & 0o664;
     if executable {
         if parent_mode & 0o100 != 0 {
             mode |= 0o100;
@@ -362,18 +364,33 @@ fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
 }
 
 /// OR `extra` onto the mode of the directory at `path`.
+///
+/// The chmod goes through a descriptor opened without following a symlink,
+/// so a directory entry swapped for a symlink after it was created is
+/// refused rather than followed to a directory outside the store.
 #[cfg(unix)]
 fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    let Some(mode) = reachable_mode(path)? else {
-        return Ok(());
+    let dir = match crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path)) {
+        Ok(dir) => dir,
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
     };
-    let mode = mode & 0o7777;
+    let meta = dir.metadata()?;
+    if !meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotADirectory,
+            format!("{} is not a directory", path.display()),
+        ));
+    }
+    let mode = meta.permissions().mode() & 0o7777;
     let merged = mode | extra;
     if merged == mode {
         return Ok(());
     }
-    match std::fs::set_permissions(path, std::fs::Permissions::from_mode(merged)) {
+    match dir.set_permissions(std::fs::Permissions::from_mode(merged)) {
         Err(error) if is_unchangeable(&error) => Ok(()),
         other => other,
     }

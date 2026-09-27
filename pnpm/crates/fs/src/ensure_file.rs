@@ -618,6 +618,8 @@ pub fn create_exclusive_temp_file(
             Ok(file) => {
                 #[cfg(unix)]
                 if let Err(error) = creation.grant(&file) {
+                    drop(file);
+                    let _ = fs::remove_file(&tmp_path);
                     return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
                 }
                 return Ok((tmp_path, file));

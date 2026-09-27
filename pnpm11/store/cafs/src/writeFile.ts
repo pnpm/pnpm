@@ -19,7 +19,7 @@ export function writeFile (
   mode?: number
 ): void {
   makeDirForFile(fileDest)
-  writeCreatedFile(fileDest, buffer, mode, false)
+  writeCreatedFile(fileDest, buffer, { mode, exclusive: false })
 }
 
 /**
@@ -33,10 +33,14 @@ export function writeFileExclusive (
   mode?: number
 ): void {
   makeDirForFile(fileDest)
-  writeCreatedFile(fileDest, buffer, mode, true)
+  writeCreatedFile(fileDest, buffer, { mode, exclusive: true })
 }
 
-function writeCreatedFile (fileDest: string, buffer: Buffer, mode: number | undefined, exclusive: boolean): void {
+function writeCreatedFile (
+  fileDest: string,
+  buffer: Buffer,
+  { mode, exclusive }: { mode: number | undefined, exclusive: boolean }
+): void {
   const creation = unixCreationMode(dirModes.get(path.dirname(fileDest)), mode)
   if (creation.grantMode == null) {
     fs.writeFileSync(fileDest, buffer, exclusive ? { mode: creation.openMode, flag: 'wx' } : { mode: creation.openMode })

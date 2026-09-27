@@ -3,23 +3,6 @@ import path from 'node:path'
 
 import gfs from '@pnpm/fs.graceful-fs'
 
-// Read and write bits come from the parent directory, so a group-writable
-// store stays group-writable. Execute bits are copied only for an executable
-// file. Owner read and write stay set so the creator can finish the write.
-export function inheritedFileMode (parentMode: number, executable: boolean): number {
-  let mode = parentMode & 0o666
-  if (executable) {
-    if ((parentMode & 0o100) !== 0) mode |= 0o100
-    if ((parentMode & 0o010) !== 0) mode |= 0o010
-    if ((parentMode & 0o001) !== 0) mode |= 0o001
-  }
-  return mode | 0o600
-}
-
-function isPrivateMode (mode: number | undefined): boolean {
-  return mode != null && (mode & 0o077) === 0
-}
-
 // The open mode is a ceiling: umask can only remove bits, and a default ACL
 // can grant only bits that are present. `grantMode` is added back afterwards
 // without clearing bits the create already applied. A private mode such as
@@ -31,6 +14,30 @@ export function unixCreationMode (parentMode: number | undefined, mode: number |
   const executable = mode != null && (mode & 0o111) !== 0
   const wanted = inheritedFileMode(parentMode, executable)
   return { openMode: wanted, grantMode: wanted }
+}
+
+function isPrivateMode (mode: number | undefined): boolean {
+  return mode != null && (mode & 0o077) === 0
+}
+
+// Read bits and group-write come from the parent directory, so a
+// group-writable store stays group-writable. Other-write is never copied: a
+// world-writable sticky store protects its entries, not their contents.
+// Execute bits are copied only for an executable file. Owner read and write
+// stay set so the creator can finish the write.
+function inheritedFileMode (parentMode: number, executable: boolean): number {
+  let mode = parentMode & 0o664
+  if (executable) {
+    if ((parentMode & 0o100) !== 0) mode |= 0o100
+    if ((parentMode & 0o010) !== 0) mode |= 0o010
+    if ((parentMode & 0o001) !== 0) mode |= 0o001
+  }
+  return mode | 0o600
+}
+
+export function grantInheritedFileMode (fd: number, parent: string): void {
+  const parentMode = readDirMode(parent)
+  if (parentMode != null) grantModeBits(fd, inheritedFileMode(parentMode, false))
 }
 
 // Mode of `dir`, or undefined when it cannot be read.
@@ -56,20 +63,6 @@ export function grantModeBits (fd: number, wanted: number): void {
   }
 }
 
-export function grantInheritedFileMode (fd: number, parent: string): void {
-  const parentMode = readDirMode(parent)
-  if (parentMode != null) grantModeBits(fd, inheritedFileMode(parentMode, false))
-}
-
-export function directoryExists (dir: string): boolean {
-  try {
-    return fs.statSync(dir).isDirectory()
-  } catch (err: unknown) {
-    if (isMissing(err)) return false
-    throw err
-  }
-}
-
 // Recursive mkdir that gives each directory it creates the group permission
 // and setgid bits of the nearest ancestor that already existed. Directories
 // that were already present are not modified.
@@ -83,7 +76,16 @@ export function mkdirInheritingMode (dir: string): void {
   if (template != null) grantInheritedDirMode(dir, template)
 }
 
-export function nearestExistingAncestor (dir: string): string | undefined {
+function directoryExists (dir: string): boolean {
+  try {
+    return fs.statSync(dir).isDirectory()
+  } catch (err: unknown) {
+    if (isMissing(err)) return false
+    throw err
+  }
+}
+
+function nearestExistingAncestor (dir: string): string | undefined {
   let current = dir
   for (;;) {
     try {
@@ -100,16 +102,9 @@ export function nearestExistingAncestor (dir: string): string | undefined {
   }
 }
 
-// Group read and search come along with group-write, so a restrictive umask
-// cannot leave a new directory group-writable but not searchable.
-export function inheritedDirBits (templateMode: number): number {
-  if ((templateMode & (0o020 | 0o2000)) === 0) return 0
-  return templateMode & (0o070 | 0o2000)
-}
-
 // New directories only. `template` is the closest ancestor that already
 // existed; it is not chmod'd, and neither is the filesystem root.
-export function grantInheritedDirMode (dir: string, template: string): void {
+function grantInheritedDirMode (dir: string, template: string): void {
   const templateMode = readDirMode(template)
   if (templateMode == null) return
   const extra = inheritedDirBits(templateMode)
@@ -118,14 +113,37 @@ export function grantInheritedDirMode (dir: string, template: string): void {
   while (current !== template) {
     const parent = path.dirname(current)
     if (parent === current) break
-    try {
-      const mode = fs.statSync(current).mode & 0o7777
-      const merged = mode | extra
-      if (merged !== mode) fs.chmodSync(current, merged)
-    } catch (err: unknown) {
-      if (!isUnchangeable(err) && !isMissing(err)) throw err
-    }
+    addDirModeBits(current, extra)
     current = parent
+  }
+}
+
+// Group read and search come along with group-write, so a restrictive umask
+// cannot leave a new directory group-writable but not searchable.
+function inheritedDirBits (templateMode: number): number {
+  if ((templateMode & (0o020 | 0o2000)) === 0) return 0
+  return templateMode & (0o070 | 0o2000)
+}
+
+// The chmod goes through a descriptor opened without following a symlink, so
+// a directory entry swapped for a symlink after mkdir is refused rather than
+// followed to a directory outside the store.
+function addDirModeBits (dir: string, extra: number): void {
+  let fd: number
+  try {
+    fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+  } catch (err: unknown) {
+    if (isUnchangeable(err) || isMissing(err)) return
+    throw err
+  }
+  try {
+    const mode = fs.fstatSync(fd).mode & 0o7777
+    const merged = mode | extra
+    if (merged !== mode) fs.fchmodSync(fd, merged)
+  } catch (err: unknown) {
+    if (!isUnchangeable(err)) throw err
+  } finally {
+    fs.closeSync(fd)
   }
 }
 

@@ -161,6 +161,8 @@ fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
     assert_eq!(super::inherited_file_mode(0o755, false) & 0o777, 0o644);
     assert_eq!(super::inherited_file_mode(0o700, false) & 0o777, 0o600);
     assert_eq!(super::inherited_file_mode(0o2775, true) & 0o7000, 0);
+    assert_eq!(super::inherited_file_mode(0o1777, false) & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(0o1777, true) & 0o777, 0o775);
 }
 
 #[test]
@@ -198,4 +200,31 @@ fn grant_inherited_dir_mode_restores_group_search_under_restrictive_umask() {
             & 0o7777;
         assert_eq!(mode, 0o2770, "{} mode {mode:o}", dir.display());
     }
+}
+
+/// A new directory swapped for a symlink before the grant must not pass the
+/// grant on to the symlink's target.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_does_not_follow_a_swapped_symlink() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let store = tmp.path().join("store");
+    let outside = tmp.path().join("outside");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&outside).unwrap();
+    fs::set_permissions(&store, fs::Permissions::from_mode(0o2775)).unwrap();
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+    let shard = store.join("ab");
+    std::os::unix::fs::symlink(&outside, &shard).unwrap();
+
+    super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
+
+    let mode = fs::metadata(&outside)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o700, "symlink target must keep its mode, got {mode:o}");
 }

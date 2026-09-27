@@ -562,6 +562,17 @@ testOnPosix('directories added to a group-writable store stay searchable by the 
   }
 })
 
+testOnPosix('files added to a world-writable sticky store are not world-writable', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o1777)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  expect(fs.statSync(filePath).mode & 0o002).toBe(0)
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)

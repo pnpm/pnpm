@@ -505,12 +505,13 @@ function nodeSupportsImmutableSqliteUri (): boolean {
 // The exclusive create decides which process made the database. An existing
 // database, including one a concurrent process just created, is not chmod'd.
 function createIndexWithInheritedMode (storeDir: string): void {
+  const dbPath = path.join(storeDir, 'index.db')
   let fd: number
   try {
-    fd = fs.openSync(path.join(storeDir, 'index.db'), 'wx')
+    fd = fs.openSync(dbPath, 'wx')
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'EEXIST') return
-    throw err
+    throw new PnpmError('STORE_DIR_STORE_INDEX_CREATE_FILE', `Failed to create index.db at ${dbPath}: ${isError(err) ? err.message : String(err)}`, { cause: err })
   }
   try {
     grantInheritedFileMode(fd, storeDir)
