@@ -517,7 +517,7 @@ test('a frozen install via the pnpr server rejects a changed pnpmfile', async ()
 
   await expect(
     execPnpm(['install', '--frozen-lockfile', `--config.pnprServer=http://localhost:${serverPort}`])
-  ).rejects.toThrow()
+  ).rejects.toThrow('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
 
   expect(requestCount).toBe(0)
   expect(project.readLockfile().pnpmfileChecksum).toBe(recorded)
