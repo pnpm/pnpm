@@ -7,6 +7,11 @@ name: Ecosystem E2E
 # virtual store. Runs on a daily cron rather than per-PR — the installs are
 # slow and track upstream framework releases, so a red cell is investigated,
 # not treated as a merge blocker.
+#
+# The webcontainer job installs a small project with the pnpm bundle inside a
+# StackBlitz WebContainer, whose in-browser Node.js differs from Node.js in its
+# `fs` errors and `node:sqlite`. It depends on StackBlitz's servers, which is
+# another reason this runs on a cron.
 
 permissions:
   contents: read
@@ -126,3 +131,37 @@ jobs:
           path: ${{ runner.temp }}/ecosystem-e2e-work/**/*.log
           retention-days: 7
           if-no-files-found: ignore
+
+  webcontainer:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    name: Ecosystem E2E / webcontainer
+    needs: build
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      # The harness mounts the committed `pnpm11/pnpm/package.json` and `bin/`
+      # alongside the downloaded `dist/` bundle.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: false
+
+      - name: Install the harness
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/ecosystem-e2e-webcontainer
+
+      - name: Install Chromium
+        run: pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --with-deps --only-shell chromium
+
+      - name: Download build outputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ecosystem-e2e-build
+          path: .
+
+      - name: Run the WebContainer e2e
+        run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
