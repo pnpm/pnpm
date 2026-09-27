@@ -463,8 +463,12 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
 /// fail-closed behavior is scoped to private routes only.
 #[tokio::test]
 async fn public_scope_falls_back_to_mirror_on_401() {
-    let preloaded: pnpm_registry::Package =
+    let mut preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    // An ETag keeps this mirror on the conditional-request path. A mirror
+    // stored without one is reused while it is fresh, which would never
+    // observe this 401.
+    preloaded.etag = Some(r#""registry-etag""#.to_string());
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")

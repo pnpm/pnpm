@@ -711,6 +711,7 @@ async function resolveNpm (
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums || opts.updatePatches,
+    refreshMetadata: opts.update === 'compatible' || opts.update === 'latest' || opts.updateRequested === true,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
   }
@@ -1010,6 +1011,7 @@ async function pickFromSimpleRegistry (
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums || opts.updatePatches,
+    refreshMetadata: opts.update === 'compatible' || opts.update === 'latest' || opts.updateRequested === true,
     optional: wantedDependency.optional,
     trustPolicy: opts.trustPolicy,
   })

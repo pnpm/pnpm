@@ -158,6 +158,7 @@ pub(super) fn explicit_registry_pick_options<'a>(
         request: pnpm_resolving_npm_resolver::MetadataPickRequest {
             dry_run: false,
             optional: false,
+            refresh_metadata: false,
             update_checksums: false,
         },
     }

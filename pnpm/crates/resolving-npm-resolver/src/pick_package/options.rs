@@ -104,6 +104,9 @@ pub struct MetadataPickRequest {
     /// the install is a pure dry-run (`--lockfile-only`, frozen
     /// lockfile, etc.).
     pub dry_run: bool,
+    /// `pnpm update` must see versions published since the mirror was
+    /// written, so it does not reuse an ETag-less mirror.
+    pub refresh_metadata: bool,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
     /// fields (`libc`, `cpu`, `os`) the abbreviated form drops

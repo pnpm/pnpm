@@ -639,3 +639,51 @@ async fn resolves_registry_qualified_id() {
         Some("@acme/private@2.1.0"),
     );
 }
+
+#[tokio::test]
+async fn update_target_does_not_reuse_a_fresh_mirror_without_etag() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry.clone());
+    let (resolver, cache_dir) = build_resolver(user);
+    let packument: pnpm_registry::Package =
+        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+    let mirror = crate::mirror::get_pkg_mirror_path(
+        cache_dir.path(),
+        crate::mirror::ABBREVIATED_META_DIR,
+        &registry,
+        "@acme/private",
+    )
+    .expect("mirror path");
+    crate::mirror::save_meta_indexed(&mirror, &packument, None, false).expect("warm mirror");
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .expect("resolve")
+        .expect("resolved");
+
+    mock.assert_async().await;
+}
