@@ -190,11 +190,17 @@ fn first_percent_var(value: &str) -> Option<String> {
     None
 }
 
+/// Windows allows spaces in a name. A leading or trailing space is rejected so
+/// that literal text such as `100% off 50%` is not read as a reference.
 fn is_windows_env_name(name: &str) -> bool {
     !name.is_empty()
+        && !name.starts_with(' ')
+        && !name.ends_with(' ')
         && name
             .chars()
-            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '-' | '.' | '(' | ')'))
+            .all(|char| {
+                char.is_ascii_alphanumeric() || matches!(char, '_' | '-' | '.' | '(' | ')' | ' ')
+            })
 }
 
 #[cfg(test)]

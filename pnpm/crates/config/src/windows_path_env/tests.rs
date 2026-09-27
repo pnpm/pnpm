@@ -17,6 +17,7 @@ fn lookup(name: &str) -> Option<String> {
         "DOUBLING" => Some("%DOUBLING%%DOUBLING%".to_owned()),
         "MY-HOME" => Some(r"C:\tools".to_owned()),
         "WIDE" => Some("é".repeat(20_000)),
+        "MY HOME" => Some(r"C:\tools".to_owned()),
         _ => None,
     }
 }
@@ -66,6 +67,17 @@ fn measures_the_length_limit_in_utf16_code_units() {
 fn expands_a_name_with_a_hyphen() {
     assert_eq!(expand(r"%MY-HOME%\pnpm").unwrap(), r"C:\tools\pnpm");
     assert_eq!(expand(r"%MISSING-HOME%\pnpm").unwrap_err().reference, "%MISSING-HOME%");
+}
+
+#[test]
+fn expands_a_name_with_an_inner_space() {
+    assert_eq!(expand(r"%MY HOME%\pnpm").unwrap(), r"C:\tools\pnpm");
+    assert_eq!(expand(r"%MISSING HOME%\pnpm").unwrap_err().reference, "%MISSING HOME%");
+}
+
+#[test]
+fn leaves_percent_text_with_surrounding_spaces_in_place() {
+    assert_eq!(expand(r"C:\100% off 50%\pnpm").unwrap(), r"C:\100% off 50%\pnpm");
 }
 
 #[test]

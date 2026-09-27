@@ -207,8 +207,10 @@ function firstPercentVar (value: string): string | undefined {
   return undefined
 }
 
+// Windows allows spaces in a name. A leading or trailing space is rejected so
+// that literal text such as `100% off 50%` is not read as a reference.
 function isWindowsEnvName (name: string): boolean {
-  if (name.length === 0) return false
+  if (name.length === 0 || name.startsWith(' ') || name.endsWith(' ')) return false
   for (const char of name) {
     const isNameChar = (char >= 'A' && char <= 'Z') ||
       (char >= 'a' && char <= 'z') ||
@@ -217,7 +219,8 @@ function isWindowsEnvName (name: string): boolean {
       char === '-' ||
       char === '.' ||
       char === '(' ||
-      char === ')'
+      char === ')' ||
+      char === ' '
     if (!isNameChar) return false
   }
   return true
