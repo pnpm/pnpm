@@ -6,6 +6,14 @@ import { pathToFileURL } from 'node:url'
 import { PnpmError } from '@pnpm/error'
 import { Packr } from 'msgpackr'
 
+import {
+  adaptStoreDatabase,
+  closeSqliteQuietly,
+  createFallbackDatabase,
+  isFallbackDatabase,
+  isMissingSqliteMethod,
+} from './fallbackDatabase.js'
+
 const FROZEN_STORE_WRITE_MESSAGE = 'Cannot write to the package store because frozenStore is enabled (the store is opened read-only). This indicates the store is missing content the install needs.'
 
 // Use createRequire to load node:sqlite because it is a prefix-only builtin
@@ -140,7 +148,23 @@ export class StoreIndex {
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
     fs.mkdirSync(storeDir, { recursive: true })
-    this.db = new DatabaseSync(`${storeDir}/index.db`)
+    this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
+    try {
+      this.configureDatabase()
+    } catch (err: unknown) {
+      if (isFallbackDatabase(this.db) || !isMissingSqliteMethod(err)) throw err
+      closeSqliteQuietly(this.db)
+      this.db = createFallbackDatabase(storeDir)
+      this.configureDatabase()
+    }
+  }
+
+  /** Open the host SQLite connection before missing methods are adapted. */
+  protected openConnection (storeDir: string): DatabaseSyncType {
+    return new DatabaseSync(`${storeDir}/index.db`)
+  }
+
+  private configureDatabase (): void {
     // Set busy_timeout FIRST so SQLite's internal busy handler is active
     // during all subsequent operations. On Windows, file locking is mandatory
     // and concurrent processes (e.g. parallel dlx calls) will contend.
