@@ -1,7 +1,6 @@
 use super::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, INVALID_WORKSPACE_MANIFEST_FILENAMES,
-    WORKSPACE_DIR_ENV_VAR, WORKSPACE_DIR_ENV_VAR_LOWER, find_workspace_dir,
-    find_workspace_dir_from_env_with,
+    find_workspace_dir, find_workspace_dir_from_env_with,
 };
 use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
 use pretty_assertions::assert_eq;
@@ -63,7 +62,7 @@ fn correct_filename_wins_over_misnamed_sibling() {
     assert_eq!(found.as_deref(), Some(tmp.path()));
 }
 
-/// An empty `NPM_CONFIG_WORKSPACE_DIR` must be treated as unset so
+/// An empty `PNPM_CONFIG_WORKSPACE_DIR` must be treated as unset so
 /// the upward walk takes over. Otherwise an exported-but-empty
 /// variable would short-circuit discovery and force the install into
 /// `PathBuf::from("")`. Mirrors upstream's truthy `if (workspaceDir)`
@@ -80,7 +79,7 @@ fn empty_env_var_is_treated_as_unset() {
     struct EnvWithEmptyWorkspaceDir;
     impl EnvVarOs for EnvWithEmptyWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == WORKSPACE_DIR_ENV_VAR).then(OsString::new)
+            (name == "PNPM_CONFIG_WORKSPACE_DIR").then(OsString::new)
         }
     }
     assert_eq!(
@@ -95,7 +94,7 @@ fn non_empty_env_var_resolves_verbatim() {
     struct EnvWithUppercaseWorkspaceDir;
     impl EnvVarOs for EnvWithUppercaseWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == WORKSPACE_DIR_ENV_VAR).then(|| OsString::from("/explicit/root"))
+            (name == "PNPM_CONFIG_WORKSPACE_DIR").then(|| OsString::from("/explicit/root"))
         }
     }
     assert_eq!(
@@ -109,12 +108,62 @@ fn lowercase_env_var_is_honored_as_fallback() {
     struct EnvWithLowercaseWorkspaceDir;
     impl EnvVarOs for EnvWithLowercaseWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == WORKSPACE_DIR_ENV_VAR_LOWER).then(|| OsString::from("/lowercase/root"))
+            (name == "pnpm_config_workspace_dir").then(|| OsString::from("/lowercase/root"))
         }
     }
     assert_eq!(
         find_workspace_dir_from_env_with::<EnvWithLowercaseWorkspaceDir>(),
         Some(std::path::PathBuf::from("/lowercase/root")),
+    );
+}
+
+#[test]
+fn npm_config_env_var_is_honored_as_fallback() {
+    struct EnvWithNpmConfigWorkspaceDir;
+    impl EnvVarOs for EnvWithNpmConfigWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| OsString::from("/npm/root"))
+        }
+    }
+    assert_eq!(
+        find_workspace_dir_from_env_with::<EnvWithNpmConfigWorkspaceDir>(),
+        Some(std::path::PathBuf::from("/npm/root")),
+    );
+}
+
+#[test]
+fn pnpm_config_env_var_takes_precedence_over_npm_config() {
+    struct EnvWithBothWorkspaceDirs;
+    impl EnvVarOs for EnvWithBothWorkspaceDirs {
+        fn var_os(name: &str) -> Option<OsString> {
+            match name {
+                "PNPM_CONFIG_WORKSPACE_DIR" => Some(OsString::from("/pnpm/root")),
+                "NPM_CONFIG_WORKSPACE_DIR" => Some(OsString::from("/npm/root")),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(
+        find_workspace_dir_from_env_with::<EnvWithBothWorkspaceDirs>(),
+        Some(std::path::PathBuf::from("/pnpm/root")),
+    );
+}
+
+#[test]
+fn empty_pnpm_config_env_var_falls_back_to_npm_config() {
+    struct EnvWithEmptyPnpmConfigWorkspaceDir;
+    impl EnvVarOs for EnvWithEmptyPnpmConfigWorkspaceDir {
+        fn var_os(name: &str) -> Option<OsString> {
+            match name {
+                "PNPM_CONFIG_WORKSPACE_DIR" => Some(OsString::new()),
+                "NPM_CONFIG_WORKSPACE_DIR" => Some(OsString::from("/npm/root")),
+                _ => None,
+            }
+        }
+    }
+    assert_eq!(
+        find_workspace_dir_from_env_with::<EnvWithEmptyPnpmConfigWorkspaceDir>(),
+        Some(std::path::PathBuf::from("/npm/root")),
     );
 }
 

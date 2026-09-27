@@ -477,7 +477,7 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
     );
 }
 
-/// `NPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
+/// `PNPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
 /// path-anchoring just like it steers
 /// [`pnpm_workspace::find_workspace_dir`] — otherwise the
 /// virtual store would land in the cwd while the per-importer
@@ -486,10 +486,10 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
 /// install. See PR [#443](https://github.com/pnpm/pacquet/pull/443).
 ///
 /// Exercises the [`EnvVarOs`] DI seam: a per-test fake returns the
-/// `env_workspace` path for the `NPM_CONFIG_WORKSPACE_DIR` lookup.
+/// `env_workspace` path for the `PNPM_CONFIG_WORKSPACE_DIR` lookup.
 /// No `EnvGuard`, no `unsafe { env::set_var(...) }`.
 #[test]
-pub fn npm_config_workspace_dir_re_anchors_modules() {
+pub fn pnpm_config_workspace_dir_re_anchors_modules() {
     let env_workspace = tempdir().unwrap();
     let cwd_dir = tempdir().unwrap();
     static ENV_WORKSPACE_PATH: std::sync::OnceLock<OsString> = std::sync::OnceLock::new();
@@ -509,7 +509,7 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     }
     impl EnvVarOs for HostWithEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            (name == "NPM_CONFIG_WORKSPACE_DIR").then(|| {
+            (name == "PNPM_CONFIG_WORKSPACE_DIR").then(|| {
                 ENV_WORKSPACE_PATH
                     .get()
                     .expect("ENV_WORKSPACE_PATH initialised")
@@ -530,26 +530,26 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     assert_eq!(
         config.modules_dir,
         env_workspace.path().join("node_modules"),
-        "modules_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
+        "modules_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
     assert_eq!(
         config.virtual_store_dir,
         env_workspace.path().join("node_modules/.pnpm"),
-        "virtual_store_dir must follow NPM_CONFIG_WORKSPACE_DIR, not the cwd",
+        "virtual_store_dir must follow PNPM_CONFIG_WORKSPACE_DIR, not the cwd",
     );
 }
 
-/// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
+/// An empty workspace-dir env var falls through to the
 /// upward walk, matching pnpm, which treats only a non-empty
 /// workspace-dir value as set. Pairs with `pnpm_workspace`'s
 /// `empty_env_var_is_treated_as_unset`.
 ///
 /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
-/// empty `OsString` for both spellings of the env var. The truthy
-/// filter in `Config::current` should reject both, and the
+/// empty `OsString` for every spelling of the env var. The truthy
+/// filter in `Config::current` should reject them all, and the
 /// install should fall through to the `start_dir`-walk.
 #[test]
-pub fn empty_npm_config_workspace_dir_falls_through() {
+pub fn empty_workspace_dir_env_var_falls_through() {
     struct HostWithEmptyEnvWorkspaceDir;
     impl EnvVar for HostWithEmptyEnvWorkspaceDir {
         fn var(name: &str) -> Option<String> {
@@ -558,9 +558,7 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     }
     impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir").then(
-                OsString::new,
-            )
+            pnpm_workspace::WORKSPACE_DIR_ENV_VARS.contains(&name).then(OsString::new)
         }
     }
     impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
