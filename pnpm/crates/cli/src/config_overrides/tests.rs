@@ -695,32 +695,35 @@ fn claimed_dotted_settings_are_not_passed_on() {
 /// record is what `pnpm config get` and `pnpm config list` answer from.
 #[test]
 fn claimed_dotted_settings_are_recorded_as_explicitly_set() {
-    let cases: [(&str, &str, &str); 22] = [
-        ("bail", "true", "bail"),
-        ("ci", "true", "ci"),
-        ("color", "always", "color"),
-        ("embed-readme", "true", "embedReadme"),
-        ("ignore-workspace-root-check", "true", "ignoreWorkspaceRootCheck"),
-        ("optional", "true", "optional"),
-        ("pending", "true", "pending"),
-        ("progress", "true", "progress"),
-        ("recursive-install", "true", "recursiveInstall"),
-        ("reverse", "true", "reverse"),
-        ("shell-emulator", "true", "shellEmulator"),
-        ("skip-manifest-obfuscation", "true", "skipManifestObfuscation"),
-        ("sort", "true", "sort"),
-        ("use-beta-cli", "true", "useBetaCli"),
-        ("deploy-all-files", "true", "deployAllFiles"),
-        ("force-legacy-deploy", "true", "forceLegacyDeploy"),
-        ("inject-workspace-packages", "true", "injectWorkspacePackages"),
-        ("node-linker", "hoisted", "nodeLinker"),
-        ("pm-on-fail", "ignore", "pmOnFail"),
-        ("runtime-on-fail", "warn", "runtimeOnFail"),
-        ("max-sockets", "5", "maxSockets"),
-        ("package-lock", "false", "packageLock"),
+    use serde_json::json;
+
+    let cases: [(&str, &str, &str, serde_json::Value); 22] = [
+        ("bail", "true", "bail", json!(true)),
+        ("ci", "true", "ci", json!(true)),
+        ("color", "always", "color", json!("always")),
+        ("embed-readme", "true", "embedReadme", json!(true)),
+        ("ignore-workspace-root-check", "true", "ignoreWorkspaceRootCheck", json!(true)),
+        ("optional", "true", "optional", json!(true)),
+        ("pending", "true", "pending", json!(true)),
+        ("progress", "true", "progress", json!(true)),
+        ("recursive-install", "true", "recursiveInstall", json!(true)),
+        ("reverse", "true", "reverse", json!(true)),
+        ("shell-emulator", "true", "shellEmulator", json!(true)),
+        ("skip-manifest-obfuscation", "true", "skipManifestObfuscation", json!(true)),
+        ("sort", "true", "sort", json!(true)),
+        ("use-beta-cli", "true", "useBetaCli", json!(true)),
+        ("deploy-all-files", "true", "deployAllFiles", json!(true)),
+        ("force-legacy-deploy", "true", "forceLegacyDeploy", json!(true)),
+        ("inject-workspace-packages", "true", "injectWorkspacePackages", json!(true)),
+        ("node-linker", "hoisted", "nodeLinker", json!("hoisted")),
+        ("pm-on-fail", "ignore", "pmOnFail", json!("ignore")),
+        ("runtime-on-fail", "warn", "runtimeOnFail", json!("warn")),
+        // A number, like every other numeric setting pnpm 12 records.
+        ("max-sockets", "5", "maxSockets", json!(5)),
+        ("package-lock", "false", "packageLock", json!(false)),
     ];
 
-    for (key, value, recorded_as) in cases {
+    for (key, value, recorded_as, expected) in cases {
         let (overrides, remaining) = ConfigOverrides::extract([
             OsString::from("pacquet"),
             OsString::from(format!("--config.{key}={value}")),
@@ -730,9 +733,10 @@ fn claimed_dotted_settings_are_recorded_as_explicitly_set() {
 
         let mut config = Config::default();
         overrides.apply(&mut config, Path::new("/workspace"));
-        assert!(
-            config.explicit_settings.contains_key(recorded_as),
-            "--config.{key}={value} was not recorded as {recorded_as}",
+        assert_eq!(
+            config.explicit_settings.get(recorded_as),
+            Some(&expected),
+            "--config.{key}={value} was not recorded as {recorded_as} = {expected}",
         );
     }
 }
