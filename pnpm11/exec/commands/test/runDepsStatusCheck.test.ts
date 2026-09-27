@@ -131,6 +131,21 @@ test('a confirmed prompt refuses when the lockfile would lose settings of the ig
   expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
+test('a prompt that cannot ask refuses when the lockfile would lose settings of the ignored "pnpm" field', async () => {
+  mockOutdatedStatus()
+  const isTTY = process.stdin.isTTY
+  process.stdin.isTTY = false
+  try {
+    await expect(runDepsStatusCheck(optsWithPnpmField('prompt'))).rejects.toMatchObject({
+      message: expect.stringContaining('installing would drop "pnpm.overrides" from the lockfile'),
+    })
+  } finally {
+    process.stdin.isTTY = isTTY
+  }
+
+  expect(confirm).not.toHaveBeenCalled()
+})
+
 test('a declined prompt lets the command run despite settings in the ignored "pnpm" field', async () => {
   mockOutdatedStatus()
   confirm.mockResolvedValue(false)

@@ -46,6 +46,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     // In non-TTY environments (like CI), we can't prompt the user
     // Exit with error to alert users that node_modules are out of sync
       if (!process.stdin.isTTY) {
+        refuseInstallDroppingIgnoredSettings(opts)
         throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', issue ?? 'Your node_modules are out of sync with your lockfile', {
           hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
         })

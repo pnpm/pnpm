@@ -790,17 +790,20 @@ fn install_action_refuses_to_drop_settings_of_the_ignored_pnpm_field() {
         &marker,
         json!({ "pnpm": { "overrides": { "foo": "1.0.0" }, "onlyBuiltDependencies": [] } }),
     );
-    let output = pacquet_in(&workspace)
-        .with_args(["run", "hello"])
-        .output()
-        .expect("spawn pacquet run");
-    assert!(!output.status.success(), "the gate must refuse to install");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_diagnostic_contains(
-        &stderr,
-        r#"installing would drop "pnpm.overrides" from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm"#,
-    );
-    assert_diagnostic_contains(&stderr, "Move these settings to pnpm-workspace.yaml");
+    // `prompt` cannot ask here, and must not advise a plain install either.
+    for action in ["install", "prompt"] {
+        assert_refuses_to_drop_overrides(&workspace, action);
+    }
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+    fs::write(
+        workspace.join("package.yaml"),
+        format!(
+            "name: verify-deps-project\nversion: 0.0.0\nscripts:\n  hello: touch \"{}\"\npnpm:\n  overrides:\n    foo: 1.0.0\n",
+            marker.display(),
+        ),
+    )
+    .expect("write package.yaml");
+    assert_refuses_to_drop_overrides(&workspace, "install");
     assert!(!marker.exists(), "the script must not run");
     assert_eq!(
         fs::read_to_string(&lockfile_path).expect("read the lockfile"),
@@ -809,6 +812,20 @@ fn install_action_refuses_to_drop_settings_of_the_ignored_pnpm_field() {
     );
 
     drop(root);
+}
+
+fn assert_refuses_to_drop_overrides(workspace: &Path, action: &str) {
+    let output = pacquet_in(workspace)
+        .with_args([&format!("--config.verify-deps-before-run={action}"), "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "{action} mode must refuse to install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(
+        &stderr,
+        r#"installing would drop "pnpm.overrides" from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm"#,
+    );
+    assert_diagnostic_contains(&stderr, "Move these settings to pnpm-workspace.yaml");
 }
 
 /// `prompt` cannot ask in a non-interactive environment and must fail

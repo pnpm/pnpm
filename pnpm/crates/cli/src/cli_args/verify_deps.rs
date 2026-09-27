@@ -6,7 +6,7 @@
 
 use super::{
     legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
-    package_manager::read_root_manifest_json,
+    package_manager::read_root_manifest,
     reporter::{ReporterType, quiet_loglevel_arg},
 };
 use derive_more::{Display, Error};
@@ -161,7 +161,7 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
 /// lockfile records. That drops them silently, so the gate leaves the
 /// decision to an explicit `pnpm install` after the settings have moved.
 fn refuse_install_dropping_ignored_settings(dir: &Path, config: &Config) -> miette::Result<()> {
-    let manifest = read_root_manifest_json(config.root_project_manifest_dir(dir));
+    let manifest = read_root_manifest(config.root_project_manifest_dir(dir));
     let keys = ignored_lockfile_pnpm_field_keys(manifest.as_ref());
     if keys.is_empty() {
         return Ok(());
@@ -291,6 +291,7 @@ fn prompt_install(
     issue: String,
 ) -> miette::Result<()> {
     if !std::io::stdin().is_terminal() {
+        refuse_install_dropping_ignored_settings(dir, config)?;
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
     let command = std::iter::once("install")
