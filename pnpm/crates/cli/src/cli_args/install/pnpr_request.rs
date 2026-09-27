@@ -114,8 +114,10 @@ pub(super) fn resolve_projects_options(
 /// The catalogs the pnpr server resolves `catalog:` specifiers against,
 /// picked the same way [`pnpm_package_manager::Install`] picks them:
 /// an `updateConfig` pnpmfile hook's complete set when it produced one,
-/// otherwise the raw workspace-manifest read. `None` when the workspace
-/// defines none, which keeps the field off the request entirely.
+/// otherwise the raw workspace-manifest read. `None` only when no workspace
+/// manifest exists, which keeps the field off the request and tells the
+/// server to skip its frozen catalogs comparison. A manifest without catalogs
+/// sends an empty set, so an emptied catalog still fails that comparison.
 pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
     if let Some(catalogs) = state.config.catalogs.clone() {
         return Ok(Some(catalogs));
@@ -133,7 +135,7 @@ pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
     let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
         .into_diagnostic()
         .wrap_err("reading catalogs to forward to the pnpr server")?;
-    Ok((!catalogs.is_empty()).then_some(catalogs))
+    Ok(workspace_manifest.is_some().then_some(catalogs))
 }
 
 fn resolve_project(

@@ -309,6 +309,22 @@ test('a pnpm-workspace.yaml cannot override the derived workspaceManifestFound',
   expect(config.workspaceManifestFound).toBe(true)
 })
 
+test('workspaceManifestFound is true when pnpm-workspace.yaml is empty', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { dir: process.cwd() },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.workspaceManifestFound).toBe(true)
+})
+
 test('workspaceManifestFound is false when pnpm-workspace.yaml is absent', async () => {
   prepareEmpty()
 

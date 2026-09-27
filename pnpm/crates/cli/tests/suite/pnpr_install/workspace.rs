@@ -41,6 +41,49 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
     drop((root, mock_instance));
 }
 
+/// A workspace manifest that no longer defines the catalogs the lockfile
+/// records still fails a frozen install through pnpr, like a local one.
+/// Only a missing manifest lets the recorded catalogs stand
+/// ([pnpm/pnpm#10551](https://github.com/pnpm/pnpm/issues/10551)).
+#[test]
+fn frozen_lockfile_only_install_via_pnpr_rejects_an_emptied_catalog() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"dependencies":{{"{WORKSPACE_HELLO}":"catalog:"}}}}"#),
+    )
+    .expect("write package.json");
+    crate::_utils::append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", "false");
+    let path = workspace.join("pnpm-workspace.yaml");
+    let without_catalog = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    let mut yaml = without_catalog.clone();
+    writeln!(yaml, "catalog:\n  '{WORKSPACE_HELLO}': 1.0.0").expect("append the catalog");
+    fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--lockfile-only", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    fs::write(&path, without_catalog).expect("drop the catalog");
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only", "--pnpr-server", &pnpr_url])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    pnpm_testing_utils::diagnostics::assert_diagnostic_contains(
+        &stderr,
+        r#"The current "catalogs" configuration doesn't match the value found in the lockfile"#,
+    );
+
+    drop((root, mock_instance));
+}
+
 /// The importer ids the server request carries, and the ones the
 /// filtered-lockfile merge keys on, are relative to the lockfile — which
 /// `lockfileDir` can pin outside the workspace. Deriving them from the

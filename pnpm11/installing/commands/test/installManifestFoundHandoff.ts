@@ -44,6 +44,20 @@ test('an unset workspaceManifestFound keeps the recorded-catalogs check on', asy
   )
 })
 
+test('a catalog slot the global config file leaves undefined does not keep the check on', async () => {
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    workspaceManifestFound: false,
+    catalogs: { default: undefined },
+  })
+
+  expect(installDeps).toHaveBeenCalledWith(
+    expect.objectContaining({ ignoreRecordedCatalogs: true }),
+    []
+  )
+})
+
 test('catalogs from a source other than a workspace manifest keep the check on', async () => {
   // A pnpmfile `updateConfig` hook can supply catalogs to a project with no
   // pnpm-workspace.yaml. They must reach the pnpr server to resolve

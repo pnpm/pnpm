@@ -140,8 +140,8 @@ test('pnpr receives no catalogs when none stand behind the configuration', async
   const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
   const options = createOptions(workspaceRoot, rootDir, {
     catalogs: { default: { '@tanstack/store': '0.11.0' } },
-    // The config reader reports this when no pnpm-workspace.yaml was found,
-    // so an empty catalogs config is the config, not an emptied catalog.
+    // Set together with catalogs only to show that the flag, not the
+    // catalogs value, decides whether catalogs are forwarded.
     ignoreRecordedCatalogs: true,
   })
 

@@ -108,10 +108,10 @@ async fn workspace_manifests_satisfy(
             workspace_packages: workspace_packages.as_ref(),
             config: check.config,
             catalogs: check.catalogs,
-            // An `updateConfig` hook can supply catalogs without a
-            // `pnpm-workspace.yaml`, and those still have to match.
+            // An `updateConfig` hook can supply catalogs, even an empty set,
+            // without a `pnpm-workspace.yaml`, and those still have to match.
             ignore_recorded_catalogs: workspace_manifest.is_none()
-                && check.catalogs.is_empty(),
+                && check.config.catalogs.is_none(),
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,

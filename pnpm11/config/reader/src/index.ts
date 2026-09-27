@@ -5,7 +5,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
-import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
+import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
@@ -603,8 +603,10 @@ export async function getConfig (opts: {
         }
       }
       // Assigned after the manifest's settings are merged, so that a
-      // pnpm-workspace.yaml naming this key cannot override it.
-      pnpmConfig.workspaceManifestFound = workspaceManifest != null
+      // pnpm-workspace.yaml naming this key cannot override it. An empty
+      // file reads as no manifest, but it still exists.
+      pnpmConfig.workspaceManifestFound = workspaceManifest != null ||
+        fs.existsSync(path.join(pnpmConfig.workspaceDir, WORKSPACE_MANIFEST_FILENAME))
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.globalPkgDir)
