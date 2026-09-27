@@ -44,7 +44,8 @@ impl<'a> PackageImportOptions<'a> {
     /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
     #[must_use]
     pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
-        let needs_private_files = needs_build || (source_is_mutable && self.isolate_mutable_sources);
+        let needs_private_files =
+            needs_build || (source_is_mutable && self.isolate_mutable_sources);
         if source_is_mutable && !needs_private_files && self.method == PackageImportMethod::Auto {
             return PackageImportMethod::Hardlink;
         }

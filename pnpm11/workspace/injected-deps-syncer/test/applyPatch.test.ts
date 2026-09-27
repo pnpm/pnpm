@@ -335,3 +335,21 @@ test('publishEditsForWatchers leaves a hardlink that predates the watch', async 
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+testOnPosix('publishEditsForWatchers keeps the mode of the source file', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  const sourceFile = path.join(source, 'bin.js')
+  createFile(sourceFile, 'old')
+  createHardlink(sourceFile, path.join(target, 'bin.js'))
+  fs.writeFileSync(sourceFile, 'new')
+  fs.chmodSync(sourceFile, 0o755)
+
+  try {
+    await publishEditsForWatchers(source, target, 0)
+    expect(fs.statSync(path.join(target, 'bin.js')).mode & 0o777).toBe(0o755)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})

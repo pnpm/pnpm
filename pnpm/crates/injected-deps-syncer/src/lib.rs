@@ -30,10 +30,7 @@ use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::mpsc::{self, RecvTimeoutError},
     thread::{self, JoinHandle},
     time::{Duration, SystemTime},
 };
@@ -295,6 +292,7 @@ fn resolved_injected_targets(
 /// or when the modules manifest cannot be read. [`sync_injected_deps`]
 /// reports that error after the script, so it does not stop the script from
 /// starting.
+#[must_use]
 pub fn injected_edit_dirs(opts: &SyncInjectedDeps<'_>) -> Option<(PathBuf, Vec<PathBuf>)> {
     opts.pkg_name?;
     let workspace_dir = opts.workspace_dir?;
@@ -316,13 +314,14 @@ pub fn injected_edit_dirs(opts: &SyncInjectedDeps<'_>) -> Option<(PathBuf, Vec<P
 /// The thread joins on stop, so the end-of-script hardlink sync does not
 /// run beside a publish.
 pub struct InjectedEditWatch {
-    stop: Arc<AtomicBool>,
+    stop: Option<mpsc::Sender<()>>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl InjectedEditWatch {
     pub fn stop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        // Dropping the sender wakes the thread out of its wait.
+        self.stop.take();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -335,6 +334,8 @@ impl Drop for InjectedEditWatch {
     }
 }
 
+const PUBLISH_INTERVAL: Duration = Duration::from_millis(200);
+
 /// Publish injected copies on a short interval for as long as the watch lives.
 ///
 /// `edited_since` stays fixed at two seconds before the watch starts, which
@@ -343,38 +344,32 @@ impl Drop for InjectedEditWatch {
 /// modification time was preserved.
 #[must_use]
 pub fn watch_injected_edits(source: PathBuf, targets: Vec<PathBuf>) -> InjectedEditWatch {
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_flag = Arc::clone(&stop);
+    let (stop, stopped) = mpsc::channel::<()>();
     let thread = thread::spawn(move || {
         let edited_since = SystemTime::now()
             .checked_sub(Duration::from_secs(2))
             .unwrap_or(SystemTime::UNIX_EPOCH);
-        let mut slices_until_publish = 0u8;
         loop {
-            if stop_flag.load(Ordering::Relaxed) {
+            publish_to_targets(&source, &targets, edited_since);
+            if !matches!(stopped.recv_timeout(PUBLISH_INTERVAL), Err(RecvTimeoutError::Timeout)) {
                 break;
             }
-            if slices_until_publish == 0 {
-                for target in &targets {
-                    if let Err(error) = dir_patcher::publish_edits(&source, target, edited_since) {
-                        tracing::debug!(
-                            target: "pacquet::sync_injected_deps",
-                            source = ?source,
-                            target = ?target,
-                            "Failed to publish an injected dependency while its script is running: {error}",
-                        );
-                    }
-                }
-                slices_until_publish = 4;
-            }
-            if stop_flag.load(Ordering::Relaxed) {
-                break;
-            }
-            slices_until_publish -= 1;
-            thread::sleep(Duration::from_millis(50));
         }
     });
-    InjectedEditWatch { stop, thread: Some(thread) }
+    InjectedEditWatch { stop: Some(stop), thread: Some(thread) }
+}
+
+fn publish_to_targets(source: &Path, targets: &[PathBuf], edited_since: SystemTime) {
+    for target in targets {
+        if let Err(error) = dir_patcher::publish_edits(source, target, edited_since) {
+            tracing::debug!(
+                target: "pacquet::sync_injected_deps",
+                source = ?source,
+                target = ?target,
+                "Failed to publish an injected dependency while its script is running: {error}",
+            );
+        }
+    }
 }
 
 fn read_workspace_modules(
