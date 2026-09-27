@@ -222,15 +222,21 @@ if [ "$HEAD_SLUG" != "pnpm/pnpm" ]; then
 fi
 
 # Read the repository slug out of a Git remote URL. Only the URL forms that name github.com
-# as the host are understood, so a URL on another host cannot be mistaken for the head
-# repository by carrying `github.com` in its path. A URL that matches none of them — another
-# host, a local path, a `file://` URL, plaintext `http` — is not a GitHub remote at all and
-# has no slug: returning it unchanged would be unsafe, because a relative local path reads
-# exactly like a slug (`some-fork/pnpm.git` becomes `some-fork/pnpm`) and would then compare
-# equal to the head repository.
+# as the host are understood — the same forms the normalization below accepts, including the
+# optional user and port git itself allows (`https://github.com/…`,
+# `https://alice@github.com:22/…`, `ssh://…`, `git@github.com:…`) — so a URL on another host
+# cannot be mistaken for the head repository by carrying `github.com` in its path. A URL that
+# matches none of them — another host, a local path, a `file://` URL, plaintext `http` — is
+# not a GitHub remote at all and has no slug: returning it unchanged would be unsafe, because
+# a relative local path reads exactly like a slug (`some-fork/pnpm.git` becomes
+# `some-fork/pnpm`) and would then compare equal to the head repository.
 repo_slug() {
   case "$1" in
-    https://github.com/*|https://*@github.com/*|ssh://git@github.com/*|ssh://git@github.com:[0-9]*/*|git@github.com:*) ;;
+    https://github.com/*|https://*@github.com/*|\
+    https://github.com:[0-9]*/*|https://*@github.com:[0-9]*/*|\
+    ssh://github.com/*|ssh://*@github.com/*|\
+    ssh://github.com:[0-9]*/*|ssh://*@github.com:[0-9]*/*|\
+    git@github.com:*) ;;
     *) return 0 ;;
   esac
   printf '%s' "$1" | sed \
@@ -238,6 +244,14 @@ repo_slug() {
     -e 's#^git@github\.com:##' \
     -e 's#\.git$##' \
     -e 's#/$##' | tr '[:upper:]' '[:lower:]'
+}
+
+# A push URL can carry a credential in its userinfo (`https://user:token@github.com/...`), and
+# the URL of the wrong remote is printed below, so the token would be written to the terminal
+# or to a CI log by the very run that refuses to push. The host and path are what identify the
+# remote; the userinfo is replaced.
+redact_url() {
+  printf '%s' "$1" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@#\1***@#'
 }
 
 # The remote that is about to be pushed to is used because of its name -- `origin`, or the
@@ -253,7 +267,7 @@ while IFS= read -r REMOTE_URL; do
   REMOTE_SLUG=$(repo_slug "$REMOTE_URL")
   if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
     echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
-    echo "  Current $REMOTE: $REMOTE_URL"
+    echo "  Current $REMOTE: $(redact_url "$REMOTE_URL")"
     if [ -z "$REMOTE_SLUG" ]; then
       echo "  That is not a github.com repository URL, so it cannot name $HEAD_REPO."
     fi

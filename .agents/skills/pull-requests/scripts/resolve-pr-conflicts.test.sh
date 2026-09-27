@@ -196,7 +196,7 @@ expect_status() {
 }
 
 expect_output() {
-  printf '%s' "$output" | grep -q -- "$1" || fail "expected the output to contain: $1"
+  printf '%s' "$output" | grep -qF -- "$1" || fail "expected the output to contain: $1"
 }
 
 expect_call() {
@@ -206,6 +206,12 @@ expect_call() {
 expect_no_call() {
   if grep -q -- "$1" "$STUB_LOG"; then
     fail "expected no call matching: $1"
+  fi
+}
+
+expect_no_output() {
+  if printf '%s' "$output" | grep -qF -- "$1"; then
+    fail "expected the output not to contain: $1"
   fi
 }
 
@@ -457,6 +463,39 @@ run_case 'fork-push-all-push-urls' 4242 --no-push
 expect_status 0
 expect_output "git push some-fork HEAD:fix/example --force-with-lease"
 unset STUB_PUSH_URLS
+
+# The forms the slug is read from include the optional user and port git accepts, so a valid
+# ssh remote without a user, or with a user and a port, is still recognised: refusing it would
+# abort a rebase that has nothing wrong with it.
+export STUB_PUSH_URL='ssh://github.com/some-fork/pnpm.git'
+run_case 'fork-push-ssh-no-user' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+export STUB_PUSH_URL='ssh://alice@github.com:22/some-fork/pnpm.git'
+run_case 'fork-push-ssh-user-port' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+export STUB_PUSH_URL='https://alice@github.com/some-fork/pnpm.git'
+run_case 'fork-push-https-user' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+unset STUB_PUSH_URL
+
+# A remote URL carrying a credential is refused like any other wrong remote, and the URL is
+# printed to say which remote was wrong: the token in its userinfo must not be printed with it.
+export STUB_PUSH_URL='https://x-access-token:ghp_SECRETTOKEN@github.com/someone-else/pnpm.git'
+run_case 'fork-push-credential-redacted' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_output 'ghp_SECRETTOKEN'
+expect_output 'Current some-fork: https://***@github.com/someone-else/pnpm.git'
+expect_no_call '^git push'
+# A credential on the correct remote is not a reason to refuse it.
+export STUB_PUSH_URL='https://x-access-token:ghp_SECRETTOKEN@github.com/some-fork/pnpm.git'
+run_case 'fork-push-credential-correct-remote' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+unset STUB_PUSH_URL
 
 # Only the URL forms that name github.com as the host are read as a slug. A remote that is
 # not a GitHub remote at all cannot name the head repository, and it must not be accepted
