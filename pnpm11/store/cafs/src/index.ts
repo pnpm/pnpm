@@ -8,6 +8,7 @@ import type {
   PackageFiles,
   SideEffects,
   SideEffectsDiff,
+  SideEffectsFilesMap,
 } from '@pnpm/store.cafs-types'
 
 import { addFilesFromDir } from './addFilesFromDir.js'
@@ -31,7 +32,7 @@ import {
 } from './getFilePathInCafs.js'
 import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { parseJsonBufferSync } from './parseJson.js'
-import { isSymlinkMode, normalizeSymlinkTarget, SYMLINK_MODE } from './symlinks.js'
+import { createSideEffectsFilesMapBuilder, isSymlinkMode, normalizeSymlinkTarget, type SideEffectsFilesMapBuilder, SYMLINK_MODE } from './symlinks.js'
 import { writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
@@ -43,6 +44,7 @@ export {
   buildFileMapsFromIndex,
   checkPkgFilesIntegrity,
   contentPathFromHex,
+  createSideEffectsFilesMapBuilder,
   type FilesIndex,
   type FileType,
   getFilePathByModeInCafs,
@@ -54,6 +56,8 @@ export {
   type PackageFilesIndex,
   type SideEffects,
   type SideEffectsDiff,
+  type SideEffectsFilesMap,
+  type SideEffectsFilesMapBuilder,
   SYMLINK_MODE,
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,

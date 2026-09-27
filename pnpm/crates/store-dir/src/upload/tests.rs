@@ -272,7 +272,6 @@ async fn relative_symlink_output_is_cached_as_symlink_entry() {
         let cas_path =
             store_dir.cas_file_path_by_mode(&link.digest, link.mode).expect("symlink CAFS path");
         assert_eq!(fs::read_to_string(cas_path).expect("read symlink target"), "generated");
-        assert!(diff.has_symlinks());
         if let Some(returned_diff) = returned_diff {
             assert_eq!(diff, &returned_diff);
         }

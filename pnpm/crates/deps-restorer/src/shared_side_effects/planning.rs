@@ -242,7 +242,7 @@ pub(super) async fn reuse_persisted_overlay(
     let Some(diff) = diff else {
         return false;
     };
-    match stored_remote_side_effects_blobs_are_valid(diff, &overlay).await {
+    match stored_remote_side_effects_blobs_are_valid(&plan.config.store_dir, diff, &overlay).await {
         Ok(true) => {
             insert_side_effects_map(
                 side_effects_maps_by_snapshot,

@@ -5,20 +5,13 @@
 //! The content is a regular CAFS file, so a pnpm version that does not know
 //! the entry type still verifies it like any other file. Such a version never
 //! restores the entry, because the side-effects cache key names the diff
-//! format (`SIDE_EFFECTS_FORMAT_KEY` in the graph hasher).
+//! format (`SIDE_EFFECTS_FORMAT_KEY` in the graph hasher). A remote artifact
+//! carries the same entry, as the shared-artifact protocol defines it.
 
-use crate::{CafsFileInfo, FilesMap, SideEffectsDiff};
+pub use pnpm_shared_artifact_protocol::{SYMLINK_MODE, is_symlink_mode};
+
+use crate::{CafsFileInfo, FilesMap};
 use std::{collections::HashMap, fs, io, path::Path};
-
-/// The file-type bits of a side-effects entry that records a symlink.
-pub const SYMLINK_MODE: u32 = 0o120_000;
-
-const FILE_TYPE_MASK: u32 = 0o170_000;
-
-#[must_use]
-pub fn is_symlink_mode(mode: u32) -> bool {
-    mode & FILE_TYPE_MASK == SYMLINK_MODE
-}
 
 /// The target the side-effects cache records for a symlink at `link_path`,
 /// or `None` when the link cannot be recorded.
@@ -118,18 +111,6 @@ pub struct SideEffectsOverlay {
 impl From<FilesMap> for SideEffectsOverlay {
     fn from(files: FilesMap) -> Self {
         SideEffectsOverlay { files, symlinks: HashMap::new() }
-    }
-}
-
-impl SideEffectsDiff {
-    /// Whether the diff records a symlink, which only a pnpm version that
-    /// reads the current diff format restores.
-    #[must_use]
-    pub fn has_symlinks(&self) -> bool {
-        self.added
-            .iter()
-            .flatten()
-            .any(|(_, info)| info.is_symlink())
     }
 }
 
