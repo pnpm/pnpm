@@ -1,7 +1,7 @@
 use super::{
     Config, ConfigOverrides, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    Path, StoreDir, default_state_dir, lexical_normalize, resolve_child_concurrency, setting_value,
-    verify_deps_env_is_set,
+    Path, StoreDir, WorkspaceSettings, default_state_dir, lexical_normalize,
+    resolve_child_concurrency, setting_value, verify_deps_env_is_set,
 };
 
 pub(crate) fn apply_store_dir_override<Sys>(
@@ -172,6 +172,23 @@ impl ConfigOverrides {
         self.apply_install_policy_overrides(config);
         self.apply_global_directory(config, dir);
         self.apply_lockfile_anchored_paths(config, dir);
+        self.apply_unported_settings(config, dir);
+    }
+
+    /// Layer the dotted settings the tables above do not name.
+    ///
+    /// Those tables keep only what needs the command line's own handling: a
+    /// normalized registry URL, paths anchored against the lockfile directory,
+    /// a `--no-` spelling. Everything else is a schema entry, so it is read
+    /// through the field list `PNPM_CONFIG_*` uses rather than a second copy
+    /// of it that can fall behind.
+    fn apply_unported_settings(&self, config: &mut Config, dir: &Path) {
+        if self.unported.is_empty() {
+            return;
+        }
+        let settings = WorkspaceSettings::from_string_values(&self.unported);
+        config.record_explicit_settings(&settings);
+        settings.apply_to(config, dir);
     }
 
     fn apply_global_directory(&self, config: &mut Config, dir: &Path) {

@@ -8,8 +8,8 @@ use apply::normalize_registry_url;
 use pnpm_config::{
     ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
     LinkWorkspacePackages, NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
-    resolve_child_concurrency,
+    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, WorkspaceSettings, default_state_dir,
+    naming_cases::to_kebab_case, resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
@@ -127,6 +127,12 @@ pub struct ConfigOverrides {
     /// Every kebab-case key [`Self::set`] received, whether or not its
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
+
+    /// The dotted `--config.<key>=<value>` tokens no table above claims, by
+    /// setting name. [`Self::apply_unported_settings`] reads them through the
+    /// schema's own field list, so naming a setting on the command line is
+    /// enough to set it.
+    unported: BTreeMap<String, String>,
 }
 
 /// Copy each override that the command line set onto the config.
@@ -247,18 +253,24 @@ impl ConfigOverrides {
 
     fn set(&mut self, key: &str, value: &str) {
         self.settings.insert(key.to_owned());
-        self.set_boolean_install_option(key, value);
-        self.set_boolean_execution_option(key, value);
-        self.set_network_option(key, value);
-        self.set_dependency_policy_option(key, value);
-        self.set_layout_option(key, value);
-        self.set_install_execution_option(key, value);
+        // Every table runs, as they did before they reported a miss: one key
+        // can be claimed by more than one, so short-circuiting would change
+        // which of them see it.
+        let claimed = self.set_boolean_install_option(key, value)
+            | self.set_boolean_execution_option(key, value)
+            | self.set_network_option(key, value)
+            | self.set_dependency_policy_option(key, value)
+            | self.set_layout_option(key, value)
+            | self.set_install_execution_option(key, value);
+        if !claimed {
+            self.unported.insert(to_kebab_case(key), value.to_owned());
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
     }
 
-    fn set_boolean_install_option(&mut self, key: &str, value: &str) {
+    fn set_boolean_install_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
             "dangerously-allow-all-builds" => {
@@ -297,11 +309,12 @@ impl ConfigOverrides {
             "trust-lockfile" => self.trust_lockfile = parse_bool(value),
             "verify-store-integrity" => self.verify_store_integrity = parse_bool(value),
             "virtual-store-only" => self.virtual_store_only = parse_bool(value),
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
-    fn set_boolean_execution_option(&mut self, key: &str, value: &str) {
+    fn set_boolean_execution_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "bail" => self.bail = parse_bool(value),
             "ci" => self.ci = parse_bool(value),
@@ -328,11 +341,12 @@ impl ConfigOverrides {
             "sort" => self.sort = parse_bool(value),
             "unsafe-perm" => self.unsafe_perm = parse_bool(value),
             "use-beta-cli" => self.use_beta_cli = parse_bool(value),
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
-    fn set_network_option(&mut self, key: &str, value: &str) {
+    fn set_network_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "registry" => {
                 self.registry = Some(normalize_registry_url(value));
@@ -355,11 +369,12 @@ impl ConfigOverrides {
             "max-sockets" => {
                 self.max_sockets = value.parse().ok();
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
-    fn set_dependency_policy_option(&mut self, key: &str, value: &str) {
+    fn set_dependency_policy_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "minimum-release-age" => {
                 self.minimum_release_age = value.parse().ok();
@@ -393,11 +408,12 @@ impl ConfigOverrides {
             "trust-policy-ignore-after" => {
                 self.trust_policy_ignore_after = value.parse().ok();
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
-    fn set_layout_option(&mut self, key: &str, value: &str) {
+    fn set_layout_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "global-dir" => {
                 self.global_dir = Some(value.to_string());
@@ -417,11 +433,12 @@ impl ConfigOverrides {
             "virtual-store-dir" => {
                 self.virtual_store_dir = Some(value.to_string());
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 
-    fn set_install_execution_option(&mut self, key: &str, value: &str) {
+    fn set_install_execution_option(&mut self, key: &str, value: &str) -> bool {
         match key {
             "child-concurrency" => {
                 self.child_concurrency = value.parse().ok();
@@ -444,8 +461,9 @@ impl ConfigOverrides {
             "shared-workspace-lockfile" => {
                 self.shared_workspace_lockfile = parse_bool(value);
             }
-            _ => {}
+            _ => return false,
         }
+        true
     }
 }
 
