@@ -226,6 +226,25 @@ pub struct UnixCreationMode {
     pub grant_mode: Option<u32>,
 }
 
+#[cfg(unix)]
+impl UnixCreationMode {
+    /// Set the open-mode ceiling on `options`.
+    pub fn apply_to(&self, options: &mut std::fs::OpenOptions) {
+        use std::os::unix::fs::OpenOptionsExt;
+        if let Some(open_mode) = self.open_mode {
+            options.mode(open_mode);
+        }
+    }
+
+    /// Add the post-create bits to a file opened with [`Self::apply_to`].
+    pub fn grant(&self, file: &std::fs::File) -> io::Result<()> {
+        match self.grant_mode {
+            Some(wanted) => grant_mode_bits(file, wanted),
+            None => Ok(()),
+        }
+    }
+}
+
 /// OR `wanted` onto `file`. Bits already present are kept, so a default ACL
 /// wider than the directory mode survives. `EPERM`, `EACCES`, and `EROFS`
 /// are ignored: the file is already usable by its creator, and a store entry
@@ -258,15 +277,26 @@ pub fn grant_inherited_mode(
     parent: &Path,
     executable: bool,
 ) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    let wanted = match std::fs::metadata(parent) {
-        Ok(meta) => inherited_file_mode(meta.permissions().mode(), executable),
-        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
+    let Some(parent_mode) = reachable_mode(parent)? else {
+        return Ok(());
     };
+    let wanted = inherited_file_mode(parent_mode, executable);
     grant_mode_bits(file, wanted)
+}
+
+/// `create_dir_all` that, on Unix, gives each directory it creates the
+/// group permission and setgid bits of the nearest ancestor that already
+/// existed (see [`grant_inherited_dir_mode`]). Directories that were
+/// already present are not modified.
+pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
+    std::fs::create_dir_all(dir)?;
+    #[cfg(unix)]
+    if let Some(template) = template.as_deref() {
+        grant_inherited_dir_mode(dir, template)?;
+    }
+    Ok(())
 }
 
 /// Closest existing directory at `dir` or above it.
@@ -302,43 +332,51 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
 /// and `EROFS` are ignored. The root directory is never changed.
 #[cfg(unix)]
 pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    let extra = match std::fs::metadata(template) {
-        Ok(meta) => inherited_dir_bits(meta.permissions().mode()),
-        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
+    let Some(template_mode) = reachable_mode(template)? else {
+        return Ok(());
     };
+    let extra = inherited_dir_bits(template_mode);
     if extra == 0 {
         return Ok(());
     }
     let mut current = dir.to_path_buf();
-    while current != template {
-        // Never chmod `/` when `template` is not a lexical prefix of `dir`.
-        if current.as_os_str().is_empty() || current.parent().is_none() {
-            break;
-        }
-        match std::fs::metadata(&current) {
-            Ok(meta) => {
-                let mode = meta.permissions().mode() & 0o7777;
-                let merged = mode | extra;
-                if merged != mode
-                    && let Err(error) =
-                        std::fs::set_permissions(&current, std::fs::Permissions::from_mode(merged))
-                    && !is_unchangeable(&error)
-                {
-                    return Err(error);
-                }
-            }
-            Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-        if !current.pop() {
-            break;
-        }
+    // Never chmod `/` when `template` is not a lexical prefix of `dir`.
+    while current != template && !current.as_os_str().is_empty() && current.parent().is_some() {
+        add_dir_mode_bits(&current, extra)?;
+        current.pop();
     }
     Ok(())
+}
+
+/// Mode of `path`, or `None` when it is missing or cannot be stated.
+#[cfg(unix)]
+fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
+    use std::os::unix::fs::PermissionsExt;
+    match std::fs::metadata(path) {
+        Ok(meta) => Ok(Some(meta.permissions().mode())),
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// OR `extra` onto the mode of the directory at `path`.
+#[cfg(unix)]
+fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let Some(mode) = reachable_mode(path)? else {
+        return Ok(());
+    };
+    let mode = mode & 0o7777;
+    let merged = mode | extra;
+    if merged == mode {
+        return Ok(());
+    }
+    match std::fs::set_permissions(path, std::fs::Permissions::from_mode(merged)) {
+        Err(error) if is_unchangeable(&error) => Ok(()),
+        other => other,
+    }
 }
 
 /// Bits [`grant_inherited_dir_mode`] adds to a new directory under a

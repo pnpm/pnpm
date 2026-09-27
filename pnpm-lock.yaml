@@ -10157,6 +10157,10 @@ importers:
         version: 0.32.0
 
   pnpm11/store/file-mode:
+    dependencies:
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
     devDependencies:
       '@pnpm/store.file-mode':
         specifier: workspace:*

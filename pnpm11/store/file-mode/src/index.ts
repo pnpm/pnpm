@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import gfs from '@pnpm/fs.graceful-fs'
+
 // Read and write bits come from the parent directory, so a group-writable
 // store stays group-writable. Execute bits are copied only for an executable
 // file. Owner read and write stay set so the creator can finish the write.
@@ -66,6 +68,19 @@ export function directoryExists (dir: string): boolean {
     if (isMissing(err)) return false
     throw err
   }
+}
+
+// Recursive mkdir that gives each directory it creates the group permission
+// and setgid bits of the nearest ancestor that already existed. Directories
+// that were already present are not modified.
+export function mkdirInheritingMode (dir: string): void {
+  if (process.platform === 'win32' || directoryExists(dir)) {
+    gfs.mkdirSync(dir, { recursive: true })
+    return
+  }
+  const template = nearestExistingAncestor(dir)
+  gfs.mkdirSync(dir, { recursive: true })
+  if (template != null) grantInheritedDirMode(dir, template)
 }
 
 export function nearestExistingAncestor (dir: string): string | undefined {

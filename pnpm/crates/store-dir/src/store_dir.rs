@@ -231,53 +231,56 @@ impl StoreDir {
         if files.is_dir() {
             return Ok(());
         }
-        // Record the ancestor before `create_dir_all` so the grant stops
-        // at a directory this call did not create.
-        #[cfg(unix)]
-        let template = pnpm_fs::file_mode::nearest_existing_ancestor(&files);
-        std::fs::create_dir_all(&files)?;
-        #[cfg(unix)]
-        if let Some(template) = template.as_deref() {
-            pnpm_fs::file_mode::grant_inherited_dir_mode(&files, template)?;
-        }
+        pnpm_fs::file_mode::create_dir_all_inheriting_mode(&files)?;
         for shard in 0u8..=255 {
             // Two-char lowercase hex keyed off the first byte of the
             // sha512 digest, matching `StoreDir::file_path_by_hex_str`.
-            let shard_dir = files.join(format!("{shard:02x}"));
-            if let Err(error) = std::fs::create_dir(&shard_dir) {
-                if error.kind() != std::io::ErrorKind::AlreadyExists {
-                    return Err(error);
-                }
-                // `AlreadyExists` is benign only when the existing
-                // entry resolves to a directory — a parallel pnpm
-                // or pacquet process racing the same layout is
-                // fine, and a symlink pointing at a real directory
-                // is too (ops folks occasionally spread a store
-                // across disks that way). `Path::is_dir` follows
-                // symlinks, which is the desired semantics here. A
-                // regular file, a non-dir symlink, or a broken
-                // symlink would make `mark_shard_ensured` a lie and
-                // punt the failure to a much less actionable
-                // `open` error inside the per-file CAFS write.
-                // Reject upfront.
-                if !shard_dir.is_dir() {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::AlreadyExists,
-                        format!(
-                            "CAFS shard path {} exists but does not resolve to a directory",
-                            shard_dir.display(),
-                        ),
-                    ));
-                }
-            } else {
-                // Only the shard this call created. A shard that already
-                // existed keeps its mode.
-                #[cfg(unix)]
-                pnpm_fs::file_mode::grant_inherited_dir_mode(&shard_dir, &files)?;
-            }
+            create_shard_dir(&files, &files.join(format!("{shard:02x}")))?;
             self.mark_shard_ensured(shard);
         }
         Ok(())
+    }
+}
+
+/// Create one CAFS shard under `files`. A shard this call creates takes
+/// the group permission and setgid bits of `files`. One that already
+/// existed keeps its mode.
+fn create_shard_dir(
+    #[cfg_attr(not(unix), allow(unused, reason = "POSIX mode bits are only applied on Unix"))]
+    files: &path::Path,
+    shard_dir: &path::Path,
+) -> std::io::Result<()> {
+    match std::fs::create_dir(shard_dir) {
+        Ok(()) => {
+            #[cfg(unix)]
+            pnpm_fs::file_mode::grant_inherited_dir_mode(shard_dir, files)?;
+            Ok(())
+        }
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
+        Err(_) => {
+            // `AlreadyExists` is benign only when the existing
+            // entry resolves to a directory — a parallel pnpm
+            // or pacquet process racing the same layout is
+            // fine, and a symlink pointing at a real directory
+            // is too (ops folks occasionally spread a store
+            // across disks that way). `Path::is_dir` follows
+            // symlinks, which is the desired semantics here. A
+            // regular file, a non-dir symlink, or a broken
+            // symlink would make `mark_shard_ensured` a lie and
+            // punt the failure to a much less actionable
+            // `open` error inside the per-file CAFS write.
+            // Reject upfront.
+            if !shard_dir.is_dir() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    format!(
+                        "CAFS shard path {} exists but does not resolve to a directory",
+                        shard_dir.display(),
+                    ),
+                ));
+            }
+            Ok(())
+        }
     }
 }
 

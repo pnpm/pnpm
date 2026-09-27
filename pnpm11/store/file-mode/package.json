@@ -29,6 +29,9 @@
     "compile": "tsgo --build && pn lint --fix",
     "prepublishOnly": "tsgo --build"
   },
+  "dependencies": {
+    "@pnpm/fs.graceful-fs": "workspace:*"
+  },
   "devDependencies": {
     "@pnpm/store.file-mode": "workspace:*",
     "@types/node": "catalog:"

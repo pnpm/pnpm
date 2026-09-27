@@ -125,28 +125,11 @@ impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
-        // A new store directory inherits group-write and setgid from the
-        // nearest directory that already existed. An existing store
-        // directory is left alone, including one another user owns.
-        #[cfg(unix)]
-        let new_store_template = if store_dir.is_dir() {
-            None
-        } else {
-            pnpm_fs::file_mode::nearest_existing_ancestor(store_dir)
-        };
-        std::fs::create_dir_all(store_dir)
+        pnpm_fs::file_mode::create_dir_all_inheriting_mode(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
                 source,
             })?;
-        #[cfg(unix)]
-        if let Some(template) = new_store_template.as_deref() {
-            pnpm_fs::file_mode::grant_inherited_dir_mode(store_dir, template)
-                .map_err(|source| StoreIndexError::CreateDir {
-                    path: store_dir.to_path_buf(),
-                    source,
-                })?;
-        }
         let db_path = store_dir.join("index.db");
         #[cfg(unix)]
         create_new_index_with_inherited_mode(&db_path, store_dir)?;
@@ -537,7 +520,7 @@ fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
 }
 
 /// Create `index.db` if it is missing and give it the store directory's
-/// inherited mode. SQLite copies the database's mode onto the WAL and
+/// inherited mode. `SQLite` copies the database's mode onto the WAL and
 /// shared-memory sidecars, so the bits must be in place before it opens.
 ///
 /// The exclusive create decides which process made the database. An

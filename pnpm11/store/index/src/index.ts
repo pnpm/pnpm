@@ -5,12 +5,7 @@ import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlit
 import { pathToFileURL } from 'node:url'
 
 import { isError, PnpmError } from '@pnpm/error'
-import {
-  directoryExists,
-  grantInheritedDirMode,
-  grantInheritedFileMode,
-  nearestExistingAncestor,
-} from '@pnpm/store.file-mode'
+import { grantInheritedFileMode, mkdirInheritingMode } from '@pnpm/store.file-mode'
 import { Packr } from 'msgpackr'
 
 import {
@@ -154,13 +149,7 @@ export class StoreIndex {
 
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
-    if (process.platform !== 'win32' && !directoryExists(storeDir)) {
-      const template = nearestExistingAncestor(storeDir)
-      fs.mkdirSync(storeDir, { recursive: true })
-      if (template != null) grantInheritedDirMode(storeDir, template)
-    } else {
-      fs.mkdirSync(storeDir, { recursive: true })
-    }
+    mkdirInheritingMode(storeDir)
     if (process.platform !== 'win32') createIndexWithInheritedMode(storeDir)
     this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
     try {

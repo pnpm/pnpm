@@ -113,17 +113,8 @@ pub enum EnsureFileError {
 /// setgid bits of the nearest ancestor that already existed. Directories
 /// that were already present are not modified.
 pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
-    #[cfg(unix)]
-    let template =
-        if dir.is_dir() { None } else { crate::file_mode::nearest_existing_ancestor(dir) };
-    fs::create_dir_all(dir)
-        .map_err(|error| EnsureFileError::CreateDir { parent_dir: dir.to_path_buf(), error })?;
-    #[cfg(unix)]
-    if let Some(template) = template.as_deref() {
-        crate::file_mode::grant_inherited_dir_mode(dir, template)
-            .map_err(|error| EnsureFileError::CreateDir { parent_dir: dir.to_path_buf(), error })?;
-    }
-    Ok(())
+    crate::file_mode::create_dir_all_inheriting_mode(dir)
+        .map_err(|error| EnsureFileError::CreateDir { parent_dir: dir.to_path_buf(), error })
 }
 
 /// Write `content` to `file_path` with content-addressable-store
@@ -232,26 +223,22 @@ fn ensure(
     options.write(true).create_new(true);
 
     #[cfg(unix)]
-    let grant_mode = {
-        use std::os::unix::fs::OpenOptionsExt;
-        let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
-        let creation = crate::file_mode::unix_creation_mode(parent, mode);
-        if let Some(open_mode) = creation.open_mode {
-            options.mode(open_mode);
-        }
-        creation.grant_mode
-    };
+    let creation = crate::file_mode::unix_creation_mode(
+        file_path.parent().unwrap_or_else(|| Path::new(".")),
+        mode,
+    );
+    #[cfg(unix)]
+    creation.apply_to(&mut options);
 
     match retry_on_fd_pressure(|| options.open(file_path)) {
         Ok(mut file) => {
             #[cfg(unix)]
-            if let Some(wanted) = grant_mode {
-                crate::file_mode::grant_mode_bits(&file, wanted)
-                    .map_err(|error| EnsureFileError::WriteFile {
-                        file_path: file_path.to_path_buf(),
-                        error,
-                    })?;
-            }
+            creation
+                .grant(&file)
+                .map_err(|error| EnsureFileError::WriteFile {
+                    file_path: file_path.to_path_buf(),
+                    error,
+                })?;
             file.write_all(content)
                 .map_err(|error| EnsureFileError::WriteFile {
                     file_path: file_path.to_path_buf(),
@@ -625,22 +612,13 @@ pub fn create_exclusive_temp_file(
         options.write(true).create_new(true);
 
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            if let Some(open_mode) = creation.open_mode {
-                options.mode(open_mode);
-            }
-        }
+        creation.apply_to(&mut options);
 
         match retry_on_fd_pressure(|| options.open(&tmp_path)) {
             Ok(file) => {
                 #[cfg(unix)]
-                if let Some(wanted) = creation.grant_mode {
-                    crate::file_mode::grant_mode_bits(&file, wanted)
-                        .map_err(|error| EnsureFileError::CreateFile {
-                            file_path: tmp_path.clone(),
-                            error,
-                        })?;
+                if let Err(error) = creation.grant(&file) {
+                    return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
                 }
                 return Ok((tmp_path, file));
             }

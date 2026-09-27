@@ -401,7 +401,7 @@ fn new_files_in_a_group_writable_directory_keep_group_write() {
             .permissions()
             .mode()
             & 0o777,
-        0o775
+        0o775,
     );
 }
 
@@ -442,7 +442,7 @@ fn private_mode_is_not_widened_in_a_group_writable_directory() {
             .permissions()
             .mode()
             & 0o777,
-        0o600
+        0o600,
     );
 }
 
@@ -469,6 +469,6 @@ fn new_directories_inherit_group_write_and_setgid() {
             .permissions()
             .mode()
             & 0o7777,
-        0o2775
+        0o2775,
     );
 }

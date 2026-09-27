@@ -575,7 +575,7 @@ fn new_index_db_inherits_group_write_and_reopen_keeps_owner_and_mode() {
             .permissions()
             .mode()
             & (0o020 | 0o2000),
-        0o020 | 0o2000
+        0o020 | 0o2000,
     );
 
     fs::set_permissions(&db, fs::Permissions::from_mode(0o600)).unwrap();

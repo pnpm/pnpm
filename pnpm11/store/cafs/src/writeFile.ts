@@ -3,10 +3,8 @@ import path from 'node:path'
 
 import fs from '@pnpm/fs.graceful-fs'
 import {
-  directoryExists,
-  grantInheritedDirMode,
   grantModeBits,
-  nearestExistingAncestor,
+  mkdirInheritingMode,
   readDirMode,
   unixCreationMode,
 } from '@pnpm/store.file-mode'
@@ -56,15 +54,6 @@ function writeCreatedFile (fileDest: string, buffer: Buffer, mode: number | unde
 function makeDirForFile (fileDest: string): void {
   const dir = path.dirname(fileDest)
   if (dirModes.has(dir)) return
-  if (process.platform === 'win32') {
-    fs.mkdirSync(dir, { recursive: true })
-    dirModes.set(dir, undefined)
-    return
-  }
-  if (!directoryExists(dir)) {
-    const template = nearestExistingAncestor(dir)
-    fs.mkdirSync(dir, { recursive: true })
-    if (template != null) grantInheritedDirMode(dir, template)
-  }
-  dirModes.set(dir, readDirMode(dir))
+  mkdirInheritingMode(dir)
+  dirModes.set(dir, process.platform === 'win32' ? undefined : readDirMode(dir))
 }
