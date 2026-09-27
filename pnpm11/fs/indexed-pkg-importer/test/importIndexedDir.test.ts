@@ -473,3 +473,23 @@ testOnPosix('importIndexedDir() safeToSkip repairs a symlink of a cached build',
   expect(fs.readlinkSync(path.join(newDir, 'tool-alias'))).toBe('tool')
   expect(fs.readlinkSync(path.join(newDir, 'tool-link'))).toBe('tool')
 })
+
+testOnPosix('importIndexedDir() safeToSkip does not follow a stale symlink on the path to a cached build link', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(outside)
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([['package.json', path.join(src, 'package.json')]])
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true })
+  fs.symlinkSync(outside, path.join(newDir, 'bin'))
+
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true, symlinks: new Map([['bin/tool', '../package.json']]) })
+
+  expect(fs.lstatSync(path.join(newDir, 'bin')).isDirectory()).toBe(true)
+  expect(fs.readlinkSync(path.join(newDir, 'bin/tool'))).toBe('../package.json')
+  expect(fs.readdirSync(outside)).toStrictEqual([])
+})

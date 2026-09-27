@@ -177,6 +177,8 @@ function repairIndexedDir ({ importer, newDir, filenames, opts }: IndexedDirImpo
     replaceFileIfDifferent(importer.importFile, src, path.join(newDir, f))
   }
   for (const [f, target] of opts.symlinks ?? []) {
+    const dir = path.posix.dirname(f)
+    if (dir !== '.') clearDirentBlockingDir(newDir, dir)
     replaceSymlinkIfDifferent(target, path.join(newDir, f))
   }
   if (packageJsonSrc !== undefined) {
