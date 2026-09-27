@@ -1043,16 +1043,17 @@ fn run_with_a_missing_script_shell_names_it() {
 
 /// A command that runs a script reports `run-script`, the name npm and pnpm 11
 /// put in `npm_command`: `pnpm run <script>`, a shortcut like `pnpm test`, and
-/// the bare `pnpm <script>` fallback all run one.
+/// the bare `pnpm <script>` fallback, and a built-in like `pnpm clean` that a
+/// same-named script replaces all run one.
 #[test]
 fn run_exports_the_command_to_scripts() {
     let script = r#"node -e "require('fs').writeFileSync('npm-command.txt', process.env.npm_command ?? 'unset')""#;
-    for args in [&["run", "dev"][..], &["test"][..], &["dev"][..]] {
+    for args in [&["run", "dev"][..], &["test"][..], &["dev"][..], &["clean"][..]] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         let manifest = json!({
             "name": "test",
             "version": "0.0.0",
-            "scripts": { "dev": script, "test": script },
+            "scripts": { "dev": script, "test": script, "clean": script },
         })
         .to_string();
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
