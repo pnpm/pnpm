@@ -1,5 +1,9 @@
 use super::{ArgQuoting, build_command, posix_quote, quote_for_cmd};
-use std::{ffi::OsStr, fs};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::tempdir;
 
 const CMD: ArgQuoting = ArgQuoting::Cmd { double_escape: false };
@@ -74,10 +78,8 @@ fn bash_quoting_keeps_a_windows_path_intact() {
     );
 }
 
-#[test]
-fn cmd_quoting_escapes_twice_when_the_script_starts_with_a_batch_file() {
-    let dir = tempdir().expect("temp dir");
-    let batch_file = dir.path().join("tool.cmd");
+fn write_batch_file(dir: &Path) -> PathBuf {
+    let batch_file = dir.join("tool.cmd");
     fs::write(&batch_file, "").expect("write the batch file");
     #[cfg(unix)]
     {
@@ -85,17 +87,44 @@ fn cmd_quoting_escapes_twice_when_the_script_starts_with_a_batch_file() {
         fs::set_permissions(&batch_file, fs::Permissions::from_mode(0o755))
             .expect("make the batch file executable");
     }
-    let search_path = dir.path().as_os_str();
-    let quoting = |script: &str| ArgQuoting::cmd(script, search_path, dir.path());
+    batch_file
+}
 
-    assert_eq!(quoting("tool.cmd --flag"), ArgQuoting::Cmd { double_escape: true });
+#[test]
+fn cmd_quoting_escapes_twice_only_when_the_script_ends_with_a_batch_file() {
+    let wd = tempdir().expect("temp dir");
+    let bin_dir = wd.path().join("bin");
+    fs::create_dir(&bin_dir).expect("create the bin dir");
+    let batch_file = write_batch_file(&bin_dir);
+    let cases = [
+        ("tool.cmd --flag".to_string(), true),
+        ("tool.cmd\t--flag".to_string(), true),
+        (format!(r#""{}" --flag"#, batch_file.display()), true),
+        ("bin/tool.cmd --flag".to_string(), true),
+        ("echo ready && tool.cmd".to_string(), true),
+        ("node x.js ^& tool.cmd".to_string(), false),
+        ("tool.cmd && node x.js".to_string(), false),
+        ("node tool.cmd".to_string(), false),
+    ];
+    for (script, double_escape) in cases {
+        assert_eq!(
+            ArgQuoting::cmd(&script, bin_dir.as_os_str(), wd.path()),
+            ArgQuoting::Cmd { double_escape },
+            "quoting for {script:?}",
+        );
+    }
     assert_eq!(
-        quoting(&format!(r#""{}" --flag"#, batch_file.display())),
+        ArgQuoting::cmd("missing.BAT", OsStr::new(""), wd.path()),
         ArgQuoting::Cmd { double_escape: true },
     );
-    assert_eq!(quoting("node tool.cmd"), ArgQuoting::Cmd { double_escape: false });
+}
+
+#[test]
+fn cmd_quoting_finds_a_batch_file_in_the_directory_the_script_runs_in() {
+    let wd = tempdir().expect("temp dir");
+    write_batch_file(wd.path());
     assert_eq!(
-        ArgQuoting::cmd("missing.BAT", OsStr::new(""), dir.path()),
+        ArgQuoting::cmd("tool.cmd", OsStr::new(""), wd.path()),
         ArgQuoting::Cmd { double_escape: true },
     );
 }

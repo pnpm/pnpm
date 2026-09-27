@@ -31,18 +31,36 @@ test('appendScriptArgs() quotes for sh outside of cmd', () => {
   const searchPath = () => {
     throw new Error('searchPath is only read for cmd')
   }
-  expect(appendScriptArgs('node x.js', ['a b', '%PATH%'], { platform: 'linux', searchPath })).toBe("node x.js 'a b' %PATH%")
-  expect(appendScriptArgs('node x.js', ['a b'], { platform: 'win32', shellEmulator: true, searchPath })).toBe("node x.js 'a b'")
-  expect(appendScriptArgs('node x.js', [], { platform: 'win32', searchPath })).toBe('node x.js')
+  const opts = { wd: process.cwd(), searchPath }
+  expect(appendScriptArgs('node x.js', ['a b', '%PATH%'], { ...opts, platform: 'linux' })).toBe("node x.js 'a b' %PATH%")
+  expect(appendScriptArgs('node x.js', ['a b'], { ...opts, platform: 'win32', shellEmulator: true })).toBe("node x.js 'a b'")
+  expect(appendScriptArgs('node x.js', [], { ...opts, platform: 'win32' })).toBe('node x.js')
 })
 
-test('appendScriptArgs() escapes twice when the script starts with a batch file', () => {
-  const binDir = temporaryDirectory()
-  const batchFile = path.join(binDir, 'tool.cmd')
-  fs.writeFileSync(batchFile, '', { mode: 0o755 })
-  const opts = { platform: 'win32' as const, searchPath: () => binDir }
+test.each([
+  ['tool.cmd --flag', true],
+  ['tool.cmd\t--flag', true],
+  ['"<bin>/tool.cmd" --flag', true],
+  ['bin/tool.cmd --flag', true],
+  ['echo ready && tool.cmd', true],
+  ['node x.js ^& tool.cmd', false],
+  ['tool.cmd && node x.js', false],
+  ['node tool.cmd', false],
+])('appendScriptArgs() escapes twice only when %j ends with a batch file', (script, doubleEscape) => {
+  const wd = temporaryDirectory()
+  const binDir = path.join(wd, 'bin')
+  fs.mkdirSync(binDir)
+  fs.writeFileSync(path.join(binDir, 'tool.cmd'), '', { mode: 0o755 })
+  script = script.replace('<bin>', binDir)
 
-  expect(appendScriptArgs('tool.cmd --flag', ['%PATH%'], opts)).toBe('tool.cmd --flag ^^^%PATH^^^%')
-  expect(appendScriptArgs(`"${batchFile}" --flag`, ['%PATH%'], opts)).toBe(`"${batchFile}" --flag ^^^%PATH^^^%`)
-  expect(appendScriptArgs('node tool.cmd', ['%PATH%'], opts)).toBe('node tool.cmd ^%PATH^%')
+  expect(appendScriptArgs(script, ['%PATH%'], { platform: 'win32', wd, searchPath: () => binDir }))
+    .toBe(`${script} ${doubleEscape ? '^^^%PATH^^^%' : '^%PATH^%'}`)
+})
+
+test('appendScriptArgs() finds a batch file in the directory the script runs in', () => {
+  const wd = temporaryDirectory()
+  fs.writeFileSync(path.join(wd, 'tool.cmd'), '', { mode: 0o755 })
+
+  expect(appendScriptArgs('tool.cmd', ['%PATH%'], { platform: 'win32', wd, searchPath: () => '' }))
+    .toBe('tool.cmd ^^^%PATH^^^%')
 })

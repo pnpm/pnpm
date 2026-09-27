@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, path::Path};
+use std::{env, ffi::OsStr, iter, path::Path};
 
 /// How the extra arguments of a script are quoted, chosen by the shell
 /// that parses the script.
@@ -14,10 +14,11 @@ pub(crate) enum ArgQuoting {
 }
 
 impl ArgQuoting {
-    /// `cmd` quoting for `script`, escaping twice when its first word
-    /// resolves to a `.cmd` or `.bat` file on `search_path`.
+    /// `cmd` quoting for `script`, escaping twice when the command that
+    /// receives the arguments resolves to a `.cmd` or `.bat` file in `cwd`
+    /// or on `search_path`.
     pub(crate) fn cmd(script: &str, search_path: &OsStr, cwd: &Path) -> Self {
-        ArgQuoting::Cmd { double_escape: starts_with_batch_file(script, search_path, cwd) }
+        ArgQuoting::Cmd { double_escape: ends_with_batch_file(script, search_path, cwd) }
     }
 }
 
@@ -100,23 +101,49 @@ fn quote_for_c_runtime(arg: &str) -> String {
     quoted
 }
 
-fn starts_with_batch_file(script: &str, search_path: &OsStr, cwd: &Path) -> bool {
-    let command = first_word(script);
-    let resolved = which::which_in(&command, Some(search_path), cwd)
-        .map_or_else(|_| command.to_lowercase(), |path| path.to_string_lossy().to_lowercase());
+fn ends_with_batch_file(script: &str, search_path: &OsStr, cwd: &Path) -> bool {
+    let command = first_word(last_command(script));
+    // `cmd` searches the directory it runs in before `PATH`.
+    let dirs = iter::once(cwd.to_path_buf()).chain(env::split_paths(search_path));
+    let resolved = env::join_paths(dirs)
+        .ok()
+        .and_then(|dirs| which::which_in(&command, Some(dirs), cwd).ok())
+        .map_or_else(|| command.to_lowercase(), |path| path.to_string_lossy().to_lowercase());
     resolved.ends_with(".cmd") || resolved.ends_with(".bat")
 }
 
-fn first_word(script: &str) -> String {
+/// The last command of a chain such as `a && b | c`, which is the one that
+/// receives the appended arguments.
+fn last_command(script: &str) -> &str {
     let mut inside_quotes = false;
-    script
+    let mut escaped = false;
+    let mut start = 0;
+    for (index, ch) in script.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if ch == '"' {
+            inside_quotes = !inside_quotes;
+        } else if inside_quotes {
+            continue;
+        } else if ch == '^' {
+            escaped = true;
+        } else if ch == '&' || ch == '|' {
+            start = index + 1;
+        }
+    }
+    &script[start..]
+}
+
+fn first_word(command: &str) -> String {
+    let mut inside_quotes = false;
+    command
         .trim_start()
         .chars()
         .take_while(|&ch| {
             if ch == '"' {
                 inside_quotes = !inside_quotes;
             }
-            inside_quotes || ch != ' '
+            inside_quotes || !matches!(ch, ' ' | '\t')
         })
         .filter(|&ch| ch != '"')
         .collect()

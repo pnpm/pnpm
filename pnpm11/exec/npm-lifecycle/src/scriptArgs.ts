@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { join as shellQuote } from 'shlex'
 import which from 'which'
 
@@ -7,6 +9,8 @@ export interface QuoteScriptArgsOptions {
   platform: NodeJS.Platform
   scriptShell?: string
   shellEmulator?: boolean
+  /** The directory the script runs in, which `cmd` searches before `PATH`. */
+  wd: string
   /** The `PATH` the script runs with. Read only when `cmd` parses the script. */
   searchPath: () => string
 }
@@ -20,7 +24,7 @@ export function appendScriptArgs (script: string, args: string[], opts: QuoteScr
   if (!commandParsedByCmd(opts.scriptShell, opts.platform, opts.shellEmulator)) {
     return `${script} ${shellQuote(args)}`
   }
-  const doubleEscape = isBatchFile(firstWord(script), opts.searchPath())
+  const doubleEscape = isBatchFile(firstWord(lastCommand(script)), opts)
   return `${script} ${args.map((arg) => quoteForCmd(arg, doubleEscape)).join(' ')}`
 }
 
@@ -61,18 +65,45 @@ function quoteForCRuntime (arg: string): string {
   return `${quoted}${'\\'.repeat(backslashes * 2)}"`
 }
 
-function firstWord (script: string): string {
-  script = script.trimStart()
+/**
+ * The last command of a chain such as `a && b | c`, which is the one that
+ * receives the appended arguments.
+ */
+function lastCommand (script: string): string {
   let insideQuotes = false
-  let end = 0
-  while (end < script.length && (insideQuotes || script[end] !== ' ')) {
-    if (script[end] === '"') insideQuotes = !insideQuotes
-    end++
+  let start = 0
+  for (let i = 0; i < script.length; i++) {
+    const char = script[i]
+    if (char === '"') {
+      insideQuotes = !insideQuotes
+    } else if (insideQuotes) {
+      continue
+    } else if (char === '^') {
+      i++
+    } else if (char === '&' || char === '|') {
+      start = i + 1
+    }
   }
-  return script.slice(0, end).replaceAll('"', '')
+  return script.slice(start)
 }
 
-function isBatchFile (command: string, searchPath: string): boolean {
-  const resolved = (which.sync(command, { path: searchPath, nothrow: true }) ?? command).toLowerCase()
-  return resolved.endsWith('.cmd') || resolved.endsWith('.bat')
+function firstWord (command: string): string {
+  command = command.trimStart()
+  let insideQuotes = false
+  let end = 0
+  while (end < command.length && (insideQuotes || !CMD_SEPARATORS.has(command[end]))) {
+    if (command[end] === '"') insideQuotes = !insideQuotes
+    end++
+  }
+  return command.slice(0, end).replaceAll('"', '')
+}
+
+const CMD_SEPARATORS = new Set([' ', '\t'])
+
+function isBatchFile (command: string, opts: Pick<QuoteScriptArgsOptions, 'wd' | 'searchPath'>): boolean {
+  const resolved = /[\\/]/.test(command)
+    ? which.sync(path.resolve(opts.wd, command), { nothrow: true })
+    : which.sync(command, { path: [opts.wd, opts.searchPath()].join(path.delimiter), nothrow: true })
+  const name = (resolved ?? command).toLowerCase()
+  return name.endsWith('.cmd') || name.endsWith('.bat')
 }

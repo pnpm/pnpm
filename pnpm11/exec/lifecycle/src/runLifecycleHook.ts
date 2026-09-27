@@ -103,6 +103,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
       platform: isWindows() ? 'win32' : 'linux',
       scriptShell,
       shellEmulator: opts.shellEmulator,
+      wd: opts.pkgRoot,
       searchPath: () => scriptSearchPath(opts.pkgRoot, opts),
     })
   }
