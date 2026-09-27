@@ -477,6 +477,7 @@ fn manifest_walk_ignores<'a>(
                 .flatten()
                 .map(String::as_str),
         )
+        .chain(dot_ignores.is_none().then_some(DOT_COMPONENT_IGNORE_PATTERN))
         .chain(managed_ignores.iter().map(String::as_str))
         .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
         .collect::<Result<Vec<_>, _>>()?;

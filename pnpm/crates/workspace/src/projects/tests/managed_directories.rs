@@ -237,3 +237,16 @@ fn a_managed_directory_is_never_a_workspace_project_dir() {
         is_workspace_project_dir(tmp.path(), &tmp.path().join("packages/real"), &opts).unwrap(),
     );
 }
+
+#[test]
+fn skips_dot_directories_when_a_managed_directory_is_configured() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("node_modules")]),
+        ["real", "root"],
+    );
+}
