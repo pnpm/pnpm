@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { rootLogger } from '@pnpm/core-loggers'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -23,6 +24,7 @@ export interface ProjectToLink {
   dir: string
   modulesDir: string
   dependencies: LinkedDirectDep[]
+  publishDir?: string
 }
 
 export async function linkDirectDeps (
@@ -58,6 +60,7 @@ async function linkDirectDepsAndDedupe (
       if (deletedAll) {
         await rimraf(project.modulesDir)
       }
+      await removePublishModulesLink(project)
     })
   )
   return linkedDeps
@@ -141,5 +144,44 @@ async function linkDirectDepsOfProject (project: ProjectToLink): Promise<number>
     })
     linkedDeps++
   }))
+  await removePublishModulesLink(project)
   return linkedDeps
+}
+
+/**
+ * Removes `<publishDir>/node_modules` when it is a link that resolves to the
+ * project's modules directory, as pnpm 11.28.0 created for
+ * `publishConfig.linkDirectory`. A build tool that cleans the publish
+ * directory through that link deletes the dependencies' files. Real
+ * directories and links to anything else are left alone.
+ */
+async function removePublishModulesLink (project: ProjectToLink): Promise<void> {
+  if (!project.publishDir) return
+  const projectDir = path.resolve(project.dir)
+  const publishDir = path.resolve(projectDir, project.publishDir)
+  const relative = path.relative(projectDir, publishDir)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    return
+  }
+  const link = path.join(publishDir, path.basename(project.modulesDir))
+  let stats: fs.Stats
+  try {
+    stats = await fs.promises.lstat(link)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return
+    throw err
+  }
+  if (!stats.isSymbolicLink()) return
+  const [linkTarget, modulesDir] = await Promise.all([safeRealpath(link), safeRealpath(project.modulesDir)])
+  if (linkTarget == null || linkTarget !== modulesDir) return
+  await rimraf(link)
+}
+
+async function safeRealpath (target: string): Promise<string | null> {
+  try {
+    return await fs.promises.realpath(target)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    throw err
+  }
 }

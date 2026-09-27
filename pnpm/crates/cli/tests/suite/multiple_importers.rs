@@ -625,7 +625,8 @@ fn symlink_local_package_from_publish_config_directory() {
 /// pnpm/pnpm#8338: dependents get the bins of a project linked through its
 /// `publishConfig.directory`, and Node resolves the project's own dependencies
 /// from the publish directory's real path. pnpm/pnpm#16226: pnpm writes nothing
-/// into the publish directory.
+/// into the publish directory and removes the `node_modules` link that 12.7.0
+/// put there.
 #[test]
 fn transitive_dependencies_and_bins_with_publish_config_directory() {
     let fixture = WorkspaceFixture::new();
@@ -653,6 +654,9 @@ fn transitive_dependencies_and_bins_with_publish_config_directory() {
     fs::create_dir_all(&publish_dir).expect("create publish directory");
     fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello');")
         .expect("write bin executable");
+    fs::create_dir_all(project_1.join("node_modules")).expect("create project-1 node_modules");
+    pnpm_fs::symlink_dir(&project_1.join("node_modules"), &publish_dir.join("node_modules"))
+        .expect("plant the stale publish-directory link");
 
     let assert_linked = |stage: &str| {
         assert_publish_dir_resolves_dependency(&project_2, &publish_dir, &project_1, stage);
@@ -769,6 +773,36 @@ fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {
     fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_linked("frozen install");
+}
+
+/// pnpm/pnpm#16226: a real `node_modules` directory inside the publish
+/// directory belongs to the build output, so pnpm leaves it in place.
+#[test]
+fn publish_config_directory_keeps_its_own_node_modules() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+    let bundled = project_1.join("dist/node_modules/bundled/index.js");
+    fs::create_dir_all(bundled.parent().expect("bundled parent")).expect("create bundled dir");
+    fs::write(&bundled, "").expect("write bundled file");
+
+    fixture.run(["install"]);
+
+    assert!(bundled.exists(), "pnpm should keep {bundled:?}");
 }
 
 /// pnpm/pnpm#16226: a publish directory that a lifecycle script builds does

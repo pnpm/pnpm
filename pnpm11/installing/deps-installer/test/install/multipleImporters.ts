@@ -2351,6 +2351,9 @@ test('transitive dependencies and bins are accessible when using publishConfig d
 
   fs.mkdirSync('project-1/dist', { recursive: true })
   fs.writeFileSync('project-1/dist/cli.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
+  // The link that pnpm 11.28.0 created.
+  fs.mkdirSync('project-1/node_modules')
+  fs.symlinkSync(path.resolve('project-1/node_modules'), 'project-1/dist/node_modules', 'junction')
 
   const project1Manifest = {
     name: 'project-1',
@@ -2584,13 +2587,51 @@ test('removing a dependency keeps the version of a peer dependency the project d
   })
 })
 
+test('a real node_modules directory inside the publish directory is kept', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    publishConfig: {
+      directory: 'dist',
+      linkDirectory: true,
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:*',
+    },
+  }
+  preparePackages([
+    { location: 'project-1', package: project1Manifest },
+    { location: 'project-2', package: project2Manifest },
+  ])
+  fs.mkdirSync('project-1/dist/node_modules/bundled', { recursive: true })
+  fs.writeFileSync('project-1/dist/node_modules/bundled/index.js', '', 'utf8')
+
+  const allProjects = [
+    { buildIndex: 0, manifest: project1Manifest, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: project2Manifest, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  await mutateModules(
+    allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })),
+    testDefaults({ allProjects })
+  )
+
+  expect(fs.existsSync('project-1/dist/node_modules/bundled/index.js')).toBe(true)
+})
+
 // Node.js resolves a linked package's dependencies from its real path, so the
 // publish directory reaches them through project-1/node_modules and pnpm must
-// not write a node_modules directory into it (pnpm/pnpm#16226).
+// not leave a node_modules entry in it (pnpm/pnpm#16226).
 function expectPublishDirToResolveDependency (publishDir: string): void {
   const linkedDir = fs.realpathSync('project-2/node_modules/project-1')
   expect(linkedDir).toBe(fs.realpathSync(publishDir))
-  expect(fs.existsSync(path.join(publishDir, 'node_modules'))).toBe(false)
+  expect(() => fs.lstatSync(path.join(publishDir, 'node_modules'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
   expect(createRequire(path.join(linkedDir, 'index.js')).resolve('is-positive'))
     .toBe(path.join(fs.realpathSync('project-1/node_modules/is-positive'), 'index.js'))
 }

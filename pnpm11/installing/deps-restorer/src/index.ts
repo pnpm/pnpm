@@ -1060,6 +1060,7 @@ async function symlinkDirectDependencies (
     projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
       dir: rootDir,
       modulesDir,
+      publishDir: filteredLockfile.importers[id]?.publishDirectory,
       dependencies: await getRootPackagesToLink(filteredLockfile, {
         importerId: id,
         importerModulesDir: modulesDir,

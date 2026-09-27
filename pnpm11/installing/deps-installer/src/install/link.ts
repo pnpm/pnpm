@@ -308,6 +308,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         return [id, {
           dir: rootDir,
           modulesDir,
+          publishDir: manifest.publishConfig?.directory ?? importerFromLockfile?.publishDirectory,
           dependencies: await Promise.all([
             ...Array.from(deps.entries())
               .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])

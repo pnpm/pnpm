@@ -3,7 +3,7 @@ use super::{
     link_direct_dep_bins, link_direct_dep_bins_prefetched, link_new_bins_from_locations,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions, is_shim_pointing_at};
+use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
@@ -549,7 +549,7 @@ fn read_dep_bin_source_reports_publish_directory_inspection_error() {
 
     dbg!(&error);
     assert!(
-        matches!(&error, LinkBinsError::ResolvePath { path, .. } if path == &target),
+        matches!(&error, pnpm_cmd_shim::LinkBinsError::ResolvePath { path, .. } if path == &target),
         "expected ResolvePath for {target:?}",
     );
 }
