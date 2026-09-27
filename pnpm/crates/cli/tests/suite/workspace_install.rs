@@ -1472,7 +1472,7 @@ fn shared_workspace_lockfile_false_installs_dependencies_before_dependents() {
 
     let record = |name: &str, delay_ms: u32| {
         format!(
-            r#"node -e "setTimeout(() => require('fs').appendFileSync('../../order.txt', '{name}\\n'), {delay_ms})""#,
+            r#"node -e "setTimeout(() => require('fs').appendFileSync('../../order.txt', '{name};'), {delay_ms})""#,
         )
     };
     for (name, dependencies, delay_ms) in [
@@ -1500,7 +1500,7 @@ fn shared_workspace_lockfile_false_installs_dependencies_before_dependents() {
         .success();
 
     let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
-    assert_eq!(order.lines().collect::<Vec<_>>(), ["lib", "app"]);
+    assert_eq!(order, "lib;app;");
     assert!(workspace.join("packages/lib/pnpm-lock.yaml").is_file());
     assert!(workspace.join("packages/app/pnpm-lock.yaml").is_file());
 }
