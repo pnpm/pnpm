@@ -1,9 +1,10 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   directoryExists,
   grantInheritedDirMode,
@@ -160,12 +161,7 @@ export class StoreIndex {
     } else {
       fs.mkdirSync(storeDir, { recursive: true })
     }
-    const dbPath = `${storeDir}/index.db`
-    // Exclusive create is the signal that this process made the database.
-    // SQLite copies that file's mode onto the WAL sidecars, so the inherited
-    // bits are applied before open. An existing database is not chmod'd.
-    const dbIsNew = process.platform !== 'win32' && createEmptyFile(dbPath)
-    if (dbIsNew) grantInheritedFileMode(dbPath, storeDir)
+    if (process.platform !== 'win32') createIndexWithInheritedMode(storeDir)
     this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
     try {
       this.configureDatabase()
@@ -515,17 +511,21 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   return true
 }
 
-// True only when this call created `filePath`. `EEXIST` means the database
-// was already there, so the caller must not chmod it.
-function createEmptyFile (filePath: string): boolean {
-  let fd: number | undefined
+// SQLite copies the database's mode onto the WAL sidecars, so a new
+// index.db gets the store directory's inherited mode before SQLite opens it.
+// The exclusive create decides which process made the database. An existing
+// database, including one a concurrent process just created, is not chmod'd.
+function createIndexWithInheritedMode (storeDir: string): void {
+  let fd: number
   try {
-    fd = fs.openSync(filePath, 'wx')
-    return true
+    fd = fs.openSync(path.join(storeDir, 'index.db'), 'wx')
   } catch (err: unknown) {
-    if (typeof err === 'object' && err != null && 'code' in err && err.code === 'EEXIST') return false
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return
     throw err
+  }
+  try {
+    grantInheritedFileMode(fd, storeDir)
   } finally {
-    if (fd != null) fs.closeSync(fd)
+    fs.closeSync(fd)
   }
 }

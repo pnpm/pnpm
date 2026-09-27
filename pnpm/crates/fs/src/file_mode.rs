@@ -197,6 +197,9 @@ pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
 /// back bits umask stripped, without clearing bits the create already set.
 /// An explicit private mode (no group or other bits, such as `0o600`) is
 /// used as the ceiling and is not widened.
+/// Any other requested mode is replaced by [`inherited_file_mode`] when
+/// `parent` can be stated, keeping only whether it is executable. When
+/// `parent` cannot be stated, the requested mode is used unchanged.
 #[cfg(unix)]
 #[must_use]
 pub fn unix_creation_mode(parent: &Path, requested: Option<u32>) -> UnixCreationMode {
@@ -288,8 +291,12 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
     }
 }
 
-/// After a missing directory tree is created, OR `template`'s group-write
-/// and setgid bits onto each new directory, stopping before `template`.
+/// After a missing directory tree is created, OR `template`'s group
+/// permission and setgid bits onto each new directory, stopping before
+/// `template`. Nothing is added when `template` is neither group-writable
+/// nor setgid. The group read and search bits come along with group-write,
+/// so a restrictive umask cannot leave a new directory group-writable but
+/// not searchable.
 ///
 /// Directories that already existed are not passed in. `EPERM`, `EACCES`,
 /// and `EROFS` are ignored. The root directory is never changed.
@@ -297,7 +304,7 @@ pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
 pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let extra = match std::fs::metadata(template) {
-        Ok(meta) => meta.permissions().mode() & (0o020 | 0o2000),
+        Ok(meta) => inherited_dir_bits(meta.permissions().mode()),
         Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
             return Ok(());
         }
@@ -332,6 +339,16 @@ pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Bits [`grant_inherited_dir_mode`] adds to a new directory under a
+/// directory with `template_mode`.
+#[must_use]
+pub fn inherited_dir_bits(template_mode: u32) -> u32 {
+    if template_mode & (0o020 | 0o2000) == 0 {
+        return 0;
+    }
+    template_mode & (0o070 | 0o2000)
 }
 
 #[cfg(unix)]

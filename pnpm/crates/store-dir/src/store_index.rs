@@ -52,6 +52,14 @@ pub enum StoreIndexError {
         source: std::io::Error,
     },
 
+    #[display("Failed to create index.db at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_FILE))]
+    CreateFile {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("Failed to open index.db at {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_OPEN))]
     Open {
@@ -140,18 +148,10 @@ impl StoreIndex {
                 })?;
         }
         let db_path = store_dir.join("index.db");
-        // SQLite creates a missing database as `0o644` and then copies that
-        // mode onto the WAL and shared-memory sidecars. Add the store
-        // directory's group-write bit before `journal_mode=WAL` so those
-        // sidecars inherit it. An existing database is not chmod'd.
         #[cfg(unix)]
-        let db_is_new = !db_path.is_file();
+        create_new_index_with_inherited_mode(&db_path, store_dir)?;
         let conn = Connection::open(&db_path)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
-        #[cfg(unix)]
-        if db_is_new {
-            grant_new_index_mode(&db_path, store_dir)?;
-        }
 
         // Busy-timeout FIRST so the internal busy handler is active during the
         // rest of the setup — on Windows file locking is mandatory and
@@ -536,14 +536,29 @@ fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
     Ok(url.into())
 }
 
-/// Add the store directory's group-write bit to a database this process
-/// just created. Sidecars created afterwards copy the database mode.
+/// Create `index.db` if it is missing and give it the store directory's
+/// inherited mode. SQLite copies the database's mode onto the WAL and
+/// shared-memory sidecars, so the bits must be in place before it opens.
+///
+/// The exclusive create decides which process made the database. An
+/// existing database, including one a concurrent process just created, is
+/// not chmod'd.
 #[cfg(unix)]
-fn grant_new_index_mode(db_path: &Path, store_dir: &Path) -> Result<(), StoreIndexError> {
-    let file = std::fs::File::open(db_path)
-        .map_err(|source| StoreIndexError::CreateDir { path: db_path.to_path_buf(), source })?;
-    pnpm_fs::file_mode::grant_inherited_mode(&file, store_dir, false)
-        .map_err(|source| StoreIndexError::CreateDir { path: db_path.to_path_buf(), source })
+fn create_new_index_with_inherited_mode(
+    db_path: &Path,
+    store_dir: &Path,
+) -> Result<(), StoreIndexError> {
+    let to_error = |source| StoreIndexError::CreateFile { path: db_path.to_path_buf(), source };
+    let file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(db_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(to_error(error)),
+    };
+    pnpm_fs::file_mode::grant_inherited_mode(&file, store_dir, false).map_err(to_error)
 }
 
 #[cfg(test)]

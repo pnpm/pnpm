@@ -542,6 +542,26 @@ testOnPosix('files added to a group-writable store keep group write and a second
   expect(after.mode & 0o777).toBe(stat.mode & 0o777)
 })
 
+testOnPosix('directories added to a group-writable store stay searchable by the group under a restrictive umask', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o077)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  expect(fs.statSync(filePath).mode & 0o060).toBe(0o060)
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)

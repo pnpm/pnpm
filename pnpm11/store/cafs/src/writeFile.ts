@@ -1,3 +1,4 @@
+import nodeFs from 'node:fs'
 import path from 'node:path'
 
 import fs from '@pnpm/fs.graceful-fs'
@@ -6,10 +7,13 @@ import {
   grantInheritedDirMode,
   grantModeBits,
   nearestExistingAncestor,
+  readDirMode,
   unixCreationMode,
 } from '@pnpm/store.file-mode'
 
-const dirs = new Set<string>()
+// Directories this process has ensured, mapped to their mode on POSIX.
+// Windows entries hold no mode, so new files there keep the requested mode.
+const dirModes = new Map<string, number | undefined>()
 
 export function writeFile (
   fileDest: string,
@@ -35,27 +39,32 @@ export function writeFileExclusive (
 }
 
 function writeCreatedFile (fileDest: string, buffer: Buffer, mode: number | undefined, exclusive: boolean): void {
-  if (process.platform === 'win32') {
-    fs.writeFileSync(fileDest, buffer, exclusive ? { mode, flag: 'wx' } : { mode })
+  const creation = unixCreationMode(dirModes.get(path.dirname(fileDest)), mode)
+  if (creation.grantMode == null) {
+    fs.writeFileSync(fileDest, buffer, exclusive ? { mode: creation.openMode, flag: 'wx' } : { mode: creation.openMode })
     return
   }
-  const creation = unixCreationMode(path.dirname(fileDest), mode)
-  const options: { mode?: number, flag?: string } = {}
-  if (creation.openMode != null) options.mode = creation.openMode
-  if (exclusive) options.flag = 'wx'
-  fs.writeFileSync(fileDest, buffer, options)
-  if (creation.grantMode != null) grantModeBits(fileDest, creation.grantMode)
+  const fd = nodeFs.openSync(fileDest, exclusive ? 'wx' : 'w', creation.openMode)
+  try {
+    grantModeBits(fd, creation.grantMode)
+    fs.writeFileSync(fd, buffer)
+  } finally {
+    nodeFs.closeSync(fd)
+  }
 }
 
 function makeDirForFile (fileDest: string): void {
   const dir = path.dirname(fileDest)
-  if (dirs.has(dir)) return
-  if (process.platform !== 'win32' && !directoryExists(dir)) {
+  if (dirModes.has(dir)) return
+  if (process.platform === 'win32') {
+    fs.mkdirSync(dir, { recursive: true })
+    dirModes.set(dir, undefined)
+    return
+  }
+  if (!directoryExists(dir)) {
     const template = nearestExistingAncestor(dir)
     fs.mkdirSync(dir, { recursive: true })
     if (template != null) grantInheritedDirMode(dir, template)
-  } else {
-    fs.mkdirSync(dir, { recursive: true })
   }
-  dirs.add(dir)
+  dirModes.set(dir, readDirMode(dir))
 }

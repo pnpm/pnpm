@@ -21,42 +21,42 @@ function isPrivateMode (mode: number | undefined): boolean {
 // The open mode is a ceiling: umask can only remove bits, and a default ACL
 // can grant only bits that are present. `grantMode` is added back afterwards
 // without clearing bits the create already applied. A private mode such as
-// `0o600` is not widened.
-export function unixCreationMode (parent: string, mode: number | undefined): { openMode: number | undefined, grantMode: number | undefined } {
-  if (isPrivateMode(mode)) return { openMode: mode, grantMode: undefined }
+// `0o600` is not widened. Any other mode is replaced by the parent's
+// inherited mode, keeping only whether it is executable. Without a known
+// `parentMode` the requested mode is used unchanged.
+export function unixCreationMode (parentMode: number | undefined, mode: number | undefined): { openMode: number | undefined, grantMode: number | undefined } {
+  if (parentMode == null || isPrivateMode(mode)) return { openMode: mode, grantMode: undefined }
   const executable = mode != null && (mode & 0o111) !== 0
+  const wanted = inheritedFileMode(parentMode, executable)
+  return { openMode: wanted, grantMode: wanted }
+}
+
+// Mode of `dir`, or undefined when it cannot be read.
+export function readDirMode (dir: string): number | undefined {
   try {
-    const wanted = inheritedFileMode(fs.statSync(parent).mode, executable)
-    return { openMode: wanted, grantMode: wanted }
+    return fs.statSync(dir).mode
   } catch (err: unknown) {
-    if (isUnchangeable(err) || isMissing(err)) return { openMode: mode, grantMode: undefined }
+    if (isUnchangeable(err) || isMissing(err)) return undefined
     throw err
   }
 }
 
-export function grantModeBits (filePath: string, wanted: number): void {
-  let fd: number | undefined
+// OR `wanted` onto the open file. Bits already present are kept, so a
+// default ACL wider than the directory mode survives. A file this process
+// cannot chmod is left as created.
+export function grantModeBits (fd: number, wanted: number): void {
   try {
-    fd = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0))
     const current = fs.fstatSync(fd).mode & 0o777
     const merged = current | (wanted & 0o777)
     if (merged !== current) fs.fchmodSync(fd, merged)
   } catch (err: unknown) {
-    if (!isUnchangeable(err) && !isMissing(err)) throw err
-  } finally {
-    if (fd != null) fs.closeSync(fd)
+    if (!isUnchangeable(err)) throw err
   }
 }
 
-export function grantInheritedFileMode (filePath: string, parent: string): void {
-  let wanted: number
-  try {
-    wanted = inheritedFileMode(fs.statSync(parent).mode, false)
-  } catch (err: unknown) {
-    if (isUnchangeable(err) || isMissing(err)) return
-    throw err
-  }
-  grantModeBits(filePath, wanted)
+export function grantInheritedFileMode (fd: number, parent: string): void {
+  const parentMode = readDirMode(parent)
+  if (parentMode != null) grantModeBits(fd, inheritedFileMode(parentMode, false))
 }
 
 export function directoryExists (dir: string): boolean {
@@ -85,16 +85,19 @@ export function nearestExistingAncestor (dir: string): string | undefined {
   }
 }
 
+// Group read and search come along with group-write, so a restrictive umask
+// cannot leave a new directory group-writable but not searchable.
+export function inheritedDirBits (templateMode: number): number {
+  if ((templateMode & (0o020 | 0o2000)) === 0) return 0
+  return templateMode & (0o070 | 0o2000)
+}
+
 // New directories only. `template` is the closest ancestor that already
 // existed; it is not chmod'd, and neither is the filesystem root.
 export function grantInheritedDirMode (dir: string, template: string): void {
-  let extra: number
-  try {
-    extra = fs.statSync(template).mode & (0o020 | 0o2000)
-  } catch (err: unknown) {
-    if (isUnchangeable(err) || isMissing(err)) return
-    throw err
-  }
+  const templateMode = readDirMode(template)
+  if (templateMode == null) return
+  const extra = inheritedDirBits(templateMode)
   if (extra === 0) return
   let current = dir
   while (current !== template) {

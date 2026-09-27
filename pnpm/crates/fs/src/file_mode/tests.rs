@@ -162,3 +162,40 @@ fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
     assert_eq!(super::inherited_file_mode(0o700, false) & 0o777, 0o600);
     assert_eq!(super::inherited_file_mode(0o2775, true) & 0o7000, 0);
 }
+
+#[test]
+fn inherited_dir_bits_carry_group_access_with_group_write() {
+    assert_eq!(super::inherited_dir_bits(0o2775), 0o2070);
+    assert_eq!(super::inherited_dir_bits(0o770), 0o070);
+    assert_eq!(super::inherited_dir_bits(0o2750), 0o2050);
+    assert_eq!(super::inherited_dir_bits(0o755), 0);
+}
+
+/// A restrictive umask leaves a new directory at `0o700`. Granting only
+/// group-write and setgid would make it writable but not searchable for the
+/// group.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_restores_group_search_under_restrictive_umask() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let outer = tmp.path().join("files");
+    let inner = outer.join("ab");
+    fs::create_dir_all(&inner).unwrap();
+    for dir in [&outer, &inner] {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
+    super::grant_inherited_dir_mode(&inner, tmp.path()).unwrap();
+
+    for dir in [&outer, &inner] {
+        let mode = fs::metadata(dir)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777;
+        assert_eq!(mode, 0o2770, "{} mode {mode:o}", dir.display());
+    }
+}
