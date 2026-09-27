@@ -76,8 +76,8 @@ pub(super) fn managed_directory_ignores(
     let walk_root = pnpm_fs::lexical_normalize(walk_root);
     ignored_directories
         .iter()
-        .filter_map(|dir| pathdiff::diff_paths(dir, &walk_root))
-        .filter(|relative| !relative.as_os_str().is_empty() && !relative.starts_with(".."))
+        .filter_map(|dir| dir.strip_prefix(&walk_root).ok())
+        .filter(|relative| !relative.as_os_str().is_empty())
         .map(|relative| {
             // A managed directory is an opaque path, never a pattern.
             let mut glob = relative
