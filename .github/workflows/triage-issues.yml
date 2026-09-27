@@ -41,8 +41,17 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           AUTHOR: ${{ github.event.issue.user.login }}
         run: |
-          if grep -qiF -- '- [x] I am working on a fix' <<<"$ISSUE_BODY"; then
-            gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR"
+          # Only the form's own "Contributing a fix" section counts, not the
+          # same text typed into a free-form field.
+          if awk '
+            { sub(/\r$/, "") }
+            /^### / { in_fix = ($0 ~ /^### Contributing a fix[[:space:]]*$/); next }
+            in_fix && /^- \[[xX]\] I am working on a fix[[:space:]]*$/ { found = 1 }
+            END { exit !found }
+          ' <<<"$ISSUE_BODY"; then
+            # GitHub refuses some authors as assignees. Triage must still run.
+            gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
+              echo "::warning::Could not assign the issue to $AUTHOR"
           fi
 
       - name: Checkout repository
