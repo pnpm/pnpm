@@ -42,10 +42,10 @@ enum Installed {
 type Slot = Arc<Mutex<Option<OwnedSemaphorePermit>>>;
 
 /// The projects whose install may run ahead of the workspace projects they
-/// depend on. A project whose `preinstall` script runs before its install
-/// reaches the wait, or that copies a workspace project into its virtual
-/// store (an injected or `file:` dependency) while materializing, waits for
-/// them before it starts.
+/// depend on. A project whose `preinstall` or `pnpm:devPreinstall` script
+/// runs before its install reaches the wait, or that copies a workspace
+/// project into its virtual store (an injected or `file:` dependency) while
+/// materializing, waits for them before it starts.
 pub(in crate::cli_args::pipelines) fn early_starts(
     config: &Config,
     projects: &[pnpm_workspace::Project],
@@ -61,7 +61,14 @@ pub(in crate::cli_args::pipelines) fn early_starts(
 }
 
 fn can_start_early(manifest: &serde_json::Value) -> bool {
-    let has_preinstall = manifest.pointer("/scripts/preinstall").is_some();
+    let has_preinstall = ["preinstall", "pnpm:devPreinstall"]
+        .into_iter()
+        .any(|script| {
+            manifest
+                .get("scripts")
+                .and_then(|scripts| scripts.get(script))
+                .is_some()
+        });
     let injects = manifest
         .get("dependenciesMeta")
         .and_then(serde_json::Value::as_object)
@@ -99,7 +106,7 @@ impl DedicatedProjectRuns<'_> {
             slots: Arc::new(Semaphore::new(
                 usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
             )),
-            stopped: AtomicBool::new(false),
+            stopped: Arc::new(AtomicBool::new(false)),
             first_error: Mutex::new(None),
             caches: DedicatedCaches::default(),
             run: &run,
@@ -129,8 +136,8 @@ struct PipelinedRun<'r, 'c, Runner> {
     states: Vec<watch::Sender<Installed>>,
     slots: Arc<Semaphore>,
     /// Set by the first failure when the command stops at it, so that no
-    /// project that has yet to start does.
-    stopped: AtomicBool,
+    /// project that has yet to start, or to link, does.
+    stopped: Arc<AtomicBool>,
     first_error: Mutex<Option<miette::Report>>,
     caches: DedicatedCaches,
     run: &'r Runner,
@@ -217,7 +224,8 @@ where
     /// `dependencies_installed` as the install awaits it: the install hands
     /// its concurrency slot back while it waits, so that a project waiting
     /// on its dependencies never keeps one of them, or any other project,
-    /// from running.
+    /// from running. `false` too when the command stopped at another
+    /// project's failure in the meantime, so the install links nothing.
     fn gate(
         &self,
         dependencies_installed: WorkspaceDependenciesInstalled,
@@ -225,6 +233,7 @@ where
     ) -> WorkspaceDependenciesInstalled {
         let slot = Arc::clone(slot);
         let slots = Arc::clone(&self.slots);
+        let stopped = Arc::clone(&self.stopped);
         let gate: BoxFuture<'static, bool> = async move {
             drop(
                 slot.lock()
@@ -235,7 +244,7 @@ where
             let permit =
                 slots.acquire_owned().await.expect("the concurrency slots are never closed");
             *slot.lock().expect("slot lock is not poisoned") = Some(permit);
-            succeeded
+            succeeded && !stopped.load(Ordering::Acquire)
         }
         .boxed();
         gate.shared()

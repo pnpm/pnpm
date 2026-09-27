@@ -12,6 +12,18 @@ fn wait_for_then_record(other: &str, name: &str) -> String {
 /// A `lib` project and an `app` project depending on it through
 /// `workspace:*`, with a lockfile each.
 fn lib_and_app(workspace: &Path, lib_scripts: &serde_json::Value, app_scripts: &serde_json::Value) {
+    workspace_projects(
+        workspace,
+        &[
+            ("lib", serde_json::json!({}), lib_scripts.clone()),
+            ("app", serde_json::json!({ "lib": "workspace:*" }), app_scripts.clone()),
+        ],
+    );
+}
+
+/// A workspace of `(name, dependencies, scripts)` projects under
+/// `packages/`, with a lockfile each.
+fn workspace_projects(workspace: &Path, projects: &[(&str, serde_json::Value, serde_json::Value)]) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\n",
@@ -22,10 +34,7 @@ fn lib_and_app(workspace: &Path, lib_scripts: &serde_json::Value, app_scripts: &
         serde_json::json!({ "name": "root", "private": true }).to_string(),
     )
     .expect("write root package.json");
-    for (name, dependencies, scripts) in [
-        ("lib", serde_json::json!({}), lib_scripts),
-        ("app", serde_json::json!({ "lib": "workspace:*" }), app_scripts),
-    ] {
+    for (name, dependencies, scripts) in projects {
         let dir = workspace.join("packages").join(name);
         fs::create_dir_all(&dir).expect("mkdir project");
         fs::write(
@@ -84,11 +93,10 @@ module.exports = { hooks: { readPackage(pkg) {
     assert_eq!(order, "lib;app;");
 }
 
-/// A project's `preinstall` script runs before its install could wait for
-/// the workspace projects it depends on, so such a project waits for them
-/// before it starts at all.
-#[test]
-fn a_project_with_a_preinstall_script_waits_for_its_workspace_dependencies() {
+/// A project's `preinstall` and `pnpm:devPreinstall` scripts run before
+/// its install could wait for the workspace projects it depends on, so such
+/// a project waits for them before it starts at all.
+fn a_project_with_a_pre_resolution_script_waits_for_its_workspace_dependencies(script: &str) {
     let fixture = CommandTempCwd::init().add_mocked_registry();
     let workspace = &fixture.workspace;
     lib_and_app(
@@ -97,7 +105,7 @@ fn a_project_with_a_preinstall_script_waits_for_its_workspace_dependencies() {
             "postinstall": r#"node -e "setTimeout(() => require('fs').writeFileSync('../../lib-built', ''), 500)""#,
         }),
         &serde_json::json!({
-            "preinstall": r#"node -e "process.exit(require('fs').existsSync('../../lib-built') ? 0 : 1)""#,
+            script: r#"node -e "process.exit(require('fs').existsSync('../../lib-built') ? 0 : 1)""#,
         }),
     );
 
@@ -105,4 +113,60 @@ fn a_project_with_a_preinstall_script_waits_for_its_workspace_dependencies() {
         .with_arg("install")
         .assert()
         .success();
+}
+
+#[test]
+fn a_project_with_a_preinstall_script_waits_for_its_workspace_dependencies() {
+    a_project_with_a_pre_resolution_script_waits_for_its_workspace_dependencies("preinstall");
+}
+
+#[test]
+fn a_project_with_a_dev_preinstall_script_waits_for_its_workspace_dependencies() {
+    a_project_with_a_pre_resolution_script_waits_for_its_workspace_dependencies(
+        "pnpm:devPreinstall",
+    );
+}
+
+/// Once a project fails, a project still waiting for its workspace
+/// dependencies links nothing and runs no script, even though it started
+/// before the failure. `broken` fails while `app` waits for `lib`, whose
+/// `postinstall` holds `app` at the wait until then.
+#[test]
+fn a_failure_stops_the_projects_waiting_for_their_workspace_dependencies() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    workspace_projects(
+        workspace,
+        &[
+            (
+                "broken",
+                serde_json::json!({}),
+                serde_json::json!({
+                    "postinstall": r#"node -e "require('fs').writeFileSync('../../broken-failing', ''); process.exit(1)""#,
+                }),
+            ),
+            (
+                "lib",
+                serde_json::json!({}),
+                serde_json::json!({
+                    "postinstall": r#"node -e "const fs = require('fs'); const deadline = Date.now() + 30000; const poll = () => { if (fs.existsSync('../../broken-failing')) return setTimeout(() => {}, 1000); if (Date.now() > deadline) process.exit(1); setTimeout(poll, 20); }; poll()""#,
+                }),
+            ),
+            (
+                "app",
+                serde_json::json!({ "lib": "workspace:*" }),
+                serde_json::json!({
+                    "postinstall": r#"node -e "require('fs').writeFileSync('../../app-ran', '')""#,
+                }),
+            ),
+        ],
+    );
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
+
+    assert!(workspace.join("broken-failing").exists());
+    assert!(!workspace.join("app-ran").exists());
 }

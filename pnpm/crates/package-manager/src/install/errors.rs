@@ -42,10 +42,11 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_NO_LOCKFILE))]
     NoLockfile,
 
-    /// The install of a workspace project this project depends on failed,
-    /// and the command stops at the first failure. The command reports that
-    /// failure, which is recorded before this one.
-    #[display("A workspace project this project depends on failed to install")]
+    /// The command stops at the first failure, and the install of another
+    /// workspace project, such as one this project depends on, failed before
+    /// this one linked. The command reports that failure, which is recorded
+    /// before this one.
+    #[display("The install stopped at another workspace project's failure")]
     WorkspaceDependencyFailed,
 
     /// A `packageExtensions` selector the freshness gates could not parse.
