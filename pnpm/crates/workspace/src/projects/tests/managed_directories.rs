@@ -1,5 +1,8 @@
 use super::{
-    super::{FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir},
+    super::{
+        FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir,
+        managed::managed_directory_ignores,
+    },
     make_project,
 };
 use pretty_assertions::assert_eq;
@@ -151,6 +154,22 @@ fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
         find_sorted_names(tmp.path(), &["plugins/*/*"], vec![PathBuf::from(other_drive)]),
         ["pkg", "root"],
     );
+}
+
+/// A walk glob can prune only a directory under the walk root. Paths that
+/// share no root with it, like the other-drive case above, stand in here as
+/// an absolute directory against a relative root so that every platform
+/// covers it.
+#[test]
+fn only_a_managed_directory_under_the_walk_root_yields_a_walk_glob() {
+    let ignores = |walk_root: &str, dir: &str| {
+        managed_directory_ignores(Path::new(walk_root), &[PathBuf::from(dir)])
+    };
+
+    assert_eq!(ignores("/workspace", "/workspace/store"), ["store/**"]);
+    assert_eq!(ignores("/workspace", "/workspace"), Vec::<String>::new());
+    assert_eq!(ignores("/workspace", "/pnpm-cache"), Vec::<String>::new());
+    assert_eq!(ignores("workspace", "/pnpm-cache"), Vec::<String>::new());
 }
 
 #[cfg(any(windows, target_os = "macos"))]
