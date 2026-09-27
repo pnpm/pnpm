@@ -12,8 +12,8 @@ directory = ".pnpm/crates/crates-io"
 [source.pnpm-git]
 directory = ".pnpm/crates/git"
 
-[source."git+https://github.com/pnpm/node-semver-rs?rev=1ae976a0023b4dec80b1a5411ccee8343f91320e"]
+[source."git+https://github.com/pnpm/node-semver-rs?rev=ffd7e0de11937427703c3a99cb4b1473c88e82bb"]
 git = "https://github.com/pnpm/node-semver-rs"
-rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e"
+rev = "ffd7e0de11937427703c3a99cb4b1473c88e82bb"
 replace-with = "pnpm-git"
 # <<< pnpm-managed cargo sources <<<
