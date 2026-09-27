@@ -32,7 +32,7 @@ jobs:
       contents: read   # let the agent inspect the checked-out codebase
       issues: write     # let the agent apply labels and comment
     steps:
-      - name: Assign the author if they are working on a fix
+      - name: Assign the author or ask whether they are working on a fix
         env:
           GH_TOKEN: ${{ github.token }}
           # Passed as env, never inlined into the script, so the free-form body
@@ -42,17 +42,26 @@ jobs:
           AUTHOR: ${{ github.event.issue.user.login }}
         run: |
           # Only the form's own "Contributing a fix" section counts, not the
-          # same text typed into a free-form field.
-          if awk '
+          # same text typed into a free-form field. Prints "checked",
+          # "unchecked", or "missing" when the issue was not filed through a
+          # form, e.g. with `gh issue create --body`.
+          fix_state=$(awk '
             { sub(/\r$/, "") }
-            /^### / { in_fix = ($0 ~ /^### Contributing a fix[[:space:]]*$/); next }
-            in_fix && /^- \[[xX]\] I am working on a fix[[:space:]]*$/ { found = 1 }
-            END { exit !found }
-          ' <<<"$ISSUE_BODY"; then
-            # GitHub refuses some authors as assignees. Triage must still run.
-            gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
-              echo "::warning::Could not assign the issue to $AUTHOR"
-          fi
+            /^### / { in_fix = ($0 ~ /^### Contributing a fix[[:space:]]*$/); if (in_fix) seen = 1; next }
+            in_fix && /^- \[[xX]\] I am working on a fix[[:space:]]*$/ { checked = 1 }
+            END { print checked ? "checked" : seen ? "unchecked" : "missing" }
+          ' <<<"$ISSUE_BODY")
+          case "$fix_state" in
+            checked)
+              # GitHub refuses some authors as assignees. Triage must still run.
+              gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
+                echo "::warning::Could not assign the issue to $AUTHOR"
+              ;;
+            missing)
+              gh issue comment "$ISSUE_URL" --body "@$AUTHOR, are you planning to open a pull request for this? If so, reply here and a maintainer will assign the issue to you, so nobody else starts on the same fix." ||
+                echo "::warning::Could not ask $AUTHOR about a fix"
+              ;;
+          esac
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
