@@ -755,6 +755,13 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
         '@pnpm.e2e/foo': '=100.0.0',
       },
     },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
   ])
 
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -762,6 +769,8 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
   execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', '--workspace-root', 'exec', 'node', '-e', '0'], { cwd: path.resolve('foo'), expectSuccess: true })
 
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('foo/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
 })
 
 // A filtered install leaves the projects it did not select without a modules

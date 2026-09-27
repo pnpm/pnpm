@@ -1211,14 +1211,16 @@ fn filtered_exec_with_workspace_root_installs_the_root() {
     );
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write pnpm-workspace.yaml");
-    let project = workspace.join("packages/foo");
-    fs::create_dir_all(&project).expect("create workspace project");
-    write_named_manifest_with_dependency_groups(
-        &project,
-        "foo",
-        &project.join("marker.txt"),
-        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
-    );
+    for name in ["foo", "bar"] {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+        );
+    }
 
     let output = pacquet_in(&workspace)
         .with_args(["--filter", "foo", "--workspace-root", "exec", "node", "-e", "0"])
@@ -1229,6 +1231,14 @@ fn filtered_exec_with_workspace_root_installs_the_root() {
     assert!(
         workspace.join("node_modules/@pnpm.e2e/foo").exists(),
         "the filtered exec must install the workspace root it selected:\n{stderr}",
+    );
+    assert!(
+        workspace.join("packages/foo/node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the project it selected:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("packages/bar/node_modules").exists(),
+        "the filtered exec must not install a project it did not select:\n{stderr}",
     );
 
     drop((root, mock_instance));

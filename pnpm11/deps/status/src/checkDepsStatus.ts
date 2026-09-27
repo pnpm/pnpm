@@ -413,7 +413,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         }
       }
       const missingRecordedModulesDir = nodeLinker === 'hoisted'
-        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, rootProjectManifestDir, selectedProjectDirs)
+        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir, selectedProjectDirs })
         : undefined
       if (missingRecordedModulesDir != null) {
         return {
@@ -1211,8 +1211,10 @@ function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selected
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],
   workspaceState: WorkspaceState,
-  rootProjectManifestDir: string,
-  selectedProjectDirs: Set<string> | undefined
+  { rootProjectManifestDir, selectedProjectDirs }: {
+    rootProjectManifestDir: string
+    selectedProjectDirs: Set<string> | undefined
+  }
 ): Promise<Project | undefined> {
   const missing = await Promise.all(allProjects.map(async (project) =>
     (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
