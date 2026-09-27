@@ -268,6 +268,29 @@ test('StoreIndex falls back to a file when node:sqlite cannot prepare statements
   }
 })
 
+test('StoreIndex fallback file writers notice a snapshot written from the same base', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const first = new IncompleteSqliteStoreIndex(storeDir)
+  const second = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    first.set('base', { n: 0 })
+    expect(second.has('base')).toBe(true)
+    const base = fs.readFileSync(fallbackPath)
+    first.set('first', { n: 1 })
+    // Replay the race in which the second process read the same base snapshot
+    // before the first process's write landed.
+    fs.writeFileSync(fallbackPath, base)
+    second.set('second', { n: 2 })
+    first.set('third', { n: 3 })
+    expect(second.get('second')).toEqual({ n: 2 })
+    expect(second.get('third')).toEqual({ n: 3 })
+  } finally {
+    first.close()
+    second.close()
+  }
+})
+
 test('StoreIndex falls back to a file when prepared statements cannot run', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StatementRunMissingStoreIndex(storeDir)

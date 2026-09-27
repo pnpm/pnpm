@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
@@ -253,7 +254,7 @@ export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
   }
 
   function writeThrough (): void {
-    const next = revision + 1
+    const next = nextGeneration(revision)
     const body = fallbackPackr.pack([...rows.entries()])
     const payload = new Uint8Array(4 + body.length)
     new DataView(payload.buffer, payload.byteOffset, payload.byteLength).setUint32(0, next)
@@ -356,6 +357,18 @@ function decodeRows (body: Uint8Array): Map<string, Uint8Array> | undefined {
     rows.set(entry[0], entry[1])
   }
   return rows
+}
+
+// Generations are random rather than counted. Two processes that write from
+// the same snapshot would otherwise stamp the same number, and each would keep
+// trusting its own rows and overwrite the other's entries on its next write.
+// Zero is reserved for a missing file.
+function nextGeneration (current: number): number {
+  let next: number
+  do {
+    next = randomInt(1, 2 ** 32)
+  } while (next === current)
+  return next
 }
 
 // A short header lets readers notice a new snapshot without decoding it.

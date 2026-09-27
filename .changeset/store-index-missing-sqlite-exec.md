@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm install` works when `node:sqlite` `DatabaseSync.exec` is missing. pnpm runs the store index SQL through prepared statements when that method is absent. When the host cannot prepare statements either, pnpm stores the index in `index.fallback` [#15649](https://github.com/pnpm/pnpm/issues/15649).
+`pnpm install` no longer fails with "this.db.exec is not a function" when `node:sqlite` lacks `DatabaseSync.exec`, as in StackBlitz WebContainers. When `node:sqlite` cannot prepare statements either, pnpm stores the index in `index.fallback` [#15649](https://github.com/pnpm/pnpm/issues/15649).
