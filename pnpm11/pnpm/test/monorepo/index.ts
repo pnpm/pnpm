@@ -1354,7 +1354,7 @@ test('dependencies of workspace projects are built during headless installation'
   }
 })
 
-test('built dependencies are restored from a populated store when the workspace has separate lockfiles', async () => {
+test.each(['isolated', 'hoisted'])('built dependencies are restored from a populated store when the workspace has separate lockfiles (nodeLinker: %s)', async (nodeLinker) => {
   preparePackages([
     {
       location: '.',
@@ -1371,6 +1371,7 @@ test('built dependencies are restored from a populated store when the workspace 
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
+    nodeLinker,
     sharedWorkspaceLockfile: false,
     allowBuilds: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
