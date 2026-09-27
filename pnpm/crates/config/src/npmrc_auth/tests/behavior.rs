@@ -154,6 +154,23 @@ fn password_that_does_not_decode_is_rejected() {
     );
 }
 
+/// The hint names what each key decodes to, as pnpm v11's does.
+#[test]
+fn invalid_base64_hint_names_the_decoded_content() {
+    let hint = |key| {
+        miette::Diagnostic::help(&LoadWorkspaceYamlError::AuthInvalidBase64 { key })
+            .map(|help| help.to_string())
+    };
+    assert_eq!(
+        hint("_auth").as_deref(),
+        Some("_auth must contain a base64-encoded <username>:<password> value"),
+    );
+    assert_eq!(
+        hint("_password").as_deref(),
+        Some("_password must contain a base64-encoded password value"),
+    );
+}
+
 /// A password is bytes, not necessarily text: the header carries the
 /// decoded bytes exactly.
 #[test]
