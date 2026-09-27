@@ -264,186 +264,85 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 
-/// An `npm_config_node_gyp` inherited from the parent environment is a
-/// user choice. TS `npm-lifecycle` fills the variable only when the
-/// environment left it unset, so the bundled default must not overwrite
-/// an inherited value.
+const BUNDLED_NODE_GYP: &str = "/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js";
+
+/// Build the env with the bundled `node-gyp` default configured.
+fn build_with_node_gyp_default(
+    parent: HashMap<String, String>,
+    extra_env: &HashMap<String, String>,
+    is_windows: bool,
+) -> HashMap<String, String> {
+    let pkg_root = Path::new("/tmp/w");
+    let mut opts = base_opts(pkg_root, pkg_root, extra_env);
+    opts.environment.node_gyp_path = Some(Path::new(BUNDLED_NODE_GYP));
+    build_env_for_platform(&opts, &json!({"name":"w","version":"0"}), parent, is_windows).env
+}
+
+/// TS `npm-lifecycle` fills `npm_config_node_gyp` only when the
+/// environment left it unset, so an inherited value is kept.
 #[test]
 fn an_inherited_npm_config_node_gyp_is_kept_over_the_default() {
-    let pkg_root = Path::new("/tmp/w");
-    let extra = empty_extra();
-    let mut parent = HashMap::new();
-    parent.insert("npm_config_node_gyp".into(), "/user/node-gyp.js".into());
-    let opts = EnvOptions {
-        environment: crate::ScriptEnvironment {
-            init_cwd: pkg_root,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: Some(Path::new("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js")),
-            user_agent: None,
-            extra_env: &extra,
-        },
-        stage: "postinstall",
-        script: "node x.js",
-        pkg_root,
+    let parent =
+        HashMap::from([("npm_config_node_gyp".to_string(), "/user/node-gyp.js".to_string())]);
 
-        script_src_dir: pkg_root,
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
 
-        unsafe_perm: true,
-    };
-
-    let built = build_env(&opts, &json!({"name":"w","version":"0"}), parent);
-
-    assert_eq!(
-        built.env.get("npm_config_node_gyp").map(String::as_str),
-        Some("/user/node-gyp.js"),
-        "the inherited value must win over the bundled default: {:?}",
-        built.env,
-    );
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some("/user/node-gyp.js"));
 }
 
-/// The bundled `node-gyp` default fills `npm_config_node_gyp` when the
-/// environment has no value of its own, matching TS `npm-lifecycle`.
 #[test]
 fn node_gyp_path_fills_npm_config_node_gyp_when_the_environment_left_it_unset() {
-    let pkg_root = Path::new("/tmp/w");
-    let extra = empty_extra();
-    let opts = EnvOptions {
-        environment: crate::ScriptEnvironment {
-            init_cwd: pkg_root,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: Some(Path::new("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js")),
-            user_agent: None,
-            extra_env: &extra,
-        },
-        stage: "postinstall",
-        script: "node x.js",
-        pkg_root,
+    let parent = HashMap::from([("npm_config_node_gyp".to_string(), String::new())]);
 
-        script_src_dir: pkg_root,
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
 
-        unsafe_perm: true,
-    };
-
-    let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());
-
-    assert_eq!(
-        built.env.get("npm_config_node_gyp").map(String::as_str),
-        Some("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js"),
-    );
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
 }
 
-/// On Windows differently cased spellings name the same variable, so an
-/// inherited `NPM_CONFIG_NODE_GYP` is the user's own value and must not be
-/// shadowed by a bundled default written under the lowercase spelling.
 #[test]
 fn an_uppercase_inherited_npm_config_node_gyp_is_kept_on_windows() {
-    let pkg_root = Path::new("/tmp/w");
-    let extra = empty_extra();
-    let mut parent = HashMap::new();
-    parent.insert("NPM_CONFIG_NODE_GYP".into(), "/user/node-gyp.js".into());
-    let opts = EnvOptions {
-        environment: crate::ScriptEnvironment {
-            init_cwd: pkg_root,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: Some(Path::new("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js")),
-            user_agent: None,
-            extra_env: &extra,
-        },
-        stage: "postinstall",
-        script: "node x.js",
-        pkg_root,
+    let parent =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/user/node-gyp.js".to_string())]);
 
-        script_src_dir: pkg_root,
+    let env = build_with_node_gyp_default(parent, &empty_extra(), true);
 
-        unsafe_perm: true,
-    };
-
-    let built = build_env_for_platform(&opts, &json!({"name":"w","version":"0"}), parent, true);
-
-    assert_eq!(built.env.get("NPM_CONFIG_NODE_GYP").map(String::as_str), Some("/user/node-gyp.js"));
-    assert!(
-        !built.env.contains_key("npm_config_node_gyp"),
-        "the default must not be stamped beside the inherited key: {:?}",
-        built.env,
-    );
+    assert_eq!(env.get("NPM_CONFIG_NODE_GYP").map(String::as_str), Some("/user/node-gyp.js"));
+    assert!(!env.contains_key("npm_config_node_gyp"), "{env:?}");
 }
 
 /// An empty inherited alias is dropped before the default is stamped, so
 /// the two spellings cannot race in the child's environment on Windows.
 #[test]
 fn an_empty_inherited_alias_does_not_shadow_the_default_on_windows() {
-    let pkg_root = Path::new("/tmp/w");
-    let extra = empty_extra();
-    let mut parent = HashMap::new();
-    parent.insert("NPM_CONFIG_NODE_GYP".into(), String::new());
-    let opts = EnvOptions {
-        environment: crate::ScriptEnvironment {
-            init_cwd: pkg_root,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: Some(Path::new("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js")),
-            user_agent: None,
-            extra_env: &extra,
-        },
-        stage: "postinstall",
-        script: "node x.js",
-        pkg_root,
+    let parent = HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), String::new())]);
 
-        script_src_dir: pkg_root,
+    let env = build_with_node_gyp_default(parent, &empty_extra(), true);
 
-        unsafe_perm: true,
-    };
-
-    let built = build_env_for_platform(&opts, &json!({"name":"w","version":"0"}), parent, true);
-
-    assert_eq!(
-        built.env.get("npm_config_node_gyp").map(String::as_str),
-        Some("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js"),
-    );
-    assert!(
-        !built.env.contains_key("NPM_CONFIG_NODE_GYP"),
-        "the empty inherited alias must be removed: {:?}",
-        built.env,
-    );
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
+    assert!(!env.contains_key("NPM_CONFIG_NODE_GYP"), "{env:?}");
 }
 
-/// The same uppercase spelling is an unrelated variable on POSIX, where
-/// the bundled default still fills the lowercase name.
+/// A user `extraEnv` overrides the default, and on Windows a differently
+/// cased `extraEnv` key replaces the stamped spelling rather than racing it.
+#[test]
+fn a_differently_cased_extra_env_node_gyp_replaces_the_default_on_windows() {
+    let extra =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/hook/node-gyp.js".to_string())]);
+
+    let env = build_with_node_gyp_default(HashMap::new(), &extra, true);
+
+    assert_eq!(env.get("NPM_CONFIG_NODE_GYP").map(String::as_str), Some("/hook/node-gyp.js"));
+    assert!(!env.contains_key("npm_config_node_gyp"), "{env:?}");
+}
+
 #[test]
 fn an_uppercase_inherited_npm_config_node_gyp_is_unrelated_on_posix() {
-    let pkg_root = Path::new("/tmp/w");
-    let extra = empty_extra();
-    let mut parent = HashMap::new();
-    parent.insert("NPM_CONFIG_NODE_GYP".into(), "/user/node-gyp.js".into());
-    let opts = EnvOptions {
-        environment: crate::ScriptEnvironment {
-            init_cwd: pkg_root,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: Some(Path::new("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js")),
-            user_agent: None,
-            extra_env: &extra,
-        },
-        stage: "postinstall",
-        script: "node x.js",
-        pkg_root,
+    let parent =
+        HashMap::from([("NPM_CONFIG_NODE_GYP".to_string(), "/user/node-gyp.js".to_string())]);
 
-        script_src_dir: pkg_root,
+    let env = build_with_node_gyp_default(parent, &empty_extra(), false);
 
-        unsafe_perm: true,
-    };
-
-    let built = build_env_for_platform(&opts, &json!({"name":"w","version":"0"}), parent, false);
-
-    assert_eq!(
-        built.env.get("npm_config_node_gyp").map(String::as_str),
-        Some("/pnpm/dist/node_modules/node-gyp/bin/node-gyp.js"),
-        "on POSIX the differently cased key is a different variable: {:?}",
-        built.env,
-    );
+    assert_eq!(env.get("npm_config_node_gyp").map(String::as_str), Some(BUNDLED_NODE_GYP));
 }
 
 #[test]

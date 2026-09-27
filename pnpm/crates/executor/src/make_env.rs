@@ -98,9 +98,16 @@ fn build_env_for_platform(
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
+    //    On Windows an `extra_env` key also replaces every differently
+    //    cased spelling already present, such as the stamped
+    //    `npm_config_node_gyp` default, which would otherwise race it at
+    //    spawn time.
     for (k, v) in opts.environment.extra_env {
         if is_delegation_marker(k, is_windows) {
             continue;
+        }
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case(k));
         }
         env.insert(k.clone(), v.clone());
     }
@@ -339,23 +346,18 @@ fn stamp_executables(
     // inherited `NPM_CONFIG_NODE_GYP` must win there too, and an empty
     // spelling must be removed before the default is stamped or the two
     // would race in the child's environment block.
+    const NODE_GYP_KEY: &str = "npm_config_node_gyp";
+    let names_node_gyp = |key: &str| {
+        if is_windows { key.eq_ignore_ascii_case(NODE_GYP_KEY) } else { key == NODE_GYP_KEY }
+    };
     let inherited = env
         .iter()
-        .any(|(key, value)| {
-            let same_key = if is_windows {
-                key.eq_ignore_ascii_case("npm_config_node_gyp")
-            } else {
-                key.as_str() == "npm_config_node_gyp"
-            };
-            same_key && !value.is_empty()
-        });
+        .any(|(key, value)| names_node_gyp(key) && !value.is_empty());
     if let Some(path) = opts.node_gyp_path
         && !inherited
     {
-        if is_windows {
-            env.retain(|key, _| !key.eq_ignore_ascii_case("npm_config_node_gyp"));
-        }
-        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+        env.retain(|key, _| !names_node_gyp(key));
+        env.insert(NODE_GYP_KEY.into(), path.to_string_lossy().into_owned());
     }
 }
 
