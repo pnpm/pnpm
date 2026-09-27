@@ -18,6 +18,7 @@ use std::{
 };
 
 mod cmd_encoding;
+mod pwsh_encoding;
 mod relocatable;
 
 #[test]

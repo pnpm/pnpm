@@ -554,7 +554,7 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
 }
 
 function withUtf8Codepage (cmd: string): string {
-  if (Buffer.byteLength(cmd) === cmd.length) return cmd
+  if (isAscii(cmd)) return cmd
   const header = '@SETLOCAL\r\n'
   return `${header}\
 @SET "_PNPM_CODEPAGE="\r
@@ -901,7 +901,21 @@ exit $LASTEXITCODE
 `
   }
 
-  return pwsh
+  return withUtf8Bom(pwsh)
+}
+
+/**
+ * Windows PowerShell 5.1 decodes a script without a byte order mark using the
+ * ANSI code page, so non-ASCII text in the shim needs a UTF-8 BOM. Elsewhere
+ * the shebang has to stay at the start of the file.
+ */
+function withUtf8Bom (pwsh: string): string {
+  if (!isWindows || isAscii(pwsh)) return pwsh
+  return `\uFEFF${pwsh}`
+}
+
+function isAscii (text: string): boolean {
+  return Buffer.byteLength(text) === text.length
 }
 
 function chmodShim (to: string, opts: InternalOptions) {
