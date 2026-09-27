@@ -328,7 +328,6 @@ mod restore {
     }
 
     /// [`built_manifest`] plus the symlink at [`LINK_PATH`].
-    #[cfg(unix)]
     fn linked_manifest() -> ArtifactManifest {
         let mut manifest = built_manifest();
         manifest.added.push(ArtifactFile {
@@ -688,7 +687,8 @@ mod restore {
 
     /// A symlink travels as an added entry whose blob is its target, and the
     /// restore records it as a link to create rather than a file to write.
-    #[cfg(unix)]
+    /// Windows cannot create the link, so there the artifact is rejected and
+    /// the package is built locally.
     #[tokio::test]
     #[cfg_attr(
         not(any(
@@ -698,6 +698,7 @@ mod restore {
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
             all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
         ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
@@ -709,6 +710,14 @@ mod restore {
 
         let side_effects = apply(&store_dir, linked_manifest(), blobs, 2).await;
 
+        if cfg!(windows) {
+            let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+            assert!(
+                !side_effects.contains_key(&snapshot_key),
+                "a symlink artifact must not count as built on Windows: {side_effects:?}",
+            );
+            return;
+        }
         let overlay = restored_overlay(&side_effects);
         assert!(overlay.files.contains_key(BUILT_FILE));
         assert!(!overlay.files.contains_key(LINK_PATH), "{:?}", overlay.files);

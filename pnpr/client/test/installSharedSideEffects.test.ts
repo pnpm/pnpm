@@ -38,7 +38,6 @@ const builtFileIntegrity = `sha512-${createHash('sha512').update(builtFile).dige
 const linkPath = 'build/addon-alias.node'
 const linkTarget = Buffer.from('addon.node')
 const linkTargetIntegrity = `sha512-${createHash('sha512').update(linkTarget).digest('base64')}`
-const testOnPosix = process.platform === 'win32' ? test.skip : test
 describe('install remote side-effects', () => {
   test('hydrates the store and selects a verified remote build', async () => {
     const compatibilityTag = currentArtifactCompatibilityTag()
@@ -575,7 +574,9 @@ describe('install remote side-effects', () => {
     }
   })
 
-  testOnPosix('restores a symlink the artifact records and reverifies it offline', async () => {
+  // Windows cannot create the link, so there the same artifact is rejected
+  // and quarantined instead, and the package is built locally.
+  test('restores a symlink the artifact records and reverifies it offline', async () => {
     const compatibilityTag = currentArtifactCompatibilityTag()
     if (compatibilityTag == null) return
 
@@ -636,6 +637,7 @@ describe('install remote side-effects', () => {
     const storeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-shared-side-effects-store-'))
     const stored = new Map<string, string>()
     const persisted: SideEffectsDiff[] = []
+    const quarantined: Array<{ channel: string, envelopeDigest: string, filesIndexFile: string }> = []
     const storeController = {
       addFileToStore: (bytes: Buffer, mode: number) => {
         const digest = createHash('sha512').update(bytes).digest('hex')
@@ -649,7 +651,10 @@ describe('install remote side-effects', () => {
         persisted.push(entry.sideEffects)
         return true
       },
-      quarantineRemoteSideEffects: () => true,
+      quarantineRemoteSideEffects: (entry: typeof quarantined[number]) => {
+        quarantined.push(entry)
+        return true
+      },
     } as unknown as StoreController
     const restorerOptions = {
       allowBuild: (candidate: DepPath) => candidate === depPath,
@@ -677,7 +682,19 @@ describe('install remote side-effects', () => {
       }
       const cacheKey = await createRemoteSideEffectsRestorer({ ...restorerOptions, pnprServer })?.restore({ ...node, files })
 
+      if (process.platform === 'win32') {
+        expect(cacheKey).toBeUndefined()
+        expect(files.sideEffectsMaps).toBeUndefined()
+        expect(persisted).toEqual([])
+        expect(quarantined).toEqual([{
+          channel: pnprServer,
+          envelopeDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+          filesIndexFile: 'package-index-row',
+        }])
+        return
+      }
       expect(cacheKey).toBeDefined()
+      expect(quarantined).toEqual([])
       const builtDigest = createHash('sha512').update(builtFile).digest('hex')
       expect(files.sideEffectsMaps?.get(cacheKey!)).toEqual({
         added: new Map([['build/addon.node', stored.get(`${builtDigest}\0${0o755}`)]]),

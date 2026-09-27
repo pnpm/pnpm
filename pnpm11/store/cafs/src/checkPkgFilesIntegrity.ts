@@ -163,7 +163,9 @@ function matchingSideEffects (
 
 /**
  * Verifies every entry of `files` against the store, handing each one's
- * resolved store path to `record` on the way. Returns whether all passed.
+ * resolved store path to `record` on the way. Returns whether all passed;
+ * `record` has seen every entry either way. Throws `MISSING_CONTENT_DIGEST`
+ * for an entry without a digest.
  */
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
