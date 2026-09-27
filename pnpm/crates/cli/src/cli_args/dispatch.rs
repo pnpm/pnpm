@@ -224,10 +224,10 @@ impl CliArgs {
     ) -> miette::Result<bool> {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
-        let store_use = StoreUse::of(&command);
+        let (npm_command, store_use) = (command.npm_command_name(), StoreUse::of(&command));
         let load_config = |anchor: &Path, is_global: bool| {
             let target = ConfigTarget { anchor, is_global, store_use };
-            self.load_and_finalize_config(&target, config_overrides, setup, anchors)
+            self.load_and_finalize_config(&target, config_overrides, setup, anchors, npm_command)
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
@@ -273,10 +273,18 @@ impl CliArgs {
         config_overrides: &ConfigOverrides,
         setup: &RunSetup<'_>,
         anchors: &RunAnchors,
+        npm_command: &'static str,
     ) -> miette::Result<&'static mut Config> {
         let ConfigTarget { anchor, is_global, store_use } = *target;
         let cfg = store_use.load(|place_store| self.load_config_at(anchor, place_store))?;
-        self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)
+        let config =
+            self.finalize_run_config(cfg, anchor, is_global, config_overrides, setup, anchors)?;
+        // npm names the running command for scripts in `npm_command`, and pnpm 11
+        // sets the same variable, so scripts that branch on it behave alike
+        // whichever CLI runs them. This map is what every script-spawning site
+        // reads.
+        config.extra_env.insert("npm_command".to_string(), npm_command.to_string());
+        Ok(config)
     }
 
     fn load_config_at(&self, anchor: &Path, place_store: bool) -> miette::Result<Config> {

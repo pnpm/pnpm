@@ -1137,3 +1137,39 @@ mod root_preinstall {
         drop((root, mock_instance));
     }
 }
+
+/// `pnpm install` reports itself to the lifecycle scripts it runs, the way
+/// pnpm 11 and npm both report `npm_command` there.
+#[test]
+fn install_exports_the_command_to_lifecycle_scripts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "name": "project-reads-npm-command",
+        "version": "1.0.0",
+        "scripts": {
+            "prepare":
+                r#"node -e "require('fs').writeFileSync('npm-command.txt', process.env.npm_command ?? 'unset')""#,
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let value =
+        fs::read_to_string(workspace.join("npm-command.txt")).expect("read npm-command.txt");
+    assert_eq!(value, "install");
+
+    drop((root, mock_instance));
+}
