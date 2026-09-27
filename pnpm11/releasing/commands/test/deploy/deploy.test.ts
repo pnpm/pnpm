@@ -1462,6 +1462,57 @@ test('deploy: preserves internal symlinks in deployed package', async () => {
   expect(fs.readFileSync('dist/symlink-dir/nested.txt', 'utf8')).toBe('nested content')
 })
 
+// The layout a Nitro build writes: dependencies linked into a nested
+// node_modules from a dot directory next to them.
+test('deploy: preserves symlinks in a nested node_modules listed in files', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['.output'],
+    },
+  ])
+
+  const serverModules = 'project/.output/server/node_modules'
+  fs.mkdirSync(`${serverModules}/.nitro/foo@1.0.0`, { recursive: true })
+  fs.writeFileSync(`${serverModules}/.nitro/foo@1.0.0/index.js`, 'module.exports = "foo"')
+  fs.mkdirSync(`${serverModules}/.nitro/bar@1.0.0`, { recursive: true })
+  fs.writeFileSync(`${serverModules}/.nitro/bar@1.0.0/index.js`, 'module.exports = "bar"')
+  fs.mkdirSync(`${serverModules}/@scope`)
+  fs.symlinkSync('.nitro/foo@1.0.0', `${serverModules}/foo`, 'dir')
+  fs.symlinkSync('../.nitro/bar@1.0.0', `${serverModules}/@scope/bar`, 'dir')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const deployedModules = 'dist/.output/server/node_modules'
+  expect(fs.lstatSync(`${deployedModules}/foo`).isSymbolicLink()).toBe(true)
+  expect(path.resolve(deployedModules, fs.readlinkSync(`${deployedModules}/foo`))).toBe(path.resolve(deployedModules, '.nitro/foo@1.0.0'))
+  expect(fs.readFileSync(`${deployedModules}/foo/index.js`, 'utf8')).toBe('module.exports = "foo"')
+  expect(fs.lstatSync(`${deployedModules}/@scope/bar`).isSymbolicLink()).toBe(true)
+  expect(path.resolve(deployedModules, '@scope', fs.readlinkSync(`${deployedModules}/@scope/bar`))).toBe(path.resolve(deployedModules, '.nitro/bar@1.0.0'))
+  expect(fs.readFileSync(`${deployedModules}/@scope/bar/index.js`, 'utf8')).toBe('module.exports = "bar"')
+})
+
 test.each([
   { mode: 'native', forceLegacyDeploy: false },
   { mode: 'legacy', forceLegacyDeploy: true },

@@ -431,3 +431,63 @@ fn deploy_all_files_preserves_internal_symlinks() {
 
     drop((root, mock_instance));
 }
+
+/// The layout a Nitro build writes: dependencies linked into a nested
+/// `node_modules` from a dot directory next to them.
+#[cfg(unix)]
+#[test]
+fn deploy_preserves_symlinks_in_nested_node_modules_listed_in_files() {
+    use std::os::unix::fs::symlink;
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "nitro-app",
+        &serde_json::json!({
+            "name": "nitro-app",
+            "version": "1.0.0",
+            "files": [".output"],
+        }),
+    );
+    let server_modules = workspace.join("packages/nitro-app/.output/server/node_modules");
+    for name in ["foo", "bar"] {
+        let store_dir = server_modules.join(format!(".nitro/{name}@1.0.0"));
+        fs::create_dir_all(&store_dir).unwrap();
+        fs::write(store_dir.join("index.js"), format!(r#"module.exports = "{name}""#)).unwrap();
+    }
+    fs::create_dir_all(server_modules.join("@scope")).unwrap();
+    symlink(".nitro/foo@1.0.0", server_modules.join("foo")).unwrap();
+    symlink("../.nitro/bar@1.0.0", server_modules.join("@scope/bar")).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "nitro-app", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let deployed_modules = workspace.join("deploy/.output/server/node_modules");
+    for (link, target, name) in
+        [("foo", ".nitro/foo@1.0.0", "foo"), ("@scope/bar", "../.nitro/bar@1.0.0", "bar")]
+    {
+        let link = deployed_modules.join(link);
+        assert!(link.is_symlink(), "{} must be deployed as a symlink", link.display());
+        assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new(target));
+        assert_eq!(
+            fs::read_to_string(link.join("index.js")).unwrap(),
+            format!(r#"module.exports = "{name}""#),
+        );
+    }
+
+    drop((root, mock_instance));
+}
