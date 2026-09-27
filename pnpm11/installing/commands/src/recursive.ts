@@ -439,6 +439,8 @@ export async function recursive (
   // dedup and write a single batch to the workspace manifest.
   const allResolutionPolicyViolations: PolicyViolation[] = []
   const installedModulesDirs = new Map<ProjectRootDir, string>()
+  const buildsAfterInstall = !opts.lockfileOnly && !opts.ignoreScripts &&
+    (cmdFullName === 'add' || cmdFullName === 'install' || cmdFullName === 'update')
   let firstError: Error | undefined
   await scheduleGraph(selectedProjectDependencies, {
     bail: opts.bail !== false,
@@ -541,7 +543,7 @@ export async function recursive (
             bin: binDirOf(rootDir, localConfig.modulesDir ?? opts.modulesDir),
             dir: rootDir,
             hooks,
-            deferDependencyBuilds: !opts.lockfileOnly && !opts.ignoreScripts,
+            deferDependencyBuilds: buildsAfterInstall,
             ignoreScripts: true,
             rangeSpecStyle: getRangeSpecStyle({
               saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
@@ -622,13 +624,7 @@ export async function recursive (
     })
   }
 
-  if (
-    !opts.lockfileOnly && !opts.ignoreScripts && (
-      cmdFullName === 'add' ||
-      cmdFullName === 'install' ||
-      cmdFullName === 'update'
-    )
-  ) {
+  if (buildsAfterInstall) {
     await opts.rebuildHandler?.({
       ...opts,
       pending: opts.pending === true,
