@@ -182,12 +182,13 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         sync_injected_deps: false,
     }
     .run(|state| {
-        Box::pin(dedupe_dedicated_project::<Reporter>(
-            args.clone(),
-            state,
-            lockfile_path,
-            existing.as_deref(),
-        ))
+        let args = args.clone();
+        let lockfile_path = lockfile_path.to_path_buf();
+        let existing = existing.clone();
+        Box::pin(async move {
+            dedupe_dedicated_project::<Reporter>(args, state, &lockfile_path, existing.as_deref())
+                .await
+        })
     })
     .await?;
     if let Some(guard) = guard {

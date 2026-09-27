@@ -229,7 +229,7 @@ impl DedicatedProjectRuns<'_> {
     async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         self.run_projects(run).await?;
         if self.prune_excludes && self.projects.covers_workspace {
@@ -255,7 +255,7 @@ impl DedicatedProjectRuns<'_> {
     async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
         let config = self.config;
@@ -274,7 +274,11 @@ impl DedicatedProjectRuns<'_> {
                     require_lockfile,
                     http_client,
                 ) {
-                    Ok(state) => run(state).await,
+                    // A project's install blocks its thread in places, such as
+                    // while its lifecycle scripts run. On its own task, the
+                    // other projects' installs move to another worker then.
+                    Ok(state) => tokio::spawn(run(state)).await
+                        .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic())),
                     Err(error) => Err(error),
                 };
                 record_dedicated_result(first_error, result)
@@ -337,11 +341,11 @@ fn sync_dedicated_injected_deps(
 
 /// What [`sync_dedicated_injected_deps`] needs to know about the projects
 /// beyond their directories.
-pub(super) struct DedicatedSync<'a> {
+struct DedicatedSync<'a> {
     /// See [`DedicatedProjects::names`].
-    pub(super) names: &'a HashMap<PathBuf, String>,
+    names: &'a HashMap<PathBuf, String>,
     /// See [`injected_source_dirs`].
-    pub(super) source_dirs: &'a HashSet<PathBuf>,
+    source_dirs: &'a HashSet<PathBuf>,
 }
 
 /// The selection in build order. Sequenced over borrowed paths: cloning a
@@ -401,9 +405,10 @@ fn project_dependencies(
 /// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
 /// output paths and per-project settings under `project_dir` via
 /// [`Config::anchor_dedicated_project`], and initialize the state. The
-/// clone is leaked because [`State::init`] needs a `&'static Config`; see
-/// [`run_dedicated_lockfile_workspace_install`](install::run_dedicated_lockfile_workspace_install) for why the bounded leak
-/// is acceptable.
+/// clone is leaked because [`State::init`] needs a `&'static Config`. The
+/// leak is bounded by the project count, happens once per CLI invocation,
+/// and is reclaimed at process exit, the same lifetime deploy's derived
+/// install config has.
 fn init_dedicated_project_state(
     cfg: &Config,
     project_dir: &Path,

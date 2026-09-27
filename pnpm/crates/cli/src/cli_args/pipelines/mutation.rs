@@ -64,7 +64,7 @@ impl AddPipeline {
             InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
-                let workspace_packages = self.args.workspace_link_targets(self.cfg)?;
+                let workspace_packages = Arc::new(self.args.workspace_link_targets(self.cfg)?);
                 DedicatedProjectRuns {
                     config: self.cfg,
                     projects,
@@ -74,15 +74,16 @@ impl AddPipeline {
                     sync_injected_deps: !self.args.install.lockfile_only,
                 }
                 .run(|state| {
-                    Box::pin(
-                        self.args
-                            .clone()
-                            .run_with_link_targets::<Reporter>(
-                                state,
-                                None,
-                                workspace_packages.as_ref(),
-                            ),
-                    )
+                    let args = self.args.clone();
+                    let workspace_packages = Arc::clone(&workspace_packages);
+                    Box::pin(async move {
+                        args.run_with_link_targets::<Reporter>(
+                            state,
+                            None,
+                            workspace_packages.as_ref().as_ref(),
+                        )
+                        .await
+                    })
                 })
                 .await
             }
