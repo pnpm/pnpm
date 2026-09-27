@@ -9,7 +9,7 @@
 
 use crate::Lockfile;
 use std::{
-    fs, io,
+    fs, io, iter,
     path::{Path, PathBuf},
 };
 
@@ -17,19 +17,23 @@ impl Lockfile {
     /// File name a branch lockfile for `branch` is written under.
     ///
     /// A branch name is not a file name: it may contain slashes, and the
-    /// filesystem may be case-insensitive. Every character outside
+    /// filesystem may be case-insensitive. Every UTF-16 code unit outside
     /// `[A-Za-z0-9_.-]` becomes `!` and the result is lowercased, so two
     /// branches differing only in case cannot claim the same file with
-    /// different spellings.
+    /// different spellings. Counting UTF-16 code units, so that a character
+    /// outside the Basic Multilingual Plane becomes `!!`, matches the name
+    /// pnpm v11 gives the same branch.
     #[must_use]
     pub fn git_branch_file_name(branch: &str) -> String {
-        let stringified: String = branch
-            .chars()
-            .map(|char| match char {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' => char.to_ascii_lowercase(),
-                _ => '!',
-            })
-            .collect();
+        let mut stringified = String::with_capacity(branch.len());
+        for char in branch.chars() {
+            match char {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' => {
+                    stringified.push(char.to_ascii_lowercase());
+                }
+                _ => stringified.extend(iter::repeat_n('!', char.len_utf16())),
+            }
+        }
         format!("pnpm-lock.{stringified}.yaml")
     }
 
