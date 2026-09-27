@@ -91,6 +91,10 @@ fn local_app_data_is_used<Sys: EnvVar>() -> bool {
 }
 
 const MAX_EXPANSIONS: usize = 32;
+/// The longest value Windows allows in an environment variable. A
+/// self-referencing value such as `X=%X%%X%` never repeats, so expansion
+/// stops once the result would exceed this length.
+const MAX_EXPANDED_LEN: usize = 32_767;
 
 fn expand_windows_percent_vars(
     value: &str,
@@ -110,16 +114,17 @@ fn expand_windows_percent_vars(
             break;
         }
         seen.push(current.clone());
-        let (next, changed) = substitute_once(&current, lookup);
-        if !changed {
-            break;
+        match substitute_once(&current, lookup) {
+            Some(next) => current = next,
+            None => break,
         }
-        current = next;
     }
     Err(first_percent_var(&current).expect("an unexpanded reference remains"))
 }
 
-fn substitute_once(value: &str, lookup: &impl Fn(&str) -> Option<String>) -> (String, bool) {
+/// Replaces every `%NAME%` whose variable is set. Returns `None` when nothing
+/// was replaced or when the result would exceed [`MAX_EXPANDED_LEN`].
+fn substitute_once(value: &str, lookup: &impl Fn(&str) -> Option<String>) -> Option<String> {
     let mut next = String::with_capacity(value.len());
     let mut changed = false;
     let mut rest = value;
@@ -128,7 +133,8 @@ fn substitute_once(value: &str, lookup: &impl Fn(&str) -> Option<String>) -> (St
         let after = &rest[start + 1..];
         let Some(end) = after.find('%') else {
             next.push_str(&rest[start..]);
-            return (next, changed);
+            rest = "";
+            break;
         };
         let name = &after[..end];
         if !is_windows_env_name(name) {
@@ -144,10 +150,13 @@ fn substitute_once(value: &str, lookup: &impl Fn(&str) -> Option<String>) -> (St
             next.push_str(name);
             next.push('%');
         }
+        if next.len() > MAX_EXPANDED_LEN {
+            return None;
+        }
         rest = &after[end + 1..];
     }
     next.push_str(rest);
-    (next, changed)
+    (changed && next.len() <= MAX_EXPANDED_LEN).then_some(next)
 }
 
 fn first_percent_var(value: &str) -> Option<String> {
@@ -168,109 +177,8 @@ fn is_windows_env_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '(' | ')'))
+            .all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '-' | '.' | '(' | ')'))
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{UnexpandedWindowsEnvVar, ensure_windows_dir_envs_on, expand_dir_env};
-    use crate::api::EnvVar;
-    use pretty_assertions::assert_eq;
-
-    fn lookup(name: &str) -> Option<String> {
-        match name {
-            "SOME_ENV" => Some(r"C:\tools".to_owned()),
-            "OUTER" => Some(r"%INNER%\apps".to_owned()),
-            "INNER" => Some(r"D:\dev".to_owned()),
-            "LOCAL_ROOT" => Some(r"C:\Users\me".to_owned()),
-            "ProgramFiles(x86)" => Some(r"C:\Program Files (x86)".to_owned()),
-            "A" => Some("%B%".to_owned()),
-            "B" => Some("%A%".to_owned()),
-            _ => None,
-        }
-    }
-
-    fn expand(value: &str) -> Result<String, UnexpandedWindowsEnvVar> {
-        expand_dir_env("windows", "PNPM_HOME", value, lookup)
-    }
-
-    #[test]
-    fn expands_a_nested_windows_reference() {
-        assert_eq!(expand("%SOME_ENV%/pnpm").unwrap(), r"C:\tools/pnpm");
-        assert_eq!(expand(r"%OUTER%\pnpm").unwrap(), r"D:\dev\apps\pnpm");
-    }
-
-    #[test]
-    fn expands_program_files_x86() {
-        assert_eq!(expand("%ProgramFiles(x86)%\\pnpm").unwrap(), r"C:\Program Files (x86)\pnpm",);
-    }
-
-    #[test]
-    fn rejects_a_reference_that_stays_unexpanded() {
-        let error = expand("%MISSING%/pnpm").unwrap_err();
-        assert_eq!(error.variable, "PNPM_HOME");
-        assert_eq!(error.reference, "%MISSING%");
-    }
-
-    #[test]
-    fn rejects_a_cycle() {
-        let error = expand("%A%").unwrap_err();
-        assert_eq!(error.reference, "%A%");
-    }
-
-    #[test]
-    fn leaves_a_literal_percent_in_place() {
-        assert_eq!(expand(r"C:\100%\pnpm").unwrap(), r"C:\100%\pnpm");
-        assert_eq!(expand("100%%").unwrap(), "100%%");
-    }
-
-    #[test]
-    fn does_not_expand_off_windows() {
-        assert_eq!(
-            expand_dir_env("linux", "PNPM_HOME", "%SOME_ENV%/pnpm", lookup).unwrap(),
-            "%SOME_ENV%/pnpm",
-        );
-    }
-
-    struct DirEnv;
-
-    impl EnvVar for DirEnv {
-        fn var(name: &str) -> Option<String> {
-            match name {
-                "PNPM_HOME" => Some("%SOME_ENV%/pnpm".to_owned()),
-                "SOME_ENV" => Some(r"C:\tools".to_owned()),
-                "XDG_DATA_HOME" => Some("%MISSING%\\data".to_owned()),
-                _ => None,
-            }
-        }
-    }
-
-    #[test]
-    fn ignores_an_unused_data_home_when_pnpm_home_expands() {
-        ensure_windows_dir_envs_on::<DirEnv>("windows").unwrap();
-    }
-
-    struct BadCache;
-
-    impl EnvVar for BadCache {
-        fn var(name: &str) -> Option<String> {
-            match name {
-                "PNPM_HOME" => Some(r"C:\pnpm".to_owned()),
-                "XDG_CACHE_HOME" => Some("%MISSING%\\cache".to_owned()),
-                _ => None,
-            }
-        }
-    }
-
-    #[test]
-    fn rejects_an_unexpanded_cache_home() {
-        let error = ensure_windows_dir_envs_on::<BadCache>("windows").unwrap_err();
-        assert_eq!(error.variable, "XDG_CACHE_HOME");
-        assert_eq!(error.reference, "%MISSING%");
-    }
-
-    #[test]
-    fn skips_the_check_off_windows() {
-        ensure_windows_dir_envs_on::<BadCache>("linux").unwrap();
-    }
-}
+mod tests;

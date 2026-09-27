@@ -135,9 +135,9 @@ function expandWindowsDirEnv (
   while (firstPercentVar(current) != null) {
     if (seen.has(current) || seen.size === 32) break
     seen.add(current)
-    const step = substituteOnce(current, varName => lookupEnv(opts.env, varName))
-    if (!step.changed) break
-    current = step.value
+    const next = substituteOnce(current, varName => lookupEnv(opts.env, varName))
+    if (next == null) break
+    current = next
   }
   const reference = firstPercentVar(current)
   if (reference != null) {
@@ -150,10 +150,17 @@ function expandWindowsDirEnv (
   return current
 }
 
+// The longest value Windows allows in an environment variable. A
+// self-referencing value such as `X=%X%%X%` never repeats, so expansion stops
+// once the result would exceed this length.
+const MAX_EXPANDED_LENGTH = 32_767
+
+// Replaces every `%NAME%` whose variable is set. Returns undefined when
+// nothing was replaced or when the result would exceed MAX_EXPANDED_LENGTH.
 function substituteOnce (
   value: string,
   lookup: (name: string) => string | undefined
-): { value: string, changed: boolean } {
+): string | undefined {
   let next = ''
   let changed = false
   let rest = value
@@ -163,7 +170,8 @@ function substituteOnce (
     const end = rest.indexOf('%', start + 1)
     if (end === -1) {
       next += rest.slice(start)
-      return { value: next, changed }
+      rest = ''
+      break
     }
     const name = rest.slice(start + 1, end)
     if (!isWindowsEnvName(name)) {
@@ -177,12 +185,13 @@ function substituteOnce (
       rest = rest.slice(end + 1)
       continue
     }
+    if (next.length + replacement.length > MAX_EXPANDED_LENGTH) return undefined
     next += replacement
     changed = true
     rest = rest.slice(end + 1)
   }
   next += rest
-  return { value: next, changed }
+  return changed && next.length <= MAX_EXPANDED_LENGTH ? next : undefined
 }
 
 function firstPercentVar (value: string): string | undefined {
@@ -205,6 +214,7 @@ function isWindowsEnvName (name: string): boolean {
       (char >= 'a' && char <= 'z') ||
       (char >= '0' && char <= '9') ||
       char === '_' ||
+      char === '-' ||
       char === '.' ||
       char === '(' ||
       char === ')'

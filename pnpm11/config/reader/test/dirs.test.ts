@@ -106,6 +106,38 @@ test('getDataDir() rejects an unexpanded Windows environment variable', () => {
   }))
 })
 
+test('getDataDir() rejects a Windows environment variable that grows on every expansion', () => {
+  expect(() => getDataDir({
+    env: {
+      PNPM_HOME: '%A%',
+      A: '%A%%A%',
+    },
+    platform: 'win32',
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_UNEXPANDED_ENV_IN_PATH',
+    message: 'PNPM_HOME contains an unexpanded environment variable: %A%',
+  }))
+})
+
+test('getDataDir() expands a Windows environment variable whose name has a hyphen', () => {
+  expect(getDataDir({
+    env: {
+      PNPM_HOME: '%MY-HOME%\\pnpm',
+      'MY-HOME': 'C:\\tools',
+    },
+    platform: 'win32',
+  })).toBe('C:\\tools\\pnpm')
+  expect(() => getDataDir({
+    env: {
+      PNPM_HOME: '%MY-HOME%\\pnpm',
+    },
+    platform: 'win32',
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_UNEXPANDED_ENV_IN_PATH',
+    message: 'PNPM_HOME contains an unexpanded environment variable: %MY-HOME%',
+  }))
+})
+
 test('getDataDir() leaves percent references unchanged off Windows', () => {
   expect(getDataDir({
     env: {

@@ -127,7 +127,7 @@ fn test_default_pnpm_home_dir_expands_nested_percent_refs() {
             unreachable!("home_dir must not be called when PNPM_HOME is set");
         }
     }
-    assert_eq!(default_pnpm_home_dir::<EnvWithNestedHome>(), Some(PathBuf::from(r"C:\tools/pnpm")),);
+    assert_eq!(default_pnpm_home_dir::<EnvWithNestedHome>(), Some(PathBuf::from(r"C:\tools/pnpm")));
 }
 
 /// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`
