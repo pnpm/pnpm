@@ -158,8 +158,8 @@ function toSideEffectsFilesMap (
 ): SideEffectsFilesMap | undefined {
   const split = splitSymlinks(diff, addedFilesMap, baseFiles.keys())
   if (split == null) return undefined
-  const filesMap: SideEffectsFilesMap = { added: split.added, deleted: diff.deleted }
-  if (split.symlinks.size > 0) filesMap.symlinks = split.symlinks
+  const filesMap: SideEffectsFilesMap = { added: split.addedFiles, deleted: diff.deleted }
+  if (split.addedSymlinks.size > 0) filesMap.symlinks = split.addedSymlinks
   return filesMap
 }
 

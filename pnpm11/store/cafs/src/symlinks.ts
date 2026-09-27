@@ -59,8 +59,8 @@ function isName (segment: string, reservedName: string): boolean {
 }
 
 export interface SplitSymlinksResult {
-  added: FilesMap
-  symlinks: Map<string, string>
+  addedFiles: FilesMap
+  addedSymlinks: Map<string, string>
 }
 
 /**
@@ -78,30 +78,30 @@ export function splitSymlinks (
   addedMap: FilesMap,
   baseFiles: Iterable<string>
 ): SplitSymlinksResult | undefined {
-  const symlinks = new Map<string, string>()
-  const added: FilesMap = new Map()
+  const addedSymlinks = new Map<string, string>()
+  const addedFiles: FilesMap = new Map()
   for (const [relativePath, filePath] of addedMap) {
     if (!isSymlinkMode(diff.added.get(relativePath)!.mode)) {
-      added.set(relativePath, filePath)
+      addedFiles.set(relativePath, filePath)
       continue
     }
     const target = readSymlinkTarget(filePath)
     if (target == null || normalizeSymlinkTarget(relativePath, target) !== target) return undefined
-    symlinks.set(relativePath, target)
+    addedSymlinks.set(relativePath, target)
   }
-  if (symlinks.size === 0) return { added, symlinks }
+  if (addedSymlinks.size === 0) return { addedFiles, addedSymlinks }
   if (process.platform === 'win32') return undefined
   const deleted = new Set(diff.deleted)
-  const paths = [...added.keys(), ...symlinks.keys()]
+  const paths = [...addedFiles.keys(), ...addedSymlinks.keys()]
   for (const baseFile of baseFiles) {
     if (!deleted.has(baseFile)) paths.push(baseFile)
   }
   for (const relativePath of paths) {
     for (let slash = relativePath.lastIndexOf('/'); slash > 0; slash = relativePath.lastIndexOf('/', slash - 1)) {
-      if (symlinks.has(relativePath.slice(0, slash))) return undefined
+      if (addedSymlinks.has(relativePath.slice(0, slash))) return undefined
     }
   }
-  return { added, symlinks }
+  return { addedFiles, addedSymlinks }
 }
 
 function readSymlinkTarget (filePath: string): string | undefined {
