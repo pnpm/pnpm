@@ -269,6 +269,43 @@ fn regexp_selector_runs_a_matched_hidden_script_named_in_depends_on() {
     drop(root);
 }
 
+/// `--reverse` makes `build` depend on the hidden task the invocation
+/// named. That edge is no `dependsOn` reference, so the name is rejected.
+#[test]
+fn reverse_run_still_rejects_a_hidden_script_name_with_depends_on() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-a",
+            json!({
+                "name": "project-a",
+                "version": "1.0.0",
+                "scripts": {
+                    "build": append_line_script("build", "../order.log"),
+                    ".secret": append_line_script(".secret", "../order.log"),
+                },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\ntasks:\n  .secret:\n    dependsOn: ['build']\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["-r", "run", "--reverse", ".secret"])
+        .env_remove("npm_lifecycle_event")
+        .output()
+        .expect("spawn pacquet");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_HIDDEN_SCRIPT"));
+    assert!(!workspace.join("order.log").exists());
+    drop(root);
+}
+
 /// `dependency`'s lint waits for the marker `dependent`'s lint writes:
 /// only possible when the explicitly empty `dependsOn` frees the lint
 /// tasks from the project-graph order.

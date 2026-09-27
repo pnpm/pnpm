@@ -254,6 +254,45 @@ test('resumeTaskGraphFrom drops only the anchor\'s transitive dependencies', () 
   expect(resumed.get(taskKey(dir('c'), 'build'))!.dependencies).toStrictEqual([taskKey(dir('b'), 'build')])
 })
 
+test('resumeTaskGraphFrom anchors every task an expanded selector requested in the project', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['build', 'test'] },
+    b: { scripts: ['build', 'test'] },
+  }, '/^(build|test)$/', {
+    build: { dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+  })
+
+  const resumed = resumeTaskGraphFrom(graph, {
+    resumeFrom: 'a',
+    selectedProjectsGraph: Object.fromEntries(['a', 'b'].map((name) => [
+      dir(name),
+      { dependencies: [], package: { manifest: { name } } },
+    ])) as never,
+    taskName: '/^(build|test)$/',
+  })
+
+  expect([...resumed.keys()].sort()).toStrictEqual([
+    taskKey(dir('a'), 'build'),
+    taskKey(dir('a'), 'test'),
+    taskKey(dir('b'), 'test'),
+  ].sort())
+  expect(resumed.get(taskKey(dir('a'), 'build'))!.dependencies).toStrictEqual([])
+  expect(resumed.get(taskKey(dir('a'), 'test'))!.dependencies).toStrictEqual([taskKey(dir('a'), 'build')])
+})
+
+test('a script named like the selector keeps its default dependency', () => {
+  const graph = buildGraph({
+    a: { dependencies: ['b'], scripts: ['/build/'] },
+    b: { scripts: ['/build/'] },
+  }, '/build/', {
+    lint: {},
+  })
+
+  expect(graph.get(taskKey(dir('a'), '/build/'))!.scripts).toStrictEqual(['/build/'])
+  expect(graph.get(taskKey(dir('a'), '/build/'))!.dependencies).toStrictEqual([taskKey(dir('b'), '/build/')])
+})
+
 test('resumeTaskGraphFrom drops exact completed tasks when state is available', () => {
   const graph = buildGraph({
     dependency: { scripts: ['build'] },

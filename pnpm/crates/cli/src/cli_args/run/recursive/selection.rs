@@ -2,8 +2,8 @@ use super::{
     super::listing::split_regex_literal, BuildTaskGraphOptions, Config, ExecutionStatus, GraphPkg,
     HashMap, HashSet, IndexMap, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PnpmLog,
     ProcessTracker, ProjectGraph, RecursiveRunError, RunArgs, ScriptSelector, TaskGraph, TaskKey,
-    TaskRunExecutionSettings, TaskRunStateContext, build_task_graph, count_failures, env,
-    filtered_projects_dependencies, find_resume_root, render_project_commands,
+    TaskRunExecutionSettings, TaskRunStateContext, TaskSettings, build_task_graph, count_failures,
+    env, filtered_projects_dependencies, find_resume_root, render_project_commands,
     render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph, task_graph_to_json,
     task_run_execution_settings, throw_or_filter_hidden_scripts, write_recursive_summary,
 };
@@ -152,28 +152,23 @@ pub(super) fn print_run_dry_run(
 /// within another script, detected by an inherited `npm_lifecycle_event`.
 /// Checked only for the tasks the invocation named: a `dependsOn`
 /// declaration naming a hidden script is a deliberate reference, like a
-/// call from another script, so a requested task that another task names
-/// in its `dependsOn` is exempt too. Checked per project, over every requested task: a
-/// `RegExp` selector can seed one task per matched script, and a project
-/// fails only when everything the selector matched in it is hidden.
+/// call from another script, so a requested task that another task of the
+/// graph names in its `dependsOn` is exempt too. Checked per project, over
+/// every requested task: a `RegExp` selector can seed one task per matched
+/// script, and a project fails only when everything the selector matched in
+/// it is hidden.
 pub(super) fn filter_hidden_requested_scripts(
     task_graph: &mut TaskGraph,
     script_name: &str,
+    tasks: Option<&IndexMap<String, TaskSettings>>,
 ) -> miette::Result<()> {
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(());
     }
-    let depended_on: HashSet<&TaskKey> = task_graph
-        .values()
-        .flat_map(|node| {
-            node.dependencies
-                .iter()
-                .filter(|dependency| dependency.task_name != node.task_name)
-        })
-        .collect();
+    let referenced = depends_on_references(task_graph, tasks);
     let checked: Vec<TaskKey> = task_graph
         .iter()
-        .filter(|(key, node)| node.requested && !depended_on.contains(key))
+        .filter(|(key, node)| node.requested && !referenced.contains(key.task_name.as_str()))
         .map(|(key, _)| key.clone())
         .collect();
     let mut requested_by_project: IndexMap<PathBuf, Vec<String>> = IndexMap::new();
@@ -184,9 +179,10 @@ pub(super) fn filter_hidden_requested_scripts(
             .or_default()
             .extend(node.scripts.iter().cloned());
     }
-    let mut visible_by_project: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    let mut visible_by_project: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for (project, scripts) in requested_by_project {
-        visible_by_project.insert(project, throw_or_filter_hidden_scripts(scripts, script_name)?);
+        let visible = throw_or_filter_hidden_scripts(scripts, script_name)?;
+        visible_by_project.insert(project, visible.into_iter().collect());
     }
     for key in &checked {
         let node = task_graph.get_mut(key).expect("checked task is in the graph");
@@ -194,6 +190,41 @@ pub(super) fn filter_hidden_requested_scripts(
         node.scripts.retain(|script| visible.contains(script));
     }
     Ok(())
+}
+
+/// The task names that the `dependsOn` of another task in the graph names.
+/// Read from the declarations rather than the graph's edges, which
+/// `--reverse` inverts.
+fn depends_on_references<'a>(
+    task_graph: &TaskGraph,
+    tasks: Option<&'a IndexMap<String, TaskSettings>>,
+) -> HashSet<&'a str> {
+    let Some(tasks) = tasks else {
+        return HashSet::new();
+    };
+    let task_names: HashSet<&str> = task_graph
+        .keys()
+        .map(|key| key.task_name.as_str())
+        .collect();
+    tasks
+        .iter()
+        .filter(|(name, _)| task_names.contains(name.as_str()))
+        .flat_map(|(name, settings)| {
+            settings.depends_on
+                .iter()
+                .flatten()
+                .map(|entry| entry.strip_prefix('^').unwrap_or(entry))
+                .filter(move |referenced| *referenced != name)
+        })
+        .collect()
+}
+
+/// The `tasks` declarations the run's graph follows: none under `--no-sort`.
+pub(super) fn run_tasks<'a>(
+    args: &RunArgs,
+    config: &'a Config,
+) -> Option<&'a IndexMap<String, TaskSettings>> {
+    (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks)
 }
 
 /// How many tasks run at once. `--parallel` runs them all, `--sequential`
@@ -316,7 +347,7 @@ pub(super) fn build_run_task_graph(
         project_dependencies: &project_dependencies,
         select_scripts,
         task_name: script_name,
-        tasks: (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks),
+        tasks: run_tasks(args, config),
         is_selector_task,
     });
     if args.workspace.reverse {

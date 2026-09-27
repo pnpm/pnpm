@@ -782,6 +782,36 @@ test('a RegExp selector runs a matched hidden script that another matched script
   expect(server.getLines()).toStrictEqual(['setup', 'test'])
 })
 
+test('--reverse still rejects a hidden script name that has dependsOn', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('build'),
+        '.secret': server.sendLineScript('secret'),
+      },
+    },
+  ])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reverse: true,
+    tasks: {
+      '.secret': { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['.secret'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_HIDDEN_SCRIPT',
+  })
+  expect(server.getLines()).toStrictEqual([])
+})
+
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {
   preparePackages([
     {

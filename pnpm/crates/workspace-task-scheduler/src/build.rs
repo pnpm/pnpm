@@ -70,7 +70,14 @@ where
                 continue;
             }
             let settings = self.task_settings(&task_name);
-            let dependencies = self.dependency_keys(&project, &task_name, settings);
+            let scripts = (self.select_scripts)(&project, &task_name);
+            // The pass-through task of a project an expanded selector
+            // matched nothing in: nothing names it, so it orders nothing.
+            let dependencies = if scripts.is_empty() && self.expands_selector(&task_name) {
+                Vec::new()
+            } else {
+                self.dependency_keys(&project, &task_name, settings)
+            };
             queue.extend(
                 dependencies
                     .iter()
@@ -78,7 +85,6 @@ where
                         (dependency.project.clone(), dependency.task_name.clone(), false)
                     }),
             );
-            let scripts = (self.select_scripts)(&project, &task_name);
             graph.insert(
                 key,
                 TaskNode {
@@ -142,8 +148,7 @@ where
     }
 
     /// The tasks `task_name` at `project` depends on, in declaration order
-    /// and deduplicated. An expanded selector's task exists only in
-    /// projects the selector matched nothing in, and depends on nothing.
+    /// and deduplicated.
     fn dependency_keys(
         &self,
         project: &Path,
@@ -152,7 +157,6 @@ where
     ) -> Vec<TaskKey> {
         let entries: Vec<String> = match settings {
             Some(settings) => settings.depends_on.clone().unwrap_or_default(),
-            None if self.expands_selector(task_name) => Vec::new(),
             None => vec![format!("^{task_name}")],
         };
         let mut dependencies: Vec<TaskKey> = Vec::new();

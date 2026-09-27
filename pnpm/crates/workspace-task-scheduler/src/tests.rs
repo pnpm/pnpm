@@ -487,6 +487,38 @@ fn resume_drops_exact_completed_tasks_when_state_is_available() {
 }
 
 #[test]
+fn resume_anchors_every_task_an_expanded_selector_requested_in_the_project() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    let resumed = resume_task_graph_from(graph, &dir("a"), "/^(build|test)$/", None);
+
+    assert!(!resumed.contains_key(&key("b", "build")));
+    assert!(resumed.contains_key(&key("a", "build")));
+    assert!(resumed.contains_key(&key("a", "test")));
+    assert!(resumed.contains_key(&key("b", "test")));
+    assert!(resumed[&key("a", "build")].dependencies.is_empty());
+    assert_eq!(resumed[&key("a", "test")].dependencies, vec![key("a", "build")]);
+}
+
+#[test]
+fn a_script_named_like_the_selector_keeps_its_default_dependency() {
+    let settings = tasks(&[("lint", None)]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["/build/"])), ("b", project(&[], &["/build/"]))],
+        "/build/",
+        Some(&settings),
+    );
+
+    assert_eq!(graph[&key("a", "/build/")].scripts, vec!["/build/"]);
+    assert_eq!(graph[&key("a", "/build/")].dependencies, vec![key("b", "/build/")]);
+}
+
+#[test]
 fn is_serial_tells_a_chain_from_a_graph_with_independent_tasks() {
     let mut chain = build_graph(
         &[
