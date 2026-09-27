@@ -108,7 +108,12 @@ async fn workspace_manifests_satisfy(
             workspace_packages: workspace_packages.as_ref(),
             config: check.config,
             catalogs: check.catalogs,
-            ignore_recorded_catalogs: workspace_manifest.is_none(),
+            // A `pnpm-workspace.yaml` must be absent AND the config must
+            // define no catalogs (an `updateConfig` pnpmfile hook can supply
+            // some without a workspace manifest) before the lockfile's own
+            // snapshot is the only catalog configuration there is.
+            ignore_recorded_catalogs: workspace_manifest.is_none()
+                && check.catalogs.is_empty(),
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
@@ -155,7 +160,8 @@ pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
     pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
     pub(super) config: &'a Config,
     pub(super) catalogs: &'a Catalogs,
-    /// Whether no `pnpm-workspace.yaml` stands behind `catalogs`, so the
+    /// Whether `catalogs` is empty because nothing defines any — no
+    /// `pnpm-workspace.yaml` and no `updateConfig` pnpmfile hook — so the
     /// catalogs the lockfile records are the only configuration there is
     /// and the catalogs comparison is skipped (pnpm/pnpm#10551).
     pub(super) ignore_recorded_catalogs: bool,

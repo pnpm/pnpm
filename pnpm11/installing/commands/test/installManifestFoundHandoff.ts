@@ -43,3 +43,20 @@ test('an unset workspaceManifestFound keeps the recorded-catalogs check on', asy
     []
   )
 })
+
+test('catalogs from a source other than a workspace manifest keep the check on', async () => {
+  // A pnpmfile `updateConfig` hook can supply catalogs to a project with no
+  // pnpm-workspace.yaml. They must reach the pnpr server to resolve
+  // `catalog:` specifiers, so they keep the check on too.
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    workspaceManifestFound: false,
+    catalogs: { default: { 'is-positive': '^1.0.0' } },
+  })
+
+  expect(installDeps).toHaveBeenCalledWith(
+    expect.objectContaining({ ignoreRecordedCatalogs: false }),
+    []
+  )
+})
