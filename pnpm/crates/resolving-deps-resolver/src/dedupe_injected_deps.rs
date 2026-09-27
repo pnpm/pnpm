@@ -101,9 +101,10 @@ fn build_dedupe_map(
 /// satisfied by the target project's own direct dep for that alias.
 ///
 /// A shared dep can resolve peer-suffixed on one side and peer-free on the
-/// other (e.g. an existing lockfile pinned debug's optional supports-color for
-/// the target project but not the injected occurrence). Accept the target's
-/// variant when it is the same package identity and a compatible superset. See
+/// other. Accept either variant when both are the same package and one peer
+/// set can absorb the other. The injected copy often carries an extra
+/// optional peer from the consumer, while the workspace project resolved the
+/// same dep without it. A symlink still installs that project. See
 /// pnpm/pnpm#10433.
 fn child_matches_target(
     graph: &DependenciesGraph,
@@ -125,7 +126,11 @@ fn child_matches_target(
     {
         return false;
     }
+    // Either peer set may be the larger one. The target project can carry a
+    // peer the injected copy missed, or the injected copy can carry an
+    // optional peer the project itself did not see.
     is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path)
+        || is_compatible_and_has_more_deps(graph, child_dep_path, target_dep_path)
 }
 
 /// Return the workspace project id (lockfile importer key) this node

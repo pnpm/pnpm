@@ -236,6 +236,57 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     assert!(!graph.contains_key(&injected), "deduped file: snapshot should be pruned");
 }
 
+// The injected copy can be the side that carries the extra optional peer.
+// pnpm 11 still rewrites that edge to `link:`. The consumer's peer context
+// is what added supports-color; the workspace project resolved debug without it.
+#[test]
+fn rewrites_when_injected_dep_has_the_extra_peer_suffix() {
+    let lockfile_dir = PathBuf::from("/ws");
+    let p1_root = lockfile_dir.join("project-1");
+    let p2_root = lockfile_dir.join("project-2");
+
+    let debug = DepPath::from("debug@4.4.3".to_string());
+    let debug_with_peer = DepPath::from("debug@4.4.3(supports-color@8.1.1)".to_string());
+    let supports_color = DepPath::from("supports-color@8.1.1".to_string());
+
+    let mut graph: DependenciesGraph = std::collections::HashMap::default();
+    graph.insert(supports_color.clone(), make_node("supports-color@8.1.1", BTreeMap::new()));
+    graph.insert(debug.clone(), make_node("debug@4.4.3", BTreeMap::new()));
+    let mut debug_peer_node = make_node(
+        "debug@4.4.3(supports-color@8.1.1)",
+        BTreeMap::from([("supports-color".to_string(), supports_color)]),
+    );
+    debug_peer_node.edges.resolved_peer_names.insert("supports-color".to_string());
+    graph.insert(debug_with_peer.clone(), debug_peer_node);
+
+    let injected = DepPath::from("file:project-1".to_string());
+    graph.insert(
+        injected.clone(),
+        make_node("file:project-1", BTreeMap::from([("debug".to_string(), debug_with_peer)])),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert("project-1".to_string(), BTreeMap::from([("debug".to_string(), debug)]));
+    direct.insert(
+        "project-2".to_string(),
+        BTreeMap::from([("project-1".to_string(), injected.clone())]),
+    );
+
+    let mut roots = BTreeMap::new();
+    roots.insert("project-1".to_string(), p1_root);
+    roots.insert("project-2".to_string(), p2_root);
+
+    dedupe_injected_deps(&mut graph, &mut direct, &roots, &lockfile_dir);
+
+    let after = direct
+        .get("project-2")
+        .unwrap()
+        .get("project-1")
+        .unwrap();
+    assert_eq!(after.as_str(), "link:../project-1");
+    assert!(!graph.contains_key(&injected), "deduped file: snapshot should be pruned");
+}
+
 #[test]
 fn ignores_non_workspace_file_deps() {
     let lockfile_dir = PathBuf::from("/ws");
