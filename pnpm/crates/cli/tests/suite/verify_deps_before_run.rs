@@ -11,6 +11,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    diagnostics::assert_diagnostic_contains,
     fs::{backdate_existing_files, bump_mtime},
 };
 use serde_json::json;
@@ -761,6 +762,70 @@ fn warn_action_warns_and_runs_the_script() {
     assert!(!workspace.join("node_modules").exists(), "warn mode must not install");
 
     drop(root);
+}
+
+/// A lockfile that records overrides the root manifest now keeps only in its
+/// ignored `pnpm` field must not be rewritten by an implicit install, which
+/// would drop them. The gate refuses and leaves the lockfile alone
+/// ([pnpm/pnpm#16278](https://github.com/pnpm/pnpm/issues/16278)).
+#[test]
+fn install_action_refuses_to_drop_settings_of_the_ignored_pnpm_field() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_manifest(&workspace, &marker);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "overrides:\n  foo: 1.0.0\n")
+        .expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read the lockfile");
+    assert!(lockfile.contains("overrides:"), "the lockfile must record the overrides:\n{lockfile}");
+
+    fs::remove_file(workspace.join("pnpm-workspace.yaml")).expect("remove pnpm-workspace.yaml");
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "verify-deps-project",
+        &marker,
+        json!({ "pnpm": { "overrides": { "foo": "1.0.0" }, "onlyBuiltDependencies": [] } }),
+    );
+    // `prompt` cannot ask here, and must not advise a plain install either.
+    for action in ["install", "prompt"] {
+        assert_refuses_to_drop_overrides(&workspace, action);
+    }
+    fs::remove_file(workspace.join("package.json")).expect("remove package.json");
+    fs::write(
+        workspace.join("package.yaml"),
+        format!(
+            "name: verify-deps-project\nversion: 0.0.0\nscripts:\n  hello: touch \"{}\"\npnpm:\n  overrides:\n    foo: 1.0.0\n",
+            marker.display(),
+        ),
+    )
+    .expect("write package.yaml");
+    assert_refuses_to_drop_overrides(&workspace, "install");
+    assert!(!marker.exists(), "the script must not run");
+    assert_eq!(
+        fs::read_to_string(&lockfile_path).expect("read the lockfile"),
+        lockfile,
+        "the lockfile must be left alone",
+    );
+
+    drop(root);
+}
+
+fn assert_refuses_to_drop_overrides(workspace: &Path, action: &str) {
+    let output = pacquet_in(workspace)
+        .with_args([&format!("--config.verify-deps-before-run={action}"), "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    assert!(!output.status.success(), "{action} mode must refuse to install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(
+        &stderr,
+        r#"installing would drop "pnpm.overrides" from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm"#,
+    );
+    assert_diagnostic_contains(&stderr, "Move these settings to pnpm-workspace.yaml");
 }
 
 /// `prompt` cannot ask in a non-interactive environment and must fail

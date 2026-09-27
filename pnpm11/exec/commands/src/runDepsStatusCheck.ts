@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
-import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
+import { type Config, getIgnoredLockfilePnpmFieldKeys, type VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { isError, PnpmError } from '@pnpm/error'
@@ -46,6 +46,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
     // In non-TTY environments (like CI), we can't prompt the user
     // Exit with error to alert users that node_modules are out of sync
       if (!process.stdin.isTTY) {
+        refuseInstallDroppingIgnoredSettings(opts)
         throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', issue ?? 'Your node_modules are out of sync with your lockfile', {
           hint: 'Run "pnpm install" before running scripts. The "verifyDepsBeforeRun: prompt" setting cannot prompt for confirmation in non-interactive environments.',
         })
@@ -79,6 +80,22 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
   }
 }
 
+/**
+ * An install would ignore the settings the root manifest still keeps in its
+ * `pnpm` field and rewrite the lockfile without the ones the lockfile records.
+ * That drops them silently, so the gate leaves the decision to an explicit
+ * `pnpm install` after the settings have moved.
+ */
+function refuseInstallDroppingIgnoredSettings (opts: RunDepsStatusCheckOptions): void {
+  if (opts.rootProjectManifest == null) return
+  const keys = getIgnoredLockfilePnpmFieldKeys(opts.rootProjectManifest)
+  if (keys.length === 0) return
+  const quotedKeys = keys.map(key => `"pnpm.${key}"`).join(', ')
+  throw new PnpmError('VERIFY_DEPS_BEFORE_RUN', `Your node_modules are out of sync with your lockfile, and installing would drop ${quotedKeys} from the lockfile, because the "pnpm" field in package.json is no longer read by pnpm`, {
+    hint: 'Move these settings to pnpm-workspace.yaml (see https://pnpm.io/settings), then run "pnpm install".',
+  })
+}
+
 function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOptions): boolean {
   if (upToDate === true) return false
   return upToDate === false || opts.allProjects != null || opts.rootProjectManifest != null
@@ -92,6 +109,7 @@ function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOp
  * predecessor's install left them out of date.
  */
 async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]): Promise<void> {
+  refuseInstallDroppingIgnoredSettings(opts)
   const root = opts.workspaceDir ?? opts.dir
   let lock: DirLock | undefined
   let waited = false

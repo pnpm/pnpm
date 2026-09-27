@@ -1167,6 +1167,23 @@ const MIGRATED_PNPM_FIELD_KEYS = new Set<string>([
   'updateConfig',
 ])
 
+// The migrated keys whose values the lockfile records. An install that ignores
+// one of them rewrites the lockfile without it.
+const LOCKFILE_RECORDED_PNPM_FIELD_KEYS = new Set<string>([
+  'ignoredOptionalDependencies',
+  'overrides',
+  'packageExtensions',
+  'patchedDependencies',
+])
+
+/**
+ * The migrated keys the manifest still declares under `pnpm` whose values the
+ * lockfile records.
+ */
+export function getIgnoredLockfilePnpmFieldKeys (manifest: ProjectManifest): string[] {
+  return getIgnoredPnpmFieldKeys(manifest).filter(key => LOCKFILE_RECORDED_PNPM_FIELD_KEYS.has(key))
+}
+
 function getIgnoredPnpmFieldKeys (manifest: ProjectManifest): string[] {
   const legacyField = (manifest as { pnpm?: unknown }).pnpm
   if (legacyField == null || typeof legacyField !== 'object' || Array.isArray(legacyField)) {

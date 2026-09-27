@@ -4,7 +4,11 @@
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
-use super::reporter::{ReporterType, quiet_loglevel_arg};
+use super::{
+    legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
+    package_manager::read_root_manifest,
+    reporter::{ReporterType, quiet_loglevel_arg},
+};
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
@@ -43,6 +47,17 @@ enum VerifyDepsError {
         )
     )]
     CannotPrompt { issue: String },
+
+    #[display(
+        "Your node_modules are out of sync with your lockfile, and installing would drop {keys} from the lockfile, because the \"pnpm\" field in package.json is no longer read by pnpm"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VERIFY_DEPS_BEFORE_RUN),
+        help(
+            r#"Move these settings to pnpm-workspace.yaml (see https://pnpm.io/settings), then run "pnpm install"."#
+        )
+    )]
+    IgnoredLockfileSettings { keys: String },
 }
 
 /// Run the configured verify-deps-before-run action for the project at
@@ -141,6 +156,24 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
     }
 }
 
+/// Refuse an install that would ignore the settings the root manifest still
+/// keeps in its `pnpm` field and rewrite the lockfile without the ones the
+/// lockfile records. That drops them silently, so the gate leaves the
+/// decision to an explicit `pnpm install` after the settings have moved.
+fn refuse_install_dropping_ignored_settings(dir: &Path, config: &Config) -> miette::Result<()> {
+    let manifest = read_root_manifest(config.root_project_manifest_dir(dir));
+    let keys = ignored_lockfile_pnpm_field_keys(manifest.as_ref());
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let keys = keys
+        .iter()
+        .map(|key| format!(r#""pnpm.{key}""#))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(VerifyDepsError::IgnoredLockfileSettings { keys }.into())
+}
+
 /// Install while holding the workspace's gate lock, so concurrent `run` and
 /// `exec` gates on one stale tree start one install rather than one each,
 /// racing in the same `node_modules`. A gate that found the lock held
@@ -153,6 +186,7 @@ fn locked_install(
     install_args: &[String],
     reporter: ReporterType,
 ) -> miette::Result<()> {
+    refuse_install_dropping_ignored_settings(dir, config)?;
     let root = deps_install_root(dir, config);
     let (_lock, waited) = acquire_install_lock(&root).unwrap_or_else(|error| {
         warn(
@@ -257,6 +291,7 @@ fn prompt_install(
     issue: String,
 ) -> miette::Result<()> {
     if !std::io::stdin().is_terminal() {
+        refuse_install_dropping_ignored_settings(dir, config)?;
         return Err(VerifyDepsError::CannotPrompt { issue }.into());
     }
     let command = std::iter::once("install")
