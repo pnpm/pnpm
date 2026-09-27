@@ -1,8 +1,16 @@
 use crate::{
-    SyncInjectedDeps, injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
+    SyncInjectedDeps, injected_edit_sources, injected_source_dirs, sync_injected_deps,
+    sync_injected_deps_of_modules_dir, watch_injected_edits,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::HashSet, ffi::OsStr, fs, path::Path};
+use std::{
+    collections::HashSet,
+    ffi::OsStr,
+    fs,
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 use tempfile::TempDir;
 
 fn write_file(path: &Path, content: &str) {
@@ -206,4 +214,63 @@ fn injected_source_dirs_adds_the_publish_directory_of_each_manifest() {
         .map(Path::to_path_buf)
         .collect();
     assert_eq!(injected_source_dirs(projects), expected);
+}
+
+/// A running script builds its `publishConfig.directory`, and the injected
+/// copy is keyed by that directory. Until the directory exists, the copy is
+/// left alone rather than emptied.
+#[test]
+fn watch_publishes_from_the_publish_directory_once_it_exists() {
+    let dir = TempDir::new().expect("temp dir");
+    let workspace = dir.path();
+    let manifest = serde_json::json!({
+        "name": "project-1",
+        "publishConfig": { "directory": "dist" },
+    });
+    write_file(&workspace.join("project-1/package.json"), &manifest.to_string());
+    let target = workspace.join("project-2/node_modules/project-1");
+    write_file(&target.join("index.js"), "already built");
+    write_file(
+        &workspace.join("node_modules/.modules.yaml"),
+        &serde_json::json!({
+            "virtualStoreDir": "node_modules/.pnpm",
+            "injectedDeps": {
+                "project-1/dist": ["project-2/node_modules/project-1"],
+            },
+        })
+        .to_string(),
+    );
+    let sources = injected_edit_sources(&SyncInjectedDeps {
+        pkg_name: Some("project-1"),
+        pkg_root_dir: Path::new("project-1"),
+        workspace_dir: Some(workspace),
+        modules_dir_name: OsStr::new("node_modules"),
+        workspace_modules_dir: &workspace.join("node_modules"),
+        extend_node_path: false,
+        manifest_before_scripts: Some(&manifest),
+        ignored_directories: Vec::new(),
+    });
+    assert_eq!(
+        sources
+            .iter()
+            .map(|source| source.source.clone())
+            .collect::<Vec<_>>(),
+        vec![workspace.join("project-1/dist")],
+    );
+
+    let mut watch = watch_injected_edits(sources);
+    thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        fs::read_to_string(target.join("index.js")).expect("read the injected copy"),
+        "already built",
+        "a missing publish directory must not wipe the injected copy",
+    );
+
+    write_file(&workspace.join("project-1/dist/index.js"), "rebuilt");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while fs::read_to_string(target.join("index.js")).ok().as_deref() != Some("rebuilt") {
+        assert!(Instant::now() < deadline, "the watch never published the publish directory");
+        thread::sleep(Duration::from_millis(50));
+    }
+    watch.stop();
 }

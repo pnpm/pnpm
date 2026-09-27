@@ -12,7 +12,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import normalizePath from 'normalize-path'
 
-import { DirPatcher } from './DirPatcher.js'
+import { DirPatcher, publishEditsForWatchers, type PublishSource, readPublishSource } from './DirPatcher.js'
 
 interface SkipSyncInjectedDepsMessage {
   message: string
@@ -21,6 +21,13 @@ interface SkipSyncInjectedDepsMessage {
 }
 
 const logger = createLogger<SkipSyncInjectedDepsMessage>('skip-sync-injected-deps')
+
+interface WatchPublishError {
+  err: unknown
+  message: string
+}
+
+const watchLogger = createLogger<WatchPublishError>('sync-injected-deps-watch')
 
 export interface SyncInjectedDepsOptions {
   pkgName: string | undefined
@@ -35,6 +42,87 @@ export interface SyncInjectedDepsOptions {
   manifestBeforeScripts?: DependencyManifest
 }
 
+export interface InjectedEditWatch {
+  stop: () => Promise<void>
+}
+
+/**
+ * The source directory and injected copies a running script should publish.
+ * `undefined` when the package has no name, no workspace, or no injected copies,
+ * or when the modules manifest cannot be read. The sync after the script
+ * reports that error, so it does not stop the script from starting.
+ */
+export async function injectedEditDirs (
+  opts: SyncInjectedDepsOptions
+): Promise<{ sourceDir: string, targetDirs: string[] } | undefined> {
+  if (!opts.pkgName || opts.workspaceDir == null) return undefined
+  let located: Awaited<ReturnType<typeof readInjectedTargets>>
+  try {
+    located = await readInjectedTargets(opts.workspaceDir, opts.pkgRootDir)
+  } catch (err: unknown) {
+    watchLogger.debug({
+      err,
+      message: `Not publishing injected dependencies of ${opts.pkgRootDir} while its script is running`,
+    })
+    return undefined
+  }
+  if (located?.resolvedTargetDirs == null) return undefined
+  return { sourceDir: located.pkgRootDir, targetDirs: located.resolvedTargetDirs }
+}
+
+/**
+ * Publish injected copies about every 200ms until `stop`. `editedSinceMs` stays
+ * two seconds behind the start of the watch, which covers one-second mtime
+ * resolution. Stop waits for an in-flight publish so the end-of-script hardlink
+ * sync does not run beside it.
+ */
+export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): InjectedEditWatch {
+  const editedSinceMs = Date.now() - 2000
+  let stopped = false
+  let timer: ReturnType<typeof setInterval> | undefined
+  let inFlight: Promise<void> | undefined
+
+  const publish = (): void => {
+    if (stopped || inFlight != null) return
+    inFlight = publishToTargets(sourceDir, targetDirs, editedSinceMs).then(() => {
+      inFlight = undefined
+    })
+  }
+
+  publish()
+  timer = setInterval(publish, 200)
+  return {
+    stop: async () => {
+      stopped = true
+      if (timer != null) clearInterval(timer)
+      await inFlight
+    },
+  }
+}
+
+async function publishToTargets (sourceDir: string, targetDirs: string[], editedSinceMs: number): Promise<void> {
+  let source: PublishSource
+  try {
+    source = await readPublishSource(sourceDir)
+  } catch (err: unknown) {
+    watchLogger.debug({
+      err,
+      message: `Failed to read injected dependency ${sourceDir} while its script is running`,
+    })
+    return
+  }
+  await Promise.all(targetDirs.map(async targetDir => {
+    try {
+      await publishEditsForWatchers(source, targetDir, editedSinceMs)
+    } catch (err: unknown) {
+      watchLogger.debug({
+        err,
+        message: `Failed to publish injected dependency ${targetDir} while its script is running`,
+      })
+    }
+  }))
+}
+
 export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<void> {
   if (!opts.pkgName) {
     logger.debug({
@@ -47,10 +135,8 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   if (!opts.workspaceDir) {
     throw new PnpmError('NO_WORKSPACE_DIR', 'Cannot update injected dependencies without workspace dir')
   }
-  const pkgRootDir = path.resolve(opts.workspaceDir, opts.pkgRootDir)
-  const modulesDir = path.resolve(opts.workspaceDir, 'node_modules')
-  const modules = await readModulesManifest(modulesDir)
-  if (!modules?.injectedDeps) {
+  const located = await readInjectedTargets(opts.workspaceDir, opts.pkgRootDir)
+  if (located == null) {
     logger.debug({
       reason: 'no-injected-deps',
       message: 'Skipping sync of injected dependencies because none were detected',
@@ -58,9 +144,8 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
     })
     return
   }
-  const injectedDepKey = normalizePath(path.relative(opts.workspaceDir, pkgRootDir), true)
-  const targetDirs: string[] | undefined = modules.injectedDeps[injectedDepKey]
-  if (!targetDirs || targetDirs.length === 0) {
+  const { modules, pkgRootDir, resolvedTargetDirs } = located
+  if (resolvedTargetDirs == null) {
     logger.debug({
       reason: 'no-injected-deps',
       message: `There are no injected dependencies from ${opts.pkgRootDir}`,
@@ -68,7 +153,6 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
     })
     return
   }
-  const resolvedTargetDirs = targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir))
   const patchers = await DirPatcher.fromMultipleTargets(pkgRootDir, resolvedTargetDirs)
 
   await Promise.all(patchers.map(patcher => patcher.apply()))
@@ -124,6 +208,25 @@ async function dirExists (dir: string): Promise<boolean> {
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
+  }
+}
+
+async function readInjectedTargets (workspaceDir: string, pkgRootDirInput: string): Promise<{
+  modules: NonNullable<Awaited<ReturnType<typeof readModulesManifest>>>
+  pkgRootDir: string
+  resolvedTargetDirs: string[] | undefined
+} | undefined> {
+  const pkgRootDir = path.resolve(workspaceDir, pkgRootDirInput)
+  const modules = await readModulesManifest(path.resolve(workspaceDir, 'node_modules'))
+  if (modules?.injectedDeps == null) return undefined
+  const injectedDepKey = normalizePath(path.relative(workspaceDir, pkgRootDir), true)
+  const targetDirs = modules.injectedDeps[injectedDepKey]
+  return {
+    modules,
+    pkgRootDir,
+    resolvedTargetDirs: targetDirs == null || targetDirs.length === 0
+      ? undefined
+      : targetDirs.map(targetDir => path.resolve(workspaceDir, targetDir)),
   }
 }
 
