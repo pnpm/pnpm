@@ -2,8 +2,8 @@ use super::{
     super::listing::split_regex_literal, BuildTaskGraphOptions, Config, ExecutionStatus, GraphPkg,
     HashMap, HashSet, IndexMap, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PnpmLog,
     ProcessTracker, ProjectGraph, RecursiveRunError, RunArgs, ScriptSelector, TaskGraph, TaskKey,
-    TaskRunExecutionSettings, TaskRunStateContext, build_task_graph, count_failures, env,
-    filtered_projects_dependencies, find_resume_root, render_project_commands,
+    TaskRunExecutionSettings, TaskRunStateContext, TaskSettings, build_task_graph, count_failures,
+    env, filtered_projects_dependencies, find_resume_root, render_project_commands,
     render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph, task_graph_to_json,
     task_run_execution_settings, throw_or_filter_hidden_scripts, write_recursive_summary,
 };
@@ -165,7 +165,7 @@ pub(super) fn filter_hidden_requested_scripts(
     if env::var_os("npm_lifecycle_event").is_some() {
         return Ok(());
     }
-    let referenced = depends_on_targets(check.full_task_graph, check.reversed);
+    let referenced = depends_on_targets(check);
     let checked: Vec<TaskKey> = task_graph
         .iter()
         .filter(|(key, node)| node.requested && !referenced.contains(key))
@@ -199,24 +199,36 @@ pub(super) struct HiddenScriptCheck<'a> {
     pub(super) full_task_graph: &'a TaskGraph,
     /// Whether `--reverse` inverted the graph's edges.
     pub(super) reversed: bool,
+    pub(super) tasks: Option<&'a IndexMap<String, TaskSettings>>,
 }
 
-/// The tasks a `dependsOn` entry of another task targets: the targets of
-/// the graph's edges between differently named tasks. A task with no
-/// `tasks` entry depends on its own name in the dependency projects, so an
-/// edge between same-named tasks is the default, not a declaration.
-fn depends_on_targets(graph: &TaskGraph, reversed: bool) -> HashSet<&TaskKey> {
-    graph
+/// The tasks a `dependsOn` declaration targets: every dependency of a task
+/// that has a `tasks` entry. A task without one only has the default
+/// dependency on its own name in the dependency projects, which is no
+/// reference. Edges are read in declaration direction when `--reverse`
+/// inverted them.
+fn depends_on_targets<'a>(check: &HiddenScriptCheck<'a>) -> HashSet<&'a TaskKey> {
+    let declares =
+        |key: &TaskKey| check.tasks.is_some_and(|tasks| tasks.contains_key(&key.task_name));
+    check.full_task_graph
         .iter()
         .flat_map(|(key, node)| {
             node.dependencies
                 .iter()
                 .map(move |dependency| (key, dependency))
         })
-        .map(|(key, dependency)| if reversed { (dependency, key) } else { (key, dependency) })
-        .filter(|(dependent, dependency)| dependent.task_name != dependency.task_name)
+        .map(|(key, dependency)| if check.reversed { (dependency, key) } else { (key, dependency) })
+        .filter(|(dependent, _)| declares(dependent))
         .map(|(_, dependency)| dependency)
         .collect()
+}
+
+/// The `tasks` declarations the run's graph follows: none under `--no-sort`.
+pub(super) fn run_tasks<'a>(
+    args: &RunArgs,
+    config: &'a Config,
+) -> Option<&'a IndexMap<String, TaskSettings>> {
+    (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks)
 }
 
 /// How many tasks run at once. `--parallel` runs them all, `--sequential`
@@ -339,7 +351,7 @@ pub(super) fn build_run_task_graph(
         project_dependencies: &project_dependencies,
         select_scripts,
         task_name: script_name,
-        tasks: (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks),
+        tasks: run_tasks(args, config),
         is_selector_task,
     });
     if args.workspace.reverse {

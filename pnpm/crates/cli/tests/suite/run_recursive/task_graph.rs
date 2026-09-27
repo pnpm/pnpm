@@ -308,6 +308,59 @@ fn a_depends_on_reference_exempts_only_the_hidden_task_it_targets() {
     drop(root);
 }
 
+/// `.setup: dependsOn: ['^.setup']` is an explicit reference across
+/// projects, so `project-b`'s hidden `.setup` runs before `project-a`'s even
+/// though the two tasks share a name.
+#[test]
+fn an_explicit_same_name_depends_on_exempts_the_hidden_task_it_targets() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let scripts = |name: &str, visible: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": if name == "project-a" { json!({ "project-b": "workspace:*" }) } else { json!({}) },
+            "scripts": {
+                visible: append_line_script(&format!("{name}-{visible}"), "../order.log"),
+                ".setup": append_line_script(&format!("{name}-setup"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-a", scripts("project-a", "test")), ("project-b", scripts("project-b", "lint"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n  - project-a\n  - project-b\n",
+            "tasks:\n",
+            "  test:\n    dependsOn: ['.setup']\n",
+            "  .setup:\n    dependsOn: ['^.setup']\n",
+        ),
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test|lint|setup/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let lines: Vec<&str> = order.lines().collect();
+    let mut sorted = lines.clone();
+    sorted.sort_unstable();
+    assert_eq!(sorted, ["project-a-setup", "project-a-test", "project-b-lint", "project-b-setup"]);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
+    assert!(position("project-b-setup") < position("project-a-setup"));
+    drop(root);
+}
+
 /// `--reverse` makes `build` depend on the hidden task the invocation
 /// named. That edge is no `dependsOn` reference, so the name is rejected.
 #[test]

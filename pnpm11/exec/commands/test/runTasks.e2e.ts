@@ -818,6 +818,48 @@ test('a dependsOn reference exempts only the hidden task it targets', async () =
   expect([...server.getLines()].sort()).toStrictEqual(['a-setup', 'a-test', 'b-lint'])
 })
 
+test('an explicit same-name dependsOn exempts the hidden task it targets', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        test: server.sendLineScript('a-test'),
+        '.setup': server.sendLineScript('a-setup'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        lint: server.sendLineScript('b-lint'),
+        '.setup': server.sendLineScript('b-setup'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      test: { dependsOn: ['.setup'] },
+      '.setup': { dependsOn: ['^.setup'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test|lint|setup/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-setup', 'a-test', 'b-lint', 'b-setup'])
+  expect(order.indexOf('b-setup')).toBeLessThan(order.indexOf('a-setup'))
+})
+
 test('--reverse still rejects a hidden script name that has dependsOn', async () => {
   await using server = await createTestIpcServer()
 

@@ -13,7 +13,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import { globalWarn } from '@pnpm/logger'
-import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
+import type { PackageScripts, ProjectRootDir, WorkspaceTasks } from '@pnpm/types'
 import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
 import {
   buildTaskGraph,
@@ -78,6 +78,11 @@ export async function runRecursive (
 
   const modulesDirFor = createProjectModulesDirResolver(opts)
   const fullTaskGraph = buildRunTaskGraph(scriptName, opts)
+  // Read before sequencing, which drops the edges of a tolerated cycle.
+  const hiddenScriptExemptions = dependsOnTargets(fullTaskGraph, {
+    reversed: Boolean(opts.reverse),
+    tasks: runTasks(opts),
+  })
   const taskRunStateContext = new TaskRunStateContext({
     command: 'run',
     params,
@@ -137,11 +142,7 @@ export async function runRecursive (
   }
 
   if (!process.env.npm_lifecycle_event) {
-    filterHiddenRequestedScripts(taskGraph, {
-      scriptName,
-      fullTaskGraph,
-      reversed: Boolean(opts.reverse),
-    })
+    filterHiddenRequestedScripts(taskGraph, scriptName, hiddenScriptExemptions)
   }
 
   // Before anything is dispatched: when no selected project has the script,
@@ -369,7 +370,7 @@ function buildRunTaskGraph (scriptName: string, opts: RecursiveRunOpts): TaskGra
     scriptsByProject: (project) => opts.selectedProjectsGraph[project].package.manifest.scripts ?? {},
     selectScripts: getSpecifiedScripts,
     taskName: scriptName,
-    tasks: opts.sort ? opts.tasks : undefined,
+    tasks: runTasks(opts),
     isSelectorTaskName: isRegExpSelector,
   })
   if (opts.reverse) {
@@ -430,26 +431,17 @@ export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string
   return []
 }
 
-interface HiddenScriptCheck {
-  scriptName: string
-  /** The graph as built, before `--resume-from` drops tasks and a tolerated cycle loses edges. */
-  fullTaskGraph: TaskGraph
-  /** Whether `--reverse` inverted the graph's edges. */
-  reversed: boolean
-}
-
 /**
  * Removes hidden scripts from the requested tasks, and throws when everything
  * a project's requested tasks select is hidden. Checked only for the tasks
  * the invocation named: a `dependsOn` declaration naming a hidden script is a
- * deliberate reference, like a call from another script, so a requested task
- * that a `dependsOn` of the full graph targets is exempt too. Checked per
- * project, over every requested task: a RegExp selector can seed one task per
- * matched script.
+ * deliberate reference, like a call from another script, so the `exempt`
+ * tasks such a declaration targets are not checked. Checked per project, over
+ * every requested task: a RegExp selector can seed one task per matched
+ * script.
  */
-function filterHiddenRequestedScripts (taskGraph: TaskGraph, check: HiddenScriptCheck): void {
-  const referenced = dependsOnTargets(check.fullTaskGraph, check.reversed)
-  const checkedNodes = [...taskGraph].filter(([key, node]) => node.requested && !referenced.has(key)).map(([, node]) => node)
+function filterHiddenRequestedScripts (taskGraph: TaskGraph, scriptName: string, exempt: Set<TaskKey>): void {
+  const checkedNodes = [...taskGraph].filter(([key, node]) => node.requested && !exempt.has(key)).map(([, node]) => node)
   const requestedScriptsByProject = new Map<string, string[]>()
   for (const node of checkedNodes) {
     const scripts = requestedScriptsByProject.get(node.project) ?? []
@@ -458,7 +450,7 @@ function filterHiddenRequestedScripts (taskGraph: TaskGraph, check: HiddenScript
   }
   const visibleScriptsByProject = new Map<string, Set<string>>()
   for (const [project, scripts] of requestedScriptsByProject) {
-    visibleScriptsByProject.set(project, new Set(throwOrFilterHiddenScripts(scripts, check.scriptName)))
+    visibleScriptsByProject.set(project, new Set(throwOrFilterHiddenScripts(scripts, scriptName)))
   }
   for (const node of checkedNodes) {
     const visibleScripts = visibleScriptsByProject.get(node.project)!
@@ -467,20 +459,27 @@ function filterHiddenRequestedScripts (taskGraph: TaskGraph, check: HiddenScript
 }
 
 /**
- * The tasks a `dependsOn` entry of another task targets: the targets of the
- * graph's edges between differently named tasks. A task with no `tasks` entry
- * depends on its own name in the dependency projects, so an edge between
- * same-named tasks is the default, not a declaration.
+ * The tasks a `dependsOn` declaration targets: every dependency of a task that
+ * has a `tasks` entry. A task without one only has the default dependency on
+ * its own name in the dependency projects, which is no reference. Edges are
+ * read in declaration direction when `--reverse` inverted them.
  */
-function dependsOnTargets (graph: TaskGraph, reversed: boolean): Set<TaskKey> {
+function dependsOnTargets (graph: TaskGraph, opts: { reversed: boolean, tasks: WorkspaceTasks | undefined }): Set<TaskKey> {
   const targets = new Set<TaskKey>()
+  if (opts.tasks == null) return targets
+  const tasks = opts.tasks
   for (const [key, node] of graph) {
     for (const dependency of node.dependencies) {
-      const [dependent, target] = reversed ? [dependency, key] : [key, dependency]
-      if (graph.get(dependent)!.taskName !== graph.get(target)!.taskName) targets.add(target)
+      const [dependent, target] = opts.reversed ? [dependency, key] : [key, dependency]
+      if (Object.hasOwn(tasks, graph.get(dependent)!.taskName)) targets.add(target)
     }
   }
   return targets
+}
+
+/** The `tasks` declarations the run's graph follows: none under `--no-sort`. */
+function runTasks (opts: Pick<RecursiveRunOpts, 'sort' | 'tasks'>): WorkspaceTasks | undefined {
+  return opts.sort ? opts.tasks : undefined
 }
 
 /**
