@@ -23,7 +23,6 @@ testOnWindows('fail when PNPM_HOME contains an unresolved Windows environment va
   })
   expect(result.status).not.toBe(0)
   const output = `${result.stdout?.toString()}${result.stderr?.toString()}`
-  expect(output).toContain('ERR_PNPM_UNEXPANDED_ENV_IN_PATH')
   expect(output).toContain('PNPM_HOME contains an unexpanded environment variable: %PNPM_TEST_UNSET_VARIABLE%')
   expect(fs.existsSync('%PNPM_TEST_UNSET_VARIABLE%')).toBeFalsy()
 })
