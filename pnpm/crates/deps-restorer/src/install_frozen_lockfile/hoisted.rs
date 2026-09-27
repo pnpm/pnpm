@@ -127,7 +127,11 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     unlink_prior_workspace_hoists(inputs)?;
     let (held_back_bins_dirs, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
-    package_root_links::link_hoisted_package_root_links(&lockfile, walked.graph.values())?;
+    package_root_links::link_hoisted_package_root_links(
+        &lockfile,
+        walked.graph.values(),
+        inputs.projects.dependency_groups.contains(&DependencyGroup::Optional),
+    )?;
     // A present package leaves the build set unless everything is being
     // rebuilt or the previous install left it unbuilt (ignored or
     // pending): that one is judged by the build policy again, as it

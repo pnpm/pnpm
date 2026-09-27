@@ -197,6 +197,8 @@ function calcDepGraphHash<T extends string> ({
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
+        // The parent's own integrity already covers a directory inside it.
+        if (packageRootLinkTarget(childId) != null) continue
         deps[alias] = calcDepGraphHash({
           depsGraph,
           cache,
@@ -542,12 +544,7 @@ function lockfileDepsToGraphChildren (
     const depPath = refToRelative(reference, alias)
     if (depPath) {
       children[alias] = depPath
-    } else if (packageRootLinkTarget(reference) != null) {
-      // The parent's own integrity already covers a directory inside it. The
-      // literal reference is not a graph node, so it hashes the same as it
-      // does on the resolver side.
-      children[alias] = reference as DepPath
-    } else if (lockfileDir != null && reference.startsWith('link:')) {
+    } else if (lockfileDir != null && reference.startsWith('link:') && packageRootLinkTarget(reference) == null) {
       const linkTargetNode = `link:${path.resolve(lockfileDir, reference.slice(5))}` as DepPath
       children[alias] = linkTargetNode
       linkTargetNodes.add(linkTargetNode)

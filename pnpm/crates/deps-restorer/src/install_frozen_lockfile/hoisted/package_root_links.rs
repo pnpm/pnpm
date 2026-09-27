@@ -5,10 +5,12 @@ use crate::{DependenciesGraphNode, safe_join_modules_dir::safe_join_modules_dir,
 /// package's own `node_modules` to the directory inside the package. The
 /// hoister keeps such a dependency next to the package that declares it, and
 /// importing the package keeps its nested `node_modules`, so the link
-/// survives later imports.
+/// survives later imports. Optional dependencies are linked only when
+/// `include_optional` is set.
 pub(crate) fn link_hoisted_package_root_links<'g>(
     lockfile: &Lockfile,
     nodes: impl IntoIterator<Item = &'g DependenciesGraphNode>,
+    include_optional: bool,
 ) -> Result<(), HoistedLinkerError> {
     for node in nodes {
         let Ok(key) = node.package.dep_path.as_str().parse::<PackageKey>() else { continue };
@@ -21,7 +23,12 @@ pub(crate) fn link_hoisted_package_root_links<'g>(
         let deps = snapshot.dependencies
             .iter()
             .flatten()
-            .chain(snapshot.optional_dependencies.iter().flatten());
+            .chain(
+                snapshot.optional_dependencies
+                    .iter()
+                    .filter(|_| include_optional)
+                    .flatten(),
+            );
         for (alias, dep_ref) in deps {
             if let Some(target) = dep_ref.package_root_link_target() {
                 link_package_root_target(node, &alias.to_string(), target)?;

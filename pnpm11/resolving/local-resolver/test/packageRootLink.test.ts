@@ -20,6 +20,7 @@ test.each([
   'file:C:\\abs\\path',
   'file:~/dir',
   'file:./vendor/pkg-1.0.0.tgz',
+  'file:child/C:/Users/Public',
   'link:./child',
   '^1.0.0',
 ])('fileSpecToPackageRootLink(%s) leaves the specifier alone', (bareSpecifier) => {

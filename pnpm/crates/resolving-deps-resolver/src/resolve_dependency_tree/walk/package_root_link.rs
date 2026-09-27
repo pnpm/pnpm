@@ -62,8 +62,9 @@ pub(super) fn file_spec_to_package_root_link(spec: &str) -> Option<String> {
     if target.is_empty() || is_absolute || is_tarball_filename(&target) {
         return None;
     }
-    let normalized = normalize_inside(&target)?;
-    Some(format!("link:{PACKAGE_ROOT_LINK_BASE}{normalized}"))
+    let link_target = format!("{PACKAGE_ROOT_LINK_BASE}{}", normalize_inside(&target)?);
+    package_root_link_target(&link_target)?;
+    Some(format!("link:{link_target}"))
 }
 
 /// Resolve `.` and `..` segments, returning `None` when the path names the

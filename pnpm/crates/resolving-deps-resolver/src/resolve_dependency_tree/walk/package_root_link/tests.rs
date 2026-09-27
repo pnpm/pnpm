@@ -26,6 +26,7 @@ fn a_spec_that_does_not_stay_inside_the_package_is_left_alone() {
         r"file:C:\abs\path",
         "file:~/dir",
         "file:./vendor/pkg-1.0.0.tgz",
+        "file:child/C:/Users/Public",
         "link:./child",
         "^1.0.0",
     ] {

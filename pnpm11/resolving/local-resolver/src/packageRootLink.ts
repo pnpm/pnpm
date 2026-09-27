@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { PACKAGE_ROOT_LINK_PREFIX } from '@pnpm/deps.path'
+import { PACKAGE_ROOT_LINK_PREFIX, packageRootLinkTarget } from '@pnpm/deps.path'
 
 import { isTarballFilename } from './parseBareSpecifier.js'
 
@@ -21,5 +21,6 @@ export function fileSpecToPackageRootLink (bareSpecifier: string): string | unde
   }
   const normalized = path.posix.normalize(target).replace(/\/$/, '')
   if (normalized === '.' || normalized === '..' || normalized.startsWith('../')) return undefined
-  return `${PACKAGE_ROOT_LINK_PREFIX}${normalized}`
+  const link = `${PACKAGE_ROOT_LINK_PREFIX}${normalized}`
+  return packageRootLinkTarget(link) != null ? link : undefined
 }

@@ -12,9 +12,18 @@ pub const PACKAGE_ROOT_LINK_BASE: &str = "<root>/";
 /// The path inside the declaring package that a `link:` target written
 /// against [`PACKAGE_ROOT_LINK_BASE`] points to, or `None` for any other
 /// target.
+///
+/// The path comes from a lockfile or a published manifest, so it is
+/// accepted only when every `/`-separated segment is a plain name: no empty,
+/// `.` or `..` segment, and no `\` or `:`, which would let a platform path
+/// join re-anchor it outside the package.
 #[must_use]
 pub fn package_root_link_target(link_target: &str) -> Option<&str> {
-    link_target.strip_prefix(PACKAGE_ROOT_LINK_BASE)
+    let target = link_target.strip_prefix(PACKAGE_ROOT_LINK_BASE)?;
+    target
+        .split('/')
+        .all(|segment| !matches!(segment, "" | "." | "..") && !segment.contains(['\\', ':']))
+        .then_some(target)
 }
 
 /// Join a [`package_root_link_target`] path, written with `/`, onto the
