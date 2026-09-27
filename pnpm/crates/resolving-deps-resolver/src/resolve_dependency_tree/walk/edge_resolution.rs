@@ -3,12 +3,12 @@ use super::{
     ResolveDependencyTreeError, ResolveOptions, ResolvedPackage, Resolver, SeededPackage,
     SkippedOptionalDependency, TreeCtx, UpdateBehavior, Value, WantedDependency, WantedKey,
     async_recursion, build_pkg_id_with_patch_hash, catalogs_for_children,
-    current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
-    extract_peer_dependencies, is_exotic_resolved_via, is_update_target, lock_recoverable,
-    node_alias, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
-    overlay_version_view, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids,
-    project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
+    current_pkg_from_lockfile, drop_unresolvable_file_dep_edge, emit_deprecation_if_needed,
+    ensure_same_registry_revision, extract_peer_dependencies, is_exotic_resolved_via,
+    is_update_target, lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, overlay_version_view, parent_ids_contain_sequence,
+    peer_shadowed_dependencies, pin_locked_version, pin_patched_revision, pkg_is_leaf,
+    pkgs_info_from_ids, project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
     resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
     wanted_lockfile_contains_satisfying_entry,
 };
@@ -130,76 +130,6 @@ where
             Ok(None)
         }
     }
-}
-
-/// Whether this failure is a `file:` specifier that names a path inside the
-/// package declaring it.
-///
-/// A relative `file:` specifier resolves against the directory of the
-/// manifest that declares it. A package pnpm resolved from a tarball or the
-/// registry has no such directory — the target ships inside the package
-/// itself — so the path can never exist and pnpm has nothing to resolve it
-/// against. `@eslint/css@0.3.0` declared `"@types/css-tree":
-/// "file:./typings/css-tree"` that way, and `pnpm add -D @eslint/css@0.3.0`
-/// failed with `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`.
-///
-/// A project of pnpm's own is the other way round: there the path is the
-/// user's, and a path that does not exist is a mistake worth reporting.
-fn is_unresolvable_file_dep_of_packed_pkg(
-    wanted: &WantedDependency,
-    edge: &ChildEdge<'_>,
-    err: &ResolveDependencyTreeError,
-) -> bool {
-    !edge.parent_is_directory
-        && matches!(err, ResolveDependencyTreeError::LinkedPkgDirNotFound(_))
-        && is_relative_file_specifier(wanted.bare_specifier.as_deref())
-}
-
-/// Whether the specifier is a `file:` path written relative to the manifest
-/// that declares it, the only form that can point inside the declaring
-/// package. An absolute target names a place of its own, so its being
-/// missing says nothing about that package and stays an error.
-fn is_relative_file_specifier(bare_specifier: Option<&str>) -> bool {
-    bare_specifier.is_some_and(|spec| spec.starts_with("file:./") || spec.starts_with("file:../"))
-}
-
-/// Report a dropped [`is_unresolvable_file_dep_of_packed_pkg`] edge through
-/// the same sink a skipped optional dependency uses, so both reach the
-/// reporter as `pnpm:skipped-optional-dependency` with
-/// `reason=resolution_failure`.
-///
-/// `true` when the edge was dropped. The wanted lockfile still wins: an
-/// entry satisfying the specifier means the install has to keep resolving
-/// it, or the lockfile would differ depending on which machine ran it.
-fn drop_unresolvable_file_dep_edge(
-    ctx: &TreeCtx,
-    wanted: &WantedDependency,
-    edge: &ChildEdge<'_>,
-    opts: &ResolveOptions,
-    err: &ResolveDependencyTreeError,
-) -> bool {
-    if !is_unresolvable_file_dep_of_packed_pkg(wanted, edge, err)
-        || wanted_lockfile_contains_satisfying_entry(
-            ctx.workspace.reuse.lockfile.as_deref(),
-            wanted,
-        )
-    {
-        return false;
-    }
-    if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
-        log(SkippedOptionalDependency {
-            details: err.to_string(),
-            name: wanted.alias.clone(),
-            version: wanted.alias
-                .is_some()
-                .then(|| wanted.bare_specifier.clone())
-                .flatten(),
-            bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
-            parents: pkgs_info_from_ids(ctx, edge.ancestor_ids),
-            prefix: opts.project.project_dir.display().to_string(),
-        });
-    }
-    true
 }
 
 /// `resolutionMode` makes the version pick depend on whether this is a

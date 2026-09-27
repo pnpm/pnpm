@@ -36,6 +36,9 @@ use locked_versions::{
     pin_patched_revision,
 };
 
+mod file_dep;
+use file_dep::drop_unresolvable_file_dep_edge;
+
 mod edge_resolution;
 
 use async_recursion::async_recursion;
