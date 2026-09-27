@@ -12,7 +12,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    PackumentFetchLocker, PickPackageContext, merge_named_registries,
+    OfflineStoreView, PackumentFetchLocker, PickPackageContext, merge_named_registries,
     shared_packument_fetch_locker, shared_picked_manifest_cache,
 };
 use std::sync::Arc;
@@ -161,7 +161,7 @@ pub fn create_configured_registry_resolver(
             filter_metadata: policy.filter_metadata,
         },
         cache_policy: npm.cache_policy,
-        store_view: None,
+        store_view: offline_store_view(config),
     };
     Ok(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]))
 }
@@ -202,23 +202,31 @@ fn create_configured_npm_resolver(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_view: None,
+        store_view: offline_store_view(config),
     })
+}
+
+/// The store view an offline pick consults to prefer versions whose tarball
+/// the store already holds. `None` online, and when the store has no index.
+pub(crate) fn offline_store_view(config: &Config) -> Option<OfflineStoreView> {
+    OfflineStoreView::open_for_offline(config.offline, &config.store_dir, config.frozen_store)
 }
 
 /// Build the [`PickPackageContext`] shared by every config-driven pick in a
 /// `pacquet add`/`update` pre-resolution, so every pre-resolution derives
 /// byte-identical context.
 ///
-/// `meta_cache` and `fetch_locker` are borrowed from caller-owned locals: each
-/// pre-resolution runs its own short-lived cache rather than sharing the
-/// install's.
+/// `meta_cache`, `fetch_locker` and `store_view` are borrowed from
+/// caller-owned locals: each pre-resolution runs its own short-lived cache
+/// rather than sharing the install's, and opens the store view (see
+/// [`offline_store_view`]) once for all of its picks.
 pub(crate) fn pick_package_context<'a>(
     http_client: &'a ThrottledClient,
     config: &'a Config,
     policy: &'a PickPolicy,
     meta_cache: &'a InMemoryPackageMetaCache,
     fetch_locker: &'a PackumentFetchLocker,
+    store_view: Option<&'a OfflineStoreView>,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
         full_metadata: policy.full_metadata,
@@ -229,7 +237,7 @@ pub(crate) fn pick_package_context<'a>(
             prefer_offline: config.prefer_offline,
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
-        store_view: None,
+        store_view,
         metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
             meta_cache,
             fetch_locker,

@@ -77,6 +77,27 @@ test('offline resolution picks the highest version whose tarball is in the store
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('offline resolution finds a store-held version whose metadata only has a shasum', async () => {
+  const shasum = '0123456789abcdef0123456789abcdef01234567'
+  const meta = structuredClone(isPositiveAbbreviatedMeta)
+  delete meta.versions['3.0.0'].dist.integrity
+  meta.versions['3.0.0'].dist.shasum = shasum
+  const cacheDir = temporaryDirectory()
+  seedMetaMirror(cacheDir, meta)
+  const storeDir = temporaryDirectory()
+  seedStoreWithVersion(storeDir, 'is-positive', '3.0.0', `sha1-${Buffer.from(shasum, 'hex').toString('base64')}`)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir,
+    offline: true,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
 test('offline resolution keeps preferring the store-held version on a repeat pick from the in-memory cache', async () => {
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)

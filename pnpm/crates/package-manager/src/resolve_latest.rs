@@ -152,6 +152,9 @@ impl<'a> LatestPicker<'a> {
             &self.policy,
             &self.meta_cache,
             &self.fetch_locker,
+            // A tag names its target outright, so the offline store
+            // adjustment, which only re-picks ranges, has nothing to do here.
+            None,
         );
 
         let pick = pick_package(&ctx, &spec, &opts).await

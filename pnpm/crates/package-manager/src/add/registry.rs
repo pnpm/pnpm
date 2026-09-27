@@ -87,6 +87,7 @@ pub(super) async fn resolve_explicit_registry_spec(
         &policy,
         &resolution.meta_cache,
         &resolution.fetch_locker,
+        resolution.store_view(add.config),
     );
     let opts = explicit_registry_pick_options(
         add.config,

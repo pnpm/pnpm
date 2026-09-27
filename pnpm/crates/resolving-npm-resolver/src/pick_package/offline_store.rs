@@ -11,10 +11,11 @@ use std::{
 /// from, plus the narrowed packument itself.
 type NarrowedMemo = HashMap<String, (Arc<Package>, Option<Arc<Package>>)>;
 
-use pnpm_store_dir::{SharedReadonlyStoreIndex, store_index_key};
+use pnpm_registry::PackageDistribution;
+use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndex, store_index_key};
 
 use super::Package;
-use crate::pick_package_from_meta::filter_pkg_metadata_versions;
+use crate::{npm_resolver::dist_integrity, pick_package_from_meta::filter_pkg_metadata_versions};
 
 /// The install's store index plus a memo of what it holds. Offline installs
 /// never fetch, so the store cannot gain rows while the resolve runs: once a
@@ -31,6 +32,22 @@ impl OfflineStoreView {
     #[must_use]
     pub fn new(index: SharedReadonlyStoreIndex) -> Self {
         Self { index, presence: Mutex::new(HashMap::new()), narrowed: Mutex::new(HashMap::new()) }
+    }
+
+    /// The view an offline resolve consults: `None` when the resolve is
+    /// online, or when the store has no index yet and so holds nothing to
+    /// prefer. `frozen_store` selects the read-only open mode
+    /// [`StoreIndex::shared_for`] documents.
+    #[must_use]
+    pub fn open_for_offline(
+        offline: bool,
+        store_dir: &StoreDir,
+        frozen_store: bool,
+    ) -> Option<Self> {
+        if !offline {
+            return None;
+        }
+        StoreIndex::shared_for(store_dir, frozen_store).map(Self::new)
     }
 
     /// The raw store index handle for the lockfile-pinned peek fast path.
@@ -93,19 +110,15 @@ impl OfflineStoreView {
         self.narrowed.lock().ok()
     }
 
-    /// One trip to the store index for every version of `meta` that carries an
-    /// integrity. The store decides membership; the pick applies the range and
+    /// One trip to the store index for every version of `meta` that has a
+    /// [`tarball_key`]. The store decides membership; the pick applies the range and
     /// every other preference over what remains, so no version parsing happens
     /// here.
     async fn compute(&self, meta: &Package) -> Option<Arc<Package>> {
         let keys_by_version: HashMap<String, String> = meta.versions
             .iter()
             .filter_map(|(version, pkg_version)| {
-                let integrity = pkg_version.dist.integrity.as_ref()?;
-                Some((
-                    version.clone(),
-                    store_index_key(&integrity.to_string(), &format!("{}@{}", meta.name, version)),
-                ))
+                Some((version.clone(), tarball_key(&meta.name, version, &pkg_version.dist)?))
             })
             .collect();
         let keys: Vec<String> = keys_by_version
@@ -133,4 +146,13 @@ impl OfflineStoreView {
                 .is_some_and(|key| held.contains(key))
         })))
     }
+}
+
+/// The store-index key a version's tarball is written under, from the same
+/// integrity the resolution pins: `dist.integrity`, or the `sha1-` form of a
+/// legacy `dist.shasum`. `None` when the version pins nothing usable, so the
+/// store can never hold it.
+pub(super) fn tarball_key(name: &str, version: &str, dist: &PackageDistribution) -> Option<String> {
+    let integrity = dist_integrity(dist).ok().flatten()?;
+    Some(store_index_key(&integrity.to_string(), &format!("{name}@{version}")))
 }

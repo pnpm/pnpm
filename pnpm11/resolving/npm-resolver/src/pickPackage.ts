@@ -22,6 +22,7 @@ import {
   type FetchMetadataResult,
   notModifiedWithoutCacheError,
 } from './fetch.js'
+import { getStoreIntegrity } from './getIntegrity.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   cachedMetaMissesPreferredVersion,
@@ -348,8 +349,8 @@ async function pickVersionFromStore (
   // Fast path: the pick the preferences already made is installable
   // offline — one store lookup, no scan.
   if (pickedPackage != null) {
-    const pickedIntegrity = pickedPackage.dist?.integrity
-    if (typeof pickedIntegrity === 'string' && pickedIntegrity.length > 0) {
+    const pickedIntegrity = pickedPackage.dist == null ? undefined : getStoreIntegrity(pickedPackage.dist)
+    if (pickedIntegrity) {
       const storeManifest = await ctx.peekManifestFromStore({
         id: `${meta['name']}@${pickedPackage.version}` as PkgResolutionId,
         integrity: pickedIntegrity,
@@ -368,8 +369,9 @@ async function pickVersionFromStore (
     // The range bounds the scan: a packument may list thousands of versions
     // and the pick can only land on one the range admits.
     if (!semver.satisfies(version, spec.fetchSpec, { loose: true })) return
-    const integrity = meta.versions[version]?.dist?.integrity
-    if (typeof integrity !== 'string' || integrity.length === 0) return
+    const dist = meta.versions[version]?.dist
+    const integrity = dist == null ? undefined : getStoreIntegrity(dist)
+    if (!integrity) return
     const storeManifest = await ctx.peekManifestFromStore!({
       id: `${meta['name']}@${version}` as PkgResolutionId,
       integrity,

@@ -39,7 +39,8 @@ use pnpm_reporter::Reporter;
 use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 use pnpm_resolving_local_resolver::ResolveLocalError;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache, OfflineStoreView, PackumentFetchLocker, PickPackageError,
+    shared_packument_fetch_locker,
 };
 use pnpm_resolving_resolver_base::{GitResolveError, WorkspacePackages};
 use pnpm_tarball::MemCache;
@@ -335,12 +336,14 @@ fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
 /// What one add pass shares across the selectors it resolves, and across
 /// the projects a selected add touches: the `latest` picker (created on
 /// first use, so a pass that resolves no `latest` tag never builds one),
-/// the packument cache and the fetch locker.
+/// the packument cache, the fetch locker and the offline store view (opened
+/// on first use as well).
 struct AddResolution<'a> {
     started_at: chrono::DateTime<chrono::Utc>,
     latest_picker: tokio::sync::OnceCell<LatestPicker<'a>>,
     meta_cache: std::sync::Arc<InMemoryPackageMetaCache>,
     fetch_locker: PackumentFetchLocker,
+    store_view: std::sync::OnceLock<Option<OfflineStoreView>>,
 }
 
 impl AddResolution<'_> {
@@ -350,7 +353,14 @@ impl AddResolution<'_> {
             latest_picker: tokio::sync::OnceCell::new(),
             meta_cache: std::sync::Arc::new(InMemoryPackageMetaCache::default()),
             fetch_locker: shared_packument_fetch_locker(),
+            store_view: std::sync::OnceLock::new(),
         }
+    }
+
+    fn store_view(&self, config: &Config) -> Option<&OfflineStoreView> {
+        self.store_view
+            .get_or_init(|| crate::resolution_policy::offline_store_view(config))
+            .as_ref()
     }
 }
 

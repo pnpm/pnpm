@@ -2,12 +2,11 @@ use super::{
     Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
     PickPackageContext, PickPackageError, PickPackageFromMetaOptions, PickPackageOptions,
     RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions, pick_lowest_version_by_version_range,
-    pick_package_from_meta, pick_stable_cached_range_version, pick_version_by_version_range,
-    warn_missing_time_once,
+    VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
+    pick_lowest_version_by_version_range, pick_package_from_meta, pick_stable_cached_range_version,
+    pick_version_by_version_range, warn_missing_time_once,
 };
 use crate::{OfflineStoreView, PickPackageFromMetaError};
-use pnpm_store_dir::store_index_key;
 
 /// Whether a pick made from a registry-unverified entry can be returned as
 /// is: an offline-leaning resolve, a lowest-version pick and an exact
@@ -287,14 +286,10 @@ pub(super) async fn pick_from_meta_offline(
     // offline — one presence check, no re-pick. A pick without integrity
     // cannot be verified against the store, so it falls through to the
     // narrowed re-pick, which only offers versions the store can verify.
-    if let Some(integrity) = picked_version.dist.integrity.as_ref() {
-        let picked_key = store_index_key(
-            &integrity.to_string(),
-            &format!("{}@{}", meta.name, picked_version.version),
-        );
-        if store_view.holds(&picked_key) {
-            return Ok((meta, picked));
-        }
+    let picked_key =
+        tarball_key(&meta.name, &picked_version.version.to_string(), &picked_version.dist);
+    if picked_key.is_some_and(|key| store_view.holds(&key)) {
+        return Ok((meta, picked));
     }
     let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {
         return Ok((meta, picked));
