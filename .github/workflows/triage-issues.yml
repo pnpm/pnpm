@@ -32,6 +32,28 @@ jobs:
       contents: read   # let the agent inspect the checked-out codebase
       issues: write     # let the agent apply labels and comment
     steps:
+      - name: Assign the author if they are working on a fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Passed as env, never inlined into the script, so the free-form body
+          # cannot be interpreted as shell code.
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          # Only the form's own "Contributing a fix" section counts, not the
+          # same text typed into a free-form field.
+          if awk '
+            { sub(/\r$/, "") }
+            /^### / { in_fix = ($0 ~ /^### Contributing a fix[[:space:]]*$/); next }
+            in_fix && /^- \[[xX]\] I am working on a fix[[:space:]]*$/ { found = 1 }
+            END { exit !found }
+          ' <<<"$ISSUE_BODY"; then
+            # GitHub refuses some authors as assignees. Triage must still run.
+            gh issue edit "$ISSUE_URL" --add-assignee "$AUTHOR" ||
+              echo "::warning::Could not assign the issue to $AUTHOR"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
