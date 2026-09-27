@@ -136,12 +136,13 @@ function canReuseStableCachedRange (
 export const UNVALIDATED_MIRROR_MAX_AGE_MS = 5 * 60 * 1000
 
 /**
- * A mirror dated in the future, for example after the clock was set back,
- * has an unknown age and is not reused.
+ * The age is compared in both directions. A mirror dated far in the future,
+ * for example after the clock was set back, has an unknown age and is not
+ * reused. A few milliseconds of skew between the file system and the clock
+ * are tolerated.
  */
 function isYoungerThanUnvalidatedMirrorMaxAge (mtime: Date): boolean {
-  const age = Date.now() - mtime.getTime()
-  return age >= 0 && age < UNVALIDATED_MIRROR_MAX_AGE_MS
+  return Math.abs(Date.now() - mtime.getTime()) < UNVALIDATED_MIRROR_MAX_AGE_MS
 }
 
 function canReuseFreshUnvalidatedMirror (

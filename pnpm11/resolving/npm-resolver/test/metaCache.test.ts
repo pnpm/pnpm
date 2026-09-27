@@ -338,6 +338,36 @@ test('pnpm update does not reuse a fresh mirror that has no etag', async () => {
   expect(fetchedNames).toEqual(['foo'])
 })
 
+test('pnpm update does not reuse a mirror that an earlier resolution promoted to memory', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['1.5.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.5.0',
+  }
+  freshMeta['dist-tags'].latest = '1.5.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, jsonText: JSON.stringify(freshMeta), etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' } as const
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+  await pickPackage(ctx, spec, opts)
+
+  const result = await pickPackage(ctx, spec, { ...opts, refreshMetadata: true })
+
+  expect(result.pickedPackage?.version).toBe('1.5.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
 test.each([
   ['the registry forbade caching it', { uncacheable: true }, undefined],
   ['its modification time is in the future', {}, new Date(Date.now() + 60 * 60_000)],

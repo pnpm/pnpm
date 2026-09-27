@@ -157,10 +157,11 @@ impl PickState<'_> {
             return None;
         }
         let mtime = self.pkg_mirror.as_deref().and_then(get_file_mtime)?;
-        // A mirror dated in the future, for example after the clock was set
-        // back, has an unknown age and is not reused.
-        let age = Utc::now().signed_duration_since(mtime);
-        if age < chrono::TimeDelta::zero() || age >= UNVALIDATED_MIRROR_MAX_AGE {
+        // The age is compared in both directions. A mirror dated far in the
+        // future, for example after the clock was set back, has an unknown
+        // age and is not reused. A few milliseconds of skew between the file
+        // system and the clock are tolerated.
+        if Utc::now().signed_duration_since(mtime).abs() >= UNVALIDATED_MIRROR_MAX_AGE {
             return None;
         }
         let meta = self.mirror_meta(disk_meta).await?;

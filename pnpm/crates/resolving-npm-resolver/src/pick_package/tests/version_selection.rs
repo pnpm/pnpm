@@ -587,6 +587,38 @@ async fn refresh_metadata_does_not_reuse_a_fresh_mirror_without_etag() {
     mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn refresh_pick_does_not_reuse_a_mirror_an_earlier_pick_promoted() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let stale: pnpm_registry::Package =
+        serde_json::from_str(STALE_PACKAGE_BODY).expect("parse stale packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale)
+        .expect("warm mirror");
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = public_ctx(&cache_dir, &http_client, &auth_headers, &meta_cache, &fetch_locker);
+    let spec = range_spec("acme", "^1.0.0");
+    pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("mirror pick");
+    let mut refresh_opts = default_opts(&registry);
+    refresh_opts.request.refresh_metadata = true;
+
+    let result = pick_package(&ctx, &spec, &refresh_opts).await.expect("refresh pick");
+
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
+    mock.assert_async().await;
+}
+
 fn public_ctx<'a>(
     cache_dir: &'a TempDir,
     http_client: &'a ThrottledClient,
