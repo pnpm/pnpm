@@ -90,25 +90,28 @@ fn workspace_install_via_pnpr_applies_the_read_package_hook() {
 }
 
 /// A frozen install through pnpr compares the recorded checksum like a
-/// local frozen install, rather than stamping the new one.
+/// local frozen install, rather than stamping the new one. A project with its
+/// own lockfile sends a frozen `--lockfile-only` run to the server.
 #[test]
 fn frozen_lockfile_only_install_via_pnpr_rejects_a_changed_pnpmfile() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
-    configure_workspace(&workspace);
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"@foo/no-deps":"1.0.0"}}"#)
+        .expect("write package.json");
+    crate::_utils::append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", "false");
     let pnpmfile = workspace.join(".pnpmfile.cjs");
     fs::write(&pnpmfile, "module.exports = { hooks: { filterLog: () => true } }")
         .expect("write pnpmfile");
-    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
     let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .with_args(["install", "--lockfile-only", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
     let recorded = read_workspace_lockfile(&workspace).pnpmfile_checksum;
+    assert!(recorded.is_some(), "the lockfile records no pnpmfileChecksum");
     fs::write(&pnpmfile, "module.exports = { hooks: { filterLog: () => true } } // changed")
         .expect("change pnpmfile");
 
