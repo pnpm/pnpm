@@ -146,6 +146,7 @@ pub enum CliCommand {
     /// Run a shell command in the context of a project.
     Exec(ExecArgs),
     /// Run a package in a temporary environment.
+    #[clap(version = pnpm_config::PNPM_VERSION, disable_version_flag = true)]
     Dlx(DlxArgs),
     /// Creates a project from a `create-*` starter kit.
     Create(CreateArgs),
