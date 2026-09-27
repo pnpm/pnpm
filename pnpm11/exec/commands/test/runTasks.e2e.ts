@@ -104,6 +104,101 @@ test('dependsOn runs the tasks a task depends on, in dependency order', async ()
   expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
 })
 
+test('a RegExp selector runs the dependsOn of the scripts it matches', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('a-build'),
+        test: server.sendLineScript('a-test'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('b-build'),
+        test: server.sendLineScript('b-test'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      build: { dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
+  expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
+})
+
+test('a RegExp selector orders the matched scripts by their dependsOn', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('a-build'),
+        test: server.sendLineScript('a-test'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('b-build'),
+        test: server.sendLineScript('b-test'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reportSummary: true,
+    tasks: {
+      build: { dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/^(build|test)$/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-build', 'a-test', 'b-build', 'b-test'])
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('a-build'))
+  expect(order.indexOf('a-build')).toBeLessThan(order.indexOf('a-test'))
+  expect(order.indexOf('b-build')).toBeLessThan(order.indexOf('b-test'))
+  const executionStatus = readSummary()
+  for (const project of ['project-a', 'project-b']) {
+    expect(executionStatus[`${path.resolve(project)}#build`].status).toBe('passed')
+    expect(executionStatus[`${path.resolve(project)}#test`].status).toBe('passed')
+    expect(executionStatus[path.resolve(project)]).toBeUndefined()
+  }
+})
+
 test('a task with an explicitly empty dependsOn starts without waiting for anything', async () => {
   await using server = await createTestIpcServer()
 
@@ -629,6 +724,170 @@ test('a RegExp selector filters hidden scripts when a visible script also matche
   }, ['/build/'])
 
   expect(server.getLines()).toStrictEqual(['visible'])
+})
+
+test('a RegExp selector with tasks declared filters a matched hidden script', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        'build:visible': server.sendLineScript('visible'),
+        '.build:hidden': server.sendLineScript('hidden'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      lint: { dependsOn: [] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/build/'])
+
+  expect(server.getLines()).toStrictEqual(['visible'])
+})
+
+test('a RegExp selector runs a matched hidden script that another matched script depends on', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        test: server.sendLineScript('test'),
+        '.test-setup': server.sendLineScript('setup'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      test: { dependsOn: ['.test-setup'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test/'])
+
+  expect(server.getLines()).toStrictEqual(['setup', 'test'])
+})
+
+test('a dependsOn reference exempts only the hidden task it targets', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        test: server.sendLineScript('a-test'),
+        '.setup': server.sendLineScript('a-setup'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        lint: server.sendLineScript('b-lint'),
+        '.setup': server.sendLineScript('b-setup'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      test: { dependsOn: ['.setup'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test|lint|setup/'])
+
+  expect([...server.getLines()].sort()).toStrictEqual(['a-setup', 'a-test', 'b-lint'])
+})
+
+test('an explicit same-name dependsOn exempts the hidden task it targets', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        test: server.sendLineScript('a-test'),
+        '.setup': server.sendLineScript('a-setup'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+      scripts: {
+        lint: server.sendLineScript('b-lint'),
+        '.setup': server.sendLineScript('b-setup'),
+      },
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    tasks: {
+      test: { dependsOn: ['.setup'] },
+      '.setup': { dependsOn: ['^.setup'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['/test|lint|setup/'])
+
+  const order = server.getLines()
+  expect([...order].sort()).toStrictEqual(['a-setup', 'a-test', 'b-lint', 'b-setup'])
+  expect(order.indexOf('b-setup')).toBeLessThan(order.indexOf('a-setup'))
+})
+
+test('--reverse still rejects a hidden script name that has dependsOn', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+      scripts: {
+        build: server.sendLineScript('build'),
+        '.secret': server.sendLineScript('secret'),
+      },
+    },
+  ])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    reverse: true,
+    tasks: {
+      '.secret': { dependsOn: ['build'] },
+    },
+    workspaceDir: process.cwd(),
+  }, ['.secret'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_HIDDEN_SCRIPT',
+  })
+  expect(server.getLines()).toStrictEqual([])
 })
 
 test('a failed upstream task is reported as the failure, not as a missing script', async () => {

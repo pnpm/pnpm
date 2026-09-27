@@ -92,9 +92,14 @@ where
     pub project_dependencies: &'a IndexMap<PathBuf, Vec<PathBuf>>,
     pub select_scripts: SelectScripts,
     /// The script the invocation runs; every selected project gets a task
-    /// named this.
+    /// named this, or one per matched script for an expanded selector.
     pub task_name: &'a str,
     pub tasks: Option<&'a IndexMap<String, TaskSettings>>,
+    /// Whether a task name is a `RegExp` selector (a `/pattern/` literal).
+    /// With `tasks` declared, a selector seeds one task per script
+    /// `select_scripts` matches in each project, so each resolves the
+    /// `dependsOn` of its own name.
+    pub is_selector_task: fn(&str) -> bool,
 }
 
 pub struct BuildPipelineTaskGraphOptions<'a, SelectScripts>
