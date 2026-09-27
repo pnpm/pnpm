@@ -24,7 +24,8 @@ use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
         filtered_projects_dependencies, find_resume_root, no_projects_matched_message,
-        notice_workspace_dir, select_recursive_projects, write_recursive_summary,
+        notice_workspace_dir, projects_to_verify, select_recursive_projects,
+        write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit, suppresses_info_output},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -236,13 +237,21 @@ impl RecursiveRun<'_, '_> {
             Prepared::DryRun => return Ok(RecursiveRunOutcome::Done),
             Prepared::NoMatchingScript => return Ok(RecursiveRunOutcome::NoMatchingScript),
         };
-        let projects_to_verify = prepared.task_graph
-            .values()
-            .filter(|node| !node.scripts.is_empty())
-            .map(|node| node.project.as_path());
+        // The install the gate spawns selects the workspace dependencies of
+        // the projects it installs, so the status check holds them to the
+        // modules-directory requirement too while the workspace shares one
+        // lockfile; see `projects_to_verify`.
+        let verify_dirs = projects_to_verify(
+            prepared.task_graph
+                .values()
+                .filter(|node| !node.scripts.is_empty())
+                .map(|node| node.project.as_path()),
+            self.selection,
+            self.config,
+        );
         verify_deps_before_recursive_run(
             self.workspace_root,
-            projects_to_verify,
+            verify_dirs,
             self.config,
             self.reporter,
         )?;
