@@ -215,6 +215,20 @@ fn a_managed_directory_sharing_no_root_with_the_walk_yields_no_glob() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+fn a_managed_directory_on_another_volume_yields_no_glob() {
+    // The same case as the test above, spelled with the drive prefixes a
+    // Windows user hits.
+    assert_eq!(
+        managed_directory_ignores(
+            Path::new(r"C:\workspace"),
+            &[PathBuf::from(r"D:\pnpm-cache\store")],
+        ),
+        Vec::<String>::new(),
+    );
+}
+
 #[test]
 fn a_nested_pattern_still_skips_a_managed_directory_inside_the_walk() {
     let tmp = TempDir::new().unwrap();
