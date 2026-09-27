@@ -57,7 +57,7 @@ use serde_json::Value;
 use std::{borrow::Cow, collections::BTreeMap, path::Path, sync::Arc};
 
 use crate::{
-    lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
+    lockfile_reuse::{current_pkg_from_lockfile, prior_child_key, snapshot_records_dep},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
     resolved_tree::{DirectDep, ResolvedPackage},
@@ -133,6 +133,7 @@ where
             pick_overlay: base_overlay.clone(),
             parent_dir: None,
             parent_is_directory: true,
+            parent_locks_edge: false,
             parent_pkg_aliases,
             parent_is_workspace: false,
         },
@@ -230,6 +231,10 @@ pub(super) struct ChildEdge<'e> {
     /// against. Unlike `parent_dir`, this does not go false for a workspace
     /// package, whose id is a `link:` rather than a `file:`.
     pub(super) parent_is_directory: bool,
+    /// Whether the parent's locked snapshot already records this edge. The
+    /// reuse key cannot say so for a `file:` edge, because reuse only
+    /// matches a semver range against the recorded version.
+    pub(super) parent_locks_edge: bool,
     pub(super) parent_pkg_aliases: &'e Arc<ParentPkgAliases>,
     pub(super) parent_is_workspace: bool,
 }

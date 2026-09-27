@@ -2375,8 +2375,10 @@ async function resolveDependency (
         // A relative `file:` specifier in a package that came from a tarball or
         // the registry points inside that package, which pnpm never unpacks to
         // a directory. There is nothing to resolve it against, so skip it
-        // instead of failing the whole install.
-        if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency)) {
+        // instead of failing the whole install. An edge the parent's locked
+        // snapshot already records keeps failing, so the lockfile does not
+        // differ depending on which machine ran the install.
+        if (currentPkg.depPath == null) {
           skippedOptionalDependencyLogger.debug({
             details: err.toString(),
             package: wantedDependencyDetails,

@@ -596,6 +596,24 @@ test('a relative file: dependency of a tarball dependency is skipped', async () 
   expect(project.requireModule('parent')()).toBe('parent')
 })
 
+test('a relative file: dependency of a tarball dependency is not skipped when the lockfile records it', async () => {
+  prepareEmpty()
+  fs.writeFileSync('parent-1.0.0.tgz', await packParent('file:./child', false), 'utf8')
+  fs.mkdirSync('child')
+  fs.writeFileSync('child/package.json', JSON.stringify({ name: 'child', version: '1.0.0' }), 'utf8')
+  const manifest = {
+    dependencies: {
+      parent: 'file:parent-1.0.0.tgz',
+    },
+  }
+  await install(manifest, testDefaults({ fastUnpack: false }))
+
+  rimrafSync('child')
+  rimrafSync('node_modules')
+  await expect(install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: false, preferFrozenLockfile: false })))
+    .rejects.toThrow(/child/)
+})
+
 test('a missing absolute file: dependency of a tarball dependency fails the install', async () => {
   prepareEmpty()
   fs.writeFileSync('parent-1.0.0.tgz', await packParent('file:/pnpm-missing/child', false), 'utf8')

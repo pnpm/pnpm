@@ -60,15 +60,7 @@ pub(crate) fn prior_child_key(
     bare_specifier: &str,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
-    let dep_ref = snapshot.dependencies
-        .as_ref()
-        .and_then(|deps| deps.get(&name))
-        .or_else(|| {
-            snapshot.optional_dependencies
-                .as_ref()
-                .and_then(|deps| deps.get(&name))
-        })?;
-    let key = dep_ref.resolve(&name)?;
+    let key = recorded_dep_ref(snapshot, &name)?.resolve(&name)?;
     let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
         let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
             .parse::<Range>()
@@ -79,6 +71,25 @@ pub(crate) fn prior_child_key(
         range.satisfies(key.suffix.version_semver()?)
     };
     satisfied.then_some(key)
+}
+
+/// Whether `snapshot`'s dependency maps record child edge `alias` at all,
+/// whatever specifier it was resolved from.
+pub(crate) fn snapshot_records_dep(snapshot: &SnapshotEntry, alias: &str) -> bool {
+    alias
+        .parse::<PkgName>()
+        .is_ok_and(|name| recorded_dep_ref(snapshot, &name).is_some())
+}
+
+fn recorded_dep_ref<'s>(snapshot: &'s SnapshotEntry, name: &PkgName) -> Option<&'s SnapshotDepRef> {
+    snapshot.dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(name))
+        .or_else(|| {
+            snapshot.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
 }
 
 /// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to

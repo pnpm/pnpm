@@ -4,7 +4,8 @@ use super::{
     Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
     keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
-    real_package_name_of, resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
+    real_package_name_of, resolve_catalog_specifier, resolve_node_seed, snapshot_records_dep,
+    warm_children_resolutions,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -161,6 +162,9 @@ where
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
             parent_is_directory: scope.parent_is_directory,
+            parent_locks_edge: scope.prior_children_snapshot.is_some_and(|snapshot| {
+                snapshot_records_dep(snapshot, &spec.0)
+            }),
             parent_pkg_aliases: &node.children_pkg_aliases,
             parent_is_workspace: scope.parent_is_workspace,
         },

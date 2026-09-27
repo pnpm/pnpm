@@ -1,8 +1,8 @@
 use super::{
     BTreeMap, DependencyGroup, FileDepFailingResolver, HashMap, Mutex, OverlapRecordingResolver,
     RecordingResolver, WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps,
-    fake_manifest, fake_result, graph_versions_of, importer_opts, resolve_single_importer,
-    resolve_workspace, workspace_opts,
+    fake_manifest, fake_result, graph_versions_of, importer_opts, importer_scoped_update_lockfile,
+    resolve_single_importer, resolve_workspace, workspace_opts,
 };
 
 #[tokio::test]
@@ -367,21 +367,7 @@ async fn warm_up_resolves_each_edge_once_across_a_diamond() {
 /// `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`.
 #[tokio::test]
 async fn a_file_dep_of_a_packed_package_is_dropped_instead_of_failing_the_install() {
-    let mut table = HashMap::default();
-    table.insert(
-        ("parent".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "parent",
-            "1.0.0",
-            None,
-            serde_json::json!({
-                "name": "parent",
-                "version": "1.0.0",
-                "dependencies": { "child": "file:./child" },
-            }),
-        ),
-    );
-    let resolver = FileDepFailingResolver { table };
+    let resolver = packed_parent_declaring("file:./child");
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
@@ -434,21 +420,7 @@ async fn a_file_dep_of_the_project_itself_still_fails_when_the_path_is_missing()
 /// when the declaring package came from a tarball.
 #[tokio::test]
 async fn a_missing_absolute_file_dep_of_a_packed_package_still_fails() {
-    let mut table = HashMap::default();
-    table.insert(
-        ("parent".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "parent",
-            "1.0.0",
-            None,
-            serde_json::json!({
-                "name": "parent",
-                "version": "1.0.0",
-                "dependencies": { "child": "file:/pnpm-missing/child" },
-            }),
-        ),
-    );
-    let resolver = FileDepFailingResolver { table };
+    let resolver = packed_parent_declaring("file:/pnpm-missing/child");
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
@@ -466,4 +438,55 @@ async fn a_missing_absolute_file_dep_of_a_packed_package_still_fails() {
         err.to_string().contains("pnpm-missing"),
         "the failure names the path the user got wrong: {err}",
     );
+}
+
+/// The wanted lockfile still wins over the packed-package rule: when the
+/// parent's locked snapshot already records the `file:` edge, dropping it
+/// would make the lockfile differ depending on which machine ran the install,
+/// so the missing path keeps failing.
+#[tokio::test]
+async fn a_locked_file_dep_of_a_packed_package_still_fails_when_the_path_is_missing() {
+    let resolver = packed_parent_declaring("file:./child");
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let mut lockfile = importer_scoped_update_lockfile(&["."], "parent", "^1.0.0", "1.0.0", None);
+    let parent_snapshot = lockfile.snapshots
+        .as_mut()
+        .and_then(|snapshots| snapshots.values_mut().next())
+        .expect("the parent's snapshot");
+    parent_snapshot.dependencies = Some(std::collections::HashMap::from([(
+        "child".parse().expect("parse child name"),
+        "file:child".parse().expect("parse file: ref"),
+    )]));
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile));
+
+    let err = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(tmp.path().to_path_buf(), None)
+    })
+    .await
+    .err()
+    .expect("a locked file: edge is not dropped");
+    assert!(err.to_string().contains("child"), "the failure names the missing path: {err}");
+}
+
+/// A resolver serving `parent@1.0.0`, a package pnpm resolved from a tarball
+/// whose manifest declares `child` through `file_dep`, and failing every
+/// `file:` specifier as a missing path.
+fn packed_parent_declaring(file_dep: &str) -> FileDepFailingResolver {
+    let parent = fake_result(
+        "parent",
+        "1.0.0",
+        None,
+        serde_json::json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "child": file_dep },
+        }),
+    );
+    let table = ["^1.0.0", "1.0.0"]
+        .into_iter()
+        .map(|range| (("parent".to_string(), range.to_string()), parent.clone()))
+        .collect();
+    FileDepFailingResolver { table }
 }

@@ -2,7 +2,7 @@
 
 use super::{
     ChildEdge, ResolveDependencyTreeError, ResolveOptions, SkippedOptionalDependency, TreeCtx,
-    WantedDependency, pkgs_info_from_ids, wanted_lockfile_contains_satisfying_entry,
+    WantedDependency, pkgs_info_from_ids,
 };
 
 /// Whether this failure is a `file:` specifier that names a path inside the
@@ -41,9 +41,10 @@ fn is_relative_file_specifier(bare_specifier: Option<&str>) -> bool {
 /// reporter as `pnpm:skipped-optional-dependency` with
 /// `reason=resolution_failure`.
 ///
-/// `true` when the edge was dropped. The wanted lockfile still wins: an
-/// entry satisfying the specifier means the install has to keep resolving
-/// it, or the lockfile would differ depending on which machine ran it.
+/// `true` when the edge was dropped. The wanted lockfile still wins: when
+/// the parent's locked snapshot already records this edge, the install has to
+/// keep resolving it, or the lockfile would differ depending on which machine
+/// ran it.
 pub(super) fn drop_unresolvable_file_dep_edge(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
@@ -51,12 +52,7 @@ pub(super) fn drop_unresolvable_file_dep_edge(
     opts: &ResolveOptions,
     err: &ResolveDependencyTreeError,
 ) -> bool {
-    if !is_unresolvable_file_dep_of_packed_pkg(wanted, edge, err)
-        || wanted_lockfile_contains_satisfying_entry(
-            ctx.workspace.reuse.lockfile.as_deref(),
-            wanted,
-        )
-    {
+    if !is_unresolvable_file_dep_of_packed_pkg(wanted, edge, err) || edge.parent_locks_edge {
         return false;
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {

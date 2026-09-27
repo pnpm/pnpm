@@ -578,6 +578,7 @@ where
             pick_overlay: root.base_overlay.clone(),
             parent_dir: None,
             parent_is_directory: true,
+            parent_locks_edge: false,
             parent_pkg_aliases: root.parent_pkg_aliases,
             parent_is_workspace: false,
         },
