@@ -2,6 +2,7 @@ pub use arguments::{
     InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
 };
 
+pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target};
 pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
 
 mod arguments;
@@ -46,6 +47,7 @@ use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
 };
+use pnpr_pnpmfile::record_pnpmfile;
 use pnpr_request::{
     PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
     resolve_projects_for_pnpr, resolve_projects_options,
@@ -239,13 +241,13 @@ impl InstallArgs {
         let frozen_lockfile = self.resolve_frozen_lockfile(&state)?;
         let lockfile_path = state.lockfile_path();
         let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
-        if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
-            if self.materialization.dry_run {
-                return Err(DryRunIncompatibleWithPnpr.into());
-            }
+        if state.config.pnpr_server.is_some() && self.materialization.dry_run {
+            return Err(DryRunIncompatibleWithPnpr.into());
+        }
+        if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
             return Box::pin(install_via_pnpr_inner::<Reporter>(
                 &state,
-                pnpr_server,
+                target,
                 selection.as_ref(),
                 link,
             ))
@@ -467,6 +469,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod pnpr_pnpmfile;
 
 mod pnpr_request;
 

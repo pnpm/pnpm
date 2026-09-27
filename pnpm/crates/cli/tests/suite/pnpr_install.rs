@@ -672,3 +672,5 @@ mod workspace;
 mod revisions;
 
 mod resolution;
+
+mod pnpmfile;
