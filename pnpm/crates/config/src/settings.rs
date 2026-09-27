@@ -1219,12 +1219,13 @@ pub struct Config {
 
     /// `extraEnv`: extra environment variables exported to the lifecycle
     /// scripts and spawned child processes of a command. Empty by
-    /// default. Not a `pnpm-workspace.yaml` key — the only way to
-    /// populate it is an `updateConfig` pnpmfile hook that returns an
-    /// `extraEnv` object, wired up in `pnpm_cli`'s
-    /// `run_update_config_hooks`. That hook runs for the install family
-    /// and commands that pack packages, making the returned environment
-    /// available to their lifecycle scripts.
+    /// default. Not a `pnpm-workspace.yaml` key — it is populated by an
+    /// `updateConfig` pnpmfile hook that returns an `extraEnv` object,
+    /// wired up in `pnpm_cli`'s `run_update_config_hooks`, and by pnpm
+    /// itself for the variables npm exports to scripts, such as
+    /// `npm_command`. The hook runs
+    /// for the install family and commands that pack packages, making
+    /// the returned environment available to their lifecycle scripts.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,

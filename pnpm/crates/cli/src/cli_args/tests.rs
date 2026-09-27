@@ -765,4 +765,29 @@ fn command(argv: &[&str]) -> CliCommand {
     CliArgs::try_parse_from(argv).expect("parses").command
 }
 
+/// The names npm reports in `npm_command`. pnpm 11 mirrors them, so scripts
+/// that branch on the variable behave alike on both CLIs: a command that runs
+/// a script reports `run-script`, and the variants that spell an alias report
+/// the name their command is registered under.
+#[test]
+fn npm_command_name_reports_the_command_the_way_pnpm_11_does() {
+    for (argv, expected) in [
+        (&["pacquet", "run", "dev"][..], "run-script"),
+        (&["pacquet", "run-script", "dev"][..], "run-script"),
+        (&["pacquet", "test"][..], "run-script"),
+        (&["pacquet", "start"][..], "run-script"),
+        (&["pacquet", "stop"][..], "run-script"),
+        (&["pacquet", "dev"][..], "run-script"),
+        (&["pacquet", "install"][..], "install"),
+        (&["pacquet", "i"][..], "install"),
+        (&["pacquet", "pack"][..], "pack"),
+        (&["pacquet", "list"][..], "list"),
+        (&["pacquet", "ll"][..], "list"),
+        (&["pacquet", "rb"][..], "rebuild"),
+        (&["pacquet", "purge"][..], "clean"),
+    ] {
+        assert_eq!(command(argv).npm_command_name(), expected, "argv: {argv:?}");
+    }
+}
+
 mod global_options;
