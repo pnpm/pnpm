@@ -25,6 +25,7 @@ fn rewrite_lockfile_patch_hash_segments(lockfile_path: &Path, patch_hash: &str, 
     let rewritten = text.replace(&format!("(patch_hash={patch_hash})"), replacement);
     assert_ne!(rewritten, text, "the lockfile must carry a patch hash to rewrite");
     fs::write(lockfile_path, rewritten).expect("write the lockfile");
+    bump_mtime(lockfile_path);
 }
 
 const STALE_PATCH_HASH_SEGMENT: &str =
