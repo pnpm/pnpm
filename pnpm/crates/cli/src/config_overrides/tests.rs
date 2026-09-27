@@ -206,6 +206,16 @@ fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
+
+    for argv in [
+        argv(["pacquet", "--config.maxsockets=4", "--config.maxSockets=9", "install"]),
+        argv(["pacquet", "--config.maxSockets=9", "--config.maxsockets=4", "install"]),
+    ] {
+        let (overrides, _) = ConfigOverrides::extract(argv);
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.max_sockets, Some(9), "the camelCase canonical spelling wins too");
+    }
 }
 
 #[test]

@@ -255,17 +255,20 @@ impl ConfigOverrides {
 
     fn set(&mut self, key: &str, value: &str) {
         self.settings.insert(key.to_owned());
+        // The tables name each setting in kebab-case, so a camelCase spelling
+        // gets the same handling and the same precedence.
+        let name = to_kebab_case(key);
         // Every table runs: one key can be claimed by more than one, so
         // short-circuiting would hide it from the later ones.
-        let claimed = self.set_boolean_install_option(key, value)
-            | self.set_boolean_lockfile_option(key, value)
-            | self.set_boolean_execution_option(key, value)
-            | self.set_network_option(key, value)
-            | self.set_dependency_policy_option(key, value)
-            | self.set_layout_option(key, value)
-            | self.set_install_execution_option(key, value);
+        let claimed = self.set_boolean_install_option(&name, value)
+            | self.set_boolean_lockfile_option(&name, value)
+            | self.set_boolean_execution_option(&name, value)
+            | self.set_network_option(&name, value)
+            | self.set_dependency_policy_option(&name, value)
+            | self.set_layout_option(&name, value)
+            | self.set_install_execution_option(&name, value);
         if !claimed {
-            self.unported.insert(to_kebab_case(key), value.to_owned());
+            self.unported.insert(name, value.to_owned());
         }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
