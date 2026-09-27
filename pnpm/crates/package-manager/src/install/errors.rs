@@ -351,6 +351,11 @@ pub enum InstallError {
         #[error(source)] crate::workspace_cycles::CyclicWorkspaceDependenciesError,
     ),
 
+    /// `disallowPrivateProdDeps` and a publishable project lists a
+    /// private workspace project in `dependencies`.
+    #[diagnostic(transparent)]
+    PrivateWorkspaceProdDep(#[error(source)] crate::PrivateWorkspaceProdDepError),
+
     /// Building the verifier list from config rejected a
     /// `minimumReleaseAgeExclude` or `trustPolicyExclude` pattern.
     /// The `INVALID_MINIMUM_RELEASE_AGE_EXCLUDE` /

@@ -316,6 +316,9 @@ impl<'w> InstallScope<'w> {
         mode: &RunMode,
         workspace: &InstallWorkspace<'_>,
     ) -> Result<bool, InstallError> {
+        if super::fast_path::private_prod_deps_block_shortcut(install.context.config, workspace) {
+            return Ok(false);
+        }
         install_is_already_up_to_date::<Reporter>(&UpToDateCheck {
             workspace: super::super::OptimisticRepeatInstallCheck {
                 config: install.context.config,

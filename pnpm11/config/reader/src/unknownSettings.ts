@@ -151,6 +151,7 @@ export function isKnownSettingKey (key: string): boolean {
 const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   cargo: 'pnpm v12',
   concurrencyGroups: 'pnpm v12',
+  disallowPrivateProdDeps: 'pnpm v12',
   globalShims: 'pnpm v12',
   pipelines: 'pnpm v12',
 }

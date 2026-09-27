@@ -97,6 +97,14 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
         selection,
         (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
+    crate::report_private_prod_deps(
+        install.context.config,
+        workspace.dirs.workspace_dir.as_deref(),
+        &workspace.catalogs,
+        selection.map(|selection| selection.all_projects),
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
+    )
+    .map_err(InstallError::PrivateWorkspaceProdDep)?;
     let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
     // the wanted lockfile's contents; force the deferred load here.

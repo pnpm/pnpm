@@ -21,6 +21,10 @@ pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
 pub use prefetching_resolver::*;
+pub use private_prod_deps::PrivateWorkspaceProdDepError;
+pub(crate) use private_prod_deps::{
+    private_prod_deps_block_short_circuit, report_private_prod_deps,
+};
 pub use remove::*;
 pub use resolution_observer::*;
 pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
@@ -65,6 +69,7 @@ mod package_extender;
 mod patch;
 mod peer_dependency_issues;
 mod prefetching_resolver;
+mod private_prod_deps;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod remove;

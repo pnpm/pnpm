@@ -48,6 +48,13 @@ impl BaseProject for GraphPkg<'_> {
         absorb(DependencyGroup::Prod);
         merged.into_iter().collect()
     }
+
+    fn production_dependencies(&self) -> Vec<(String, String)> {
+        self.project.manifest
+            .dependencies([DependencyGroup::Prod])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect()
+    }
 }
 
 impl GraphProject for GraphPkg<'_> {

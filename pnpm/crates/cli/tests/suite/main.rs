@@ -123,6 +123,7 @@ mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;
 mod prefix;
+mod private_prod_deps;
 mod prune;
 mod publish;
 mod publish_recursive;
