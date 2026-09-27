@@ -708,8 +708,8 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.0
     preferred-pm:
-      specifier: ^5.0.0
-      version: 5.0.0
+      specifier: ^5.0.1
+      version: 5.0.1
     pretty-bytes:
       specifier: ^7.1.3
       version: 7.1.3
@@ -4754,7 +4754,7 @@ importers:
         version: safe-execa@0.3.0
       preferred-pm:
         specifier: 'catalog:'
-        version: 5.0.0(ts-toolbelt@9.6.0)
+        version: 5.0.1(ts-toolbelt@9.6.0)
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -16828,8 +16828,8 @@ packages:
     resolution: {integrity: sha512-lEHd+yEm22jXdCphDrkvIJQU66EuLojPPtvZkpKIkiD+l0DMThF/niqZKJSoU8Vl7iuvtmzyMhir9LdVy5WMnA==}
     engines: {node: '>=10'}
 
-  preferred-pm@5.0.0:
-    resolution: {integrity: sha512-qs9WZBOIW4tXjxoYxUathIb53hcV3cjVpLJl8Y0h3QOiyqnbDzWmw0jvTI5YOw/RAkhDsB/sFVt9pYV+r6NP2A==}
+  preferred-pm@5.0.1:
+    resolution: {integrity: sha512-e9GTXG/OIn7OOp5iz0jqSs8QQ+q+giGTpYCbPKd0V6VVWrZE/2Jj4v8onnVTNotLNa6iFcPG65sLZhc3kdetyg==}
     engines: {node: '>=22.13'}
 
   prelude-ls@1.2.1:
@@ -24701,7 +24701,7 @@ snapshots:
       path-exists: 4.0.0
       which-pm: 2.2.0
 
-  preferred-pm@5.0.0(ts-toolbelt@9.6.0):
+  preferred-pm@5.0.1(ts-toolbelt@9.6.0):
     dependencies:
       find-up-simple: 1.0.1
       find-yarn-workspace-root2: 1.2.53(ts-toolbelt@9.6.0)

@@ -81,3 +81,17 @@ test('prepare package runs its scripts with strictDepBuilds off', async () => {
     'false false',
   ])
 })
+
+test('prepare package installs a workspace that has no lockfile with pnpm', async () => {
+  const tmp = tempDir()
+  await fs.writeFile(path.join(tmp, 'pnpm-workspace.yaml'), 'packages: []\n')
+  await fs.writeFile(path.join(tmp, 'package.json'), JSON.stringify({
+    name: 'workspace-without-lockfile',
+    version: '1.0.0',
+    scripts: { prepare: 'node -e ""' },
+  }))
+  await preparePackage({ allowBuild, pkgResolutionId }, tmp, '')
+  const files = await fs.readdir(tmp)
+  expect(files).toContain('pnpm-lock.yaml')
+  expect(files).not.toContain('package-lock.json')
+})
