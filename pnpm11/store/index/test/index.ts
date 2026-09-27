@@ -291,6 +291,25 @@ test('StoreIndex fallback file writers notice a snapshot written from the same b
   }
 })
 
+test('StoreIndex fallback file reports a corrupt snapshot instead of reading it as empty', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set('k', { n: 1 })
+  } finally {
+    writer.close()
+  }
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const corrupt = fs.readFileSync(fallbackPath).subarray(0, 6)
+  fs.writeFileSync(fallbackPath, corrupt)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    expect(() => reader.get('k')).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_INDEX_FALLBACK_CORRUPT' }))
+  } finally {
+    reader.close()
+  }
+})
+
 test('StoreIndex falls back to a file when prepared statements cannot run', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StatementRunMissingStoreIndex(storeDir)
@@ -331,10 +350,11 @@ class MissingExecStoreIndex extends StoreIndex {
 function tracePrepare (idx: StoreIndex, db: DatabaseSync): DatabaseSync {
   const preparedSql: string[] = []
   preparedSqlByIndex.set(idx, preparedSql)
-  const prepare = db.prepare.bind(db)
-  db.prepare = (sql: string) => {
+  // Keep the native receiver check: the adapter must call prepare on db.
+  const prepare = db.prepare
+  db.prepare = function (this: DatabaseSync, sql: string) {
     preparedSql.push(sql)
-    return prepare(sql)
+    return prepare.call(this, sql)
   }
   return db
 }

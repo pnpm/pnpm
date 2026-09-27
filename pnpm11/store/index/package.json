@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "msgpackr": "catalog:"
   },
   "devDependencies": {

@@ -10108,6 +10108,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/fs.graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
       msgpackr:
         specifier: 'catalog:'
         version: 2.1.0

@@ -5,6 +5,7 @@ import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlit
 import { threadId } from 'node:worker_threads'
 
 import { PnpmError } from '@pnpm/error'
+import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { Packr } from 'msgpackr'
 
 const fallbackPackr = new Packr({
@@ -18,9 +19,12 @@ const fallbackDatabases = new WeakSet<object>()
 const FALLBACK_INDEX_FILE = 'index.fallback'
 
 /**
- * Some hosts construct `DatabaseSync` without `exec`. Prepared statements run
- * the same SQL. When `prepare` is missing too, rows are stored in
- * `index.fallback`.
+ * Returns a store index connection that has `exec`, for hosts such as
+ * StackBlitz WebContainers whose `DatabaseSync` lacks it.
+ *
+ * `db` is returned unchanged when it has `exec`, and gains an `exec` that runs
+ * through `prepare` when it lacks only that. When `db` cannot be adapted, it is
+ * closed and a connection backed by `index.fallback` in `storeDir` is returned.
  */
 export function adaptStoreDatabase (db: SqliteConnection, storeDir: string): DatabaseSyncType {
   if (typeof db.prepare !== 'function') {
@@ -28,7 +32,7 @@ export function adaptStoreDatabase (db: SqliteConnection, storeDir: string): Dat
     return createFallbackDatabase(storeDir)
   }
   if (typeof db.exec !== 'function') {
-    const prepare = db.prepare as (sql: string) => { run?: (() => unknown) | undefined }
+    const prepare = (db.prepare as (sql: string) => { run?: (() => unknown) | undefined }).bind(db)
     const exec = (sql: string): void => {
       const stmt = prepare(sql)
       if (typeof stmt?.run !== 'function') {
@@ -210,7 +214,6 @@ export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
   }
 
   function readSnapshot (): { generation: number, rows: Map<string, Uint8Array> } {
-    let sawMissing = false
     for (let attempt = 0; attempt < 20; attempt++) {
       const generation = readGeneration(dataPath)
       if (generation === undefined) {
@@ -221,19 +224,14 @@ export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
         return { generation, rows }
       }
       if (generation === 0) {
-        if (revision <= 0) return { generation: 0, rows: new Map() }
-        sawMissing = true
-        sleepSync(1)
-        continue
+        return { generation: 0, rows: new Map() }
       }
       let packed: Buffer
       try {
         packed = fs.readFileSync(dataPath)
       } catch (err: unknown) {
         if (!isEnoent(err)) throw err
-        sawMissing = true
-        sleepSync(1)
-        continue
+        return { generation: 0, rows: new Map() }
       }
       if (packed.length < 4 || packed.readUInt32BE(0) !== generation) {
         sleepSync(1)
@@ -246,7 +244,6 @@ export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
       }
       return { generation, rows: decodedRows }
     }
-    if (sawMissing) return { generation: 0, rows: new Map() }
     throw new PnpmError(
       'STORE_INDEX_FALLBACK_CORRUPT',
       `Could not read the store index fallback file at ${dataPath}`
@@ -262,7 +259,7 @@ export function createFallbackDatabase (storeDir: string): DatabaseSyncType {
     const tmp = `${dataPath}.${process.pid}.${threadId}.tmp`
     try {
       fs.writeFileSync(tmp, payload)
-      replaceFile(tmp, dataPath)
+      renameFileWithRetry(tmp, dataPath)
     } catch (err: unknown) {
       try {
         fs.rmSync(tmp, { force: true })
@@ -391,27 +388,8 @@ function readGeneration (dataPath: string): number | undefined {
   }
 }
 
-function replaceFile (from: string, to: string): void {
-  try {
-    fs.renameSync(from, to)
-  } catch (err: unknown) {
-    // Windows throws when the destination already exists.
-    if (process.platform !== 'win32' || !isRenameConflict(err)) throw err
-    fs.rmSync(to, { force: true })
-    fs.renameSync(from, to)
-  }
-}
-
-function isRenameConflict (err: unknown): boolean {
-  return isCode(err, 'EEXIST') || isCode(err, 'EPERM') || isCode(err, 'ENOTEMPTY')
-}
-
 function isEnoent (err: unknown): boolean {
-  return isCode(err, 'ENOENT')
-}
-
-function isCode (err: unknown, code: string): boolean {
-  return typeof err === 'object' && err != null && 'code' in err && err.code === code
+  return typeof err === 'object' && err != null && 'code' in err && err.code === 'ENOENT'
 }
 
 function sleepSync (ms: number): void {
