@@ -131,6 +131,17 @@ pub fn snapshot_has_patch(snapshot_key: &pnpm_lockfile::PackageKey) -> bool {
         .is_some()
 }
 
+/// Run `work`, which blocks its thread, from inside an `async fn`. On the
+/// multi-thread runtime, `block_in_place` moves the worker's other futures
+/// to another worker so async progress continues. It panics on the
+/// `current_thread` runtime that `#[tokio::test]` defaults to, so `work`
+/// runs as a plain call there.
+pub fn block_in_place_if_multi_thread<Output>(work: impl FnOnce() -> Output) -> Output {
+    let on_multi_thread = tokio::runtime::Handle::try_current()
+        .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+    if on_multi_thread { tokio::task::block_in_place(work) } else { work() }
+}
+
 const MAX_SCRIPT_THREADS: usize = 256;
 
 #[must_use]

@@ -1545,10 +1545,16 @@ fn shared_workspace_lockfile_false_installs_independent_projects_concurrently() 
         .expect("write project package.json");
     }
 
+    // One runtime worker: a project blocked in its lifecycle script must not
+    // hold the only thread the other project's install can run on.
     pacquet_at(workspace)
+        .with_env("TOKIO_WORKER_THREADS", "1")
         .with_arg("install")
         .assert()
         .success();
+
+    assert!(workspace.join("started-first").is_file());
+    assert!(workspace.join("started-second").is_file());
 }
 
 mod freshness;

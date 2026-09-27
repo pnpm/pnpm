@@ -261,7 +261,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
     let selection =
         select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
-    dependencies.extend(project_dependencies(&selection, true));
+    dependencies.extend(project_dependencies(&selection, cfg.sort));
     DedicatedProjectRuns {
         config: cfg,
         projects: DedicatedProjects {

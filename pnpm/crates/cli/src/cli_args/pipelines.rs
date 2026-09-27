@@ -275,8 +275,8 @@ impl DedicatedProjectRuns<'_> {
                     http_client,
                 ) {
                     // A project's install blocks its thread in places, such as
-                    // while its lifecycle scripts run. Its own task keeps that
-                    // from stalling the other projects' installs.
+                    // while its lifecycle scripts run. On its own task, the
+                    // other projects' installs move to another worker then.
                     Ok(state) => tokio::spawn(run(state)).await
                         .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic())),
                     Err(error) => Err(error),
