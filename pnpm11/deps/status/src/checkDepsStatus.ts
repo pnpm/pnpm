@@ -342,17 +342,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
     if (nodeLinker === 'hoisted') {
       const statsPromise = safeStat(path.resolve(rootProjectManifestDir, opts.modulesDir ?? 'node_modules'))
-      statModulesDir = async (project) => {
-        const rootStats = await statsPromise
-        // The hoisted linker gives a project its own node_modules only for the
-        // dependencies it nests there. The last install recorded which ones.
-        if (
-          rootStats?.isDirectory() !== true ||
-          project.rootDir === rootProjectManifestDir ||
-          workspaceState.projects[project.rootDir]?.hasModulesDir !== true
-        ) return rootStats
-        return safeStat(getHoistedProjectModulesDir(project.rootDir))
-      }
+      statModulesDir = () => statsPromise
     } else {
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
       const modulesDirOf = createProjectModulesDirResolver(opts)
@@ -400,10 +390,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           mayBeDeduped(project) &&
           dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir, opts.include)
         ) continue
-        const id = project.manifest.name ?? project.rootDir
         return {
           upToDate: false,
-          issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+          issue: missingModulesDirIssue(project),
+          workspaceState,
+        }
+      }
+      const missingRecordedModulesDir = nodeLinker === 'hoisted'
+        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, rootProjectManifestDir)
+        : undefined
+      if (missingRecordedModulesDir != null) {
+        return {
+          upToDate: false,
+          issue: missingModulesDirIssue(missingRecordedModulesDir),
           workspaceState,
         }
       }
@@ -1171,4 +1170,28 @@ function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir:
   const recordedProjectDirs = Object.keys(workspaceState.projects)
   return recordedProjectDirs.length > 0 &&
     !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
+}
+
+function missingModulesDirIssue (project: Project): string {
+  const id = project.manifest.name ?? project.rootDir
+  return `Workspace package ${id} has dependencies but does not have a modules directory`
+}
+
+/**
+ * The hoisted linker gives a project its own node_modules only for the
+ * dependencies it nests there, so a project without one may be fully
+ * installed. The last install recorded which projects have one
+ * (`hasModulesDir`); this returns the first of them that no longer does.
+ */
+async function findProjectMissingRecordedHoistedModulesDir (
+  allProjects: Project[],
+  workspaceState: WorkspaceState,
+  rootProjectManifestDir: string
+): Promise<Project | undefined> {
+  const missing = await Promise.all(allProjects.map(async (project) =>
+    project.rootDir !== rootProjectManifestDir &&
+    workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
+    (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
+  ))
+  return allProjects.find((_, index) => missing[index])
 }

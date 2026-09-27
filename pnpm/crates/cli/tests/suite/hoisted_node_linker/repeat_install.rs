@@ -747,19 +747,20 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, serde_json::json!({ "is-positive": "3.1.0" }));
-    // pkg-a and pkg-b conflict with the root's version, so each gets a copy
-    // nested under it. pkg-c's dependency goes to the root.
-    for (project, deps) in [
-        ("pkg-a", serde_json::json!({ "is-positive": "1.0.0" })),
-        ("pkg-b", serde_json::json!({ "is-positive": "1.0.0" })),
-        ("pkg-c", serde_json::json!({ "is-negative": "1.0.0" })),
+    // pkg-a, pkg-b and pkg-d conflict with the root's version, so each gets a
+    // copy nested under it. pkg-d's is optional. pkg-c's dependency goes to
+    // the root.
+    for (project, field, deps) in [
+        ("pkg-a", "dependencies", serde_json::json!({ "is-positive": "1.0.0" })),
+        ("pkg-b", "dependencies", serde_json::json!({ "is-positive": "1.0.0" })),
+        ("pkg-c", "dependencies", serde_json::json!({ "is-negative": "1.0.0" })),
+        ("pkg-d", "optionalDependencies", serde_json::json!({ "is-positive": "1.0.0" })),
     ] {
         let dir = workspace.join("packages").join(project);
         fs::create_dir_all(&dir).expect("create the workspace project");
         fs::write(
             dir.join("package.json"),
-            serde_json::json!({ "name": project, "version": "1.0.0", "dependencies": deps })
-                .to_string(),
+            serde_json::json!({ "name": project, "version": "1.0.0", field: deps }).to_string(),
         )
         .expect("write the project manifest");
     }
@@ -780,7 +781,8 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
         "a project whose dependencies all went to the root must not defeat the fast path: {repeat_output}",
     );
 
-    for project in ["pkg-a", "pkg-b"] {
+    let nesting_projects = ["pkg-a", "pkg-b", "pkg-d"];
+    for project in nesting_projects {
         fs_remove_dir_all(
             &workspace
                 .join("packages")
@@ -791,7 +793,7 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
             .with_arg("install")
             .assert()
             .success();
-        for restored in ["pkg-a", "pkg-b"] {
+        for restored in nesting_projects {
             assert_eq!(
                 read_pkg_version(
                     &workspace,

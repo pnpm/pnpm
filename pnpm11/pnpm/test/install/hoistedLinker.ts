@@ -152,8 +152,8 @@ test('a repeat hoisted install restores a removed workspace project modules dire
       location: '.',
       package: { name: 'root', version: '0.0.0', private: true, dependencies: { 'is-positive': '3.1.0' } },
     },
-    // pkg-a and pkg-b conflict with the root's version, so each gets a copy
-    // nested under it. pkg-c's dependency goes to the root.
+    // pkg-a, pkg-b and pkg-d conflict with the root's version, so each gets a
+    // copy nested under it. pkg-d's is optional. pkg-c's dependency goes to the root.
     {
       location: 'packages/pkg-a',
       package: { name: 'pkg-a', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
@@ -165,6 +165,10 @@ test('a repeat hoisted install restores a removed workspace project modules dire
     {
       location: 'packages/pkg-c',
       package: { name: 'pkg-c', version: '1.0.0', dependencies: { 'is-negative': '1.0.0' } },
+    },
+    {
+      location: 'packages/pkg-d',
+      package: { name: 'pkg-d', version: '1.0.0', optionalDependencies: { 'is-positive': '1.0.0' } },
     },
   ])
   writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'], nodeLinker: 'hoisted' })
@@ -178,10 +182,11 @@ test('a repeat hoisted install restores a removed workspace project modules dire
     expectSuccess: true,
   }).stdout.toString()).toContain('Already up to date')
 
-  for (const project of ['pkg-a', 'pkg-b']) {
+  const nestingProjects = ['pkg-a', 'pkg-b', 'pkg-d']
+  for (const project of nestingProjects) {
     fs.rmSync(path.join('packages', project, 'node_modules'), { recursive: true })
     execPnpmSync(['install'], { expectSuccess: true })
-    for (const restored of ['pkg-a', 'pkg-b']) {
+    for (const restored of nestingProjects) {
       const manifestPath = path.join('packages', restored, 'node_modules/is-positive/package.json')
       expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version).toBe('1.0.0')
     }
