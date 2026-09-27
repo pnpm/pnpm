@@ -25,7 +25,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 
 const { logger } = await import('@pnpm/logger')
-const { install, link } = await import('@pnpm/installing.commands')
+const { add, install, link } = await import('@pnpm/installing.commands')
 
 const f = fixtures(import.meta.dirname)
 
@@ -257,6 +257,52 @@ test('logger should not warn about peer dependencies when it is an empty object'
     dir: process.cwd(),
     rootProjectManifestDir: process.cwd(),
   }, ['../linked-with-empty-peer-deps'])
+
+  expect(logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
+  }))
+
+  jest.mocked(logger.warn).mockRestore()
+})
+
+test('logger warns about peer dependencies when adding a directory as a link: dependency', async () => {
+  prepare()
+  writePackageSync('../local-with-peer-deps', {
+    name: 'local-with-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+  }, ['../local-with-peer-deps'])
+
+  expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('The package local-with-peer-deps, which you have just pnpm linked, has the following peerDependencies specified in its package.json:\n\n  - is-positive@1.0.0'),
+  }))
+
+  jest.mocked(logger.warn).mockRestore()
+})
+
+test('logger should not warn about peer dependencies when adding a directory through file:', async () => {
+  prepare()
+  writePackageSync('../local-with-peer-deps', {
+    name: 'local-with-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+  }, ['file:../local-with-peer-deps'])
 
   expect(logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('has the following peerDependencies specified in its package.json'),

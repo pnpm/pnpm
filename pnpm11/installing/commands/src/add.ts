@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -7,13 +9,17 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
+import { isLocalFilesystemSpecifier, isTarballFilename } from '@pnpm/resolving.local-resolver'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
+import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -315,15 +321,34 @@ export async function handler (
       // `dry-run` turn `add` into a no-op check.
       dryRun: false,
     }, params)
-    return
+  } else {
+    await installDeps({
+      ...opts,
+      rebuildHandler: commands?.rebuild,
+      include,
+      includeDirect: include,
+      dryRun: false,
+    }, params)
   }
-  await installDeps({
-    ...opts,
-    rebuildHandler: commands?.rebuild,
-    include,
-    includeDirect: include,
-    dryRun: false,
-  }, params)
+  await Promise.all(params.map(async (param) => warnIfLinkedWithPeers(param, opts.dir)))
+}
+
+/**
+ * A directory added without an alias (`pnpm add ../pkg`) is saved as a
+ * `link:` dependency, so it gets the same peer dependency warning as
+ * `pnpm link`.
+ */
+async function warnIfLinkedWithPeers (param: string, projectDir: string): Promise<void> {
+  const { alias, bareSpecifier } = parseWantedDependency(param)
+  if (
+    alias != null ||
+    bareSpecifier == null ||
+    !isLocalFilesystemSpecifier(bareSpecifier) ||
+    bareSpecifier.startsWith('file:') ||
+    isTarballFilename(bareSpecifier)
+  ) return
+  const pkgDir = path.resolve(projectDir, bareSpecifier.replace(/^link:/, ''))
+  warnAboutLinkedPeerDependencies(await safeReadProjectManifestOnly(pkgDir), { pkgDir, prefix: projectDir })
 }
 
 function applyAllowBuildSelectors (
