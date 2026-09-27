@@ -28,7 +28,7 @@ import {
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { PnpmError, redactUrlForDisplay } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -59,9 +59,11 @@ import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  convertToLockfileObject,
   getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
+  type LockfileFile,
   type LockfileObject,
   type ProjectSnapshot,
   readEnvLockfile,
@@ -93,7 +95,7 @@ import {
   satisfiesPackageManifest,
   unresolvedOptionalDependencies,
 } from '@pnpm/lockfile.verification'
-import { logger, streamParser } from '@pnpm/logger'
+import { globalWarn, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependenciesWithPaths, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs, getSpecFromPackageManifest, guessDependencyType } from '@pnpm/pkg-manifest.utils'
 import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
@@ -267,7 +269,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer && canUsePnprForInstall(opts)) {
+  if (opts.pnprServer && canUsePnprForInstall(opts) && pnpmfileHookPnprCannotRun(opts.hooks) == null) {
     return installViaPnprServer({
       manifest,
       rootDir,
@@ -435,7 +437,7 @@ export async function mutateModules (
   // (pnpm remove), and complete-project revision refreshes. Mutations that
   // need other client-side update behavior still fall through to the normal
   // flow.
-  if (opts.pnprServer && canUsePnprForMutations(projects, opts)) {
+  if (opts.pnprServer && canUsePnprForMutations(projects, opts) && pnprCanRunPnpmfile(opts)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) {
       // This path materializes packages of its own, so it verifies the
@@ -3691,6 +3693,42 @@ function definesUninstallStage (scripts: ProjectManifest['scripts']): boolean {
   return scripts != null && [...PRE_UNINSTALL_STAGES, ...POST_UNINSTALL_STAGES].some((stage) => scripts[stage] != null)
 }
 
+/**
+ * Whether the configured pnpr server may resolve this install. The server runs
+ * no pnpmfile, so this returns `false` and warns when the pnpmfile defines a
+ * hook that shapes resolution, and the install then resolves locally
+ * (https://github.com/pnpm/pnpm/issues/14460).
+ */
+function pnprCanRunPnpmfile (opts: Pick<StrictInstallOptions, 'hooks' | 'pnprServer'>): boolean {
+  const unsupported = pnpmfileHookPnprCannotRun(opts.hooks)
+  if (unsupported == null) return true
+  globalWarn(`Resolving dependencies locally because the pnpr server at ${redactUrlForDisplay(opts.pnprServer!)} cannot run the pnpmfile's ${unsupported}`)
+  return false
+}
+
+function pnpmfileHookPnprCannotRun (hooks: Opts['hooks']): string | undefined {
+  if (definesHooks(hooks?.readPackage)) return '"readPackage" hook'
+  if (definesHooks(hooks?.afterAllResolved)) return '"afterAllResolved" hook'
+  if (definesHooks(hooks?.preResolution)) return '"preResolution" hook'
+  if (hooks?.customResolvers?.length) return 'custom resolvers'
+  return undefined
+}
+
+function definesHooks (hooks: unknown[] | unknown | undefined): boolean {
+  return Array.isArray(hooks) ? hooks.length > 0 : hooks != null
+}
+
+/**
+ * Whether any importer of an on-disk lockfile records a dependency. Only the
+ * importers are converted, so the check does not scale with the package count.
+ */
+function recordsDependencies (lockfile: LockfileFile): boolean {
+  return !isEmptyLockfile(convertToLockfileObject({
+    lockfileVersion: lockfile.lockfileVersion,
+    importers: lockfile.importers,
+  }))
+}
+
 function canUsePnprForInstall (opts: Opts): boolean {
   if (opts.updatePatches) {
     return !opts.updateToLatest &&
@@ -4043,6 +4081,20 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
 
+    // Like the local install, `frozenLockfileIfExists` ignores a lockfile
+    // that records no dependencies.
+    const frozenLockfile = opts.frozenLockfile === true || (
+      opts.frozenLockfileIfExists === true &&
+      existingLockfile != null &&
+      recordsDependencies(existingLockfile)
+    )
+    const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
+    // The server skips the pnpmfile comparison a local frozen install makes,
+    // and a frozen install must not rewrite the recorded checksum.
+    if (frozenLockfile && !opts.ignorePnpmfile && existingLockfile != null && existingLockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+      throw new LockfileConfigMismatchError('pnpmfileChecksum')
+    }
+
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
     // Build projects list for workspace support.
@@ -4103,11 +4155,18 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
-      frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
+      frozenLockfile,
       preferFrozenLockfile: opts.preferFrozenLockfile,
       updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
     })
+
+    // The server never sees the pnpmfile, so the fields a local resolution
+    // records for it are stamped here.
+    if (!frozenLockfile) {
+      lockfile.pnpmfileChecksum = pnpmfileChecksum
+      setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
+    }
 
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,

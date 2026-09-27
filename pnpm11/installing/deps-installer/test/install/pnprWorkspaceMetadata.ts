@@ -480,3 +480,18 @@ test.each([false, true])('pnpr materialization keeps configured modules and bin 
   expect(fs.existsSync(path.join(binsDir, 'tool'))).toBe(true)
   expect(fs.existsSync(path.join(rootDir, 'node_modules/tool'))).toBe(false)
 })
+
+test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfileIfExists: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'pnpmfile-checksum' },
+  })
+
+  await install({ name: 'app', version: '1.0.0' }, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: false }))
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
+})

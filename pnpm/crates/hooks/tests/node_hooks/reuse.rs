@@ -104,3 +104,32 @@ async fn node_js_hooks_detects_read_package() {
         "missing readPackage must not be reported",
     );
 }
+
+#[tokio::test]
+async fn node_js_hooks_detects_after_all_resolved() {
+    let tmp = TempDir::new().expect("temp dir");
+    let with_hook = write_pnpmfile(
+        tmp.path(),
+        "with.cjs",
+        "module.exports = { hooks: { afterAllResolved (lockfile) { return lockfile } } }",
+    );
+    let without_hook = write_pnpmfile(
+        tmp.path(),
+        "without.cjs",
+        "module.exports = { hooks: { readPackage (pkg) { return pkg } } }",
+    );
+    assert!(
+        pnpm_hooks::node_runtime::NodeJsHooks::new(with_hook)
+            .has_after_all_resolved()
+            .await
+            .unwrap(),
+        "exported afterAllResolved must be detected",
+    );
+    assert!(
+        !pnpm_hooks::node_runtime::NodeJsHooks::new(without_hook)
+            .has_after_all_resolved()
+            .await
+            .unwrap(),
+        "missing afterAllResolved must not be reported",
+    );
+}

@@ -26,6 +26,7 @@ pub(super) async fn pnpr_request_inputs(
     state: &State,
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
+    pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> miette::Result<PnprRequestInputs> {
     let overrides = state.config.overrides
         .as_ref()
@@ -43,7 +44,6 @@ pub(super) async fn pnpr_request_inputs(
             |override_| override_.resolve_registry().to_owned(),
         );
 
-    let pnpmfile_hook = load_pnpr_pnpmfile(state, lockfile_dir)?;
     let prefetch_allowed = prefetch_allowed(pnpmfile_hook.as_ref()).await?;
     let lockfile_path = link.lockfile_path.map_or_else(
         || lockfile_dir.join(state.config.wanted_lockfile_name()),
@@ -109,21 +109,6 @@ pub(super) fn resolve_projects_options(
         },
         verification: verification_policy(state.config),
     }
-}
-
-/// The pnpmfile hooks this install runs, unless the run disabled them.
-fn load_pnpr_pnpmfile(
-    state: &State,
-    lockfile_dir: &std::path::Path,
-) -> miette::Result<Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>> {
-    if state.config.ignore_pnpmfile {
-        return Ok(None);
-    }
-    pnpm_hooks::finder::load_pnpmfiles(
-        lockfile_dir,
-        pnpm_package_manager::pnpmfile_selection(state.config),
-    )
-    .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))
 }
 
 /// The catalogs the pnpr server resolves `catalog:` specifiers against,

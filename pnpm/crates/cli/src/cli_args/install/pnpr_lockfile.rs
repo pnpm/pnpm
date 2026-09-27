@@ -5,8 +5,8 @@ use super::{
     ResolveProject, SkippedSnapshots, State, TarballPrefetcher, VerifyLockfileOptions,
     VerifyLockfileResolutionsOptions, build_resolution_verifiers, lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content, materialization_closure,
-    merge_filtered_wanted_lockfile, record_lockfile_verified, verify_lockfile_resolutions,
-    workspace_install_selection,
+    merge_filtered_wanted_lockfile, record_lockfile_verified, record_pnpmfile,
+    verify_lockfile_resolutions, workspace_install_selection,
 };
 
 /// Link `node_modules` from the server-produced lockfile through the normal
@@ -435,6 +435,9 @@ pub(super) async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'sta
         session.merge_wanted,
         lockfile,
     )?;
+    if !link.lockfile.frozen {
+        record_pnpmfile(inputs.pnpmfile_hook.as_ref(), &mut lockfile).await?;
+    }
     let merged_repair_verifiers =
         verify_merged_repair::<Reporter>(state, link, session.partial_selection, &lockfile).await?;
 
