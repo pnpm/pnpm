@@ -141,6 +141,19 @@ export function localFilePath (bareSpecifier: string, projectDir: string): strin
   return parseLocalScheme({ bareSpecifier }, projectDir, projectDir, { preserveAbsolutePaths: false })?.fetchSpec
 }
 
+/**
+ * The directory a local specifier links to, when it is saved as `link:`.
+ * `undefined` for a `file:` directory, a tarball, or a specifier that is not
+ * a local path.
+ */
+export function linkedDirectoryPath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!isLocalFilesystemSpecifier(bareSpecifier)) return undefined
+  const wd = { bareSpecifier }
+  const opts = { preserveAbsolutePaths: false }
+  const spec = parseLocalScheme(wd, projectDir, projectDir, opts) ?? parseLocalPath(wd, projectDir, projectDir, opts)
+  return spec?.normalizedBareSpecifier.startsWith('link:') ? spec.fetchSpec : undefined
+}
+
 export function parseLocalPath (
   wd: WantedLocalDependency,
   projectDir: string,

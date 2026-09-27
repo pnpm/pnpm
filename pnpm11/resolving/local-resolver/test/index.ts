@@ -1,12 +1,13 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { barePathIsUnambiguous, isLocalFilesystemSpecifier, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, linkedDirectoryPath, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
@@ -455,3 +456,19 @@ test('resolveFromLocalPath claims a forward-slash separated path', async () => {
   expect(result?.manifest?.name).toBe('nested-pkg')
 })
 
+test('linkedDirectoryPath() returns the directory of a specifier saved as link:', () => {
+  const projectDir = path.resolve('project')
+  expect(linkedDirectoryPath('../pkg', projectDir)).toBe(path.resolve('pkg'))
+  expect(linkedDirectoryPath('link:../pkg', projectDir)).toBe(path.resolve('pkg'))
+  expect(linkedDirectoryPath('~/pkg', projectDir)).toBe(path.join(os.homedir(), 'pkg'))
+  expect(linkedDirectoryPath('link:~/pkg', projectDir)).toBe(path.join(os.homedir(), 'pkg'))
+})
+
+test('linkedDirectoryPath() returns undefined for a specifier not saved as link:', () => {
+  const projectDir = path.resolve('project')
+  expect(linkedDirectoryPath('file:../pkg', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('../pkg.tgz', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('is-positive', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('gh:@scope/pkg', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('user/repo', projectDir)).toBeUndefined()
+})

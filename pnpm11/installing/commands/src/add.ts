@@ -7,13 +7,17 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
+import { linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
+import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',
@@ -315,15 +319,30 @@ export async function handler (
       // `dry-run` turn `add` into a no-op check.
       dryRun: false,
     }, params)
-    return
+  } else {
+    await installDeps({
+      ...opts,
+      rebuildHandler: commands?.rebuild,
+      include,
+      includeDirect: include,
+      dryRun: false,
+    }, params)
   }
-  await installDeps({
-    ...opts,
-    rebuildHandler: commands?.rebuild,
-    include,
-    includeDirect: include,
-    dryRun: false,
-  }, params)
+  await Promise.all(params.map(async (param) => warnIfLinkedWithPeers(param, opts.dir)))
+}
+
+/**
+ * A directory added without an alias (`pnpm add ../pkg`) is saved as a
+ * `link:` dependency, so it gets the same peer dependency warning as
+ * `pnpm link`. Selectors of any other kind, and a directory without a
+ * manifest, produce no warning.
+ */
+async function warnIfLinkedWithPeers (param: string, projectDir: string): Promise<void> {
+  const { alias, bareSpecifier } = parseWantedDependency(param)
+  if (alias != null || bareSpecifier == null) return
+  const pkgDir = linkedDirectoryPath(bareSpecifier, projectDir)
+  if (pkgDir == null) return
+  warnAboutLinkedPeerDependencies(await safeReadProjectManifestOnly(pkgDir), { pkgDir, prefix: projectDir })
 }
 
 function applyAllowBuildSelectors (
