@@ -101,6 +101,24 @@ describeOnWindows('PowerShell shims with Unicode paths', () => {
   })
 })
 
+describeOnPosix('PowerShell shims with Unicode paths on POSIX', () => {
+  test('keeps the shebang at the start of a non-ASCII shim', async () => {
+    const tempDir = temporaryDirectory()
+    try {
+      const targetDir = path.join(tempDir, '工具')
+      fs.mkdirSync(targetDir)
+      const target = path.join(targetDir, 'cli.js')
+      fs.writeFileSync(target, '#!/usr/bin/env node\n', 'utf8')
+      await cmdShim(target, path.join(tempDir, 'shim'))
+      const shim = fs.readFileSync(path.join(tempDir, 'shim.ps1'), 'utf8')
+      assert.ok(shim.includes('工具'))
+      assert.ok(shim.startsWith('#!/usr/bin/env pwsh\n'))
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describeOnWindows('create a command shim for a .exe file', () => {
   test('shim files', async (t) => {
     const tempDir = temporaryDirectory()
