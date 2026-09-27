@@ -105,8 +105,11 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     } else {
         ArgQuoting::Posix
     };
-    let command = build_command(opts.invocation.script, opts.invocation.args, quoting);
-    child_env.insert("npm_lifecycle_script".to_string(), command.clone());
+    let command = ScriptCommand {
+        run: build_command(opts.invocation.script, opts.invocation.args, quoting),
+        shown: build_command(opts.invocation.script, opts.invocation.args, ArgQuoting::Posix),
+    };
+    child_env.insert("npm_lifecycle_script".to_string(), command.run.clone());
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
@@ -118,12 +121,12 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
         // Echo `$ <script>` to stderr for an inherited-stdio run, the
         // same as `pnpm run`. The dim styling is omitted.
         let mut stderr = io::stderr();
-        let _ = writeln!(stderr, "$ {command}");
+        let _ = writeln!(stderr, "$ {}", command.shown);
     }
 
     if emulate {
         return execute_emulated(
-            &command,
+            &command.run,
             opts.pkg_root,
             &child_env,
             EmulatedOutput::Inherit,
@@ -178,19 +181,28 @@ fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
     child_env
 }
 
+/// A script with its extra arguments appended.
+struct ScriptCommand {
+    /// What the shell runs, quoted for that shell.
+    run: String,
+    /// What pnpm prints, with the arguments quoted the POSIX way on every
+    /// platform, so that `cmd`'s `^` escapes stay out of the output.
+    shown: String,
+}
+
 fn run_streamed(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
     emulate: bool,
 ) -> Result<ScriptExit, RunScriptError> {
-    streamed.started(command);
+    streamed.started(&command.shown);
     let status = if emulate {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(
-            command,
+            &command.run,
             opts.pkg_root,
             child_env,
             EmulatedOutput::Lines(&emit_line),
@@ -212,12 +224,12 @@ fn run_streamed(
 fn run_in_shell(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, &command.run), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env);
@@ -225,22 +237,22 @@ fn run_in_shell(
         .map_err(|source| spawn_error(opts, command, source))?;
     let status = child
         .wait()
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })?;
+        .map_err(|source| RunScriptError::Wait { script: command.shown.clone(), source })?;
     Ok(ScriptExit::Process(status))
 }
 
-/// Spawn `command` under `shell` with both output streams piped, and
+/// Spawn [`ScriptCommand::run`] under `shell` with both output streams piped, and
 /// republish each line through `streamed`.
 fn run_piped(
     opts: &RunScript<'_>,
     shell: &SelectedShell,
-    command: &str,
+    command: &ScriptCommand,
     child_env: &HashMap<String, String>,
     streamed: StreamedScript<'_>,
 ) -> Result<ScriptExit, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
-    push_script_arg(&mut cmd, &script_body(shell, command), shell.windows_verbatim_args);
+    push_script_arg(&mut cmd, &script_body(shell, &command.run), shell.windows_verbatim_args);
     cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env)
@@ -252,13 +264,13 @@ fn run_piped(
     streamed
         .pump(&mut child)
         .map(ScriptExit::Process)
-        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
+        .map_err(|source| RunScriptError::Wait { script: command.shown.clone(), source })
 }
 
-fn spawn_error(opts: &RunScript<'_>, command: &str, source: io::Error) -> RunScriptError {
+fn spawn_error(opts: &RunScript<'_>, command: &ScriptCommand, source: io::Error) -> RunScriptError {
     match missing_script_shell(opts.execution.shell, source, opts.pkg_root) {
         Ok(error) => RunScriptError::ScriptShell(error),
-        Err(source) => RunScriptError::Spawn { script: command.to_string(), source },
+        Err(source) => RunScriptError::Spawn { script: command.shown.clone(), source },
     }
 }
 

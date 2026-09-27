@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { temporaryDirectory } from 'tempy'
 
-import { appendScriptArgs, quoteForCmd } from '../src/scriptArgs.js'
+import { appendScriptArgs, quoteForCmd, showScriptWithArgs } from '../src/scriptArgs.js'
 
 test.each([
   ['plain', 'plain'],
@@ -67,4 +67,9 @@ test('appendScriptArgs() finds a batch file in the directory the script runs in'
 
   expect(appendScriptArgs('tool.cmd', ['%PATH%'], { platform: 'win32', wd, searchPath: () => '' }))
     .toBe('tool.cmd ^^^%PATH^^^%')
+})
+
+test('showScriptWithArgs() quotes the POSIX way', () => {
+  expect(showScriptWithArgs('node x.js', ['a b', '%PATH%', 'C:\\dir\\'])).toBe("node x.js 'a b' %PATH% 'C:\\dir\\'")
+  expect(showScriptWithArgs('node x.js', [])).toBe('node x.js')
 })

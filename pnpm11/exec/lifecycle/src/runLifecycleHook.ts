@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { appendScriptArgs, lifecycle, scriptSearchPath } from '@pnpm/exec.npm-lifecycle'
+import { appendScriptArgs, lifecycle, scriptSearchPath, showScriptWithArgs } from '@pnpm/exec.npm-lifecycle'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest, PackageScripts, ProjectManifest } from '@pnpm/types'
 import chalk from 'chalk'
@@ -98,7 +98,9 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   const scriptShell = typeof opts.scriptShell === 'string' && opts.scriptShell !== ''
     ? opts.scriptShell
     : undefined
+  let shownScript = m.scripts[stage]
   if (opts.args?.length && m.scripts?.[stage]) {
+    shownScript = showScriptWithArgs(m.scripts[stage], opts.args)
     m.scripts[stage] = appendScriptArgs(m.scripts[stage], opts.args, {
       platform: isWindows() ? 'win32' : 'linux',
       scriptShell,
@@ -114,12 +116,12 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     lifecycleLogger.debug({
       depPath: opts.depPath,
       optional,
-      script: m.scripts[stage],
+      script: shownScript,
       stage,
       wd: opts.pkgRoot,
     })
   } else if (!opts.silent) {
-    process.stderr.write(chalk.dim(`$ ${m.scripts[stage]}`) + '\n')
+    process.stderr.write(chalk.dim(`$ ${shownScript}`) + '\n')
   }
   const logLevel = (opts.stdio !== 'inherit' || opts.silent)
     ? 'silent'
@@ -153,6 +155,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell,
     shellEmulator: opts.shellEmulator,
+    shownScript,
     stdio: opts.stdio ?? 'pipe',
     unsafePerm: opts.unsafePerm,
   })

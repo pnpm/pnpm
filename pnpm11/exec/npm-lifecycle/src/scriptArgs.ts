@@ -22,10 +22,18 @@ export interface QuoteScriptArgsOptions {
 export function appendScriptArgs (script: string, args: string[], opts: QuoteScriptArgsOptions): string {
   if (args.length === 0) return script
   if (!commandParsedByCmd(opts.scriptShell, opts.platform, opts.shellEmulator)) {
-    return `${script} ${shellQuote(args)}`
+    return showScriptWithArgs(script, args)
   }
   const doubleEscape = isBatchFile(firstWord(lastCommand(script)), opts)
   return `${script} ${args.map((arg) => quoteForCmd(arg, doubleEscape)).join(' ')}`
+}
+
+/**
+ * `script` with `args` quoted the POSIX way, which is how pnpm prints a script
+ * on every platform. It keeps `cmd`'s `^` escapes out of the output.
+ */
+export function showScriptWithArgs (script: string, args: string[]): string {
+  return args.length === 0 ? script : `${script} ${shellQuote(args)}`
 }
 
 /**

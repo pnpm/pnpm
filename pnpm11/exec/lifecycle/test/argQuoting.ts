@@ -69,3 +69,15 @@ skipOnRealWindows.each([false, true])('runLifecycleHook() quotes arguments for a
   const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
   expect(recorded).toStrictEqual(args)
 })
+
+test('runLifecycleHook() shows the arguments quoted the POSIX way when cmd quoting runs', async () => {
+  const pkgRoot = f.prepare('escape-args')
+
+  await expect(runLifecycleHook('fail', { name: 'fail', version: '1.0.0', scripts: { fail: 'node -e "process.exit(1)"' } }, {
+    args: ['a b', '%PATH%'],
+    depPath: '/fail/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+  })).rejects.toThrow('fail@1.0.0 fail: `node -e "process.exit(1)" \'a b\' %PATH%`')
+})

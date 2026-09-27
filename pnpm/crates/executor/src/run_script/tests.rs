@@ -1,6 +1,7 @@
 use super::{RunScript, ScriptOutput, parsed_by_cmd, run_script};
 use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
-use std::{collections::HashMap, fs, path::Path};
+use pnpm_reporter::{LifecycleMessage, LogEvent};
+use std::{collections::HashMap, fs, path::Path, sync::Mutex};
 use tempfile::tempdir;
 
 #[test]
@@ -66,11 +67,54 @@ fn run_script_passes_the_args_unchanged() {
     }
 }
 
+#[test]
+fn run_script_shows_the_args_quoted_the_posix_way() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    fn record(event: &LogEvent) {
+        EVENTS
+            .lock()
+            .expect("lock")
+            .push(event.clone());
+    }
+
+    let dir = project_recording_args();
+    let args = ["a b".to_string(), "%PATH%".to_string()];
+    let invocation = crate::ScriptInvocation { stage: "echo", script: "node echo.js", args: &args };
+    let output = ScriptOutput::Streamed { dep_path: "project", emit: record };
+    assert!(run_with_output(dir.path(), invocation, output).success());
+
+    let shown: Vec<String> = EVENTS
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(log) => match &log.message {
+                LifecycleMessage::Script { script, .. } => Some(script.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(shown, ["node echo.js 'a b' %PATH%"]);
+}
+
 fn manifest() -> serde_json::Value {
     serde_json::json!({ "name": "t", "version": "1.0.0" })
 }
 
 fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExit {
+    run_with_output(
+        pkg_root,
+        crate::ScriptInvocation { stage, script, args },
+        ScriptOutput::Inherit,
+    )
+}
+
+fn run_with_output(
+    pkg_root: &Path,
+    invocation: crate::ScriptInvocation<'_>,
+    output: ScriptOutput<'_>,
+) -> ScriptExit {
     let extra_env = HashMap::new();
     run_script(&RunScript {
         environment: crate::ScriptEnvironment {
@@ -89,13 +133,13 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
             shell_emulator: false,
             wd_bin_dir: None,
         },
-        invocation: crate::ScriptInvocation { stage, script, args },
+        invocation,
         manifest: &manifest(),
 
         pkg_root,
 
         silent: true,
-        output: ScriptOutput::Inherit,
+        output,
         process_tracker: None,
     })
     .expect("run the script")
