@@ -336,6 +336,27 @@ fn configured_frozen_lockfile_values_take_priority_over_prefer_flags() {
     }
 }
 
+/// `--config.<setting>=<value>` reaches settings the command has no flag
+/// table entry for.
+#[test]
+fn dotted_frozen_lockfile_setting_rejects_an_outdated_lockfile() {
+    for token in ["--config.frozen-lockfile=true", "--config.frozenLockfile=true"] {
+        let root = outdated_lockfile_project();
+        let workspace = root.path();
+        let assert = pacquet_without_ci(workspace)
+            .args(["install", token])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "{token}; got:\n{stderr}");
+        assert_eq!(
+            fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+                .expect("read lockfile after failed install"),
+            OUTDATED_LOCKFILE,
+        );
+    }
+}
+
 #[test]
 fn ci_install_without_a_nonempty_lockfile_generates_one() {
     for create_empty_lockfile in [false, true] {

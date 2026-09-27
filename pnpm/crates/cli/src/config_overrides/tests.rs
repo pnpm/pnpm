@@ -9,6 +9,7 @@ use pnpm_config::{
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{
+    collections::BTreeMap,
     ffi::OsString,
     path::{Path, PathBuf},
 };
@@ -205,6 +206,16 @@ fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
+
+    for argv in [
+        argv(["pacquet", "--config.maxsockets=4", "--config.maxSockets=9", "install"]),
+        argv(["pacquet", "--config.maxSockets=9", "--config.maxsockets=4", "install"]),
+    ] {
+        let (overrides, _) = ConfigOverrides::extract(argv);
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.max_sockets, Some(9), "the camelCase canonical spelling wins too");
+    }
 }
 
 #[test]
@@ -645,3 +656,36 @@ fn install_with_a_package_claims_the_options_of_add() {
 mod paths;
 
 mod bare_flags;
+
+/// A setting no table claims is handed to [`Config::current`], keyed by its
+/// kebab-case name whichever spelling the command line used.
+#[test]
+fn unclaimed_dotted_settings_are_kept_for_config_loading() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.frozen-lockfile=true",
+        "--config.autoInstallPeers=false",
+        "--config.network-concurrency=4",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    assert_eq!(
+        overrides.unported_settings(),
+        &BTreeMap::from([
+            ("auto-install-peers".to_string(), "false".to_string()),
+            ("frozen-lockfile".to_string(), "true".to_string()),
+            ("network-concurrency".to_string(), "4".to_string()),
+        ]),
+    );
+}
+
+#[test]
+fn claimed_dotted_settings_are_not_passed_on() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.node-linker=hoisted",
+        "--config.registry=https://example.test",
+        "install",
+    ]));
+    assert!(overrides.unported_settings().is_empty());
+}

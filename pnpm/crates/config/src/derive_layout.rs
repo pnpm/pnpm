@@ -120,6 +120,10 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        if !self.explicit_settings.contains_key("lockfile") {
+            self.lockfile = self.package_lock;
+        }
+
         // A pinned `lockfileDir` moves the root `node_modules` and the
         // virtual store with it. Applied after every source has had its
         // say so the anchor uses the final value, and before the

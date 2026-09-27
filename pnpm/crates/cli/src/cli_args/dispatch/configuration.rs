@@ -209,10 +209,12 @@ impl StoreUse {
 pub(in crate::cli_args) fn seed_config(
     npmrc_auth_file: Option<&Path>,
     ignore_workspace: bool,
+    config_overrides: &ConfigOverrides,
 ) -> Config {
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,
+        cli_setting_values: config_overrides.unported_settings().clone(),
         ..Config::default()
     }
 }

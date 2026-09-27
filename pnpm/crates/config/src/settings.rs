@@ -1787,6 +1787,14 @@ pub struct Config {
     /// layer.
     pub cli_settings: BTreeSet<String>,
 
+    /// The `--config.<setting>=<value>` values the command line carries
+    /// for settings the CLI has no handling of its own for, keyed by
+    /// kebab-case name. The CLI seeds them before [`Config::current`], which
+    /// applies them above `PNPM_CONFIG_*` and before the derivations that
+    /// read the final settings, such as the lockfile-dir anchoring and the
+    /// global virtual store.
+    pub cli_setting_values: BTreeMap<String, String>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
