@@ -509,7 +509,11 @@ impl EnvironmentNetwork {
                 prefer_offline: config.prefer_offline,
                 ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             },
-            store_view: None,
+            store_view: pnpm_resolving_npm_resolver::OfflineStoreView::open_for_offline(
+                self.offline,
+                &config.store_dir,
+                config.frozen_store,
+            ),
         }
     }
 }

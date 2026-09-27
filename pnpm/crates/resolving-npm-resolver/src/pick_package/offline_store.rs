@@ -56,22 +56,28 @@ impl OfflineStoreView {
     }
 
     /// Whether the store index holds the row for a picked version's
-    /// `integrity\tname@version` key. A point query costs a few dozen
-    /// microseconds, so it runs inline instead of paying a blocking-pool
-    /// hop, and the answer is memoized: repeat picks of the same version
-    /// are a hash lookup.
-    #[must_use]
-    pub(crate) fn holds(&self, key: &str) -> bool {
+    /// `integrity\tname@version` key. The query runs on the blocking pool,
+    /// because the index mutex may be held by another pick's batched
+    /// [`Self::narrowed`] query. The answer is memoized, so repeat picks of
+    /// the same version are a hash lookup.
+    pub(crate) async fn holds(&self, key: &str) -> bool {
         if let Ok(presence) = self.presence.lock()
             && let Some(cached) = presence.get(key).copied()
         {
             return cached;
         }
-        let present = self.index
-            .lock()
-            .ok()
-            .and_then(|guard| guard.contains_key(key).ok())
-            .unwrap_or(false);
+        let index = Arc::clone(&self.index);
+        let owned_key = key.to_string();
+        let present = tokio::task::spawn_blocking(move || {
+            index
+                .lock()
+                .ok()
+                .and_then(|guard| guard.contains_key(&owned_key).ok())
+        })
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(false);
         if let Ok(mut presence) = self.presence.lock() {
             presence.insert(key.to_string(), present);
         }
@@ -128,10 +134,7 @@ impl OfflineStoreView {
         let index = Arc::clone(&self.index);
         let held: HashSet<String> = tokio::task::spawn_blocking(move || {
             let guard = index.lock().ok()?;
-            guard
-                .get_many(&keys)
-                .ok()
-                .map(|hits| hits.into_keys().collect())
+            guard.contains_many(&keys).ok()
         })
         .await
         .ok()

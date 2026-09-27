@@ -288,7 +288,11 @@ pub(super) async fn pick_from_meta_offline(
     // narrowed re-pick, which only offers versions the store can verify.
     let picked_key =
         tarball_key(&meta.name, &picked_version.version.to_string(), &picked_version.dist);
-    if picked_key.is_some_and(|key| store_view.holds(&key)) {
+    let picked_is_held = match picked_key {
+        Some(key) => store_view.holds(&key).await,
+        None => false,
+    };
+    if picked_is_held {
         return Ok((meta, picked));
     }
     let Some(narrowed) = store_view.narrowed(route_key, unfiltered_meta).await else {

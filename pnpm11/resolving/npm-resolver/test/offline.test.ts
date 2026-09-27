@@ -44,16 +44,16 @@ function seedMetaMirror (cacheDir: string, meta: PackageMeta): void {
 }
 
 /**
- * Adds a package version to the store index the way a previous install
+ * Adds an is-positive version to the store index the way a previous install
  * would have, so the resolver's store-presence checks can find it.
  */
-function seedStoreWithVersion (storeDir: string, name: string, version: string, integrity: string): void {
+function seedStoreWithVersion (storeDir: string, version: string, integrity: string): void {
   const storeIndex = new StoreIndex(storeDir)
   try {
-    storeIndex.set(storeIndexKey(integrity, `${name}@${version}`), {
+    storeIndex.set(storeIndexKey(integrity, `is-positive@${version}`), {
       files: new Map(),
       algo: 'sha512',
-      manifest: { name, version },
+      manifest: { name: 'is-positive', version },
     })
   } finally {
     storeIndex.close()
@@ -64,7 +64,7 @@ test('offline resolution picks the highest version whose tarball is in the store
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)
   const storeDir = temporaryDirectory()
-  seedStoreWithVersion(storeDir, 'is-positive', '3.0.0', isPositiveAbbreviatedMeta.versions['3.0.0'].dist.integrity)
+  seedStoreWithVersion(storeDir, '3.0.0', isPositiveAbbreviatedMeta.versions['3.0.0'].dist.integrity)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir,
@@ -85,7 +85,7 @@ test('offline resolution finds a store-held version whose metadata only has a sh
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, meta)
   const storeDir = temporaryDirectory()
-  seedStoreWithVersion(storeDir, 'is-positive', '3.0.0', `sha1-${Buffer.from(shasum, 'hex').toString('base64')}`)
+  seedStoreWithVersion(storeDir, '3.0.0', `sha1-${Buffer.from(shasum, 'hex').toString('base64')}`)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir,
@@ -98,11 +98,35 @@ test('offline resolution finds a store-held version whose metadata only has a sh
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
 
+test('offline resolution of * finds a store-held prerelease when the latest prerelease is not stored', async () => {
+  const meta = structuredClone(isPositiveAbbreviatedMeta)
+  const template = meta.versions['3.1.0']
+  meta.versions = {
+    '4.0.0-beta.1': { ...template, version: '4.0.0-beta.1', dist: { ...template.dist, integrity: 'sha512-YmV0YTE=' } },
+    '4.0.0-beta.2': { ...template, version: '4.0.0-beta.2', dist: { ...template.dist, integrity: 'sha512-YmV0YTI=' } },
+  }
+  meta['dist-tags'] = { latest: '4.0.0-beta.2' }
+  const cacheDir = temporaryDirectory()
+  seedMetaMirror(cacheDir, meta)
+  const storeDir = temporaryDirectory()
+  seedStoreWithVersion(storeDir, '4.0.0-beta.1', 'sha512-YmV0YTE=')
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir,
+    offline: true,
+    registriesByScope,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '*' }, {})
+
+  expect(resolveResult!.id).toBe('is-positive@4.0.0-beta.1')
+})
+
 test('offline resolution keeps preferring the store-held version on a repeat pick from the in-memory cache', async () => {
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)
   const storeDir = temporaryDirectory()
-  seedStoreWithVersion(storeDir, 'is-positive', '3.0.0', isPositiveAbbreviatedMeta.versions['3.0.0'].dist.integrity)
+  seedStoreWithVersion(storeDir, '3.0.0', isPositiveAbbreviatedMeta.versions['3.0.0'].dist.integrity)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir,
@@ -120,7 +144,7 @@ test('offline resolution keeps the newest pick when the store already holds it',
   const cacheDir = temporaryDirectory()
   seedMetaMirror(cacheDir, isPositiveAbbreviatedMeta)
   const storeDir = temporaryDirectory()
-  seedStoreWithVersion(storeDir, 'is-positive', '3.1.0', isPositiveAbbreviatedMeta.versions['3.1.0'].dist.integrity)
+  seedStoreWithVersion(storeDir, '3.1.0', isPositiveAbbreviatedMeta.versions['3.1.0'].dist.integrity)
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir,
