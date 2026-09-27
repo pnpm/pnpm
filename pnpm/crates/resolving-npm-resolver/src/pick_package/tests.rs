@@ -10,6 +10,8 @@ mod cache_read_modes;
 
 mod version_selection;
 
+mod offline_store_pick;
+
 use std::sync::Arc;
 
 use pnpm_network::{

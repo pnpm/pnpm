@@ -52,11 +52,11 @@ import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import { clone } from 'ramda'
 import semver from 'semver'
-import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
 import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
+import { getIntegrity } from './getIntegrity.js'
 import { memoizeFetchMetadata } from './memoizeFetchMetadata.js'
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
 import {
@@ -296,6 +296,7 @@ export function createNpmResolver (
       cacheDir: opts.cacheDir,
       ignoreMissingTimeField: opts.ignoreMissingTimeField,
       releaseAgeUpgradeCheckedPackuments,
+      peekManifestFromStore,
     }),
     registriesByScope: opts.registriesByScope,
     registriesByPrefix,
@@ -1435,24 +1436,6 @@ export function detectMinReleaseAgeViolation (args: {
     code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
     reason: `was published at ${new Date(ts).toISOString()}, within the minimumReleaseAge cutoff (${args.publishedBy.toISOString()})`,
   }
-}
-
-function getIntegrity (dist: {
-  integrity?: string
-  shasum: string
-  tarball: string
-}): string | undefined {
-  if (dist.integrity) {
-    return dist.integrity
-  }
-  if (!dist.shasum) {
-    return undefined
-  }
-  const integrity = ssri.fromHex(dist.shasum, 'sha1')
-  if (!integrity) {
-    throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
-  }
-  return integrity.toString()
 }
 
 function createRegistryTarballResolution (
