@@ -425,6 +425,12 @@ expect_status 1
 expect_output "remote 'some-fork' does not point to some-fork/pnpm"
 expect_output 'Current some-fork: https://github.com/someone-else/pnpm.git'
 expect_no_call '^git push'
+# Plaintext http is not one of the forms that is read as a slug, so it is refused too.
+export STUB_PUSH_URL='http://github.com/some-fork/pnpm.git'
+run_case 'fork-push-plaintext-http' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git push'
 unset STUB_PUSH_URL
 
 # Without the head repository there is nothing to compare against, so the push stops
