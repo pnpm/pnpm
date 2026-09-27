@@ -70,8 +70,8 @@ StackBlitz WebContainer, booted in headless Chromium. WebContainers run
 Node.js in the browser with their own `fs` and `node:sqlite`, which differ from
 Node.js in ways no local test reproduces. pacquet is a native executable and
 does not run there, so only the pnpm CLI is tested. Each step must exit 0:
-install without a lockfile, repeat install, reinstall from the store, `add`,
-`remove`, and `list`.
+install without a lockfile, repeat install, offline reinstall from the
+store, `add`, `remove`, and `list`.
 
 From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
 

@@ -18,14 +18,25 @@ const STEP_TIMEOUT_MS = 10 * 60_000
 
 const PNPM = ['../pnpm/bin/pnpm.mjs']
 
+const IS_ODD_ABSENT = `
+const { dependencies } = require('./package.json')
+if ('is-odd' in dependencies) throw new Error('is-odd is still in package.json')
+let resolved
+try {
+  resolved = require.resolve('is-odd')
+} catch {}
+if (resolved) throw new Error('is-odd still resolves to ' + resolved)
+`
+
 const STEPS = [
   { name: 'install without a lockfile', command: 'node', args: [...PNPM, 'install'] },
   { name: 'load the installed packages', command: 'node', args: ['-e', "require('is-odd'); require('chalk')"] },
   { name: 'repeat install', command: 'node', args: [...PNPM, 'install'] },
   { name: 'remove node_modules and the lockfile', command: 'rm', args: ['-rf', 'node_modules', 'pnpm-lock.yaml'] },
-  { name: 'install from the store', command: 'node', args: [...PNPM, 'install'] },
+  { name: 'install offline from the store', command: 'node', args: [...PNPM, 'install', '--offline'] },
   { name: 'add a dependency', command: 'node', args: [...PNPM, 'add', 'semver@7.6.3'] },
   { name: 'remove a dependency', command: 'node', args: [...PNPM, 'remove', 'is-odd'] },
+  { name: 'check the dependency is gone', command: 'node', args: ['-e', IS_ODD_ABSENT] },
   { name: 'list dependencies', command: 'node', args: [...PNPM, 'list'], expectOutput: 'semver@7.6.3' },
   { name: 'load the added package', command: 'node', args: ['-e', "require('semver')"] },
 ]
@@ -109,6 +120,10 @@ function listPnpmPackageFiles (dir) {
 }
 
 /**
+ * Serves the page, the WebContainer API, and the pnpm package files on an
+ * ephemeral 127.0.0.1 port. Resolves with the listening server, or rejects if
+ * it cannot listen.
+ *
  * WebContainers need SharedArrayBuffer, which browsers only expose to
  * cross-origin isolated pages, hence the COOP and COEP headers.
  */
@@ -127,7 +142,8 @@ function startServer () {
     res.setHeader('Content-Type', contentType(file))
     fs.createReadStream(file).pipe(res)
   })
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    httpServer.once('error', reject)
     httpServer.listen(0, '127.0.0.1', () => {
       resolve(httpServer)
     })
