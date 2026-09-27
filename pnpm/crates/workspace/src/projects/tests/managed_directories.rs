@@ -137,6 +137,22 @@ fn skips_a_managed_directory_when_the_root_is_spelled_with_dot_dot() {
     );
 }
 
+/// The cache and state directories default to the home drive, so a workspace
+/// on another drive has managed directories no path from its root reaches.
+#[cfg(windows)]
+#[test]
+fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "plugins/group/pkg", "pkg");
+    let other_drive = if tmp.path().starts_with("Z:\\") { "Y:\\cache" } else { "Z:\\cache" };
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["plugins/*/*"], vec![PathBuf::from(other_drive)]),
+        ["pkg", "root"],
+    );
+}
+
 #[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn skips_a_managed_directory_configured_with_different_casing() {
