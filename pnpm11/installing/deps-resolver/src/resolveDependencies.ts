@@ -2641,11 +2641,15 @@ async function resolveDependency (
 }
 
 /**
+ * Returns the policy violation to record for a resolved package. A violation
+ * with any other code is returned unchanged. A `minimumReleaseAge` violation
+ * is returned only if the package was published after `ctx.maximumPublishedBy`
+ * and `ctx.publishedByExclude` does not cover it.
+ *
  * The resolver flags a pick against the cutoff it picked with, which
  * `resolutionMode: time-based` tightens below the `minimumReleaseAge` cutoff
- * for subdependencies. Only `minimumReleaseAge` is a policy, so the flag is
- * checked again against its cutoff alone. The picking cutoff is never later
- * than the `minimumReleaseAge` one, so every real violation is flagged first.
+ * for subdependencies. The picking cutoff is never later than the
+ * `minimumReleaseAge` one, so every real violation is flagged first.
  */
 function recheckAgainstMinimumReleaseAge (
   ctx: Pick<ResolutionContext, 'maximumPublishedBy' | 'publishedByExclude'>,

@@ -208,12 +208,15 @@ pub(super) fn edge_cache_key(
     ))
 }
 
+/// Returns the policy violation to record for `result`. A violation with
+/// any other code is returned unchanged. A `minimumReleaseAge` violation
+/// is returned only if the package was published after the base
+/// `published_by` cutoff and `published_by_exclude` does not cover it.
+///
 /// The resolver flags a pick against the cutoff it picked with, which
 /// `resolutionMode: time-based` tightens below the `minimumReleaseAge`
-/// cutoff for subdependencies. Only `minimumReleaseAge` is a policy, so
-/// its violations are checked again against its cutoff alone. The
-/// picking cutoff is never later than the `minimumReleaseAge` one, so
-/// every real violation is flagged first.
+/// cutoff for subdependencies. The picking cutoff is never later than
+/// the `minimumReleaseAge` one, so every real violation is flagged first.
 fn recheck_against_minimum_release_age(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
