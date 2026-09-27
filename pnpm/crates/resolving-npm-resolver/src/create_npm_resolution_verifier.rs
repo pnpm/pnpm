@@ -304,17 +304,10 @@ pub fn create_npm_resolution_verifier(
         named_registries_routing: &named_registries_routing,
     });
 
-    let lookup_context = opts.artifacts.lookups
-        .as_ref()
-        .map_or_else(
-            || Arc::new(PublishedAtLookupContext::new()),
-            |lookups| Arc::clone(&lookups.0),
-        );
-
     NpmResolutionVerifier {
         now: opts.now,
         policy_snapshot,
-        lookup_context,
+        lookup_context: crate::VerifierLookups::context_or_new(opts.artifacts.lookups.as_ref()),
         release_age: ReleaseAgeCheck {
             minimum_minutes: opts.release_age.minimum_minutes,
             cutoff,

@@ -55,7 +55,7 @@ fn a_project_resolves_while_its_workspace_dependency_runs_its_scripts() {
         workspace,
         &serde_json::json!({ "postinstall": wait_for_then_record("app-resolving", "lib") }),
         &serde_json::json!({
-            "postinstall": "node -e \"require('fs').appendFileSync('../../order.txt', 'app;')\"",
+            "postinstall": r#"node -e "require('fs').appendFileSync('../../order.txt', 'app;')""#,
         }),
     );
     fs::write(
@@ -94,10 +94,10 @@ fn a_project_with_a_preinstall_script_waits_for_its_workspace_dependencies() {
     lib_and_app(
         workspace,
         &serde_json::json!({
-            "postinstall": "node -e \"setTimeout(() => require('fs').writeFileSync('../../lib-built', ''), 500)\"",
+            "postinstall": r#"node -e "setTimeout(() => require('fs').writeFileSync('../../lib-built', ''), 500)""#,
         }),
         &serde_json::json!({
-            "preinstall": "node -e \"process.exit(require('fs').existsSync('../../lib-built') ? 0 : 1)\"",
+            "preinstall": r#"node -e "process.exit(require('fs').existsSync('../../lib-built') ? 0 : 1)""#,
         }),
     );
 

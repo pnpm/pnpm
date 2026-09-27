@@ -11,7 +11,7 @@
 
 use super::{
     Arc, Config, DedicatedProjectRuns, HashMap, HashSet, Path, PathBuf, State,
-    init_dedicated_project_state, record_dedicated_result, sequence_project_dependencies,
+    dedicated_runs::record_dedicated_result, sequence_project_dependencies,
 };
 use crate::state::DedicatedCaches;
 use futures_util::{
@@ -46,17 +46,17 @@ type Slot = Arc<Mutex<Option<OwnedSemaphorePermit>>>;
 /// reaches the wait, or that copies a workspace project into its virtual
 /// store (an injected or `file:` dependency) while materializing, waits for
 /// them before it starts.
-pub(in crate::cli_args::pipelines) fn early_starts<'p>(
+pub(in crate::cli_args::pipelines) fn early_starts(
     config: &Config,
-    projects: impl IntoIterator<Item = (&'p Path, &'p serde_json::Value)>,
+    projects: &[pnpm_workspace::Project],
 ) -> HashSet<PathBuf> {
     if config.inject_workspace_packages {
         return HashSet::new();
     }
     projects
-        .into_iter()
-        .filter(|(_, manifest)| can_start_early(manifest))
-        .map(|(project_dir, _)| project_dir.to_path_buf())
+        .iter()
+        .filter(|project| can_start_early(project.manifest.value()))
+        .map(|project| project.root_dir.clone())
         .collect()
 }
 
@@ -159,7 +159,7 @@ where
             return;
         }
         let gate = starts_early.then(|| self.gate(dependencies_installed.clone(), &slot));
-        let result = self.install(project_dir, gate).await;
+        let result = self.runs.install_project(project_dir, &self.caches, gate, self.run).await;
         drop(
             slot.lock()
                 .expect("slot lock is not poisoned")
@@ -179,26 +179,6 @@ where
         } else {
             Installed::Succeeded
         });
-    }
-
-    async fn install(
-        &self,
-        project_dir: &Path,
-        gate: Option<WorkspaceDependenciesInstalled>,
-    ) -> miette::Result<()> {
-        let state = init_dedicated_project_state(
-            self.runs.config,
-            project_dir,
-            self.runs.projects.names.get(project_dir).map(String::as_str),
-            self.runs.require_lockfile,
-            self.runs.http_client.as_ref().map(Arc::clone),
-        )?
-        .into_dedicated_project(&self.caches, gate);
-        // A project's install blocks its thread in places, such as while its
-        // lifecycle scripts run. On its own task, the other projects'
-        // installs move to another worker then.
-        tokio::spawn((self.run)(state)).await
-            .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic()))
     }
 
     /// Resolves once every workspace project `project_dir` depends on has

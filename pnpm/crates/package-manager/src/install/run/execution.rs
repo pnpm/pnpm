@@ -131,7 +131,14 @@ impl<'a> RunExecution<'a> {
         let dependencies_installed = self.owned.projects.dedicated
             .as_ref()
             .and_then(|dedicated| dedicated.dependencies_installed.clone());
-        wait_for_workspace_dependencies(dependencies_installed).await?;
+        if let Err(error) = wait_for_workspace_dependencies(dependencies_installed).await {
+            pnpm_store_dir::StoreIndexWriter::drain(
+                materialized.store_index_teardown,
+                "; some rows may not be persisted",
+            )
+            .await;
+            return Err(error);
+        }
         let workspace_manifest_dir = self.workspace.dirs.workspace_manifest_dir.clone();
         apply_materialization_result::<Reporter>(self.apply_inputs(
             projects,

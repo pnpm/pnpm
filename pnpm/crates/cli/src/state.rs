@@ -21,7 +21,7 @@ use std::{
 /// What the per-project installs of a workspace whose projects keep their
 /// own lockfiles share: the tarball cache every [`State`] carries, and the
 /// rest of [`SharedInstallCaches`].
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 pub(crate) struct DedicatedCaches {
     pub(crate) tarballs: Arc<MemCache>,
     pub(crate) install: SharedInstallCaches,

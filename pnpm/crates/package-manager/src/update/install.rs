@@ -156,14 +156,7 @@ pub(super) fn update_install<'i>(
     let dependency_groups = update_dependency_groups(&update, &owned);
     Install {
         lockfile_policy: update.lockfile_policy(),
-        execution: crate::InstallExecution {
-            skip_runtimes: update.config.skip_runtimes,
-            mutation: update_mutation(update.selection.packages, update.version.latest),
-            installs_only: true,
-            node_linker: update.config.node_linker,
-            lockfile_only: update.lockfile_only,
-            dry_run: false,
-        },
+        execution: update_execution(&update),
         resolution: crate::ResolutionInputs {
             update_seed_policy: seed.policy,
             preferred_versions_override: Some(seed.preferred_versions_override.into()),
@@ -193,6 +186,16 @@ pub(super) fn update_install<'i>(
             workspace_projects_override: None,
             dedicated: None,
         },
+    }
+}
+fn update_execution(update: &UpdateOptions<'_>) -> crate::InstallExecution {
+    crate::InstallExecution {
+        skip_runtimes: update.config.skip_runtimes,
+        mutation: update_mutation(update.selection.packages, update.version.latest),
+        installs_only: true,
+        node_linker: update.config.node_linker,
+        lockfile_only: update.lockfile_only,
+        dry_run: false,
     }
 }
 fn update_dependency_groups(

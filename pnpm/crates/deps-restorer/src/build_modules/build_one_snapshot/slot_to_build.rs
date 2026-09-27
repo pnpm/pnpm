@@ -57,6 +57,12 @@ pub(super) fn slot_to_build(
 /// marker, and a finished build removes it. A directory dependency is left
 /// out, since its files, and whether they need a build, can change under
 /// the same slot.
+///
+/// The slot is imported in place, so a concurrent install may still be
+/// importing it. The import places its completion marker, `package.json`,
+/// after every other file, the build marker included, so the slot counts as
+/// built only once `package.json` is there and the build marker is not;
+/// checked in that order.
 fn built_by_an_earlier_install(
     context: &BuildOneSnapshot<'_>,
     candidate: &BuildCandidate<'_>,
@@ -71,8 +77,12 @@ fn built_by_an_earlier_install(
     {
         return Ok(false);
     }
-    marker
-        .try_exists()
-        .map(|exists| !exists)
-        .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.to_path_buf(), source })
+    let exists = |path: &Path| {
+        path.try_exists()
+            .map_err(|source| BuildModulesError::ReadBuildMarker {
+                path: path.to_path_buf(),
+                source,
+            })
+    };
+    Ok(exists(&marker.with_file_name("package.json"))? && !exists(marker)?)
 }

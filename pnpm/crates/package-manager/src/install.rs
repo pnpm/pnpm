@@ -488,7 +488,7 @@ pub type WorkspaceDependenciesInstalled =
 /// caches of [`pnpm_deps_restorer::SharedFetchCaches`]. Projects of one
 /// workspace mostly depend on the same packages, so each of those is
 /// loaded, parsed and verified once instead of once per project.
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 pub struct SharedInstallCaches {
     pub packuments: Arc<InMemoryPackageMetaCache>,
     pub verifier_lookups: pnpm_resolving_npm_resolver::VerifierLookups,

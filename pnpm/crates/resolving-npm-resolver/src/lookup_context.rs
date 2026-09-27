@@ -111,7 +111,18 @@ impl PublishedAtLookupContext {
 /// so the verifiers sharing one must reach the registries with the same
 /// credentials.
 #[derive(Debug, Default, Clone)]
-pub struct VerifierLookups(pub(crate) Arc<PublishedAtLookupContext>);
+pub struct VerifierLookups(Arc<PublishedAtLookupContext>);
+
+impl VerifierLookups {
+    /// The context a verifier looks up through: the one `lookups` shares, or
+    /// one of its own.
+    pub(crate) fn context_or_new(lookups: Option<&Self>) -> Arc<PublishedAtLookupContext> {
+        lookups.map_or_else(
+            || Arc::new(PublishedAtLookupContext::new()),
+            |lookups| Arc::clone(&lookups.0),
+        )
+    }
+}
 
 /// `\x00`-joined cache key for `(registry, name)` package-scoped
 /// lookups, of the form `${registry}\x00${name}`.

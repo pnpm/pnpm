@@ -1,10 +1,9 @@
-use super::pipelined_runs::early_starts;
 use super::{
     Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
     InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
     ThrottledClient, dedicated_project_name, discover_workspace_projects, ecosystem_install,
-    injected_source_dirs, prepare_root_config, project_dependencies, project_names,
-    select_install_family,
+    injected_source_dirs, pipelined_runs::early_starts, prepare_root_config, project_dependencies,
+    project_names, select_install_family,
 };
 use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 
@@ -264,12 +263,6 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let selection =
         select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
     dependencies.extend(project_dependencies(&selection, cfg.sort));
-    let early_starts = early_starts(
-        cfg,
-        projects
-            .iter()
-            .map(|project| (project.root_dir.as_path(), project.manifest.value())),
-    );
     DedicatedProjectRuns {
         config: cfg,
         projects: DedicatedProjects {
@@ -277,7 +270,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names,
             covers_workspace: true,
             injected_source_dirs,
-            early_starts,
+            early_starts: early_starts(cfg, &projects),
         },
         require_lockfile,
         http_client: Some(http_client),
