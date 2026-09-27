@@ -57,8 +57,8 @@ fn widen_mode(mode: impl Into<u32>) -> u32 {
 
 /// The narrowing counterpart of [`widen_mode`], generic for the same reason.
 #[cfg(unix)]
-fn narrow_mode<T: TryFrom<u32>>(mode: u32) -> io::Result<T> {
-    T::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
+fn narrow_mode<Mode: TryFrom<u32>>(mode: u32) -> io::Result<Mode> {
+    Mode::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
 /// [`current_umask`] on platforms without mode bits: nothing to mask.
