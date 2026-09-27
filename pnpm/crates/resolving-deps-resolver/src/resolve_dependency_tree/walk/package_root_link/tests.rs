@@ -8,7 +8,7 @@ fn a_file_spec_inside_the_package_becomes_a_package_root_link() {
         ("file:./typings/css-tree", "link:<root>/typings/css-tree"),
         ("file:typings/css-tree", "link:<root>/typings/css-tree"),
         ("file:./a/../b/", "link:<root>/b"),
-        ("file:.\\typings\\css-tree", "link:<root>/typings/css-tree"),
+        (r"file:.\typings\css-tree", "link:<root>/typings/css-tree"),
     ] {
         assert_eq!(file_spec_to_package_root_link(spec).as_deref(), Some(expected), "{spec}");
     }
@@ -23,7 +23,7 @@ fn a_spec_that_does_not_stay_inside_the_package_is_left_alone() {
         "file:../sibling",
         "file:./a/../../sibling",
         "file:/abs/path",
-        "file:C:\\abs\\path",
+        r"file:C:\abs\path",
         "file:~/dir",
         "file:./vendor/pkg-1.0.0.tgz",
         "link:./child",

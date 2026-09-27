@@ -228,11 +228,6 @@ pub(super) fn walk_dep(
         walk_workspace_importer(state, dep, importer_id)?;
         return Ok(None);
     }
-    // A `link:<root>/...` placeholder the hoister kept next to its package;
-    // `link_hoisted_package_root_links` creates the link.
-    if reference.starts_with("link:") {
-        return Ok(None);
-    }
 
     let Some(resolved) = resolve_reference(state, &reference)? else {
         return Ok(None);
@@ -368,6 +363,11 @@ pub(super) fn resolve_reference<'l>(
     state: &WalkState<'l>,
     reference: &str,
 ) -> Result<Option<ResolvedReference<'l>>, HoistedDepGraphError> {
+    // A `link:<root>/...` placeholder the hoister kept next to its package;
+    // `link_hoisted_package_root_links` creates the link.
+    if reference.starts_with("link:") {
+        return Ok(None);
+    }
     let pkg_key: PackageKey = match reference.parse() {
         Ok(key) => key,
         Err(source) => {
