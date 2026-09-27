@@ -473,7 +473,7 @@ fn no_side_effects_yields_none() {
 }
 
 /// An empty row is a build whose whole effect landed outside the package
-/// directory. See `overlay_for` for why it must not count as a cache hit.
+/// directory. See `side_effects_overlay` for why it must not count as a cache hit.
 ///
 /// Regression for <https://github.com/pnpm/pnpm/issues/14717>.
 #[test]

@@ -295,11 +295,8 @@ pub(super) fn upload_and_publish(
         cache_key,
         writer,
     )?;
-    // Remote artifacts are read by pnpm versions that restore a recorded
-    // symlink as a regular file.
     if upload.has_side_effects
         && let Some(diff) = diff
-        && !diff.has_symlinks()
         && let Some(graph) = context.progress.dep_graph
         && let Err(error) = publisher.publish(
             snapshot_key,

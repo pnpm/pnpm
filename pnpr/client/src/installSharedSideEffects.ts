@@ -7,6 +7,7 @@ import util from 'node:util'
 import { calcDepState, calcDepStateInputKey, type DepsGraph, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createSideEffectsFilesMapBuilder, isSymlinkMode, type SideEffectsFilesMap } from '@pnpm/store.cafs'
 import type { PackageFilesResponse, RemoteSideEffectsOrigin, SideEffectsDiff, StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
@@ -100,8 +101,7 @@ const LOOKUP_BATCH_WINDOW = 20
 const MAX_LOOKUP_BATCH = 512
 
 interface RestoredArtifact {
-  added: Map<string, string>
-  deleted: string[]
+  files: SideEffectsFilesMap
   sideEffects: SideEffectsDiff
 }
 
@@ -263,10 +263,10 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     const resolvedArtifact = await lookup
     if (resolvedArtifact == null) return undefined
     if (quarantinedEnvelopeDigests.get(inputKey)?.has(resolvedArtifact.envelopeDigest) === true) return undefined
-    const artifact = await artifactLimit(async () => hydrate(resolvedArtifact, candidate))
+    const artifact = await artifactLimit(async () => hydrate(resolvedArtifact, candidate, node.files.filesMap.keys()))
     if (artifact == null) return undefined
     node.files.sideEffectsMaps ??= new Map()
-    node.files.sideEffectsMaps.set(localCacheKey, { added: artifact.added, deleted: artifact.deleted })
+    node.files.sideEffectsMaps.set(localCacheKey, artifact.files)
     node.files.sideEffectsDiffs ??= new Map()
     node.files.sideEffectsDiffs.set(localCacheKey, artifact.sideEffects)
     if (node.filesIndexFile != null) {
@@ -358,9 +358,15 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     }))
   }
 
+  /**
+   * Stage the artifact's blobs in the store and resolve it over the package's
+   * `baseFiles` the way a persisted diff is. An artifact that cannot be
+   * restored is the artifact's fault and is quarantined.
+   */
   async function hydrate (
     artifact: VerifiedArtifact,
-    candidate: DependencySideEffectsCandidate
+    candidate: DependencySideEffectsCandidate,
+    baseFiles: Iterable<string>
   ): Promise<RestoredArtifact | undefined> {
     if (registryUrl == null) return undefined
     try {
@@ -426,7 +432,18 @@ export function createRemoteSideEffectsRestorer<T extends string> (
           throw err
         }
       }))
-      const added = new Map(hydrated.map(([filePath, stored]) => [filePath, stored.filePath]))
+      const added: NonNullable<SideEffectsDiff['added']> = new Map()
+      const builder = createSideEffectsFilesMapBuilder()
+      for (const [filePath, stored] of hydrated) {
+        added.set(filePath, stored.fileInfo)
+        builder.add(filePath, stored.fileInfo.mode, stored.filePath)
+      }
+      const deleted = artifact.payload.manifest.deleted
+      const files = builder.finish(deleted, baseFiles)
+      if (files == null) {
+        quarantine(candidate.key, artifact.envelopeDigest, 'the artifact records an entry that cannot be restored')
+        return undefined
+      }
       const remoteOrigin: RemoteSideEffectsOrigin = {
         channel: registryUrl,
         owner: artifact.payload.owner,
@@ -435,15 +452,9 @@ export function createRemoteSideEffectsRestorer<T extends string> (
         envelope: artifact.envelope,
         verification: 'verified',
       }
-      const sideEffects: SideEffectsDiff = {
-        added: new Map(hydrated.map(([filePath, stored]) => [filePath, stored.fileInfo])),
-        deleted: artifact.payload.manifest.deleted,
-        remoteOrigin,
-      }
       return {
-        added,
-        deleted: artifact.payload.manifest.deleted,
-        sideEffects,
+        files,
+        sideEffects: { added, deleted, remoteOrigin },
       }
     } catch (err: unknown) {
       if (isBlobIntegrityError(err)) {
@@ -458,7 +469,7 @@ export function createRemoteSideEffectsRestorer<T extends string> (
   async function storedArtifactIsVerified (params: {
     candidate: DependencySideEffectsCandidate
     diff: SideEffectsDiff
-    files: { added?: Map<string, string>, deleted?: string[] }
+    files: SideEffectsFilesMap
   }): Promise<boolean> {
     const { candidate, diff, files } = params
     const origin = diff.remoteOrigin
@@ -487,9 +498,11 @@ export function createRemoteSideEffectsRestorer<T extends string> (
     const validFiles = await Promise.all(Array.from(diff.added ?? [], async ([filePath, info]) => {
       return storeLookupLimit(async () => {
         const located = await opts.storeController.locateFileInStore?.(info.digest, info.mode)
-        return located != null &&
-          files.added?.get(filePath) === located &&
-          (await fs.stat(located)).size === info.size
+        if (located == null) return false
+        const restored = isSymlinkMode(info.mode)
+          ? files.symlinks?.has(filePath) === true
+          : files.added?.get(filePath) === located
+        return restored && (await fs.stat(located)).size === info.size
       })
     }))
     return validFiles.every(Boolean)

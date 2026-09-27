@@ -4,11 +4,13 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_lockfile::PackageKey;
 use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
 use pnpm_shared_artifact_protocol::compatibility_rank;
-use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay, StoreIndexWriter};
+use pnpm_store_dir::{
+    CafsFileInfo, SideEffectsDiff, SideEffectsOverlay, StoreDir, StoreIndexWriter,
+};
 use sha2::{Digest as _, Sha512};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -117,21 +119,41 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
             .all(|path| manifest.deleted.contains(path))
 }
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
+    store_dir: &StoreDir,
     diff: &SideEffectsDiff,
     overlay: &SideEffectsOverlay,
 ) -> Result<bool, String> {
     for (file_path, info) in diff.added.iter().flatten() {
-        let Some(path) = overlay.files.get(file_path) else { return Ok(false) };
-        if !store_holds(path, &info.digest).await? {
+        let Some(path) = overlay_blob_path(store_dir, overlay, file_path, info) else {
+            return Ok(false);
+        };
+        if !store_holds(&path, &info.digest).await? {
             return Ok(false);
         }
-        let metadata = tokio::fs::metadata(path).await
+        let metadata = tokio::fs::metadata(&path).await
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() != info.size {
             return Ok(false);
         }
     }
     Ok(true)
+}
+/// The store file behind one added entry that `overlay` restores: the
+/// file itself, or the blob holding a symlink's target.
+fn overlay_blob_path(
+    store_dir: &StoreDir,
+    overlay: &SideEffectsOverlay,
+    file_path: &str,
+    info: &CafsFileInfo,
+) -> Option<PathBuf> {
+    if info.is_symlink() {
+        overlay.symlinks
+            .contains_key(file_path)
+            .then(|| store_dir.cas_file_path_by_mode(&info.digest, info.mode))
+            .flatten()
+    } else {
+        overlay.files.get(file_path).cloned()
+    }
 }
 pub(super) fn quarantine_remote_side_effects(
     rejected: &RejectedArtifact,

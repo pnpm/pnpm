@@ -11033,6 +11033,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../pnpm11/network/auth-header
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../pnpm11/store/cafs
       '@pnpm/store.controller-types':
         specifier: workspace:*
         version: link:../../pnpm11/store/controller-types

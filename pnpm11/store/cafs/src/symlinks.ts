@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import type { FilesMap, PackageFiles } from '@pnpm/store.cafs-types'
+import type { FilesMap, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 
 /**
  * The file-type bits of a side-effects entry that records a symlink. The
@@ -58,57 +58,81 @@ function isName (segment: string, reservedName: string): boolean {
   return segment.toLowerCase() === reservedName
 }
 
-export interface SplitSymlinksResult {
-  addedFiles: FilesMap
-  addedSymlinks: Map<string, string>
+/**
+ * Collects one side-effects diff's added entries, resolved to store paths,
+ * into the map the importer applies. A caller feeds it from the loop it
+ * already runs over the diff, so a recorded symlink is told apart from a
+ * file in that same pass and its target is read from the store as it goes.
+ */
+export interface SideEffectsFilesMapBuilder {
+  add: (relativePath: string, mode: number, storePath: string) => void
+  /**
+   * The diff over the package's `baseFiles`, or `undefined` when it cannot
+   * be restored safely, in which case the caller drops the whole cache entry
+   * and the package is built again. That happens when a link's target is not
+   * in its recorded form, when the platform cannot create the links, and when
+   * a file or link of the restored package would be written below a link.
+   */
+  finish: (deleted: string[] | undefined, baseFiles: Iterable<string>) => SideEffectsFilesMap | undefined
+}
+
+export function createSideEffectsFilesMapBuilder (): SideEffectsFilesMapBuilder {
+  const addedFiles: FilesMap = new Map()
+  const addedSymlinks = new Map<string, string>()
+  let restorable = true
+  return { add, finish }
+
+  function add (relativePath: string, mode: number, storePath: string): void {
+    if (!isSymlinkMode(mode)) {
+      addedFiles.set(relativePath, storePath)
+      return
+    }
+    const target = restorable ? readRecordedSymlinkTarget(relativePath, storePath) : undefined
+    if (target == null) {
+      restorable = false
+      return
+    }
+    addedSymlinks.set(relativePath, target)
+  }
+
+  function finish (deleted: string[] | undefined, baseFiles: Iterable<string>): SideEffectsFilesMap | undefined {
+    if (!restorable) return undefined
+    const filesMap: SideEffectsFilesMap = { added: addedFiles, deleted }
+    if (addedSymlinks.size === 0) return filesMap
+    if (process.platform === 'win32') return undefined
+    const deletedSet = new Set(deleted)
+    const restored = [...addedFiles.keys(), ...addedSymlinks.keys()]
+    for (const baseFile of baseFiles) {
+      if (!deletedSet.has(baseFile)) restored.push(baseFile)
+    }
+    if (writesBelowASymlink(addedSymlinks, restored)) return undefined
+    filesMap.symlinks = addedSymlinks
+    return filesMap
+  }
+}
+
+/** Whether any of the `restored` paths sits below one of the `symlinks`. */
+function writesBelowASymlink (symlinks: Map<string, string>, restored: string[]): boolean {
+  return restored.some((relativePath) => {
+    for (let slash = relativePath.lastIndexOf('/'); slash > 0; slash = relativePath.lastIndexOf('/', slash - 1)) {
+      if (symlinks.has(relativePath.slice(0, slash))) return true
+    }
+    return false
+  })
 }
 
 /**
- * Separates the symlink entries of one side-effects diff from its files and
- * reads their targets from the store.
- *
- * Returns `undefined` when the diff cannot be restored safely, in which case
- * the caller drops the whole cache entry and the package is built again. That
- * happens when a target is not in its recorded form, when the platform cannot
- * create the links, and when a file or link of the restored package would be
- * written below a link.
+ * The target of the symlink recorded at `linkPath`, read from its store file,
+ * or `undefined` when the file is missing or does not hold a target in its
+ * recorded form.
  */
-export function splitSymlinks (
-  diff: { added: PackageFiles, deleted?: string[] },
-  addedMap: FilesMap,
-  baseFiles: Iterable<string>
-): SplitSymlinksResult | undefined {
-  const addedSymlinks = new Map<string, string>()
-  const addedFiles: FilesMap = new Map()
-  for (const [relativePath, filePath] of addedMap) {
-    if (!isSymlinkMode(diff.added.get(relativePath)!.mode)) {
-      addedFiles.set(relativePath, filePath)
-      continue
-    }
-    const target = readSymlinkTarget(filePath)
-    if (target == null || normalizeSymlinkTarget(relativePath, target) !== target) return undefined
-    addedSymlinks.set(relativePath, target)
-  }
-  if (addedSymlinks.size === 0) return { addedFiles, addedSymlinks }
-  if (process.platform === 'win32') return undefined
-  const deleted = new Set(diff.deleted)
-  const paths = [...addedFiles.keys(), ...addedSymlinks.keys()]
-  for (const baseFile of baseFiles) {
-    if (!deleted.has(baseFile)) paths.push(baseFile)
-  }
-  for (const relativePath of paths) {
-    for (let slash = relativePath.lastIndexOf('/'); slash > 0; slash = relativePath.lastIndexOf('/', slash - 1)) {
-      if (addedSymlinks.has(relativePath.slice(0, slash))) return undefined
-    }
-  }
-  return { addedFiles, addedSymlinks }
-}
-
-function readSymlinkTarget (filePath: string): string | undefined {
+function readRecordedSymlinkTarget (linkPath: string, filePath: string): string | undefined {
+  let target: string
   try {
-    return fs.readFileSync(filePath, 'utf8')
+    target = fs.readFileSync(filePath, 'utf8')
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
+  return normalizeSymlinkTarget(linkPath, target) === target ? target : undefined
 }

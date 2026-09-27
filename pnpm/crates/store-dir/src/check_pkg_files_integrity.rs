@@ -294,16 +294,18 @@ fn build_side_effects_maps(
     let raw = side_effects?;
     let mut out: HashMap<String, SideEffectsOverlay> = HashMap::with_capacity(raw.len());
     for (cache_key, diff) in raw {
-        if let Some(overlay) = overlay_for(store_dir, cache_key, diff, base_files) {
+        if let Some(overlay) = side_effects_overlay(store_dir, cache_key, diff, base_files) {
             out.insert(cache_key.clone(), overlay);
         }
     }
     Some(out)
 }
 
-/// One cache key's overlaid [`FilesMap`], or `None` when an entry has to be
-/// dropped so the importer falls back to rebuilding it.
-fn overlay_for(
+/// One cache key's overlay of `diff` over `base_files`, or `None` when the
+/// entry has to be dropped so the importer falls back to rebuilding it.
+/// `cache_key` names the entry in the log of that decision.
+#[must_use]
+pub fn side_effects_overlay(
     store_dir: &StoreDir,
     cache_key: &str,
     diff: &SideEffectsDiff,
@@ -318,14 +320,14 @@ fn overlay_for(
         return None;
     }
     let SideEffectsDiff { added, deleted, .. } = diff;
-    let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
+    let mut files: FilesMap = HashMap::with_capacity(base_files.len());
     let mut symlinks = HashMap::new();
     for (filename, info) in added.iter().flatten() {
         let path = overlay_path(store_dir, cache_key, filename, info)?;
         if info.is_symlink() {
             symlinks.insert(filename.clone(), overlay_symlink_target(cache_key, filename, &path)?);
         } else {
-            overlay.insert(filename.clone(), path);
+            files.insert(filename.clone(), path);
         }
     }
     // Promote `deleted` to a `HashSet` once per cache key so
@@ -338,13 +340,13 @@ fn overlay_for(
         .collect();
     for (filename, path) in base_files {
         if !deleted_set.contains(filename)
-            && !overlay.contains_key(filename)
+            && !files.contains_key(filename)
             && !symlinks.contains_key(filename)
         {
-            overlay.insert(filename.clone(), path.clone());
+            files.insert(filename.clone(), path.clone());
         }
     }
-    restorable_overlay(cache_key, SideEffectsOverlay { files: overlay, symlinks })
+    restorable_overlay(cache_key, SideEffectsOverlay { files, symlinks })
 }
 
 /// `overlay`, or `None` when its symlinks cannot be restored on this host
