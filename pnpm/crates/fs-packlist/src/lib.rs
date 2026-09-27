@@ -178,6 +178,8 @@ fn collect_own_files(
     let files_field = manifest.get("files").and_then(Value::as_array);
     let files_matcher: Option<Gitignore> =
         files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
+    let named_files: BTreeSet<String> =
+        files_field.map(|arr| named_file_entries(pkg_dir, arr)).unwrap_or_default();
     let main_path = manifest.get("main").and_then(Value::as_str);
     let bin_paths: Vec<&str> = manifest
         .get("bin")
@@ -202,8 +204,12 @@ fn collect_own_files(
     // honor `.gitignore` even though a git-hosted snapshot's `.git/`
     // has already been deleted by [`crate::GitFetcher`] before this
     // point.
-    let selection =
-        FileSelection { files_matcher: files_matcher.as_ref(), main_path, bin_paths: &bin_paths };
+    let selection = FileSelection {
+        files_matcher: files_matcher.as_ref(),
+        named_files: &named_files,
+        main_path,
+        bin_paths: &bin_paths,
+    };
     let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
     collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
@@ -215,6 +221,9 @@ fn collect_own_files(
 struct FileSelection<'a> {
     /// The `files` allowlist, when the manifest declares one.
     files_matcher: Option<&'a Gitignore>,
+    /// The `files` entries that name an existing file; they ship even when
+    /// another entry excludes the directory holding them.
+    named_files: &'a BTreeSet<String>,
     main_path: Option<&'a str>,
     bin_paths: &'a [&'a str],
 }
@@ -306,7 +315,7 @@ fn walked_file_is_excluded(rel: &str, selection: &FileSelection<'_>) -> bool {
     let Some(matcher) = selection.files_matcher else {
         return false;
     };
-    !files_field_includes(matcher, rel)
+    !files_field_includes(matcher, rel, selection.named_files)
         && !is_always_included_at_root(rel)
         && !is_main_or_bin(rel, selection.main_path, selection.bin_paths)
 }
@@ -548,5 +557,5 @@ mod bundled;
 mod files_field;
 mod symlinks;
 use bundled::collect_bundled_files;
-use files_field::{files_field_includes, normalize_field_path};
+use files_field::{files_field_includes, named_file_entries, normalize_field_path};
 use symlinks::{is_admissible_root_file, is_packable};
