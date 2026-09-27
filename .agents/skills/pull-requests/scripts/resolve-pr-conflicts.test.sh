@@ -24,6 +24,16 @@ cat > "$fake_bin/git" <<'EOF'
 set -euo pipefail
 printf 'git %s\n' "$*" >> "$STUB_LOG"
 case "$*" in
+  # A remote can push to several URLs, and a push goes to every one of them.
+  'remote get-url --push --all '*)
+    if [ -n "${STUB_PUSH_URLS+x}" ]; then
+      printf '%s\n' "$STUB_PUSH_URLS"
+    elif [ -n "${STUB_PUSH_URL+x}" ]; then
+      printf '%s\n' "$STUB_PUSH_URL"
+    else
+      git remote get-url "$5"
+    fi
+    ;;
   # A remote can push somewhere other than where it fetches; that is the URL a push uses.
   'remote get-url --push '*)
     if [ -n "${STUB_PUSH_URL+x}" ]; then
@@ -379,7 +389,7 @@ export STUB_HEAD_REPO='some-fork/pnpm'
 on_pr_branch
 run_case 'fork-push-validated' 4242 --no-push
 expect_status 0
-expect_call '^git remote get-url --push some-fork$'
+expect_call '^git remote get-url --push --all some-fork$'
 expect_output "git push some-fork HEAD:fix/example --force-with-lease"
 
 # The same remote name can point somewhere else, and this push is a force-push: a stale or
@@ -432,6 +442,21 @@ expect_status 1
 expect_output "remote 'some-fork' does not point to some-fork/pnpm"
 expect_no_call '^git push'
 unset STUB_PUSH_URL
+
+# A push goes to every push URL a remote defines, so a second one that is not the fork has
+# to be refused too: reading only the first URL would let it through.
+export STUB_PUSH_URLS=$'https://github.com/some-fork/pnpm.git\nhttps://github.com/someone-else/pnpm.git'
+run_case 'fork-push-second-push-url' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_output 'Current some-fork: https://github.com/someone-else/pnpm.git'
+expect_no_call '^git push'
+# Several URLs that are all the fork are fine, in either spelling.
+export STUB_PUSH_URLS=$'https://github.com/some-fork/pnpm.git\ngit@github.com:some-fork/pnpm.git'
+run_case 'fork-push-all-push-urls' 4242 --no-push
+expect_status 0
+expect_output "git push some-fork HEAD:fix/example --force-with-lease"
+unset STUB_PUSH_URLS
 
 # Without the head repository there is nothing to compare against, so the push stops
 # instead of falling back to <owner>/pnpm.
@@ -491,7 +516,7 @@ unset STUB_PUSH_URL
 export STUB_HEAD_REPO='PNPM/PNPM'
 run_case 'upstream-head-repo-case' 4242 --no-push
 expect_status 0
-expect_call '^git remote get-url --push origin$'
+expect_call '^git remote get-url --push --all origin$'
 expect_output 'git push origin HEAD:fix/example --force-with-lease'
 unset STUB_HEAD_REPO
 

@@ -221,27 +221,38 @@ if [ "$HEAD_SLUG" != "pnpm/pnpm" ]; then
   fi
 fi
 
+# Read the repository slug out of a Git remote URL. Only the URL forms that name github.com
+# as the host are understood, so a URL on another host cannot be mistaken for the head
+# repository by carrying `github.com` in its path; a URL that matches none of them is
+# returned as it is, and so cannot equal a slug.
+repo_slug() {
+  printf '%s' "$1" | sed \
+    -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
+    -e 's#^git@github\.com:##' \
+    -e 's#\.git$##' \
+    -e 's#/$##' | tr '[:upper:]' '[:lower:]'
+}
+
 # The remote that is about to be pushed to is used because of its name -- `origin`, or the
 # head owner's. That name is not proof that it points at the PR's head repository: `gh pr
 # checkout` is what normally creates the fork remote, and --continue never runs it, so a
 # stale or reused remote with that name would receive this branch's force-push instead.
-# The push URL is what a push actually uses, and it can differ from the fetch URL.
-# Only the forms that name github.com exactly are read as a repository slug, so a URL
-# on another host cannot be mistaken for the fork by carrying one in its path.
-REMOTE_URL=$(git remote get-url --push "$REMOTE")
-REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed \
-  -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
-  -e 's#^git@github\.com:##' \
-  -e 's#\.git$##' \
-  -e 's#/$##' | tr '[:upper:]' '[:lower:]')
-if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
-  echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
-  echo "  Current $REMOTE: $REMOTE_URL"
-  echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
-  echo "  Refusing to push: the rebased commits would go somewhere other than the PR's head"
-  echo "  repository. Add a remote for $HEAD_REPO and re-run."
-  exit 1
-fi
+# A remote can define several push URLs, and a push goes to every one of them, so each has
+# to be the head repository; reading the first and stopping would leave the others
+# unchecked. Only the forms that name github.com exactly are read as a repository slug.
+REMOTE_URLS=$(git remote get-url --push --all "$REMOTE")
+while IFS= read -r REMOTE_URL; do
+  [ -n "$REMOTE_URL" ] || continue
+  REMOTE_SLUG=$(repo_slug "$REMOTE_URL")
+  if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
+    echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
+    echo "  Current $REMOTE: $REMOTE_URL"
+    echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
+    echo "  Refusing to push: the rebased commits would go somewhere other than the PR's head"
+    echo "  repository. Add a remote for $HEAD_REPO and re-run."
+    exit 1
+  fi
+done <<< "$REMOTE_URLS"
 
 # Helper: regenerate lockfile without running lifecycle scripts
 regenerate_lockfile() {
