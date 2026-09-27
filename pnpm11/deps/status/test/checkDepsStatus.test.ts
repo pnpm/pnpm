@@ -2517,7 +2517,7 @@ describe('checkDepsStatus - filtered install', () => {
     jest.clearAllMocks()
   })
 
-  async function checkAfterFilteredInstall (selectedProject: 'root' | 'pkg-a') {
+  async function checkAfterFilteredInstall (selectedProject: 'root' | 'pkg-a', selectedBy: 'graph' | 'dir' = 'graph') {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
     try {
       const lastValidatedTimestamp = Date.now() - 10_000
@@ -2574,7 +2574,9 @@ describe('checkDepsStatus - filtered install', () => {
       const siblingNode = { dependencies: [], package: siblingProject }
       const opts: CheckDepsStatusOptions = {
         allProjects: [rootProject, siblingProject],
-        selectedProjectsGraph: selectedProject === 'root' ? { [rootDir]: rootNode } : { [siblingDir]: siblingNode },
+        ...(selectedBy === 'graph'
+          ? { selectedProjectsGraph: selectedProject === 'root' ? { [rootDir]: rootNode } : { [siblingDir]: siblingNode } }
+          : { dir: selectedProject === 'root' ? rootDir : siblingDir }),
         workspaceDir,
         rootProjectManifest: rootManifest,
         rootProjectManifestDir: workspaceDir,
@@ -2605,6 +2607,16 @@ describe('checkDepsStatus - filtered install', () => {
 
     expect(result.upToDate).toBe(false)
     expect(result.issue).toBe('Workspace package pkg-a has dependencies but does not have a modules directory')
+  })
+
+  // A non-recursive command has no selected projects graph, so the project it
+  // runs in is the one held to the requirement.
+  it('holds the project a non-recursive command runs in to the modules-directory requirement', async () => {
+    expect((await checkAfterFilteredInstall('root', 'dir')).upToDate).toBe(true)
+    expect(await checkAfterFilteredInstall('pkg-a', 'dir')).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package pkg-a has dependencies but does not have a modules directory',
+    })
   })
 })
 

@@ -83,6 +83,12 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'selectedProjectsGraph'
 > & {
+  /**
+   * The project a non-recursive command runs in. When `selectedProjectsGraph`
+   * is absent, it is the project held to the modules-directory requirement
+   * after a filtered install.
+   */
+  dir?: string
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
@@ -370,11 +376,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     // select a project the filtered install never materialized and run it
     // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
     const selectedProjectDirs = workspaceState.filteredInstall
-      ? new Set(Object.keys(opts.selectedProjectsGraph ?? {}))
+      ? selectProjectDirs(opts)
       : undefined
     if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
-        (selectedProjectDirs == null || selectedProjectDirs.has(project.rootDir)) &&
+        (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
         modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
@@ -1195,6 +1201,13 @@ function missingModulesDirIssue (project: Project): string {
  * The workspace root is left out: the workspace state is stored in its
  * node_modules, and the missing-directory check before this one covers it.
  */
+function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
+  if (opts.selectedProjectsGraph != null) {
+    return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
+  }
+  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
+}
+
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],
   workspaceState: WorkspaceState,
@@ -1202,7 +1215,7 @@ async function findProjectMissingRecordedHoistedModulesDir (
   selectedProjectDirs: Set<string> | undefined
 ): Promise<Project | undefined> {
   const missing = await Promise.all(allProjects.map(async (project) =>
-    (selectedProjectDirs == null || selectedProjectDirs.has(project.rootDir)) &&
+    (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
     project.rootDir !== rootProjectManifestDir &&
     workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
     (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
