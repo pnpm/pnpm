@@ -146,9 +146,8 @@ async fn has_pre_resolution_reports_whether_the_hook_is_exported() {
     let failing = tmp.path().join("failing.cjs");
     std::fs::write(&failing, "throw new Error('broken pnpmfile')").expect("write pnpmfile");
 
-    let has_pre_resolution = async |file| {
-        pnpm_hooks::node_runtime::NodeJsHooks::new(file).has_pre_resolution().await
-    };
+    let has_pre_resolution =
+        async |file| pnpm_hooks::node_runtime::NodeJsHooks::new(file).has_pre_resolution().await;
     assert!(has_pre_resolution(with_hook).await.expect("query the hook"));
     assert!(!has_pre_resolution(without_hook).await.expect("query the hook"));
     assert!(has_pre_resolution(failing).await.is_err());
