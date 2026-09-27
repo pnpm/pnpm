@@ -87,7 +87,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
                 prefer_offline: false,
                 ignore_missing_time_field: false,
             },
-            store_index: None,
+            store_view: None,
         };
         (resolver, cache_dir)
     };

@@ -33,6 +33,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -82,6 +83,7 @@ async fn warm_in_memory_cache_skips_network() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -130,6 +132,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -188,6 +191,7 @@ async fn offline_with_mirror_picks_from_disk() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -224,6 +228,7 @@ async fn offline_without_mirror_errors() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -265,6 +270,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -325,6 +331,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -385,6 +392,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
             prefer_offline: true,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -450,6 +458,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
             prefer_offline: true,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -509,6 +518,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -577,6 +587,7 @@ async fn version_spec_missing_in_mirror_fetches() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -622,6 +633,7 @@ async fn dry_run_skips_in_memory_cache() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -715,6 +727,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -778,6 +791,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -837,6 +851,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

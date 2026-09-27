@@ -23,6 +23,10 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
     pub cache_policy: crate::MetadataCachePolicy,
+    /// The install's store view, when the store is available. Offline picks
+    /// consult it so a version whose tarball the store already holds wins the
+    /// pick over a newer one the fetcher could only reject.
+    pub store_view: Option<&'a crate::OfflineStoreView>,
     pub metadata: MetadataRequestContext<'a, Cache>,
 }
 

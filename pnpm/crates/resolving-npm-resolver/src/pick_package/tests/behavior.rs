@@ -32,6 +32,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -98,6 +99,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
             prefer_offline: false,
             ignore_missing_time_field: false,
         },
+        store_view: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
