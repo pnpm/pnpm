@@ -227,7 +227,20 @@ fn apply_change_with_link<Sys: FsHardLink>(
     }
 }
 
-/// Copy changed files from `source_dir` into `target_dir` as independent
+/// A source directory's files, read once per poll and published to each of
+/// its injected copies.
+pub struct PublishSource<'a> {
+    pub dir: &'a Path,
+    pub map: InodeMap,
+}
+
+impl<'a> PublishSource<'a> {
+    pub fn load(dir: &'a Path) -> Result<Self, PatchError> {
+        Ok(PublishSource { dir, map: load_inode_map(dir)? })
+    }
+}
+
+/// Copy changed files from `source.dir` into `target_dir` as independent
 /// files, so a watcher on `target_dir` sees the write.
 ///
 /// Hardlink sync shares inodes, and an in-place write through the source
@@ -237,23 +250,23 @@ fn apply_change_with_link<Sys: FsHardLink>(
 /// that instant, and a copy whose length and modification time already
 /// match the source is left alone.
 pub fn publish_edits(
-    source_dir: &Path,
+    source: &PublishSource<'_>,
     target_dir: &Path,
     edited_since: SystemTime,
 ) -> Result<(), PatchError> {
-    let source_map = load_inode_map(source_dir)?;
+    let PublishSource { dir: source_dir, map: source_map } = source;
     let target_map = load_inode_map(target_dir)?;
-    let patch = diff_dir(&target_map, &source_map);
+    let patch = diff_dir(&target_map, source_map);
     for path in &patch.removed {
         remove_recursive(&target_dir.join(path))?;
     }
-    for (path, value) in &source_map {
+    for (path, value) in source_map {
         if *value != Value::Dir || path == "." {
             continue;
         }
         ensure_directory(&target_dir.join(path), target_map.get(path))?;
     }
-    for (path, value) in &source_map {
+    for (path, value) in source_map {
         let Value::File(source_id) = value else {
             continue;
         };

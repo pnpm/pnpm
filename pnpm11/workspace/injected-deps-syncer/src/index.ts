@@ -12,7 +12,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import normalizePath from 'normalize-path'
 
-import { DirPatcher, publishEditsForWatchers } from './DirPatcher.js'
+import { DirPatcher, publishEditsForWatchers, type PublishSource, readPublishSource } from './DirPatcher.js'
 
 interface SkipSyncInjectedDepsMessage {
   message: string
@@ -84,16 +84,7 @@ export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): In
 
   const publish = (): void => {
     if (stopped || inFlight != null) return
-    inFlight = Promise.all(targetDirs.map(async targetDir => {
-      try {
-        await publishEditsForWatchers(sourceDir, targetDir, editedSinceMs)
-      } catch (err: unknown) {
-        watchLogger.debug({
-          err,
-          message: `Failed to publish injected dependency ${targetDir} while its script is running`,
-        })
-      }
-    })).then(() => {
+    inFlight = publishToTargets(sourceDir, targetDirs, editedSinceMs).then(() => {
       inFlight = undefined
     })
   }
@@ -107,6 +98,29 @@ export function watchInjectedEdits (sourceDir: string, targetDirs: string[]): In
       await inFlight
     },
   }
+}
+
+async function publishToTargets (sourceDir: string, targetDirs: string[], editedSinceMs: number): Promise<void> {
+  let source: PublishSource
+  try {
+    source = await readPublishSource(sourceDir)
+  } catch (err: unknown) {
+    watchLogger.debug({
+      err,
+      message: `Failed to read injected dependency ${sourceDir} while its script is running`,
+    })
+    return
+  }
+  await Promise.all(targetDirs.map(async targetDir => {
+    try {
+      await publishEditsForWatchers(source, targetDir, editedSinceMs)
+    } catch (err: unknown) {
+      watchLogger.debug({
+        err,
+        message: `Failed to publish injected dependency ${targetDir} while its script is running`,
+      })
+    }
+  }))
 }
 
 export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<void> {

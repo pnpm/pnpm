@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { isError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
-import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
+import { renameFileWithRetry, renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import { pathTemp } from 'path-temp'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
@@ -233,6 +233,18 @@ const fileId = (stats: Pick<ExtendFilesMapStats, 'dev' | 'ino'>): File => `${sta
 
 const WATCH_MTIME_TOLERANCE_MS = 1
 
+const WATCH_FETCH_OPTIONS: FetchFromDirOptions = { resolveSymlinks: false }
+
+/** A source directory's files, read once per poll and published to each of its injected copies. */
+export interface PublishSource {
+  dir: string
+  map: InodeMap
+}
+
+export async function readPublishSource (dir: string): Promise<PublishSource> {
+  return { dir, map: await extendFilesMap(await fetchFromDir(dir, WATCH_FETCH_OPTIONS)) }
+}
+
 /**
  * Copy changed files into `targetDir` as independent files, so a watcher on
  * the injected directory sees the write. A hardlink edited in place is
@@ -240,21 +252,12 @@ const WATCH_MTIME_TOLERANCE_MS = 1
  * and mtime already match the source is left alone.
  */
 export async function publishEditsForWatchers (
-  sourceDir: string,
+  source: PublishSource,
   targetDir: string,
   editedSinceMs: number
 ): Promise<void> {
-  const fetchOptions: FetchFromDirOptions = {
-    resolveSymlinks: false,
-  }
-  const [sourceFetch, targetFetch] = await Promise.all([
-    fetchFromDir(sourceDir, fetchOptions),
-    fetchFromDir(targetDir, fetchOptions),
-  ])
-  const [sourceMap, targetMap] = await Promise.all([
-    extendFilesMap(sourceFetch),
-    extendFilesMap(targetFetch),
-  ])
+  const { dir: sourceDir, map: sourceMap } = source
+  const targetMap = await extendFilesMap(await fetchFromDir(targetDir, WATCH_FETCH_OPTIONS))
 
   const removed = Object.keys(targetMap)
     .filter(relPath => !(relPath in sourceMap) && relPath !== '.')
@@ -284,18 +287,18 @@ export async function publishEditsForWatchers (
     const targetStat = typeof targetValue === 'string'
       ? await statFile(targetPath) // eslint-disable-line no-await-in-loop
       : null
-    if (!shouldPublish(sourceStat, targetStat, sourceValue, targetValue, editedSinceMs)) continue
+    if (!shouldPublish({ sourceStat, targetStat, sourceId: sourceValue, targetValue, editedSinceMs })) continue
     await copyForWatchers(sourcePath, targetPath, sourceStat) // eslint-disable-line no-await-in-loop
   }
 }
 
-function shouldPublish (
-  sourceStat: fs.Stats,
-  targetStat: fs.Stats | null,
-  sourceId: string,
-  targetValue: Value | undefined,
+function shouldPublish ({ sourceStat, targetStat, sourceId, targetValue, editedSinceMs }: {
+  sourceStat: fs.Stats
+  targetStat: fs.Stats | null
+  sourceId: string
+  targetValue: Value | undefined
   editedSinceMs: number
-): boolean {
+}): boolean {
   if (targetStat == null || typeof targetValue !== 'string') return true
   if (targetValue === sourceId) return sourceStat.mtimeMs >= editedSinceMs
   return sourceStat.size !== targetStat.size ||
@@ -341,7 +344,7 @@ async function copyForWatchers (
   try {
     await pipeline(fs.createReadStream(sourcePath), fs.createWriteStream(tempPath, { flags: 'wx' }))
     await fs.promises.chmod(tempPath, sourceStat.mode & 0o7777)
-    renameFileWithRetry(tempPath, targetPath)
+    await renameFileWithRetryAsync(tempPath, targetPath)
   } catch (error) {
     await fs.promises.rm(tempPath, { force: true })
     throw error

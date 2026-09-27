@@ -391,8 +391,19 @@ fn publish_to_targets(
     if !source.is_dir() {
         return;
     }
+    let source_files = match dir_patcher::PublishSource::load(source) {
+        Ok(source_files) => source_files,
+        Err(error) => {
+            tracing::debug!(
+                target: "pacquet::sync_injected_deps",
+                source = ?source,
+                "Failed to read an injected dependency while its script is running: {error}",
+            );
+            return;
+        }
+    };
     for target in targets {
-        if let Err(error) = dir_patcher::publish_edits(source, target, edited_since) {
+        if let Err(error) = dir_patcher::publish_edits(&source_files, target, edited_since) {
             tracing::debug!(
                 target: "pacquet::sync_injected_deps",
                 source = ?source,

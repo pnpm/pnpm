@@ -7,7 +7,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
-import { applyPatch, DIR, type DirDiff, publishEditsForWatchers } from '../src/DirPatcher.js'
+import { applyPatch, DIR, type DirDiff, publishEditsForWatchers, readPublishSource } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -306,7 +306,7 @@ test('publishEditsForWatchers replaces an edited hardlink with a file a watcher 
     events.push(String(filename))
   })
   try {
-    await publishEditsForWatchers(source, target, 0)
+    await publishEditsForWatchers(await readPublishSource(source), target, 0)
     await new Promise<void>(resolve => {
       setTimeout(resolve, 200)
     })
@@ -329,7 +329,7 @@ test('publishEditsForWatchers leaves a hardlink that predates the watch', async 
   createHardlink(sourceFile, targetFile)
 
   try {
-    await publishEditsForWatchers(source, target, Date.now() + 86_400_000)
+    await publishEditsForWatchers(await readPublishSource(source), target, Date.now() + 86_400_000)
     expect(fileIdentity(targetFile)).toBe(fileIdentity(sourceFile))
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
@@ -347,7 +347,7 @@ testOnPosix('publishEditsForWatchers keeps the mode of the source file', async (
   fs.chmodSync(sourceFile, 0o755)
 
   try {
-    await publishEditsForWatchers(source, target, 0)
+    await publishEditsForWatchers(await readPublishSource(source), target, 0)
     expect(fs.statSync(path.join(target, 'bin.js')).mode & 0o777).toBe(0o755)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })

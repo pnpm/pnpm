@@ -1,4 +1,4 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id, publish_edits};
+use super::{DirPatcher, InodeMap, PublishSource, Value, extend_files_map, file_id, publish_edits};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
@@ -249,7 +249,12 @@ fn publish_replaces_an_edited_hardlink_with_its_own_file() {
     fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
     fs::write(source.join("index.js"), "new").expect("rewrite the hardlink in place");
 
-    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("publish");
+    publish_edits(
+        &PublishSource::load(&source).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("publish");
 
     assert_eq!(fs::read_to_string(target.join("index.js")).expect("read published file"), "new");
     assert_ne!(
@@ -270,7 +275,8 @@ fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
         .checked_add(Duration::from_hours(24))
         .expect("a deadline past every current mtime");
 
-    publish_edits(&source, &target, edited_since).expect("publish");
+    publish_edits(&PublishSource::load(&source).expect("load source"), &target, edited_since)
+        .expect("publish");
 
     assert_eq!(
         device_and_inode(&source.join("index.js")),
@@ -286,9 +292,19 @@ fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
     create_file(&source.join("index.js"), "built");
     fs::create_dir_all(&target).expect("create target");
 
-    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("first publish");
+    publish_edits(
+        &PublishSource::load(&source).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("first publish");
     let published = device_and_inode(&target.join("index.js"));
-    publish_edits(&source, &target, SystemTime::UNIX_EPOCH).expect("second publish");
+    publish_edits(
+        &PublishSource::load(&source).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("second publish");
 
     assert_eq!(published, device_and_inode(&target.join("index.js")));
     assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
