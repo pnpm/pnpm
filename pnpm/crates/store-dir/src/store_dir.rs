@@ -213,6 +213,11 @@ impl StoreDir {
     ///
     /// Other errors propagate; the caller degrades them to a warning
     /// and falls back to the per-write lazy mkdir.
+    ///
+    /// On Unix, `files/` and each shard this call creates receive the
+    /// group-write and setgid bits of the nearest directory that already
+    /// existed. A directory that already existed is not modified, so a
+    /// shared store keeps the mode another user left on it.
     pub fn init(&self) -> std::io::Result<()> {
         let files = self.files();
         // `is_dir()` rather than `exists()`: if `files` is present but
@@ -226,7 +231,15 @@ impl StoreDir {
         if files.is_dir() {
             return Ok(());
         }
+        // Record the ancestor before `create_dir_all` so the grant stops
+        // at a directory this call did not create.
+        #[cfg(unix)]
+        let template = pnpm_fs::file_mode::nearest_existing_ancestor(&files);
         std::fs::create_dir_all(&files)?;
+        #[cfg(unix)]
+        if let Some(template) = template.as_deref() {
+            pnpm_fs::file_mode::grant_inherited_dir_mode(&files, template)?;
+        }
         for shard in 0u8..=255 {
             // Two-char lowercase hex keyed off the first byte of the
             // sha512 digest, matching `StoreDir::file_path_by_hex_str`.
@@ -256,6 +269,11 @@ impl StoreDir {
                         ),
                     ));
                 }
+            } else {
+                // Only the shard this call created. A shard that already
+                // existed keeps its mode.
+                #[cfg(unix)]
+                pnpm_fs::file_mode::grant_inherited_dir_mode(&shard_dir, &files)?;
             }
             self.mark_shard_ensured(shard);
         }

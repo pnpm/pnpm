@@ -35,6 +35,7 @@
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/store.file-mode": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "bz2": "catalog:",

@@ -661,8 +661,9 @@ async function ensureExecutable (file: string): Promise<void> {
   const stat = await fs.stat(realFile)
   if ((stat.mode & 0o111) === 0o111 && !(await hasWindowsShebang(realFile))) return
   try {
-    // Add only the execute bits the target lacks, so a bin imported under a
-    // strict umask keeps the read and write bits that umask gave it (pnpm/pnpm#3807).
+    // Add only the execute bits the target lacks. Replacing the mode with
+    // `0o755` strips group-write through a global-virtual-store symlink or a
+    // hard link, and drops the read and write bits a strict umask left.
     await fixBin(realFile, (stat.mode & 0o777) | 0o111)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EROFS') {

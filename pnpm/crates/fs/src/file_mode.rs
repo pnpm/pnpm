@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
 pub const EXEC_MASK: u32 = 0b001_001_001;
@@ -161,6 +164,179 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
 
     #[cfg(windows)]
     return Ok(());
+}
+
+/// Permission bits a new file takes from its parent directory.
+///
+/// Read and write bits come from the directory, so a group-writable store
+/// stays group-writable for the next user. Execute bits are copied only when
+/// `executable` is set, and only for classes that can search the directory.
+/// Setuid, setgid, and sticky are not copied onto a file. Owner read and
+/// write are always set so the creating process can finish the write.
+#[must_use]
+pub fn inherited_file_mode(parent_mode: u32, executable: bool) -> u32 {
+    let mut mode = parent_mode & 0o666;
+    if executable {
+        if parent_mode & 0o100 != 0 {
+            mode |= 0o100;
+        }
+        if parent_mode & 0o010 != 0 {
+            mode |= 0o010;
+        }
+        if parent_mode & 0o001 != 0 {
+            mode |= 0o001;
+        }
+    }
+    mode | 0o600
+}
+
+/// Open-mode ceiling for a new file, and the bits to add after create.
+///
+/// The open mode is a ceiling. A default ACL can grant only bits that are
+/// present in it, and umask can only remove bits. [`grant_mode_bits`] adds
+/// back bits umask stripped, without clearing bits the create already set.
+/// An explicit private mode (no group or other bits, such as `0o600`) is
+/// used as the ceiling and is not widened.
+#[cfg(unix)]
+#[must_use]
+pub fn unix_creation_mode(parent: &Path, requested: Option<u32>) -> UnixCreationMode {
+    // Group and other permission bits are the low 6 bits.
+    if requested.is_some_and(|mode| mode.trailing_zeros() >= 6) {
+        return UnixCreationMode { open_mode: requested, grant_mode: None };
+    }
+    let executable = requested.is_some_and(is_executable);
+    match std::fs::metadata(parent) {
+        Ok(meta) => {
+            use std::os::unix::fs::PermissionsExt;
+            let wanted = inherited_file_mode(meta.permissions().mode(), executable);
+            UnixCreationMode { open_mode: Some(wanted), grant_mode: Some(wanted) }
+        }
+        Err(_) => UnixCreationMode { open_mode: requested, grant_mode: None },
+    }
+}
+
+/// Open ceiling and the post-create grant for [`unix_creation_mode`].
+#[cfg(unix)]
+#[derive(Clone, Copy)]
+pub struct UnixCreationMode {
+    pub open_mode: Option<u32>,
+    pub grant_mode: Option<u32>,
+}
+
+/// OR `wanted` onto `file`. Bits already present are kept, so a default ACL
+/// wider than the directory mode survives. `EPERM`, `EACCES`, and `EROFS`
+/// are ignored: the file is already usable by its creator, and a store entry
+/// this process does not own must not fail the install.
+#[cfg(unix)]
+pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
+    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+    let current = match file.metadata() {
+        Ok(meta) => meta.permissions().mode() & 0o777,
+        Err(error) if is_unchangeable(&error) => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let merged = current | (wanted & 0o777);
+    if merged == current {
+        return Ok(());
+    }
+    match file.set_permissions(Permissions::from_mode(merged)) {
+        Err(error) if is_unchangeable(&error) => Ok(()),
+        other => other,
+    }
+}
+
+/// OR the file mode inherited from `parent` onto `file`.
+///
+/// No-op when `parent` cannot be stated. See [`grant_mode_bits`] for which
+/// failures are ignored.
+#[cfg(unix)]
+pub fn grant_inherited_mode(
+    file: &std::fs::File,
+    parent: &Path,
+    executable: bool,
+) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let wanted = match std::fs::metadata(parent) {
+        Ok(meta) => inherited_file_mode(meta.permissions().mode(), executable),
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
+    grant_mode_bits(file, wanted)
+}
+
+/// Closest existing directory at `dir` or above it.
+///
+/// A relative path whose parents are all missing resolves to `.` when the
+/// working directory exists. Returns `None` when nothing on the path is a
+/// directory.
+#[must_use]
+pub fn nearest_existing_ancestor(dir: &Path) -> Option<PathBuf> {
+    let mut current = dir.to_path_buf();
+    loop {
+        if current.as_os_str().is_empty() {
+            let dot = PathBuf::from(".");
+            return dot.is_dir().then_some(dot);
+        }
+        if current.is_dir() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
+/// After a missing directory tree is created, OR `template`'s group-write
+/// and setgid bits onto each new directory, stopping before `template`.
+///
+/// Directories that already existed are not passed in. `EPERM`, `EACCES`,
+/// and `EROFS` are ignored. The root directory is never changed.
+#[cfg(unix)]
+pub fn grant_inherited_dir_mode(dir: &Path, template: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let extra = match std::fs::metadata(template) {
+        Ok(meta) => meta.permissions().mode() & (0o020 | 0o2000),
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
+    if extra == 0 {
+        return Ok(());
+    }
+    let mut current = dir.to_path_buf();
+    while current != template {
+        // Never chmod `/` when `template` is not a lexical prefix of `dir`.
+        if current.as_os_str().is_empty() || current.parent().is_none() {
+            break;
+        }
+        match std::fs::metadata(&current) {
+            Ok(meta) => {
+                let mode = meta.permissions().mode() & 0o7777;
+                let merged = mode | extra;
+                if merged != mode
+                    && let Err(error) =
+                        std::fs::set_permissions(&current, std::fs::Permissions::from_mode(merged))
+                    && !is_unchangeable(&error)
+                {
+                    return Err(error);
+                }
+            }
+            Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        if !current.pop() {
+            break;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn is_unchangeable(error: &io::Error) -> bool {
+    matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem)
 }
 
 #[cfg(test)]

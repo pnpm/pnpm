@@ -3,7 +3,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -652,4 +655,77 @@ fn store_prune_honors_dlx_cache_max_age() {
             );
         }
     }
+}
+
+/// A group-writable, setgid store stands in for a multi-user store. Install
+/// must not replace `index.db` or drop group-write from store files.
+#[cfg(unix)]
+#[test]
+fn install_keeps_a_group_writable_store() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    _utils::enable_gvs_in_workspace_yaml(&workspace, "");
+
+    let versioned = store_dir.join(STORE_VERSION);
+    fs::create_dir_all(&versioned).expect("create the versioned store");
+    fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o2775)).expect("chmod store");
+    fs::set_permissions(&versioned, fs::Permissions::from_mode(0o2775))
+        .expect("chmod versioned store");
+
+    let index = versioned.join("index.db");
+    fs::write(&index, []).expect("seed index.db");
+    fs::set_permissions(&index, fs::Permissions::from_mode(0o664)).expect("chmod index.db");
+    let before = fs::metadata(&index).expect("stat index.db");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert_index = |label: &str| {
+        let meta = fs::metadata(&index).expect("stat index.db");
+        assert_eq!(meta.uid(), before.uid(), "{label} uid");
+        assert_eq!(meta.gid(), before.gid(), "{label} gid");
+        assert_eq!(meta.ino(), before.ino(), "{label} inode");
+        assert_eq!(meta.mode() & 0o777, 0o664, "{label} mode");
+    };
+
+    pacquet_at(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    assert_index("first install");
+    assert_eq!(fs::metadata(&versioned).unwrap().mode() & 0o7777, 0o2775);
+
+    let files_dir = versioned.join("files");
+    assert!(files_dir.is_dir(), "install must write content-addressed files");
+    let store_gid = fs::metadata(&versioned).unwrap().gid();
+    let mut stack = vec![files_dir];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir).expect("read store files") {
+            let path = entry.expect("store entry").path();
+            let meta = fs::symlink_metadata(&path).expect("stat store entry");
+            if meta.is_dir() {
+                stack.push(path);
+            } else if meta.is_file() {
+                assert_eq!(meta.gid(), store_gid, "{}", path.display());
+                assert_ne!(meta.mode() & 0o020, 0, "{}", path.display());
+            }
+        }
+    }
+
+    pacquet_at(&workspace)
+        .arg("install")
+        .assert()
+        .success();
+    assert_index("second install");
+
+    drop((root, mock_instance));
 }

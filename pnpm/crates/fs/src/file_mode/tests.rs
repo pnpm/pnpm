@@ -153,3 +153,12 @@ fn restore_exec_bit_does_not_widen_non_exec_suffix() {
         & 0o777;
     assert_eq!(mode, 0o600, "non-exec CAS entry must not gain exec bits, got {mode:o}");
 }
+
+#[test]
+fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
+    assert_eq!(super::inherited_file_mode(0o2775, false) & 0o777, 0o664);
+    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o777, 0o775);
+    assert_eq!(super::inherited_file_mode(0o755, false) & 0o777, 0o644);
+    assert_eq!(super::inherited_file_mode(0o700, false) & 0o777, 0o600);
+    assert_eq!(super::inherited_file_mode(0o2775, true) & 0o7000, 0);
+}

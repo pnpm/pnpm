@@ -377,3 +377,98 @@ fn retry_on_fd_pressure_propagates_non_fd_errors() {
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
     assert_eq!(attempts.get(), 1, "non-fd-pressure errors must not retry");
 }
+
+#[cfg(unix)]
+#[test]
+fn new_files_in_a_group_writable_directory_keep_group_write() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let parent_gid = fs::metadata(tmp.path()).unwrap().gid();
+
+    let path = tmp.path().join("blob");
+    ensure_file(&path, b"data", None).unwrap();
+    let meta = fs::metadata(&path).unwrap();
+    assert_eq!(meta.permissions().mode() & 0o777, 0o664);
+    assert_eq!(meta.gid(), parent_gid);
+
+    let exec = tmp.path().join("exec.sh");
+    ensure_file(&exec, b"#!/bin/sh\n", Some(0o755)).unwrap();
+    assert_eq!(
+        fs::metadata(&exec)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o775
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_file_keeps_its_mode_owner_and_inode() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let path = tmp.path().join("blob");
+    fs::write(&path, b"same").unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o664)).unwrap();
+    let before = fs::metadata(&path).unwrap();
+
+    ensure_file(&path, b"same", None).unwrap();
+    ensure_cas_file(&path, b"same", Some(0o755)).unwrap();
+
+    let after = fs::metadata(&path).unwrap();
+    assert_eq!(after.uid(), before.uid());
+    assert_eq!(after.gid(), before.gid());
+    assert_eq!(after.ino(), before.ino());
+    assert_eq!(after.permissions().mode() & 0o777, 0o664);
+}
+
+#[cfg(unix)]
+#[test]
+fn private_mode_is_not_widened_in_a_group_writable_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let path = tmp.path().join("secret");
+    ensure_file(&path, b"x", Some(0o600)).unwrap();
+    assert_eq!(
+        fs::metadata(&path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn new_directories_inherit_group_write_and_setgid() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let nested = tmp.path().join("v11/files/ab");
+    super::ensure_parent_dir(&nested).unwrap();
+
+    for dir in [tmp.path().join("v11"), tmp.path().join("v11/files"), nested] {
+        let mode = fs::metadata(&dir)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & (0o020 | 0o2000), 0o020 | 0o2000, "{dir:?} mode {mode:o}");
+    }
+    assert_eq!(
+        fs::metadata(tmp.path())
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777,
+        0o2775
+    );
+}
