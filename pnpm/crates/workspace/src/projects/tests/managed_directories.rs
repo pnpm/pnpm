@@ -148,7 +148,7 @@ fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "plugins/group/pkg", "pkg");
-    let other_drive = if tmp.path().starts_with("Z:\\") { "Y:\\cache" } else { "Z:\\cache" };
+    let other_drive = if tmp.path().starts_with(r"Z:\") { r"Y:\cache" } else { r"Z:\cache" };
 
     assert_eq!(
         find_sorted_names(tmp.path(), &["plugins/*/*"], vec![PathBuf::from(other_drive)]),
