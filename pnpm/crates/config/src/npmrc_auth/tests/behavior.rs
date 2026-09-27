@@ -154,6 +154,27 @@ fn password_that_does_not_decode_is_rejected() {
     );
 }
 
+/// An empty `username`, the shape an unresolved `${VAR}` leaves, names no
+/// credential, so its `_password` is not decoded at all.
+#[test]
+fn password_without_a_username_is_not_decoded() {
+    let ini = "//reg.com/:username=\n//reg.com/:_password=notbase64!\n";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect("a pair without a username must not fail the load");
+    assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
+}
+
+/// An empty `_password` names no credential either.
+#[test]
+fn empty_password_supplies_no_header() {
+    let ini = "//reg.com/:username=alice\n//reg.com/:_password=\n";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
+}
+
 /// The hint names what each key decodes to, as pnpm v11's does.
 #[test]
 fn invalid_base64_hint_names_the_decoded_content() {

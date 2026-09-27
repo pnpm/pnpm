@@ -241,7 +241,14 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
         }
         return Ok(Some(format!("Basic {}", base64_encode_bytes(&decoded))));
     }
-    if let (Some(user), Some(pass_b64)) = (&creds.username, &creds.password) {
+    // Like an empty `_auth`, an empty half of the pair names no credential.
+    let username = creds.username
+        .as_deref()
+        .filter(|username| !username.is_empty());
+    let password_b64 = creds.password
+        .as_deref()
+        .filter(|password| !password.is_empty());
+    if let (Some(user), Some(pass_b64)) = (username, password_b64) {
         let password = base64_decode_bytes(pass_b64)
             .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_password" })?;
         let mut pair = format!("{user}:").into_bytes();

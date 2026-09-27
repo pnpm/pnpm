@@ -208,7 +208,6 @@ pub enum LoadWorkspaceYamlError {
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
 }
 
-/// What the base64-encoded credential under `key` decodes to.
 fn base64_credential_content(key: &str) -> &'static str {
     if key == "_auth" { "<username>:<password>" } else { "password" }
 }
