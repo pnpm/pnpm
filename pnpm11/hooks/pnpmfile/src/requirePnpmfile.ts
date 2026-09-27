@@ -112,7 +112,7 @@ function describePackage (pkg: PackageManifest): string {
 
 /**
  * Errors are matched by shape, not by class, because asynchronous module customization
- * hooks forward them from their own realm, where `isError()` returns false.
+ * hooks forward them from their own realm, where `util.types.isNativeError()` returns false.
  * See https://github.com/pnpm/pnpm/issues/11701
  */
 function isModuleNotFoundError (err: unknown): boolean {
@@ -128,7 +128,7 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
 }
 
 function toError (err: unknown): Error {
-  if (isError(err) || err instanceof Error) return err
+  if (isError(err)) return err
   try {
     return new Error(String(err), { cause: err })
   } catch {
