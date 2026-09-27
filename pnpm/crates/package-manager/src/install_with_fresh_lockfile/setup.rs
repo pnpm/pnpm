@@ -149,7 +149,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     let stores = resolver_setup::open_store_index_handles(
         install.drivers.config,
         store_dir,
-        progress_reported,
+        resolver_setup::StoreCaches::new(progress_reported, owned.fetching.fetch_caches.as_ref()),
     )
     .await;
 

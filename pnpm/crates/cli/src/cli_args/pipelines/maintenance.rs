@@ -55,7 +55,7 @@ impl DedupePipeline {
                 run_dedicated_dedupe::<Reporter>(
                     self.args,
                     cfg,
-                    projects,
+                    *projects,
                     &lockfile_path,
                     existing,
                     guard,
@@ -180,6 +180,7 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         http_client: Some(State::new_http_client(cfg)?),
         prune_excludes: !args.check,
         sync_injected_deps: false,
+        pipelined: false,
     }
     .run(|state| {
         let args = args.clone();

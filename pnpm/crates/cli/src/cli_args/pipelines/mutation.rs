@@ -67,11 +67,12 @@ impl AddPipeline {
                 let workspace_packages = Arc::new(self.args.workspace_link_targets(self.cfg)?);
                 DedicatedProjectRuns {
                     config: self.cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: true,
                     sync_injected_deps: !self.args.install.lockfile_only,
+                    pipelined: false,
                 }
                 .run(|state| {
                     let args = self.args.clone();
@@ -332,11 +333,12 @@ impl UpdatePipeline {
             InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
                     config: self.cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: !self.args.save.no_save,
                     sync_injected_deps: !self.args.install.lockfile_only,
+                    pipelined: false,
                 }
                 .run(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
                 .await?;
@@ -393,11 +395,12 @@ impl RemovePipeline {
                 // each selected project independently.
                 DedicatedProjectRuns {
                     config: cfg,
-                    projects,
+                    projects: *projects,
                     require_lockfile: false,
                     http_client: None,
                     prune_excludes: true,
                     sync_injected_deps: false,
+                    pipelined: false,
                 }
                 .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await

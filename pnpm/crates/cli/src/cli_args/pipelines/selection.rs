@@ -125,7 +125,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     let plan = if cfg.shares_one_lockfile() {
         InstallFamilyPlan::Shared(Box::new(selection))
     } else {
-        InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection))
+        InstallFamilyPlan::PerProject(Box::new(DedicatedProjects::new(cfg, selection)))
     };
     Ok(InstallFamily { plan, scope, unmatched })
 }

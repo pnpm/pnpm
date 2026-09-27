@@ -23,6 +23,32 @@ pub struct FrozenInstallDrivers<'a> {
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+
+    /// The store-side caches this install shares with the other installs
+    /// of the same command. `None` gives the install caches of its own.
+    pub fetch_caches: Option<&'a SharedFetchCaches>,
+}
+
+/// The store-side caches an install otherwise builds for itself: the store
+/// files it has verified and the git sources it has fetched. Installs that
+/// share one reuse each other's work, which is sound because both caches
+/// are keyed by content that one command cannot see change.
+#[derive(Clone, Default)]
+pub struct SharedFetchCaches {
+    pub verified_files: pnpm_store_dir::SharedVerifiedFilesCache,
+    pub git_sources: Arc<pnpm_git_fetcher::GitSourceCache>,
+}
+
+impl SharedFetchCaches {
+    /// What [`crate::CasPrefetch::start`] takes to verify store files
+    /// against this cache, with no store index opened ahead of it.
+    #[must_use]
+    pub fn store_context(&self) -> crate::CreateVirtualStoreStoreContext<'_> {
+        crate::CreateVirtualStoreStoreContext {
+            index: None,
+            verified_files_cache: &self.verified_files,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

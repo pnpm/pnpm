@@ -24,7 +24,7 @@ pub(super) struct MaterializationPlan<'p> {
     /// Borrows the allow-builds policy `run` owns.
     pub(super) dir_clone_cache: Option<crate::DirCloneCache<'p>>,
     pub(super) cas_prefetch: crate::create_virtual_store::CasPrefetch,
-    pub(super) git_source_cache: pnpm_git_fetcher::GitSourceCache,
+    pub(super) git_source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
 }
 /// The install's borrowed inputs, as one `Copy` value a phase's future
 /// can capture. Only the `Copy` fields of [`InstallFrozenLockfile`](crate::InstallFrozenLockfile) are

@@ -1,3 +1,4 @@
+use super::pipelined_runs::early_starts;
 use super::{
     Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
     InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
@@ -174,11 +175,12 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
         InstallFamilyPlan::PerProject(projects) => {
             DedicatedProjectRuns {
                 config: cfg,
-                projects,
+                projects: *projects,
                 require_lockfile,
                 http_client: Some(Arc::clone(&http_client)),
                 prune_excludes: !args.materialization.dry_run,
                 sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
+                pipelined: true,
             }
             .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
@@ -262,6 +264,12 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let selection =
         select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
     dependencies.extend(project_dependencies(&selection, cfg.sort));
+    let early_starts = early_starts(
+        cfg,
+        projects
+            .iter()
+            .map(|project| (project.root_dir.as_path(), project.manifest.value())),
+    );
     DedicatedProjectRuns {
         config: cfg,
         projects: DedicatedProjects {
@@ -269,11 +277,13 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names,
             covers_workspace: true,
             injected_source_dirs,
+            early_starts,
         },
         require_lockfile,
         http_client: Some(http_client),
         prune_excludes: !args.materialization.dry_run,
         sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
+        pipelined: true,
     }
     .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
     .await

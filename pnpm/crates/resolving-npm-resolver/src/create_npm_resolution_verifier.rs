@@ -223,6 +223,9 @@ pub struct VerificationArtifacts {
     /// nothing or run a resolver alongside) keeps the metadata-backed
     /// chain for every entry.
     pub canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
+    /// Lookups to share with the verifiers of other installs. `None`
+    /// gives the verifier lookups of its own.
+    pub lookups: Option<crate::VerifierLookups>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -232,7 +235,7 @@ pub struct VerificationArtifacts {
 pub struct NpmResolutionVerifier {
     now: Option<DateTime<Utc>>,
     policy_snapshot: serde_json::Map<String, JsonValue>,
-    lookup_context: PublishedAtLookupContext,
+    lookup_context: Arc<PublishedAtLookupContext>,
     release_age: ReleaseAgeCheck,
     trust: TrustCheck,
     metadata: VerificationMetadataClient,
@@ -301,10 +304,17 @@ pub fn create_npm_resolution_verifier(
         named_registries_routing: &named_registries_routing,
     });
 
+    let lookup_context = opts.artifacts.lookups
+        .as_ref()
+        .map_or_else(
+            || Arc::new(PublishedAtLookupContext::new()),
+            |lookups| Arc::clone(&lookups.0),
+        );
+
     NpmResolutionVerifier {
         now: opts.now,
         policy_snapshot,
-        lookup_context: PublishedAtLookupContext::new(),
+        lookup_context,
         release_age: ReleaseAgeCheck {
             minimum_minutes: opts.release_age.minimum_minutes,
             cutoff,

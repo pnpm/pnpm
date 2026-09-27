@@ -70,6 +70,7 @@ pub(super) struct MaterializationExecution<'a> {
 pub(super) struct MaterializationDownloads {
     pub(super) tarball_mem_cache: Arc<MemCache>,
     pub(super) http_client_arc: Arc<ThrottledClient>,
+    pub(super) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
 
 pub(super) struct MaterializationLockfiles<'a, 'install> {
@@ -246,6 +247,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
                 http_client_arc: self.downloads.http_client_arc,
                 meta_cache: self.lockfiles.verification.meta_cache,
+                fetch_caches: self.downloads.fetch_caches,
             },
             projects: crate::install_with_fresh_lockfile::FreshProjectInputs {
                 lockfile_specifier_manifests: self.workspace

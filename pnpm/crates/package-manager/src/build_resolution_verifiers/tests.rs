@@ -26,6 +26,7 @@ fn reserved_named_registry_is_an_error_not_a_panic() {
         None,
         None,
         None,
+        None,
     );
 
     assert!(
@@ -57,6 +58,7 @@ async fn offline_config_threads_to_resolution_verifier() {
     let verifiers = build_resolution_verifiers(
         &config,
         Arc::new(ThrottledClient::default()),
+        None,
         None,
         None,
         None,

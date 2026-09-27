@@ -5,7 +5,10 @@ use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
 use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
-use pnpm_package_manager::{CommandLockfile, ResolvedPackages};
+use pnpm_package_manager::{
+    CommandLockfile, DedicatedProjectInstall, ResolvedPackages, SharedInstallCaches,
+    WorkspaceDependenciesInstalled,
+};
 use pnpm_package_manifest::{
     PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
@@ -14,6 +17,15 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+/// What the per-project installs of a workspace whose projects keep their
+/// own lockfiles share: the tarball cache every [`State`] carries, and the
+/// rest of [`SharedInstallCaches`].
+#[derive(Clone, Default)]
+pub(crate) struct DedicatedCaches {
+    pub(crate) tarballs: Arc<MemCache>,
+    pub(crate) install: SharedInstallCaches,
+}
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
@@ -40,6 +52,9 @@ pub struct State {
     pub lockfile: LazyLockfile,
     /// In-memory cache for packages that have started resolving dependencies.
     pub resolved_packages: ResolvedPackages,
+    /// Set when this state's install is one project's among several a
+    /// command runs. See [`State::into_dedicated_project`].
+    pub dedicated: Option<DedicatedProjectInstall>,
 }
 
 /// The wanted lockfile as a manifest-mutating command receives it: the
@@ -86,7 +101,7 @@ impl State {
     where
         Groups: IntoIterator<Item = pnpm_package_manifest::DependencyGroup>,
     {
-        pnpm_package_manager::Install::new(
+        let mut install = pnpm_package_manager::Install::new(
             Arc::clone(&self.tarball_mem_cache),
             &self.resolved_packages,
             (&self.http_client, Arc::clone(&self.http_client)),
@@ -94,7 +109,29 @@ impl State {
             &self.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&self.lockfile),
             dependency_groups,
-        )
+        );
+        install.projects.dedicated.clone_from(&self.dedicated);
+        install
+    }
+
+    /// Make this state's install one project's among the several a command
+    /// runs: it shares `caches`, the tarball cache included, with the
+    /// others, and waits for `dependencies_installed` where its project's
+    /// installed dependencies start to matter.
+    #[must_use]
+    pub(crate) fn into_dedicated_project(
+        self,
+        caches: &DedicatedCaches,
+        dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+    ) -> Self {
+        State {
+            tarball_mem_cache: Arc::clone(&caches.tarballs),
+            dedicated: Some(DedicatedProjectInstall {
+                caches: caches.install.clone(),
+                dependencies_installed,
+            }),
+            ..self
+        }
     }
 
     /// Initialize the application state.
@@ -175,6 +212,7 @@ impl State {
             http_client,
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),
+            dedicated: None,
         })
     }
 

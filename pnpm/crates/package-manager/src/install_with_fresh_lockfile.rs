@@ -346,6 +346,8 @@ pub(crate) struct FreshFetchingInputs {
     /// from it to skip duplicate fetches when both touch the same
     /// `(registry, name)`.
     pub(crate) meta_cache: Arc<InMemoryPackageMetaCache>,
+    /// See [`crate::DedicatedProjectInstall::caches`].
+    pub(crate) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
 
 pub(crate) struct FreshProjectInputs {

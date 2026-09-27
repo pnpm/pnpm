@@ -128,6 +128,10 @@ impl<'a> RunExecution<'a> {
         dispatched: Dispatched<'a>,
         materialized: super::super::materialize::MaterializationOutput,
     ) -> Result<InstallRunOutcome, InstallError> {
+        let dependencies_installed = self.owned.projects.dedicated
+            .as_ref()
+            .and_then(|dedicated| dedicated.dependencies_installed.clone());
+        wait_for_workspace_dependencies(dependencies_installed).await?;
         let workspace_manifest_dir = self.workspace.dirs.workspace_manifest_dir.clone();
         apply_materialization_result::<Reporter>(self.apply_inputs(
             projects,
@@ -281,6 +285,13 @@ impl<'a> RunExecution<'a> {
         }
     }
 }
+async fn wait_for_workspace_dependencies(
+    dependencies_installed: Option<crate::WorkspaceDependenciesInstalled>,
+) -> Result<(), InstallError> {
+    let Some(dependencies_installed) = dependencies_installed else { return Ok(()) };
+    if dependencies_installed.await { Ok(()) } else { Err(InstallError::WorkspaceDependencyFailed) }
+}
+
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.
 pub(super) fn materialization_lockfiles<'r, 'install>(
     loaded: &'r mut Loaded<'_>,
@@ -372,6 +383,7 @@ impl From<&super::InstallOwned> for crate::install::materialize::Materialization
         Self {
             tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
             http_client_arc: Arc::clone(&owned.http_client_arc),
+            fetch_caches: owned.shared_caches().map(|caches| caches.fetch.clone()),
         }
     }
 }

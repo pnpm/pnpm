@@ -302,12 +302,14 @@ impl<'a> InstallFrozenLockfile<'a> {
             // planning — like the directory-clone cache above, only after
             // the offline lockfile checks — so its index reads run while a
             // pending host detection finishes its `node --version`.
+            let store_context =
+                install.drivers.fetch_caches.map(crate::SharedFetchCaches::store_context);
             let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
                 config,
                 install.entries(),
                 allow_build_policy,
                 install.platform.supported_architectures,
-                None,
+                store_context.as_ref(),
             )
             .await;
             Ok(MaterializationPlan {
@@ -322,7 +324,10 @@ impl<'a> InstallFrozenLockfile<'a> {
                 layout,
                 dir_clone_cache,
                 cas_prefetch,
-                git_source_cache: pnpm_git_fetcher::GitSourceCache::default(),
+                git_source_cache: install.drivers.fetch_caches.map_or_else(
+                    Default::default,
+                    |caches| std::sync::Arc::clone(&caches.git_sources),
+                ),
             })
         }
     }

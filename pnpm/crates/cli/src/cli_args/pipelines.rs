@@ -30,6 +30,7 @@ use crate::{
     },
     config_deps, ecosystem_add, ecosystem_install,
     package_specifier::EcosystemPackageSpecifier,
+    state::DedicatedCaches,
     state::check_root_project_engine,
 };
 use indexmap::IndexMap;
@@ -97,7 +98,7 @@ pub(crate) enum InstallFamilyPlan {
     /// each installed independently against its own `pnpm-lock.yaml`,
     /// `node_modules`, and virtual store. Dependency-ready projects run under
     /// the workspace-concurrency limit.
-    PerProject(DedicatedProjects),
+    PerProject(Box<DedicatedProjects>),
 }
 
 #[derive(Clone, Copy)]
@@ -145,6 +146,9 @@ pub(crate) struct DedicatedProjects {
     /// The sources whose injected copies are synced once every project ran
     /// its lifecycle scripts, taken from the manifests read before they ran.
     injected_source_dirs: HashSet<PathBuf>,
+    /// The projects a pipelined run may start ahead of the workspace
+    /// projects they depend on. See [`pipelined_runs::early_starts`].
+    early_starts: HashSet<PathBuf>,
 }
 
 impl DedicatedProjects {
@@ -166,11 +170,18 @@ impl DedicatedProjects {
                 .filter(|project| selection.project_dependencies.contains_key(&project.root_dir))
                 .map(|project| (project.root_dir.as_path(), Some(project.manifest.value()))),
         );
+        let early_starts = pipelined_runs::early_starts(
+            config,
+            selection.projects
+                .iter()
+                .map(|project| (project.root_dir.as_path(), project.manifest.value())),
+        );
         DedicatedProjects {
             dependencies: selection.project_dependencies,
             names,
             covers_workspace,
             injected_source_dirs,
+            early_starts,
         }
     }
 
@@ -223,6 +234,11 @@ struct DedicatedProjectRuns<'a> {
     /// their injected copies are synced once all of them ran. See
     /// [`sync_dedicated_injected_deps`].
     sync_injected_deps: bool,
+    /// Whether the projects run pipelined: each resolves and materializes
+    /// without waiting for the workspace projects it depends on, and waits
+    /// for them only before it links its dependencies and runs its scripts.
+    /// Only an install, which changes no manifest, runs pipelined.
+    pipelined: bool,
 }
 
 impl DedicatedProjectRuns<'_> {
@@ -231,7 +247,11 @@ impl DedicatedProjectRuns<'_> {
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
-        self.run_projects(run).await?;
+        if self.pipelined {
+            self.run_projects_pipelined(run).await?;
+        } else {
+            self.run_projects(run).await?;
+        }
         if self.prune_excludes && self.projects.covers_workspace {
             prune_after_dedicated_installs(self.config)?;
         }
@@ -262,6 +282,7 @@ impl DedicatedProjectRuns<'_> {
         let require_lockfile = self.require_lockfile;
         let http_client = &self.http_client;
         let names = &self.projects.names;
+        let caches = &DedicatedCaches::default();
         let run = &run;
         let run_node = |project_dir: PathBuf| {
             let first_error = &first_error;
@@ -273,7 +294,9 @@ impl DedicatedProjectRuns<'_> {
                     names.get(&project_dir).map(String::as_str),
                     require_lockfile,
                     http_client,
-                ) {
+                )
+                .map(|state| state.into_dedicated_project(caches, None))
+                {
                     // A project's install blocks its thread in places, such as
                     // while its lifecycle scripts run. On its own task, the
                     // other projects' installs move to another worker then.
@@ -492,6 +515,7 @@ fn precomputed_workspace_cycles(
 
 mod install;
 mod nested_workspace_manifests;
+mod pipelined_runs;
 mod selection;
 
 mod mutation;
