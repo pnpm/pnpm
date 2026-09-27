@@ -1,4 +1,7 @@
-use super::{UnexpandedWindowsEnvVar, ensure_windows_dir_envs_on, expand_dir_env};
+use super::{
+    UnexpandedWindowsEnvVar, ensure_windows_dir_envs_on, ensure_windows_home_dir_env_on,
+    expand_dir_env,
+};
 use crate::api::EnvVar;
 use pretty_assertions::assert_eq;
 
@@ -13,6 +16,7 @@ fn lookup(name: &str) -> Option<String> {
         "B" => Some("%A%".to_owned()),
         "DOUBLING" => Some("%DOUBLING%%DOUBLING%".to_owned()),
         "MY-HOME" => Some(r"C:\tools".to_owned()),
+        "WIDE" => Some("é".repeat(20_000)),
         _ => None,
     }
 }
@@ -49,6 +53,13 @@ fn rejects_a_cycle() {
 fn rejects_a_reference_that_grows_on_every_pass() {
     let error = expand("%DOUBLING%").unwrap_err();
     assert_eq!(error.reference, "%DOUBLING%");
+}
+
+#[test]
+fn measures_the_length_limit_in_utf16_code_units() {
+    let expanded = expand("%WIDE%").unwrap();
+    assert_eq!(expanded.chars().count(), 20_000);
+    assert_eq!(expand("%WIDE%%WIDE%").unwrap_err().reference, "%WIDE%");
 }
 
 #[test]
@@ -111,4 +122,26 @@ fn rejects_an_unexpanded_cache_home() {
 #[test]
 fn skips_the_check_off_windows() {
     ensure_windows_dir_envs_on::<BadCache>("linux").unwrap();
+}
+
+#[test]
+fn home_dir_check_ignores_an_unexpanded_cache_home() {
+    ensure_windows_home_dir_env_on::<BadCache>("windows").unwrap();
+}
+
+struct BadLocalAppData;
+
+impl EnvVar for BadLocalAppData {
+    fn var(name: &str) -> Option<String> {
+        match name {
+            "LOCALAPPDATA" => Some(r"%MISSING%\AppData\Local".to_owned()),
+            _ => None,
+        }
+    }
+}
+
+#[test]
+fn home_dir_check_rejects_an_unexpanded_local_app_data_fallback() {
+    let error = ensure_windows_home_dir_env_on::<BadLocalAppData>("windows").unwrap_err();
+    assert_eq!(error.variable, "LOCALAPPDATA");
 }

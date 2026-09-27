@@ -119,6 +119,21 @@ test('getDataDir() rejects a Windows environment variable that grows on every ex
   }))
 })
 
+test('getDataDir() measures the Windows length limit in UTF-16 code units', () => {
+  const wide = 'é'.repeat(20_000)
+  expect(getDataDir({
+    env: { PNPM_HOME: '%WIDE%', WIDE: wide },
+    platform: 'win32',
+  })).toBe(wide)
+  expect(() => getDataDir({
+    env: { PNPM_HOME: '%WIDE%%WIDE%', WIDE: wide },
+    platform: 'win32',
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_UNEXPANDED_ENV_IN_PATH',
+    message: 'PNPM_HOME contains an unexpanded environment variable: %WIDE%',
+  }))
+})
+
 test('getDataDir() expands a Windows environment variable whose name has a hyphen', () => {
   expect(getDataDir({
     env: {

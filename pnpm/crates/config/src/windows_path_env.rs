@@ -33,23 +33,42 @@ pub fn ensure_windows_dir_envs<Sys: EnvVar>() -> Result<(), UnexpandedWindowsEnv
     ensure_windows_dir_envs_on::<Sys>(std::env::consts::OS)
 }
 
+/// Like [`ensure_windows_dir_envs`], limited to the variables that locate
+/// the pnpm home directory, for commands that resolve nothing else.
+pub fn ensure_windows_home_dir_env<Sys: EnvVar>() -> Result<(), UnexpandedWindowsEnvVar> {
+    ensure_windows_home_dir_env_on::<Sys>(std::env::consts::OS)
+}
+
 pub(crate) fn ensure_windows_dir_envs_on<Sys: EnvVar>(
+    os: &str,
+) -> Result<(), UnexpandedWindowsEnvVar> {
+    ensure_windows_home_dir_env_on::<Sys>(os)?;
+    if os != "windows" {
+        return Ok(());
+    }
+    for name in DIR_ENV_WITH_FALLBACK {
+        expand_if_set::<Sys>(name)?;
+    }
+    if DIR_ENV_WITH_FALLBACK
+        .iter()
+        .any(|name| Sys::var(name).is_none())
+    {
+        expand_if_set::<Sys>("LOCALAPPDATA")?;
+    }
+    Ok(())
+}
+
+pub(crate) fn ensure_windows_home_dir_env_on<Sys: EnvVar>(
     os: &str,
 ) -> Result<(), UnexpandedWindowsEnvVar> {
     if os != "windows" {
         return Ok(());
     }
-    expand_if_set::<Sys>("PNPM_HOME")?;
-    if Sys::var("PNPM_HOME").is_none() {
-        expand_if_set::<Sys>("XDG_DATA_HOME")?;
-    }
-    for name in DIR_ENV_WITH_FALLBACK {
-        expand_if_set::<Sys>(name)?;
-    }
-    if local_app_data_is_used::<Sys>() {
-        expand_if_set::<Sys>("LOCALAPPDATA")?;
-    }
-    Ok(())
+    let name = ["PNPM_HOME", "XDG_DATA_HOME"]
+        .into_iter()
+        .find(|name| Sys::var(name).is_some())
+        .unwrap_or("LOCALAPPDATA");
+    expand_if_set::<Sys>(name)
 }
 
 /// The value of `name`, with Windows `%VAR%` references expanded.
@@ -82,18 +101,10 @@ fn expand_if_set<Sys: EnvVar>(name: &str) -> Result<(), UnexpandedWindowsEnvVar>
     expand_dir_env("windows", name, &value, Sys::var).map(|_| ())
 }
 
-fn local_app_data_is_used<Sys: EnvVar>() -> bool {
-    let home_needs_local = Sys::var("PNPM_HOME").is_none() && Sys::var("XDG_DATA_HOME").is_none();
-    let fallback_needs_local = DIR_ENV_WITH_FALLBACK
-        .iter()
-        .any(|name| Sys::var(name).is_none());
-    home_needs_local || fallback_needs_local
-}
-
 const MAX_EXPANSIONS: usize = 32;
-/// The longest value Windows allows in an environment variable. A
-/// self-referencing value such as `X=%X%%X%` never repeats, so expansion
-/// stops once the result would exceed this length.
+/// The longest value Windows allows in an environment variable, in UTF-16
+/// code units. A self-referencing value such as `X=%X%%X%` never repeats, so
+/// expansion stops once the result would exceed this length.
 const MAX_EXPANDED_LEN: usize = 32_767;
 
 fn expand_windows_percent_vars(
@@ -150,13 +161,19 @@ fn substitute_once(value: &str, lookup: &impl Fn(&str) -> Option<String>) -> Opt
             next.push_str(name);
             next.push('%');
         }
-        if next.len() > MAX_EXPANDED_LEN {
+        if exceeds_env_value_limit(&next) {
             return None;
         }
         rest = &after[end + 1..];
     }
     next.push_str(rest);
-    (changed && next.len() <= MAX_EXPANDED_LEN).then_some(next)
+    (changed && !exceeds_env_value_limit(&next)).then_some(next)
+}
+
+/// Windows measures the limit in UTF-16 code units. A UTF-8 byte count is
+/// never smaller, so it rules out most values without re-encoding them.
+fn exceeds_env_value_limit(value: &str) -> bool {
+    value.len() > MAX_EXPANDED_LEN && value.encode_utf16().count() > MAX_EXPANDED_LEN
 }
 
 fn first_percent_var(value: &str) -> Option<String> {
