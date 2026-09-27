@@ -101,13 +101,7 @@ impl LinkArgs {
                     .wrap_err("adding linked dependency to package.json")?;
             }
             new_overrides.insert(package_name.clone(), link_spec(&root_dir, &target_dir));
-            if let Some(warning) = linked_peer_dependencies_warning(
-                &package_name,
-                target_manifest.value(),
-                &manifest_dir.display().to_string(),
-            ) {
-                Reporter::emit(&warning);
-            }
+            check_peer_deps::<Reporter>(&package_name, &target_manifest, &manifest_dir);
         }
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
@@ -194,4 +188,17 @@ fn link_target(
         .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
         .to_string();
     Ok((target_dir, package_name, target_manifest))
+}
+
+fn check_peer_deps<Reporter: self::Reporter>(
+    package_name: &str,
+    target_manifest: &PackageManifest,
+    prefix: &Path,
+) {
+    let prefix = prefix.display().to_string();
+    if let Some(warning) =
+        linked_peer_dependencies_warning(package_name, target_manifest.value(), &prefix)
+    {
+        Reporter::emit(&warning);
+    }
 }
