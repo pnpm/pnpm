@@ -1,6 +1,6 @@
 ---
-"@pnpm/installing.deps-installer": patch
+"@pnpm/installing.deps-resolver": patch
 "pnpm": patch
 ---
 
-Avoid lockfile churn for unrelated transitive dependencies when adding a dependency [https://github.com/pnpm/pnpm/issues/11456](https://github.com/pnpm/pnpm/issues/11456).
+Adding a dependency no longer moves an unrelated transitive dependency to another version that is already in the lockfile [#11456](https://github.com/pnpm/pnpm/issues/11456).

@@ -404,25 +404,26 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0']).toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
 
-test('preserve existing transitive resolution when an unrelated direct dep introduces a new version of the same package', async () => {
+test('adding a dependency keeps the locked version of an unrelated transitive dependency', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
-    ['@pnpm.e2e/has-foo-as-dep-and-subdep'],
+    ['@pnpm.e2e/parent-of-foobarqar@1.0.1', '@pnpm.e2e/has-foo-100.1.0-dep-2'],
     testDefaults()
   )
 
   let lockfile = project.readLockfile()
-  expect(lockfile.snapshots['@pnpm.e2e/requires-any-foo@1.0.0'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'])
     .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-foo-100.1.0-dep-1'], testDefaults())
 
   lockfile = project.readLockfile()
   expect(lockfile.snapshots['@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'])
     .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.1.0')
-  expect(lockfile.snapshots['@pnpm.e2e/requires-any-foo@1.0.0'])
+  expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'])
     .toHaveProperty(['dependencies', '@pnpm.e2e/foo'], '100.0.0')
 })
