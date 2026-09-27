@@ -731,3 +731,77 @@ fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
 
     drop((root, mock_instance));
 }
+
+/// The hoisted linker gives a workspace project its own modules directory
+/// only for the dependencies it nests there, so a missing one is not proof
+/// of a stale install. The repeat install has to tell a removed one, which
+/// the last install recorded, from one that was never created.
+#[test]
+fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace, serde_json::json!({ "is-positive": "3.1.0" }));
+    // pkg-a and pkg-b conflict with the root's version, so each gets a copy
+    // nested under it. pkg-c's dependency goes to the root.
+    for (project, deps) in [
+        ("pkg-a", serde_json::json!({ "is-positive": "1.0.0" })),
+        ("pkg-b", serde_json::json!({ "is-positive": "1.0.0" })),
+        ("pkg-c", serde_json::json!({ "is-negative": "1.0.0" })),
+    ] {
+        let dir = workspace.join("packages").join(project);
+        fs::create_dir_all(&dir).expect("create the workspace project");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": project, "version": "1.0.0", "dependencies": deps })
+                .to_string(),
+        )
+        .expect("write the project manifest");
+    }
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\npackages:\n  - packages/*\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/pkg-c/node_modules").exists());
+
+    let repeat = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let repeat_output = String::from_utf8_lossy(&repeat.get_output().stdout).into_owned();
+    assert!(
+        repeat_output.contains("Already up to date"),
+        "a project whose dependencies all went to the root must not defeat the fast path: {repeat_output}",
+    );
+
+    for project in ["pkg-a", "pkg-b"] {
+        fs_remove_dir_all(
+            &workspace
+                .join("packages")
+                .join(project)
+                .join("node_modules"),
+        );
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        for restored in ["pkg-a", "pkg-b"] {
+            assert_eq!(
+                read_pkg_version(
+                    &workspace,
+                    &format!("packages/{restored}/node_modules/is-positive"),
+                ),
+                "1.0.0",
+                "after removing {project}'s node_modules",
+            );
+        }
+    }
+
+    drop((root, mock_instance));
+}

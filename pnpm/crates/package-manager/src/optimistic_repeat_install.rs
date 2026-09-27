@@ -90,6 +90,7 @@ pub(crate) use timestamps::{
 mod current_lockfile;
 mod relocation;
 mod settle;
+pub(crate) use settle::sibling_modules_dir;
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     direct_dependency_link_dangling, early_repeat_verdict, first_project_missing_modules_dir,
@@ -446,7 +447,7 @@ fn settings_block_fast_path(
     if !project_structure_matches(state, project_manifests) {
         return Some("workspace project list changed");
     }
-    if !modules_dirs_present(check) {
+    if !modules_dirs_present(check, state) {
         return Some("project has dependencies but no node_modules directory");
     }
     if direct_dependency_link_dangling(check) {

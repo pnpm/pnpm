@@ -344,6 +344,7 @@ async fn install_writes_workspace_state() {
                     .to_string()
             ),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
 

@@ -43,6 +43,7 @@ function options (workspaceDir: string): UpdateWorkspaceStateOptions {
     workspaceDir,
     pnpmfiles: [],
     filteredInstall: false,
+    projectModulesDirs: {},
   }
 }
 

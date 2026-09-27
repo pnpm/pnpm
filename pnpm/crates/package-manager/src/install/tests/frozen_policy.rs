@@ -96,6 +96,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(

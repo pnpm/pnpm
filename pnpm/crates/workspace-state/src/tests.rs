@@ -22,7 +22,11 @@ fn write_and_load_round_trip() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("my-pkg".into()), version: Some("1.2.3".into()) },
+        ProjectEntry {
+            name: Some("my-pkg".into()),
+            version: Some("1.2.3".into()),
+            has_modules_dir: false,
+        },
     );
 
     let mut patched = IndexMap::new();
@@ -125,6 +129,25 @@ fn node_linker_serializes_lowercase() {
     assert_eq!(value, serde_json::Value::from("hoisted"));
     let value = serde_json::to_value(NodeLinker::Pnp).expect("serialize");
     assert_eq!(value, serde_json::Value::from("pnp"));
+}
+
+/// pnpm writes the flag only when it is set, so an entry without it reads
+/// as a project with no recorded modules directory.
+#[test]
+fn has_modules_dir_is_written_only_when_set() {
+    let entry =
+        |has_modules_dir| ProjectEntry { name: Some("pkg".into()), version: None, has_modules_dir };
+    assert_eq!(
+        serde_json::to_value(entry(true)).expect("serialize"),
+        serde_json::json!({ "name": "pkg", "hasModulesDir": true }),
+    );
+    assert_eq!(
+        serde_json::to_value(entry(false)).expect("serialize"),
+        serde_json::json!({ "name": "pkg" }),
+    );
+    let parsed: ProjectEntry =
+        serde_json::from_value(serde_json::json!({ "name": "pkg" })).expect("deserialize");
+    assert!(!parsed.has_modules_dir);
 }
 
 #[test]

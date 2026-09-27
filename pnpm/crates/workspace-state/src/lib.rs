@@ -40,6 +40,14 @@ pub struct ProjectEntry {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// Whether a hoisted install left the project with its own modules
+    /// directory. The hoisted linker creates one only for dependencies it
+    /// nests under the project, so a project with dependencies may have
+    /// none; this records which ones must still have it. Never set under
+    /// the isolated linker, which needs a modules directory for every
+    /// project with dependencies.
+    #[serde(default, rename = "hasModulesDir", skip_serializing_if = "std::ops::Not::not")]
+    pub has_modules_dir: bool,
 }
 
 /// A single `configDependencies` value — either a `VersionWithIntegrity`

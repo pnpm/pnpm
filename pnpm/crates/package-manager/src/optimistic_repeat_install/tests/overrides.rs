@@ -173,7 +173,11 @@ fn returns_up_to_date_when_a_catalog_local_dependency_is_replaced_by_an_override
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     const WHOLE_SECOND_MS: i64 = 1_700_000_000_000;
     set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), WHOLE_SECOND_MS);

@@ -213,12 +213,17 @@ pub(super) fn project_structure_matches(
                     == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
         })
 }
-pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    first_project_missing_modules_dir(check).is_none()
+pub(super) fn modules_dirs_present(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    first_project_missing_modules_dir(check, state).is_none()
 }
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
-/// `None` when every project with dependencies has one.
+/// `None` when every project with dependencies has one. Under the hoisted
+/// linker a sibling needs one only if the last install recorded one
+/// ([`pnpm_workspace_state::ProjectEntry::has_modules_dir`]).
 ///
 /// Under `dedupeDirectDeps` a sibling whose every direct dependency
 /// resolves to the same target as the root's gets nothing linked, so the
@@ -226,6 +231,7 @@ pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> 
 /// all the same and does not count as missing one.
 pub(super) fn first_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
@@ -241,10 +247,17 @@ pub(super) fn first_project_missing_modules_dir(
         .iter()
         .find_map(|(root_dir, manifest)| {
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
+            let recorded_modules_dir = state.projects
+                .get(&*root_dir.to_string_lossy())
+                .is_some_and(|entry| entry.has_modules_dir);
             let installed = !manifest_has_runtime_deps(manifest)
-                || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
-                    sibling_modules_dir(config, root_dir, manifest)
-                })
+                || modules_dir_exists(
+                    node_linker,
+                    is_root,
+                    root_modules_dir_exists,
+                    recorded_modules_dir,
+                    || sibling_modules_dir(config, root_dir, manifest),
+                )
                 || (!is_root
                     && root_modules_dir_exists
                     && config.dedupe_direct_deps
@@ -309,9 +322,14 @@ fn is_dangling_link(path: &Path) -> bool {
     fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()
 }
 
-/// The modules directory an isolated install creates for the workspace
-/// project at `root_dir`.
-fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {
+/// The workspace project's own modules directory: where the isolated
+/// linker links its dependencies and the hoisted linker nests the ones it
+/// cannot hoist to the root.
+pub(crate) fn sibling_modules_dir(
+    config: &Config,
+    root_dir: &Path,
+    manifest: &PackageManifest,
+) -> PathBuf {
     root_dir.join(config.modules_dir_name_for(
         root_dir,
         manifest_string_field(manifest, "name").as_deref(),
@@ -319,15 +337,21 @@ fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManif
 }
 
 /// The root importer uses `config.modules_dir`; under the isolated linker
-/// each sibling has its own, which the last argument computes.
+/// each sibling has its own, which the last argument computes. Under the
+/// hoisted linker a sibling has its own only when the last install
+/// recorded one ([`pnpm_workspace_state::ProjectEntry::has_modules_dir`]).
 fn modules_dir_exists(
     node_linker: NodeLinker,
     is_root: bool,
     root_modules_dir_exists: bool,
+    recorded_modules_dir: bool,
     sibling_modules_dir: impl FnOnce() -> PathBuf,
 ) -> bool {
     match node_linker {
-        NodeLinker::Hoisted => root_modules_dir_exists,
+        NodeLinker::Hoisted => {
+            root_modules_dir_exists
+                && (is_root || !recorded_modules_dir || sibling_modules_dir().is_dir())
+        }
         NodeLinker::Isolated | NodeLinker::Pnp => {
             if is_root {
                 root_modules_dir_exists

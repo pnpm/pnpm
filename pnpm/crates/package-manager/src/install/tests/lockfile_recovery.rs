@@ -172,6 +172,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("workspace-root".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     projects.insert(
@@ -179,6 +180,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         workspace_state::ProjectEntry {
             name: Some("app".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let validated_at = 0;
@@ -319,6 +321,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         workspace_state::ProjectEntry {
             name: Some("project".to_string()),
             version: Some("1.0.0".to_string()),
+            has_modules_dir: false,
         },
     );
     let settings = crate::optimistic_repeat_install::settings::current_settings(

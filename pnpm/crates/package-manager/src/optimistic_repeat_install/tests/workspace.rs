@@ -275,14 +275,22 @@ fn install_and_run_refuse_a_changed_workspace_project_set() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         dir.path()
             .join("pkg-a")
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     // Re-stamp so every file reads as validated and the mtime branch
     // cannot fire. This test is about the project-list branch.
@@ -554,7 +562,11 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -594,7 +606,11 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
 
@@ -640,11 +656,19 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -706,7 +730,11 @@ fn workspace_content_check_refuses_a_project_after_the_first() {
     let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
     state.projects.insert(
         dropped_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("b".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("b".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     update_workspace_state(dir.path(), &state).unwrap();
     let root = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
@@ -1008,11 +1036,19 @@ fn deduped_sibling_decision_in(sibling: DedupedSibling<'_>) -> Decision {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
