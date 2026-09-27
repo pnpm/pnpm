@@ -92,7 +92,7 @@ test('custom fetchers do not prevent reuse of an integrity-pinned hoisted packag
   fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }))
   const opts = hoistedOpts(dir)
   opts.force = false
-  opts.currentHoistedLocations = { 'pkg@1.0.0': ['node_modules/pkg'] }
+  opts.currentHoistedLocations = { 'pkg@1.0.0': [path.relative(dir, packageDir)] }
   opts.storeController = {
     ...opts.storeController,
     hasCustomFetchers: true,
