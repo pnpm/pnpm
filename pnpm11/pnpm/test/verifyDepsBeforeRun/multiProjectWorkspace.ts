@@ -689,6 +689,53 @@ test('filtered exec installs only the selected projects', async () => {
   expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
 })
 
+test('filtered exec installs the workspace dependencies of the selected projects', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        bar: 'workspace:*',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+    baz: {
+      name: 'baz',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+    manifests.baz,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'exec', 'node', '-e', "console.log('exec-ok')"], { expectSuccess: true })
+
+  expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('baz/node_modules'))).toBeFalsy()
+})
+
 // A filtered install leaves the projects it did not select without a modules
 // directory, so the next filtered command has to install the project it selects
 // instead of treating the recorded state as up to date

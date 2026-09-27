@@ -96,7 +96,7 @@ test('installs only the selected projects when a filter is set', async () => {
     filterProd: ['project-c'],
   })
 
-  expect(runPnpmCli).toHaveBeenCalledWith(['install', '--filter=project-b', '--filter-prod=project-c'], {
+  expect(runPnpmCli).toHaveBeenCalledWith(['install', '--filter=project-b...', '--filter-prod=project-c...'], {
     cwd: process.cwd(),
     reporter: undefined,
   })

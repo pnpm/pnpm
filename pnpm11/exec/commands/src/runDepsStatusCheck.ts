@@ -148,15 +148,17 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
 /**
  * The install that the gate spawns has to select the same projects the command
  * being gated was filtered to, otherwise a filtered `run` or `exec` would
- * install every project of the workspace.
+ * install every project of the workspace. Each selector also selects its
+ * dependencies, because a selected project needs the workspace projects it
+ * depends on installed too.
  */
 export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter' | 'filterProd'>): string[] {
-  const args: string[] = []
-  for (const selector of opts.filter ?? []) {
-    args.push(`--filter=${selector}`)
-  }
-  for (const selector of opts.filterProd ?? []) {
-    args.push(`--filter-prod=${selector}`)
-  }
-  return args
+  return [
+    ...(opts.filter ?? []).map((selector) => `--filter=${withDependencies(selector)}`),
+    ...(opts.filterProd ?? []).map((selector) => `--filter-prod=${withDependencies(selector)}`),
+  ]
+}
+
+function withDependencies (selector: string): string {
+  return selector.startsWith('!') || selector.endsWith('...') ? selector : `${selector}...`
 }

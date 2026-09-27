@@ -296,16 +296,25 @@ fn install_selection_args(config: &Config) -> Vec<String> {
 }
 
 /// The `--filter` / `--filter-prod` arguments that reproduce the gated
-/// command's project selection in the install the gate spawns.
+/// command's project selection in the install the gate spawns. Each selector
+/// also selects its dependencies, because a selected project needs the
+/// workspace projects it depends on installed too.
 fn filter_selector_args(filters: &[String], filter_prod: &[String]) -> Vec<String> {
-    let mut args = Vec::with_capacity(filters.len() + filter_prod.len());
-    for selector in filters {
-        args.push(format!("--filter={selector}"));
+    let filters = filters
+        .iter()
+        .map(|selector| format!("--filter={}", with_dependencies(selector)));
+    let filter_prod = filter_prod
+        .iter()
+        .map(|selector| format!("--filter-prod={}", with_dependencies(selector)));
+    filters.chain(filter_prod).collect()
+}
+
+fn with_dependencies(selector: &str) -> String {
+    if selector.starts_with('!') || selector.ends_with("...") {
+        selector.to_string()
+    } else {
+        format!("{selector}...")
     }
-    for selector in filter_prod {
-        args.push(format!("--filter-prod={selector}"));
-    }
-    args
 }
 
 #[cfg(test)]

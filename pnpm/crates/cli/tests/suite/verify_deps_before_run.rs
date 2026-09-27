@@ -1147,6 +1147,55 @@ fn exec_installs_the_selected_project_after_a_filtered_install() {
     drop((root, mock_instance));
 }
 
+/// A selected project needs the workspace projects it depends on installed
+/// too, so the install the gate spawns selects the dependencies of the
+/// selected projects.
+#[test]
+fn filtered_exec_installs_the_workspace_dependencies_of_the_selected_projects() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+        ("baz", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", r#"process.stdout.write("foo-ok")"#])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the workspace dependency of the selected project:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("packages/baz/node_modules").exists(),
+        "the filtered exec must not install an unrelated project:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
