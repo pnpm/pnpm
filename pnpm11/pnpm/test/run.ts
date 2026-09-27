@@ -101,9 +101,7 @@ test('recursive test: pass the args to the command that is specified in the buil
 
   const result = execPnpmSync(['--config.verify-deps-before-run=false', '-r', 'test', 'arg', '--flag=true'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toMatch(
-    process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag=true/
-  )
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test arg --flag=true/)
 })
 
 test('start: run "node server.js" by default', async () => {
