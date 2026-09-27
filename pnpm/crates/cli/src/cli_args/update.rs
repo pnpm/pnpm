@@ -188,6 +188,7 @@ impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         self.scripts.apply(config);
         if let Some(pnpr_server) = self.install.pnpr_server.clone() {
+            config.cli_settings.insert("pnprServer".to_string());
             config.pnpr_server = Some(pnpr_server);
         }
     }
