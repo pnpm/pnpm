@@ -351,7 +351,13 @@ fn write_project_links<Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let links = pre_hoist
         .map(|plan| {
-            write_hoist_links(plan, config, inputs.ctx.linker.layout, inputs.ctx.linker.bin_options)
+            write_hoist_links(
+                plan,
+                config,
+                inputs.ctx.linker.layout,
+                inputs.ctx.linker.bin_options,
+                inputs.graph.lockfile.snapshots.as_ref(),
+            )
         })
         .transpose()?
         .unwrap_or_else(HoistLinks::none);

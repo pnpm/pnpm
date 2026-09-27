@@ -447,9 +447,16 @@ fn same_global_virtual_store_layout_with_approved_postinstall() {
 /// `pkg-with-1-dep` slot would land at one path on pnpm and another
 /// on pacquet. Mirrors the cache-correctness guarantee that the unit
 /// test [`diamond_graph_resolves_consistently`](../../../../graph-hasher/src/dep_state.rs)
-/// already covers in isolation, here exercised through the full
-/// install pipeline.
+/// **Ignored until a pnpm release ships the GVS hoisted transitive dependencies
+/// fix from <https://github.com/pnpm/pnpm/pull/11119>.** This test requires pnpm
+/// and pacquet to agree on the GVS slot layout for packages with transitive
+/// dependencies. The fix adds symlinks for hoisted transitive dependencies
+/// inside each GVS slot's `node_modules/` in both pnpm and pacquet. Because this
+/// compatibility test executes the published `pnpm` binary from `PATH` against
+/// in-tree pacquet, the slot trees diverge until a published pnpm version includes
+/// this change.
 #[test]
+#[ignore = "depends on a published pnpm version that includes pnpm/pnpm#11119; see test doc comment"]
 fn same_global_virtual_store_layout_diamond() {
     let CommandTempCwd {
         pacquet,
