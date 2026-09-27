@@ -1036,9 +1036,13 @@ fn isolated_prod_deploy_links_engines_runtime_node() {
         deploy_dir.join("node_modules/node/package.json").exists(),
         "isolated deploy keeps the runtime package",
     );
+    let runtime_executable = if cfg!(windows) { "node.exe" } else { "bin/node" };
     assert!(
-        deploy_dir.join("node_modules/node/bin/node").exists(),
-        "isolated deploy keeps the runtime bin",
+        deploy_dir
+            .join("node_modules/node")
+            .join(runtime_executable)
+            .exists(),
+        "isolated deploy keeps the runtime executable",
     );
     assert!(
         deploy_dir.join("node_modules/dependency/package.json").exists(),
@@ -1051,9 +1055,18 @@ fn assert_runtime_omitted(deploy_dir: &Path) {
         !deploy_dir.join("node_modules/node").exists(),
         "the downloaded runtime must not be hoisted into the deploy directory",
     );
+    let linked_node_bins = fs::read_dir(deploy_dir.join("node_modules/.bin"))
+        .into_iter()
+        .flatten()
+        .map(|entry| entry.unwrap().path())
+        .filter(|bin| {
+            bin.file_stem()
+                .is_some_and(|stem| stem == "node")
+        })
+        .collect::<Vec<_>>();
     assert!(
-        !deploy_dir.join("node_modules/.bin/node").exists(),
-        "the downloaded runtime bin must not be linked into the deploy directory",
+        linked_node_bins.is_empty(),
+        "the downloaded runtime bin must not be linked into the deploy directory: {linked_node_bins:?}",
     );
 }
 

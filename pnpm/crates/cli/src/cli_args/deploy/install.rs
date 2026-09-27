@@ -111,18 +111,6 @@ fn deploy_virtual_store_dir(base_config: &Config, deploy_dir: &Path) -> PathBuf 
     }
 }
 
-/// Hoisted deploy must not materialize a runtime downloaded for
-/// `engines.runtime` into `node_modules`. Isolated deploy keeps the
-/// virtual-store link. `--no-runtime` and `skipRuntimes` still apply
-/// for every linker.
-pub(super) fn deploy_skips_downloaded_runtimes(
-    node_linker: NodeLinker,
-    skip_runtimes: bool,
-    no_runtime: bool,
-) -> bool {
-    skip_runtimes || no_runtime || node_linker == NodeLinker::Hoisted
-}
-
 pub(super) fn create_deploy_install_config(
     base_config: &Config,
     deploy_dir: &Path,
@@ -215,11 +203,7 @@ impl DeployArgs {
                 .or(Some(false));
             base_install.lockfile_policy.trust = trust_lockfile;
             base_install.lockfile_policy.disable_optimistic_repeat = true;
-            base_install.execution.skip_runtimes = deploy_skips_downloaded_runtimes(
-                config.node_linker,
-                config.skip_runtimes,
-                self.install_args.materialization.no_runtime,
-            );
+            base_install.execution.skip_runtimes = self.skips_downloaded_runtimes(config);
             base_install.resolution.preferred_versions_override =
                 preferred_versions_override.map(Into::into);
             base_install.context.lockfile_path = lockfile_path.as_deref();
@@ -234,6 +218,15 @@ impl DeployArgs {
             install.run::<ReporterT>().await
         }
         .wrap_err("installing deployed dependencies")
+    }
+
+    /// A hoisted deploy would copy a runtime downloaded for `engines.runtime`
+    /// into `node_modules` beside the app's packages, so it always skips
+    /// runtimes. Other linkers follow `skipRuntimes` and `--no-runtime`.
+    fn skips_downloaded_runtimes(&self, config: &Config) -> bool {
+        config.skip_runtimes
+            || self.install_args.materialization.no_runtime
+            || config.node_linker == NodeLinker::Hoisted
     }
 
     /// The deploy directory's own install config, with the install flags
@@ -264,20 +257,5 @@ impl DeployArgs {
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{NodeLinker, deploy_skips_downloaded_runtimes};
-
-    #[test]
-    fn hoisted_deploy_skips_downloaded_runtimes() {
-        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Hoisted, false, false));
-        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Isolated, true, false));
-        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Isolated, false, true));
-        assert!(!deploy_skips_downloaded_runtimes(NodeLinker::Isolated, false, false));
-        assert!(!deploy_skips_downloaded_runtimes(NodeLinker::Pnp, false, false));
-        assert!(deploy_skips_downloaded_runtimes(NodeLinker::Pnp, false, true));
     }
 }

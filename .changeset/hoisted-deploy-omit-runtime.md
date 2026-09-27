@@ -3,4 +3,4 @@
 "pacquet": patch
 ---
 
-`pnpm deploy` with `node-linker=hoisted` omits downloaded runtimes from the deployed `node_modules`. That includes the Node.js runtime downloaded for `engines.runtime` when `onFail` is `download` [pnpm/pnpm#12468](https://github.com/pnpm/pnpm/issues/12468).
+`pnpm deploy` with `nodeLinker: hoisted` no longer copies downloaded runtimes, such as the Node.js runtime from `engines.runtime`, into the deployed `node_modules` [pnpm/pnpm#12468](https://github.com/pnpm/pnpm/issues/12468).
