@@ -3,8 +3,7 @@
 
 use ignore::gitignore::Gitignore;
 use serde_json::Value;
-use std::collections::BTreeSet;
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 /// Compile the `manifest.files` allowlist into a `Gitignore` matcher
 /// rooted at `pkg_dir`. Returns `None` when no entries compile,
@@ -52,13 +51,14 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignor
 /// npm-packlist stats every entry and re-adds the files it names, which is
 /// why `["**", "!dist", "dist/index.d.ts"]` still ships `dist/index.d.ts`:
 /// the exclusion prunes the directory, not the file another entry names
-/// (pnpm/pnpm#16213).
+/// (pnpm/pnpm#16213). A trailing slash makes an entry directory-only, so
+/// `dist/index.d.ts/` does not name that file and npm does not ship it.
 pub(super) fn named_file_entries(pkg_dir: &Path, entries: &[Value]) -> BTreeSet<String> {
     entries
         .iter()
         .filter_map(Value::as_str)
-        .filter(|entry| !entry.starts_with('!') && !has_glob_syntax(entry))
-        .map(|entry| normalize_field_path(entry.trim_end_matches('/')))
+        .filter(|entry| !entry.starts_with('!') && !entry.ends_with('/') && !has_glob_syntax(entry))
+        .map(normalize_field_path)
         .filter(|entry| !entry.is_empty() && pkg_dir.join(entry).is_file())
         .collect()
 }
