@@ -193,17 +193,23 @@ fi
 
 # Determine push remote (after checkout, since gh pr checkout may add the fork remote)
 REMOTE="origin"
-if [ "$HEAD_OWNER" != "pnpm" ]; then
-  # The fork's full name, not just its owner: a fork can be renamed, and an owner alone
-  # does not say which repository the push has to land in. Guessing `<owner>/pnpm` when
-  # the answer is missing would name a repository the PR does not come from.
-  HEAD_REPO=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepository --jq '.headRepository.nameWithOwner // empty')
-  if [ -z "$HEAD_REPO" ]; then
-    echo "ERROR: the PR's head repository is not known (it was renamed or deleted, or"
-    echo "  'gh pr view --json headRepository' failed). Refusing to guess the push target."
-    exit 1
-  fi
+# The PR's head repository, not just its owner: a fork can be renamed, and an owner alone
+# does not say which repository the push has to land in. Guessing `<owner>/pnpm` when the
+# answer is missing would name a repository the PR does not come from.
+HEAD_REPO=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepository --jq '.headRepository.nameWithOwner // empty')
+if [ -z "$HEAD_REPO" ]; then
+  echo "ERROR: the PR's head repository is not known (it was renamed or deleted, or"
+  echo "  'gh pr view --json headRepository' failed). Refusing to guess the push target."
+  exit 1
+fi
+HEAD_SLUG=$(printf '%s' "$HEAD_REPO" | tr '[:upper:]' '[:lower:]')
 
+# A head owner of `pnpm` is not the same as a head repository of `pnpm/pnpm`: a PR can be
+# opened across repositories inside that organisation, from `pnpm/pnpm-fork` for example,
+# and pushing that one to origin would put the rebased commits in a repository the PR does
+# not come from. Only an exact `pnpm/pnpm` head repository is the upstream case, and it is
+# then still checked below, because origin is not necessarily a clone of it.
+if [ "$HEAD_SLUG" != "pnpm/pnpm" ]; then
   if git remote get-url "$HEAD_OWNER" &>/dev/null; then
     REMOTE="$HEAD_OWNER"
   else
@@ -213,27 +219,28 @@ if [ "$HEAD_OWNER" != "pnpm" ]; then
     git remote add "$HEAD_OWNER" "$FORK_URL"
     REMOTE="$HEAD_OWNER"
   fi
+fi
 
-  # A remote named after the head owner is not proof that it points at the fork. `gh pr
-  # checkout` is what normally creates it, and --continue never runs it, so a stale or
-  # reused remote with that name would receive this branch's force-push instead.
-  # The push URL is what a push actually uses, and it can differ from the fetch URL.
-  # Only the forms that name github.com exactly are read as a repository slug, so a URL
-  # on another host cannot be mistaken for the fork by carrying one in its path.
-  REMOTE_URL=$(git remote get-url --push "$REMOTE")
-  REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed \
-    -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
-    -e 's#^git@github\.com:##' \
-    -e 's#\.git$##' \
-    -e 's#/$##' | tr '[:upper:]' '[:lower:]')
-  FORK_SLUG=$(printf '%s' "$HEAD_REPO" | tr '[:upper:]' '[:lower:]')
-  if [ "$REMOTE_SLUG" != "$FORK_SLUG" ]; then
-    echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
-    echo "  Current $REMOTE: $REMOTE_URL"
-    echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
-    echo "  Refusing to push: the rebased commits would go somewhere other than the PR's fork."
-    exit 1
-  fi
+# The remote that is about to be pushed to is used because of its name -- `origin`, or the
+# head owner's. That name is not proof that it points at the PR's head repository: `gh pr
+# checkout` is what normally creates the fork remote, and --continue never runs it, so a
+# stale or reused remote with that name would receive this branch's force-push instead.
+# The push URL is what a push actually uses, and it can differ from the fetch URL.
+# Only the forms that name github.com exactly are read as a repository slug, so a URL
+# on another host cannot be mistaken for the fork by carrying one in its path.
+REMOTE_URL=$(git remote get-url --push "$REMOTE")
+REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed \
+  -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
+  -e 's#^git@github\.com:##' \
+  -e 's#\.git$##' \
+  -e 's#/$##' | tr '[:upper:]' '[:lower:]')
+if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
+  echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
+  echo "  Current $REMOTE: $REMOTE_URL"
+  echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
+  echo "  Refusing to push: the rebased commits would go somewhere other than the PR's head"
+  echo "  repository. Add a remote for $HEAD_REPO and re-run."
+  exit 1
 fi
 
 # Helper: regenerate lockfile without running lifecycle scripts

@@ -471,6 +471,40 @@ expect_status 0
 expect_call '^git remote add some-fork https://github.com/some-fork/pnpm-fork.git$'
 expect_output "git push some-fork HEAD:fix/example --force-with-lease"
 unset STUB_HEAD_OWNER STUB_HEAD_REPO STUB_REMOTE_URL STUB_REMOTE_EXISTS
+
+# A head owner of `pnpm` is not a head repository of `pnpm/pnpm`. A PR can be opened across
+# repositories inside that organisation (from `pnpm/pnpm-fork`, for example), and then
+# origin -- which is the contributor's own clone -- is not the repository the PR comes
+# from. Keying the check off the owner name skipped it entirely for these.
+export STUB_HEAD_OWNER='pnpm'
+no_rebase
+on_pr_branch
+export STUB_PUSH_URL='https://github.com/snmsoodan/pnpm.git'
+run_case 'upstream-owner-foreign-origin' 4242 --no-push
+expect_status 1
+expect_output "remote 'origin' does not point to pnpm/pnpm"
+expect_no_call '^git push'
+unset STUB_PUSH_URL
+
+# Pnpm's own repository is the upstream case, and the owner is matched without regard to
+# case, as GitHub treats it.
+export STUB_HEAD_REPO='PNPM/PNPM'
+run_case 'upstream-head-repo-case' 4242 --no-push
+expect_status 0
+expect_call '^git remote get-url --push origin$'
+expect_output 'git push origin HEAD:fix/example --force-with-lease'
+unset STUB_HEAD_REPO
+
+# Another repository of the same organisation is not the upstream one either: it gets a
+# remote of its own, exactly like a fork under a different owner.
+export STUB_HEAD_REPO='pnpm/pnpm-fork'
+export STUB_REMOTE_EXISTS=0
+run_case 'upstream-owner-other-repo' 4242 --no-push
+expect_status 0
+expect_call '^git remote add pnpm https://github.com/pnpm/pnpm-fork.git$'
+expect_output 'git push pnpm HEAD:fix/example --force-with-lease'
+unset STUB_HEAD_REPO STUB_REMOTE_EXISTS
+
 export STUB_HEAD_OWNER='pnpm'
 
 echo 'resolve-pr-conflicts.sh: all cases passed'
