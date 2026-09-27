@@ -264,6 +264,33 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 
+/// `npm_config_node_gyp` is pnpm's default, not a reserved stamp: a
+/// value the script inherits from the parent environment is the user's
+/// own node-gyp choice and must survive the bundled default (matching
+/// TS `npm-lifecycle`, which sets the variable only when absent).
+#[test]
+fn bundled_node_gyp_default_does_not_override_an_inherited_value() {
+    let pkg_root = Path::new("/tmp/g");
+    let extra = HashMap::new();
+    let mut opts = base_opts(pkg_root, pkg_root, &extra);
+    opts.environment.node_gyp_path = Some(Path::new("/pnpm/bundled/node-gyp.js"));
+
+    let parent =
+        HashMap::from([("npm_config_node_gyp".to_string(), "/user/own/node-gyp.js".to_string())]);
+    let built = build_env(&opts, &json!({"name":"g","version":"0"}), parent);
+    assert_eq!(
+        built.env.get("npm_config_node_gyp").map(String::as_str),
+        Some("/user/own/node-gyp.js"),
+    );
+
+    // With nothing inherited, the bundled default fills the vacancy.
+    let built = build_env(&opts, &json!({"name":"g","version":"0"}), HashMap::new());
+    assert_eq!(
+        built.env.get("npm_config_node_gyp").map(String::as_str),
+        Some("/pnpm/bundled/node-gyp.js"),
+    );
+}
+
 #[test]
 fn stamp_package_recurses_into_kept_buckets() {
     let mut env = HashMap::new();

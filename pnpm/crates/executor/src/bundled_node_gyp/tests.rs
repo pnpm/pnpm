@@ -1,10 +1,24 @@
-use super::bundled_node_gyp_bin_in;
+use super::{bundled_node_gyp_bin_in, bundled_node_gyp_entry_in};
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
 /// Lay out the published payload under `exe_dir` the way the npm
 /// wrapper package ships it.
+/// The full published payload: the wrappers plus the frozen
+/// `node-gyp` tree they dispatch into.
 fn ship_payload(exe_dir: &Path) {
+    ship_wrapper_payload(exe_dir);
+    let entry = exe_dir
+        .join("dist")
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin")
+        .join("node-gyp.js");
+    fs::create_dir_all(entry.parent().unwrap()).unwrap();
+    fs::write(entry, "// node-gyp entry\n").unwrap();
+}
+
+fn ship_wrapper_payload(exe_dir: &Path) {
     let bin_dir = exe_dir.join("dist").join("node-gyp-bin");
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("node-gyp"), "#!/usr/bin/env sh\n").unwrap();
@@ -118,4 +132,43 @@ fn finds_the_wrapper_dir_beside_the_symlink_target() {
                 .join("node-gyp-bin")
         ),
     );
+}
+
+/// The entry point rides in the same payload as the wrappers, so
+/// shipping everything puts the stamped `npm_config_node_gyp` value
+/// beside the executable.
+#[test]
+fn finds_the_entry_point_shipped_beside_the_executable() {
+    let exe_dir = tempfile::tempdir().unwrap();
+    ship_payload(exe_dir.path());
+
+    assert_eq!(
+        bundled_node_gyp_entry_in(exe_dir.path()),
+        Some(
+            exe_dir
+                .path()
+                .join("dist")
+                .join("node_modules")
+                .join("node-gyp")
+                .join("bin")
+                .join("node-gyp.js")
+        ),
+    );
+}
+
+/// Wrappers without the frozen tree are a payload this must not stamp
+/// from: the value would point at a file that is not there.
+#[test]
+fn entry_absent_when_only_the_wrappers_were_shipped() {
+    let exe_dir = tempfile::tempdir().unwrap();
+    ship_wrapper_payload(exe_dir.path());
+
+    assert_eq!(bundled_node_gyp_entry_in(exe_dir.path()), None);
+}
+
+#[test]
+fn entry_absent_when_nothing_was_shipped() {
+    let exe_dir = tempfile::tempdir().unwrap();
+
+    assert_eq!(bundled_node_gyp_entry_in(exe_dir.path()), None);
 }

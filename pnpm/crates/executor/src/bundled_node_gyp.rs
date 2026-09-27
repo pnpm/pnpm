@@ -47,6 +47,48 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
         .as_deref()
 }
 
+/// Locate the `node-gyp` entry point shipped beside the running executable:
+/// the `bin/node-gyp.js` of the frozen tree that the `dist/node-gyp-bin`
+/// wrappers dispatch to. This is the value stamped into
+/// `npm_config_node_gyp`, so tools of the `node-pre-gyp` family resolve the
+/// same node-gyp that pnpm puts on a lifecycle script's `PATH`, as the
+/// TypeScript CLI already does.
+///
+/// `None` when the entry point was not shipped — the normal case for a
+/// `cargo build` in a checkout, and the same meaning as
+/// [`bundled_node_gyp_bin`]: scripts fall back to whatever `node-gyp` the
+/// environment provides.
+pub fn bundled_node_gyp_entry() -> Option<&'static Path> {
+    static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
+    RESOLVED
+        .get_or_init(|| {
+            let exe = std::env::current_exe().ok()?;
+            bundled_node_gyp_entry_beside(&exe)
+        })
+        .as_deref()
+}
+
+fn bundled_node_gyp_entry_beside(exe: &Path) -> Option<PathBuf> {
+    bundled_node_gyp_entry_in(exe.parent()?)
+        .or_else(|| {
+            let exe = dunce::canonicalize(exe).ok()?;
+            bundled_node_gyp_entry_in(exe.parent()?)
+        })
+}
+
+/// The probe is the entry point itself, not its enclosing directory: the
+/// value is handed to scripts verbatim, so only the real file proves the
+/// tree was shipped.
+fn bundled_node_gyp_entry_in(exe_dir: &Path) -> Option<PathBuf> {
+    let entry = exe_dir
+        .join(DIST_DIR)
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin")
+        .join("node-gyp.js");
+    entry.is_file().then_some(entry)
+}
+
 fn bundled_node_gyp_bin_beside(exe: &Path) -> Option<PathBuf> {
     // `current_exe` is the path pnpm was launched through on some platforms,
     // macOS among them. The unresolved path is tried first because

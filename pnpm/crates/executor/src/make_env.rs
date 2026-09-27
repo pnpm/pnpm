@@ -330,8 +330,11 @@ fn stamp_executables(
             .into_owned(),
     );
 
+    // A value inherited from the parent environment is the user's own
+    // choice, matching TS `npm-lifecycle`: the stamp only fills a vacancy.
     if let Some(path) = opts.node_gyp_path {
-        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
+        env.entry("npm_config_node_gyp".into())
+            .or_insert_with(|| path.to_string_lossy().into_owned());
     }
 }
 

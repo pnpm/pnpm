@@ -17,10 +17,12 @@ pub struct ScriptEnvironment<'a> {
     /// is used.
     pub npm_execpath: Option<&'a Path>,
     /// `node-gyp` entry point written into `npm_config_node_gyp`.
-    /// `None` leaves the variable unset, which is what pnpm does: the
-    /// wrapper found through the `node_gyp_bin` execution option reads
-    /// this variable and falls back to the shipped copy when it is
-    /// unset, so setting it here would override a user's own choice.
+    /// Callers pass pnpm's bundled entry point (see
+    /// [`crate::bundled_node_gyp_entry`]). The stamp only fills a
+    /// vacancy: a value inherited from the parent environment is the
+    /// user's own choice and stays, and the wrapper found through the
+    /// `node_gyp_bin` execution option reads this variable too, so an
+    /// `extra_env` value keeps winning.
     pub node_gyp_path: Option<&'a Path>,
     /// Value written into `npm_config_user_agent`. Caller-supplied
     /// (typically `"pnpm/<version>"`); `None` skips the stamp.
