@@ -1,6 +1,8 @@
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 
 import { logger } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { ProjectManifest } from '@pnpm/types'
 
 /**
@@ -14,9 +16,9 @@ export function warnAboutLinkedPeerDependencies (
   opts: { pkgDir: string, prefix: string }
 ): void {
   if (!manifest?.peerDependencies || Object.keys(manifest.peerDependencies).length === 0) return
-  const packageName = manifest.name ?? path.basename(opts.pkgDir)
+  const packageName = sanitizeWarningText(manifest.name ?? path.basename(opts.pkgDir))
   const peerDeps = Object.entries(manifest.peerDependencies)
-    .map(([key, value]) => `  - ${key}@${String(value)}`)
+    .map(([key, value]) => `  - ${sanitizeWarningText(key)}@${sanitizeWarningText(String(value))}`)
     .join(', ')
 
   logger.warn({
@@ -28,4 +30,8 @@ The linked in dependency will not resolve the peer dependencies from the target 
 This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
     prefix: opts.prefix,
   })
+}
+
+function sanitizeWarningText (text: string): string {
+  return sanitizeInline(stripVTControlCharacters(text))
 }

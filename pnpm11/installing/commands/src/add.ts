@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
@@ -9,7 +7,7 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { isLocalFilesystemSpecifier, isTarballFilename } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -336,18 +334,14 @@ export async function handler (
 /**
  * A directory added without an alias (`pnpm add ../pkg`) is saved as a
  * `link:` dependency, so it gets the same peer dependency warning as
- * `pnpm link`.
+ * `pnpm link`. Selectors of any other kind, and a directory without a
+ * manifest, produce no warning.
  */
 async function warnIfLinkedWithPeers (param: string, projectDir: string): Promise<void> {
   const { alias, bareSpecifier } = parseWantedDependency(param)
-  if (
-    alias != null ||
-    bareSpecifier == null ||
-    !isLocalFilesystemSpecifier(bareSpecifier) ||
-    bareSpecifier.startsWith('file:') ||
-    isTarballFilename(bareSpecifier)
-  ) return
-  const pkgDir = path.resolve(projectDir, bareSpecifier.replace(/^link:/, ''))
+  if (alias != null || bareSpecifier == null || !isLocalFilesystemSpecifier(bareSpecifier)) return
+  const pkgDir = linkedDirectoryPath(bareSpecifier, projectDir)
+  if (pkgDir == null) return
   warnAboutLinkedPeerDependencies(await safeReadProjectManifestOnly(pkgDir), { pkgDir, prefix: projectDir })
 }
 

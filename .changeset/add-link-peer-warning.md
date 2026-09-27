@@ -1,5 +1,6 @@
 ---
 "@pnpm/installing.commands": patch
+"@pnpm/resolving.local-resolver": patch
 "pnpm": patch
 "pacquet": patch
 ---
