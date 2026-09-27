@@ -195,10 +195,13 @@ fi
 REMOTE="origin"
 if [ "$HEAD_OWNER" != "pnpm" ]; then
   # The fork's full name, not just its owner: a fork can be renamed, and an owner alone
-  # does not say which repository the push has to land in.
+  # does not say which repository the push has to land in. Guessing `<owner>/pnpm` when
+  # the answer is missing would name a repository the PR does not come from.
   HEAD_REPO=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRepository --jq '.headRepository.nameWithOwner // empty')
   if [ -z "$HEAD_REPO" ]; then
-    HEAD_REPO="$HEAD_OWNER/pnpm"
+    echo "ERROR: the PR's head repository is not known (it was renamed or deleted, or"
+    echo "  'gh pr view --json headRepository' failed). Refusing to guess the push target."
+    exit 1
   fi
 
   if git remote get-url "$HEAD_OWNER" &>/dev/null; then
@@ -214,8 +217,15 @@ if [ "$HEAD_OWNER" != "pnpm" ]; then
   # A remote named after the head owner is not proof that it points at the fork. `gh pr
   # checkout` is what normally creates it, and --continue never runs it, so a stale or
   # reused remote with that name would receive this branch's force-push instead.
-  REMOTE_URL=$(git remote get-url "$REMOTE")
-  REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed -e 's|^.*github\.com[:/]||' -e 's|\.git$||' | tr '[:upper:]' '[:lower:]')
+  # The push URL is what a push actually uses, and it can differ from the fetch URL.
+  # Only the forms that name github.com exactly are read as a repository slug, so a URL
+  # on another host cannot be mistaken for the fork by carrying one in its path.
+  REMOTE_URL=$(git remote get-url --push "$REMOTE")
+  REMOTE_SLUG=$(printf '%s' "$REMOTE_URL" | sed \
+    -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
+    -e 's#^git@github\.com:##' \
+    -e 's#\.git$##' \
+    -e 's#/$##' | tr '[:upper:]' '[:lower:]')
   FORK_SLUG=$(printf '%s' "$HEAD_REPO" | tr '[:upper:]' '[:lower:]')
   if [ "$REMOTE_SLUG" != "$FORK_SLUG" ]; then
     echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."

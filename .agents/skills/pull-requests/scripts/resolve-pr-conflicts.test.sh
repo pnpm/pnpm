@@ -24,6 +24,14 @@ cat > "$fake_bin/git" <<'EOF'
 set -euo pipefail
 printf 'git %s\n' "$*" >> "$STUB_LOG"
 case "$*" in
+  # A remote can push somewhere other than where it fetches; that is the URL a push uses.
+  'remote get-url --push '*)
+    if [ -n "${STUB_PUSH_URL+x}" ]; then
+      printf '%s\n' "$STUB_PUSH_URL"
+    else
+      git remote get-url "$4"
+    fi
+    ;;
   'remote get-url origin') echo 'https://github.com/pnpm/pnpm.git' ;;
   'remote get-url '*)
     if [ -f "$STUB_GIT_DIR/remote-$3" ]; then
@@ -77,7 +85,15 @@ case "$*" in
     touch "$STUB_GIT_DIR/checked-out"
     ;;
   *'--json headRepositoryOwner'*) echo "$STUB_HEAD_OWNER" ;;
-  *'--json headRepository'*) echo "${STUB_HEAD_REPO:-$STUB_HEAD_OWNER/pnpm}" ;;
+  # `// empty` prints nothing for a null headRepository, so an explicitly empty value is
+  # passed through rather than replaced by the default.
+  *'--json headRepository'*)
+    if [ -n "${STUB_HEAD_REPO+x}" ]; then
+      printf '%s\n' "$STUB_HEAD_REPO"
+    else
+      echo "$STUB_HEAD_OWNER/pnpm"
+    fi
+    ;;
   *'--json headRefName'*) echo "$STUB_HEAD_BRANCH" ;;
   *'--json baseRefName'*) echo 'main' ;;
   *'--json mergeable'*) echo 'MERGEABLE' ;;
@@ -363,6 +379,7 @@ export STUB_HEAD_REPO='some-fork/pnpm'
 on_pr_branch
 run_case 'fork-push-validated' 4242 --no-push
 expect_status 0
+expect_call '^git remote get-url --push some-fork$'
 expect_output "git push some-fork HEAD:fix/example --force-with-lease"
 
 # The same remote name can point somewhere else, and this push is a force-push: a stale or
@@ -384,7 +401,47 @@ expect_output "remote 'some-fork' does not point to some-fork/pnpm"
 expect_no_call '^git rebase --continue'
 expect_no_call '^git push'
 
+# A host that merely ends in github.com, or carries one in its path, is not github.com.
+no_rebase
+on_pr_branch
+export STUB_REMOTE_URL='https://notgithub.com/some-fork/pnpm.git'
+run_case 'fork-push-lookalike-host' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git push'
+export STUB_REMOTE_URL='https://example.test/github.com/some-fork/pnpm.git'
+run_case 'fork-push-host-in-path' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git push'
+
+# A push URL overrides the fetch URL, and it is the one the push uses.
+no_rebase
+on_pr_branch
+export STUB_REMOTE_URL='https://github.com/some-fork/pnpm.git'
+export STUB_PUSH_URL='https://github.com/someone-else/pnpm.git'
+run_case 'fork-push-push-url' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_output 'Current some-fork: https://github.com/someone-else/pnpm.git'
+expect_no_call '^git push'
+unset STUB_PUSH_URL
+
+# Without the head repository there is nothing to compare against, so the push stops
+# instead of falling back to <owner>/pnpm.
+no_rebase
+on_pr_branch
+export STUB_HEAD_REPO=''
+run_case 'fork-push-no-head-repo' 4242 --no-push
+expect_status 1
+expect_output 'head repository is not known'
+expect_no_call '^git push'
+unset STUB_HEAD_REPO
+
 # SSH remotes and case differences in the owner are the same fork.
+start_rebase 'fix/example'
+write_identity 4242 some-fork fix/example
+detached_head
 export STUB_REMOTE_URL='git@github.com:some-fork/pnpm.git'
 run_case 'continue-fork-ssh-remote' 4242 --continue
 expect_status 0
