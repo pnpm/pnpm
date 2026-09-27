@@ -1026,6 +1026,50 @@ fn workspace_project_dependencies_built_during_headless_install_with_dedicated_l
     }
 }
 
+/// TS: `built dependencies are restored from a populated store when the
+/// workspace has separate lockfiles` (`pnpm/test/monorepo/index.ts`).
+/// The package extension gives the built dependency a dependency of its
+/// own, so its side-effects cache key includes the dependency graph hash.
+/// A frozen reinstall into wiped `node_modules` restores the build
+/// output, and `--ignore-scripts` still leaves it out.
+#[test]
+fn built_dependencies_restored_from_populated_store_with_dedicated_lockfiles() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "sharedWorkspaceLockfile: false\n\
+         allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n\
+         packageExtensions:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0':\n    dependencies:\n      is-positive: 1.0.0\n",
+    );
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    let project = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    let artifact = project.join(
+        "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+    );
+    let wipe_modules = || {
+        fs::remove_dir_all(fixture.workspace.join("node_modules"))
+            .expect("remove root node_modules");
+        fs::remove_dir_all(project.join("node_modules")).expect("remove project-1 node_modules");
+    };
+
+    fixture.run(["install"]);
+    assert!(artifact.exists(), "the first install must build the dependency");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert!(artifact.exists(), "a frozen reinstall must restore the build output");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile", "--ignore-scripts"]);
+    assert!(!artifact.exists(), "--ignore-scripts must not restore the build output");
+}
+
 /// TS: `custom virtual store directory in a workspace with not shared
 /// lockfile` (`pnpm/test/monorepo/index.ts:1467`). The custom
 /// `virtualStoreDir` anchors per project, `.modules.yaml` records it,
