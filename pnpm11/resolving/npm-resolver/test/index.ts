@@ -18,7 +18,8 @@ import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import type { DependencyManifest, ProjectRootDir, RegistriesByScope } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
-import { omit } from 'ramda'
+import { clone, omit } from 'ramda'
+import ssri from 'ssri'
 import { temporaryDirectory } from 'tempy'
 
 import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
@@ -3809,6 +3810,54 @@ test('peekManifestFromStore: bypassed when updateChecksums is true', async () =>
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  getMockAgent().assertNoPendingInterceptors()
+})
+
+test('peekManifestFromStore: a publish date lookup keeps the store manifest of the locked package', async () => {
+  const storeDir = temporaryDirectory()
+  const storeIndex = new StoreIndex(storeDir)
+  const integrity = ssri.fromHex(isPositiveMetaFull.versions['1.0.0'].dist.shasum, 'sha1').toString()
+  storeIndex.set(storeIndexKey(integrity, 'is-positive@1.0.0'), {
+    algo: 'sha512',
+    files: new Map(),
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+      peerDependencies: { react: '*' },
+    },
+  })
+
+  const meta = clone(isPositiveMetaFull)
+  meta.versions['1.0.0'].peerDependencies = { react: '16.0.0' }
+  getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, meta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir,
+    cacheDir: temporaryDirectory(),
+    registriesByScope,
+  })
+
+  const resolveResult = await resolveFromNpm(
+    { alias: 'is-positive', bareSpecifier: '^1.0.0' },
+    {
+      publishedBy: new Date('2020-01-01'),
+      currentPkg: {
+        id: 'is-positive@1.0.0' as PkgResolutionId,
+        name: 'is-positive',
+        version: '1.0.0',
+        resolution: {
+          integrity,
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
+      },
+    }
+  )
+
+  expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(resolveResult!.publishedAt).toBe(isPositiveMetaFull.time['1.0.0'])
+  expect(resolveResult!.manifest!.peerDependencies).toStrictEqual({ react: '*' })
   getMockAgent().assertNoPendingInterceptors()
 })
 
