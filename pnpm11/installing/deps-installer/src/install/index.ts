@@ -63,6 +63,7 @@ import {
   getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
+  type LockfileFile,
   type LockfileObject,
   type ProjectSnapshot,
   readEnvLockfile,
@@ -3717,6 +3718,17 @@ function definesHooks (hooks: unknown[] | unknown | undefined): boolean {
   return Array.isArray(hooks) ? hooks.length > 0 : hooks != null
 }
 
+/**
+ * Whether any importer of an on-disk lockfile records a dependency. Only the
+ * importers are converted, so the check does not scale with the package count.
+ */
+function recordsDependencies (lockfile: LockfileFile): boolean {
+  return !isEmptyLockfile(convertToLockfileObject({
+    lockfileVersion: lockfile.lockfileVersion,
+    importers: lockfile.importers,
+  }))
+}
+
 function canUsePnprForInstall (opts: Opts): boolean {
   if (opts.updatePatches) {
     return !opts.updateToLatest &&
@@ -4074,7 +4086,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
     const frozenLockfile = opts.frozenLockfile === true || (
       opts.frozenLockfileIfExists === true &&
       existingLockfile != null &&
-      !isEmptyLockfile(convertToLockfileObject(existingLockfile))
+      recordsDependencies(existingLockfile)
     )
     const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
     // The server skips the pnpmfile comparison a local frozen install makes,
