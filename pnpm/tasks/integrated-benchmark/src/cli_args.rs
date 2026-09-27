@@ -215,6 +215,13 @@ pub enum BenchmarkScenario {
     /// behind downloads here because there are none.)
     #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
     IsolatedFreshInstallColdCacheHotStore,
+    /// The cold-cache + hot-store fresh install, with every pnpr server
+    /// restarted on empty storage before each iteration, so pnpr resolves
+    /// from cold packuments instead of answering from its resolution cache:
+    /// the first request after a deploy, or for a tree the server has never
+    /// resolved.
+    #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve")]
+    IsolatedFreshInstallColdCacheHotStoreColdPnprResolve,
     /// Frozen lockfile, cold cache + cold store. The typical CI shape.
     #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store")]
     IsolatedFreshRestoreColdCacheColdStore,
@@ -267,6 +274,17 @@ pub enum BenchmarkScenario {
     GvsFreshRestoreHotCacheHotStore,
 }
 
+/// A pnpr-side cache a scenario empties before every iteration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColdPnprCache {
+    /// The per-revision tarball-serving mock starts on empty storage and
+    /// refetches every tarball from the warm origin.
+    Tarballs,
+    /// Every pnpr server restarts on empty storage, which also drops the
+    /// in-memory resolution cache that wiping the storage alone keeps.
+    Resolution,
+}
+
 /// Per-iteration cleanup applied by hyperfine's `--prepare`.
 pub struct Cleanup {
     /// Paths in the bench dir to `rm -rf` before each iteration.
@@ -292,6 +310,7 @@ impl BenchmarkScenario {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStoreColdPnprResolve
             | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
@@ -339,7 +358,8 @@ impl BenchmarkScenario {
         match self {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
-            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => false,
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStoreColdPnprResolve => false,
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
@@ -425,7 +445,8 @@ impl BenchmarkScenario {
             // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
             // hot store (keep `store-dir` → no tarball download). Resolution
             // is the only variable cost, so it can't hide behind downloads.
-            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
+            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore
+            | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStoreColdPnprResolve => Cleanup {
                 remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
             },
@@ -481,10 +502,17 @@ impl BenchmarkScenario {
         )
     }
 
-    /// Whether this scenario gives the serving mock a cold cache (see the
-    /// `…cold-store.cold-pnpr` variant); selects the cold-mock spawn.
-    pub fn cold_pnpr_cache(self) -> bool {
-        matches!(self, BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr)
+    /// Which pnpr-side cache this scenario empties before every iteration.
+    pub fn cold_pnpr_cache(self) -> Option<ColdPnprCache> {
+        match self {
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => {
+                Some(ColdPnprCache::Tarballs)
+            }
+            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStoreColdPnprResolve => {
+                Some(ColdPnprCache::Resolution)
+            }
+            _ => None,
+        }
     }
 
     /// Whether to use the generated shared-subgraph fixture that guards

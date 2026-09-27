@@ -267,6 +267,7 @@ jobs:
           - isolated-linker.fresh-install.cold-cache.cold-store
           - isolated-linker.fresh-install.hot-cache.hot-store
           - isolated-linker.fresh-install.cold-cache.hot-store
+          - isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve
           - isolated-linker.fresh-resolve.hot-cache.offline
           - isolated-linker.peer-heavy-resolve.hot-cache.offline
           - isolated-linker.linked-workspace-resolve.hot-cache.offline
@@ -518,6 +519,19 @@ jobs:
           node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.cold-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Isolated linker: fresh install, cold cache + hot store + cold pnpr resolve'
+        if: matrix.scenario == 'isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve'
+        shell: bash
+        # The scenario above with every pnpr server restarted on empty
+        # storage before each iteration, so pnpr resolves from cold packuments
+        # instead of answering from its resolution cache. Every other scenario
+        # measures a warm pnpr server.
+        timeout-minutes: 30
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE.json
 
       - name: 'Benchmark: Isolated linker: fresh resolve, hot cache, offline'
         if: matrix.scenario == 'isolated-linker.fresh-resolve.hot-cache.offline'
@@ -930,6 +944,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE:isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.peer-heavy-resolve.hot-cache.offline' \
             'ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.linked-workspace-resolve.hot-cache.offline' \
@@ -944,6 +959,7 @@ jobs:
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE:isolated-linker.fresh-install.cold-cache.hot-store.cold-pnpr-resolve' \
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
             'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'

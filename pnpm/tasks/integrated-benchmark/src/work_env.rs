@@ -3,7 +3,7 @@ pub(crate) use fixtures::seed_peer_heavy_registry;
 mod scripts;
 use scripts::{
     build_cleanup_command, create_install_script, dir_contains_file, may_create_lockfile,
-    sync_bench_repo, wipe_bench_dir,
+    remove_dir_all_with_retry, sync_bench_repo, wipe_bench_dir,
 };
 
 mod fixtures;
@@ -14,9 +14,10 @@ mod linked_workspace;
 
 mod server_config;
 use server_config::{
-    PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_mock_config_yaml, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
-    wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    PnprResolverServer, PnprRestartListener, PnprServer, PnprServerPaths, RevisionMockRegistry,
+    append_pnpr_auth_to_npmrc, cold_mock_config_yaml, distinct_public_route_registries,
+    mint_pnpr_token, pnpr_htpasswd_path, seed_pnpr_auth, wait_for_pnpr_ready,
+    write_pnpr_benchmark_config,
 };
 
 mod measurements;
@@ -34,7 +35,7 @@ mod servers;
 mod build;
 
 use crate::{
-    cli_args::{RegistryMode, TargetKind, TargetSpec},
+    cli_args::{ColdPnprCache, RegistryMode, TargetKind, TargetSpec},
     verify::executor,
 };
 use os_display::Quotable;
@@ -336,9 +337,11 @@ impl WorkEnv {
         // keeps cold-cache scenarios genuinely cold for *resolution*, not
         // just for the CAS. `pnpr-storage` is the per-target pnpr server's
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
-        // upfront (but never per-iteration) makes the hyperfine warmup the
-        // run that primes the server, so timed runs measure a warm
-        // long-running server even while the client is cold. `cold-mock-storage`
+        // upfront (and per-iteration only for `ColdPnprCache::Resolution`)
+        // makes the hyperfine warmup the run that primes the server, so timed
+        // runs measure a warm long-running server even while the client is
+        // cold. `pnpr-auth` holds that server's `htpasswd` and `tokens.db`,
+        // wiped here so every run mints a fresh token. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self
@@ -360,7 +363,7 @@ impl WorkEnv {
         // the end of this method. Empty (no-op) when there are no pnpr
         // targets. Spawned before the GVS pre-warm below so a pnpr target
         // would have its server up if a scenario ever combines the two.
-        let _pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
+        let mut pnpr_servers = self.start_pnpr_servers(pnpr_server_registry);
 
         // For GVS-warm and repeat-install scenarios we need a pre-warm
         // pass: hyperfine's `--warmup` would otherwise time-from-empty
@@ -401,7 +404,18 @@ impl WorkEnv {
             self.prewarm_caches(&cleanup_command);
         }
 
-        self.run_hyperfine(&cleanup_command);
+        if scenario.cold_pnpr_cache() == Some(ColdPnprCache::Resolution) && !pnpr_servers.is_empty()
+        {
+            PnprRestartListener::bind()
+                .serve_during(
+                    || self.restart_pnpr_servers_on_empty_storage(&mut pnpr_servers),
+                    |restart_command| {
+                        self.run_hyperfine(&format!("{restart_command} && {cleanup_command}"));
+                    },
+                );
+        } else {
+            self.run_hyperfine(&cleanup_command);
+        }
         if scenario.uses_peer_heavy_fixture() {
             self.install_for_lockfile_comparison(&cleanup_command);
         }
