@@ -21,14 +21,23 @@ export function isSymlinkMode (mode: number): boolean {
  * The target the side-effects cache records for a symlink at `linkPath`, or
  * `undefined` when the link cannot be recorded.
  *
- * A recordable target is relative, climbs no higher than the package root,
- * climbs only at its start, and never names a `node_modules` directory. The
- * last rule keeps a restored link from resolving into the dependencies that
- * pnpm links next to the package, even through another restored link.
+ * The link must be at a plain relative path, outside the top-level
+ * `node_modules` and not at `package.json`. A recordable target is relative,
+ * climbs no higher than the package root, climbs only at its start, and never
+ * names a `node_modules` directory. The last rule keeps a restored link from
+ * resolving into the dependencies that pnpm links next to the package, even
+ * through another restored link. Reserved names match in any letter case,
+ * as they do on a case-insensitive filesystem.
  */
 export function normalizeSymlinkTarget (linkPath: string, target: string): string | undefined {
   const linkSegments = linkPath.split('/')
-  if (linkSegments[0] === 'node_modules' || linkPath === 'package.json') return undefined
+  if (
+    !linkSegments.every(isPlainName) ||
+    isName(linkSegments[0], 'node_modules') ||
+    (linkSegments.length === 1 && isName(linkSegments[0], 'package.json'))
+  ) {
+    return undefined
+  }
   if (target === '' || target.startsWith('/') || target.includes('\\') || target.includes('\0') || path.win32.parse(target).root !== '') {
     return undefined
   }
@@ -36,9 +45,17 @@ export function normalizeSymlinkTarget (linkPath: string, target: string): strin
   let parents = 0
   while (parents < segments.length && segments[parents] === '..') parents++
   const names = segments.slice(parents)
-  if (names.length === 0 || names.includes('..') || names.includes('node_modules')) return undefined
+  if (names.length === 0 || names.some((name) => name === '..' || isName(name, 'node_modules'))) return undefined
   if (parents > linkSegments.length - 1) return undefined
   return segments.join('/')
+}
+
+function isPlainName (segment: string): boolean {
+  return segment !== '' && segment !== '.' && segment !== '..' && !segment.includes('\\') && !segment.includes('\0')
+}
+
+function isName (segment: string, reservedName: string): boolean {
+  return segment.toLowerCase() === reservedName
 }
 
 export interface SplitSymlinksResult {

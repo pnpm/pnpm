@@ -39,6 +39,14 @@ fn rejects_unrecordable_targets() {
         ("link", "sub/node_modules/dep"),
         ("node_modules/link", "target"),
         ("package.json", "manifest.json"),
+        ("PACKAGE.JSON", "manifest.json"),
+        ("Node_Modules/link", "target"),
+        ("link", "NODE_MODULES/dep"),
+        ("../../tmp/escape", "target"),
+        ("a/../../escape", "target"),
+        ("/tmp/escape", "target"),
+        ("a//link", "target"),
+        (r"a\link", "target"),
         ("link", ""),
     ] {
         assert_eq!(normalize_symlink_target(link_path, target), None, "{link_path} -> {target}");

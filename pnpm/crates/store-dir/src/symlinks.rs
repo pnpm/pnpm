@@ -23,14 +23,16 @@ pub fn is_symlink_mode(mode: u32) -> bool {
 /// The target the side-effects cache records for a symlink at `link_path`,
 /// or `None` when the link cannot be recorded.
 ///
-/// A recordable target is relative, climbs no higher than the package root,
-/// climbs only at its start, and never names a `node_modules` directory. The
-/// last rule keeps a restored link from resolving into the dependencies that
-/// pnpm links next to the package, even through another restored link.
+/// The link must be at a plain relative path, outside the top-level
+/// `node_modules` and not at `package.json`. A recordable target is
+/// relative, climbs no higher than the package root, climbs only at its
+/// start, and never names a `node_modules` directory. The last rule keeps a
+/// restored link from resolving into the dependencies that pnpm links next to
+/// the package, even through another restored link. Reserved names match in
+/// any letter case, as they do on a case-insensitive filesystem.
 #[must_use]
 pub fn normalize_symlink_target(link_path: &str, target: &str) -> Option<String> {
-    let link_depth = link_path.split('/').count() - 1;
-    if link_path.split('/').next() == Some("node_modules") || link_path == "package.json" {
+    if !is_recordable_link_path(link_path) {
         return None;
     }
     if target.is_empty()
@@ -52,11 +54,21 @@ pub fn normalize_symlink_target(link_path: &str, target: &str) -> Option<String>
     if names.is_empty()
         || names
             .iter()
-            .any(|name| *name == ".." || *name == "node_modules")
+            .any(|name| *name == ".." || name.eq_ignore_ascii_case("node_modules"))
     {
         return None;
     }
+    let link_depth = link_path.split('/').count() - 1;
     (parents <= link_depth).then(|| segments.join("/"))
+}
+
+fn is_recordable_link_path(link_path: &str) -> bool {
+    let segments: Vec<&str> = link_path.split('/').collect();
+    segments
+        .iter()
+        .all(|segment| !matches!(*segment, "" | "." | "..") && !segment.contains(['\\', '\0']))
+        && !segments[0].eq_ignore_ascii_case("node_modules")
+        && !(segments.len() == 1 && segments[0].eq_ignore_ascii_case("package.json"))
 }
 
 /// Read the target of a recorded symlink from its CAFS file, or `None` when

@@ -40,6 +40,13 @@ describe('normalizeSymlinkTarget()', () => {
     ['link', 'sub/node_modules/dep', 'names node_modules'],
     ['node_modules/link', 'target', 'is in the dependencies directory'],
     ['package.json', 'manifest.json', 'replaces the manifest'],
+    ['PACKAGE.JSON', 'manifest.json', 'replaces the manifest on a case-insensitive filesystem'],
+    ['Node_Modules/link', 'target', 'is in the dependencies directory on a case-insensitive filesystem'],
+    ['link', 'NODE_MODULES/dep', 'names node_modules on a case-insensitive filesystem'],
+    ['../../tmp/escape', 'target', 'is outside the package'],
+    ['a/../../escape', 'target', 'is outside the package'],
+    ['/tmp/escape', 'target', 'is outside the package'],
+    ['a//link', 'target', 'is not a plain relative path'],
     ['link', '', 'is empty'],
   ])('rejects the link at %s to "%s", which %s', (linkPath, target) => {
     expect(normalizeSymlinkTarget(linkPath, target)).toBeUndefined()

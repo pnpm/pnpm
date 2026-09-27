@@ -12,4 +12,4 @@
 
 The side-effects cache now restores the symlinks that a build script creates inside a package. A warm install used to replace each of them with a copy of its target [#12859](https://github.com/pnpm/pnpm/issues/12859).
 
-After upgrading, every package with a build script is built once more, because the cache stores its entries under new keys.
+After upgrading, every package with a build script is built once more.
