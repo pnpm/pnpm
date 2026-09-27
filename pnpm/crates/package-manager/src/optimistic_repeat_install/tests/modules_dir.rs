@@ -41,11 +41,19 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -113,7 +121,11 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
         dir.path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
 
@@ -205,11 +217,19 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
             dir.path()
                 .to_string_lossy()
                 .into_owned(),
-            ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+            ProjectEntry {
+                name: Some("root".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
         ),
         (
             sibling_dir.to_string_lossy().into_owned(),
-            ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
+            ProjectEntry {
+                name: Some("pkg-a".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
         ),
     ]);
     write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);

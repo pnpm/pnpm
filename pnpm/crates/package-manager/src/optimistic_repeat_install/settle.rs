@@ -213,20 +213,70 @@ pub(super) fn project_structure_matches(
                     == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
         })
 }
-pub(super) fn modules_dirs_present(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
-    first_project_missing_modules_dir(check).is_none()
+pub(super) fn modules_dirs_present(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    first_project_missing_modules_dir(check, state).is_none()
 }
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
 /// `None` when every project with dependencies has one.
+pub(super) fn first_project_missing_modules_dir(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<String> {
+    first_project_without_modules_dir(check)
+        .or_else(|| first_project_missing_recorded_hoisted_modules_dir(check, state))
+}
+
+/// The hoisted linker gives a sibling its own modules directory only for
+/// the dependencies it nests there, so [`first_project_without_modules_dir`]
+/// cannot require one. The last install recorded which siblings have one
+/// ([`pnpm_workspace_state::ProjectEntry::has_modules_dir`]); this returns
+/// the first of them that no longer does. The workspace root is left out:
+/// the workspace state is stored in its `node_modules`, and
+/// [`first_project_without_modules_dir`] covers it.
+fn first_project_missing_recorded_hoisted_modules_dir(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> Option<String> {
+    if check.layout.node_linker != NodeLinker::Hoisted {
+        return None;
+    }
+    check.project_manifests
+        .iter()
+        .find_map(|(root_dir, manifest)| {
+            let missing = lexical_normalize(root_dir) != lexical_normalize(check.workspace_root)
+                && state.projects
+                    .get(&*root_dir.to_string_lossy())
+                    .is_some_and(|entry| entry.has_modules_dir)
+                && !hoisted_project_modules_dir(root_dir).is_dir();
+            missing.then(|| project_id(root_dir, manifest))
+        })
+}
+
+/// Where the hoisted linker nests the dependencies of the workspace project
+/// at `root_dir` that it cannot hoist to the root. The walker always uses
+/// `node_modules` here, whatever `modulesDir` says.
+pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
+    root_dir.join("node_modules")
+}
+
+fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
+    manifest_string_field(manifest, "name")
+        .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
+}
+
+/// The first project that declares dependencies but has no modules
+/// directory where its linker needs one. Under the hoisted linker only the
+/// root's is required.
 ///
 /// Under `dedupeDirectDeps` a sibling whose every direct dependency
 /// resolves to the same target as the root's gets nothing linked, so the
 /// linker never creates its modules directory; such a sibling is installed
 /// all the same and does not count as missing one.
-pub(super) fn first_project_missing_modules_dir(
-    check: &OptimisticRepeatInstallCheck<'_>,
-) -> Option<String> {
+fn first_project_without_modules_dir(check: &OptimisticRepeatInstallCheck<'_>) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
@@ -257,10 +307,7 @@ pub(super) fn first_project_missing_modules_dir(
                             sibling_dir: root_dir,
                         },
                     ));
-            (!installed).then(|| {
-                manifest_string_field(manifest, "name")
-                    .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
-            })
+            (!installed).then(|| project_id(root_dir, manifest))
         })
 }
 

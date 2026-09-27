@@ -320,6 +320,7 @@ pub(super) fn build_projects_map(
             let entry = ProjectEntry {
                 name: manifest_string_field(manifest, "name"),
                 version: manifest_string_field(manifest, "version"),
+                has_modules_dir: false,
             };
             (project_dir.to_string_lossy().into_owned(), entry)
         })
@@ -379,7 +380,24 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     };
     // Frozen installs share this builder and cannot establish a deduplication baseline.
     state.settings.auto_dedupe = None;
+    if node_linker == NodeLinker::Hoisted {
+        record_hoisted_modules_dirs(&mut state.projects, project_manifests);
+    }
     state
+}
+
+/// Set [`ProjectEntry::has_modules_dir`] for each project the hoisted
+/// install left with its own modules directory.
+fn record_hoisted_modules_dirs(
+    projects: &mut BTreeMap<String, ProjectEntry>,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+) {
+    for (root_dir, _) in project_manifests {
+        if let Some(entry) = projects.get_mut(&*root_dir.to_string_lossy()) {
+            entry.has_modules_dir =
+                crate::optimistic_repeat_install::hoisted_project_modules_dir(root_dir).is_dir();
+        }
+    }
 }
 
 /// The wanted lockfile, read on first use — or a stand-in that never reads

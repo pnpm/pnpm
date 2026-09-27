@@ -45,7 +45,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { getHoistedProjectModulesDir, loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
@@ -390,10 +390,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           mayBeDeduped(project) &&
           dedupeLinksNothing(wantedLockfileForDedupe, dedupeLockfileDir, rootProjectManifestDir, project.rootDir, opts.include)
         ) continue
-        const id = project.manifest.name ?? project.rootDir
         return {
           upToDate: false,
-          issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+          issue: missingModulesDirIssue(project),
+          workspaceState,
+        }
+      }
+      const missingRecordedModulesDir = nodeLinker === 'hoisted'
+        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, rootProjectManifestDir)
+        : undefined
+      if (missingRecordedModulesDir != null) {
+        return {
+          upToDate: false,
+          issue: missingModulesDirIssue(missingRecordedModulesDir),
           workspaceState,
         }
       }
@@ -1161,4 +1170,30 @@ function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir:
   const recordedProjectDirs = Object.keys(workspaceState.projects)
   return recordedProjectDirs.length > 0 &&
     !recordedProjectDirs.some(dir => path.relative(dir, projectDir) === '')
+}
+
+function missingModulesDirIssue (project: Project): string {
+  const id = project.manifest.name ?? project.rootDir
+  return `Workspace package ${id} has dependencies but does not have a modules directory`
+}
+
+/**
+ * The hoisted linker gives a project its own node_modules only for the
+ * dependencies it nests there, so a project without one may be fully
+ * installed. The last install recorded which projects have one
+ * (`hasModulesDir`); this returns the first of them that no longer does.
+ * The workspace root is left out: the workspace state is stored in its
+ * node_modules, and the missing-directory check before this one covers it.
+ */
+async function findProjectMissingRecordedHoistedModulesDir (
+  allProjects: Project[],
+  workspaceState: WorkspaceState,
+  rootProjectManifestDir: string
+): Promise<Project | undefined> {
+  const missing = await Promise.all(allProjects.map(async (project) =>
+    project.rootDir !== rootProjectManifestDir &&
+    workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
+    (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
+  ))
+  return allProjects.find((_, index) => missing[index])
 }

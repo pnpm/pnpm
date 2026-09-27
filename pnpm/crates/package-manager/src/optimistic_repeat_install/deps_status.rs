@@ -175,7 +175,7 @@ fn first_workspace_drift(
     // A filtered install legitimately leaves unselected projects
     // without a modules directory.
     if !state.filtered_install
-        && let Some(id) = first_project_missing_modules_dir(check)
+        && let Some(id) = first_project_missing_modules_dir(check, state)
     {
         return Some(format!(
             "Workspace package {id} has dependencies but does not have a modules directory",

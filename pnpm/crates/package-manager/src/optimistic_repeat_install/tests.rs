@@ -319,7 +319,11 @@ fn setup_fresh_install_with_config(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
+        ProjectEntry {
+            name: Some(project_name.into()),
+            version: Some(project_version.into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -383,7 +387,11 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
@@ -461,7 +469,11 @@ fn collide_mtimes_with_recorded_state(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     write_state(
         workspace_root,
@@ -626,11 +638,19 @@ fn linked_sibling_decision_for_spec(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some(sibling_version.into()),
+            has_modules_dir: false,
+        },
     );
     write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
