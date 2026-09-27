@@ -174,6 +174,7 @@ mod version;
 mod view;
 mod whoami;
 mod why;
+mod windows_dir_env;
 mod with;
 mod workspace_cycles;
 mod workspace_install;

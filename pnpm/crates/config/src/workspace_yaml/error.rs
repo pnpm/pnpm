@@ -203,4 +203,7 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
+
+    #[diagnostic(transparent)]
+    UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
 }

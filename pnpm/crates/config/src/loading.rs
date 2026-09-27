@@ -1,7 +1,8 @@
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
-    collect_explicit_settings, default_config_dir, default_state_dir, resolve_configured_state_dir,
+    collect_explicit_settings, default_config_dir, default_state_dir, ensure_windows_dir_envs,
+    resolve_configured_state_dir,
 };
 
 impl Config {
@@ -52,6 +53,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
+        ensure_windows_dir_envs::<Sys>().map_err(LoadWorkspaceYamlError::UnexpandedEnvInPath)?;
         let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
         self.state_dir.clone_from(&default_state_dir);
 
