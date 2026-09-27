@@ -287,10 +287,6 @@ fn should_report_but_keep_stale_registries_on_a_dry_run() {
         stderr.contains("1 directory would be deleted"),
         "the notice must agree in number with the one directory found, got: {stderr}",
     );
-    assert!(
-        stderr.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these"),
-        "the listing must warn that older versions depend on it, got: {stderr}",
-    );
 }
 
 /// Restores a directory this test sealed, on the way out of the test whether it
@@ -488,10 +484,6 @@ fn should_report_a_zero_count_on_a_dry_run_of_a_clean_cache() {
         stderr.contains("0 directories would be deleted"),
         "a dry run must say so even when it finds nothing, got: {stderr}",
     );
-    assert!(
-        !stderr.contains("depend on these"),
-        "nothing listed, nothing to warn about, got: {stderr}",
-    );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "", "nothing to list on stdout");
 }
 
@@ -651,4 +643,20 @@ fn should_print_cache_path() {
     );
     fs::create_dir_all(&printed).unwrap();
     assert_eq!(fs::canonicalize(&printed).unwrap(), fs::canonicalize(&cache_dir).unwrap());
+}
+
+#[test]
+fn prune_help_says_older_versions_depend_on_pruned_dirs() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_args(["cache", "prune", "--help"])
+        .output()
+        .expect("run pnpm cache prune --help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pnpm 12.3 and earlier, depend on these"),
+        "help should say older versions depend on the pruned directories: {stdout}",
+    );
+    drop(root);
 }
