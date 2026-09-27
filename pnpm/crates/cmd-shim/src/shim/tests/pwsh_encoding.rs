@@ -11,6 +11,7 @@ fn pwsh_shim_marks_unicode_text_as_utf8() {
     let shim = Path::new("/proj/.bin/cli.ps1");
     let unicode_target =
         generate_pwsh_shim(Path::new("/proj/工具/cli.js"), shim, Some(&node_runtime()), &[]);
+    eprintln!("SHIM:\n{unicode_target}\n");
     assert!(unicode_target.starts_with("\u{FEFF}#!/usr/bin/env pwsh\n"));
 
     let unicode_node_path = generate_pwsh_shim(
@@ -19,6 +20,7 @@ fn pwsh_shim_marks_unicode_text_as_utf8() {
         Some(&node_runtime()),
         &["/工具/node_modules".to_string()],
     );
+    eprintln!("SHIM:\n{unicode_node_path}\n");
     assert!(unicode_node_path.starts_with("\u{FEFF}#!/usr/bin/env pwsh\n"));
 }
 
@@ -30,6 +32,7 @@ fn pwsh_shim_leaves_ascii_text_unmarked() {
         Some(&node_runtime()),
         &["/proj/node_modules".to_string()],
     );
+    eprintln!("SHIM:\n{body}\n");
     assert!(body.starts_with("#!/usr/bin/env pwsh\n"));
 }
 
