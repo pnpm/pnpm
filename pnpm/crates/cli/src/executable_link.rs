@@ -14,7 +14,7 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
     // `fs::hard_link` links a symlink itself, not its target. A `src` reached
     // through a relative symlink, such as Homebrew's `bin/pnpm`, would dangle
     // at `dest`.
-    let src = &fs::canonicalize(src)?;
+    let src = &dunce::canonicalize(src)?;
     let staged = staging_path(dest);
     let publish = || {
         // A hard link shares the source's inode, so it is only usable
