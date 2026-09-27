@@ -689,3 +689,50 @@ fn claimed_dotted_settings_are_not_passed_on() {
     ]));
     assert!(overrides.unported_settings().is_empty());
 }
+
+/// A setting the `--config.` tables claim has to leave the same mark on
+/// [`Config::explicit_settings`] as one from a config file, because that
+/// record is what `pnpm config get` and `pnpm config list` answer from.
+#[test]
+fn claimed_dotted_settings_are_recorded_as_explicitly_set() {
+    let cases: [(&str, &str, &str); 22] = [
+        ("bail", "true", "bail"),
+        ("ci", "true", "ci"),
+        ("color", "always", "color"),
+        ("embed-readme", "true", "embedReadme"),
+        ("ignore-workspace-root-check", "true", "ignoreWorkspaceRootCheck"),
+        ("optional", "true", "optional"),
+        ("pending", "true", "pending"),
+        ("progress", "true", "progress"),
+        ("recursive-install", "true", "recursiveInstall"),
+        ("reverse", "true", "reverse"),
+        ("shell-emulator", "true", "shellEmulator"),
+        ("skip-manifest-obfuscation", "true", "skipManifestObfuscation"),
+        ("sort", "true", "sort"),
+        ("use-beta-cli", "true", "useBetaCli"),
+        ("deploy-all-files", "true", "deployAllFiles"),
+        ("force-legacy-deploy", "true", "forceLegacyDeploy"),
+        ("inject-workspace-packages", "true", "injectWorkspacePackages"),
+        ("node-linker", "hoisted", "nodeLinker"),
+        ("pm-on-fail", "ignore", "pmOnFail"),
+        ("runtime-on-fail", "warn", "runtimeOnFail"),
+        ("max-sockets", "5", "maxSockets"),
+        ("package-lock", "false", "packageLock"),
+    ];
+
+    for (key, value, recorded_as) in cases {
+        let (overrides, remaining) = ConfigOverrides::extract([
+            OsString::from("pacquet"),
+            OsString::from(format!("--config.{key}={value}")),
+            OsString::from("install"),
+        ]);
+        assert_eq!(remaining, argv(["pacquet", "install"]), "{key}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(
+            config.explicit_settings.contains_key(recorded_as),
+            "--config.{key}={value} was not recorded as {recorded_as}",
+        );
+    }
+}
