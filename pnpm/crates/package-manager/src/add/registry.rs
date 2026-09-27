@@ -153,6 +153,7 @@ pub(super) fn explicit_registry_pick_options<'a>(
         blocked_versions: None,
         policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
             published_by: policy.published_by,
+            fallback_published_by: None,
             published_by_exclude: policy.published_by_exclude.as_ref(),
             trust_policy: Some(config.trust_policy),
         },

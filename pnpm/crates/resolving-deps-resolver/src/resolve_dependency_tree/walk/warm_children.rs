@@ -132,7 +132,7 @@ pub(super) async fn warm_child<Chain>(
         wanted.optional,
         wanted.injected,
         opts.version.pick_lowest_version,
-        opts.policy.published_by,
+        (opts.policy.published_by, opts.policy.fallback_published_by),
         project_scope,
         // No prior-lockfile key: a warm entry must only be
         // reused by edges that carry no currentPkg either.

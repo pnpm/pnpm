@@ -544,6 +544,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   trustPolicy?: TrustPolicy
@@ -688,6 +689,7 @@ async function resolveNpm (
   const pickOptions: PickPackageOptions = {
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
+    fallbackPublishedBy: opts.fallbackPublishedBy,
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,
@@ -992,6 +994,7 @@ async function pickFromSimpleRegistry (
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
     pickLowestVersion: opts.pickLowestVersion,
     publishedBy: opts.publishedBy,
+    fallbackPublishedBy: opts.fallbackPublishedBy,
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,

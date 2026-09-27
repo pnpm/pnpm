@@ -56,6 +56,7 @@ impl<'a> PickFromRegistryOptions<'a> {
             checks: CandidateChecks::new(&opts.policy, trust_check),
             policy: crate::PackagePickPolicy {
                 published_by: opts.policy.published_by,
+                fallback_published_by: opts.policy.fallback_published_by,
                 published_by_exclude: opts.policy.published_by_exclude.as_ref(),
                 trust_policy: opts.policy.trust_policy,
             },

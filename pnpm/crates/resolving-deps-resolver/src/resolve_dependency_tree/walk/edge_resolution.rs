@@ -202,7 +202,7 @@ pub(super) fn edge_cache_key(
         wanted.optional,
         wanted.injected,
         opts.version.pick_lowest_version,
-        opts.policy.published_by,
+        (opts.policy.published_by, opts.policy.fallback_published_by),
         project_scope,
         prior_key.cloned(),
         overlay_versions,

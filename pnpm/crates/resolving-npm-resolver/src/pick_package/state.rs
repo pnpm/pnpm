@@ -81,6 +81,7 @@ impl<'a> PickState<'a> {
             picker_opts: PickerOpts {
                 preferred_version_selectors: opts.preferred_version_selectors,
                 published_by: opts.policy.published_by,
+                fallback_published_by: opts.policy.fallback_published_by,
                 published_by_exclude: opts.policy.published_by_exclude,
                 pick_lowest_version: opts.pick_lowest_version,
                 include_latest_tag: opts.include_latest_tag,

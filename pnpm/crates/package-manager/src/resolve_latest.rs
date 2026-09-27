@@ -136,6 +136,7 @@ impl<'a> LatestPicker<'a> {
             blocked_versions: None,
             policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
                 published_by: self.policy.published_by,
+                fallback_published_by: None,
                 published_by_exclude: self.policy.published_by_exclude.as_ref(),
                 trust_policy: Some(self.config.trust_policy),
             },

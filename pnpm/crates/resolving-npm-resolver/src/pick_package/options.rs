@@ -96,6 +96,9 @@ pub struct PackagePickPolicy<'a> {
     /// `minimumReleaseAge` cutoff. `None` disables the maturity
     /// filter for this call.
     pub published_by: Option<DateTime<Utc>>,
+    /// Release-age cutoff to try before the unrestricted fallback.
+    /// Only used when later than `published_by`.
+    pub fallback_published_by: Option<DateTime<Utc>>,
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Trust-policy validation requires current registry metadata.

@@ -84,6 +84,7 @@ async function runLimited<T> (pkgMirror: string, fn: (limit: LimitFunction) => P
 }
 
 export interface PickPackageOptions extends PickPackageFromMetaOptions {
+  fallbackPublishedBy?: Date
   authHeaderValue?: string
   pickLowestVersion?: boolean
   registry: string
@@ -110,6 +111,7 @@ export interface PickPackageOptions extends PickPackageFromMetaOptions {
 }
 
 interface PickerOptions extends PickPackageFromMetaOptions {
+  fallbackPublishedBy?: Date
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
   ignoreMissingTimeField?: boolean
@@ -181,11 +183,9 @@ function pickMax (
 const pickHighest = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 const pickLowest = pickPackageFromMeta.bind(null, pickLowestVersionByVersionRange)
 
-// `minimumReleaseAge` narrows which versions are on offer; `pickLowestVersion`
-// decides which end of what is left to take. The fallback deliberately drops
-// the maturity filter so a range no mature version satisfies still yields a
-// pick, which the install layer reports as a violation rather than this layer
-// throwing.
+// Try the selection cutoff first, then the release-age cutoff if time-based
+// resolution tightened it. Only the last fallback drops the maturity filter
+// so the install layer can report a violation when no mature version matches.
 function pickRespectingMinReleaseAge (
   pickerOpts: PickerOptions,
   spec: RegistryPackageSpec,
@@ -195,6 +195,13 @@ function pickRespectingMinReleaseAge (
     const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
     const mature = pickMature(pickerOpts, meta, targetSpec)
     if (mature) return mature
+    if (pickerOpts.fallbackPublishedBy && pickerOpts.publishedBy && pickerOpts.fallbackPublishedBy > pickerOpts.publishedBy) {
+      const fallback = pickLowest({
+        ...pickerOpts,
+        publishedBy: pickerOpts.fallbackPublishedBy,
+      }, meta, targetSpec)
+      if (fallback) return fallback
+    }
     return pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
     }, meta, targetSpec)
@@ -293,6 +300,7 @@ function toPickerOptions (
   return {
     preferredVersionSelectors: opts.preferredVersionSelectors,
     publishedBy: opts.publishedBy,
+    fallbackPublishedBy: opts.fallbackPublishedBy,
     publishedByExclude: opts.publishedByExclude,
     pickLowestVersion: opts.pickLowestVersion,
     includeLatestTag: opts.includeLatestTag,

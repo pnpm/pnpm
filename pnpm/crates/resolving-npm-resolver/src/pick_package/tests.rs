@@ -2,6 +2,8 @@ mod behavior;
 
 mod release_age;
 
+mod mature_fallback;
+
 mod trust_policy;
 
 mod cache_partitions;
@@ -153,6 +155,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
         blocked_versions: None,
         policy: crate::PackagePickPolicy {
             published_by: None,
+            fallback_published_by: None,
             published_by_exclude: None,
             trust_policy: None,
         },

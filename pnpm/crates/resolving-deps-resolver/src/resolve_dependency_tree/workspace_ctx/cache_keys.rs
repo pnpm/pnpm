@@ -27,7 +27,7 @@ use super::{
 /// workspace dep with different `dependenciesMeta[*].injected` flags
 /// must take different cache slots.
 ///
-/// `pick_lowest_version` and `published_by` are part of the key because
+/// `pick_lowest_version` and both publication cutoffs are part of the key because
 /// `resolutionMode` makes the version pick depend on them: under
 /// `time-based` / `lowest-direct` a direct dependency is resolved
 /// lowest while a transitive one is resolved highest, and under
@@ -68,7 +68,7 @@ pub(in super::super) type WantedKeyFields = (
     Option<bool>,
     Option<bool>,
     bool,
-    Option<DateTime<Utc>>,
+    (Option<DateTime<Utc>>, Option<DateTime<Utc>>),
     Option<PathKey>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<(String, u32)>)>,

@@ -28,7 +28,7 @@ fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
         wanted.optional,
         wanted.injected,
         false,
-        None,
+        (None, None),
         Some(PathBuf::from(project_dir).into()),
         None,
         Vec::new(),
