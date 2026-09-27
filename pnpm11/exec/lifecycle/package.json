@@ -46,8 +46,7 @@
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "chalk": "catalog:",
     "is-windows": "catalog:",
-    "path-exists": "catalog:",
-    "shlex": "catalog:"
+    "path-exists": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

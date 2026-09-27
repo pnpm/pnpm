@@ -54,7 +54,7 @@ test('shellEmulator applies only when scriptShell is unset', () => {
   expect(useShellEmulator(false, undefined)).toBe(false)
 })
 
-test('extra arguments are JSON-quoted only when cmd will parse them', () => {
+test('extra arguments are quoted for cmd only when cmd will parse them', () => {
   expect(commandParsedByCmd(gitBash, 'win32', true)).toBe(false)
   expect(commandParsedByCmd(undefined, 'win32', false)).toBe(true)
   expect(commandParsedByCmd(undefined, 'win32', true)).toBe(false)
