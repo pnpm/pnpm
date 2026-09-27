@@ -81,7 +81,14 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'selectedProjectsGraph'
 > & {
+  /**
+   * The project a non-recursive command runs in. When `selectedProjectsGraph`
+   * is absent, it is the project held to the modules-directory requirement
+   * after a filtered install.
+   */
+  dir?: string
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
   pnpmfile: string[]
@@ -362,8 +369,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }))
 
-    if (!workspaceState.filteredInstall) {
+    // A filtered install legitimately leaves the projects it did not select
+    // without a modules directory, so a state that records one can only be
+    // held to that requirement for the projects the command being gated
+    // selected. Skipping those as well would let a filtered `run` or `exec`
+    // select a project the filtered install never materialized and run it
+    // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
+    const selectedProjectDirs = workspaceState.filteredInstall
+      ? selectProjectDirs(opts)
+      : undefined
+    if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
+        (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
         modulesDirStats?.isDirectory() !== true && !isEmpty({
           ...project.manifest.dependencies,
           ...project.manifest.devDependencies,
@@ -396,7 +413,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         }
       }
       const missingRecordedModulesDir = nodeLinker === 'hoisted'
-        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, rootProjectManifestDir)
+        ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir, selectedProjectDirs })
         : undefined
       if (missingRecordedModulesDir != null) {
         return {
@@ -1176,6 +1193,13 @@ function missingModulesDirIssue (project: Project): string {
   return `Workspace package ${id} has dependencies but does not have a modules directory`
 }
 
+function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
+  if (opts.selectedProjectsGraph != null) {
+    return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
+  }
+  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
+}
+
 /**
  * The hoisted linker gives a project its own node_modules only for the
  * dependencies it nests there, so a project without one may be fully
@@ -1187,9 +1211,13 @@ function missingModulesDirIssue (project: Project): string {
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],
   workspaceState: WorkspaceState,
-  rootProjectManifestDir: string
+  { rootProjectManifestDir, selectedProjectDirs }: {
+    rootProjectManifestDir: string
+    selectedProjectDirs: Set<string> | undefined
+  }
 ): Promise<Project | undefined> {
   const missing = await Promise.all(allProjects.map(async (project) =>
+    (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
     project.rootDir !== rootProjectManifestDir &&
     workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
     (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
