@@ -991,8 +991,6 @@ fn deploy_does_not_run_prepare_scripts() {
     drop((root, mock_instance));
 }
 
-/// A hoisted production deploy leaves the Node.js build downloaded for
-/// `engines.runtime` out of `node_modules`.
 #[test]
 fn hoisted_prod_deploy_omits_engines_runtime_node() {
     let workspace = RuntimeWorkspace::new();
@@ -1025,7 +1023,6 @@ fn legacy_hoisted_prod_deploy_omits_engines_runtime_node() {
     );
 }
 
-/// Isolated deploy still links the runtime package and its bin.
 #[test]
 fn isolated_prod_deploy_links_engines_runtime_node() {
     let workspace = RuntimeWorkspace::new();
@@ -1044,6 +1041,7 @@ fn isolated_prod_deploy_links_engines_runtime_node() {
             .exists(),
         "isolated deploy keeps the runtime executable",
     );
+    assert!(!linked_node_bins(&deploy_dir).is_empty(), "isolated deploy links the runtime bin");
     assert!(
         deploy_dir.join("node_modules/dependency/package.json").exists(),
         "production dependencies are still deployed",
@@ -1055,7 +1053,17 @@ fn assert_runtime_omitted(deploy_dir: &Path) {
         !deploy_dir.join("node_modules/node").exists(),
         "the downloaded runtime must not be hoisted into the deploy directory",
     );
-    let linked_node_bins = fs::read_dir(deploy_dir.join("node_modules/.bin"))
+    let linked_node_bins = linked_node_bins(deploy_dir);
+    assert!(
+        linked_node_bins.is_empty(),
+        "the downloaded runtime bin must not be linked into the deploy directory: {linked_node_bins:?}",
+    );
+}
+
+/// Every `.bin` entry for the `node` command, whatever extension the
+/// platform's shims carry.
+fn linked_node_bins(deploy_dir: &Path) -> Vec<PathBuf> {
+    fs::read_dir(deploy_dir.join("node_modules/.bin"))
         .into_iter()
         .flatten()
         .map(|entry| entry.unwrap().path())
@@ -1063,11 +1071,7 @@ fn assert_runtime_omitted(deploy_dir: &Path) {
             bin.file_stem()
                 .is_some_and(|stem| stem == "node")
         })
-        .collect::<Vec<_>>();
-    assert!(
-        linked_node_bins.is_empty(),
-        "the downloaded runtime bin must not be linked into the deploy directory: {linked_node_bins:?}",
-    );
+        .collect()
 }
 
 struct RuntimeWorkspace {
