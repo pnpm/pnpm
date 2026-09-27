@@ -52,7 +52,7 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignor
 /// why `["**", "!dist", "dist/index.d.ts"]` still ships `dist/index.d.ts`:
 /// the exclusion prunes the directory, not the file another entry names
 /// (pnpm/pnpm#16213). A trailing slash makes an entry directory-only, so
-/// `dist/index.d.ts/` does not name that file and npm does not ship it.
+/// `dist/index.d.ts/` does not name that file.
 pub(super) fn named_file_entries(pkg_dir: &Path, entries: &[Value]) -> BTreeSet<String> {
     entries
         .iter()
