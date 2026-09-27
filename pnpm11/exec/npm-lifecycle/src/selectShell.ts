@@ -48,7 +48,7 @@ export function selectShell (scriptShell: string | undefined, platform: NodeJS.P
 }
 
 /**
- * Whether `cmd.exe` will parse the script, which is what chooses JSON
+ * Whether `cmd.exe` will parse the script, which is what chooses `cmd`
  * quoting of extra arguments. A configured non-cmd `scriptShell` is
  * quoted for that shell, including when `shellEmulator` is also set.
  */

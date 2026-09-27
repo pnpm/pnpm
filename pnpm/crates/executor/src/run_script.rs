@@ -3,6 +3,7 @@ use crate::{
     lifecycle::{StreamedScript, push_script_arg},
     make_env::{EnvOptions, build_env, path_value},
     process_tracker::{ProcessTracker, spawn_child},
+    script_args::{ArgQuoting, build_command},
     script_exit::ScriptExit,
     shell::{
         ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
@@ -96,13 +97,16 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let emulate = use_shell_emulator(opts.execution.shell_emulator, opts.execution.shell);
     let shell =
         select_shell(opts.execution.shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
-    let command = build_command(
-        opts.invocation.script,
-        opts.invocation.args,
-        parsed_by_cmd(emulate, shell.windows_verbatim_args),
-    );
-
-    let child_env = child_env(opts, &command);
+    let mut child_env = child_env(opts);
+    let has_args = !opts.invocation.args.is_empty();
+    let quoting = if has_args && parsed_by_cmd(emulate, shell.windows_verbatim_args) {
+        let search_path = child_env.get("PATH").map_or_else(OsString::new, OsString::from);
+        ArgQuoting::cmd(opts.invocation.script, &search_path, opts.pkg_root)
+    } else {
+        ArgQuoting::Posix
+    };
+    let command = build_command(opts.invocation.script, opts.invocation.args, quoting);
+    child_env.insert("npm_lifecycle_script".to_string(), command.clone());
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
@@ -134,7 +138,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
 
 /// The script's environment: the parent's, the `npm_*` lifecycle variables,
 /// and `PATH` extended with the bin directories.
-fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
+fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
     let parent_env: HashMap<String, String> = env::vars().collect();
     let env_opts = EnvOptions {
         environment: crate::ScriptEnvironment {
@@ -146,7 +150,7 @@ fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
             extra_env: opts.environment.extra_env,
         },
         stage: opts.invocation.stage,
-        script: command,
+        script: opts.invocation.script,
         pkg_root: opts.pkg_root,
 
         script_src_dir: opts.pkg_root,
@@ -258,46 +262,12 @@ fn spawn_error(opts: &RunScript<'_>, command: &str, source: io::Error) -> RunScr
     }
 }
 
-/// Whether `cmd` will parse the script. JSON quoting is only for that
+/// Whether `cmd` will parse the script. `cmd` quoting is only for that
 /// case. The shell emulator and a non-cmd `scriptShell` both get POSIX
 /// quoting, so a Windows path such as `C:\Program Files\tool\` stays one
 /// argument.
 fn parsed_by_cmd(emulate: bool, windows_verbatim_args: bool) -> bool {
     !emulate && windows_verbatim_args
-}
-
-/// Append shell-quoted `args` to `script`: per-argument JSON quoting when
-/// `cmd` will parse them, and `shlex`-style POSIX quoting otherwise.
-fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
-    if args.is_empty() {
-        return script.to_string();
-    }
-    let quoted = if windows_shell {
-        args.iter()
-            .map(|arg| Value::String(arg.clone()).to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
-    } else {
-        args.iter()
-            .map(|arg| posix_quote(arg))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    format!("{script} {quoted}")
-}
-
-/// Quote a single argument the way the `shlex` npm package's `quote`
-/// does: a string of only shell-safe characters is left as-is, anything
-/// else is wrapped in single quotes with embedded quotes escaped as
-/// `'"'"'`.
-fn posix_quote(arg: &str) -> String {
-    if arg.is_empty() {
-        return "''".to_string();
-    }
-    let safe = arg
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
-    if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
 }
 
 #[cfg(test)]

@@ -18,6 +18,7 @@ import { relaySignals, reserveSignalRelay, type SignalRelayReservation, spawnsIn
 import { type LifecycleChildProcess, spawn, type SpawnError } from './spawn.js'
 
 export { makePackageManagerEnv } from './makePackageManagerEnv.js'
+export { appendScriptArgs } from './scriptArgs.js'
 export { commandParsedByCmd } from './selectShell.js'
 export type { ProcessGroupWatchdog, RelaySignalsOptions, SignalRelay, SignalTarget } from './signals.js'
 export { hasControllingTerminal, relaySignals, reserveSignalRelay, spawnsInOwnProcessGroup, waitForProcessGroup, watchProcessGroup } from './signals.js'
@@ -129,6 +130,11 @@ if (process.platform === 'win32') {
       PATH = e
     }
   })
+}
+
+/** The `PATH` a script in `wd` runs with. */
+export function scriptSearchPath (wd: string, opts: Pick<LifecycleOptions, 'wdBinDir' | 'extraBinPaths' | 'extraEnv'>): string {
+  return extendPath(wd, opts.extraEnv?.[PATH] ?? process.env[PATH], { ...opts, nodeGypBinDir: NODE_GYP_BIN_DIR })
 }
 
 export function lifecycle (pkg: LifecyclePackage, stage: string, wd: string, opts: LifecycleOptions): Promise<void> {

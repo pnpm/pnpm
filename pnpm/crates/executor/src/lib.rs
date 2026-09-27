@@ -31,6 +31,7 @@ mod make_env;
 mod pnpm_executable;
 mod process_tracker;
 mod run_script;
+mod script_args;
 mod script_exit;
 mod script_options;
 mod script_working_dir;

@@ -4638,9 +4638,6 @@ importers:
       path-exists:
         specifier: 'catalog:'
         version: 5.0.0
-      shlex:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -4690,6 +4687,9 @@ importers:
       node-gyp:
         specifier: 'catalog:'
         version: 12.3.0
+      shlex:
+        specifier: 'catalog:'
+        version: 3.0.0
       uid-number:
         specifier: 'catalog:'
         version: 0.0.6
