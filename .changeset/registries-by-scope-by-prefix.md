@@ -42,7 +42,6 @@
 "@pnpm/testing.command-defaults": major
 "@pnpm/testing.temp-store": major
 "@pnpm/types": major
-"pnpm": patch
 "pacquet": patch
 ---
 
@@ -56,6 +55,6 @@ The three registry lookups are now named for what they are keyed by, so that non
 
 The same rename applies to the `RegistryContext` fields, the `Registries` and `NamedRegistries` types (now `RegistriesByScope` and `RegistriesByPrefix`), `normalizeRegistries` / `normalizeNamedRegistries` (now `normalizeRegistriesByScope` / `normalizeRegistriesByPrefix`), and the `BUILTIN_NAMED_REGISTRIES` constant (now `BUILTIN_REGISTRIES_BY_PREFIX`).
 
-This is an internal rename: no setting, error code, or lockfile field changes. A `preResolution` hook still reads `ctx.registries`, which is the name pacquet passes as well. An `updateConfig` hook is the exception, because it is handed the resolved configuration: the per-scope and per-prefix maps reach the hook as `registriesByScope` and `registriesByPrefix`, and on pnpm 11 the per-URL registry options as `registryOptionsByUrl`. The two implementations apply the returned value differently: pnpm 11 uses it as the replacement configuration, while pacquet applies changed settings as a delta, so an omitted setting keeps its value and an explicit `null` restores that setting's default. A hook that reads or returns those fields has to use the new names — except the per-URL options on pacquet, whose hook input carries the two maps but not the per-URL options yet. The `registries` and `namedRegistries` settings are read under the names users write them.
+This is an internal rename: no setting, error code, or lockfile field changes. A `preResolution` hook still reads `ctx.registries`. An `updateConfig` hook is the exception, because it receives the resolved configuration. It reads and returns the per-scope and per-prefix maps as `registriesByScope` and `registriesByPrefix`. The `registries` and `namedRegistries` settings are read under the names users write them.
 
 The pnpr resolve request sends `registriesByPrefix` where it sent `namedRegistries`. A pnpr server and its clients must be on matching versions, which is already the case for an experimental server.
