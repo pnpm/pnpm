@@ -1182,6 +1182,8 @@ function missingModulesDirIssue (project: Project): string {
  * dependencies it nests there, so a project without one may be fully
  * installed. The last install recorded which projects have one
  * (`hasModulesDir`); this returns the first of them that no longer does.
+ * The workspace root is left out: the workspace state is stored in its
+ * node_modules, and the missing-directory check before this one covers it.
  */
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],

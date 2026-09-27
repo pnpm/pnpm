@@ -234,7 +234,9 @@ pub(super) fn first_project_missing_modules_dir(
 /// the dependencies it nests there, so [`first_project_without_modules_dir`]
 /// cannot require one. The last install recorded which siblings have one
 /// ([`pnpm_workspace_state::ProjectEntry::has_modules_dir`]); this returns
-/// the first of them that no longer does.
+/// the first of them that no longer does. The workspace root is left out:
+/// the workspace state is stored in its `node_modules`, and
+/// [`first_project_without_modules_dir`] covers it.
 fn first_project_missing_recorded_hoisted_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
