@@ -90,7 +90,7 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     apply_state_dir_change(config, &delta);
-    if delta.get("shamefullyHoist").is_some() {
+    if delta.get("shamefullyHoist").is_some() || config.cli_settings.contains("shamefullyHoist") {
         config.apply_shamefully_hoist_derivation();
     }
     apply_hook_store_dir(config, changed_store_dir.as_deref(), base_dir)?;

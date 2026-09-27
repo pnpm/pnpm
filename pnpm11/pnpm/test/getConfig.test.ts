@@ -511,6 +511,28 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(updated.hoistPattern).toStrictEqual(['*eslint*'])
   })
 
+  test('an updateConfig hook cannot replace the public hoist pattern that --shamefully-hoist derives', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      shamefullyHoist: false,
+      publicHoistPattern: ['*types*'],
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, {
+      shamefullyHoist: true,
+      publicHoistPattern: ['*'],
+      symlink: true,
+    })
+    context.cliOptions = { 'shamefully-hoist': true }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.shamefullyHoist).toBe(true)
+    expect(result.config.publicHoistPattern).toStrictEqual(['*'])
+  })
+
   function writeUpdateConfigHook (updateConfig: string): void {
     fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig: ${updateConfig} } }`)
   }

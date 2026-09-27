@@ -128,6 +128,9 @@ export async function installConfigDepsAndLoadHooks (
       }
       applyRegistryRoutingChanges(config, routingBeforeHooks)
       restoreCliSettings(config, cliSettings)
+      if (DERIVED_CONFIG_INPUTS.some((setting) => cliSettings.settings.has(setting))) {
+        applyDerivedConfig(config)
+      }
     }
   }
   return { config, context }
@@ -287,6 +290,8 @@ function isPlainObject (value: unknown): value is Record<string, unknown> {
 function invalidHookResult (key: string): PnpmError {
   return new PnpmError('INVALID_UPDATE_CONFIG_RESULT', `The updateConfig hook produced an invalid ${key} value`)
 }
+
+const DERIVED_CONFIG_INPUTS = ['hoist', 'shamefullyHoist', 'symlink']
 
 // Apply derived config settings (hoist, shamefullyHoist, symlink)
 function applyDerivedConfig (config: Config): void {

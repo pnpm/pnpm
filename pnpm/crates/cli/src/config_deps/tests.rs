@@ -762,3 +762,23 @@ async fn update_config_hook_cannot_override_command_cli_flags() {
     assert!(!config.auto_dedupe);
     assert!(!config.frozen_store);
 }
+
+#[tokio::test]
+async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shamefully_hoist() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; config.publicHoistPattern = ['*types*']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.explicit_settings.insert("shamefullyHoist".to_string(), true.into());
+    config.apply_shamefully_hoist_derivation();
+    config.cli_settings.insert("shamefullyHoist".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+}
