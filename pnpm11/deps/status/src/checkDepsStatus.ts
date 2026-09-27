@@ -1193,6 +1193,13 @@ function missingModulesDirIssue (project: Project): string {
   return `Workspace package ${id} has dependencies but does not have a modules directory`
 }
 
+function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
+  if (opts.selectedProjectsGraph != null) {
+    return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
+  }
+  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
+}
+
 /**
  * The hoisted linker gives a project its own node_modules only for the
  * dependencies it nests there, so a project without one may be fully
@@ -1201,13 +1208,6 @@ function missingModulesDirIssue (project: Project): string {
  * The workspace root is left out: the workspace state is stored in its
  * node_modules, and the missing-directory check before this one covers it.
  */
-function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
-  if (opts.selectedProjectsGraph != null) {
-    return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
-  }
-  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
-}
-
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],
   workspaceState: WorkspaceState,

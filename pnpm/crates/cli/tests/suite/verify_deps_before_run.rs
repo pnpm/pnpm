@@ -1196,6 +1196,44 @@ fn filtered_exec_installs_the_workspace_dependencies_of_the_selected_projects() 
     drop((root, mock_instance));
 }
 
+/// `--workspace-root` adds the root to a filtered selection. The install the
+/// gate spawns runs from the workspace root and installs it as well.
+#[test]
+fn filtered_exec_with_workspace_root_installs_the_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "workspace-root",
+        &workspace.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let project = workspace.join("packages/foo");
+    fs::create_dir_all(&project).expect("create workspace project");
+    write_named_manifest_with_dependency_groups(
+        &project,
+        "foo",
+        &project.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "--workspace-root", "exec", "node", "-e", "0"])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/foo").exists(),
+        "the filtered exec must install the workspace root it selected:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn ndjson_exec_keeps_verifier_output_machine_readable() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

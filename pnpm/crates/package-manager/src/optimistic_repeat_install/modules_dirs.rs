@@ -7,6 +7,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -39,11 +40,12 @@ pub(super) fn first_selected_project_missing_modules_dir(
     state: &WorkspaceState,
     selected_project_dirs: &[&Path],
 ) -> Option<String> {
+    let selected: HashSet<PathBuf> = selected_project_dirs
+        .iter()
+        .map(|dir| lexical_normalize(dir))
+        .collect();
     first_missing_modules_dir(check, state, &|root_dir| {
-        let root_dir = lexical_normalize(root_dir);
-        selected_project_dirs
-            .iter()
-            .any(|selected| lexical_normalize(selected) == root_dir)
+        selected.contains(&lexical_normalize(root_dir))
     })
 }
 /// The first project that needs a modules directory and lacks one, over the
