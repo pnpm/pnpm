@@ -601,6 +601,24 @@ fn files_field_entries_do_not_match_at_depth() {
 }
 
 #[test]
+fn files_field_entry_naming_a_file_survives_an_ancestor_exclusion() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["**", "!dist", "dist/index.d.ts"],
+    }));
+    touch(dir.path(), "app.js", "x\n");
+    touch(dir.path(), "dist/app.js", "x\n");
+    touch(dir.path(), "dist/index.d.ts", "x\n");
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    assert_eq!(
+        result.contents,
+        vec!["app.js".to_string(), "dist/index.d.ts".into(), "package.json".into()],
+    );
+}
+
+#[test]
 fn missing_name_is_rejected() {
     let (_dir, opts) = fixture(&json!({ "version": "1.0.0" }));
     assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::PackageNameNotFound)));

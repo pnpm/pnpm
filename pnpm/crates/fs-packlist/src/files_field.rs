@@ -3,6 +3,7 @@
 
 use ignore::gitignore::Gitignore;
 use serde_json::Value;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 /// Compile the `manifest.files` allowlist into a `Gitignore` matcher
@@ -45,6 +46,30 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignor
     }
 }
 
+/// The `files` entries that name an existing file rather than a glob, as
+/// package-relative paths.
+///
+/// npm-packlist stats every entry and re-adds the files it names, which is
+/// why `["**", "!dist", "dist/index.d.ts"]` still ships `dist/index.d.ts`:
+/// the exclusion prunes the directory, not the file another entry names
+/// (pnpm/pnpm#16213).
+pub(super) fn named_file_entries(pkg_dir: &Path, entries: &[Value]) -> BTreeSet<String> {
+    entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|entry| !entry.starts_with('!') && !has_glob_syntax(entry))
+        .map(|entry| normalize_field_path(entry.trim_end_matches('/')))
+        .filter(|entry| !entry.is_empty() && pkg_dir.join(entry).is_file())
+        .collect()
+}
+
+/// Whether a `files` entry carries glob syntax, and so cannot name one file.
+fn has_glob_syntax(entry: &str) -> bool {
+    entry
+        .chars()
+        .any(|character| matches!(character, '*' | '?' | '[' | ']' | '{' | '}'))
+}
+
 /// Anchor a `files` entry at the package root, leaving exclusions unanchored.
 fn anchor_files_entry(pattern: &str) -> String {
     if pattern.starts_with('!') {
@@ -55,9 +80,15 @@ fn anchor_files_entry(pattern: &str) -> String {
 
 /// Whether `rel` matches the `files`-field allowlist, with exclusions on
 /// ancestor directories taking precedence. The ancestor scan runs only
-/// when some entry excludes anything.
-pub(super) fn files_field_includes(matcher: &Gitignore, rel: &str) -> bool {
-    if matcher.num_whitelists() > 0 {
+/// when some entry excludes anything, and only for paths no entry names:
+/// a path the field names as a file survives the exclusion of the
+/// directory holding it.
+pub(super) fn files_field_includes(
+    matcher: &Gitignore,
+    rel: &str,
+    named_files: &BTreeSet<String>,
+) -> bool {
+    if matcher.num_whitelists() > 0 && !named_files.contains(rel) {
         let path = Path::new(rel);
         if path
             .ancestors()

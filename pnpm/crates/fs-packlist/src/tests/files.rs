@@ -471,6 +471,53 @@ fn files_field_exclusions_are_not_anchored() {
     assert_eq!(out, vec!["lib/index.js".to_string(), "package.json".into()]);
 }
 
+#[test]
+fn files_field_named_file_survives_an_ancestor_exclusion() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "app.js");
+    touch(root, "dist/app.js");
+    touch(root, "dist/index.d.ts");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["**", "!dist", "dist/index.d.ts"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["app.js".to_string(), "dist/index.d.ts".into(), "package.json".into()],
+        "an entry that names a file ships it even when another entry excludes its directory",
+    );
+}
+
+#[test]
+fn files_field_named_file_follows_an_exclusion_that_names_it() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "lib/index.js");
+    touch(root, "lib/secret.js");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "files": ["lib", "lib/secret.js", "!lib/secret.js"],
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(
+        out,
+        vec!["lib/index.js".to_string(), "package.json".into()],
+        "an exclusion that names the file itself still wins over the entry naming it",
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn includes_internal_symlinks_and_excludes_escaping_symlinks() {
