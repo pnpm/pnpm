@@ -7,7 +7,7 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { isLocalFilesystemSpecifier, linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
+import { linkedDirectoryPath } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -339,7 +339,7 @@ export async function handler (
  */
 async function warnIfLinkedWithPeers (param: string, projectDir: string): Promise<void> {
   const { alias, bareSpecifier } = parseWantedDependency(param)
-  if (alias != null || bareSpecifier == null || !isLocalFilesystemSpecifier(bareSpecifier)) return
+  if (alias != null || bareSpecifier == null) return
   const pkgDir = linkedDirectoryPath(bareSpecifier, projectDir)
   if (pkgDir == null) return
   warnAboutLinkedPeerDependencies(await safeReadProjectManifestOnly(pkgDir), { pkgDir, prefix: projectDir })

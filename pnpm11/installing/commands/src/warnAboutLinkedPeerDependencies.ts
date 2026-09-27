@@ -18,7 +18,7 @@ export function warnAboutLinkedPeerDependencies (
   if (!manifest?.peerDependencies || Object.keys(manifest.peerDependencies).length === 0) return
   const packageName = sanitizeWarningText(manifest.name ?? path.basename(opts.pkgDir))
   const peerDeps = Object.entries(manifest.peerDependencies)
-    .map(([key, value]) => `  - ${sanitizeWarningText(key)}@${sanitizeWarningText(String(value))}`)
+    .map(([key, value]) => `  - ${sanitizeWarningText(key)}@${sanitizeWarningText(typeof value === 'string' ? value : JSON.stringify(value))}`)
     .join(', ')
 
   logger.warn({

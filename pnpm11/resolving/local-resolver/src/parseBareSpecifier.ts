@@ -147,6 +147,7 @@ export function localFilePath (bareSpecifier: string, projectDir: string): strin
  * a local path.
  */
 export function linkedDirectoryPath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!isLocalFilesystemSpecifier(bareSpecifier)) return undefined
   const wd = { bareSpecifier }
   const opts = { preserveAbsolutePaths: false }
   const spec = parseLocalScheme(wd, projectDir, projectDir, opts) ?? parseLocalPath(wd, projectDir, projectDir, opts)

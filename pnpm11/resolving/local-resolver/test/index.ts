@@ -469,4 +469,6 @@ test('linkedDirectoryPath() returns undefined for a specifier not saved as link:
   expect(linkedDirectoryPath('file:../pkg', projectDir)).toBeUndefined()
   expect(linkedDirectoryPath('../pkg.tgz', projectDir)).toBeUndefined()
   expect(linkedDirectoryPath('is-positive', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('gh:@scope/pkg', projectDir)).toBeUndefined()
+  expect(linkedDirectoryPath('user/repo', projectDir)).toBeUndefined()
 })
