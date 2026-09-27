@@ -59,6 +59,7 @@ import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import {
   type CatalogSnapshots,
   cleanGitBranchLockfiles,
+  convertToLockfileObject,
   getLockfileImporterId,
   getWantedLockfileName,
   isEmptyLockfile,
@@ -4068,7 +4069,13 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
 
-    const frozenLockfile = opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null)
+    // Like the local install, `frozenLockfileIfExists` ignores a lockfile
+    // that records no dependencies.
+    const frozenLockfile = opts.frozenLockfile === true || (
+      opts.frozenLockfileIfExists === true &&
+      existingLockfile != null &&
+      !isEmptyLockfile(convertToLockfileObject(existingLockfile))
+    )
     const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
     // The server skips the pnpmfile comparison a local frozen install makes,
     // and a frozen install must not rewrite the recorded checksum.
