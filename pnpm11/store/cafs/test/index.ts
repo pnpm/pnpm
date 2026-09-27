@@ -519,6 +519,79 @@ function createTarballWithEntry (
 }
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('files added to a group-writable store keep group write and a second add keeps the inode', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const first = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = first.filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  const stat = fs.statSync(filePath)
+  expect(stat.mode & 0o020).not.toBe(0)
+  expect(stat.gid).toBe(fs.statSync(parent).gid)
+
+  const second = createCafs(storeDir).addFilesFromDir(srcDir)
+  const again = second.filesIndex.get('foo.txt')!
+  const after = fs.statSync(getFilePathByModeInCafs(storeDir, again.digest, again.mode))
+  expect(after.ino).toBe(stat.ino)
+  expect(after.uid).toBe(stat.uid)
+  expect(after.gid).toBe(stat.gid)
+  expect(after.mode & 0o777).toBe(stat.mode & 0o777)
+})
+
+testOnPosix('directories added to a group-writable store stay searchable by the group under a restrictive umask', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o077)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  expect(fs.statSync(filePath).mode & 0o060).toBe(0o060)
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
+testOnPosix('files added to a world-writable sticky store are not world-writable', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o1777)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+  const info = filesIndex.get('foo.txt')!
+  const filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  expect(fs.statSync(filePath).mode & 0o002).toBe(0)
+})
+
+testOnPosix('directories added to a group-writable store get group access under a umask that removes owner read', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o477)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)

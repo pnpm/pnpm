@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
+import { grantModeBits, mkdirInheritingMode, readDirMode, unixCreationMode } from '@pnpm/store.file-mode'
 import { Packr } from 'msgpackr'
 
 import {
@@ -147,7 +149,8 @@ export class StoreIndex {
 
   /** Open the SQLite connection. Overridden by {@link ReadOnlyStoreIndex}. */
   protected openDatabase (storeDir: string): void {
-    fs.mkdirSync(storeDir, { recursive: true })
+    mkdirInheritingMode(storeDir)
+    if (process.platform !== 'win32') createIndexWithInheritedMode(storeDir)
     this.db = adaptStoreDatabase(this.openConnection(storeDir), storeDir)
     try {
       this.configureDatabase()
@@ -495,4 +498,31 @@ function nodeSupportsImmutableSqliteUri (): boolean {
   if (major === 22) return minor >= 15
   if (major === 23) return minor >= 11
   return true
+}
+
+// SQLite copies the database's mode onto the WAL sidecars, so a new
+// index.db gets the store directory's inherited mode, as both the open
+// ceiling and the post-create grant, before SQLite opens it.
+// The exclusive create decides which process made the database. An existing
+// database, including one a concurrent process just created, is not chmod'd.
+function createIndexWithInheritedMode (storeDir: string): void {
+  const dbPath = path.join(storeDir, 'index.db')
+  const creation = unixCreationMode(readDirMode(storeDir), undefined)
+  let fd: number
+  try {
+    fd = fs.openSync(dbPath, 'wx', creation.openMode)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return
+    throw new PnpmError('STORE_DIR_STORE_INDEX_CREATE_FILE', `Failed to create index.db at ${dbPath}: ${isError(err) ? err.message : String(err)}`, { cause: err })
+  }
+  try {
+    if (creation.grantMode != null) grantModeBits(fd, creation.grantMode)
+  } catch (err: unknown) {
+    // A database left without its inherited mode would be taken as complete
+    // by the next open, which skips the grant for an existing file.
+    fs.closeSync(fd)
+    fs.rmSync(dbPath, { force: true })
+    throw err
+  }
+  fs.closeSync(fd)
 }

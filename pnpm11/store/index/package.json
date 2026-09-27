@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/store.file-mode": "workspace:*",
     "msgpackr": "catalog:"
   },
   "devDependencies": {

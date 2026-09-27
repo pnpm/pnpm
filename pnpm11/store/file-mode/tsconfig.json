@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../core/error"
-    },
-    {
       "path": "../../fs/graceful-fs"
-    },
-    {
-      "path": "../file-mode"
     }
   ]
 }
