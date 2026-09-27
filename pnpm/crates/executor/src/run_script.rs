@@ -148,7 +148,7 @@ fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
             init_cwd: opts.environment.init_cwd,
             node_execpath: opts.environment.node_execpath,
             npm_execpath: opts.environment.npm_execpath,
-            node_gyp_path: None,
+            node_gyp_path: opts.environment.node_gyp_path,
             user_agent: opts.environment.user_agent,
             extra_env: opts.environment.extra_env,
         },
