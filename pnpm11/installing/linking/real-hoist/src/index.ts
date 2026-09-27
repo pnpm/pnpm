@@ -194,7 +194,11 @@ function toTree (
           name: alias,
           identName: alias,
           reference: ref,
-          dependencyKind: HoisterDependencyKind.REGULAR,
+          // A link into the declaring package must stay next to that package,
+          // and the hoister never moves a workspace node.
+          dependencyKind: dp.packageRootLinkTarget(ref) != null
+            ? HoisterDependencyKind.WORKSPACE
+            : HoisterDependencyKind.REGULAR,
           dependencies: new Set(),
           peerNames: new Set(),
         }

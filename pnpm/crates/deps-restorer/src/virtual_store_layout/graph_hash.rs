@@ -71,6 +71,11 @@ pub(super) fn child_graph_key(
     if let Some(snapshot_key) = dep_ref.resolve(alias) {
         return Some(snapshot_key.to_string());
     }
+    // A link into the package itself is covered by the package's own
+    // integrity, and a path under the project would tie the hash to it.
+    if dep_ref.package_root_link_target().is_some() {
+        return None;
+    }
     let link_target = dep_ref.as_link_target()?;
     let resolved = pnpm_fs::lexical_normalize(&lockfile_dir?.join(link_target));
     Some(format!("link:{}", resolved.to_string_lossy()))

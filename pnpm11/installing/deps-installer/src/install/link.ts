@@ -7,6 +7,7 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
+import * as dp from '@pnpm/deps.path'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import type {
@@ -749,6 +750,11 @@ function getChildrenPaths (
   const childrenPaths: Record<string, string> = {}
   for (const [alias, childDepPath] of Object.entries(children ?? {})) {
     if (alias === depNode.name) continue
+    const packageRootLinkTarget = dp.packageRootLinkTarget(childDepPath)
+    if (packageRootLinkTarget != null) {
+      childrenPaths[alias] = path.join(depNode.modules, depNode.name, packageRootLinkTarget)
+      continue
+    }
     if (childDepPath.startsWith('link:')) {
       childrenPaths[alias] = path.resolve(lockfileDir, childDepPath.slice(5))
       continue

@@ -6,6 +6,7 @@ import {
   hasPatchHash,
   isAbsolute,
   isRuntimeDepPath,
+  packageRootLinkTarget,
   parse,
   parseRegistryQualifiedVersion,
   refToRelative,
@@ -217,4 +218,20 @@ test('hasPatchHash()', () => {
   expect(hasPatchHash('foo@1.0.0(patch_hash=abc)(bar@2.0.0)')).toBe(true)
   expect(hasPatchHash('foo@1.0.0(bar@2.0.0(patch_hash=abc))')).toBe(false)
   expect(hasPatchHash('foo@1.0.0')).toBe(false)
+})
+
+test('packageRootLinkTarget() accepts only plain paths inside the package', () => {
+  expect(packageRootLinkTarget('link:<root>/typings/css-tree')).toBe('typings/css-tree')
+  for (const reference of [
+    'link:<root>/',
+    'link:<root>/../outside',
+    'link:<root>/a/../../outside',
+    'link:<root>/a/./b',
+    'link:<root>/a//b',
+    'link:<root>/C:/Users/Public',
+    'link:<root>/a\\..\\..\\outside',
+    'link:packages/c',
+  ]) {
+    expect(packageRootLinkTarget(reference)).toBeUndefined()
+  }
 })

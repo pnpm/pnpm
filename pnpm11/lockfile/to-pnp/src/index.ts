@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { depPathToFilename, refToRelative } from '@pnpm/deps.path'
+import { depPathToFilename, packageRootLinkTarget, refToRelative } from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
@@ -119,17 +119,50 @@ export function lockfileToPackageRegistry (
     if (!packageLocation.endsWith('/')) {
       packageLocation += '/'
     }
+    const packageRootLinks = registerPackageRootLinks(packageRegistry, packageLocation, {
+      ...pkgSnapshot.dependencies,
+      ...pkgSnapshot.optionalDependencies,
+    })
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
         ...((pkgSnapshot.dependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies) : []),
         ...((pkgSnapshot.optionalDependencies != null) ? toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies) : []),
+        ...packageRootLinks,
       ]),
       packageLocation,
     })
   }
 
   return packageRegistry
+}
+
+/**
+ * Registers each `link:<root>/...` dependency as a package located inside the
+ * package at `packageLocation`, and returns the references to depend on it.
+ */
+function registerPackageRootLinks (
+  packageRegistry: Map<string, Map<string, { packageDependencies: Map<string, string>, packageLocation: string }>>,
+  packageLocation: string,
+  deps: Record<string, string>
+): Array<[string, string]> {
+  const links: Array<[string, string]> = []
+  for (const [alias, ref] of Object.entries(deps)) {
+    const target = packageRootLinkTarget(ref)
+    if (target == null) continue
+    const linkLocation = `${packageLocation}${target}/`
+    let linkStore = packageRegistry.get(alias)
+    if (!linkStore) {
+      linkStore = new Map()
+      packageRegistry.set(alias, linkStore)
+    }
+    linkStore.set(linkLocation, {
+      packageDependencies: new Map([[alias, linkLocation]]),
+      packageLocation: linkLocation,
+    })
+    links.push([alias, linkLocation])
+  }
+  return links
 }
 
 function toPackageDependenciesMap (

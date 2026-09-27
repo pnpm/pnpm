@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/deps.path'
+import { getPkgIdWithPatchHash, packageRootLinkTarget, refToRelative } from '@pnpm/deps.path'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { LockfileObject, LockfileResolution, PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -197,6 +197,8 @@ function calcDepGraphHash<T extends string> ({
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
+        // The parent's own integrity already covers a directory inside it.
+        if (packageRootLinkTarget(childId) != null) continue
         deps[alias] = calcDepGraphHash({
           depsGraph,
           cache,
@@ -542,7 +544,7 @@ function lockfileDepsToGraphChildren (
     const depPath = refToRelative(reference, alias)
     if (depPath) {
       children[alias] = depPath
-    } else if (lockfileDir != null && reference.startsWith('link:')) {
+    } else if (lockfileDir != null && reference.startsWith('link:') && packageRootLinkTarget(reference) == null) {
       const linkTargetNode = `link:${path.resolve(lockfileDir, reference.slice(5))}` as DepPath
       children[alias] = linkTargetNode
       linkTargetNodes.add(linkTargetNode)

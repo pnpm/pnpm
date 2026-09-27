@@ -475,6 +475,12 @@ function convertResolvedDependencies (
 
   for (const key in input) {
     const version = input[key]
+    // A link into the declaring package is resolved where that package is
+    // placed, so it reads the same in the deploy directory.
+    if (dp.packageRootLinkTarget(version) != null) {
+      output[key] = version
+      continue
+    }
     const resolveResult = resolveLinkOrFile(version, opts)
     if (!resolveResult) {
       output[key] = version

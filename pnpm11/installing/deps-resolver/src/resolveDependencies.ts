@@ -1363,7 +1363,10 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree.set(createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory), {
+    const linkedNodeId = dp.packageRootLinkTarget(resolveDependencyResult.pkgId) != null
+      ? resolveDependencyResult.pkgId as unknown as NodeId
+      : createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory)
+    ctx.dependenciesTree.set(linkedNodeId, {
       children: {},
       depth: -1,
       installable: true,
@@ -1916,6 +1919,9 @@ function getDepsToResolve (
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
     if (
       !proceedAll &&
+      // A link into the declaring package has no lockfile entry and no
+      // children, so it gives its siblings no reason to re-resolve.
+      dp.packageRootLinkTarget(wantedDependency.bareSpecifier) == null &&
       (
         (infoFromLockfile == null) ||
         infoFromLockfile.dependencyLockfile != null && (
@@ -2198,6 +2204,10 @@ async function resolveDependency (
   ctx: ResolutionContext,
   options: ResolveDependencyOptions
 ): Promise<ResolveDependencyResult> {
+  const packageRootLinkTarget = dp.packageRootLinkTarget(wantedDependency.bareSpecifier)
+  if (packageRootLinkTarget != null) {
+    return linkIntoDeclaringPackage(wantedDependency, packageRootLinkTarget)
+  }
   const currentPkg = options.currentPkg ?? {}
 
   const currentLockfileContainsTheDep = currentPkg.depPath
@@ -2636,6 +2646,28 @@ async function resolveDependency (
     }
   } finally {
     finishPackageResolution()
+  }
+}
+
+/**
+ * A `link:<root>/...` dependency points inside the package that declares it,
+ * whose files are only on disk once that package is placed. It is recorded
+ * as a link without reading the target, and each linker resolves `<root>`
+ * against the declaring package's directory.
+ */
+function linkIntoDeclaringPackage (wantedDependency: WantedDependency, target: string): LinkedDependency {
+  const alias = wantedDependency.alias ?? path.posix.basename(target)
+  return {
+    alias,
+    dev: wantedDependency.dev,
+    isLinkedDependency: true,
+    name: alias,
+    optional: wantedDependency.optional,
+    pkg: { name: alias, version: '0.0.0' },
+    pkgId: wantedDependency.bareSpecifier as PkgResolutionId,
+    resolution: { type: 'directory', directory: target },
+    version: '0.0.0',
+    wantedDependency,
   }
 }
 

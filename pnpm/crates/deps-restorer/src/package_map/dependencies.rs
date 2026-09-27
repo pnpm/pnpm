@@ -27,7 +27,11 @@ pub(super) fn add_importer_dependencies(
     {
         for (alias, spec) in deps {
             if let Some(target) = spec.version.as_link_target() {
-                let target = resolve_link_target(opts.lockfile_dir, Some(importer_id), target);
+                let target = resolve_link_target(
+                    opts.lockfile_dir,
+                    LinkBase::Importer(Some(importer_id)),
+                    target,
+                );
                 add_external_link_package(packages, &target, opts.modules_dir);
                 dependencies.insert(alias.to_string(), target.id);
                 continue;
@@ -52,7 +56,8 @@ pub(super) fn add_physical_importer_dependencies(
     let Some(deps) = deps else { return };
     for (alias, spec) in deps {
         if let Some(target) = spec.version.as_link_target() {
-            let target = resolve_link_target(opts.lockfile_dir, importer_id, target);
+            let target =
+                resolve_link_target(opts.lockfile_dir, LinkBase::Importer(importer_id), target);
             add_external_link_package(packages, &target, opts.modules_dir);
             loose_index.add(modules_dir, alias.to_string(), target.id);
             continue;
@@ -69,12 +74,13 @@ pub(super) fn add_snapshot_dependencies(
     dependencies: &mut BTreeMap<String, String>,
     lockfile: &Lockfile,
     opts: &PackageMapOptions<'_>,
-    deps: Option<&HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>,
+    (package_dir, deps): (&Path, Option<&HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>),
 ) {
     let Some(deps) = deps else { return };
     for (alias, reference) in deps {
         if let Some(target) = reference.as_link_target() {
-            let target = resolve_link_target(opts.lockfile_dir, None, target);
+            let target =
+                resolve_link_target(opts.lockfile_dir, LinkBase::Package(package_dir), target);
             add_external_link_package(packages, &target, opts.modules_dir);
             dependencies.insert(alias.to_string(), target.id);
             continue;
@@ -95,9 +101,12 @@ pub(super) fn add_physical_snapshot_dependencies(
     deps: Option<&HashMap<pnpm_lockfile::PkgName, SnapshotDepRef>>,
 ) {
     let Some(deps) = deps else { return };
+    // `modules_dir` is the declaring package's own `node_modules`.
+    let package_dir = modules_dir.parent().unwrap_or(modules_dir);
     for (alias, reference) in deps {
         if let Some(target) = reference.as_link_target() {
-            let target = resolve_link_target(opts.lockfile_dir, None, target);
+            let target =
+                resolve_link_target(opts.lockfile_dir, LinkBase::Package(package_dir), target);
             add_external_link_package(packages, &target, opts.modules_dir);
             loose_index.add(modules_dir, alias.to_string(), target.id);
             continue;
@@ -185,17 +194,27 @@ pub(super) struct LinkTarget {
     pub(super) id: String,
     pub(super) dir: PathBuf,
 }
+/// What a `link:` target is relative to: the importer that declares it
+/// (`None` for the lockfile directory), or, for a `link:<root>/...` target,
+/// the directory of the package that declares it.
+#[derive(Clone, Copy)]
+pub(super) enum LinkBase<'a> {
+    Importer(Option<&'a str>),
+    Package(&'a Path),
+}
+
 pub(super) fn resolve_link_target(
     lockfile_dir: &Path,
-    importer_id: Option<&str>,
+    base: LinkBase<'_>,
     target: &str,
 ) -> LinkTarget {
-    let importer_dir =
-        importer_id.map_or_else(|| lockfile_dir.to_path_buf(), |id| lockfile_dir.join(id));
-    let dir = if Path::new(target).is_absolute() {
-        PathBuf::from(target)
-    } else {
-        importer_dir.join(target)
+    let dir = match (base, pnpm_lockfile::package_root_link_target(target)) {
+        (LinkBase::Package(package_dir), Some(inside)) => {
+            pnpm_lockfile::join_package_root_link(package_dir, inside)
+        }
+        _ if Path::new(target).is_absolute() => PathBuf::from(target),
+        (LinkBase::Importer(Some(importer_id)), _) => lockfile_dir.join(importer_id).join(target),
+        _ => lockfile_dir.join(target),
     };
     let dir = lexical_normalize(&dir);
     let id = link_target_id(pathdiff::diff_paths(&dir, lockfile_dir), &dir);

@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/pkg-with-internal-file-dep",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@pnpm.e2e/internal-child": "file:./child"
+  }
+}

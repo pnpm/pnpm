@@ -2,7 +2,7 @@ use super::{
     Arc, CurrentPkg, GitResolveError, NoMatchingVersionError, Path, PickPackageError,
     PreferredVersionsOverlay, RegistryResponseError, ResolveDependencyTreeError, ResolveError,
     ResolveOptions, Resolver, SharedWorkspaceWantedKey, TreeCtx, WantedDependency, WantedKey,
-    WorkspaceFinalWantedKey, lock_recoverable, render_specifier,
+    WorkspaceFinalWantedKey, link_file_deps_inside_package, lock_recoverable, render_specifier,
 };
 
 /// Convert a workspace directory resolution into the representation shared by
@@ -199,6 +199,12 @@ pub(super) async fn apply_manifest_hooks(
     ctx: &TreeCtx,
     result: &mut pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<(), ResolveDependencyTreeError> {
+    if !matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        && let Some(manifest) = result.package.manifest.take()
+    {
+        result.package.manifest = Some(link_file_deps_inside_package(manifest));
+    }
+
     if let Some(hook) = ctx.workspace.hooks.manifests.manifest_hook.as_ref()
         && let Some(manifest) = result.package.manifest.take()
     {

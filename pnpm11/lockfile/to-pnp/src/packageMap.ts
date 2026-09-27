@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { depPathToFilename, refToRelative } from '@pnpm/deps.path'
+import { depPathToFilename, packageRootLinkTarget, refToRelative } from '@pnpm/deps.path'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
@@ -172,14 +172,14 @@ export function lockfileToPackageMap (
       name
     )
     const dependencies = new Map<string, string>([[name, depPath]])
-    addDependencies(dependencies, pkgSnapshot.dependencies)
-    addDependencies(dependencies, pkgSnapshot.optionalDependencies)
+    addDependencies(dependencies, pkgSnapshot.dependencies, { packageDir })
+    addDependencies(dependencies, pkgSnapshot.optionalDependencies, { packageDir })
     addPackage(depPath, packageDir, dependencies)
     if (isLoose) {
       addPackageLocation(name, packageDir, depPath)
       const packageModulesDir = joinPath(packageDir, 'node_modules')
-      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.dependencies)
-      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.optionalDependencies)
+      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.dependencies, { packageDir })
+      addPhysicalDependencyLocations(packageModulesDir, pkgSnapshot.optionalDependencies, { packageDir })
     }
   }
 
@@ -199,7 +199,7 @@ export function lockfileToPackageMap (
   function addDependencies (
     dependencies: Map<string, string>,
     deps: Record<string, string> | undefined,
-    opts?: { importerId: string }
+    opts?: LinkBase
   ) {
     for (const [alias, ref] of Object.entries(deps ?? {}).sort(([a], [b]) => compareStrings(a, b))) {
       const dependencyId = resolveDependencyId(alias, ref, opts)
@@ -211,10 +211,10 @@ export function lockfileToPackageMap (
   function resolveDependencyId (
     alias: string,
     ref: string,
-    depOpts: { importerId: string } | undefined
+    depOpts: LinkBase | undefined
   ): string | undefined {
     if (ref.startsWith('link:')) {
-      const target = resolveLinkTarget(opts.lockfileDir, depOpts?.importerId, ref)
+      const target = resolveLinkTarget(opts.lockfileDir, depOpts, ref)
       addExternalLinkPackage(target)
       return target.id
     }
@@ -226,11 +226,11 @@ export function lockfileToPackageMap (
   function addPhysicalDependencyLocations (
     modulesDir: string,
     deps: Record<string, string> | undefined,
-    physicalOpts?: { importerId: string }
+    physicalOpts?: LinkBase
   ) {
     for (const [alias, ref] of Object.entries(deps ?? {})) {
       if (ref.startsWith('link:')) {
-        const target = resolveLinkTarget(opts.lockfileDir, physicalOpts?.importerId, ref)
+        const target = resolveLinkTarget(opts.lockfileDir, physicalOpts, ref)
         addExternalLinkPackage(target)
         addDependencyLocation(modulesDir, alias, target.id)
         continue
@@ -303,8 +303,8 @@ export function dependenciesGraphToPackageMap (
     const pkgSnapshot = opts.lockfile.packages?.[node.depPath]
     if (pkgSnapshot) {
       const packageModulesDir = isLoose ? joinPath(node.dir, 'node_modules') : undefined
-      addLinkedDependencies(dependencies, pkgSnapshot.dependencies, { modulesDir: packageModulesDir })
-      addLinkedDependencies(dependencies, pkgSnapshot.optionalDependencies, { modulesDir: packageModulesDir })
+      addLinkedDependencies(dependencies, pkgSnapshot.dependencies, { modulesDir: packageModulesDir, packageDir: node.dir })
+      addLinkedDependencies(dependencies, pkgSnapshot.optionalDependencies, { modulesDir: packageModulesDir, packageDir: node.dir })
     }
 
     addPackage(packageIdsByGraphKey.get(graphKey)!, node.dir, dependencies)
@@ -346,14 +346,13 @@ export function dependenciesGraphToPackageMap (
   function addLinkedDependencies (
     dependencies: Map<string, string>,
     deps: Record<string, string> | undefined,
-    linkedOpts: {
-      importerId?: string
+    linkedOpts: LinkBase & {
       modulesDir?: string
     } = {}
   ) {
     for (const [alias, ref] of Object.entries(deps ?? {}).sort(([a], [b]) => compareStrings(a, b))) {
       if (!ref.startsWith('link:')) continue
-      const target = resolveLinkTarget(opts.lockfileDir, linkedOpts.importerId, ref)
+      const target = resolveLinkTarget(opts.lockfileDir, linkedOpts, ref)
       const targetId = opts.packageIdStrategy === 'path'
         ? graphPackageId(target.dir, opts)
         : target.id
@@ -374,16 +373,29 @@ interface LinkTarget {
   dir: string
 }
 
-function resolveLinkTarget (lockfileDir: string, importerId: string | undefined, ref: string): LinkTarget {
-  const linkPath = ref.slice(5)
+/**
+ * What a `link:` reference is relative to: the importer that declares it,
+ * or, for a `link:<root>/...` reference, the directory of the package that
+ * declares it.
+ */
+interface LinkBase {
+  importerId?: string
+  packageDir?: string
+}
+
+function resolveLinkTarget (lockfileDir: string, base: LinkBase | undefined, ref: string): LinkTarget {
+  const packageRootTarget = packageRootLinkTarget(ref)
+  const linkPath = packageRootTarget ?? ref.slice(5)
   // Detect the path flavor from `linkPath`, not the raw `ref`: the `link:`
   // prefix would hide a Windows-absolute target (e.g. `link:C:\x`) from the
   // drive-letter check, making it look relative on POSIX.
   const pathUtils = getPathUtils(lockfileDir, linkPath)
-  const importerDir = pathUtils.resolve(lockfileDir, importerId ?? '.')
+  const baseDir = packageRootTarget != null && base?.packageDir != null
+    ? base.packageDir
+    : pathUtils.resolve(lockfileDir, base?.importerId ?? '.')
   const dir = pathUtils.isAbsolute(linkPath)
     ? linkPath
-    : pathUtils.resolve(importerDir, linkPath)
+    : pathUtils.resolve(baseDir, linkPath)
   const relativeId = relativePath(lockfileDir, dir)
   return {
     id: relativeId == null || relativeId.startsWith('..') ? `link:${normalizePath(dir)}` : relativeId,

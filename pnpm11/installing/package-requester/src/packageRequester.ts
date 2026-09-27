@@ -16,6 +16,7 @@ import { type PickedFetcher, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
+import { fileSpecToPackageRootLink } from '@pnpm/resolving.local-resolver'
 import {
   type AtomicResolution,
   classifyResolution,
@@ -262,6 +263,9 @@ async function resolveAndFetch (
     }
   }
 
+  if (manifest != null && resolution.type !== 'directory') {
+    manifest = linkFileDepsInsidePackage(manifest)
+  }
   let hooked = false
   if (options.readPackageHook != null && manifest != null) {
     const hookedManifest = await options.readPackageHook(copyManifest(manifest))
@@ -351,6 +355,9 @@ async function resolveAndFetch (
       if (!loadedManifest._pnpmPlaceholder) {
         manifest = loadedManifest as unknown as DependencyManifest
       }
+    }
+    if (manifest != null) {
+      manifest = linkFileDepsInsidePackage(manifest)
     }
     // Add computed integrity to tarball resolutions. `variations` spans multiple
     // platform variants, so do not write one machine's integrity into the shared resolution.
@@ -871,6 +878,27 @@ function manifestForEngineCheck (
 ): DependencyManifest {
   if (!engineStrict || options.deferEnginesCheck?.(manifest) !== true) return manifest
   return { ...manifest, engines: undefined }
+}
+
+/**
+ * Rewrites the relative `file:` dependencies a package from a tarball or the
+ * registry declares to point inside itself as `link:<root>/...` references.
+ * It runs on the published manifest, before any `readPackage` hook or
+ * override, so a `file:` specifier a hook writes keeps its usual meaning.
+ */
+function linkFileDepsInsidePackage (manifest: DependencyManifest): DependencyManifest {
+  let copy: DependencyManifest | undefined
+  for (const depsField of ['dependencies', 'optionalDependencies'] as const) {
+    for (const [alias, bareSpecifier] of Object.entries(manifest[depsField] ?? {})) {
+      // A published manifest is unvalidated here, and a hook may still repair it.
+      if (typeof bareSpecifier !== 'string') continue
+      const packageRootLink = fileSpecToPackageRootLink(bareSpecifier)
+      if (packageRootLink == null) continue
+      copy ??= copyManifest(manifest)
+      copy[depsField]![alias] = packageRootLink
+    }
+  }
+  return copy ?? manifest
 }
 
 function copyManifest (manifest: DependencyManifest): DependencyManifest {

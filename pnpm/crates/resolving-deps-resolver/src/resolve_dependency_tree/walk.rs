@@ -38,6 +38,11 @@ use locked_versions::{
 
 mod edge_resolution;
 
+mod package_root_link;
+use package_root_link::{
+    link_file_deps_inside_package, package_root_link_result, wanted_package_root_link,
+};
+
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;

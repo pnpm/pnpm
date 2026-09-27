@@ -55,6 +55,7 @@ mod exclude_links_from_lockfile;
 mod exec;
 mod exec_recursive;
 mod fetch;
+mod file_dep_inside_package;
 mod find_hash;
 mod forced_install;
 mod git_branch_lockfile;
