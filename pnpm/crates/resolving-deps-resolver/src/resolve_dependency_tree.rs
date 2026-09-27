@@ -27,7 +27,7 @@ use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency,
+    ResolveError, ResolveOptions, Resolver, WantedDependency,
 };
 use serde_json::Value;
 use std::{
@@ -219,7 +219,7 @@ pub enum ResolveDependencyTreeError {
     /// One of the resolver chain calls failed (network, parse, etc.).
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
-    Resolve(#[error(not(source))] String),
+    Resolve(#[error(source)] ResolveError),
 
     #[display("Conflicting registry revisions were requested for \"{name}@{version}\".")]
     #[diagnostic(
