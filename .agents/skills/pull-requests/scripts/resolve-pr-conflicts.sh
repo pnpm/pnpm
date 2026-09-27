@@ -223,9 +223,16 @@ fi
 
 # Read the repository slug out of a Git remote URL. Only the URL forms that name github.com
 # as the host are understood, so a URL on another host cannot be mistaken for the head
-# repository by carrying `github.com` in its path; a URL that matches none of them is
-# returned as it is, and so cannot equal a slug.
+# repository by carrying `github.com` in its path. A URL that matches none of them — another
+# host, a local path, a `file://` URL, plaintext `http` — is not a GitHub remote at all and
+# has no slug: returning it unchanged would be unsafe, because a relative local path reads
+# exactly like a slug (`some-fork/pnpm.git` becomes `some-fork/pnpm`) and would then compare
+# equal to the head repository.
 repo_slug() {
+  case "$1" in
+    https://github.com/*|https://*@github.com/*|ssh://git@github.com/*|ssh://git@github.com:[0-9]*/*|git@github.com:*) ;;
+    *) return 0 ;;
+  esac
   printf '%s' "$1" | sed \
     -E -e 's#^(https://([^@/]*@)?|ssh://([^@/]*@)?)github\.com(:[0-9]+)?/##' \
     -e 's#^git@github\.com:##' \
@@ -247,6 +254,9 @@ while IFS= read -r REMOTE_URL; do
   if [ "$REMOTE_SLUG" != "$HEAD_SLUG" ]; then
     echo "ERROR: remote '$REMOTE' does not point to $HEAD_REPO."
     echo "  Current $REMOTE: $REMOTE_URL"
+    if [ -z "$REMOTE_SLUG" ]; then
+      echo "  That is not a github.com repository URL, so it cannot name $HEAD_REPO."
+    fi
     echo "  Expected: https://github.com/$HEAD_REPO.git (or git@github.com:$HEAD_REPO.git)"
     echo "  Refusing to push: the rebased commits would go somewhere other than the PR's head"
     echo "  repository. Add a remote for $HEAD_REPO and re-run."

@@ -458,6 +458,35 @@ expect_status 0
 expect_output "git push some-fork HEAD:fix/example --force-with-lease"
 unset STUB_PUSH_URLS
 
+# Only the URL forms that name github.com as the host are read as a slug. A remote that is
+# not a GitHub remote at all cannot name the head repository, and it must not be accepted
+# because its text happens to look like a slug: a relative local path reads exactly like one.
+export STUB_PUSH_URL='some-fork/pnpm.git'
+run_case 'fork-push-relative-path' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_output 'That is not a github.com repository URL'
+expect_no_call '^git push'
+# An absolute path and a file:// URL are refused for the same reason, and were before too.
+export STUB_PUSH_URL='/tmp/checkouts/some-fork/pnpm.git'
+run_case 'fork-push-local-path' 4242 --no-push
+expect_status 1
+expect_output 'That is not a github.com repository URL'
+expect_no_call '^git push'
+export STUB_PUSH_URL='file:///tmp/checkouts/some-fork/pnpm.git'
+run_case 'fork-push-file-url' 4242 --no-push
+expect_status 1
+expect_output 'That is not a github.com repository URL'
+expect_no_call '^git push'
+# `git remote get-url --push` reports the URL after `insteadOf`/`pushInsteadOf` rewriting, so
+# a rewrite is read here as the host the push really goes to, which is then refused.
+export STUB_PUSH_URL='git@evil.test:some-fork/pnpm.git'
+run_case 'fork-push-rewritten-host' 4242 --no-push
+expect_status 1
+expect_output "remote 'some-fork' does not point to some-fork/pnpm"
+expect_no_call '^git push'
+unset STUB_PUSH_URL
+
 # Without the head repository there is nothing to compare against, so the push stops
 # instead of falling back to <owner>/pnpm.
 no_rebase
