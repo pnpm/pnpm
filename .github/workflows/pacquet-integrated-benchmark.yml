@@ -831,6 +831,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: fresh install, cold cache + hot store + cold pnpr resolve'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE_COLD_PNPR_RESOLVE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh resolve, hot cache, offline'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE.md
