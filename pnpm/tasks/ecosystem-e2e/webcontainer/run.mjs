@@ -57,7 +57,7 @@ try {
   page.on('pageerror', (err) => {
     console.error(`[page error] ${err.message}`)
   })
-  await page.goto(`http://localhost:${server.address().port}/index.html`)
+  await page.goto(`http://127.0.0.1:${server.address().port}/index.html`)
   await page.waitForFunction(() => window.ready)
   await page.evaluate(() => window.boot())
   await page.evaluate((files) => window.mountPnpm(files), pnpmFiles)
