@@ -583,9 +583,9 @@ test('local directory is not relinked if disableRelinkLocalDirDeps is set to tru
   expect(fs.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 })
 
-test('a file: dependency of a tarball dependency resolves against the package that declares it', async () => {
+test('a relative file: dependency of a tarball dependency is skipped', async () => {
   const project = prepareEmpty()
-  fs.writeFileSync('parent-1.0.0.tgz', await packParentWithFileDep(), 'utf8')
+  fs.writeFileSync('parent-1.0.0.tgz', await packParent('file:./child', true), 'utf8')
 
   await install({
     dependencies: {
@@ -596,42 +596,49 @@ test('a file: dependency of a tarball dependency resolves against the package th
   expect(project.requireModule('parent')()).toBe('parent')
 })
 
+test('a missing absolute file: dependency of a tarball dependency fails the install', async () => {
+  prepareEmpty()
+  fs.writeFileSync('parent-1.0.0.tgz', await packParent('file:/pnpm-missing/child', false), 'utf8')
+
+  await expect(install({
+    dependencies: {
+      parent: 'file:parent-1.0.0.tgz',
+    },
+  }, testDefaults({ fastUnpack: false }))).rejects.toThrow(/pnpm-missing/)
+})
+
 /**
- * A tarball whose `package.json` declares a dependency on a directory that
- * ships inside the tarball itself, the way `@eslint/css@0.3.0` declared
- * `"@types/css-tree": "file:./typings/css-tree"`.
+ * A tarball whose `package.json` declares a dependency through `fileDep`, the
+ * way `@eslint/css@0.3.0` declared `"@types/css-tree":
+ * "file:./typings/css-tree"`. `includeChild` ships the target inside the
+ * tarball, which is where a relative specifier points.
  */
-async function packParentWithFileDep (): Promise<Buffer> {
+async function packParent (fileDep: string, includeChild: boolean): Promise<Buffer> {
   const entries: [string, string][] = [
     ['package/package.json', JSON.stringify({
       name: 'parent',
       version: '1.0.0',
       main: 'index.js',
-      dependencies: { child: 'file:./child' },
+      dependencies: { child: fileDep },
     })],
     ['package/index.js', 'module.exports = () => "parent"'],
-    ['package/child/package.json', JSON.stringify({ name: 'child', version: '1.0.0', main: 'index.js' })],
-    ['package/child/index.js', 'module.exports = () => "child"'],
   ]
+  if (includeChild) {
+    entries.push(
+      ['package/child/package.json', JSON.stringify({ name: 'child', version: '1.0.0', main: 'index.js' })],
+      ['package/child/index.js', 'module.exports = () => "child"']
+    )
+  }
   const pack = tar.pack()
   const chunks: Buffer[] = []
   pack.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
   await new Promise<void>((resolve, reject) => {
     pack.on('error', reject)
     pack.on('end', () => resolve())
-    pack.entry({ name: entries[0][0] }, entries[0][1], (error?: Error | null) => {
-      if (error) return reject(error)
-      pack.entry({ name: entries[1][0] }, entries[1][1], (error?: Error | null) => {
-        if (error) return reject(error)
-        pack.entry({ name: entries[2][0] }, entries[2][1], (error?: Error | null) => {
-          if (error) return reject(error)
-          pack.entry({ name: entries[3][0] }, entries[3][1], (error?: Error | null) => {
-            if (error) return reject(error)
-            pack.finalize()
-          })
-        })
-      })
-    })
+    for (const [name, content] of entries) {
+      pack.entry({ name }, content)
+    }
+    pack.finalize()
   })
   return Buffer.concat(chunks)
 }

@@ -152,9 +152,15 @@ fn is_unresolvable_file_dep_of_packed_pkg(
 ) -> bool {
     !edge.parent_is_directory
         && matches!(err, ResolveDependencyTreeError::LinkedPkgDirNotFound(_))
-        && wanted.bare_specifier
-            .as_deref()
-            .is_some_and(|spec| spec.starts_with("file:"))
+        && is_relative_file_specifier(wanted.bare_specifier.as_deref())
+}
+
+/// Whether the specifier is a `file:` path written relative to the manifest
+/// that declares it, the only form that can point inside the declaring
+/// package. An absolute target names a place of its own, so its being
+/// missing says nothing about that package and stays an error.
+fn is_relative_file_specifier(bare_specifier: Option<&str>) -> bool {
+    bare_specifier.is_some_and(|spec| spec.starts_with("file:./") || spec.starts_with("file:../"))
 }
 
 /// Report a dropped [`is_unresolvable_file_dep_of_packed_pkg`] edge through
@@ -568,6 +574,7 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::RegistryResponse(_)
             | ResolveDependencyTreeError::GitResolve(_)
             | ResolveDependencyTreeError::Pick(_)
+            | ResolveDependencyTreeError::LinkedPkgDirNotFound(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
 }

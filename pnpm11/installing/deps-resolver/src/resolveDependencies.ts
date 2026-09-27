@@ -789,8 +789,18 @@ function isUnresolvableFileDepOfPackedPkg (
   parentPkg: ParentPkg
 ): boolean {
   return err.code === 'ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND' &&
-    wantedDependency.bareSpecifier.startsWith('file:') &&
+    isRelativeFileSpecifier(wantedDependency.bareSpecifier) &&
     !parentPkg.isDirectoryResolution
+}
+
+/**
+ * Whether the specifier is a `file:` path written relative to the manifest
+ * that declares it, the only form that can point inside the declaring
+ * package. An absolute target names a place of its own, so its being missing
+ * says nothing about that package and stays an error.
+ */
+function isRelativeFileSpecifier (bareSpecifier: string): boolean {
+  return bareSpecifier.startsWith('file:./') || bareSpecifier.startsWith('file:../')
 }
 
 interface ResolvedDependenciesResult {

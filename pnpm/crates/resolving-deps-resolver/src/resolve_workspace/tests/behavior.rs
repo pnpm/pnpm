@@ -428,3 +428,42 @@ async fn a_file_dep_of_the_project_itself_still_fails_when_the_path_is_missing()
         "the failure names the path the user got wrong: {err}",
     );
 }
+
+/// An absolute `file:` target names a place of its own rather than a path
+/// inside the package that declares it, so a missing one stays an error even
+/// when the declaring package came from a tarball.
+#[tokio::test]
+async fn a_missing_absolute_file_dep_of_a_packed_package_still_fails() {
+    let mut table = HashMap::default();
+    table.insert(
+        ("parent".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "parent",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "parent",
+                "version": "1.0.0",
+                "dependencies": { "child": "file:/pnpm-missing/child" },
+            }),
+        ),
+    );
+    let resolver = FileDepFailingResolver { table };
+    let (tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "^1.0.0" }));
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+
+    let err = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        workspace_opts(false, false),
+        |_| importer_opts(tmp.path().to_path_buf(), None),
+    )
+    .await
+    .err()
+    .expect("a missing absolute file: path is still an error");
+    assert!(
+        err.to_string().contains("pnpm-missing"),
+        "the failure names the path the user got wrong: {err}",
+    );
+}

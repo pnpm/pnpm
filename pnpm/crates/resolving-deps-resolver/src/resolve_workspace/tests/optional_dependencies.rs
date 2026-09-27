@@ -276,7 +276,11 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
 /// instead of failing the install.
 #[tokio::test]
 async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
-    for failure in [FailureShape::NoMatchingVersion, FailureShape::RegistryResponse] {
+    for failure in [
+        FailureShape::NoMatchingVersion,
+        FailureShape::RegistryResponse,
+        FailureShape::LinkedPkgDirNotFound,
+    ] {
         let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
         let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
         let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));

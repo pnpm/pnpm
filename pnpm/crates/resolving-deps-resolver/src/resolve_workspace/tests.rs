@@ -441,6 +441,7 @@ enum FailureShape {
     Plain,
     NoMatchingVersion,
     RegistryResponse,
+    LinkedPkgDirNotFound,
 }
 
 impl FailureShape {
@@ -460,6 +461,9 @@ impl FailureShape {
                     pkg_name: alias,
                     auth_header_value: None,
                 }))
+            }
+            FailureShape::LinkedPkgDirNotFound => {
+                Box::new(LinkedPkgDirNotFoundError { path: range.to_string() })
             }
         }
     }
