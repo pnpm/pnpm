@@ -15,7 +15,7 @@ use std::{
     fs,
     panic::{self, AssertUnwindSafe},
     process::{Command, ExitStatus},
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::Mutex,
     thread,
     time::Duration,
 };
@@ -594,32 +594,32 @@ fn run_prepare_step(command: &str) -> ExitStatus {
 }
 
 #[test]
-fn pnpr_restart_prepare_step_returns_after_each_restart_finishes() {
-    let restarts = AtomicUsize::new(0);
-    let restart = || {
+fn pnpr_restart_prepare_step_returns_after_its_server_restarted() {
+    let restarted = Mutex::new(Vec::new());
+    let restart = |server| {
         thread::sleep(Duration::from_millis(100));
-        restarts.fetch_add(1, Ordering::SeqCst);
+        restarted.lock().unwrap().push(server);
     };
+    let listener = PnprRestartListener::bind();
 
-    PnprRestartListener::bind()
-        .serve_during(restart, |command| {
-            assert!(run_prepare_step(command).success());
-            assert_eq!(restarts.load(Ordering::SeqCst), 1);
-            assert!(run_prepare_step(command).success());
-            assert_eq!(restarts.load(Ordering::SeqCst), 2);
-        });
+    listener.serve_during(restart, || {
+        assert!(run_prepare_step(&listener.prepare_command(1)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1]);
+        assert!(run_prepare_step(&listener.prepare_command(0)).success());
+        assert_eq!(*restarted.lock().unwrap(), [1, 0]);
+    });
 }
 
 #[test]
 fn pnpr_restart_prepare_step_fails_when_the_restart_fails() {
     let mut status = None;
+    let listener = PnprRestartListener::bind();
 
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
-        PnprRestartListener::bind()
-            .serve_during(
-                || panic!("the pnpr server did not come back"),
-                |command| status = Some(run_prepare_step(command)),
-            );
+        listener.serve_during(
+            |_| panic!("the pnpr server did not come back"),
+            || status = Some(run_prepare_step(&listener.prepare_command(0))),
+        );
     }));
 
     assert!(outcome.is_err());

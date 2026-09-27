@@ -230,19 +230,17 @@ impl WorkEnv {
 
         PnprResolverServer { server, paths }
     }
-    /// Restart every pnpr resolver server on empty storage. Killing the
-    /// process is what drops the in-memory resolution cache: emptying
-    /// `pnpr-storage` under a live server leaves it warm. The token minted at
-    /// startup stays valid because `tokens.db` lives outside the storage
-    /// (see [`pnpr_htpasswd_path`]).
-    pub(super) fn restart_pnpr_servers_on_empty_storage(&self, servers: &mut [PnprResolverServer]) {
-        for PnprResolverServer { server, paths } in servers {
-            server.process.kill().expect("stop the pnpr server before restarting it");
-            server.process.wait().expect("wait for the stopped pnpr server to exit");
-            remove_dir_all_with_retry(&paths.storage).expect("empty pnpr storage before restart");
-            server.process = self.spawn_pnpr_server_process(paths);
-            wait_for_pnpr_ready(paths.port);
-        }
+    /// Restart a pnpr resolver server on empty storage. Killing the process is
+    /// what drops the in-memory resolution cache: emptying `pnpr-storage` under
+    /// a live server leaves it warm. The token minted at startup stays valid
+    /// because `tokens.db` lives outside the storage (see [`pnpr_htpasswd_path`]).
+    pub(super) fn restart_pnpr_server_on_empty_storage(&self, resolver: &mut PnprResolverServer) {
+        let PnprResolverServer { server, paths } = resolver;
+        server.process.kill().expect("stop the pnpr server before restarting it");
+        server.process.wait().expect("wait for the stopped pnpr server to exit");
+        remove_dir_all_with_retry(&paths.storage).expect("empty pnpr storage before restart");
+        server.process = self.spawn_pnpr_server_process(paths);
+        wait_for_pnpr_ready(paths.port);
     }
     /// Write the client config variable and the benchmark's registry rewrite source.
     /// The `PNPM_CONFIG` prefix is required for the server to reach the client config.

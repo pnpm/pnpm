@@ -46,6 +46,7 @@ use std::{
     fs::{self},
     path::{Path, PathBuf},
     process::Command,
+    slice,
 };
 
 const BENCHMARK_OUTPUT_LOG: &str = "BENCHMARK_OUTPUT.ndjson";
@@ -406,15 +407,9 @@ impl WorkEnv {
 
         if scenario.cold_pnpr_cache() == Some(ColdPnprCache::Resolution) && !pnpr_servers.is_empty()
         {
-            PnprRestartListener::bind()
-                .serve_during(
-                    || self.restart_pnpr_servers_on_empty_storage(&mut pnpr_servers),
-                    |restart_command| {
-                        self.run_hyperfine(&format!("{restart_command} && {cleanup_command}"));
-                    },
-                );
+            self.run_hyperfine_restarting_pnpr_servers(&cleanup_command, &mut pnpr_servers);
         } else {
-            self.run_hyperfine(&cleanup_command);
+            self.run_hyperfine(slice::from_ref(&cleanup_command));
         }
         if scenario.uses_peer_heavy_fixture() {
             self.install_for_lockfile_comparison(&cleanup_command);
@@ -422,12 +417,41 @@ impl WorkEnv {
         self.write_benchmark_diagnostics();
     }
 
-    fn run_hyperfine(&self, cleanup_command: &str) {
+    /// Run hyperfine with each `pnpr@<rev>` command's own server restarted on
+    /// empty storage before every iteration of that command. `servers` holds
+    /// one entry per pnpr target, in [`Self::benchmarked_ids`] order.
+    fn run_hyperfine_restarting_pnpr_servers(
+        &self,
+        cleanup_command: &str,
+        servers: &mut [PnprResolverServer],
+    ) {
+        let listener = PnprRestartListener::bind();
+        let mut pnpr_targets = 0;
+        let prepare_commands: Vec<String> = self
+            .benchmarked_ids()
+            .map(|id| {
+                if !id.is_pnpr() {
+                    return cleanup_command.to_string();
+                }
+                let restart = listener.prepare_command(pnpr_targets);
+                pnpr_targets += 1;
+                format!("{restart} && {cleanup_command}")
+            })
+            .collect();
+        listener.serve_during(
+            |server| self.restart_pnpr_server_on_empty_storage(&mut servers[server]),
+            || self.run_hyperfine(&prepare_commands),
+        );
+    }
+
+    /// `prepare_commands` holds either one step for every command or one step
+    /// per command, in [`Self::benchmarked_ids`] order.
+    fn run_hyperfine(&self, prepare_commands: &[String]) {
         let mut command = Command::new("hyperfine");
-        command
-            .current_dir(self.root())
-            .arg("--prepare")
-            .arg(cleanup_command);
+        command.current_dir(self.root());
+        for prepare in prepare_commands {
+            command.arg("--prepare").arg(prepare);
+        }
 
         self.options.hyperfine_options.append_to(&mut command);
 

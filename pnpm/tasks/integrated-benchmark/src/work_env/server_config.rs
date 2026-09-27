@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{BufRead, BufReader, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::Child,
@@ -63,8 +63,8 @@ impl Drop for PnprServer {
     }
 }
 /// The loopback socket through which hyperfine's `--prepare` asks the
-/// benchmark to restart its pnpr servers. The restart runs in this process,
-/// so every server stays a [`PnprServer`] guard that dies with the run.
+/// benchmark to restart one of its pnpr servers. The restart runs in this
+/// process, so every server stays a [`PnprServer`] guard that dies with the run.
 pub(super) struct PnprRestartListener {
     listener: TcpListener,
     stopped: AtomicBool,
@@ -77,36 +77,45 @@ impl PnprRestartListener {
         PnprRestartListener { listener, stopped: AtomicBool::new(false) }
     }
 
-    /// Serve restart requests on a scoped thread while `run` executes with a
-    /// `--prepare` step that sends one. The step blocks until `restart` has
-    /// finished and fails when no acknowledgement arrives, so an iteration
-    /// never runs against a server that was not restarted.
-    pub(super) fn serve_during(&self, restart: impl FnMut() + Send, run: impl FnOnce(&str)) {
-        thread::scope(|scope| {
-            scope.spawn(|| self.serve(restart));
-            let _stop = StopOnDrop(self);
-            run(&self.prepare_command());
-        });
-    }
-
-    fn prepare_command(&self) -> String {
+    /// A `--prepare` step that asks for `server` to be restarted. It blocks
+    /// until the restart has finished and fails when no acknowledgement
+    /// arrives, so an iteration never runs against a server that was not
+    /// restarted.
+    pub(super) fn prepare_command(&self, server: usize) -> String {
         let port = self.listener
             .local_addr()
             .expect("pnpr restart listener address")
             .port();
         format!(
-            r#"bash -c 'exec 3<>/dev/tcp/127.0.0.1/{port} && read -r reply <&3 && [ "$reply" = {ack} ]'"#,
+            r#"bash -c 'exec 3<>/dev/tcp/127.0.0.1/{port} && echo {server} >&3 && read -r reply <&3 && [ "$reply" = {ack} ]'"#,
             ack = Self::ACK,
         )
     }
 
-    fn serve(&self, mut restart: impl FnMut()) {
+    /// Serve restart requests on a scoped thread while `run` executes.
+    /// `restart` receives the server index its [`Self::prepare_command`] named.
+    pub(super) fn serve_during(&self, restart: impl FnMut(usize) + Send, run: impl FnOnce()) {
+        thread::scope(|scope| {
+            scope.spawn(|| self.serve(restart));
+            let _stop = StopOnDrop(self);
+            run();
+        });
+    }
+
+    fn serve(&self, mut restart: impl FnMut(usize)) {
         for stream in self.listener.incoming() {
             if self.stopped.load(Ordering::Acquire) {
                 return;
             }
             let mut stream = stream.expect("accept a pnpr restart request");
-            restart();
+            let mut request = String::new();
+            BufReader::new(&stream).read_line(&mut request).expect("read a pnpr restart request");
+            restart(
+                request
+                    .trim()
+                    .parse()
+                    .expect("a pnpr restart request names a server index"),
+            );
             writeln!(stream, "{}", Self::ACK).expect("acknowledge the pnpr restart");
         }
     }
