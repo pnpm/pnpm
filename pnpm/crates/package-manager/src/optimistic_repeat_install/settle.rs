@@ -247,15 +247,12 @@ pub(super) fn first_project_missing_modules_dir(
         .iter()
         .find_map(|(root_dir, manifest)| {
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
-            let recorded_modules_dir = state.projects
-                .get(&*root_dir.to_string_lossy())
-                .is_some_and(|entry| entry.has_modules_dir);
             let installed = !manifest_has_runtime_deps(manifest)
                 || modules_dir_exists(
                     node_linker,
                     is_root,
                     root_modules_dir_exists,
-                    recorded_modules_dir,
+                    recorded_modules_dir(state, root_dir),
                     || sibling_modules_dir(config, root_dir, manifest),
                 )
                 || (!is_root
@@ -316,6 +313,14 @@ fn project_modules_dirs(
     } else {
         vec![own]
     }
+}
+
+/// [`pnpm_workspace_state::ProjectEntry::has_modules_dir`] of the project
+/// at `root_dir`.
+fn recorded_modules_dir(state: &WorkspaceState, root_dir: &Path) -> bool {
+    state.projects
+        .get(&*root_dir.to_string_lossy())
+        .is_some_and(|entry| entry.has_modules_dir)
 }
 
 fn is_dangling_link(path: &Path) -> bool {

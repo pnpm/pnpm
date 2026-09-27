@@ -81,6 +81,7 @@ pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
     recorded_supported_architectures_match, settings_match,
 };
+pub(crate) use settle::sibling_modules_dir;
 pub(crate) use timestamps::{
     FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
     manifest_drift_reference_ms, modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms,
@@ -90,7 +91,6 @@ pub(crate) use timestamps::{
 mod current_lockfile;
 mod relocation;
 mod settle;
-pub(crate) use settle::sibling_modules_dir;
 use settle::{
     current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
     direct_dependency_link_dangling, early_repeat_verdict, first_project_missing_modules_dir,
