@@ -7,7 +7,7 @@ import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -1408,6 +1408,32 @@ describe('add', () => {
     })
     expect(readLockfile().packages).toStrictEqual({
       'is-positive@2.0.0': expect.any(Object),
+    })
+  })
+
+  test.each(['strict', 'prefer'] as const)('adding an aliasless tarball records its resolved name in catalogMode: %s', async (catalogMode) => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      [specifier],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: { default: {} },
+        catalogMode,
+      })
+
+    expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': 'catalog:' })
+    expect(updatedCatalogs).toStrictEqual({ default: { 'is-positive': specifier } })
+    expect(readLockfile().catalogs).toMatchObject({
+      default: { 'is-positive': { specifier } },
     })
   })
 

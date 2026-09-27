@@ -111,7 +111,7 @@ export function parseWantedDependencies (
         bareSpecifier: opts.defaultTag,
       }
     })
-    .filter((wd) => wd !== null) as WantedDependency[]
+    .filter((wd) => wd !== null)
 
   if (!opts.readonlyManifest && opts.readonlySpecifiers == null && opts.hookRemovedAliases == null) {
     return { wantedDependencies: wantedDeps, outsideKeptRange: [], supersededByKeptRange: [], removedByHook: [] }
@@ -122,6 +122,10 @@ export function parseWantedDependencies (
   const removedByHook: string[] = []
   for (const wantedDep of wantedDeps) {
     const { alias, bareSpecifier, prevSpecifier } = wantedDep
+    if (alias == null) {
+      wantedDependencies.push(wantedDep)
+      continue
+    }
     if (opts.hookRemovedAliases?.has(alias)) {
       removedByHook.push(alias)
       continue

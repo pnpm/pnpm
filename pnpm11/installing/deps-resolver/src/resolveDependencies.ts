@@ -939,7 +939,7 @@ async function resolveDependenciesOfImporterDependency (
   // workspace. Replacing catalog protocol while resolving importers here before
   // resolving dependencies of packages outside of the workspace/monorepo.
   const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
-  const originalPrevSpecifier = (extendedWantedDep.wantedDependency as WantedDependency & { prevSpecifier?: string }).prevSpecifier
+  const originalPrevSpecifier = extendedWantedDep.wantedDependency.prevSpecifier
   const catalogSpecifier = originalPrevSpecifier != null &&
     parseCatalogProtocol(originalPrevSpecifier) != null &&
     isExplicitDistTagSpecifier(originalBareSpecifier)
@@ -1869,7 +1869,10 @@ function getDepsToResolve (
     let preferredVersion = undefined as undefined | string
     let proceed = proceedAll
     if (wantedDependency.alias && !options.staleOverrideTargets?.has(wantedDependency.alias)) {
-      const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
+      const satisfiesWanted = satisfiesWanted2Args.bind(null, {
+        alias: wantedDependency.alias,
+        bareSpecifier: wantedDependency.bareSpecifier,
+      })
       if (
         resolvedDependencies[wantedDependency.alias] &&
         (satisfiesWanted(resolvedDependencies[wantedDependency.alias]) || resolvedDependencies[wantedDependency.alias].startsWith('file:'))
@@ -2245,8 +2248,8 @@ async function resolveDependency (
     // Normalize the `preferredVersion` (singular) and `preferredVersions`
     // (plural) options. If the singular option is passed through, it'll be used
     // instead of the plural option.
-    const preferredVersions = !options.updateRequested && options.preferredVersion != null
-      ? getExactSinglePreferredVersions(wantedDependency, options.preferredVersion)
+    const preferredVersions = !options.updateRequested && options.preferredVersion != null && wantedDependency.alias != null
+      ? getExactSinglePreferredVersions({ ...wantedDependency, alias: wantedDependency.alias }, options.preferredVersion)
       : options.preferredVersions
 
     try {
@@ -2901,6 +2904,7 @@ function getCatalogExistingVersionFromSnapshot (
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
 ): string | undefined {
+  if (wantedDependency.alias == null) return undefined
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]

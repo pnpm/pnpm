@@ -404,12 +404,8 @@ test('does not misattribute a spec when an aliasless optional dependency fails t
   })
 })
 
-// Aliasless selectors (`jsr:@x/y`, a bare `owner/repo#sha`, a GitHub URL) carry
-// no alias at the parse seam, where `parseWantedDependencies` casts them to
-// `WantedDependency[]` despite the interface's `alias: string`. Mirror that one
-// cast here instead of repeating it at every fixture.
 function aliaslessWantedDependency (bareSpecifier: string, optional = false): WantedDependency {
-  return { bareSpecifier, dev: false, optional, updateSpec: true } as unknown as WantedDependency
+  return { bareSpecifier, dev: false, optional, updateSpec: true }
 }
 
 function createImporter (bareSpecifier: string): ImporterToResolve {

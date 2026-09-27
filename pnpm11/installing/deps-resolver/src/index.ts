@@ -41,7 +41,7 @@ import semver from 'semver'
 
 import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { getWantedDependencies, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import { createNodeIdForLinkedLocalPkg, type DependenciesTree, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
@@ -70,6 +70,7 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 export {
   getWantedDependencies,
   type LinkedDependency,
+  type ManifestWantedDependency,
   type RangeSpecStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,

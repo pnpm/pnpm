@@ -1392,7 +1392,7 @@ export async function mutateModules (
         })
       }
       for (const wantedDep of wantedDeps) {
-        if (wantedDep.prevSpecifier && !isSameSource(wantedDep.prevSpecifier, wantedDep.bareSpecifier, wantedDep.alias)) {
+        if (wantedDep.alias != null && wantedDep.prevSpecifier && !isSameSource(wantedDep.prevSpecifier, wantedDep.bareSpecifier, wantedDep.alias)) {
           logger.warn({
             message: `Replaced "${wantedDep.alias}" ("${wantedDep.prevSpecifier}") with "${wantedDep.bareSpecifier}" from a different source.`,
             prefix: project.rootDir,
@@ -1430,7 +1430,7 @@ export async function mutateModules (
           // Promotion moves the dependency onto the catalog entry's range, and the entry resolves
           // on its own from then on. A hook or an override supplies this specifier, so it is not
           // this run's to hand over.
-          if (hookGovernedAliases?.has(wantedDep.alias)) continue
+          if (wantedDep.alias != null && hookGovernedAliases?.has(wantedDep.alias)) continue
           // A `runtime:` specifier (e.g. node from `devEngines.runtime` or
           // `pnpm runtime set`) round-trips to `devEngines.runtime` through the
           // manifest writer, which only recognizes the `runtime:` protocol.
@@ -1454,7 +1454,7 @@ export async function mutateModules (
             continue
           }
 
-          if (catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
+          if (wantedDep.alias != null && catalogCovers(catalogDepSpecifier, wantedDep.bareSpecifier)) {
             // The catalog covers the wanted version, so the dependency resolves through the
             // catalog: every project referencing the entry stays on the one version the entry
             // resolves to. Keeping the wanted version as the specifier would pin it in the
@@ -1489,17 +1489,17 @@ export async function mutateModules (
         updateToLatest,
         wantedDependencies: wantedDeps.map(wantedDep => ({
           ...wantedDep,
-          isNew: project.update !== true && !Object.hasOwn(originalBareSpecifiers, wantedDep.alias),
+          isNew: project.update !== true && (wantedDep.alias == null || !Object.hasOwn(originalBareSpecifiers, wantedDep.alias)),
           // A catalog name is enough to put the dependency in the lockfile's catalogs: the
           // resolver attaches a `catalogLookup` for it, and the entry that snapshot needs is not
           // this run's to write, so the next frozen install would reject the pair. `catalogMode:
           // manual` reaches here without passing the loop above, so the name is dropped here.
-          saveCatalogName: hookGovernedAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
+          saveCatalogName: wantedDep.alias != null && hookGovernedAliases?.has(wantedDep.alias) ? undefined : wantedDep.saveCatalogName,
           // A superseded request is no longer the manifest's new specifier, so it loses the
           // exemption `getDeclaredSpecifierOwnedByHook` grants an explicit one: a range or a
           // `catalog:` reference the project already declares stays as it is.
-          saveSpec: hookSupersededSpecifiers?.has(wantedDep.alias) ? undefined : !readonlyAliases?.has(wantedDep.alias),
-          updateToLatestAllowed: !hookGovernedAliases?.has(wantedDep.alias),
+          saveSpec: wantedDep.alias != null && hookSupersededSpecifiers?.has(wantedDep.alias) ? undefined : wantedDep.alias == null || !readonlyAliases?.has(wantedDep.alias),
+          updateToLatestAllowed: wantedDep.alias == null || !hookGovernedAliases?.has(wantedDep.alias),
           updateSpec: true,
         })),
       } as ImporterToUpdate)

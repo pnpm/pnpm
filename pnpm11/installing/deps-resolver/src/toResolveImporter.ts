@@ -110,8 +110,8 @@ function prefIsLocalTarball (bareSpecifier: string): boolean {
   return bareSpecifier.startsWith('file:') && LOCAL_TARBALL_PATTERN.test(bareSpecifier)
 }
 
-async function partitionLinkedPackages (
-  dependencies: WantedDependency[],
+async function partitionLinkedPackages<T extends WantedDependency> (
+  dependencies: T[],
   opts: {
     projectDir: string
     hideAlienModules: boolean
@@ -120,8 +120,8 @@ async function partitionLinkedPackages (
     globalVirtualStoreDir: string
     workspacePackages?: WorkspacePackages
   }
-): Promise<WantedDependency[]> {
-  const nonLinkedDependencies: WantedDependency[] = []
+): Promise<T[]> {
+  const nonLinkedDependencies: T[] = []
   await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
