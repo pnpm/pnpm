@@ -477,9 +477,12 @@ fn deploy_preserves_symlinks_in_nested_node_modules_listed_in_files() {
         .success();
 
     let deployed_modules = workspace.join("deploy/.output/server/node_modules");
-    for (link, name) in [("foo", "foo"), ("@scope/bar", "bar")] {
+    for (link, target, name) in
+        [("foo", ".nitro/foo@1.0.0", "foo"), ("@scope/bar", "../.nitro/bar@1.0.0", "bar")]
+    {
         let link = deployed_modules.join(link);
         assert!(link.is_symlink(), "{} must be deployed as a symlink", link.display());
+        assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new(target));
         assert_eq!(
             fs::read_to_string(link.join("index.js")).unwrap(),
             format!(r#"module.exports = "{name}""#),

@@ -1506,8 +1506,10 @@ test('deploy: preserves symlinks in a nested node_modules listed in files', asyn
 
   const deployedModules = 'dist/.output/server/node_modules'
   expect(fs.lstatSync(`${deployedModules}/foo`).isSymbolicLink()).toBe(true)
+  expect(path.resolve(deployedModules, fs.readlinkSync(`${deployedModules}/foo`))).toBe(path.resolve(deployedModules, '.nitro/foo@1.0.0'))
   expect(fs.readFileSync(`${deployedModules}/foo/index.js`, 'utf8')).toBe('module.exports = "foo"')
   expect(fs.lstatSync(`${deployedModules}/@scope/bar`).isSymbolicLink()).toBe(true)
+  expect(path.resolve(deployedModules, '@scope', fs.readlinkSync(`${deployedModules}/@scope/bar`))).toBe(path.resolve(deployedModules, '.nitro/bar@1.0.0'))
   expect(fs.readFileSync(`${deployedModules}/@scope/bar/index.js`, 'utf8')).toBe('module.exports = "bar"')
 })
 
