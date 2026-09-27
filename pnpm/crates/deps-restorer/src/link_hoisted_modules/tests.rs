@@ -190,6 +190,12 @@ fn isolated_mutable_source_is_not_hard_linked() {
         .expect("files");
     files.source_is_mutable = true;
     let source = files.cas_paths["index.js"].clone();
+    let link = source.with_file_name("link.js");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("index.js", &link).expect("link to source file");
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file("index.js", &link).expect("link to source file");
+    Arc::make_mut(&mut files.cas_paths).insert("link.js".to_string(), link);
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
@@ -209,6 +215,9 @@ fn isolated_mutable_source_is_not_hard_linked() {
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    let installed_link = dir.join("link.js");
+    eprintln!("installed link: {installed_link:?}");
+    assert!(fs::symlink_metadata(&installed_link).unwrap().is_symlink());
     fs::write(&source, b"2").expect("edit the source in place");
 
     assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");

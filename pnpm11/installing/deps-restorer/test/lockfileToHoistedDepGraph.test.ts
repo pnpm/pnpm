@@ -85,6 +85,26 @@ test('lockfileToHoistedDepGraph does not create a file outside node_modules for 
   expect(fs.existsSync(escaped)).toBe(false)
 })
 
+test('custom fetchers do not prevent reuse of an integrity-pinned hoisted package', async () => {
+  const dir = tempDir(false)
+  const packageDir = path.join(dir, 'node_modules/pkg')
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }))
+  const opts = hoistedOpts(dir)
+  opts.force = false
+  opts.currentHoistedLocations = { 'pkg@1.0.0': ['node_modules/pkg'] }
+  opts.storeController = {
+    ...opts.storeController,
+    hasCustomFetchers: true,
+    getFilesIndexFilePath: () => ({ filesIndexFile: 'cached-index', target: '' }),
+  }
+
+  const { graph } = await lockfileToHoistedDepGraph(craftedLockfile('pkg'), null, opts)
+
+  expect(graph[packageDir].filesIndexFile).toBe('cached-index')
+  expect(graph[packageDir].fetching).toBeUndefined()
+})
+
 // Two peer variants of one version collapse onto a single hoister node
 // keyed by the first depPath seen for the version, so the walk never
 // records a location under the other variant's depPath. An edge declared

@@ -77,6 +77,7 @@ export function createPackageStore (
   })
 
   return {
+    hasCustomFetchers: (initOpts.customFetchers?.length ?? 0) > 0,
     close: async () => {
       initOpts.storeIndex.flush()
     },
