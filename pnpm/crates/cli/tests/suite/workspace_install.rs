@@ -1505,6 +1505,52 @@ fn shared_workspace_lockfile_false_installs_dependencies_before_dependents() {
     assert!(workspace.join("packages/app/pnpm-lock.yaml").is_file());
 }
 
+/// Independent projects of a `sharedWorkspaceLockfile: false` workspace
+/// install at the same time. Each `postinstall` marks that it started and
+/// then waits for the other project's mark, so an install that ran the
+/// projects one after another would time the first script out.
+#[test]
+fn shared_workspace_lockfile_false_installs_independent_projects_concurrently() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\nworkspaceConcurrency: 2\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let wait_for = |name: &str, other: &str| {
+        format!(
+            r#"node -e "const fs = require('fs'); fs.writeFileSync('../../started-{name}', ''); const deadline = Date.now() + 30000; const poll = () => {{ if (fs.existsSync('../../started-{other}')) return; if (Date.now() > deadline) process.exit(1); setTimeout(poll, 20); }}; poll()""#,
+        )
+    };
+    for (name, other) in [("first", "second"), ("second", "first")] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("mkdir project");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "scripts": { "postinstall": wait_for(name, other) },
+            })
+            .to_string(),
+        )
+        .expect("write project package.json");
+    }
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+}
+
 mod freshness;
 
 #[cfg(unix)]

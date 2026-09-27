@@ -229,7 +229,7 @@ impl DedicatedProjectRuns<'_> {
     async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         self.run_projects(run).await?;
         if self.prune_excludes && self.projects.covers_workspace {
@@ -255,7 +255,7 @@ impl DedicatedProjectRuns<'_> {
     async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
     where
         Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send,
+        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
         let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
         let config = self.config;
@@ -274,7 +274,11 @@ impl DedicatedProjectRuns<'_> {
                     require_lockfile,
                     http_client,
                 ) {
-                    Ok(state) => run(state).await,
+                    // A project's install blocks its thread in places, such as
+                    // while its lifecycle scripts run. Its own task keeps that
+                    // from stalling the other projects' installs.
+                    Ok(state) => tokio::spawn(run(state)).await
+                        .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic())),
                     Err(error) => Err(error),
                 };
                 record_dedicated_result(first_error, result)
