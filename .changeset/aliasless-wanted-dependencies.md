@@ -1,4 +1,5 @@
 ---
+"pnpm": patch
 "@pnpm/catalogs.resolver": patch
 "@pnpm/installing.deps-resolver": patch
 "@pnpm/installing.deps-installer": patch
