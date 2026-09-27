@@ -220,6 +220,9 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
+        if ctx.cache_policy.offline && matches!(spec.spec_type, RegistryPackageSpecType::Range) {
+            return None;
+        }
         let published_by = opts.policy.published_by?;
         let fully_excluded = matches!(
             opts.policy.published_by_exclude.map(|policy| policy.matches(&spec.name)),

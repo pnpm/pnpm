@@ -295,3 +295,44 @@ async fn offline_pick_without_a_store_index_keeps_the_newest_version() {
     .expect("offline pick succeeds");
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
 }
+
+#[tokio::test]
+async fn offline_pick_with_published_by_still_narrows_to_store_held_version() {
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let body: serde_json::Value = serde_json::from_str(PACKAGE_BODY).expect("parse packument body");
+    let integrity =
+        body["versions"]["1.0.0"]["dist"]["integrity"].as_str().expect("1.0.0 integrity");
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    persist_meta_to_mirror(
+        cache_dir.path(),
+        ABBREVIATED_META_DIR,
+        "https://registry.invalid/",
+        &preloaded,
+    )
+    .expect("warm mirror");
+
+    let store_dir = TempDir::new().expect("tempdir");
+    let store_view = seed_store(&store_dir, "acme@1.0.0", integrity);
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = offline_ctx(
+        &cache_dir,
+        Some(&store_view),
+        &meta_cache,
+        &fetch_locker,
+        &http_client,
+        &auth_headers,
+    );
+
+    let mut opts = default_opts("https://registry.invalid/");
+    opts.policy.published_by = Some(chrono::Utc::now() + chrono::Duration::hours(1));
+
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await
+        .expect("offline pick succeeds");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+}

@@ -192,38 +192,15 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         opts: &ResolveOptions,
         optional: bool,
     ) -> Result<RegistryPick, ResolveError> {
-        let overlay_selectors =
-            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors = overlay_selectors
+        let overlay = crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
+        let base_selectors = overlay
             .as_ref()
             .or_else(|| opts.version.preferred_versions.get(&spec.name));
         let ctx =
             self.metadata.pick_context(&self.format, self.cache_policy, self.store_view.as_ref());
-
-        let picked = pick_from_registry_with_guard(
-            &ctx,
-            PickFromRegistryOptions {
-                registry,
-                spec,
-                preferred_version_selectors: base_selectors,
-                pick_lowest_version: opts.version.pick_lowest_version,
-                include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
-                checks: crate::npm_resolver::CandidateChecks::new(&opts.policy, None),
-                policy: crate::PackagePickPolicy {
-                    published_by: opts.policy.published_by,
-                    published_by_exclude: opts.policy.published_by_exclude.as_ref(),
-                    trust_policy: opts.policy.trust_policy,
-                },
-                request: crate::MetadataPickRequest {
-                    dry_run: opts.refresh.dry_run,
-                    optional,
-                    refresh_metadata: opts.refresh.refreshes_metadata(),
-                    update_checksums: opts.refresh.update_checksums
-                        || opts.refresh.update == UpdateBehavior::Patches,
-                },
-            },
-        )
-        .await?;
+        let pick_opts =
+            PickFromRegistryOptions::new(registry, spec, opts, base_selectors, optional, None);
+        let picked = pick_from_registry_with_guard(&ctx, pick_opts).await?;
         if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,
