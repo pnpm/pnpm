@@ -100,7 +100,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
-| 'packageConfigs'
 | 'pnprServer'
 | 'remoteSideEffectsCache'
 | 'production'
@@ -525,7 +524,6 @@ export async function installDeps (
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
-        projectModulesDirs: opts,
       })
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
@@ -613,7 +611,6 @@ export async function installDeps (
         pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
-        projectModulesDirs: opts,
       })
     }
   }
@@ -646,7 +643,7 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState' | 'packageConfigs' | 'lockfileDir' | 'modulesDir'>,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
@@ -659,7 +656,6 @@ async function recursiveInstallThenUpdateWorkspaceState (
       pnpmfiles: opts.pnpmfile,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       configDependencies: opts.configDependencies,
-      projectModulesDirs: opts,
     })
   }
   return recursiveResult.dryRunResult

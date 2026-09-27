@@ -45,7 +45,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { getHoistedProjectModulesDir, loadWorkspaceState, updateWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals, filter, isEmpty, once } from 'ramda'
 
@@ -339,25 +339,24 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
 
-    const modulesDirOf = createProjectModulesDirResolver(opts)
-    const statOwnModulesDir = (project: Project) => safeStat(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'))
     let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
     if (nodeLinker === 'hoisted') {
-      // A hoisted project has its own modules directory only for the
-      // dependencies nested under it, which the last install recorded.
       const statsPromise = safeStat(path.resolve(rootProjectManifestDir, opts.modulesDir ?? 'node_modules'))
       statModulesDir = async (project) => {
         const rootStats = await statsPromise
+        // The hoisted linker gives a project its own node_modules only for the
+        // dependencies it nests there. The last install recorded which ones.
         if (
           rootStats?.isDirectory() !== true ||
           project.rootDir === rootProjectManifestDir ||
           workspaceState.projects[project.rootDir]?.hasModulesDir !== true
         ) return rootStats
-        return statOwnModulesDir(project)
+        return safeStat(getHoistedProjectModulesDir(project.rootDir))
       }
     } else {
       const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
-      statModulesDir = statOwnModulesDir
+      const modulesDirOf = createProjectModulesDirResolver(opts)
+      statModulesDir = project => safeStat(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'))
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
@@ -561,7 +560,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       pnpmfiles: workspaceState.pnpmfiles,
       settings: opts,
       filteredInstall: workspaceState.filteredInstall,
-      projectModulesDirs: opts,
     })
 
     return { upToDate: true, workspaceState, wantedLockfileToRestore }

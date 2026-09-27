@@ -30,7 +30,6 @@ test('updateWorkspaceState()', async () => {
     workspaceDir,
     allProjects: [],
     filteredInstall: false,
-    projectModulesDirs: {},
     settings: {
       autoInstallPeers: true,
       dedupeDirectDeps: true,
@@ -70,7 +69,6 @@ test('updateWorkspaceState()', async () => {
       { rootDir: path.resolve('packages/b') as ProjectRootDir, manifest: {} },
     ],
     filteredInstall: false,
-    projectModulesDirs: {},
   })
   expect(jest.mocked(logger.debug).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
@@ -102,7 +100,6 @@ test('updateWorkspaceState() does not throw when cache file writing fails', asyn
     workspaceDir,
     allProjects: [],
     filteredInstall: false,
-    projectModulesDirs: {},
     settings: {
       autoInstallPeers: true,
       dedupeDirectDeps: true,
@@ -136,7 +133,6 @@ test('updateWorkspaceState() records which hoisted projects have their own modul
     workspaceDir,
     allProjects,
     filteredInstall: false,
-    projectModulesDirs: {},
     settings: { ...settings, nodeLinker: 'hoisted' },
   })
   expect(loadWorkspaceState(workspaceDir)?.projects).toStrictEqual({
@@ -149,7 +145,6 @@ test('updateWorkspaceState() records which hoisted projects have their own modul
     workspaceDir,
     allProjects,
     filteredInstall: false,
-    projectModulesDirs: {},
     settings: { ...settings, nodeLinker: 'isolated' },
   })
   expect(loadWorkspaceState(workspaceDir)?.projects).toStrictEqual({

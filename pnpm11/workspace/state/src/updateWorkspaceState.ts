@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { createProjectModulesDirResolver, type ProjectModulesDirOptions } from '@pnpm/config.reader'
 import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { ConfigDependencies } from '@pnpm/types'
@@ -10,6 +9,7 @@ import { pathTemp } from 'path-temp'
 
 import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
+import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 import type { ProjectsList, WorkspaceState, WorkspaceStateSettings } from './types.js'
 
 export interface UpdateWorkspaceStateOptions {
@@ -19,23 +19,20 @@ export interface UpdateWorkspaceStateOptions {
   pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
-  /** Resolves each project's own modules directory, as the install did. */
-  projectModulesDirs: ProjectModulesDirOptions
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
   logger.debug({ msg: 'updating workspace state' })
   const workspaceState = createWorkspaceState(opts)
-  if (opts.settings.nodeLinker === 'hoisted') {
-    await recordHoistedModulesDirs(workspaceState, opts)
-  }
-  const workspaceStateJSON = JSON.stringify(workspaceState, undefined, 2) + '\n'
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
   const tempFile = pathTemp(cacheDir)
   try {
+    if (opts.settings.nodeLinker === 'hoisted') {
+      await recordHoistedModulesDirs(workspaceState, opts.allProjects)
+    }
     await fs.promises.mkdir(cacheDir, { recursive: true })
-    await fs.promises.writeFile(tempFile, workspaceStateJSON)
+    await fs.promises.writeFile(tempFile, JSON.stringify(workspaceState, undefined, 2) + '\n')
     await renameFileWithRetryAsync(tempFile, cacheFile)
   } catch (err: unknown) {
     await fs.promises.rm(tempFile, { force: true }).catch(() => {})
@@ -43,14 +40,9 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   }
 }
 
-async function recordHoistedModulesDirs (
-  workspaceState: WorkspaceState,
-  opts: Pick<UpdateWorkspaceStateOptions, 'allProjects' | 'projectModulesDirs'>
-): Promise<void> {
-  const modulesDirOf = createProjectModulesDirResolver(opts.projectModulesDirs)
-  await Promise.all(opts.allProjects.map(async (project) => {
-    const modulesDir = path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules')
-    if (await isDirectory(modulesDir)) {
+async function recordHoistedModulesDirs (workspaceState: WorkspaceState, allProjects: ProjectsList): Promise<void> {
+  await Promise.all(allProjects.map(async (project) => {
+    if (await isDirectory(getHoistedProjectModulesDir(project.rootDir))) {
       workspaceState.projects[project.rootDir].hasModulesDir = true
     }
   }))

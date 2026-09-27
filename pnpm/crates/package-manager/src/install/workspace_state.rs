@@ -381,7 +381,7 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     // Frozen installs share this builder and cannot establish a deduplication baseline.
     state.settings.auto_dedupe = None;
     if node_linker == NodeLinker::Hoisted {
-        record_hoisted_modules_dirs(&mut state.projects, config, project_manifests);
+        record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }
     state
 }
@@ -390,14 +390,12 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
 /// install left with its own modules directory.
 fn record_hoisted_modules_dirs(
     projects: &mut BTreeMap<String, ProjectEntry>,
-    config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) {
-    for (root_dir, manifest) in project_manifests {
+    for (root_dir, _) in project_manifests {
         if let Some(entry) = projects.get_mut(&*root_dir.to_string_lossy()) {
             entry.has_modules_dir =
-                crate::optimistic_repeat_install::sibling_modules_dir(config, root_dir, manifest)
-                    .is_dir();
+                crate::optimistic_repeat_install::hoisted_project_modules_dir(root_dir).is_dir();
         }
     }
 }
