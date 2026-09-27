@@ -399,17 +399,17 @@ fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
 /// [`add_dir_mode_bits`] for a new directory its owner cannot open, which a
 /// umask that removes owner read (such as `0o477`) produces. `fchmodat` with
 /// `AT_SYMLINK_NOFOLLOW` needs no read access and still refuses a symlink.
-/// Only an owner-unreadable directory this process owns is changed.
+/// Only a directory this process owns is changed.
 #[cfg(unix)]
 fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt;
     let meta = match std::fs::symlink_metadata(path) {
         Ok(meta) => meta,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     };
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o400 != 0 {
+    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } {
         return Ok(());
     }
     let mode = meta.mode() & 0o7777;
@@ -418,14 +418,38 @@ fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
         return Ok(());
     }
     match chmod_without_following(path, merged) {
-        // A C library without no-follow `fchmodat` (glibc before 2.32). The
-        // guards above limit the path chmod to an owner-unreadable directory
-        // this process owns, as the TypeScript fallback does.
-        Err(error) if error.raw_os_error() == Some(libc::EOPNOTSUPP) => ignore_unchangeable(
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(merged)),
-        ),
+        // A C library without no-follow `fchmodat` (glibc before 2.32).
+        #[cfg(target_os = "linux")]
+        Err(error) if error.raw_os_error() == Some(libc::EOPNOTSUPP) => {
+            ignore_unchangeable(chmod_through_path_handle(path, extra))
+        }
         result => ignore_unchangeable(result),
     }
+}
+
+/// Change the mode of the directory at `path` through an `O_PATH` handle,
+/// which needs no read access, via its `/proc/self/fd` entry. The entry
+/// resolves to the opened inode, so a symlink swapped in after the open is
+/// not followed. This is how glibc 2.32 and later implement no-follow
+/// `fchmodat`. Only a directory this process owns is changed.
+#[cfg(target_os = "linux")]
+fn chmod_through_path_handle(path: &Path, extra: u32) -> io::Result<()> {
+    use std::os::unix::{
+        fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+        io::AsRawFd,
+    };
+    let dir = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY)
+        .open(path)?;
+    let meta = dir.metadata()?;
+    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
+    if meta.uid() != unsafe { libc::geteuid() } {
+        return Ok(());
+    }
+    let mode = meta.mode() & 0o7777;
+    let proc_entry = format!("/proc/self/fd/{}", dir.as_raw_fd());
+    std::fs::set_permissions(proc_entry, std::fs::Permissions::from_mode(mode | extra))
 }
 
 /// `fchmodat` with `AT_SYMLINK_NOFOLLOW`: changes `path`'s mode without

@@ -271,3 +271,36 @@ fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
         & 0o7777;
     assert_eq!(mode, 0o2370, "mode {mode:o}");
 }
+
+/// The fallback for a C library without no-follow `fchmodat` reaches a
+/// directory its owner cannot read and refuses a symlink.
+#[cfg(target_os = "linux")]
+#[test]
+fn chmod_through_path_handle_reaches_unreadable_dir_and_refuses_symlink() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("ab");
+    fs::create_dir(&dir).unwrap();
+    fs::set_permissions(&dir, fs::Permissions::from_mode(0o300)).unwrap();
+    super::chmod_through_path_handle(&dir, 0o2070).unwrap();
+    let mode = fs::metadata(&dir)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o2370, "mode {mode:o}");
+
+    let outside = tmp.path().join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::set_permissions(&outside, fs::Permissions::from_mode(0o700)).unwrap();
+    let link = tmp.path().join("cd");
+    std::os::unix::fs::symlink(&outside, &link).unwrap();
+    super::chmod_through_path_handle(&link, 0o2070).unwrap_err();
+    let mode = fs::metadata(&outside)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o700, "symlink target must keep its mode, got {mode:o}");
+}

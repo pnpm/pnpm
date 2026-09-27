@@ -147,25 +147,42 @@ function addDirModeBits (dir: string, extra: number): void {
 }
 
 // A umask that removes owner read (such as 0o477) leaves a new directory its
-// owner cannot open. Node has no no-follow chmod by path on Linux, so this
-// changes only a directory this process owns and that its owner cannot read,
-// which is the shape a store-group member cannot plant.
+// owner cannot open for reading. The mode is changed without following a
+// symlink: through lchmod on macOS, and on Linux through an O_PATH handle,
+// which needs no read access, via its /proc/self/fd entry. Only a directory
+// this process owns is changed. Elsewhere the grant is skipped.
 function addUnreadableDirModeBits (dir: string, extra: number): void {
-  let stat: fs.Stats
   try {
-    stat = fs.lstatSync(dir)
+    if (process.platform === 'darwin') {
+      addModeBitsWithoutFollowing(dir, extra)
+    } else if (process.platform === 'linux') {
+      addModeBitsThroughPathHandle(dir, extra)
+    }
   } catch (err: unknown) {
-    if (errorCode(err) === 'ENOENT') return
-    throw err
+    if (!isUnchangeable(err) && errorCode(err) !== 'ENOENT') throw err
   }
-  if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o400) !== 0) return
-  const mode = stat.mode & 0o7777
-  const merged = mode | extra
-  if (merged === mode) return
+}
+
+function addModeBitsWithoutFollowing (dir: string, extra: number): void {
+  const stat = fs.lstatSync(dir)
+  if (!stat.isDirectory() || stat.uid !== process.getuid?.()) return
+  const merged = (stat.mode & 0o7777) | extra
+  if (merged !== (stat.mode & 0o7777)) fs.lchmodSync(dir, merged)
+}
+
+// Node does not export O_PATH. This is its value in the generic Linux ABI
+// that every architecture Node supports uses.
+const LINUX_O_PATH = 0o10000000
+
+function addModeBitsThroughPathHandle (dir: string, extra: number): void {
+  const fd = fs.openSync(dir, LINUX_O_PATH | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
   try {
-    fs.chmodSync(dir, merged)
-  } catch (err: unknown) {
-    if (!isUnchangeable(err)) throw err
+    const stat = fs.fstatSync(fd)
+    if (!stat.isDirectory() || stat.uid !== process.getuid?.()) return
+    const merged = (stat.mode & 0o7777) | extra
+    if (merged !== (stat.mode & 0o7777)) fs.chmodSync(`/proc/self/fd/${fd}`, merged)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
