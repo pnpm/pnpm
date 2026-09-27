@@ -4,6 +4,8 @@
 //! Reads `pnpm_config_<key>` (or its `PNPM_CONFIG_<KEY>` uppercase form)
 //! for every key in the schema and applies it to the config *after*
 //! `pnpm-workspace.yaml`. That ordering means env vars override yaml.
+//! The command line's `--config.<key>=<value>` values read through the same
+//! field list; see [`crate::Config::cli_setting_values`].
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
 //! the exception of `NPM_CONFIG_WORKSPACE_DIR`, which has its own narrow
@@ -15,115 +17,14 @@ use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinker,
     NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType, WorkspaceSettings,
-    api::EnvVar,
-    naming_cases::{to_camel_case, to_kebab_case},
+    VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
-use serde::de::DeserializeOwned;
+use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
+use string_reader::{StringReader, dotted_value, read_env, read_env_allow_empty};
 
-/// Read an env var by suffix, accepting both `PNPM_CONFIG_<UPPER>` and
-/// `pnpm_config_<lower>`. Empty values are treated as unset.
-fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
-    let upper = format!("PNPM_CONFIG_{suffix}");
-    let lower = format!("pnpm_config_{}", suffix.to_lowercase());
-    Sys::var(&upper)
-        .or_else(|| Sys::var(&lower))
-        .filter(|value| !value.is_empty())
-}
-
-/// Read an env var by suffix, keeping an empty value as `Some("")`.
-///
-/// pnpm's own env pass only skips a variable that is absent, never one
-/// that is empty, so an empty value clobbers lower-priority layers. For
-/// nearly every setting an empty value is indistinguishable from an unset
-/// one, which is why [`read_env`] drops it. Three settings are exceptions,
-/// where `""` is observably different from unset:
-///
-/// - `savePrefix`: `""` is the value that selects an exact version pin.
-/// - `scope`: `""` must override a scope from the global `config.yaml` so
-///   that `PNPM_CONFIG_SCOPE=` yields an unscoped `pnpm login`. Dropping it
-///   would let the lower layer's scope leak through, diverging from the
-///   TypeScript CLI.
-/// - `tagVersionPrefix`: `""` removes the default `"v"` prefix from version
-///   tags.
-fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
-    let upper = format!("PNPM_CONFIG_{suffix}");
-    let lower = format!("pnpm_config_{}", suffix.to_lowercase());
-    Sys::var(&upper).or_else(|| Sys::var(&lower))
-}
-
-/// Where a section reader gets one setting's string value.
-///
-/// The environment is the production source (`WorkspaceSettings::from_pnpm_config_env`,
-/// where an empty variable reads as unset); the command line's
-/// `--config.<setting>=<value>` tokens are the other
-/// (`WorkspaceSettings::from_string_values`). `value_allow_empty` is kept
-/// separate because three settings read `""` as a value of their own — see
-/// [`read_env_allow_empty`].
-#[derive(Clone, Copy)]
-struct StringReader<'a> {
-    read: &'a dyn Fn(&str) -> Option<String>,
-    read_allow_empty: &'a dyn Fn(&str) -> Option<String>,
-}
-
-impl StringReader<'_> {
-    fn value(&self, suffix: &str) -> Option<String> {
-        (self.read)(suffix)
-    }
-
-    fn value_allow_empty(&self, suffix: &str) -> Option<String> {
-        (self.read_allow_empty)(suffix)
-    }
-}
-
-/// Answer a field's env-var suffix (`UPDATE_NOTIFIER`) from a dotted
-/// `--config.<key>=<value>` map, which names settings by their own spelling.
-///
-/// The suffix list and the setting names differ only in case and separator, so
-/// both spellings a caller can write are tried before the value is given up
-/// on; a suffix naming a nested key (`MACOS_BACKUP_EXCLUDE_MODULES_DIR`)
-/// matches no dotted setting and reads as unset.
-fn dotted_value(values: &BTreeMap<String, String>, suffix: &str) -> Option<String> {
-    let lower = suffix.to_lowercase();
-    values
-        .get(&to_kebab_case(&lower))
-        .or_else(|| values.get(&to_camel_case(&lower)))
-        .cloned()
-}
-
-/// Parse `value` as JSON. Returns `None` on parse failure so the
-/// caller falls through to its default (skip the field).
-fn parse_json<Target: DeserializeOwned>(value: &str) -> Option<Target> {
-    serde_json::from_str(value).ok()
-}
-
-/// Parse `value` as JSON; if that fails, retry with `value` wrapped as
-/// a JSON string. Used for enum fields whose serde representation is a
-/// bare identifier (`hoisted`, `warn-only`, `no-downgrade`, ...) — the
-/// raw env var value isn't valid JSON on its own but becomes valid
-/// once quoted.
-fn parse_json_or_string<Target: DeserializeOwned>(value: &str) -> Option<Target> {
-    parse_json(value)
-        .or_else(|| {
-            let quoted = serde_json::to_string(value).ok()?;
-            parse_json(&quoted)
-        })
-}
-
-/// Parse a `hoist_pattern` / `public_hoist_pattern` env var into the
-/// tri-state `Option<Option<Vec<String>>>` shape used by
-/// [`WorkspaceSettings`].
-///
-/// Env vars cannot express the "explicit null disable" state that yaml
-/// supports: an array-schema env var is JSON-parsed and then required to
-/// be an array, so `PNPM_CONFIG_HOIST_PATTERN=null` fails the array check
-/// and is silently dropped. The tri-state's `Some(None)` branch stays
-/// reachable through yaml only; from env we either return `None` (parse
-/// failed, leave config default) or `Some(Some(vec))` (explicit list).
-fn parse_tri_array(value: &str) -> Option<Option<Vec<String>>> {
-    parse_json::<Vec<String>>(value).map(Some)
-}
+mod parse;
+mod string_reader;
 
 macro_rules! json_field {
     ($settings:ident, $reader:expr, $field:ident, $suffix:literal) => {
@@ -201,12 +102,10 @@ impl WorkspaceSettings {
     /// setting name in either kebab-case or camelCase.
     ///
     /// The command line's `--config.<setting>=<value>` tokens are the same
-    /// shape of input as the environment — one string per setting — so they
+    /// shape of input as the environment, one string per setting, so they
     /// read through the field list below rather than a second copy of it.
-    /// Apply the result through [`Self::apply_to`] after every file layer so
-    /// the command line wins, the way `--config.` does upstream.
     #[must_use]
-    pub fn from_string_values(values: &BTreeMap<String, String>) -> Self {
+    pub(crate) fn from_string_values(values: &BTreeMap<String, String>) -> Self {
         Self::from_reader(&StringReader {
             read: &|suffix| dotted_value(values, suffix).filter(|value| !value.is_empty()),
             read_allow_empty: &|suffix| dotted_value(values, suffix),
@@ -297,6 +196,11 @@ impl WorkspaceSettings {
             NodePackageMapType
         );
         json_field!(settings, reader, symlink, "SYMLINK");
+        settings.read_virtual_store_env(reader);
+    }
+
+    fn read_virtual_store_env(&mut self, reader: &StringReader<'_>) {
+        let settings = self;
         string_field!(settings, reader, virtual_store_dir, "VIRTUAL_STORE_DIR");
         enum_field!(settings, reader, virtual_store_type, "VIRTUAL_STORE_TYPE", VirtualStoreType);
         json_field!(settings, reader, enable_global_virtual_store, "ENABLE_GLOBAL_VIRTUAL_STORE");

@@ -3,12 +3,13 @@ use super::{
 };
 use pnpm_config::{
     ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, LinkWorkspacePackages,
-    LogLevel, NodeLinker, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings,
-    ReporterType, RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy,
+    NodeLinker, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail,
+    SaveWorkspaceProtocol, TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
 use std::{
+    collections::BTreeMap,
     ffi::OsString,
     path::{Path, PathBuf},
 };
@@ -646,88 +647,35 @@ mod paths;
 
 mod bare_flags;
 
-/// pnpm reads every `--config.<setting>=<value>` token into its config, so a
-/// setting the schema names is settable from the command line whether or not
-/// the invoked command also carries a flag for it. These settings reach the
-/// config through the schema's own field list rather than a table here.
+/// A setting no table claims is handed to [`Config::current`], keyed by its
+/// kebab-case name whichever spelling the command line used.
 #[test]
-fn dotted_frozen_lockfile_setting_freezes_the_install() {
-    let (overrides, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.frozen-lockfile=true", "install"]));
-    assert_eq!(remaining, argv(["pacquet", "install"]));
-    let mut config = Config::default();
-    assert_eq!(config.frozen_lockfile, None);
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.frozen_lockfile, Some(true));
-    assert!(config.explicit_settings.contains_key("frozenLockfile"));
-}
-
-#[test]
-fn dotted_update_notifier_setting_stops_the_update_check() {
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.update-notifier=false", "install"]));
-    let mut config = Config::default();
-    assert!(config.update_notifier);
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert!(!config.update_notifier);
-}
-
-#[test]
-fn dotted_camel_case_setting_is_read_like_its_kebab_spelling() {
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.autoInstallPeers=false", "install"]));
-    let mut config = Config::default();
-    assert!(config.auto_install_peers);
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert!(!config.auto_install_peers);
-}
-
-#[test]
-fn dotted_cache_dir_setting_moves_the_metadata_cache() {
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.cache-dir=meta", "install"]));
-    let mut config = Config::default();
-    let configured = config.cache_dir.clone();
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.cache_dir, PathBuf::from("/workspace/meta"));
-    assert_ne!(config.cache_dir, configured);
-}
-
-#[test]
-fn dotted_number_setting_is_read() {
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.network-concurrency=4", "install"]));
-    let mut config = Config::default();
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.network_concurrency, 4);
-}
-
-#[test]
-fn dotted_enum_settings_are_read() {
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.loglevel=debug", "install"]));
-    let mut config = Config::default();
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.loglevel, Some(LogLevel::Debug));
-
-    let (overrides, _) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.reporter=ndjson", "add", "pnpm"]));
-    let mut config = Config::default();
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert_eq!(config.reporter, Some(ReporterType::Ndjson));
-}
-
-/// The command line is the top layer, above `pnpm-workspace.yaml` and
-/// `.npmrc` — which is what a `Config` handed to [`ConfigOverrides::apply`]
-/// already carries.
-#[test]
-fn a_dotted_setting_overrides_a_value_from_a_config_file() {
-    let (overrides, _) = ConfigOverrides::extract(argv([
+fn unclaimed_dotted_settings_are_kept_for_config_loading() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
-        "--config.dedupe-peer-dependents=false",
+        "--config.frozen-lockfile=true",
+        "--config.autoInstallPeers=false",
+        "--config.network-concurrency=4",
         "install",
     ]));
-    let mut config = Config { dedupe_peer_dependents: true, ..Config::default() };
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert!(!config.dedupe_peer_dependents);
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    assert_eq!(
+        overrides.unported_settings(),
+        &BTreeMap::from([
+            ("auto-install-peers".to_string(), "false".to_string()),
+            ("frozen-lockfile".to_string(), "true".to_string()),
+            ("network-concurrency".to_string(), "4".to_string()),
+        ]),
+    );
+}
+
+#[test]
+fn claimed_dotted_settings_are_not_passed_on() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.node-linker=hoisted",
+        "--config.registry=https://example.test",
+        "install",
+    ]));
+    assert!(overrides.unported_settings().is_empty());
 }
