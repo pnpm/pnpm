@@ -54,6 +54,10 @@ async function handle(req) {
     send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.afterAllResolved === 'function' });
     return;
   }
+  if (req.query === 'hasPreResolution') {
+    send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.preResolution === 'function' });
+    return;
+  }
   try {
     const fn = mod && mod.hooks && mod.hooks[req.hook];
     const context = { log: (m) => send({ log: String(m) }) };

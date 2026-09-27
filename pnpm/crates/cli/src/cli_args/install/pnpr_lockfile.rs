@@ -435,7 +435,9 @@ pub(super) async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'sta
         session.merge_wanted,
         lockfile,
     )?;
-    record_pnpmfile(inputs.pnpmfile_hook.as_ref(), &mut lockfile).await?;
+    if !link.lockfile.frozen {
+        record_pnpmfile(inputs.pnpmfile_hook.as_ref(), &mut lockfile).await?;
+    }
     let merged_repair_verifiers =
         verify_merged_repair::<Reporter>(state, link, session.partial_selection, &lockfile).await?;
 

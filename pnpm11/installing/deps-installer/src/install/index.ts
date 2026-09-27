@@ -3692,8 +3692,10 @@ function definesUninstallStage (scripts: ProjectManifest['scripts']): boolean {
 }
 
 /**
- * The pnpr server runs no pnpmfile, so an install whose pnpmfile shapes
- * resolution resolves locally (https://github.com/pnpm/pnpm/issues/14460).
+ * Whether the configured pnpr server may resolve this install. The server runs
+ * no pnpmfile, so this returns `false` and warns when the pnpmfile defines a
+ * hook that shapes resolution, and the install then resolves locally
+ * (https://github.com/pnpm/pnpm/issues/14460).
  */
 function pnprCanRunPnpmfile (opts: Pick<StrictInstallOptions, 'hooks' | 'pnprServer'>): boolean {
   const unsupported = pnpmfileHookPnprCannotRun(opts.hooks)
@@ -3705,6 +3707,7 @@ function pnprCanRunPnpmfile (opts: Pick<StrictInstallOptions, 'hooks' | 'pnprSer
 function pnpmfileHookPnprCannotRun (hooks: Opts['hooks']): string | undefined {
   if (definesHooks(hooks?.readPackage)) return '"readPackage" hook'
   if (definesHooks(hooks?.afterAllResolved)) return '"afterAllResolved" hook'
+  if (definesHooks(hooks?.preResolution)) return '"preResolution" hook'
   if (hooks?.customResolvers?.length) return 'custom resolvers'
   return undefined
 }
@@ -4065,6 +4068,14 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       await runLifecycleHook('preinstall', rootProjectManifest, rootHookOpts)
     }
 
+    const frozenLockfile = opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null)
+    const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
+    // The server skips the pnpmfile comparison a local frozen install makes,
+    // and a frozen install must not rewrite the recorded checksum.
+    if (frozenLockfile && !opts.ignorePnpmfile && existingLockfile != null && existingLockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+      throw new LockfileConfigMismatchError('pnpmfileChecksum')
+    }
+
     logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
     // Build projects list for workspace support.
@@ -4125,7 +4136,7 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
       // Lockfile reuse. Without these the server always reuse-and-updates,
       // so `--frozen-lockfile` would silently resolve and rewrite the very
       // lockfile it promises to leave alone.
-      frozenLockfile: opts.frozenLockfile === true || (opts.frozenLockfileIfExists === true && existingLockfile != null),
+      frozenLockfile,
       preferFrozenLockfile: opts.preferFrozenLockfile,
       updatePatches: opts.updatePatches,
       lockfile: existingLockfile ?? undefined,
@@ -4133,8 +4144,10 @@ async function installViaPnprServer ({ manifest, rootDir, opts, allInstallProjec
 
     // The server never sees the pnpmfile, so the fields a local resolution
     // records for it are stamped here.
-    lockfile.pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-    setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
+    if (!frozenLockfile) {
+      lockfile.pnpmfileChecksum = pnpmfileChecksum
+      setUntrackedPnpmfileReadPackageHook(lockfile, getUntrackedPnpmfileReadPackageHook(opts.hooks ?? {}))
+    }
 
     await writeWantedLockfileAndRecordVerified({
       lockfileDir,

@@ -47,7 +47,7 @@ use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
 };
-use pnpr_pnpmfile::record_pnpmfile;
+use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
 use pnpr_request::{
     PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
     resolve_projects_for_pnpr, resolve_projects_options,

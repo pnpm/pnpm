@@ -2,11 +2,11 @@ use super::{
     Catalogs, Context, Diagnostic, Display, Error, InstallFamilySelection, LocalLockfileInstall,
     Lockfile, MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError,
     PnprLink, PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions,
-    State, TarballPrefetcher, WantedLockfileSatisfactionCheck, full_workspace_importer_ids,
-    install_from_local_lockfile, link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
-    pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
-    resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
-    wanted_lockfile_satisfies_workspace,
+    State, TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
+    full_workspace_importer_ids, install_from_local_lockfile, link_pnpr_lockfile,
+    merge_and_save_pnpr_lockfile, pnpr_catalogs, pnpr_lockfile_dir, pnpr_request_inputs,
+    report_merged_lockfile_conflicts, resolve_projects_for_pnpr, resolve_projects_options,
+    selection_importer_ids, wanted_lockfile_satisfies_workspace,
 };
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -406,6 +406,11 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     mut session: PnprSession<'_>,
     mut inputs: PnprRequestInputs,
 ) -> miette::Result<()> {
+    if link.lockfile.frozen
+        && let Some(previous_wanted) = session.previous_wanted
+    {
+        check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
+    }
     let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
     let (mut outcome, prefetcher) = resolve_via_pnpr(
         state,

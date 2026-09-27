@@ -88,3 +88,68 @@ fn workspace_install_via_pnpr_applies_the_read_package_hook() {
 
     drop((root, mock_instance));
 }
+
+/// A frozen install through pnpr compares the recorded checksum like a
+/// local frozen install, rather than stamping the new one.
+#[test]
+fn frozen_lockfile_only_install_via_pnpr_rejects_a_changed_pnpmfile() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    configure_workspace(&workspace);
+    let pnpmfile = workspace.join(".pnpmfile.cjs");
+    fs::write(&pnpmfile, "module.exports = { hooks: { filterLog: () => true } }")
+        .expect("write pnpmfile");
+    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    let recorded = read_workspace_lockfile(&workspace).pnpmfile_checksum;
+    fs::write(&pnpmfile, "module.exports = { hooks: { filterLog: () => true } } // changed")
+        .expect("change pnpmfile");
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only", "--pnpr-server", &pnpr_url])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "STDERR:\n{stderr}");
+    assert_eq!(read_workspace_lockfile(&workspace).pnpmfile_checksum, recorded);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn workspace_install_via_pnpr_runs_the_pre_resolution_hook_locally() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    configure_workspace(&workspace);
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { preResolution () { require('fs').writeFileSync(__dirname + '/pre-resolution-ran', '') } } }",
+    )
+    .expect("write pnpmfile");
+    write_workspace_project(&workspace, "app", "app", (WORKSPACE_HELLO, "1.0.0"));
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let output = pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(
+        stdout.contains(r#"cannot run the pnpmfile's "preResolution" hook"#),
+        "STDOUT:\n{stdout}",
+    );
+    assert!(workspace.join("pre-resolution-ran").exists(), "the preResolution hook did not run");
+
+    drop((root, mock_instance));
+}

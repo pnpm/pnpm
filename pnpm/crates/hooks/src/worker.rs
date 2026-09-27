@@ -230,6 +230,11 @@ impl NodeWorker {
         self.capability_query("hasAfterAllResolved").await
     }
 
+    /// Whether the loaded pnpmfile exports a callable `preResolution` hook.
+    pub async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.capability_query("hasPreResolution").await
+    }
+
     async fn capability_query(&self, query: &'static str) -> Result<bool, HookError> {
         self.request(query, serde_json::json!({ "query": query }), Arc::new(|_| {}))
             .await

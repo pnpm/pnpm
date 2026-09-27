@@ -221,6 +221,10 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         self.worker().await?.has_after_all_resolved().await
     }
 
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.worker().await?.has_pre_resolution().await
+    }
+
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
         // Gate on the loaded module exporting `hooks`, mirroring pnpm's
         // `entries.some(entry => entry.hooks != null)`. The checksum
