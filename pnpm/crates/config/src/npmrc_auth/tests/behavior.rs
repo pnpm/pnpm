@@ -1,6 +1,6 @@
 use super::{
-    Config, EnvVar, NoEnv, NoProxySetting, NpmrcAuth, Path, RawCreds, TEST_CA_PEM, assert_eq,
-    base64_decode, base64_encode, default_auth_token,
+    Config, EnvVar, LoadWorkspaceYamlError, NoEnv, NoProxySetting, NpmrcAuth, Path, RawCreds,
+    TEST_CA_PEM, assert_eq, base64_decode, base64_encode, base64_encode_bytes, default_auth_token,
 };
 
 #[test]
@@ -138,24 +138,41 @@ fn unknown_per_registry_suffix_is_silently_dropped() {
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
-/// Pnpm's `parseBasicAuth` doesn't have this exact fallback (it always
-/// `atob`s), but pacquet's tolerance avoids losing the credential
-/// for `.npmrc` files where `_password` was already a raw value.
+/// `_password` holds the base64 of the password, so a value that does
+/// not decode is a typo to report, not a raw password to send
+/// (pnpm/pnpm#16273).
 #[test]
-fn invalid_base64_password_falls_back_to_raw_value() {
-    let ini = "//reg.com/:username=alice\n//reg.com/:_password=raw*pw\n";
+fn password_that_does_not_decode_is_rejected() {
+    let ini = "//reg.com/:username=alice\n//reg.com/:_password=notbase64!\n";
     let mut config = Config::new();
-    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.auth_headers.for_url("https://reg.com/").as_deref(),
-        Some(format!("Basic {}", base64_encode("alice:raw*pw")).as_str()),
+    let error = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("invalid base64 in _password must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_password" }),
+        "got: {error:?}",
     );
 }
 
-/// Without these assertions the password-decode fallback
-/// (`unwrap_or_else(... pass_b64.clone())`) path stays unreachable
-/// from the parser tests.
-///
+/// A password is bytes, not necessarily text: the header carries the
+/// decoded bytes exactly.
+#[test]
+fn password_that_decodes_to_non_utf8_bytes_is_sent_as_decoded() {
+    let password = [0xff, 0xfe, b'x'];
+    let ini = format!(
+        "//reg.com/:username=alice\n//reg.com/:_password={}\n",
+        base64_encode_bytes(&password),
+    );
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    let mut pair = b"alice:".to_vec();
+    pair.extend_from_slice(&password);
+    assert_eq!(
+        config.auth_headers.for_url("https://reg.com/").as_deref(),
+        Some(format!("Basic {}", base64_encode_bytes(&pair)).as_str()),
+    );
+}
+
 /// Every case here is an `atob` result: the decoder answers what pnpm's
 /// `decodeBase64Credential` answers for the same value.
 #[test]
