@@ -1,4 +1,4 @@
-use super::{ScriptRuntime, generate_pwsh_shim};
+use super::{super::powershell::with_utf8_bom, ScriptRuntime, generate_pwsh_shim};
 use std::{fs, path::Path, process::Command};
 use tempfile::tempdir;
 
@@ -7,12 +7,12 @@ fn node_runtime() -> ScriptRuntime {
 }
 
 #[test]
-fn pwsh_shim_marks_unicode_text_as_utf8() {
+fn pwsh_shim_marks_unicode_text_as_utf8_on_windows() {
     let shim = Path::new("/proj/.bin/cli.ps1");
     let unicode_target =
         generate_pwsh_shim(Path::new("/proj/工具/cli.js"), shim, Some(&node_runtime()), &[]);
     eprintln!("SHIM:\n{unicode_target}\n");
-    assert!(unicode_target.starts_with("\u{FEFF}#!/usr/bin/env pwsh\n"));
+    assert_eq!(unicode_target.starts_with('\u{FEFF}'), cfg!(windows));
 
     let unicode_node_path = generate_pwsh_shim(
         Path::new("/proj/pkg/cli.js"),
@@ -21,7 +21,17 @@ fn pwsh_shim_marks_unicode_text_as_utf8() {
         &["/工具/node_modules".to_string()],
     );
     eprintln!("SHIM:\n{unicode_node_path}\n");
-    assert!(unicode_node_path.starts_with("\u{FEFF}#!/usr/bin/env pwsh\n"));
+    assert_eq!(unicode_node_path.starts_with('\u{FEFF}'), cfg!(windows));
+}
+
+#[test]
+fn utf8_bom_is_added_only_to_non_ascii_windows_shims() {
+    let unicode = "#!/usr/bin/env pwsh\n& \"$basedir/工具/cli.js\"\n".to_string();
+    assert_eq!(with_utf8_bom(unicode.clone(), true), format!("\u{FEFF}{unicode}"));
+    assert_eq!(with_utf8_bom(unicode.clone(), false), unicode);
+
+    let ascii = "#!/usr/bin/env pwsh\n& \"$basedir/pkg/cli.js\"\n".to_string();
+    assert_eq!(with_utf8_bom(ascii.clone(), true), ascii);
 }
 
 #[test]
