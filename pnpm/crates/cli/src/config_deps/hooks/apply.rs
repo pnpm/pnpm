@@ -10,6 +10,9 @@ struct HookExecutionChanges {
     changed_extra_env: Option<HashMap<String, String>>,
 }
 
+/// `extraBinPaths` / `extraEnv` aren't `WorkspaceSettings` fields, so
+/// `from_value(delta)` ignores them. The hook's values are pulled out
+/// first and assigned directly.
 fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
     let changed_extra_bin_paths = delta
         .get("extraBinPaths")
@@ -53,6 +56,8 @@ fn apply_hook_execution_changes(
     }
 }
 
+/// Apply what the `updateConfig` hooks changed between `input` and their
+/// `output` back onto `config`.
 pub(super) fn apply_hook_delta(
     config: &mut Config,
     input: &Value,
@@ -60,6 +65,9 @@ pub(super) fn apply_hook_delta(
     base_dir: &Path,
 ) -> Result<()> {
     let delta = filter_hook_delta(config, config_delta(input, current));
+    // `config_delta` only walks keys present in the hook output, so a
+    // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
+    // trace in the delta.
     let script_shell_deleted =
         input.get("scriptShell").is_some() && current.get("scriptShell").is_none();
     if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
@@ -89,8 +97,16 @@ pub(super) fn apply_hook_delta(
     Ok(())
 }
 
+/// Apply the routing a hook rewrote under the `registriesByScope` /
+/// `registriesByPrefix` names it reads it under. `WorkspaceSettings`
+/// reaches the same lookups through its file-shaped `registries` key, which
+/// `apply_to` still honors, so this runs first and an entry the hook wrote
+/// through `registries` wins.
 pub(super) fn apply_registry_routing_changes(config: &mut Config, delta: &Value) -> Result<()> {
     if let Some(mut routes) = hook_registry_routes(delta, "registriesByScope")? {
+        // The hook reads the default registry as the `default` entry of the
+        // map, but the config carries it as the standalone `registry`
+        // setting beside a map of `@scope` routes only.
         if let Some(default) = routes.remove("default") {
             config.registry = default;
         }
@@ -102,6 +118,7 @@ pub(super) fn apply_registry_routing_changes(config: &mut Config, delta: &Value)
     Ok(())
 }
 
+/// The routing map the hook output holds under `key`, if it changed one.
 fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<String, String>>> {
     delta
         .get(key)
@@ -112,6 +129,10 @@ fn hook_registry_routes(delta: &Value, key: &str) -> Result<Option<BTreeMap<Stri
         .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))
 }
 
+/// Record what the hook set in [`Config::explicit_settings`], as loading a
+/// settings file does, and drop the settings it set to null, so the
+/// derivations that read whether a setting was set at all see the hook's
+/// answer.
 fn record_explicit_setting_changes(
     config: &mut Config,
     delta: &Value,
@@ -130,6 +151,10 @@ fn record_explicit_setting_changes(
     }
 }
 
+/// A setting the hook set to null is unset, as it is on pnpm 11, and
+/// resolves to the default pnpm would have chosen. `apply_to` has no value
+/// to apply for it, so each is restored through
+/// [`WorkspaceSettings::reset_setting_to_default`].
 fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_dir: &Path) {
     let Some(delta) = delta.as_object() else { return };
     let mut defaults = None;
@@ -143,6 +168,9 @@ fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_
     }
 }
 
+/// `stateDir` resolves against the host's state root rather than the
+/// workspace, the way [`Config::current`] resolves it, so `apply_to` leaves
+/// it to this.
 fn apply_state_dir_change(config: &mut Config, delta: &Value) {
     let Some(dir) = delta
         .get("stateDir")

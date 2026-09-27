@@ -112,12 +112,6 @@ pub(super) fn normalize_registry_url(registry: &str) -> String {
 }
 
 impl ConfigOverrides {
-    /// Layer the CLI overrides on top of a [`Config`] that has already
-    /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
-    /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
-    ///
-    /// `dir` is the canonicalized `--dir`, the fallback base for a
-    /// relative path-valued setting outside a workspace.
     fn record_cli_settings(&self, config: &mut Config) {
         config.cli_settings.extend(
             self.settings
@@ -132,6 +126,12 @@ impl ConfigOverrides {
         );
     }
 
+    /// Layer the CLI overrides on top of a [`Config`] that has already
+    /// been built from defaults, `.npmrc`, and `pnpm-workspace.yaml`.
+    /// Mirrors pnpm 11's "CLI > yaml > .npmrc > defaults" precedence.
+    ///
+    /// `dir` is the canonicalized `--dir`, the fallback base for a
+    /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
         self.record_cli_settings(config);
         config.apply_proxy_cli_overrides(
