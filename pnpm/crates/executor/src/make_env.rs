@@ -82,7 +82,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    stamp_executables(&mut env, &opts.environment, opts.pkg_root);
+    stamp_executables(&mut env, &opts.environment, opts.pkg_root, is_windows);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -304,11 +304,13 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
 ///
 /// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
 /// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
-/// overrides it. It is stamped before `extra_env` to match.
+/// overrides it, and only when the environment left it unset, so an inherited
+/// value wins too. It is stamped before `extra_env` to match.
 fn stamp_executables(
     env: &mut HashMap<String, String>,
     opts: &crate::ScriptEnvironment<'_>,
     pkg_root: &Path,
+    is_windows: bool,
 ) {
     let parent_path = path_value(env);
     env.extend(
@@ -330,7 +332,29 @@ fn stamp_executables(
             .into_owned(),
     );
 
-    if let Some(path) = opts.node_gyp_path {
+    // A user's own `npm_config_node_gyp`, inherited from the parent
+    // environment, wins: TS `npm-lifecycle` fills the variable only when
+    // the environment left it unset, and reads an empty value as unset.
+    // Windows treats differently cased spellings as one variable, so an
+    // inherited `NPM_CONFIG_NODE_GYP` must win there too, and an empty
+    // spelling must be removed before the default is stamped or the two
+    // would race in the child's environment block.
+    let inherited = env
+        .iter()
+        .any(|(key, value)| {
+            let same_key = if is_windows {
+                key.eq_ignore_ascii_case("npm_config_node_gyp")
+            } else {
+                key.as_str() == "npm_config_node_gyp"
+            };
+            same_key && !value.is_empty()
+        });
+    if let Some(path) = opts.node_gyp_path
+        && !inherited
+    {
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case("npm_config_node_gyp"));
+        }
         env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
     }
 }

@@ -402,7 +402,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
             init_cwd: context.directories.lockfile_dir,
             node_execpath: None,
             npm_execpath: None,
-            node_gyp_path: None,
+            node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(context.scripts.user_agent),
             extra_env: context.scripts.extra_env,
         },

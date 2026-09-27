@@ -147,7 +147,7 @@ impl PreparePackageOptions<'_> {
                 init_cwd: pkg_dir,
                 node_execpath: self.scripts.node_execpath,
                 npm_execpath: self.scripts.npm_execpath,
-                node_gyp_path: None,
+                node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
                 user_agent: self.scripts.user_agent,
                 extra_env,
             },

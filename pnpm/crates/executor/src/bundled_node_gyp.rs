@@ -47,15 +47,42 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
         .as_deref()
 }
 
+/// The bundled `node-gyp` entry point script, the path written into
+/// `npm_config_node_gyp` when the environment does not carry a value of
+/// its own. This is the default the TypeScript CLI supplies through
+/// `require.resolve('node-gyp/bin/node-gyp')`; when the payload is
+/// absent, as in a `cargo build` in a checkout, the variable stays
+/// unset, which is also what the TypeScript CLI does when that
+/// resolution fails.
+pub fn bundled_node_gyp_entry() -> Option<&'static Path> {
+    static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
+    RESOLVED
+        .get_or_init(|| {
+            let exe = std::env::current_exe().ok()?;
+            bundled_node_gyp_entry_beside(&exe)
+        })
+        .as_deref()
+}
+
 fn bundled_node_gyp_bin_beside(exe: &Path) -> Option<PathBuf> {
-    // `current_exe` is the path pnpm was launched through on some platforms,
-    // macOS among them. The unresolved path is tried first because
-    // canonicalizing a path on a Windows network drive yields a verbatim
-    // `\\?\UNC` path, which not every program that searches `PATH` accepts.
-    bundled_node_gyp_bin_in(exe.parent()?)
+    payload_beside(exe, bundled_node_gyp_bin_in)
+}
+
+fn bundled_node_gyp_entry_beside(exe: &Path) -> Option<PathBuf> {
+    payload_beside(exe, bundled_node_gyp_entry_in)
+}
+
+/// Probe the payload beside `exe`, through the unresolved path first.
+///
+/// `current_exe` is the path pnpm was launched through on some platforms,
+/// macOS among them. The unresolved path is tried first because
+/// canonicalizing a path on a Windows network drive yields a verbatim
+/// `\\?\UNC` path, which not every program that searches `PATH` accepts.
+fn payload_beside(exe: &Path, locate_in: fn(&Path) -> Option<PathBuf>) -> Option<PathBuf> {
+    locate_in(exe.parent()?)
         .or_else(|| {
             let exe = dunce::canonicalize(exe).ok()?;
-            bundled_node_gyp_bin_in(exe.parent()?)
+            locate_in(exe.parent()?)
         })
 }
 
@@ -68,6 +95,20 @@ fn bundled_node_gyp_bin_in(exe_dir: &Path) -> Option<PathBuf> {
         .join(NODE_GYP_WRAPPER)
         .is_file()
         .then_some(bin_dir)
+}
+
+/// The path arithmetic behind [`bundled_node_gyp_entry`], shaped like
+/// [`bundled_node_gyp_bin_in`] so fixtures can exercise it too. The
+/// entry is the script `dist/node-gyp-bin/node-gyp` runs as its
+/// fallback, so the variable and the wrapper name the same file.
+fn bundled_node_gyp_entry_in(exe_dir: &Path) -> Option<PathBuf> {
+    let entry = exe_dir
+        .join(DIST_DIR)
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin")
+        .join("node-gyp.js");
+    entry.is_file().then_some(entry)
 }
 
 #[cfg(test)]

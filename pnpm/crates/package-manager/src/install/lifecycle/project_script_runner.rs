@@ -34,7 +34,7 @@ pub(super) fn run_project_stages(
             init_cwd: workspace_root,
             node_execpath: None,
             npm_execpath: None,
-            node_gyp_path: None,
+            node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(&config.user_agent),
             extra_env: &extra_env,
         },

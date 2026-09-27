@@ -1,4 +1,4 @@
-use super::bundled_node_gyp_bin_in;
+use super::{bundled_node_gyp_bin_in, bundled_node_gyp_entry_in};
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
@@ -118,4 +118,52 @@ fn finds_the_wrapper_dir_beside_the_symlink_target() {
                 .join("node-gyp-bin")
         ),
     );
+}
+
+/// Lay out the `node-gyp.js` entry the wrapper falls back to.
+fn ship_entry(exe_dir: &Path) {
+    let entry_dir = exe_dir
+        .join("dist")
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin");
+    fs::create_dir_all(&entry_dir).unwrap();
+    fs::write(entry_dir.join("node-gyp.js"), "#!/usr/bin/env node\n").unwrap();
+}
+
+#[test]
+fn finds_the_entry_point_shipped_beside_the_executable() {
+    let exe_dir = tempfile::tempdir().unwrap();
+    ship_entry(exe_dir.path());
+
+    assert_eq!(
+        bundled_node_gyp_entry_in(exe_dir.path()),
+        Some(
+            exe_dir
+                .path()
+                .join("dist")
+                .join("node_modules")
+                .join("node-gyp")
+                .join("bin")
+                .join("node-gyp.js")
+        ),
+    );
+}
+
+#[test]
+fn entry_absent_when_nothing_was_shipped() {
+    let exe_dir = tempfile::tempdir().unwrap();
+
+    assert_eq!(bundled_node_gyp_entry_in(exe_dir.path()), None);
+}
+
+/// The wrapper directory alone is not the default: without the
+/// `node-gyp.js` it delegates to, a script given that path would fail,
+/// so the variable stays unset.
+#[test]
+fn entry_absent_when_only_the_wrapper_was_shipped() {
+    let exe_dir = tempfile::tempdir().unwrap();
+    ship_payload(exe_dir.path());
+
+    assert_eq!(bundled_node_gyp_entry_in(exe_dir.path()), None);
 }
