@@ -434,12 +434,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   }
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
-    // An `updateConfig` hook can supply catalogs without a
-    // pnpm-workspace.yaml, and those still have to match the lockfile. The
-    // global config file leaves `{ default: undefined }` behind, which
-    // defines none.
-    ignoreRecordedCatalogs: opts.workspaceManifestFound === false &&
-      !Object.values(opts.catalogs ?? {}).some((catalog) => catalog != null),
+    ignoreRecordedCatalogs: opts.workspaceManifestFound === false && !definesCatalogs(opts.catalogs),
     rebuildHandler: commands?.rebuild,
     frozenLockfileIfExists: shouldFreezeLockfileIfExists(opts),
     include,
@@ -454,6 +449,17 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
     return dryRunInstall(installDepsOptions, opts)
   }
   await installDeps(installDepsOptions, [])
+}
+
+/**
+ * Whether any source, such as an `updateConfig` hook, supplied catalogs, even
+ * an empty set. The global config file leaves `{ default: undefined }`
+ * behind, which supplies none.
+ */
+function definesCatalogs (catalogs: Config['catalogs']): boolean {
+  if (catalogs == null) return false
+  const slots = Object.values(catalogs)
+  return slots.length === 0 || slots.some((catalog) => catalog != null)
 }
 
 /**
