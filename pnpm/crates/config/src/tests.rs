@@ -381,6 +381,8 @@ mod workspace_settings_json_env_env_default;
 
 mod workspace_settings_materialization_env_vars_override;
 
+mod dedicated_project_layout;
+
 mod modules_dir_name;
 
 mod place_skipped_store_dir;
