@@ -30,6 +30,18 @@ test('a file that is not a PE fails the check', () => {
   assert.equal(run(Buffer.from('MZ')), 1)
 })
 
+test('an import directory in a section\'s zero-filled tail fails the check', () => {
+  // Trailing bytes after the section's raw data would otherwise read as an
+  // empty import directory.
+  const bytes = Buffer.concat([peWithImports(['VCRUNTIME140.dll']), Buffer.alloc(0x400)])
+  const sectionHeader = 0x80 + 24 + 240
+  const rawSize = bytes.readUInt32LE(sectionHeader + 16)
+  bytes.writeUInt32LE(rawSize * 2, sectionHeader + 8)
+  bytes.writeUInt32LE(0x1000 + rawSize, 0x80 + 24 + 112 + 8)
+  assert.throws(() => importedDlls(bytes), /points outside the file/)
+  assert.equal(run(bytes), 1)
+})
+
 test('import names match objdump', () => {
   const dlls = ['KERNEL32.dll', 'VCRUNTIME140.dll']
   const bytes = peWithImports(dlls)

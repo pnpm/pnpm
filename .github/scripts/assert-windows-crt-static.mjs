@@ -75,8 +75,9 @@ function rvaToOffset (view, sections, rva) {
   for (const section of sections) {
     const span = Math.max(section.virtualSize, section.rawSize)
     if (rva < section.virtualAddress || rva >= section.virtualAddress + span) continue
-    const offset = section.rawPointer + (rva - section.virtualAddress)
-    if (offset < 0 || offset >= view.length) throw new Error(`RVA 0x${rva.toString(16)} points outside the file`)
+    const delta = rva - section.virtualAddress
+    const offset = section.rawPointer + delta
+    if (delta >= section.rawSize || offset >= view.length) throw new Error(`RVA 0x${rva.toString(16)} points outside the file`)
     return offset
   }
   throw new Error(`RVA 0x${rva.toString(16)} is not in any section`)

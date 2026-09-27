@@ -659,16 +659,11 @@ jobs:
           container-build: 'true'
 
       - name: Build with cross
-        # windows-msvc dynamically links VCRUNTIME140.dll. A clean Windows
-        # install does not ship that DLL, so the published pnpm.exe exits
-        # 0xC0000135 before main. Statically link the CRT for this CLI binary.
-        #
-        # Kept out of `.cargo/config.toml` and out of the NAPI build below: those
-        # rustflags would also apply to the cdylib, and a cdylib loaded into
-        # node.exe has to keep the dynamic CRT. The musl step is the same split
-        # in the other direction and is left unchanged. Appended, not assigned,
-        # so an earlier RUSTFLAGS value survives; `+crt-static` is last, which
-        # is the sign rustc keeps when both appear.
+        # windows-msvc links VCRUNTIME140.dll dynamically by default, and a
+        # clean Windows install does not ship it, so pnpm.exe would exit
+        # 0xC0000135 before main. Only the CLI links the CRT statically: the
+        # NAPI cdylib is loaded into node.exe and keeps the dynamic CRT, which
+        # is why this is not in `.cargo/config.toml`.
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -910,8 +905,8 @@ jobs:
           done
 
       - name: Reject a dynamic VC runtime in Windows binaries
-        # dumpbin /DEPENDENTS equivalent. The release is the first time these
-        # exes exist; fail it here, before publish, if VCRUNTIME140 is imported.
+        # No other job builds the windows-msvc CLI with the release flags, so
+        # this is the only place a VCRUNTIME140 import can be caught before publish.
         run: |
           shopt -s nullglob
           exes=(pnpm-win32-*.exe)
