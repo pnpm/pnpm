@@ -165,19 +165,39 @@ pub fn find_workspace_projects_no_check(
     read_projects(group_manifests_by_root(manifest_paths, workspace_root))
 }
 
-/// wax's `not` takes a single pattern; combine the ignores with
-/// `wax::any` so the walk filters them all in one pass.
+/// The walk ignores of a pattern that names no dot component, with no
+/// managed directory to prune: built once and cloned for every such walk.
 fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
-    wax::any(
-        IGNORE_PATTERNS
+    compile_walk_ignores(None, &[])
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<built-in ignore>".to_string(),
+            message: err.to_string(),
+        })
+}
+
+/// wax's `not` takes a single pattern; combine the ignores with
+/// `wax::any` so the walk filters them all in one pass. `dot_ignores` is
+/// what [`positional_dot_ignores`] returns for the pattern: `None` prunes
+/// every dot component.
+fn compile_walk_ignores(
+    dot_ignores: Option<&[String]>,
+    managed_ignores: &[String],
+) -> Result<wax::Any<'static>, wax::BuildError> {
+    let dot_ignores: Vec<&str> = match dot_ignores {
+        None => vec![DOT_COMPONENT_IGNORE_PATTERN],
+        Some(dot_ignores) => dot_ignores
             .iter()
-            .copied()
-            .chain([DOT_COMPONENT_IGNORE_PATTERN]),
-    )
-    .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-        pattern: "<built-in ignore>".to_string(),
-        message: err.to_string(),
-    })
+            .map(String::as_str)
+            .collect(),
+    };
+    let patterns = IGNORE_PATTERNS
+        .iter()
+        .copied()
+        .chain(dot_ignores)
+        .chain(managed_ignores.iter().map(String::as_str))
+        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+        .collect::<Result<Vec<_>, _>>()?;
+    wax::any(patterns)
 }
 
 /// User negations are written relative to the workspace root, while a
@@ -468,20 +488,7 @@ fn manifest_walk_ignores<'a>(
     if dot_ignores.is_none() && managed_ignores.is_empty() {
         return Ok(dot_pruning_ignore_template.clone());
     }
-    let patterns = IGNORE_PATTERNS
-        .iter()
-        .copied()
-        .chain(
-            dot_ignores
-                .iter()
-                .flatten()
-                .map(String::as_str),
-        )
-        .chain(dot_ignores.is_none().then_some(DOT_COMPONENT_IGNORE_PATTERN))
-        .chain(managed_ignores.iter().map(String::as_str))
-        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
-        .collect::<Result<Vec<_>, _>>()?;
-    wax::any(patterns)
+    compile_walk_ignores(dot_ignores.as_deref(), &managed_ignores)
 }
 
 /// Read `root_dir`'s project from the first readable candidate.
