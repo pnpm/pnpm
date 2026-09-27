@@ -434,11 +434,8 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
   }
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
-    // Only an install whose configuration defines no catalogs at all skips
-    // the frozen-install catalogs check: the config reader found no
-    // pnpm-workspace.yaml and no other source — a pnpmfile `updateConfig`
-    // hook, for one — supplied any. An unset flag — the way every other
-    // install-like command passes its options — keeps the check on.
+    // An `updateConfig` hook can supply catalogs without a
+    // pnpm-workspace.yaml, and those still have to match the lockfile.
     ignoreRecordedCatalogs: opts.workspaceManifestFound === false &&
       Object.keys(opts.catalogs ?? {}).length === 0,
     rebuildHandler: commands?.rebuild,

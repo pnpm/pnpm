@@ -114,11 +114,8 @@ pub(super) fn check_projects_content(
             // the checksum would cost a Node worker on the path that exists to avoid
             // starting one.
             pnpmfile_checksum: pnpm_lockfile::PnpmfileChecksumCheck::Skip,
-            // The check needs a `pnpm-workspace.yaml` behind the catalogs to
-            // compare against. An `updateConfig` pnpmfile hook can supply
-            // catalogs without one, so only an install with no workspace
-            // manifest AND no catalogs of its own leaves the lockfile's own
-            // snapshot as the only configuration there is (pnpm/pnpm#10551).
+            // An `updateConfig` hook can supply catalogs without a
+            // `pnpm-workspace.yaml`, and those still have to match.
             ignore_recorded_catalogs: !check.is_workspace_install
                 && check.catalogs.is_empty(),
             dedupe_peers,

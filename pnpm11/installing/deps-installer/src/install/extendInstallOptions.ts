@@ -94,12 +94,7 @@ export interface StrictInstallOptions extends RegistryContext {
   ignoredOptionalDependencies: string[]
   pnpmfile: string[] | string
   ignorePnpmfile: boolean
-  /**
-   * Skips the frozen-install catalogs check, for an install whose
-   * configuration defines no catalogs at all (a production artifact without
-   * a `pnpm-workspace.yaml`, for instance): the catalogs the lockfile
-   * records are then the only ones there is.
-   */
+  /** See `ignoreRecordedCatalogs` in `@pnpm/lockfile.settings-checker`. */
   ignoreRecordedCatalogs: boolean
   packageManager: {
     name: string

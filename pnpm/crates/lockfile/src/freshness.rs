@@ -31,10 +31,11 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
-    /// Skips the catalogs comparison, for an install whose directory has no
-    /// `pnpm-workspace.yaml`: the catalogs the lockfile records are then the
-    /// only catalog configuration there is, and a frozen install resolves
-    /// from the lockfile anyway (pnpm/pnpm#10551).
+    /// Skips the catalogs comparison. Set when no `pnpm-workspace.yaml` or
+    /// other source defines any catalogs, as in a production artifact that
+    /// ships only `package.json` and the lockfile. The catalogs the lockfile
+    /// records are then the only ones there are, and an empty configuration
+    /// is not a sign that they were removed.
     pub ignore_recorded_catalogs: bool,
     pub resolution: ResolutionSettingsCheck<'a>,
 }

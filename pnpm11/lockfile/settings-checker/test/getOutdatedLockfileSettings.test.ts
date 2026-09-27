@@ -39,6 +39,33 @@ test('pnpmfileChecksum is reported when it differs, unless its comparison is ski
     .not.toContain('pnpmfileChecksum')
 })
 
+test('catalogs are reported when the configuration drops a recorded entry, unless their comparison is skipped', () => {
+  const lockfile = emptyLockfile({
+    catalogs: {
+      default: {
+        'is-odd': { specifier: '^3.0.1', version: '3.0.1' },
+      },
+    },
+  })
+
+  expect(getOutdatedLockfileSettings(lockfile, { catalogs: {} })).toContain('catalogs')
+  expect(getOutdatedLockfileSettings(lockfile, { catalogs: {}, ignoreRecordedCatalogs: true }))
+    .not.toContain('catalogs')
+})
+
+test('catalogs are not reported when the configuration matches the recorded entries', () => {
+  const lockfile = emptyLockfile({
+    catalogs: {
+      default: {
+        'is-odd': { specifier: '^3.0.1', version: '3.0.1' },
+      },
+    },
+  })
+
+  expect(getOutdatedLockfileSettings(lockfile, { catalogs: { default: { 'is-odd': '^3.0.1' } } }))
+    .not.toContain('catalogs')
+})
+
 function emptyLockfile (settings: Partial<LockfileObject>): LockfileObject {
   return {
     importers: {},

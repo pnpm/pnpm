@@ -250,12 +250,7 @@ export interface Config extends OptionsFromRootManifest {
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
   catalogPrune?: boolean
-  /**
-   * Whether the `pnpm-workspace.yaml` that catalogs are read from was found.
-   * When it is `false`, a lockfile's recorded catalogs are the only catalog
-   * configuration there is, so the frozen-install check that compares them
-   * against the current configuration has nothing to compare with.
-   */
+  /** Whether the `pnpm-workspace.yaml` that catalogs are read from was found. */
   workspaceManifestFound?: boolean
   reporter?: string
   aggregateOutput: boolean

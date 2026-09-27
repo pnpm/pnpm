@@ -602,10 +602,8 @@ export async function getConfig (opts: {
           workspaceManifestRegistries = pnpmConfig.registriesByScope as Record<string, string> | undefined
         }
       }
-      // Assigned after the manifest's settings are merged: unknown camelCase
-      // keys of pnpm-workspace.yaml reach the config record, so a file naming
-      // this key would otherwise overwrite what the reader worked out and
-      // disable the frozen-install catalogs check (pnpm/pnpm#10551).
+      // Assigned after the manifest's settings are merged, so that a
+      // pnpm-workspace.yaml naming this key cannot override it.
       pnpmConfig.workspaceManifestFound = workspaceManifest != null
     } else if (cliOptions['global']) {
       // For global installs, read settings from pnpm-workspace.yaml in the global package directory
@@ -622,8 +620,6 @@ export async function getConfig (opts: {
         }
       }
     } else {
-      // No workspace directory: there is no pnpm-workspace.yaml, so no
-      // catalogs stand behind the config either (pnpm/pnpm#10551).
       pnpmConfig.workspaceManifestFound = false
     }
   }

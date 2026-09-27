@@ -7,4 +7,4 @@
 "pacquet": patch
 ---
 
-Fixed a false `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` on frozen installs in directories that have a lockfile with catalogs but no `pnpm-workspace.yaml` (a pruned production artifact, for instance). When no workspace manifest supplies the catalog configuration, the catalogs recorded in the lockfile are the only ones there are, so they are no longer compared against an empty configuration. A workspace manifest that exists but drops a catalog entry still fails the frozen install.
+`pnpm install --frozen-lockfile` now succeeds in a directory that has a lockfile with catalogs but no `pnpm-workspace.yaml`, such as a pruned production build. It failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` before. A `pnpm-workspace.yaml` that drops a catalog entry still fails the frozen install [#10551](https://github.com/pnpm/pnpm/issues/10551).

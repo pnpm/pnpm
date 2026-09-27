@@ -39,10 +39,11 @@ export interface LockfileSettingsInput {
    */
   ignorePnpmfileChecksum?: boolean
   /**
-   * Skips comparing `catalogs`, for an install whose directory has no
-   * `pnpm-workspace.yaml`: the catalogs the lockfile records are then the
-   * only catalog configuration there is, and a frozen install resolves
-   * from the lockfile anyway (pnpm/pnpm#10551).
+   * Skips comparing `catalogs`. Set when no `pnpm-workspace.yaml` or other
+   * source defines any catalogs, as in a production artifact that ships only
+   * `package.json` and the lockfile. The catalogs the lockfile records are
+   * then the only ones there are, and an empty configuration is not a sign
+   * that they were removed.
    */
   ignoreRecordedCatalogs?: boolean
   injectWorkspacePackages?: boolean

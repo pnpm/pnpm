@@ -159,12 +159,7 @@ export type InstallDepsOptions = Pick<Config,
   excludeWorkspaceRootProject?: boolean
   forceFullResolution?: boolean
   frozenLockfileIfExists?: boolean
-  /**
-   * Skips the frozen-install catalogs check. The install command sets it
-   * only when the configuration defines no catalogs at all — the config
-   * reader found no `pnpm-workspace.yaml` and no other source supplied any —
-   * so the catalogs the lockfile records are the only ones there is.
-   */
+  /** See `ignoreRecordedCatalogs` in `@pnpm/lockfile.settings-checker`. */
   ignoreRecordedCatalogs?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
