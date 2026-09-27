@@ -1,5 +1,8 @@
 use super::{
-    super::{FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir},
+    super::{
+        FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir,
+        managed::managed_directory_ignores,
+    },
     make_project,
 };
 use pretty_assertions::assert_eq;
@@ -183,6 +186,45 @@ fn keeps_a_directory_that_differs_from_a_managed_one_only_in_case() {
     assert_eq!(
         find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("store")]),
         ["pkg", "root"],
+    );
+}
+
+#[test]
+fn a_managed_directory_sharing_no_root_with_the_walk_yields_no_glob() {
+    // `pathdiff` cannot relate a directory on another volume to the walk,
+    // and hands it back absolute: a cache or state directory on `C:` under
+    // a workspace on `D:` is the everyday Windows case. Escaping that
+    // drive prefix and root into a glob produces a pattern wax rejects, so
+    // every nested `packages` pattern would fail with
+    // `ERR_PNPM_WORKSPACE_INVALID_GLOB` naming the user's own pattern
+    // (https://github.com/pnpm/pnpm/issues/16239). A relative walk root
+    // leaves an absolute managed directory just as unrelated. Neither is
+    // reachable from the walk, so neither may yield a glob.
+    assert_eq!(
+        managed_directory_ignores(Path::new("workspace"), &[PathBuf::from("/pnpm-cache")]),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        managed_directory_ignores(Path::new("/workspace"), &[PathBuf::from("/pnpm-cache/store")]),
+        Vec::<String>::new(),
+    );
+    // A managed directory below the walk root still prunes itself.
+    assert_eq!(
+        managed_directory_ignores(Path::new("/workspace"), &[PathBuf::from("/workspace/store")]),
+        ["store/**"],
+    );
+}
+
+#[test]
+fn a_nested_pattern_still_skips_a_managed_directory_inside_the_walk() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/plugin-a/sub-a", "sub-a");
+    make_project(tmp.path(), "packages/store/plugin-b", "managed");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["packages/*/*"], vec![tmp.path().join("packages/store")]),
+        ["root", "sub-a"],
     );
 }
 

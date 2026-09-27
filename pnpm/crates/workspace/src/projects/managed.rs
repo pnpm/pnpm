@@ -76,17 +76,37 @@ pub(super) fn managed_directory_ignores(
     let walk_root = pnpm_fs::lexical_normalize(walk_root);
     ignored_directories
         .iter()
-        .filter_map(|dir| pathdiff::diff_paths(dir, &walk_root))
-        .filter(|relative| !relative.as_os_str().is_empty() && !relative.starts_with(".."))
-        .map(|relative| {
-            // A managed directory is an opaque path, never a pattern.
-            let mut glob = relative
-                .components()
-                .map(|component| wax::escape(&component.as_os_str().to_string_lossy()).into_owned())
-                .collect::<Vec<_>>()
-                .join("/");
-            glob.push_str("/**");
-            glob
-        })
+        .filter_map(|dir| walk_relative_ignore_glob(&walk_root, dir))
         .collect()
+}
+
+/// The glob that prunes `dir` from a walk rooted at `walk_root`, or `None`
+/// when `dir` is not genuinely below it.
+///
+/// [`pnpm_fs::relative_path`] hands back `dir` itself when the two share no
+/// filesystem root: `pathdiff` cannot relate them across volumes, and a
+/// cache or store on `C:` under a workspace on `D:` is ordinary on Windows.
+/// Wax cannot express such a path — escaping its `Prefix` and `RootDir`
+/// components into a glob produces a pattern `Glob::new` rejects, and the
+/// workspace then reports the user's own `packages` pattern as invalid
+/// (<https://github.com/pnpm/pnpm/issues/16239>). A directory the walk
+/// cannot reach needs no glob, and [`is_under_ignored_directory`] still
+/// filters every walked manifest.
+fn walk_relative_ignore_glob(walk_root: &Path, dir: &Path) -> Option<String> {
+    let relative = pnpm_fs::relative_path(walk_root, dir);
+    if relative.as_os_str().is_empty()
+        || !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        return None;
+    }
+    // A managed directory is an opaque path, never a pattern.
+    let mut glob = relative
+        .components()
+        .map(|component| wax::escape(&component.as_os_str().to_string_lossy()).into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+    glob.push_str("/**");
+    Some(glob)
 }
