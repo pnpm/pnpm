@@ -32,6 +32,11 @@ jobs:
       contents: read   # let the agent inspect the checked-out codebase
       issues: write     # let the agent apply labels and comment
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Assign the author or ask whether they are working on a fix
         env:
           GH_TOKEN: ${{ github.token }}
@@ -41,16 +46,7 @@ jobs:
           ISSUE_URL: ${{ github.event.issue.html_url }}
           AUTHOR: ${{ github.event.issue.user.login }}
         run: |
-          # Only the form's own "Contributing a fix" section counts, not the
-          # same text typed into a free-form field. Prints "checked",
-          # "unchecked", or "missing" when the issue was not filed through a
-          # form, e.g. with `gh issue create --body`.
-          fix_state=$(awk '
-            { sub(/\r$/, "") }
-            /^### / { in_fix = ($0 ~ /^### Contributing a fix[[:space:]]*$/); if (in_fix) seen = 1; next }
-            in_fix && /^- \[[xX]\] I am working on a fix[[:space:]]*$/ { checked = 1 }
-            END { print checked ? "checked" : seen ? "unchecked" : "missing" }
-          ' <<<"$ISSUE_BODY")
+          fix_state=$(.github/scripts/issue-fix-intent.sh <<<"$ISSUE_BODY")
           case "$fix_state" in
             checked)
               # GitHub refuses some authors as assignees. Triage must still run.
@@ -62,11 +58,6 @@ jobs:
                 echo "::warning::Could not ask $AUTHOR about a fix"
               ;;
           esac
-
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - name: Triage with Oz agent
         uses: warpdotdev/oz-agent-action@261367f00a9899a054aac2661b39e6783f5e7c25 # v1.0.35
