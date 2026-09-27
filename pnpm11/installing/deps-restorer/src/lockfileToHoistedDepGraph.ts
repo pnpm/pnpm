@@ -371,7 +371,9 @@ async function fetchDeps (
     }
     opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByPkgId, opts)
-    opts.graph[dir].packageRootLinks = getPackageRootLinks(pkgSnapshot, opts.include)
+    if (!opts.skipFetching) {
+      opts.graph[dir].packageRootLinks = getPackageRootLinks(pkgSnapshot, opts.include)
+    }
   }))
   return depHierarchy
 }

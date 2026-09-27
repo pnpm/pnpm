@@ -890,6 +890,8 @@ function linkFileDepsInsidePackage (manifest: DependencyManifest): DependencyMan
   let copy: DependencyManifest | undefined
   for (const depsField of ['dependencies', 'optionalDependencies'] as const) {
     for (const [alias, bareSpecifier] of Object.entries(manifest[depsField] ?? {})) {
+      // A published manifest is unvalidated here, and a hook may still repair it.
+      if (typeof bareSpecifier !== 'string') continue
       const packageRootLink = fileSpecToPackageRootLink(bareSpecifier)
       if (packageRootLink == null) continue
       copy ??= copyManifest(manifest)
