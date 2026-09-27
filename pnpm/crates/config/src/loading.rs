@@ -254,6 +254,8 @@ impl Config {
         if let Some(configured_state_dir) = settings.state_dir.take() {
             self.state_dir = resolve_configured_state_dir(default_state_dir, &configured_state_dir);
         }
+        let bootstrap = &mut self.package_manager_bootstrap;
+        settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         settings.apply_to(self, start_dir);
         self.workspace_dir = saved_workspace_dir;

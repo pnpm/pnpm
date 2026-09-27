@@ -47,3 +47,17 @@ fn derived_settings_follow_cli_setting_values() {
 
     assert_eq!(config.global_bin, Some(project.path().join("bin")));
 }
+
+/// The command line is a trusted source, so its proxy also reaches the
+/// requests that fetch the package manager itself, as `PNPM_CONFIG_PROXY` does.
+#[test]
+fn cli_proxy_reaches_the_package_manager_bootstrap() {
+    let project = tempdir().expect("project tempdir");
+
+    let config = config_with_cli_settings(&[("proxy", "http://proxy.example.com:8080")])
+        .current::<HostNoHome>(project.path())
+        .expect("loads");
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example.com:8080"));
+    assert_eq!(config.package_manager_bootstrap.proxy, config.proxy);
+}
