@@ -1,10 +1,9 @@
 import assert from 'node:assert'
 import path from 'node:path'
-import util from 'node:util'
 
 import { type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli.utils'
 import { binDirOf, type Config, type ConfigContext, createProjectModulesDirResolver, getWorkspaceConcurrency } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -281,7 +280,7 @@ export async function runRecursive (
             result[summaryKey].duration = getExecutionDuration(startTime)
           }
         } catch (err: unknown) {
-          assert(util.types.isNativeError(err))
+          assert(isError(err))
           taskFailed = true
           result[summaryKey] = {
             status: 'failure',

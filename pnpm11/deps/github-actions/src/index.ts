@@ -2,10 +2,9 @@ import fs from 'node:fs/promises'
 import { isIP } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
-import { PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { getRepoRefs } from '@pnpm/resolving.git-resolver'
@@ -205,7 +204,7 @@ async function createUpdatePlan (opts: GitHubActionsOptions): Promise<PlannedUpd
         } catch (err: unknown) {
           // The git error may echo a credentialed URL or raw stderr back, so
           // it is redacted and stripped of control characters before logging.
-          globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${action.repo}": ${util.types.isNativeError(err) ? err.message : String(err)}`))
+          globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${action.repo}": ${isError(err) ? err.message : String(err)}`))
           return []
         }
       })
@@ -266,7 +265,7 @@ async function readTagDatesByRepo (
     try {
       return [repo, await read(repo, [...tags].sort())]
     } catch (err: unknown) {
-      globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${repo}": cannot read the release dates that minimumReleaseAge needs: ${util.types.isNativeError(err) ? err.message : String(err)}`))
+      globalWarn(redactAndSanitize(`Skipping the GitHub Actions from "${repo}": cannot read the release dates that minimumReleaseAge needs: ${isError(err) ? err.message : String(err)}`))
       return [repo, null]
     }
   })))
@@ -564,10 +563,10 @@ function resolveServerUrl (serverUrl: string | undefined): string {
 }
 
 function workflowError (operation: 'PARSE' | 'READ' | 'WRITE', filePath: string, cause: unknown): PnpmError {
-  const detail = util.types.isNativeError(cause) ? cause.message : String(cause)
+  const detail = isError(cause) ? cause.message : String(cause)
   return new PnpmError(`GITHUB_ACTIONS_WORKFLOW_${operation}`, `Failed to ${operation.toLowerCase()} GitHub Actions workflow ${filePath}: ${detail}`, { cause })
 }
 
 function isErrorCode (err: unknown, code: string): err is NodeJS.ErrnoException {
-  return util.types.isNativeError(err) && 'code' in err && err.code === code
+  return isError(err) && 'code' in err && err.code === code
 }

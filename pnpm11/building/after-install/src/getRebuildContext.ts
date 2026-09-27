@@ -1,11 +1,10 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { refToRelative } from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
@@ -94,7 +93,7 @@ async function projectsUseCurrentBuildSlots (ctx: PnpmContext, opts: StrictBuild
           ])
           return actualDir === expectedDir
         } catch (error: unknown) {
-          if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') return false
+          if (isError(error) && 'code' in error && error.code === 'ENOENT') return false
           throw error
         }
       })

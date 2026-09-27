@@ -1,5 +1,6 @@
 import fs from 'node:fs'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 export function readCAFileSync (filePath: string): string[] | undefined {
   try {
@@ -13,7 +14,7 @@ export function readCAFileSync (filePath: string): string[] | undefined {
       .map((ca) => `${ca.trimStart()}${delim}`)
     return output
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
 }

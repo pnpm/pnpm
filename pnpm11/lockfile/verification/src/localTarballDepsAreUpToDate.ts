@@ -1,10 +1,9 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import util from 'node:util'
 
 import { getTarballIntegrity, matchIntegrity } from '@pnpm/crypto.hash'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -90,7 +89,7 @@ function readLocalTarballIntegrity (fileIntegrityCache: Map<string, Promise<stri
       algorithms: ['sha512', 'sha384', 'sha256', 'sha1'],
     }).catch((error: unknown) => {
       fileIntegrityCache.delete(filePath)
-      const message = util.types.isNativeError(error) ? error.message : String(error)
+      const message = isError(error) ? error.message : String(error)
       throw new PnpmError(
         'TARBALL_READ_LOCAL_TARBALL',
         `Cannot read local tarball "${filePath}": ${message}`,

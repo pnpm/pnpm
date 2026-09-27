@@ -1,5 +1,4 @@
 import url from 'node:url'
-import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {
@@ -7,6 +6,7 @@ import {
   type FetchErrorRequest,
   type FetchErrorResponse,
   FetchTimeoutError,
+  isError,
   isFetchTimeoutError,
   PnpmError,
   redactUrlCredentials,
@@ -206,7 +206,7 @@ export async function fetchMetadataFromFromRegistry (
         // `error.cause` would otherwise print the raw URL-bearing message. The
         // `stack` string embeds the original (pre-mutation) message, so redact
         // it too — mutating `message` alone leaves the credentials in `stack`.
-        if (util.types.isNativeError(error)) {
+        if (isError(error)) {
           if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
           if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
         }

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { removeGlobalGroups } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
@@ -50,7 +50,7 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
   try {
     entries = await fs.promises.readdir(globalDir, { withFileTypes: true })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -69,7 +69,7 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
           try {
             groupPkg = JSON.parse(await fs.promises.readFile(path.join(installDir, 'package.json'), 'utf8'))
           } catch (err) {
-            if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+            if (isError(err) && 'code' in err && err.code === 'ENOENT') {
               return null
             }
             throw err
@@ -80,7 +80,7 @@ async function findGlobalNodeGroup (globalDir: string): Promise<GlobalNodeGroup 
           const version = pkg.version as string | undefined
           return version ? { hash: entry.name, installDir, version } : null
         } catch (err) {
-          if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+          if (isError(err) && 'code' in err && err.code === 'ENOENT') {
             return null
           }
           throw err
@@ -95,7 +95,7 @@ async function isDanglingSymlink (filePath: string): Promise<boolean> {
     await fs.promises.stat(filePath)
     return false
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return true
     }
     throw err
@@ -117,7 +117,7 @@ async function isCandidateShimRemoved (binFile: string, ext: string, removedName
       return Array.from(removedNames).some((name) => segments.includes(name))
     }
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
   }
@@ -159,7 +159,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
     try {
       entries = await fs.promises.readdir(nodejsDir)
     } catch (err) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
         throw err
       }
     }
@@ -191,7 +191,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
         }
       }
     } catch (err) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
         throw err
       }
     }
@@ -216,7 +216,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]):
                 await fs.promises.unlink(file)
                 removedSomething = true
               } catch (err) {
-                if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+                if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
                   throw err
                 }
               }

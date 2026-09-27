@@ -1,5 +1,4 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
@@ -11,7 +10,7 @@ import {
 } from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type {
   LockfileObject,
@@ -766,7 +765,7 @@ async function readManifestOfLocalTarget (dir: string): Promise<PackageManifest 
   } catch (err: unknown) {
     // A `file:` target is a tarball as often as a directory, and a path
     // component of a tarball is not a directory to read a manifest from.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTDIR') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOTDIR') return null
     throw err
   }
 }

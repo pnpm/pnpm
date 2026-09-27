@@ -1,7 +1,7 @@
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -32,7 +32,7 @@ export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, r
     try {
       await rimraf(path.join(cacheDir, metadataDir))
     } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+      if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
         throw err
       }
     }
@@ -95,7 +95,7 @@ async function getSubdirsSafely (dir: string): Promise<string[]> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err

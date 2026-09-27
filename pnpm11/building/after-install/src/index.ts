@@ -1,7 +1,6 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
@@ -13,7 +12,7 @@ import {
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   PROJECT_INSTALL_STAGES as EXEC_PROJECT_INSTALL_STAGES,
   runLifecycleHooksConcurrently,
@@ -508,7 +507,7 @@ async function _rebuild (
             filesIndexFile,
           })
         } catch (err: unknown) {
-          assert(util.types.isNativeError(err))
+          assert(isError(err))
           logger.warn({
             error: err,
             message: `An error occurred while uploading ${pkgRoot}`,
@@ -518,7 +517,7 @@ async function _rebuild (
       }
       pkgsThatWereRebuilt.add(depPath)
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       if (pkgSnapshot.optional) {
         // Other projects may link a global virtual store slot, so it is kept.
         if (!gvsDirByDepPath.has(depPath)) {

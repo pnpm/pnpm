@@ -2,7 +2,6 @@ import type { SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
@@ -12,7 +11,7 @@ import {
   iteratePkgMeta,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-hasher'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { type GlobalAddOptions, installGlobalPackages } from '@pnpm/global.commands'
 import {
   cleanOrphanedInstallDirs,
@@ -592,7 +591,7 @@ function forceLink (src: string, dest: string): void {
   try {
     fs.unlinkSync(dest)
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
   }

@@ -1,8 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { logger } from '@pnpm/logger'
 import { isInnerLink } from 'is-inner-link'
@@ -72,7 +71,7 @@ function describeLockError (err: unknown, message: string): unknown {
 
 function isWindowsFileLockError (err: unknown): err is NodeJS.ErrnoException {
   return process.platform === 'win32' &&
-    util.types.isNativeError(err) &&
+    isError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
 }

@@ -1,7 +1,8 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 export function getHashLink (globalDir: string, hash: string): string {
   return path.join(globalDir, hash)
@@ -14,7 +15,7 @@ export function resolveInstallDir (globalDir: string, hash: string): string | nu
     if (!stats.isSymbolicLink()) return null
     return fs.realpathSync(linkPath)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -34,7 +35,7 @@ export function createInstallDir (globalDir: string): string {
       fs.mkdirSync(dir)
       return dir
     } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') continue
+      if (isError(err) && 'code' in err && err.code === 'EEXIST') continue
       throw err
     }
   }

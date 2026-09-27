@@ -1,6 +1,7 @@
 import path from 'node:path'
 import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gracefulFs from 'graceful-fs'
 
 const readdir = util.promisify(gracefulFs.readdir)
@@ -9,7 +10,7 @@ export async function readModulesDir (modulesDir: string): Promise<string[] | nu
   try {
     return await _readModulesDir(modulesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

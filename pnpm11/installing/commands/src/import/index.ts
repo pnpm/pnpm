@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
 import { getLockfileImporterId, getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
@@ -164,7 +163,7 @@ export async function handler (
   try {
     await fs.promises.rename(lockfilePath, backupPath)
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
     lockfileExisted = false
   }
   try {

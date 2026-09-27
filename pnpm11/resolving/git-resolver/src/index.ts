@@ -1,7 +1,6 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { DispatcherOptions } from '@pnpm/network.fetch'
 import type { GitResolution, LatestInfo, LatestQuery, PkgResolutionId, ResolveOptions, ResolveResult, TarballResolution } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
@@ -62,7 +61,7 @@ export function createGitResolver (
     try {
       commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       throw gitResolveError(err, wantedDependency.bareSpecifier, parsedSpec.fetchSpec)
     }
     let resolution: GitResolution | TarballResolution | undefined

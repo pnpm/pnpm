@@ -10,9 +10,8 @@
 // or a directory is therefore left alone rather than created or followed.
 
 import fs from 'node:fs'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 
 /**
@@ -61,9 +60,9 @@ function appendGHActionsEnvFile (targetName: string, filePath: string, line: str
     if (!fs.lstatSync(filePath).isFile()) return
     appendLineToRegularFile(filePath, line)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') return
+    if (isError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') return
     logger.warn({
-      message: `Failed to write GitHub Actions environment file ${targetName} (${filePath}): ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      message: `Failed to write GitHub Actions environment file ${targetName} (${filePath}): ${isError(err) ? err.message : String(err)}`,
       prefix: process.cwd(),
     })
   }

@@ -1,7 +1,7 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import type {
   AddToStoreResult,
@@ -105,7 +105,7 @@ function getStatIfContained (
   try {
     lstat = fs.lstatSync(absolutePath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return { isSymbolicLink: false, stat: null }
     }
     throw err
@@ -132,7 +132,7 @@ function getSymlinkStatIfContained (
     realPath = fs.realpathSync(absolutePath)
   } catch (err: unknown) {
     // Broken symlink or inaccessible target
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -228,7 +228,7 @@ function findFiles (
     try {
       stat = fs.statSync(absolutePath)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
         continue
       }
       throw err

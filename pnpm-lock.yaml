@@ -1504,6 +1504,9 @@ importers:
 
   pnpm11/bins/cmd-shim:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -4835,6 +4838,9 @@ importers:
       '@pnpm/building.pkg-requires-build':
         specifier: workspace:*
         version: link:../../building/pkg-requires-build
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fetching.fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -5095,6 +5101,10 @@ importers:
         version: 'link:'
 
   pnpm11/fs/dir-lock:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5105,6 +5115,9 @@ importers:
 
   pnpm11/fs/graceful-fs:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       graceful-fs:
         specifier: 'catalog:'
         version: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -5121,6 +5134,9 @@ importers:
 
   pnpm11/fs/hard-link-dir:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../graceful-fs
@@ -5146,6 +5162,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../graceful-fs
@@ -5204,6 +5223,9 @@ importers:
 
   pnpm11/fs/packlist:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
@@ -5220,6 +5242,9 @@ importers:
 
   pnpm11/fs/read-modules-dir:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       graceful-fs:
         specifier: 'catalog:'
         version: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -5236,6 +5261,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -5358,6 +5386,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -6766,6 +6797,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../../fs/read-modules-dir
@@ -6806,6 +6840,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../../fs/graceful-fs
@@ -6855,6 +6892,9 @@ importers:
       '@pnpm/deps.path':
         specifier: workspace:*
         version: link:../../../deps/path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../../core/error
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../../fs/read-modules-dir
@@ -7093,6 +7133,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -7823,6 +7866,10 @@ importers:
         version: 5.2.1
 
   pnpm11/network/ca-file:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9671,6 +9718,9 @@ importers:
       '@pnpm/crypto.integrity':
         specifier: workspace:*
         version: link:../../crypto/integrity
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -10742,6 +10792,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../text/ordinal-comparator
@@ -10854,6 +10907,9 @@ importers:
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/fs.graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs

@@ -1,7 +1,6 @@
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import type { RegistryConfig } from '@pnpm/types'
@@ -64,7 +63,7 @@ export async function handler (opts: PingOptions): Promise<string> {
       authHeaderValue,
     })
   } catch (err: unknown) {
-    const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
+    const errorMessage = isError(err) ? err.message : String(err)
     throw new PnpmError('PING_ERROR', `Failed to reach registry: ${errorMessage}`)
   }
 

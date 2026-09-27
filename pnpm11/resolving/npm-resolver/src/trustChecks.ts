@@ -1,6 +1,5 @@
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { filterPkgMetadataVersions } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { PackageVersionPolicy } from '@pnpm/types'
@@ -69,7 +68,7 @@ export function pickWithoutTrustDowngrade (
 }
 
 function isTrustDowngradeError (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE'
+  return isError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE'
 }
 
 export function failIfTrustDowngraded (

@@ -1,8 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import gfs, { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
@@ -366,7 +365,7 @@ function readFileForIntegrity (filename: string): Buffer | null {
     // lock-retry policy rides that out instead of crashing the worker.
     return withFileLockRetry(() => gfs.readFileSync(filename))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -396,7 +395,7 @@ function checkFile (filename: string, checkedAt?: number): { isModified: boolean
       size,
     }
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

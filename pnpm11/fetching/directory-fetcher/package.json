@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

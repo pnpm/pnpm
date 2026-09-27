@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { isSubdir } from 'is-subdir'
 import npmPacklist from 'npm-packlist'
@@ -82,7 +82,7 @@ class PackWalker extends npmPacklist.Walker {
       try {
         stat = fs.lstatSync(path.join(this.path, file))
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) continue
+        if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) continue
         throw err
       }
       if (stat.isSymbolicLink()) {
@@ -154,7 +154,7 @@ export async function packlistWithSources (pkgDir: string, opts?: PacklistOption
     try {
       hasNpmIgnore = (await fs.promises.stat(path.join(resolvedPkgDir, '.npmignore'))).isFile()
     } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+      if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
     }
   }
   const packlistOpts = hasWorkspaceContext && !hasNpmIgnore
@@ -182,7 +182,7 @@ function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
   try {
     lstat = fs.lstatSync(absPath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
   if (!lstat.isSymbolicLink()) {
@@ -214,7 +214,7 @@ function isInternalFileOrSymlink (pkgDir: string, relFile: string): boolean {
       return false
     }
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
       throw err
     }
   }
@@ -383,7 +383,7 @@ function resolveDependency (depName: string, fromDir: string, boundary: string):
           return { dir: candidate, realDir }
         }
       } catch (err: unknown) {
-        if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+        if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') {
           throw err
         }
       }
@@ -407,7 +407,7 @@ function realpathOrUndefined (dir: string): string | undefined {
   try {
     return fs.realpathSync(dir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
 }
@@ -416,7 +416,7 @@ function readPackageJson (dir: string): Record<string, unknown> {
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
     }
     throw err

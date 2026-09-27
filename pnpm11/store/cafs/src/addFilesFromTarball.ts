@@ -1,6 +1,6 @@
-import util from 'node:util'
 import { createGunzip, gunzipSync } from 'node:zlib'
 
+import { isError } from '@pnpm/error'
 import type {
   AddToStoreResult,
   FilesIndex,
@@ -131,7 +131,7 @@ function gunzipUpTo (tarballBuffer: Buffer, maxSize: number): Buffer | undefined
   try {
     return gunzipSync(tarballBuffer, { chunkSize: GUNZIP_CHUNK_SIZE, maxOutputLength: maxSize })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
       return undefined
     }
     throw err

@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { formatTimeAgo } from '@pnpm/resolving.npm-resolver'
 import type { ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
@@ -276,7 +276,7 @@ async function findNearestProjectManifest (
       }
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = isError(err) ? err.message : String(err)
     throw new PnpmError('INVALID_PACKAGE_JSON', `Failed to read or parse project manifest in "${startDir}": ${message}`)
   }
   const parentDir = path.dirname(startDir)

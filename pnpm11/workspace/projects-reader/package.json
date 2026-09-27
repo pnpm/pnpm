@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.package-patterns": "workspace:*",

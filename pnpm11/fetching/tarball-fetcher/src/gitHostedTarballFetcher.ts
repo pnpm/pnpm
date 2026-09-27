@@ -1,6 +1,6 @@
 import assert from 'node:assert'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { FetchFunction, FetchOptions } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
@@ -52,7 +52,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
         integrity,
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
     }

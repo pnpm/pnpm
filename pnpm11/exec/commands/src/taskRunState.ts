@@ -1,10 +1,9 @@
 import crypto from 'node:crypto'
 import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
 import { createHexHash } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import type { TaskGraph, TaskKey, TaskNode } from '@pnpm/workspace.task-scheduler'
 import writeFileAtomic from 'write-file-atomic'
@@ -131,7 +130,7 @@ export class TaskRunStateContext {
     try {
       latest = JSON.parse(await fs.readFile(this.latestStatePath, 'utf8')) as StateHeader
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT' && !isStateUnavailableError(err)) throw err
+      if (isError(err) && 'code' in err && err.code !== 'ENOENT' && !isStateUnavailableError(err)) throw err
       return undefined
     }
     if (latest.version !== STATE_VERSION || latest.invocation !== this.invocation || !RUN_ID.test(latest.run)) return undefined
@@ -148,7 +147,7 @@ export class TaskRunStateContext {
     try {
       contents = await fs.readFile(filePath, 'utf8')
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || isStateUnavailableError(err))) return undefined
+      if (isError(err) && 'code' in err && (err.code === 'ENOENT' || isStateUnavailableError(err))) return undefined
       throw err
     }
     // A record is committed by its newline; a process killed during append
@@ -276,7 +275,7 @@ export class TaskRunStateContext {
         newestGeneration = maxString(newestGeneration, runGeneration(latest.run))
       }
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code !== 'ENOENT') throw err
+      if (isError(err) && 'code' in err && err.code !== 'ENOENT') throw err
     }
     const prefix = `${this.invocation}.`
     for (const name of await fs.readdir(this.stateDir)) {
@@ -427,12 +426,12 @@ async function validateRealDirectory (dir: string, create: boolean): Promise<boo
   try {
     stats = await fs.lstat(dir)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
     if (!create) return false
     try {
       await fs.mkdir(dir)
     } catch (mkdirErr: unknown) {
-      if (!(util.types.isNativeError(mkdirErr) && 'code' in mkdirErr && mkdirErr.code === 'EEXIST')) throw mkdirErr
+      if (!(isError(mkdirErr) && 'code' in mkdirErr && mkdirErr.code === 'EEXIST')) throw mkdirErr
     }
     stats = await fs.lstat(dir)
   }
@@ -470,11 +469,11 @@ async function unlinkIfExists (filePath: string): Promise<void> {
   try {
     await fs.unlink(filePath)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
   }
 }
 
 function isStateUnavailableError (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err &&
+  return isError(err) && 'code' in err &&
     (err.code === 'EACCES' || err.code === 'EPERM' || err.code === 'EROFS')
 }

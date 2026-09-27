@@ -1,9 +1,8 @@
-import util from 'node:util'
 
 import { checkbox, input, Separator } from '@inquirer/prompts'
 import { interactivePromptPageSize } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import {
   assembleReleasePlan,
@@ -100,7 +99,7 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   try {
     return await recordChange(workspaceDir, opts, params)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Change canceled')
       process.exit(0)
     }

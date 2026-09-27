@@ -1,13 +1,12 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
@@ -120,12 +119,12 @@ async function readChangesetConfig (configPath: string): Promise<ChangesetConfig
   try {
     return await loadJsonFile<ChangesetConfig>(configPath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw new PnpmError(
       'INVALID_CHANGESET_CONFIG',
-      `Failed to read changeset config at ${configPath}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      `Failed to read changeset config at ${configPath}: ${isError(err) ? err.message : String(err)}`,
       { cause: err }
     )
   }
@@ -136,12 +135,12 @@ async function ensureChangesetDirIsSafe (changesetDir: string): Promise<void> {
   try {
     stat = await fs.promises.lstat(changesetDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return
     }
     throw new PnpmError(
       'UNSAFE_CHANGESET_DIR',
-      `Failed to inspect changeset directory at ${changesetDir}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      `Failed to inspect changeset directory at ${changesetDir}: ${isError(err) ? err.message : String(err)}`,
       { cause: err }
     )
   }

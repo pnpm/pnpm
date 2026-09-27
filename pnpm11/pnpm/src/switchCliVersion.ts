@@ -1,10 +1,9 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
 import { assertReleaseIsInstallable, installPnpmToStore, spawnPnpm } from '@pnpm/engine.pm.commands'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
@@ -114,7 +113,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     } catch (err: unknown) {
       if (
         freshlyResolved ||
-        !util.types.isNativeError(err) ||
+        !isError(err) ||
         !('code' in err) ||
         err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
       ) {
@@ -219,7 +218,7 @@ export async function fetchLockedPackageManager (config: Config, context: Config
     // Entries in another shape are re-resolved from the registry by the
     // switch itself, so installing them here would not help it offline.
     if (
-      !util.types.isNativeError(err) ||
+      !isError(err) ||
       !('code' in err) ||
       err.code !== 'ERR_PNPM_INVALID_PACKAGE_MANAGER_LOCKFILE'
     ) {
@@ -269,7 +268,7 @@ class VersionSwitchFail extends PnpmError {
     super(
       'VERSION_SWITCH_FAIL',
       `Failed to switch pnpm to v${version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`,
-      { hint: cause instanceof Error ? cause?.message : undefined })
+      { hint: isError(cause) ? cause?.message : undefined })
 
     if (cause != null) {
       this.cause = cause

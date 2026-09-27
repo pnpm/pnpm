@@ -340,25 +340,28 @@ Recurring engineering conventions in this codebase — the rules reviewers most 
 
 ## Common Gotchas
 
-### Error Type Checking in Jest (TypeScript only)
+### Error Type Checking (TypeScript only)
 
-When checking if a caught error is an `Error` object, **do not use `instanceof Error`**. Jest runs tests in a VM context where `instanceof` checks can fail across realms.
-
-Instead, use `util.types.isNativeError()`:
+When checking if a caught value is an `Error`, use `isError()` from `@pnpm/error`. Do not use `instanceof Error` or `util.types.isNativeError()` alone. Jest runs tests in a VM context where `instanceof` fails across realms. StackBlitz WebContainers reject async `fs` calls with errors that `util.types.isNativeError()` does not recognize. `isError()` accepts both.
 
 ```typescript
-import util from 'util'
+import { isError } from '@pnpm/error'
 
 try {
   // ... some operation
 } catch (err: unknown) {
-  // ❌ Wrong - may fail in Jest
+  // ❌ Wrong - fails in Jest
   if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
     return null
   }
-  
-  // ✅ Correct - works across realms
+
+  // ❌ Wrong - fails in WebContainers
   if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    return null
+  }
+
+  // ✅ Correct
+  if (isError(err) && 'code' in err && err.code === 'ENOENT') {
     return null
   }
   throw err

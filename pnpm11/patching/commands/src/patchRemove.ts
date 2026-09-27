@@ -5,7 +5,7 @@ import path from 'node:path'
 import { checkbox } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -53,7 +53,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
           theme: { keybindings: ['vim'] },
         })
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
+        if (isError(err) && err.name === 'ExitPromptError') {
           throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
         }
         throw err

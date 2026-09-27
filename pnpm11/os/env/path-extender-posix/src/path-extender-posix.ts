@@ -2,9 +2,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import writeFileAtomic from 'write-file-atomic'
 
 export class BadShellSectionError extends PnpmError {
@@ -225,7 +224,7 @@ export async function updateShellConfig (
       oldSettings: '',
     }
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') {
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') {
       throw err
     }
   }

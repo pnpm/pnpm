@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
-import util from 'node:util'
 
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
+import { isError } from '@pnpm/error'
 import type { RegistryServerType } from '@pnpm/types'
 
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
@@ -62,7 +62,7 @@ export function parseIntegrityAddress (integrity: unknown): IntegrityAddress | u
   try {
     parsed = parseIntegrity(integrity)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_INTEGRITY') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_INTEGRITY') {
       return undefined
     }
     throw err

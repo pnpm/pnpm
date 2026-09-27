@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
 import { createShortHash } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/installing.commands'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
@@ -350,7 +349,7 @@ export async function preparePkgFilesForDiff (src: string, packageFiles?: string
 
 function isUnsupportedLinkError (err: unknown): boolean {
   return (
-    util.types.isNativeError(err) &&
+    isError(err) &&
     'code' in err &&
     typeof err.code === 'string' &&
     ['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(err.code)

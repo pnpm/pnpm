@@ -4,7 +4,7 @@ import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { namedRegistryTarballPrefixes, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import {
@@ -623,7 +623,7 @@ async function runTrustCheck (
     return {
       ok: false,
       code: TRUST_DOWNGRADE_VIOLATION_CODE,
-      reason: err instanceof Error ? err.message : String(err),
+      reason: isError(err) ? err.message : String(err),
     }
   }
   return undefined

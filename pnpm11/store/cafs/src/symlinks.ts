@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import type { FilesMap, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 
 /**
@@ -131,7 +131,7 @@ function readRecordedSymlinkTarget (linkPath: string, filePath: string): string 
   try {
     target = fs.readFileSync(filePath, 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
     throw err
   }
   return normalizeSymlinkTarget(linkPath, target) === target ? target : undefined
