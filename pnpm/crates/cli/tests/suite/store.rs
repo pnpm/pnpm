@@ -3,10 +3,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    command_env::CommandTestExt,
-};
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
@@ -662,6 +659,7 @@ fn store_prune_honors_dlx_cache_max_age() {
 #[cfg(unix)]
 #[test]
 fn install_keeps_a_group_writable_store() {
+    use pnpm_testing_utils::bin::AddMockedRegistry;
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
