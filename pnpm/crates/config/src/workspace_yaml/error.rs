@@ -146,14 +146,14 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperInProjectConfig { key: String },
-    /// An `_auth` credential did not decode as base64. Its whole point is
-    /// to carry `<username>:<password>` base64-encoded, so a value that
-    /// cannot be decoded would otherwise reach the registry as a header
-    /// no server can read — a silent 401 instead of a fixable error.
+    /// An `_auth` or `_password` credential did not decode as base64. Both
+    /// exist to carry a base64-encoded value, so a value that cannot be
+    /// decoded would otherwise reach the registry as a credential nobody
+    /// chose — a silent 401 instead of a fixable error.
     #[display("Failed to decode {key} as base64")]
     #[diagnostic(
         code(ERR_PNPM_AUTH_INVALID_BASE64),
-        help("{key} must hold the base64 encoding of <username>:<password>.")
+        help("{key} must contain a base64-encoded {} value", base64_credential_content(key))
     )]
     AuthInvalidBase64 { key: &'static str },
     /// A decoded `_auth` credential held no `:`, so it names no password.
@@ -206,4 +206,8 @@ pub enum LoadWorkspaceYamlError {
 
     #[diagnostic(transparent)]
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
+}
+
+fn base64_credential_content(key: &str) -> &'static str {
+    if key == "_auth" { "<username>:<password>" } else { "password" }
 }
