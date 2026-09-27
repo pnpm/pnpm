@@ -1023,6 +1023,143 @@ fn unchanged_global_update_still_approves_a_pending_build() {
 /// this group from a current one.
 #[cfg(unix)]
 #[test]
+fn global_update_migrates_the_packages_of_the_previous_layout() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    let legacy_dir = pnpm_home.join("global").join("5");
+    let legacy_pkg_dir = legacy_dir
+        .join("node_modules")
+        .join("@foo")
+        .join("touch-file-one-bin");
+    fs::create_dir_all(&legacy_pkg_dir).expect("create the legacy package dir");
+    fs::write(
+        legacy_dir.join("package.json"),
+        r#"{"dependencies":{"@foo/touch-file-one-bin":"^1.0.0","pnpm":"10.0.0"}}"#,
+    )
+    .expect("write the legacy global manifest");
+    fs::write(
+        legacy_pkg_dir.join("package.json"),
+        r#"{"name":"@foo/touch-file-one-bin","version":"1.0.0","bin":"cli.js"}"#,
+    )
+    .expect("write the legacy package manifest");
+    fs::write(legacy_pkg_dir.join("cli.js"), "").expect("write the legacy bin");
+    let stray_bin = pnpm_home.join("touch-file-one-bin");
+    std::os::unix::fs::symlink(legacy_pkg_dir.join("cli.js"), &stray_bin)
+        .expect("link the bin the way pnpm 10 did");
+    let legacy_pnpm_dir = legacy_dir.join("node_modules").join("pnpm");
+    fs::create_dir_all(legacy_pnpm_dir.join("bin")).expect("create the legacy pnpm dir");
+    fs::write(
+        legacy_pnpm_dir.join("package.json"),
+        r#"{"name":"pnpm","version":"10.0.0","bin":{"pnpm":"bin/pnpm.cjs"}}"#,
+    )
+    .expect("write the legacy pnpm manifest");
+    fs::write(legacy_pnpm_dir.join("bin").join("pnpm.cjs"), "").expect("write the legacy pnpm bin");
+    let stray_pnpm_shim = pnpm_home.join("pnpm");
+    fs::write(
+        &stray_pnpm_shim,
+        "#!/bin/sh\nexec node \"$basedir/global/5/node_modules/pnpm/bin/pnpm.cjs\" \"$@\"\n",
+    )
+    .expect("write the pnpm shim the way pnpm 10 did");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update over the previous layout");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(stdout.contains("Migrating global packages from"), "{stdout}\n{stderr}");
+    let global_dir = pnpm_home.join("global").join("v11");
+    assert!(
+        pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+            .expect("scan global packages")
+            .is_some(),
+        "the legacy package must be installed as a group of the current layout",
+    );
+    let migrated_bin = pnpm_home.join("bin").join("touch-file-one-bin");
+    assert!(migrated_bin.exists(), "the bin must be linked into the current bin dir");
+    assert!(!legacy_dir.exists(), "the previous layout must be removed");
+    assert!(fs::symlink_metadata(&stray_bin).is_err(), "the bin pnpm 10 linked must be removed");
+    assert!(
+        fs::symlink_metadata(&stray_pnpm_shim).is_err(),
+        "the pnpm shim pnpm 10 linked must be removed",
+    );
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update again");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(!stdout.contains("Migrating global packages from"), "{stdout}");
+    assert!(stdout.contains("Already up to date"), "{stdout}\n{stderr}");
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
+fn global_update_leaves_a_legacy_package_a_current_group_declares_to_the_update() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@foo/touch-file-one-bin,@foo/no-deps"])
+        .assert()
+        .success();
+    let global_dir = pnpm_home.join("global").join("v11");
+    let group = pnpm_global::find_global_package(&global_dir, "@foo/touch-file-one-bin")
+        .expect("scan global packages")
+        .expect("find the touch-file group");
+    fs::remove_dir_all(group.install_dir.join("node_modules"))
+        .expect("remove the group's node_modules");
+    let legacy_dir = pnpm_home.join("global").join("5");
+    fs::create_dir_all(&legacy_dir).expect("create the legacy dir");
+    fs::write(
+        legacy_dir.join("package.json"),
+        r#"{"dependencies":{"@foo/touch-file-one-bin":"^1.0.0"}}"#,
+    )
+    .expect("write the legacy global manifest");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update over a declared legacy package");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(!stdout.contains("Migrating global packages from"), "{stdout}");
+    assert!(stdout.contains("Kept"), "the previous layout must wait for the restore: {stdout}");
+    assert!(legacy_dir.exists(), "the previous layout must be kept until the group is restored");
+    let groups = pnpm_global::scan_global_packages(&global_dir).expect("scan global packages");
+    assert_eq!(groups.len(), 1, "the group must be restored, not replaced by a second one");
+    assert!(groups[0].has_alias("@foo/no-deps"), "the sibling must survive the restore");
+    let restored = groups[0].install_dir
+        .join("node_modules")
+        .join("@foo")
+        .join("touch-file-one-bin");
+    assert!(restored.is_dir(), "the update must restore the group's files");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g"])
+        .output()
+        .expect("run global update again");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stdout}\n{stderr}");
+    assert!(!legacy_dir.exists(), "the previous layout must be removed once the group is restored");
+
+    drop((root, npmrc_info));
+}
+
+#[cfg(unix)]
+#[test]
 fn global_update_restores_group_with_deleted_node_modules() {
     use assert_cmd::assert::OutputAssertExt;
 

@@ -13,7 +13,7 @@ import { types as allTypes } from '@pnpm/config.reader'
 import { findOutdatedGitHubActions, isGitHubActionSelector, normalizeGitHubActionSelector, shouldCheckGitHubActions, updateGitHubActions } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { isError, PnpmError } from '@pnpm/error'
-import { handleGlobalUpdate, hasPnpmCliDependency, selectsPnpmCli } from '@pnpm/global.commands'
+import { handleGlobalUpdate, hasPnpmCliDependency, migrateLegacyGlobalPackages, selectsPnpmCli } from '@pnpm/global.commands'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
@@ -222,6 +222,8 @@ export async function handler (
     if (selectsPnpmCli(params)) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
+    // Before the interactive selection, so the migrated groups are offered too.
+    await migrateLegacyGlobalPackages({ ...opts, ...createGlobalPolicyCallbacks(opts) }, commands ?? {})
     const selection = opts.interactive
       ? await selectGlobalPackageGroups(params, opts)
       : undefined
