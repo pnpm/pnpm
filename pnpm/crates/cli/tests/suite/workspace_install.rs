@@ -1450,6 +1450,61 @@ fn shared_workspace_lockfile_false_symlinks_workspace_dependencies() {
     drop(fixture);
 }
 
+/// The projects of a `sharedWorkspaceLockfile: false` workspace install
+/// concurrently, but a project still waits for the workspace projects it
+/// depends on. The dependency's `postinstall` is the slower one, so running
+/// the dependent early would record it first.
+#[test]
+fn shared_workspace_lockfile_false_installs_dependencies_before_dependents() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    let record = |name: &str, delay_ms: u32| {
+        format!(
+            "node -e \"setTimeout(() => require('fs').appendFileSync('../../order.txt', '{name}\\\\n'), {delay_ms})\""
+        )
+    };
+    for (name, dependencies, delay_ms) in [
+        ("lib", serde_json::json!({}), 500),
+        ("app", serde_json::json!({ "lib": "workspace:*" }), 0),
+    ] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("mkdir project");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": dependencies,
+                "scripts": { "postinstall": record(name, delay_ms) },
+            })
+            .to_string(),
+        )
+        .expect("write project package.json");
+    }
+
+    pacquet_at(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+    assert_eq!(order.lines().collect::<Vec<_>>(), ["lib", "app"]);
+    assert!(workspace.join("packages/lib/pnpm-lock.yaml").is_file());
+    assert!(workspace.join("packages/app/pnpm-lock.yaml").is_file());
+}
+
 mod freshness;
 
 #[cfg(unix)]

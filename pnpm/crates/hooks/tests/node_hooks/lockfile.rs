@@ -135,6 +135,26 @@ async fn empty_mjs_is_a_noop_for_pre_resolution() {
 }
 
 #[tokio::test]
+async fn has_pre_resolution_reports_whether_the_hook_is_exported() {
+    let tmp = TempDir::new().expect("temp dir");
+    let with_hook = tmp.path().join("with.cjs");
+    std::fs::write(&with_hook, "module.exports = { hooks: { preResolution() {} } }")
+        .expect("write pnpmfile");
+    let without_hook = tmp.path().join("without.cjs");
+    std::fs::write(&without_hook, "module.exports = { hooks: { readPackage: (pkg) => pkg } }")
+        .expect("write pnpmfile");
+    let failing = tmp.path().join("failing.cjs");
+    std::fs::write(&failing, "throw new Error('broken pnpmfile')").expect("write pnpmfile");
+
+    let has_pre_resolution = async |file| {
+        pnpm_hooks::node_runtime::NodeJsHooks::new(file).has_pre_resolution().await
+    };
+    assert!(has_pre_resolution(with_hook).await.expect("query the hook"));
+    assert!(!has_pre_resolution(without_hook).await.expect("query the hook"));
+    assert!(has_pre_resolution(failing).await.is_err());
+}
+
+#[tokio::test]
 async fn pre_resolution_loads_js_as_esm_from_the_nearest_package_scope() {
     let tmp = TempDir::new().expect("temp dir");
     std::fs::write(tmp.path().join("package.json"), r#"{"type":"commonjs"}"#)

@@ -1,10 +1,11 @@
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, DedicatedSync, InstallArgs, InstallFamily,
-    InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State, ThrottledClient,
-    dedicated_project_name, discover_workspace_projects, ecosystem_install,
-    init_dedicated_project_state, injected_source_dirs, prepare_root_config, project_names,
-    prune_after_dedicated_installs, select_install_family, sync_dedicated_injected_deps,
+    Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
+    InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
+    ThrottledClient, dedicated_project_name, discover_workspace_projects, ecosystem_install,
+    injected_source_dirs, prepare_root_config, project_dependencies, project_names,
+    select_install_family,
 };
+use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the
@@ -230,6 +231,8 @@ pub(super) fn init_shared_state(
 /// pnpm's dedicated-lockfile per-project loop in its recursive
 /// dispatch. The workspace root participates when it has a manifest,
 /// matching the project set a shared-lockfile workspace install covers.
+/// Projects whose workspace dependencies have finished run concurrently
+/// under `workspaceConcurrency`, as a recursive install does.
 pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'static>(
     args: &super::super::install::InstallArgs,
     cfg: &Config,
@@ -240,48 +243,40 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
     let (projects, _patterns) = discover_workspace_projects(workspace_root, cfg)?;
     let mut names = project_names(cfg, &projects);
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
-    let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
+    let mut dependencies = IndexMap::with_capacity(projects.len() + 1);
+    let mut other_dirs = Vec::new();
     if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
     {
-        project_dirs.push(workspace_root.to_path_buf());
+        dependencies.insert(workspace_root.to_path_buf(), Vec::new());
+        other_dirs.push(workspace_root.to_path_buf());
         // The root is installed alongside the discovered projects but is
         // not one of them, so its name is not in the map yet.
         if let Some(name) = dedicated_project_name(cfg, workspace_root) {
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    let source_dirs = dedicated_injected_source_dirs(&projects, &project_dirs)?;
-    project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
-    // One `Config::leak` per project: `State::init` needs a
-    // `&'static Config`, and a leaked shared reference can't be
-    // reclaimed for the next iteration. The leak is bounded by the
-    // project count, happens once per CLI invocation, and is
-    // reclaimed at process exit — the same lifetime deploy's derived
-    // install config has.
-    for project_dir in &project_dirs {
-        let state = init_dedicated_project_state(
-            cfg,
-            project_dir,
-            names.get(project_dir).map(String::as_str),
-            require_lockfile,
-            Some(Arc::clone(&http_client)),
-        )?;
-        Box::pin(args.clone().run::<Reporter>(state)).await?;
+    let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
+    let selection =
+        select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
+    dependencies.extend(project_dependencies(&selection, true));
+    DedicatedProjectRuns {
+        config: cfg,
+        projects: DedicatedProjects {
+            dependencies,
+            names,
+            covers_workspace: true,
+            injected_source_dirs,
+        },
+        require_lockfile,
+        http_client: Some(http_client),
+        prune_excludes: !args.materialization.dry_run,
+        sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
     }
-    if !args.materialization.dry_run {
-        prune_after_dedicated_installs(cfg)?;
-    }
-    if !(args.lockfile.only || args.materialization.dry_run) {
-        sync_dedicated_injected_deps(
-            cfg,
-            &project_dirs,
-            &DedicatedSync { names: &names, source_dirs: &source_dirs },
-        )?;
-    }
-    Ok(())
+    .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+    .await
 }
 
 /// See [`injected_source_dirs`]. `other_dirs` are the directories installed
