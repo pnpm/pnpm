@@ -4,7 +4,11 @@
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
-use super::reporter::{ReporterType, quiet_loglevel_arg};
+use super::{
+    legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
+    package_manager::read_root_manifest_json,
+    reporter::{ReporterType, quiet_loglevel_arg},
+};
 use derive_more::{Display, Error};
 use dialoguer::Confirm;
 use miette::{Diagnostic, IntoDiagnostic};
@@ -43,6 +47,17 @@ enum VerifyDepsError {
         )
     )]
     CannotPrompt { issue: String },
+
+    #[display(
+        "Your node_modules are out of sync with your lockfile, and installing would drop {keys} from the lockfile, because the \"pnpm\" field in package.json is no longer read by pnpm"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VERIFY_DEPS_BEFORE_RUN),
+        help(
+            r#"Move these settings to pnpm-workspace.yaml (see https://pnpm.io/settings), then run "pnpm install"."#
+        )
+    )]
+    IgnoredLockfileSettings { keys: String },
 }
 
 /// Run the configured verify-deps-before-run action for the project at
@@ -79,6 +94,12 @@ pub(crate) fn verify_deps_before_run(
     // A filtered `run` or `exec` only selected some of the workspace's
     // projects, so its install has to select the same ones.
     install_args.extend(install_selection_args(config));
+    if matches!(
+        config.verify_deps_before_run,
+        VerifyDepsBeforeRun::Install | VerifyDepsBeforeRun::Prompt
+    ) {
+        refuse_install_dropping_ignored_settings(dir, config)?;
+    }
     match config.verify_deps_before_run {
         VerifyDepsBeforeRun::Install => {
             locked_install(dir, selected_project_dirs, config, &install_args, reporter)
@@ -139,6 +160,24 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
         }
         Ok(())
     }
+}
+
+/// An install would ignore the settings the root manifest still keeps in its
+/// `pnpm` field and rewrite the lockfile without the ones the lockfile
+/// records. That drops them silently, so the gate leaves the decision to an
+/// explicit `pnpm install` after the settings have moved.
+fn refuse_install_dropping_ignored_settings(dir: &Path, config: &Config) -> miette::Result<()> {
+    let manifest = read_root_manifest_json(config.root_project_manifest_dir(dir));
+    let keys = ignored_lockfile_pnpm_field_keys(manifest.as_ref());
+    if keys.is_empty() {
+        return Ok(());
+    }
+    let keys = keys
+        .iter()
+        .map(|key| format!(r#""pnpm.{key}""#))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(VerifyDepsError::IgnoredLockfileSettings { keys }.into())
 }
 
 /// Install while holding the workspace's gate lock, so concurrent `run` and

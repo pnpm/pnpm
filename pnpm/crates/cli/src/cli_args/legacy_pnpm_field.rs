@@ -34,6 +34,12 @@ const MIGRATED_PNPM_FIELD_KEYS: &[&str] = &[
     "updateConfig",
 ];
 
+/// The migrated keys whose values the lockfile records. An install that
+/// ignores one of them rewrites the lockfile without it, silently dropping,
+/// for example, the version floors the overrides set.
+const LOCKFILE_RECORDED_PNPM_FIELD_KEYS: &[&str] =
+    &["ignoredOptionalDependencies", "overrides", "packageExtensions", "patchedDependencies"];
+
 /// Warn about every migrated key the root project manifest still
 /// declares under `pnpm`.
 pub(crate) fn warn_ignored_pnpm_manifest_fields(manifest: Option<&Value>) {
@@ -51,6 +57,14 @@ pub(crate) fn warn_ignored_pnpm_manifest_fields(manifest: Option<&Value>) {
          The following keys were ignored: {keys}. \
          See https://pnpm.io/settings for the new home of each setting.",
     ));
+}
+
+/// The migrated keys the root project manifest still declares under `pnpm`
+/// whose values the lockfile records.
+pub(crate) fn ignored_lockfile_pnpm_field_keys(manifest: Option<&Value>) -> Vec<String> {
+    let mut keys = ignored_pnpm_field_keys(manifest);
+    keys.retain(|key| LOCKFILE_RECORDED_PNPM_FIELD_KEYS.contains(&key.as_str()));
+    keys
 }
 
 fn ignored_pnpm_field_keys(manifest: Option<&Value>) -> Vec<String> {
