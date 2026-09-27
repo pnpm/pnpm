@@ -170,7 +170,7 @@ async function purgeModulesDirsOfImporters (
         default: true,
       })
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
+      if (isError(err) && err.name === 'ExitPromptError') {
         throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
       }
       throw err

@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 
 import { formatAuthUrlMessage } from './formatAuthUrlMessage.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
@@ -173,7 +173,7 @@ async function resolveOtpChallenge (
     })
   } catch (err: unknown) {
     // The user aborted the prompt: re-throw the original challenge.
-    if (err instanceof Error && err.name === 'ExitPromptError') return undefined
+    if (isError(err) && err.name === 'ExitPromptError') return undefined
     throw err
   }
   return otp || undefined

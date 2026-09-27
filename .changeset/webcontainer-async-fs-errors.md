@@ -1,9 +1,12 @@
 ---
+"@pnpm/auth.commands": patch
 "@pnpm/bins.cmd-shim": patch
 "@pnpm/building.after-install": patch
 "@pnpm/building.commands": patch
 "@pnpm/building.during-install": patch
 "@pnpm/config.reader": patch
+"@pnpm/deps.compliance.audit": patch
+"@pnpm/deps.compliance.commands": patch
 "@pnpm/deps.github-actions": patch
 "@pnpm/deps.inspection.commands": patch
 "@pnpm/deps.security.signatures": patch
@@ -42,6 +45,7 @@
 "@pnpm/lockfile.verification": patch
 "@pnpm/network.ca-file": patch
 "@pnpm/network.fetch": patch
+"@pnpm/network.web-auth": patch
 "@pnpm/os.env.path-extender-posix": patch
 "@pnpm/patching.apply-patch": patch
 "@pnpm/patching.commands": patch
@@ -66,4 +70,4 @@
 "pnpm": patch
 ---
 
-`pnpm install` no longer fails with `ENOENT ... pnpm-lock.yaml` in StackBlitz WebContainers when the project has no lockfile. pnpm now recognizes the errors that WebContainers return from asynchronous file system calls, so other missing-file checks work there too [#15649](https://github.com/pnpm/pnpm/issues/15649).
+`pnpm install` now works in StackBlitz WebContainers on projects without a lockfile. It used to fail there with `ENOENT ... pnpm-lock.yaml`, because pnpm did not recognize the errors that WebContainers return from asynchronous file system calls [#15649](https://github.com/pnpm/pnpm/issues/15649).

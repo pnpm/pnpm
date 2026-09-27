@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
@@ -81,7 +81,7 @@ export async function audit (
     try {
       body = JSON.parse(rawBody)
     } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err)
+      const reason = isError(err) ? err.message : String(err)
       throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
     }
     if (!isBulkResponseShape(body)) {

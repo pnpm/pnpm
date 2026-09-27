@@ -5,7 +5,7 @@ import { allowBuildKeyFromIgnoredBuild, parseAllowBuildSelector } from '@pnpm/bu
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
@@ -146,7 +146,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       })
       buildPackages = buildPackagesValues
     } catch (err) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
+      if (isError(err) && err.name === 'ExitPromptError') {
         process.exit(0)
       }
       throw err
@@ -181,7 +181,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
           default: false,
         })
       } catch (err) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
+        if (isError(err) && err.name === 'ExitPromptError') {
           process.exit(0)
         }
         throw err

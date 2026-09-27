@@ -268,7 +268,7 @@ class VersionSwitchFail extends PnpmError {
     super(
       'VERSION_SWITCH_FAIL',
       `Failed to switch pnpm to v${version}. Looks like pnpm CLI is missing at "${wantedPnpmBinDir}" or is incorrect`,
-      { hint: cause instanceof Error ? cause?.message : undefined })
+      { hint: isError(cause) ? cause?.message : undefined })
 
     if (cause != null) {
       this.cause = cause

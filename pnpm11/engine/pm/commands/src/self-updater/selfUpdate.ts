@@ -6,7 +6,7 @@ import { linkBins } from '@pnpm/bins.linker'
 import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, type PackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
@@ -356,7 +356,7 @@ async function enforceResolutionPolicy (
   try {
     confirmed = await confirm({ message: `${message}\nUpdate anyway?`, default: false })
   } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       confirmed = false
     } else {
       throw err

@@ -59,7 +59,7 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
           default: true,
         })
       } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
+        if (isError(err) && err.name === 'ExitPromptError') {
           process.exit(1)
         }
         throw err

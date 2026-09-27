@@ -53,6 +53,6 @@ export function readPackageJsonFromDirRawSync (pkgPath: string): PackageManifest
     return loadJsonFileSync<PackageManifest>(path.join(pkgPath, 'package.json'))
   } catch (err: unknown) {
     if (isError(err) && 'code' in err) throw err
-    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err instanceof Error ? err.message : String(err)}`)
+    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${isError(err) ? err.message : String(err)}`)
   }
 }

@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { promptLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { isCI } from 'ci-info'
@@ -261,7 +261,7 @@ async function promptForApproval (immature: readonly PolicyViolation[]): Promise
   try {
     confirmed = await confirm({ message, default: false })
   } catch (err) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
+    if (isError(err) && err.name === 'ExitPromptError') {
       confirmed = false
     } else {
       throw err
