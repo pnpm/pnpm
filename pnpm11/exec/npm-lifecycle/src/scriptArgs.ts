@@ -80,11 +80,16 @@ function lastCommand (script: string): string {
       continue
     } else if (char === '^') {
       i++
-    } else if (char === '&' || char === '|') {
+    } else if (char === '|' || (char === '&' && !isRedirection(script[i - 1]))) {
       start = i + 1
     }
   }
   return script.slice(start)
+}
+
+/** Whether an `&` after `char` belongs to a redirection such as `2>&1`. */
+function isRedirection (char: string | undefined): boolean {
+  return char === '>' || char === '<'
 }
 
 function firstWord (command: string): string {

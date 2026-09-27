@@ -118,18 +118,20 @@ fn last_command(script: &str) -> &str {
     let mut inside_quotes = false;
     let mut escaped = false;
     let mut start = 0;
+    let mut previous = None;
     for (index, ch) in script.char_indices() {
         if escaped {
             escaped = false;
         } else if ch == '"' {
             inside_quotes = !inside_quotes;
         } else if inside_quotes {
-            continue;
+            // Quoted text separates nothing.
         } else if ch == '^' {
             escaped = true;
-        } else if ch == '&' || ch == '|' {
+        } else if ch == '|' || (ch == '&' && !matches!(previous, Some('>' | '<'))) {
             start = index + 1;
         }
+        previous = Some(ch);
     }
     &script[start..]
 }

@@ -43,6 +43,8 @@ test.each([
   ['"<bin>/tool.cmd" --flag', true],
   ['bin/tool.cmd --flag', true],
   ['echo ready && tool.cmd', true],
+  ['tool.cmd 2>&1', true],
+  ['tool.cmd <&0', true],
   ['node x.js ^& tool.cmd', false],
   ['tool.cmd && node x.js', false],
   ['node tool.cmd', false],
