@@ -263,7 +263,7 @@ mockito = { version = "1.7.2" }
 # multiply on each step of a chain. Upstream has not released since 2.2.0
 # (February 2025); drop this once it does.
 [patch.crates-io]
-node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "ffd7e0de11937427703c3a99cb4b1473c88e82bb" }
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"
