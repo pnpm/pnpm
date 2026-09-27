@@ -119,6 +119,15 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     MaterializeSideEffects(#[error(source)] ImportIndexedDirError),
 
+    /// Creating a symlink a cached build recorded failed while its
+    /// side-effects overlay was re-materialized into the slot.
+    #[display("Failed to create the symlink {} from the side-effects cache: {source}", path.display())]
+    MaterializeSideEffectsSymlink {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     /// A global-virtual-store slot's `.pnpm-needs-build` marker exists but
     /// cannot be read, so whether another install's build left the slot
     /// half-built is unknown.

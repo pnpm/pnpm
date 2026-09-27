@@ -10,7 +10,10 @@ use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactFile, OwnerScope, PnprClient, PnprClientError, RejectedArtifact,
     ResolveArtifactsOptions, blob_id,
 };
-use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreIndexWriter};
+use pnpm_store_dir::{
+    CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, SideEffectsOverlay, StoreIndexWriter,
+    is_symlink_mode,
+};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
@@ -234,7 +237,7 @@ pub(super) async fn apply_resolved_artifact(
 /// The artifact's file map over the group's base, with every added
 /// file staged in the CAFS.
 pub(super) struct StagedArtifact {
-    overlay: HashMap<String, PathBuf>,
+    overlay: SideEffectsOverlay,
     added: HashMap<String, CafsFileInfo>,
 }
 pub(super) async fn stage_artifact(
@@ -250,12 +253,17 @@ pub(super) async fn stage_artifact(
         overlay.remove(deleted);
     }
     for file in &artifact.payload.manifest.added {
+        // Remote artifacts are read by pnpm versions that restore every
+        // added entry as a regular file, so none may record a symlink.
+        if is_symlink_mode(file.mode) {
+            return Err((format!("{} is recorded as a symlink", file.path), true));
+        }
         let (path, info) =
             stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;
         overlay.insert(file.path.clone(), path);
         added.insert(file.path.clone(), info);
     }
-    Ok(StagedArtifact { overlay, added })
+    Ok(StagedArtifact { overlay: overlay.into(), added })
 }
 pub(super) fn remote_diff(
     context: &ResolvedArtifactContext<'_>,
@@ -280,7 +288,7 @@ pub(super) fn remote_diff(
 pub(super) fn record_group(
     context: &ResolvedArtifactContext<'_>,
     group: &CandidateGroup,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &SideEffectsOverlay,
     diff: &SideEffectsDiff,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) {

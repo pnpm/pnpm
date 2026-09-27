@@ -529,8 +529,8 @@ fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
         .unwrap()
         .remove("k1")
         .expect("entry survives");
-    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
-    assert!(!overlay.contains_key("gone.js"), "deleted drops: {overlay:?}");
+    assert!(overlay.files.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(!overlay.files.contains_key("gone.js"), "deleted drops: {overlay:?}");
 }
 
 #[test]
@@ -565,10 +565,10 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     let result = build_file_maps_from_index(&store_dir, entry);
     let maps = result.side_effects_maps.expect("populated");
     let overlay = maps.get("darwin;arm64;node20;deps=fake").expect("entry exists");
-    assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
-    assert!(overlay.contains_key("c.js"), "added overlays: {overlay:?}");
-    assert!(!overlay.contains_key("b.js"), "deleted drops: {overlay:?}");
-    assert_eq!(overlay.len(), 2);
+    assert!(overlay.files.contains_key("a.js"), "base survives: {overlay:?}");
+    assert!(overlay.files.contains_key("c.js"), "added overlays: {overlay:?}");
+    assert!(!overlay.files.contains_key("b.js"), "deleted drops: {overlay:?}");
+    assert_eq!(overlay.files.len(), 2);
 }
 
 #[test]
@@ -598,7 +598,7 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
         .unwrap()
         .remove("k1")
         .unwrap();
-    let path = overlay.get("collide.js").expect("collide.js present");
+    let path = overlay.files.get("collide.js").expect("collide.js present");
     // CAFS layout splits the digest as `<2-char prefix>/<rest>`, so the
     // path won't contain the digest as a single contiguous substring.
     // Verify by checking that the overlay digest's tail (post-prefix
@@ -749,10 +749,10 @@ fn side_effects_overlay_keys_are_independent() {
     let maps = result.side_effects_maps.unwrap();
     let k1 = maps.get("k1").unwrap();
     let k2 = maps.get("k2").unwrap();
-    assert!(k1.contains_key("a.js") && !k1.contains_key("b.js"), "k1: {k1:?}");
-    assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
-    assert!(k1.contains_key("base.js"));
-    assert!(k2.contains_key("base.js"));
+    assert!(k1.files.contains_key("a.js") && !k1.files.contains_key("b.js"), "k1: {k1:?}");
+    assert!(k2.files.contains_key("b.js") && !k2.files.contains_key("a.js"), "k2: {k2:?}");
+    assert!(k1.files.contains_key("base.js"));
+    assert!(k2.files.contains_key("base.js"));
 }
 
 /// A one-file index whose single entry is recorded under `path`.

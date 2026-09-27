@@ -12,6 +12,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 
 import { parseJsonBufferSync } from './parseJson.js'
+import { normalizeSymlinkTarget, SYMLINK_MODE } from './symlinks.js'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
@@ -20,10 +21,16 @@ export function addFilesFromDir (
     files?: string[]
     includeNodeModules?: boolean
     readManifest?: boolean
+    /**
+     * Record symlinks whose targets {@link normalizeSymlinkTarget} accepts as
+     * entries of type {@link SYMLINK_MODE}, instead of following them.
+     */
+    recordSymlinks?: boolean
   } = {}
 ): AddToStoreResult {
   const filesIndex = new Map() as FilesIndex
-  let hasSymlinks = false
+  let hasUnrecordedSymlinks = false
+  let symlinks: Symlink[] = []
   let manifest: DependencyManifest | undefined
   let files: File[]
   // Resolve the package root to a canonical path for security validation
@@ -33,7 +40,7 @@ export function addFilesFromDir (
     for (const file of opts.files) {
       const absolutePath = path.join(dirname, file)
       const result = getStatIfContained(absolutePath, resolvedRoot)
-      hasSymlinks ||= result.isSymbolicLink
+      hasUnrecordedSymlinks ||= result.isSymbolicLink
       const { stat } = result
       if (!stat) {
         continue
@@ -47,7 +54,8 @@ export function addFilesFromDir (
   } else {
     const result = findFilesInDir(dirname, resolvedRoot, opts)
     files = result.files
-    hasSymlinks = result.hasSymlinks
+    hasUnrecordedSymlinks = result.hasUnrecordedSymlinks
+    symlinks = result.symlinks
   }
   for (const { absolutePath, relativePath, stat } of files) {
     const buffer = gfs.readFileSync(absolutePath)
@@ -62,7 +70,20 @@ export function addFilesFromDir (
       ...addBuffer(buffer, mode),
     })
   }
-  return { manifest, filesIndex, hasSymlinks }
+  for (const { relativePath, target } of symlinks) {
+    const buffer = Buffer.from(target, 'utf8')
+    filesIndex.set(relativePath, {
+      mode: SYMLINK_MODE,
+      size: buffer.length,
+      ...addBuffer(buffer, SYMLINK_MODE),
+    })
+  }
+  return { manifest, filesIndex, hasUnrecordedSymlinks }
+}
+
+interface Symlink {
+  relativePath: string
+  target: string
 }
 
 interface File {
@@ -123,23 +144,30 @@ function getSymlinkStatIfContained (
   return { stat: fs.statSync(realPath), realPath }
 }
 
-function findFilesInDir (dir: string, rootDir: string, opts: { includeNodeModules?: boolean }): { files: File[], hasSymlinks: boolean } {
-  const files: File[] = []
+function findFilesInDir (
+  dir: string,
+  rootDir: string,
+  opts: { includeNodeModules?: boolean, recordSymlinks?: boolean }
+): { files: File[], hasUnrecordedSymlinks: boolean, symlinks: Symlink[] } {
   const ctx: FindFilesContext = {
-    filesList: files,
+    filesList: [],
     includeNodeModules: opts.includeNodeModules ?? false,
-    hasSymlinks: false,
+    hasUnrecordedSymlinks: false,
+    recordSymlinks: opts.recordSymlinks ?? false,
     rootDir,
+    symlinks: [],
     visited: new Set([rootDir]),
   }
   findFiles(ctx, dir, '', rootDir)
-  return { files, hasSymlinks: ctx.hasSymlinks }
+  return { files: ctx.filesList, hasUnrecordedSymlinks: ctx.hasUnrecordedSymlinks, symlinks: ctx.symlinks }
 }
 
 interface FindFilesContext {
   filesList: File[]
-  hasSymlinks: boolean
+  hasUnrecordedSymlinks: boolean
   includeNodeModules: boolean
+  recordSymlinks: boolean
+  symlinks: Symlink[]
   rootDir: string
   visited: Set<string>
 }
@@ -160,7 +188,14 @@ function findFiles (
       if (relativeDir === '' && file.name === 'node_modules' && !ctx.includeNodeModules) {
         continue
       }
-      ctx.hasSymlinks = true
+      if (ctx.recordSymlinks) {
+        const target = normalizeSymlinkTarget(relativeSubdir, fs.readlinkSync(absolutePath))
+        if (target != null) {
+          ctx.symlinks.push({ relativePath: relativeSubdir, target })
+          continue
+        }
+      }
+      ctx.hasUnrecordedSymlinks = true
       const res = getSymlinkStatIfContained(absolutePath, ctx.rootDir)
       if (!res) {
         continue

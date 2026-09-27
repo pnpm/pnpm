@@ -61,7 +61,7 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 /// Outer values are `Arc`-wrapped for the same cold-batch cheap-clone
 /// reason [`PrefetchedCasPaths`] is.
 pub type PrefetchedSideEffectsMaps =
-    HashMap<String, Arc<HashMap<String, HashMap<String, PathBuf>>>>;
+    HashMap<String, Arc<HashMap<String, pnpm_store_dir::SideEffectsOverlay>>>;
 
 pub type PrefetchedSideEffects =
     HashMap<String, Arc<HashMap<String, pnpm_store_dir::SideEffectsDiff>>>;

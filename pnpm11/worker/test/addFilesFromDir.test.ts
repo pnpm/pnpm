@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterAll, expect, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import { getFilePathByModeInCafs, isSymlinkMode, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex } from '@pnpm/store.index'
 
 import { addFilesFromDir, finishWorkers } from '../lib/index.js'
@@ -54,7 +54,45 @@ test('addFilesFromDir() rejects when committing the index writes throws (e.g. a 
   })).rejects.toMatchObject({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' })
 })
 
-test('addFilesFromDir() does not cache side effects that contain symlinks', async () => {
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix('addFilesFromDir() records the symlinks a build creates in side effects', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-worker-test-'))
+  const dir = path.join(tmp, 'pkg')
+  fs.mkdirSync(dir)
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'symlink-side-effects-pkg', version: '1.0.0' }))
+  const storeDir = path.join(tmp, 'store')
+  const filesIndexFile = 'symlink-side-effects-pkg'
+  const storeIndex = new StoreIndex(storeDir)
+
+  await addFilesFromDir({ storeDir, dir, filesIndexFile, storeIndex })
+
+  fs.writeFileSync(path.join(dir, 'generated.js'), 'module.exports = true')
+  fs.symlinkSync('generated.js', path.join(dir, 'generated-link.js'))
+  fs.mkdirSync(path.join(dir, 'lib'))
+  fs.writeFileSync(path.join(dir, 'lib/index.js'), 'module.exports = true')
+  fs.mkdirSync(path.join(dir, 'bin'))
+  fs.symlinkSync('../lib', path.join(dir, 'bin/lib'))
+
+  await addFilesFromDir({
+    storeDir,
+    dir,
+    filesIndexFile,
+    sideEffectsCacheKey: 'test-engine',
+    storeIndex,
+  })
+
+  const added = (storeIndex.get(filesIndexFile) as PackageFilesIndex).sideEffects?.get('test-engine')?.added
+  expect(Array.from(added!.keys()).sort()).toStrictEqual(['bin/lib', 'generated-link.js', 'generated.js', 'lib/index.js'])
+  for (const [link, target] of [['generated-link.js', 'generated.js'], ['bin/lib', '../lib']]) {
+    const info = added!.get(link)!
+    expect(isSymlinkMode(info.mode)).toBe(true)
+    expect(fs.readFileSync(getFilePathByModeInCafs(storeDir, info.digest, info.mode), 'utf8')).toBe(target)
+  }
+  storeIndex.close()
+})
+
+test('addFilesFromDir() does not cache side effects that contain symlinks it cannot record', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-worker-test-'))
   const dir = path.join(tmp, 'pkg')
   fs.mkdirSync(dir)
@@ -70,16 +108,10 @@ test('addFilesFromDir() does not cache side effects that contain symlinks', asyn
     storeIndex,
   })
 
-  if (process.platform === 'win32') {
-    const targetDir = path.join(dir, 'generated')
-    fs.mkdirSync(targetDir)
-    fs.writeFileSync(path.join(targetDir, 'index.js'), 'module.exports = true')
-    fs.symlinkSync(targetDir, path.join(dir, 'generated-link'), 'junction')
-  } else {
-    const targetFile = path.join(dir, 'generated.js')
-    fs.writeFileSync(targetFile, 'module.exports = true')
-    fs.symlinkSync('generated.js', path.join(dir, 'generated-link.js'))
-  }
+  const outsideDir = path.join(tmp, 'outside')
+  fs.mkdirSync(outsideDir)
+  fs.writeFileSync(path.join(outsideDir, 'index.js'), 'module.exports = true')
+  fs.symlinkSync(outsideDir, path.join(dir, 'generated-link'), process.platform === 'win32' ? 'junction' : 'dir')
 
   await addFilesFromDir({
     storeDir,
@@ -120,7 +152,9 @@ test.each([false, true])('addFilesFromDir() removes stale symlink side effects (
   const otherEntry = cachedIndex.sideEffects?.get('other-engine')
 
   fs.rmSync(outputDir, { recursive: true })
-  fs.symlinkSync(targetDir, outputDir, process.platform === 'win32' ? 'junction' : 'dir')
+  const outsideDir = path.join(tmp, 'outside')
+  fs.mkdirSync(outsideDir)
+  fs.symlinkSync(outsideDir, outputDir, process.platform === 'win32' ? 'junction' : 'dir')
   const result = await addFilesFromDir({
     storeDir,
     dir,

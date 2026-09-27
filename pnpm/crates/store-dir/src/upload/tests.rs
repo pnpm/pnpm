@@ -1,4 +1,6 @@
 use super::{HASH_ALGORITHM, calculate_diff, upload, upload_with_diff};
+#[cfg(unix)]
+use crate::SYMLINK_MODE;
 use crate::{
     CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir, StoreIndex, StoreIndexWriter,
     add_files_from_dir,
@@ -133,27 +135,27 @@ fn mixed_changes() {
 }
 
 #[tokio::test]
-async fn symlinked_output_is_not_cached() {
+async fn unrecordable_symlink_output_is_not_cached() {
     for with_diff in [false, true] {
-        check_symlinked_output(with_diff, &[]).await;
+        check_unrecordable_symlink_output(with_diff, &[]).await;
     }
 }
 
 #[tokio::test]
-async fn symlinked_output_removes_only_matching_cached_entry() {
+async fn unrecordable_symlink_output_removes_only_matching_cached_entry() {
     for with_diff in [false, true] {
-        check_symlinked_output(with_diff, &["test-engine", "other-engine"]).await;
+        check_unrecordable_symlink_output(with_diff, &["test-engine", "other-engine"]).await;
     }
 }
 
 #[tokio::test]
-async fn symlinked_output_removes_last_cached_entry() {
+async fn unrecordable_symlink_output_removes_last_cached_entry() {
     for with_diff in [false, true] {
-        check_symlinked_output(with_diff, &["test-engine"]).await;
+        check_unrecordable_symlink_output(with_diff, &["test-engine"]).await;
     }
 }
 
-async fn check_symlinked_output(with_diff: bool, cached_keys: &[&str]) {
+async fn check_unrecordable_symlink_output(with_diff: bool, cached_keys: &[&str]) {
     let store_root = tempdir().expect("create store root");
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     store_dir.init().expect("init store dir");
@@ -219,6 +221,61 @@ async fn check_symlinked_output(with_diff: bool, cached_keys: &[&str]) {
         );
     } else {
         assert_eq!(files_index.side_effects, None);
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn relative_symlink_output_is_cached_as_symlink_entry() {
+    for with_diff in [false, true] {
+        let store_root = tempdir().expect("create store root");
+        let store_dir = StoreDir::from(store_root.path().to_path_buf());
+        store_dir.init().expect("init store dir");
+        let pkg_dir = tempdir().expect("create package dir");
+        let base_index = create_base_index(&store_dir, pkg_dir.path());
+        let files_index_file = "recorded-symlink-pkg";
+        let index = StoreIndex::open(store_dir.root()).expect("open store index");
+        index.set(files_index_file, &base_index).expect("write base package index");
+        drop(index);
+
+        unix_fs::symlink("generated", pkg_dir.path().join("generated-link"))
+            .expect("create relative symlink");
+
+        let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
+        let returned_diff = if with_diff {
+            upload_with_diff(
+                &store_dir,
+                pkg_dir.path(),
+                files_index_file,
+                "test-engine",
+                writer.as_ref(),
+            )
+            .expect("upload side effects with diff")
+        } else {
+            upload(&store_dir, pkg_dir.path(), files_index_file, "test-engine", writer.as_ref())
+                .expect("upload side effects");
+            None
+        };
+        drop(writer);
+        writer_task.await.expect("join store writer").expect("flush store writer");
+
+        let index = StoreIndex::open(store_dir.root()).expect("reopen store index");
+        let files_index = index
+            .get(files_index_file)
+            .expect("read package index")
+            .expect("package index exists");
+        let diff = &files_index.side_effects.expect("side effects cached")["test-engine"];
+        let added = diff.added.as_ref().expect("symlink added");
+        assert_eq!(added.keys().collect::<Vec<_>>(), ["generated-link"]);
+        let link = &added["generated-link"];
+        assert_eq!(link.mode, SYMLINK_MODE);
+        let cas_path =
+            store_dir.cas_file_path_by_mode(&link.digest, link.mode).expect("symlink CAFS path");
+        assert_eq!(fs::read_to_string(cas_path).expect("read symlink target"), "generated");
+        assert!(diff.has_symlinks());
+        if let Some(returned_diff) = returned_diff {
+            assert_eq!(diff, &returned_diff);
+        }
     }
 }
 

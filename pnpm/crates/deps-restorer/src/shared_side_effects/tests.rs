@@ -409,7 +409,7 @@ mod restore {
         let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
             panic!("expected one cache key, got {}", maps.len());
         };
-        overlay
+        overlay.files
             .get(BUILT_FILE)
             .expect("the built file must be in the overlay")
             .clone()

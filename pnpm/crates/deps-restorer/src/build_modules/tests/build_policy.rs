@@ -795,7 +795,8 @@ fn using_side_effects_cache_skips_rebuild() {
         std::collections::HashMap::from([
             ("package.json".to_string(), pkg_dir.join("package.json")),
             ("generated-by-postinstall.js".to_string(), side_effect_blob),
-        ]),
+        ])
+        .into(),
     );
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(pkg_key.clone(), std::sync::Arc::new(overlay));
@@ -949,7 +950,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
     let mut side_effects_maps = std::collections::HashMap::new();
     side_effects_maps.insert(
         pkg_key.clone(),
-        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay)])),
+        std::sync::Arc::new(HashMap::from([(expected_cache_key, overlay.into())])),
     );
 
     BuildModules {

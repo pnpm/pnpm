@@ -13,12 +13,12 @@ use slot_to_build::slot_to_build;
 use std::sync::atomic::Ordering;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, HashMap, LogEvent, LogLevel, NEEDS_BUILD_MARKER,
-    PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
-    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
-    allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
-    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
-    run_postinstall_hooks, slot_carries_overlay,
+    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
+    PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks, SkippedOptionalDependencyLog,
+    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
+    apply_patch_to_dir, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    get_pkg_id_with_patch_hash, parse_name_version_from_key, run_postinstall_hooks,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
@@ -327,7 +327,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
 fn global_slot_carries_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> bool {
     context.directories.layout.enable_global_virtual_store()
         && context

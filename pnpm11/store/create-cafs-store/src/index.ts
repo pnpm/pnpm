@@ -6,7 +6,7 @@ import {
   type CafsLocker,
   createCafs,
 } from '@pnpm/store.cafs'
-import type { Cafs, FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
+import type { Cafs, FilesMap, PackageFilesResponse, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 import type {
   ImportIndexedPackage,
   ImportIndexedPackageAsync,
@@ -30,7 +30,7 @@ export function createPackageImporterAsync (
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return async (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
+    const { filesMap, isBuilt, symlinks } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const pkgImportMethod = needsPrivateFiles(opts.filesResponse, !isBuilt && opts.requiresBuild === true)
       ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
       : (packageImportMethod && packageImportMethod !== 'auto'
@@ -45,6 +45,7 @@ export function createPackageImporterAsync (
       keepModulesDir: Boolean(opts.keepModulesDir),
       safeToSkip: opts.safeToSkip,
       sourceExists: opts.filesResponse.sourceExists,
+      symlinks,
     })
     return { importMethod, isBuilt }
   }
@@ -63,7 +64,7 @@ function createPackageImporter (
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.storeDir)
   return (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
+    const { filesMap, isBuilt, symlinks } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const pkgImportMethod = needsPrivateFiles(opts.filesResponse, !isBuilt && opts.requiresBuild === true)
       ? (packageImportMethod === 'copy' ? 'copy' : 'clone-or-copy')
       : (packageImportMethod && packageImportMethod !== 'auto'
@@ -78,6 +79,7 @@ function createPackageImporter (
       keepModulesDir: Boolean(opts.keepModulesDir),
       safeToSkip: opts.safeToSkip,
       sourceExists: opts.filesResponse.sourceExists,
+      symlinks,
     })
     return { importMethod, isBuilt }
   }
@@ -95,13 +97,14 @@ function getFlatMap (
   storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: FilesMap, isBuilt: boolean } {
+): { filesMap: FilesMap, isBuilt: boolean, symlinks?: Map<string, string> } {
   if (targetEngine && filesResponse.sideEffectsMaps?.has(targetEngine)) {
     const sideEffectMap = filesResponse.sideEffectsMaps.get(targetEngine)!
     const filesMap = applySideEffectsDiffWithMaps(filesResponse.filesMap, sideEffectMap)
     return {
       filesMap,
       isBuilt: true,
+      symlinks: sideEffectMap.symlinks,
     }
   }
   return {
@@ -113,7 +116,7 @@ function getFlatMap (
 // Apply side effects when we already have file location maps (fast path)
 function applySideEffectsDiffWithMaps (
   baseFiles: FilesMap,
-  { added, deleted }: { added?: FilesMap, deleted?: string[] }
+  { added, deleted, symlinks }: SideEffectsFilesMap
 ): FilesMap {
   const filesWithSideEffects = new Map<string, string>()
   // Add side effect files (already have file paths)
@@ -122,9 +125,9 @@ function applySideEffectsDiffWithMaps (
       filesWithSideEffects.set(name, filePath)
     }
   }
-  // Add base files that weren't deleted
+  // Add base files that weren't deleted or replaced by a symlink
   for (const [fileName, filePath] of baseFiles) {
-    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName)) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects.has(fileName) && !symlinks?.has(fileName)) {
       filesWithSideEffects.set(fileName, filePath)
     }
   }
