@@ -46,6 +46,7 @@ fn strict_install_accepts_a_subdep_newer_than_only_the_time_based_cutoff() {
         .success();
 
     let bravo_dep = workspace.join("node_modules/.pnpm/@pnpm.e2e+bravo-dep@1.1.0");
+    eprintln!("bravo_dep: {}", bravo_dep.display());
     assert!(bravo_dep.exists());
 
     drop((root, npmrc_info));
