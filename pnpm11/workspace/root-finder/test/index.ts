@@ -6,8 +6,13 @@ import { expect, test } from '@jest/globals'
 import { findWorkspaceDir, findWorkspaceDirSync } from '@pnpm/workspace.root-finder'
 import { temporaryDirectory } from 'tempy'
 
-const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'
+const WORKSPACE_DIR_ENV_VARS = [
+  'PNPM_CONFIG_WORKSPACE_DIR',
+  'pnpm_config_workspace_dir',
+  'NPM_CONFIG_WORKSPACE_DIR',
+  'npm_config_workspace_dir',
+]
 function isFileSystemCaseSensitive () {
   try {
     fs.realpathSync.native(process.cwd().toUpperCase())
@@ -33,15 +38,27 @@ testOnCaseInSensitiveSystems('finds workspace dir with wrong case from cwd', asy
   expect(workspaceDir).toBe(path.resolve(import.meta.dirname, '..', '..', '..', '..'))
 })
 
-test('finds overridden workspace dir', async () => {
-  const oldValue = process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR]
-  process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR] = FAKE_PATH
-  const workspaceDir = await findWorkspaceDir(process.cwd())
-  if (oldValue == null) {
-    delete process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR]
-  } else {
-    process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR] = oldValue
-  }
+test.each(WORKSPACE_DIR_ENV_VARS)('finds workspace dir overridden by %s', async (envVar) => {
+  const workspaceDir = await withWorkspaceDirEnv({ [envVar]: FAKE_PATH }, () => findWorkspaceDir(process.cwd()))
+
+  expect(workspaceDir).toBe(FAKE_PATH)
+  expect(await withWorkspaceDirEnv({ [envVar]: FAKE_PATH }, () => findWorkspaceDirSync(process.cwd()))).toBe(FAKE_PATH)
+})
+
+test('PNPM_CONFIG_WORKSPACE_DIR takes precedence over NPM_CONFIG_WORKSPACE_DIR', async () => {
+  const workspaceDir = await withWorkspaceDirEnv({
+    PNPM_CONFIG_WORKSPACE_DIR: FAKE_PATH,
+    NPM_CONFIG_WORKSPACE_DIR: 'OTHER_PATH',
+  }, () => findWorkspaceDir(process.cwd()))
+
+  expect(workspaceDir).toBe(FAKE_PATH)
+})
+
+test('an empty PNPM_CONFIG_WORKSPACE_DIR falls back to NPM_CONFIG_WORKSPACE_DIR', async () => {
+  const workspaceDir = await withWorkspaceDirEnv({
+    PNPM_CONFIG_WORKSPACE_DIR: '',
+    NPM_CONFIG_WORKSPACE_DIR: FAKE_PATH,
+  }, () => findWorkspaceDir(process.cwd()))
 
   expect(workspaceDir).toBe(FAKE_PATH)
 })
@@ -100,4 +117,23 @@ function prepareWorkspace (packages: string[]): string {
   }
   fs.mkdirSync(path.join(workspaceDir, 'packages/pkg-1/src'))
   return workspaceDir
+}
+
+async function withWorkspaceDirEnv<T> (env: Record<string, string>, fn: () => T | Promise<T>): Promise<T> {
+  const oldValues = Object.fromEntries(WORKSPACE_DIR_ENV_VARS.map((name) => [name, process.env[name]]))
+  for (const name of WORKSPACE_DIR_ENV_VARS) {
+    delete process.env[name]
+  }
+  Object.assign(process.env, env)
+  try {
+    return await fn()
+  } finally {
+    for (const [name, value] of Object.entries(oldValues)) {
+      if (value == null) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
+  }
 }

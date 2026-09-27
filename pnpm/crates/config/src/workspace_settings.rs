@@ -55,7 +55,7 @@ impl Config {
             }
             // The workspace root is structural context (env-lockfile reads/
             // writes, pin persistence), not a "setting" — set it whenever a
-            // workspace is discovered, even on the `NPM_CONFIG_WORKSPACE_DIR`
+            // workspace is discovered, even on the `PNPM_CONFIG_WORKSPACE_DIR`
             // path when the yaml file is missing and `apply_to` (which also
             // writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
@@ -187,9 +187,9 @@ impl Config {
         // there is no shared lockfile, no sibling projects, and no
         // `pnpm-workspace.yaml` settings layer. Only the flag reaches
         // this far — see [`Config::ignore_workspace`].
-        let env_workspace_dir = Sys::var_os("NPM_CONFIG_WORKSPACE_DIR")
-            .or_else(|| Sys::var_os("npm_config_workspace_dir"))
-            .filter(|value| !value.is_empty())
+        let env_workspace_dir = pnpm_workspace::WORKSPACE_DIR_ENV_VARS
+            .iter()
+            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
             .map(PathBuf::from);
         let workspace_yaml = if self.ignore_workspace {
             None

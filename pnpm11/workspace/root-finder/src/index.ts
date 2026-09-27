@@ -8,7 +8,13 @@ import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspac
 import * as find from 'empathic/find'
 
 const MANIFEST_BASE_NAMES_SET = new Set<string>(MANIFEST_BASE_NAMES)
-const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
+const WORKSPACE_DIR_ENV_VARS = [
+  'PNPM_CONFIG_WORKSPACE_DIR',
+  'pnpm_config_workspace_dir',
+  // The `npm_config_` spelling stays accepted as a fallback.
+  'NPM_CONFIG_WORKSPACE_DIR',
+  'npm_config_workspace_dir',
+]
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 const INVALID_WORKSPACE_MANIFEST_FILENAME = [
   'pnpm-workspaces.yaml',
@@ -21,7 +27,7 @@ const INVALID_WORKSPACE_MANIFEST_FILENAME = [
 ]
 
 export async function findWorkspaceDir (cwd: string): Promise<string | undefined> {
-  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
+  const workspaceManifestDirEnvVar = getWorkspaceDirFromEnv()
   if (workspaceManifestDirEnvVar) {
     return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
   }
@@ -36,7 +42,7 @@ export async function findWorkspaceDir (cwd: string): Promise<string | undefined
 }
 
 export function findWorkspaceDirSync (cwd: string): string | undefined {
-  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
+  const workspaceManifestDirEnvVar = getWorkspaceDirFromEnv()
   if (workspaceManifestDirEnvVar) {
     return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
   }
@@ -48,6 +54,14 @@ export function findWorkspaceDirSync (cwd: string): string | undefined {
   }
   const workspaceDir = path.dirname(workspaceManifestLocation)
   return belongsToWorkspaceSync(workspaceDir, realCwd) ? workspaceDir : undefined
+}
+
+function getWorkspaceDirFromEnv (): string | undefined {
+  for (const name of WORKSPACE_DIR_ENV_VARS) {
+    const value = process.env[name]
+    if (value) return value
+  }
+  return undefined
 }
 
 /**

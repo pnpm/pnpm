@@ -6,8 +6,9 @@
 //! `pnpm-workspace.yaml`. That ordering means env vars override yaml.
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
-//! the exception of `NPM_CONFIG_WORKSPACE_DIR`, which has its own narrow
-//! handler in [`crate::Config::current`]). pnpm stopped honouring those
+//! the exception of `NPM_CONFIG_WORKSPACE_DIR`, a fallback of the
+//! workspace-dir override that [`crate::Config::current`] handles on its
+//! own, see [`pnpm_workspace::WORKSPACE_DIR_ENV_VARS`]). pnpm stopped honouring those
 //! too; the only remaining `npm_config_*` lookup in pnpm is `userconfig`
 //! as a low-priority auth-file fallback.
 
