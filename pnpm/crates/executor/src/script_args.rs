@@ -115,25 +115,37 @@ fn ends_with_batch_file(script: &str, search_path: &OsStr, cwd: &Path) -> bool {
 /// The last command of a chain such as `a && b | c`, which is the one that
 /// receives the appended arguments.
 fn last_command(script: &str) -> &str {
-    let mut inside_quotes = false;
-    let mut escaped = false;
     let mut start = 0;
     let mut previous = None;
-    for (index, ch) in script.char_indices() {
-        if escaped {
-            escaped = false;
-        } else if ch == '"' {
-            inside_quotes = !inside_quotes;
-        } else if inside_quotes {
-            // Quoted text separates nothing.
-        } else if ch == '^' {
-            escaped = true;
-        } else if ch == '|' || (ch == '&' && !matches!(previous, Some('>' | '<'))) {
+    for (index, ch) in active_chars(script) {
+        // An `&` right after a `>` or `<` duplicates a handle, as in `2>&1`.
+        let redirection = matches!(previous, Some('>' | '<'));
+        if ch == Some('|') || (ch == Some('&') && !redirection) {
             start = index + 1;
         }
-        previous = Some(ch);
+        previous = ch;
     }
     &script[start..]
+}
+
+/// Each character of `script` with its index, or `None` in place of a
+/// quote, a `^`, or a character that quoting or a `^` makes literal.
+fn active_chars(script: &str) -> impl Iterator<Item = (usize, Option<char>)> + '_ {
+    let mut inside_quotes = false;
+    let mut escaped = false;
+    script
+        .char_indices()
+        .map(move |(index, ch)| {
+            let active = !escaped && !inside_quotes && ch != '"' && ch != '^';
+            if escaped {
+                escaped = false;
+            } else if ch == '"' {
+                inside_quotes = !inside_quotes;
+            } else {
+                escaped = !inside_quotes && ch == '^';
+            }
+            (index, active.then_some(ch))
+        })
 }
 
 fn first_word(command: &str) -> String {

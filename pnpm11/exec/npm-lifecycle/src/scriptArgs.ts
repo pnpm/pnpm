@@ -71,25 +71,26 @@ function quoteForCRuntime (arg: string): string {
  */
 function lastCommand (script: string): string {
   let insideQuotes = false
+  // An `&` right after an unescaped `>` or `<` duplicates a handle, as in `2>&1`.
+  let redirecting = false
   let start = 0
   for (let i = 0; i < script.length; i++) {
     const char = script[i]
+    const afterRedirection = redirecting
+    redirecting = false
     if (char === '"') {
       insideQuotes = !insideQuotes
     } else if (insideQuotes) {
       continue
     } else if (char === '^') {
       i++
-    } else if (char === '|' || (char === '&' && !isRedirection(script[i - 1]))) {
+    } else if (char === '>' || char === '<') {
+      redirecting = true
+    } else if (char === '|' || (char === '&' && !afterRedirection)) {
       start = i + 1
     }
   }
   return script.slice(start)
-}
-
-/** Whether an `&` after `char` belongs to a redirection such as `2>&1`. */
-function isRedirection (char: string | undefined): boolean {
-  return char === '>' || char === '<'
 }
 
 function firstWord (command: string): string {

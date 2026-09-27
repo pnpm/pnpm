@@ -45,6 +45,8 @@ test.each([
   ['echo ready && tool.cmd', true],
   ['tool.cmd 2>&1', true],
   ['tool.cmd <&0', true],
+  ['echo ^>& tool.cmd', true],
+  ['echo ^<& tool.cmd', true],
   ['node x.js ^& tool.cmd', false],
   ['tool.cmd && node x.js', false],
   ['node tool.cmd', false],

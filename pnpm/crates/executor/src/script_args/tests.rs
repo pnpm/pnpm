@@ -104,6 +104,8 @@ fn cmd_quoting_escapes_twice_only_when_the_script_ends_with_a_batch_file() {
         ("echo ready && tool.cmd".to_string(), true),
         ("tool.cmd 2>&1".to_string(), true),
         ("tool.cmd <&0".to_string(), true),
+        ("echo ^>& tool.cmd".to_string(), true),
+        ("echo ^<& tool.cmd".to_string(), true),
         ("node x.js ^& tool.cmd".to_string(), false),
         ("tool.cmd && node x.js".to_string(), false),
         ("node tool.cmd".to_string(), false),
