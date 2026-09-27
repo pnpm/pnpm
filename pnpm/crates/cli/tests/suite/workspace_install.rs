@@ -1472,7 +1472,7 @@ fn shared_workspace_lockfile_false_installs_dependencies_before_dependents() {
 
     let record = |name: &str, delay_ms: u32| {
         format!(
-            "node -e \"setTimeout(() => require('fs').appendFileSync('../../order.txt', '{name}\\\\n'), {delay_ms})\""
+            r#"node -e "setTimeout(() => require('fs').appendFileSync('../../order.txt', '{name}\\n'), {delay_ms})""#,
         )
     };
     for (name, dependencies, delay_ms) in [
