@@ -36,7 +36,6 @@ function returnsInterruptedChildStatus (shell: SelectedShell): boolean {
 }
 
 export function selectShell (scriptShell: string | undefined, platform: NodeJS.Platform, comspec: string | undefined): SelectedShell {
-  // A blank scriptShell is unset.
   scriptShell = scriptShell || undefined
   if (platform === 'win32') {
     const sh = scriptShell ?? comspec ?? 'cmd'
@@ -46,11 +45,6 @@ export function selectShell (scriptShell: string | undefined, platform: NodeJS.P
     return { sh, shFlag: '-c', windowsVerbatimArguments: false }
   }
   return { sh: scriptShell ?? 'sh', shFlag: '-c', windowsVerbatimArguments: false }
-}
-
-/** `shellEmulator` applies only when `scriptShell` is unset. */
-export function useShellEmulator (shellEmulator: boolean | undefined, scriptShell: string | undefined): boolean {
-  return shellEmulator === true && !scriptShell
 }
 
 /**
@@ -63,6 +57,11 @@ export function commandParsedByCmd (scriptShell: string | undefined, platform: N
   if (useShellEmulator(shellEmulator, shell)) return false
   if (platform !== 'win32') return false
   return shell == null || isCmdExe(shell)
+}
+
+/** `shellEmulator` applies only when `scriptShell` is unset. */
+export function useShellEmulator (shellEmulator: boolean | undefined, scriptShell: string | undefined): boolean {
+  return shellEmulator === true && !scriptShell
 }
 
 function isCmdExe (shellPath: string): boolean {

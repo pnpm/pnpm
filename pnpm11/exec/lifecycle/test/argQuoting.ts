@@ -38,3 +38,32 @@ test('runLifecycleHook() quotes arguments for the emulator rather than for cmd o
   const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
   expect(recorded).toStrictEqual(args)
 })
+
+// cmd's JSON quoting would leave `$PNPM_QUOTING_TEST` for sh to expand,
+// so the recorded arguments show which shell the quoting was chosen for.
+const skipOnRealWindows = process.platform === 'win32' ? test.skip : test
+
+skipOnRealWindows.each([false, true])('runLifecycleHook() quotes arguments for a configured non-cmd scriptShell on Windows (shellEmulator: %s)', async (shellEmulator) => {
+  const pkgRoot = f.prepare('escape-args')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  const args = [
+    'C:\\Program Files\\tool\\',
+    'a"b',
+    "it's",
+    '$PNPM_QUOTING_TEST',
+  ]
+
+  await runLifecycleHook('echo', pkg, {
+    args,
+    depPath: '/escape-args/1.0.0',
+    extraEnv: { PNPM_QUOTING_TEST: 'expanded' },
+    pkgRoot,
+    rootModulesDir,
+    scriptShell: '/bin/sh',
+    shellEmulator,
+    unsafePerm: true,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(args)
+})
