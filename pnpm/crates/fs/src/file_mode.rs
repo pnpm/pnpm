@@ -98,6 +98,17 @@ fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
         .open(path)
 }
 
+/// [`open_without_following`] restricted to a directory. See
+/// [`add_dir_mode_bits`].
+#[cfg(unix)]
+fn open_directory_without_following(path: &Path) -> io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
+        .open(path)
+}
+
 /// Re-add executable bits to `target` when the CAS source path carries the
 /// `-exec` suffix. The CAS encodes executability purely in that suffix (see
 /// [`cas_path_is_executable`]), so it is the source of truth: a `copy` or
@@ -269,23 +280,6 @@ pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
     }
 }
 
-/// OR the file mode inherited from `parent` onto `file`.
-///
-/// No-op when `parent` cannot be stated. See [`grant_mode_bits`] for which
-/// failures are ignored.
-#[cfg(unix)]
-pub fn grant_inherited_mode(
-    file: &std::fs::File,
-    parent: &Path,
-    executable: bool,
-) -> io::Result<()> {
-    let Some(parent_mode) = reachable_mode(parent)? else {
-        return Ok(());
-    };
-    let wanted = inherited_file_mode(parent_mode, executable);
-    grant_mode_bits(file, wanted)
-}
-
 /// `create_dir_all` that, on Unix, gives each directory it creates the
 /// group permission and setgid bits of the nearest ancestor that already
 /// existed (see [`grant_inherited_dir_mode`]). Directories that were
@@ -368,24 +362,20 @@ fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
 /// The chmod goes through a descriptor opened without following a symlink,
 /// so a directory entry swapped for a symlink after it was created is
 /// refused rather than followed to a directory outside the store.
+/// `O_DIRECTORY` refuses any other non-directory before the open can block
+/// on it, as it would on a FIFO.
 #[cfg(unix)]
 fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    let dir = match crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path)) {
-        Ok(dir) => dir,
-        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-            return Ok(());
-        }
-        Err(error) => return Err(error),
-    };
-    let meta = dir.metadata()?;
-    if !meta.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotADirectory,
-            format!("{} is not a directory", path.display()),
-        ));
-    }
-    let mode = meta.permissions().mode() & 0o7777;
+    let dir =
+        match crate::ensure_file::retry_on_fd_pressure(|| open_directory_without_following(path)) {
+            Ok(dir) => dir,
+            Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
+    let mode = dir.metadata()?.permissions().mode() & 0o7777;
     let merged = mode | extra;
     if merged == mode {
         return Ok(());

@@ -35,11 +35,6 @@ function inheritedFileMode (parentMode: number, executable: boolean): number {
   return mode | 0o600
 }
 
-export function grantInheritedFileMode (fd: number, parent: string): void {
-  const parentMode = readDirMode(parent)
-  if (parentMode != null) grantModeBits(fd, inheritedFileMode(parentMode, false))
-}
-
 // Mode of `dir`, or undefined when it cannot be read.
 export function readDirMode (dir: string): number | undefined {
   try {
@@ -133,7 +128,7 @@ function addDirModeBits (dir: string, extra: number): void {
   try {
     fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
   } catch (err: unknown) {
-    if (isUnchangeable(err) || isMissing(err)) return
+    if (isUnchangeable(err) || errorCode(err) === 'ENOENT') return
     throw err
   }
   try {

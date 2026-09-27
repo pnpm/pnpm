@@ -519,8 +519,9 @@ fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
     Ok(url.into())
 }
 
-/// Create `index.db` if it is missing and give it the store directory's
-/// inherited mode. `SQLite` copies the database's mode onto the WAL and
+/// Create `index.db` if it is missing, with the store directory's inherited
+/// mode as both the open ceiling and the post-create grant (see
+/// [`pnpm_fs::file_mode::unix_creation_mode`]). `SQLite` copies the database's mode onto the WAL and
 /// shared-memory sidecars, so the bits must be in place before it opens.
 ///
 /// The exclusive create decides which process made the database. An
@@ -532,16 +533,16 @@ fn create_new_index_with_inherited_mode(
     store_dir: &Path,
 ) -> Result<(), StoreIndexError> {
     let to_error = |source| StoreIndexError::CreateFile { path: db_path.to_path_buf(), source };
-    let file = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(db_path)
-    {
+    let creation = pnpm_fs::file_mode::unix_creation_mode(store_dir, None);
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    creation.apply_to(&mut options);
+    let file = match options.open(db_path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
         Err(error) => return Err(to_error(error)),
     };
-    pnpm_fs::file_mode::grant_inherited_mode(&file, store_dir, false).map_err(to_error)
+    creation.grant(&file).map_err(to_error)
 }
 
 #[cfg(test)]

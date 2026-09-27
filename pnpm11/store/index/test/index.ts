@@ -202,6 +202,21 @@ testOnPosix('StoreIndex keeps group write on a new index.db and does not chmod a
   }
 })
 
+testOnPosix('StoreIndex does not make a new index.db world-writable in a world-writable store', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o1777)
+  const storeDir = path.join(parent, 'store')
+  fs.mkdirSync(storeDir)
+  fs.chmodSync(storeDir, 0o1777)
+  const previousUmask = process.umask(0)
+  try {
+    new StoreIndex(storeDir).close()
+  } finally {
+    process.umask(previousUmask)
+  }
+  expect(fs.statSync(path.join(storeDir, 'index.db')).mode & 0o002).toBe(0)
+})
+
 testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without immutable-URI support', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   expect(() => new ReadOnlyStoreIndex(storeDir))

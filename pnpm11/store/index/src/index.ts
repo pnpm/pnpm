@@ -5,7 +5,7 @@ import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlit
 import { pathToFileURL } from 'node:url'
 
 import { isError, PnpmError } from '@pnpm/error'
-import { grantInheritedFileMode, mkdirInheritingMode } from '@pnpm/store.file-mode'
+import { grantModeBits, mkdirInheritingMode, readDirMode, unixCreationMode } from '@pnpm/store.file-mode'
 import { Packr } from 'msgpackr'
 
 import {
@@ -501,20 +501,22 @@ function nodeSupportsImmutableSqliteUri (): boolean {
 }
 
 // SQLite copies the database's mode onto the WAL sidecars, so a new
-// index.db gets the store directory's inherited mode before SQLite opens it.
+// index.db gets the store directory's inherited mode, as both the open
+// ceiling and the post-create grant, before SQLite opens it.
 // The exclusive create decides which process made the database. An existing
 // database, including one a concurrent process just created, is not chmod'd.
 function createIndexWithInheritedMode (storeDir: string): void {
   const dbPath = path.join(storeDir, 'index.db')
+  const creation = unixCreationMode(readDirMode(storeDir), undefined)
   let fd: number
   try {
-    fd = fs.openSync(dbPath, 'wx')
+    fd = fs.openSync(dbPath, 'wx', creation.openMode)
   } catch (err: unknown) {
     if (isError(err) && 'code' in err && err.code === 'EEXIST') return
     throw new PnpmError('STORE_DIR_STORE_INDEX_CREATE_FILE', `Failed to create index.db at ${dbPath}: ${isError(err) ? err.message : String(err)}`, { cause: err })
   }
   try {
-    grantInheritedFileMode(fd, storeDir)
+    if (creation.grantMode != null) grantModeBits(fd, creation.grantMode)
   } finally {
     fs.closeSync(fd)
   }
