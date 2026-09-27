@@ -310,6 +310,26 @@ test('StoreIndex fallback file reports a corrupt snapshot instead of reading it 
   }
 })
 
+test('StoreIndex fallback file reports a zeroed generation header instead of reading it as empty', () => {
+  const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
+  const writer = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    writer.set('k', { n: 1 })
+  } finally {
+    writer.close()
+  }
+  const fallbackPath = path.join(storeDir, 'index.fallback')
+  const zeroed = fs.readFileSync(fallbackPath)
+  zeroed.writeUInt32BE(0, 0)
+  fs.writeFileSync(fallbackPath, zeroed)
+  const reader = new IncompleteSqliteStoreIndex(storeDir)
+  try {
+    expect(() => reader.get('k')).toThrow(expect.objectContaining({ code: 'ERR_PNPM_STORE_INDEX_FALLBACK_CORRUPT' }))
+  } finally {
+    reader.close()
+  }
+})
+
 test('StoreIndex falls back to a file when prepared statements cannot run', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StatementRunMissingStoreIndex(storeDir)

@@ -369,7 +369,8 @@ function nextGeneration (current: number): number {
 }
 
 // A short header lets readers notice a new snapshot without decoding it.
-// A torn or half-replaced file fails the length check and is retried.
+// Returns 0 for a missing file and undefined for a header no writer stamps:
+// a torn file, or a zero that {@link nextGeneration} never produces.
 function readGeneration (dataPath: string): number | undefined {
   let fd: number
   try {
@@ -382,7 +383,7 @@ function readGeneration (dataPath: string): number | undefined {
     const buf = Buffer.alloc(4)
     const n = fs.readSync(fd, buf, 0, 4, 0)
     if (n < 4) return undefined
-    return buf.readUInt32BE(0)
+    return buf.readUInt32BE(0) || undefined
   } finally {
     fs.closeSync(fd)
   }
