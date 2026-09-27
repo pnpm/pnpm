@@ -304,10 +304,11 @@ pub(super) fn read_dep_bin_source(
             })
         })
 }
-/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to a
-/// `publishConfig.directory` that has no manifest of its own falls back
-/// to the manifest of the project that declares that directory, found
-/// through `target`.
+/// Reads `<modules_dir>/<name>/package.json`. A dependency linked to an
+/// existing `publishConfig.directory` that has no manifest of its own
+/// falls back to the manifest of the project that declares that
+/// directory, found through `target`. A publish directory that does not
+/// exist yet has no bins to link; a build creates it later.
 fn read_dep_manifest(
     modules_dir: &Path,
     name: &str,
@@ -316,9 +317,7 @@ fn read_dep_manifest(
     let location = modules_dir.join(name);
     let manifest = match read_manifest_at(&location.join("package.json")) {
         Ok(Some(manifest)) => manifest,
-        Ok(None) => match find_parent_publish_manifest(target?)
-            .map_err(LinkBinsError::ReadProjectManifest)
-        {
+        Ok(None) => match read_existing_publish_manifest(target?) {
             Ok(Some(manifest)) => manifest,
             Ok(None) => return None,
             Err(err) => return Some(Err(err)),
@@ -326,6 +325,18 @@ fn read_dep_manifest(
         Err(err) => return Some(Err(err)),
     };
     Some(Ok((location, manifest)))
+}
+fn read_existing_publish_manifest(
+    target: &Path,
+) -> Result<Option<serde_json::Value>, LinkBinsError> {
+    match fs::metadata(target) {
+        Ok(metadata) if metadata.is_dir() => {
+            find_parent_publish_manifest(target).map_err(LinkBinsError::ReadProjectManifest)
+        }
+        Ok(_) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LinkBinsError::ResolvePath { path: target.to_path_buf(), error }),
+    }
 }
 pub(super) fn link_named_dep_bins(
     modules_dir: &Path,

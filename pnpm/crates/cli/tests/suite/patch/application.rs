@@ -7,7 +7,6 @@ use super::{
     remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
-#[cfg(unix)]
 use pnpm_testing_utils::fs::bump_mtime;
 
 /// The map records the hash bare, so replacing the parenthesized form reaches
@@ -25,6 +24,7 @@ fn rewrite_lockfile_patch_hash_segments(lockfile_path: &Path, patch_hash: &str, 
     let rewritten = text.replace(&format!("(patch_hash={patch_hash})"), replacement);
     assert_ne!(rewritten, text, "the lockfile must carry a patch hash to rewrite");
     fs::write(lockfile_path, rewritten).expect("write the lockfile");
+    bump_mtime(lockfile_path);
 }
 
 const STALE_PATCH_HASH_SEGMENT: &str =
