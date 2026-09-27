@@ -42,6 +42,16 @@ test('an import directory in a section\'s zero-filled tail fails the check', () 
   assert.equal(run(bytes), 1)
 })
 
+test('a DLL name that runs past the section\'s raw data fails the check', () => {
+  const pe = peWithImports(['VCRUNTIME140.dll'])
+  const rawStart = 0x200
+  const nameStart = rawStart + 2 * 20
+  pe.fill('A', nameStart)
+  const bytes = Buffer.concat([pe, Buffer.alloc(16)])
+  assert.throws(() => importedDlls(bytes), /unterminated import DLL name/)
+  assert.equal(run(bytes), 1)
+})
+
 test('import names match objdump', () => {
   const dlls = ['KERNEL32.dll', 'VCRUNTIME140.dll']
   const bytes = peWithImports(dlls)

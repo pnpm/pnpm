@@ -49,19 +49,20 @@ export function importedDlls (bytes) {
   }
 
   const names = []
-  let entry = rvaToOffset(view, sections, importRva)
+  const directory = rvaToRawSpan(view, sections, importRva)
+  let entry = directory.offset
   for (;;) {
-    if (entry + 20 > view.length) throw new Error('truncated import directory')
+    if (entry + 20 > directory.end) throw new Error('truncated import directory')
     const originalFirstThunk = view.readUInt32LE(entry)
     const timeDateStamp = view.readUInt32LE(entry + 4)
     const forwarderChain = view.readUInt32LE(entry + 8)
     const nameRva = view.readUInt32LE(entry + 12)
     const firstThunk = view.readUInt32LE(entry + 16)
     if (nameRva === 0 && originalFirstThunk === 0 && timeDateStamp === 0 && forwarderChain === 0 && firstThunk === 0) break
-    const nameOffset = rvaToOffset(view, sections, nameRva)
-    const end = view.indexOf(0, nameOffset)
-    if (end === -1) throw new Error('unterminated import DLL name')
-    names.push(view.toString('ascii', nameOffset, end))
+    const name = rvaToRawSpan(view, sections, nameRva)
+    const length = view.subarray(name.offset, name.end).indexOf(0)
+    if (length === -1) throw new Error('unterminated import DLL name')
+    names.push(view.toString('ascii', name.offset, name.offset + length))
     entry += 20
   }
   return names
@@ -71,14 +72,18 @@ export function dynamicVcRuntimeDlls (dlls) {
   return dlls.filter(name => VC_RUNTIME_DLL.test(name))
 }
 
-function rvaToOffset (view, sections, rva) {
+// The loader zero-fills a section past its raw data, and bytes after the raw
+// data belong to something else, so a read that starts at an RVA must end
+// within the same section's raw data.
+function rvaToRawSpan (view, sections, rva) {
   for (const section of sections) {
     const span = Math.max(section.virtualSize, section.rawSize)
     if (rva < section.virtualAddress || rva >= section.virtualAddress + span) continue
     const delta = rva - section.virtualAddress
     const offset = section.rawPointer + delta
-    if (delta >= section.rawSize || offset >= view.length) throw new Error(`RVA 0x${rva.toString(16)} points outside the file`)
-    return offset
+    const end = Math.min(section.rawPointer + section.rawSize, view.length)
+    if (delta >= section.rawSize || offset >= end) throw new Error(`RVA 0x${rva.toString(16)} points outside the file`)
+    return { offset, end }
   }
   throw new Error(`RVA 0x${rva.toString(16)} is not in any section`)
 }
