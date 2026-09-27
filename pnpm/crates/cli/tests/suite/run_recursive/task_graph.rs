@@ -269,6 +269,45 @@ fn regexp_selector_runs_a_matched_hidden_script_named_in_depends_on() {
     drop(root);
 }
 
+/// `project-a`'s `test` names `.setup` in its `dependsOn`, which exempts
+/// only `project-a`'s `.setup`. The unrelated `project-b`'s hidden `.setup`
+/// the selector matched is filtered as usual.
+#[test]
+fn a_depends_on_reference_exempts_only_the_hidden_task_it_targets() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let scripts = |name: &str, visible: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": {
+                visible: append_line_script(&format!("{name}-{visible}"), "../order.log"),
+                ".setup": append_line_script(&format!("{name}-setup"), "../order.log"),
+            },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[("project-a", scripts("project-a", "test")), ("project-b", scripts("project-b", "lint"))],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-a\n  - project-b\ntasks:\n  test:\n    dependsOn: ['.setup']\n",
+    )
+    .expect("write workspace settings");
+
+    pacquet
+        .with_args(["-r", "run", "/test|lint|setup/"])
+        .env_remove("npm_lifecycle_event")
+        .assert()
+        .success();
+
+    let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    let mut lines: Vec<&str> = order.lines().collect();
+    lines.sort_unstable();
+    assert_eq!(lines, ["project-a-setup", "project-a-test", "project-b-lint"]);
+    drop(root);
+}
+
 /// `--reverse` makes `build` depend on the hidden task the invocation
 /// named. That edge is no `dependsOn` reference, so the name is rejected.
 #[test]

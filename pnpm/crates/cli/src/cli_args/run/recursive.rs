@@ -34,7 +34,7 @@ use derive_more::{Display, Error};
 use execution::{RunOutcome, RunSlots, TaskRunner};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, TaskSettings};
+use pnpm_config::Config;
 use pnpm_executor::{ProcessTracker, ScriptOutput};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
@@ -51,10 +51,10 @@ use pnpm_workspace_task_scheduler::{
 };
 use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
 use selection::{
-    RunReporting, a_project_has_the_script, build_run_task_graph, check_a_project_has_the_script,
-    filter_hidden_requested_scripts, print_run_dry_run, print_selected_project_commands,
-    report_run_outcome, resume_task_graph, run_concurrency, run_process_tracker,
-    run_state_settings, run_tasks,
+    HiddenScriptCheck, RunReporting, a_project_has_the_script, build_run_task_graph,
+    check_a_project_has_the_script, filter_hidden_requested_scripts, print_run_dry_run,
+    print_selected_project_commands, report_run_outcome, resume_task_graph, run_concurrency,
+    run_process_tracker, run_state_settings,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -294,7 +294,7 @@ impl RecursiveRun<'_, '_> {
             return Ok(Prepared::DryRun);
         }
 
-        self.validate_requested_scripts(&mut task_graph)?;
+        self.validate_requested_scripts(&mut task_graph, &full_task_graph)?;
 
         let task_run_state = task_run_state_context.start(&initially_completed_tasks(
             &full_task_graph,
@@ -330,7 +330,11 @@ impl RecursiveRun<'_, '_> {
             && !a_project_has_the_script(task_graph)
     }
 
-    fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {
+    fn validate_requested_scripts(
+        &self,
+        task_graph: &mut TaskGraph,
+        full_task_graph: &TaskGraph,
+    ) -> miette::Result<()> {
         // Hidden scripts (names starting with `.`) can only be invoked from
         // within another script, detected by an inherited
         // `npm_lifecycle_event`. Checked only for the tasks the invocation
@@ -338,8 +342,11 @@ impl RecursiveRun<'_, '_> {
         // deliberate reference, like a call from another script.
         filter_hidden_requested_scripts(
             task_graph,
-            self.script.script_name,
-            run_tasks(self.args, self.config),
+            &HiddenScriptCheck {
+                script_name: self.script.script_name,
+                full_task_graph,
+                reversed: self.args.workspace.reverse,
+            },
         )?;
 
         check_a_project_has_the_script(
