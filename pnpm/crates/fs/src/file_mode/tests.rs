@@ -248,3 +248,26 @@ fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
     let error = super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::NotADirectory);
 }
+
+/// A umask such as `0o477` leaves a new directory its owner cannot open.
+/// The grant must still reach it.
+#[cfg(unix)]
+#[test]
+fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
+    use std::{fs, os::unix::fs::PermissionsExt};
+
+    let tmp = tempfile::tempdir().unwrap();
+    fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
+    let shard = tmp.path().join("ab");
+    fs::create_dir(&shard).unwrap();
+    fs::set_permissions(&shard, fs::Permissions::from_mode(0o300)).unwrap();
+
+    super::grant_inherited_dir_mode(&shard, tmp.path()).unwrap();
+
+    let mode = fs::metadata(&shard)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o2370, "mode {mode:o}");
+}

@@ -517,7 +517,12 @@ function createIndexWithInheritedMode (storeDir: string): void {
   }
   try {
     if (creation.grantMode != null) grantModeBits(fd, creation.grantMode)
-  } finally {
+  } catch (err: unknown) {
+    // A database left without its inherited mode would be taken as complete
+    // by the next open, which skips the grant for an existing file.
     fs.closeSync(fd)
+    fs.rmSync(dbPath, { force: true })
+    throw err
   }
+  fs.closeSync(fd)
 }

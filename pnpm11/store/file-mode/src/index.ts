@@ -128,6 +128,10 @@ function addDirModeBits (dir: string, extra: number): void {
   try {
     fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
   } catch (err: unknown) {
+    if (errorCode(err) === 'EACCES') {
+      addUnreadableDirModeBits(dir, extra)
+      return
+    }
     if (isUnchangeable(err) || errorCode(err) === 'ENOENT') return
     throw err
   }
@@ -139,6 +143,29 @@ function addDirModeBits (dir: string, extra: number): void {
     if (!isUnchangeable(err)) throw err
   } finally {
     fs.closeSync(fd)
+  }
+}
+
+// A umask that removes owner read (such as 0o477) leaves a new directory its
+// owner cannot open. Node has no no-follow chmod by path on Linux, so this
+// changes only a directory this process owns and that its owner cannot read,
+// which is the shape a store-group member cannot plant.
+function addUnreadableDirModeBits (dir: string, extra: number): void {
+  let stat: fs.Stats
+  try {
+    stat = fs.lstatSync(dir)
+  } catch (err: unknown) {
+    if (errorCode(err) === 'ENOENT') return
+    throw err
+  }
+  if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o400) !== 0) return
+  const mode = stat.mode & 0o7777
+  const merged = mode | extra
+  if (merged === mode) return
+  try {
+    fs.chmodSync(dir, merged)
+  } catch (err: unknown) {
+    if (!isUnchangeable(err)) throw err
   }
 }
 

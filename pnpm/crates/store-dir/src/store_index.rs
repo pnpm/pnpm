@@ -542,7 +542,15 @@ fn create_new_index_with_inherited_mode(
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
         Err(error) => return Err(to_error(error)),
     };
-    creation.grant(&file).map_err(to_error)
+    creation
+        .grant(&file)
+        .map_err(|error| {
+            // A database left without its inherited mode would be taken as
+            // complete by the next open, which skips the grant for an existing file.
+            drop(file);
+            let _ = std::fs::remove_file(db_path);
+            to_error(error)
+        })
 }
 
 #[cfg(test)]

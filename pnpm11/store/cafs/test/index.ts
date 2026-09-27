@@ -573,6 +573,25 @@ testOnPosix('files added to a world-writable sticky store are not world-writable
   expect(fs.statSync(filePath).mode & 0o002).toBe(0)
 })
 
+testOnPosix('directories added to a group-writable store get group access under a umask that removes owner read', () => {
+  const parent = temporaryDirectory()
+  fs.chmodSync(parent, 0o2775)
+  const storeDir = path.join(parent, 'store')
+  const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
+  const previousUmask = process.umask(0o477)
+  let filePath: string
+  try {
+    const { filesIndex } = createCafs(storeDir).addFilesFromDir(srcDir)
+    const info = filesIndex.get('foo.txt')!
+    filePath = getFilePathByModeInCafs(storeDir, info.digest, info.mode)
+  } finally {
+    process.umask(previousUmask)
+  }
+  for (let dir = path.dirname(filePath); dir !== parent; dir = path.dirname(dir)) {
+    expect(fs.statSync(dir).mode & 0o2070).toBe(0o2070)
+  }
+})
+
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
   const dest = temporaryDirectory()
   const cafs = createCafs(dest)

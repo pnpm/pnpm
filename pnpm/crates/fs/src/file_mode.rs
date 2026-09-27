@@ -55,6 +55,12 @@ fn widen_mode(mode: impl Into<u32>) -> u32 {
     mode.into()
 }
 
+/// The narrowing counterpart of [`widen_mode`], generic for the same reason.
+#[cfg(unix)]
+fn narrow_mode<T: TryFrom<u32>>(mode: u32) -> io::Result<T> {
+    T::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
+}
+
 /// [`current_umask`] on platforms without mode bits: nothing to mask.
 #[cfg(not(unix))]
 #[must_use]
@@ -367,14 +373,18 @@ fn reachable_mode(path: &Path) -> io::Result<Option<u32>> {
 #[cfg(unix)]
 fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    let dir =
-        match crate::ensure_file::retry_on_fd_pressure(|| open_directory_without_following(path)) {
-            Ok(dir) => dir,
-            Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
-                return Ok(());
-            }
-            Err(error) => return Err(error),
-        };
+    let opened =
+        crate::ensure_file::retry_on_fd_pressure(|| open_directory_without_following(path));
+    let dir = match opened {
+        Ok(dir) => dir,
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+            return add_unreadable_dir_mode_bits(path, extra);
+        }
+        Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
     let mode = dir.metadata()?.permissions().mode() & 0o7777;
     let merged = mode | extra;
     if merged == mode {
@@ -384,6 +394,44 @@ fn add_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
         Err(error) if is_unchangeable(&error) => Ok(()),
         other => other,
     }
+}
+
+/// [`add_dir_mode_bits`] for a new directory its owner cannot open, which a
+/// umask that removes owner read (such as `0o477`) produces. `fchmodat` with
+/// `AT_SYMLINK_NOFOLLOW` needs no read access and still refuses a symlink.
+/// Only a directory this process owns is changed.
+#[cfg(unix)]
+fn add_unreadable_dir_mode_bits(path: &Path, extra: u32) -> io::Result<()> {
+    use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
+    let meta = match std::fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
+    if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } {
+        return Ok(());
+    }
+    let mode = meta.mode() & 0o7777;
+    let merged = mode | extra;
+    if merged == mode {
+        return Ok(());
+    }
+    let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+    let merged = narrow_mode::<libc::mode_t>(merged)?;
+    // SAFETY: `c_path` is a valid NUL-terminated path that outlives the call.
+    let status = unsafe {
+        libc::fchmodat(libc::AT_FDCWD, c_path.as_ptr(), merged, libc::AT_SYMLINK_NOFOLLOW)
+    };
+    if status == 0 {
+        return Ok(());
+    }
+    let error = io::Error::last_os_error();
+    if is_unchangeable(&error) || error.raw_os_error() == Some(libc::EOPNOTSUPP) {
+        return Ok(());
+    }
+    Err(error)
 }
 
 /// Bits [`grant_inherited_dir_mode`] adds to a new directory under a
