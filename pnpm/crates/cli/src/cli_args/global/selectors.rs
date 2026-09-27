@@ -176,7 +176,7 @@ pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> boo
 /// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
 /// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
 /// CLI under another name — the install still carries pnpm's own `pnpm` bin.
-fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
+pub(super) fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
     let name = npm_alias_target(spec);
     is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
 }
