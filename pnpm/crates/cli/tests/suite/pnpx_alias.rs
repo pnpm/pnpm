@@ -38,6 +38,29 @@ fn launched_as_pnpx_injects_the_dlx_subcommand() {
 }
 
 #[test]
+fn pnpx_version_prints_the_pnpm_version() {
+    let pacquet = env!("CARGO_BIN_EXE_pnpm");
+
+    let dir = TempDir::new().expect("create temp dir");
+    let pnpx = copy_executable(Path::new(pacquet), dir.path(), "pnpx");
+
+    for flag in ["--version", "-v"] {
+        let output = Command::new(&pnpx)
+            .current_dir(dir.path())
+            .arg(flag)
+            .output()
+            .expect("run `pnpx --version`");
+        assert!(
+            output.status.success(),
+            "`pnpx {flag}` exited with a failure status: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let stdout = String::from_utf8(output.stdout).expect("version is UTF-8");
+        assert_eq!(stdout.trim(), pnpm_config::PNPM_VERSION, "`pnpx {flag}`");
+    }
+}
+
+#[test]
 fn launched_as_pnpx_hands_scripts_the_pnpm_beside_it() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let bin_dir = workspace.join("bin");
