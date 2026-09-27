@@ -1,13 +1,12 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
 import type { Config, VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
@@ -104,7 +103,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       lock = await DirLock.acquire(lockPath, { waitMs: INSTALL_LOCK_WAIT_MS, abandonedMs: INSTALL_LOCK_ABANDONED_MS })
     }
   } catch (err: unknown) {
-    const message = util.types.isNativeError(err) ? err.message : String(err)
+    const message = isError(err) ? err.message : String(err)
     globalWarn(`Could not lock the dependency install at ${root}: ${message}. Installing without it, which is unsafe if another pnpm is installing there concurrently.`)
   }
   try {

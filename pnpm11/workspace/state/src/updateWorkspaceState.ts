@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { ConfigDependencies } from '@pnpm/types'
@@ -36,7 +36,7 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
     await renameFileWithRetryAsync(tempFile, cacheFile)
   } catch (err: unknown) {
     await fs.promises.rm(tempFile, { force: true }).catch(() => {})
-    globalWarn(`Failed to write the workspace state: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+    globalWarn(`Failed to write the workspace state: ${isError(err) ? err.message : String(err)}`)
   }
 }
 
@@ -52,7 +52,7 @@ async function isDirectory (dir: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(dir)).isDirectory()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
     throw err
   }
 }

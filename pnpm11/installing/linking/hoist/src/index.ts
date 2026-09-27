@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import util from 'node:util'
 
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/bins.linker'
 import { createMatcher } from '@pnpm/config.matcher'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { isTransientFileLockError, withFileLockRetryAsync } from '@pnpm/fs.graceful-fs'
 import { findCommonPathAncestor, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
@@ -216,7 +216,7 @@ export async function pruneStaleWorkspaceHoists (
           const rawTarget = await fs.promises.readlink(destination)
           target = path.resolve(path.dirname(destination), rawTarget)
         } catch (error: unknown) {
-          if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) {
+          if (isError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) {
             return undefined
           }
           throw error
@@ -257,7 +257,7 @@ async function removeEmptyWorkspaceParents (modulesDir: string, alias: string, p
   try {
     await fs.promises.rmdir(parent)
   } catch (error: unknown) {
-    if (util.types.isNativeError(error) && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) return
+    if (isError(error) && 'code' in error && ['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(String(error.code))) return
     throw error
   }
   await removeEmptyWorkspaceParents(modulesDir, alias, path.dirname(parent), trustedRoot)
@@ -383,7 +383,7 @@ async function removeWorkspaceLinkIfTarget (destination: string, target: string)
   try {
     resolvedTarget = await resolveLinkTarget(destination)
   } catch (error: unknown) {
-    if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return
+    if (isError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return
     throw error
   }
   if (resolvedTarget === target) await fs.promises.unlink(destination)
@@ -639,10 +639,10 @@ async function symlinkHoistedDependencyOnce (
   try {
     existingSymlink = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return createHoistedDependencyLink(depLocation, dest)
     }
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EINVAL') throw err
     hoistLogger.debug({
       skipped: dest,
       reason: 'a directory is present at the target location',
@@ -660,7 +660,7 @@ async function symlinkHoistedDependencyOnce (
   try {
     await fs.promises.unlink(dest)
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
   await createHoistedDependencyLink(depLocation, dest)
 }
@@ -673,14 +673,14 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
       await symlinkDir(depLocation, dest, { overwrite: false })
       break
     } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
+      if (!isError(err) || !('code' in err) || (err.code !== 'EEXIST' && err.code !== 'EISDIR')) throw err
       let winningTarget: string
       try {
         // eslint-disable-next-line no-await-in-loop
         winningTarget = await withFileLockRetryAsync(() => resolveLinkTarget(dest))
       } catch (readError: unknown) {
         retries += 1
-        if (util.types.isNativeError(readError) && 'code' in readError) {
+        if (isError(readError) && 'code' in readError) {
           if (readError.code === 'ENOENT' && retries <= 100) continue
           if (readError.code === 'EINVAL') {
             // macOS can report EINVAL when a concurrent unlink interrupts readlink.
@@ -694,7 +694,7 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
                 continue
               }
             } catch (statError: unknown) {
-              if (util.types.isNativeError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
+              if (isError(statError) && 'code' in statError && statError.code === 'ENOENT' && retries <= 100) continue
             }
           }
         }

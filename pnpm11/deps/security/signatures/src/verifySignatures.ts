@@ -1,8 +1,7 @@
 import crypto from 'node:crypto'
 import url from 'node:url'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import pLimit from 'p-limit'
@@ -101,7 +100,7 @@ export async function verifySignatures (
       version = packument.versions?.[pkg.version]
       publishedAt = packument.time?.[pkg.version]
     } catch (err: unknown) {
-      result.invalid.push({ ...pkg, reason: util.types.isNativeError(err) ? err.message : String(err) })
+      result.invalid.push({ ...pkg, reason: isError(err) ? err.message : String(err) })
       return
     }
 
@@ -349,7 +348,7 @@ async function parseJsonResponse (
   try {
     return JSON.parse(rawBody)
   } catch (err: unknown) {
-    const reason = util.types.isNativeError(err) ? err.message : String(err)
+    const reason = isError(err) ? err.message : String(err)
     throw new PnpmError(errorCode, `${endpointDescription} (at ${response.url}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
   }
 }
@@ -581,7 +580,7 @@ async function attemptSignatureVerification (
     packument = await getPackument({ ...pkg, registry }, ctx)
   } catch (err: unknown) {
     // The fetch error may echo the request URL, credentials included.
-    return { reason: redactAndSanitize(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }
+    return { reason: redactAndSanitize(isError(err) ? err.message : String(err)), category: 'unreachable' }
   }
   if (!packument) return { reason: `${pkg.name} is not published on ${displayRegistry}`, category: 'absent' }
 

@@ -1,9 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type {
   IncludedDependencies,
   Modules,
@@ -205,7 +204,7 @@ async function resolveSafePurgeTarget (
   try {
     purgeDir = await fs.realpath(importer.modulesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
   if (dirsAreEqual(projectRootDir, purgeDir) || !isSubdir(projectRootDir, purgeDir)) {

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { fetchFromDir, type FetchFromDirOptions } from '@pnpm/fetching.directory-fetcher'
 import { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { pathTemp } from 'path-temp'
@@ -103,7 +103,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     try {
       await fs.promises.link(sourcePath, targetPath)
     } catch (error) {
-      if (util.types.isNativeError(error) && 'code' in error && error.code === 'EXDEV') {
+      if (isError(error) && 'code' in error && error.code === 'EXDEV') {
         await copyIntoPlace(sourcePath, targetPath)
         return
       }
@@ -138,7 +138,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     try {
       await add()
     } catch (error) {
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
+      if (!isError(error) || !('code' in error) || (error.code !== 'EEXIST')) {
         throw error
       }
       await removeRecursive(targetPath)
@@ -150,7 +150,7 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     try {
       await fs.promises.rm(targetPath, { recursive: true, force: true })
     } catch (error) {
-      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'ENOENT')) {
+      if (!isError(error) || !('code' in error) || (error.code !== 'ENOENT')) {
         throw error
       }
     }

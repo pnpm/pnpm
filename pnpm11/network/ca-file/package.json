@@ -32,6 +32,9 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
     "prepublishOnly": "tsgo --build"
   },
+  "dependencies": {
+    "@pnpm/error": "workspace:*"
+  },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/network.ca-file": "workspace:*"

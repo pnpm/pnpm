@@ -2,11 +2,11 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { isError } from '@pnpm/error'
 import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
 import { pick } from 'ramda'
@@ -233,7 +233,7 @@ async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResu
     return {
       title,
       status: 'fail',
-      detail: `could not reach ${registry}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      detail: `could not reach ${registry}: ${isError(err) ? err.message : String(err)}`,
       fix: 'Check your network, proxy, and registry configuration.',
     }
   }

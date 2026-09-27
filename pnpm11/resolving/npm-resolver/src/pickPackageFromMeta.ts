@@ -1,6 +1,5 @@
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
 import type { NonDeprecatedAlternative } from '@pnpm/resolving.resolver-base'
@@ -95,7 +94,7 @@ export function pickPackageFromMeta (
     return manifest
   } catch (err: unknown) {
     if (
-      util.types.isNativeError(err) &&
+      isError(err) &&
       'code' in err &&
       typeof err.code === 'string' &&
       err.code.startsWith('ERR_PNPM_')

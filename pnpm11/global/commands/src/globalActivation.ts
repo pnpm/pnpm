@@ -1,10 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getBinsToLink, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
@@ -419,5 +418,5 @@ async function binTargetExists (target: string): Promise<boolean> {
 }
 
 function isErrorWithCode (err: unknown, code: string): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === code
+  return isError(err) && 'code' in err && err.code === code
 }

@@ -31,6 +31,7 @@
     "prepublishOnly": "tsgo --build"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "cmd-extension": "catalog:"
   },

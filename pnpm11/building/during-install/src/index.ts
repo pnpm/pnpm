@@ -2,7 +2,6 @@ import assert from 'node:assert'
 import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
@@ -11,7 +10,7 @@ import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { logger } from '@pnpm/logger'
@@ -176,7 +175,7 @@ export async function buildModules<T extends string> (
         })
         return 'passed'
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
+        if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_PATCH_FAILED') {
           patchErrors.push(err)
           return 'passed'
         }
@@ -399,7 +398,7 @@ async function buildDependency<T extends string> (
           })
         }
       } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
+        assert(isError(err))
         logger.warn({
           error: err,
           message: `An error occurred while uploading ${depNode.dir}`,
@@ -409,7 +408,7 @@ async function buildDependency<T extends string> (
     }
     buildSucceeded = true
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     if (depNode.optional) {
       // Without the lock another install may be writing into the shared
       // slot, so the slot is kept, marked for the next install to rebuild.
@@ -501,7 +500,7 @@ async function isStartedBuildMarker (markerPath: string): Promise<boolean> {
     const content = await fs.readFile(markerPath, 'utf8')
     return content === STARTED_BUILD_MARKER_CONTENT
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -516,7 +515,7 @@ async function markBuildStarted<T extends string> (depNode: DependenciesGraphNod
   try {
     await fs.writeFile(path.join(depNode.dir, NEEDS_BUILD_MARKER), STARTED_BUILD_MARKER_CONTENT)
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     if ('code' in err && err.code === 'ENOENT') return
     logger.warn({
       error: err,
@@ -597,7 +596,7 @@ async function readdirOrEmpty (dir: string): Promise<Dirent[]> {
   try {
     return await fs.readdir(dir, { withFileTypes: true })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return []
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return []
     throw err
   }
 }
@@ -607,7 +606,7 @@ async function realpathOrUndefined (target: string): Promise<string | undefined>
     return await fs.realpath(target)
   } catch (err: unknown) {
     // A dangling or cyclic link resolves to nothing, so it cannot point at the target.
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ELOOP')) return undefined
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ELOOP')) return undefined
     throw err
   }
 }

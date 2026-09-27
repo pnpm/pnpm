@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util, { stripVTControlCharacters } from 'node:util'
+import { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
 import { BUILTIN_REGISTRIES_BY_PREFIX, GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
@@ -1544,7 +1544,7 @@ function parseStringValuedJsonObject (value: string, variable: string): Record<s
     parsed = JSON.parse(value)
   } catch (err: unknown) {
     throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV',
-      `${variable} is not valid JSON: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+      `${variable} is not valid JSON: ${isError(err) ? err.message : String(err)}`)
   }
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.values(parsed).every((item) => typeof item === 'string')) {
     throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV', `${variable} must be a JSON object with string values`)

@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
 export class PnpmError extends Error {
@@ -248,4 +250,17 @@ export class LockfileMissingDependencyError extends PnpmError {
         'To fix the lockfile, run \'pnpm install --no-frozen-lockfile\'.',
     })
   }
+}
+
+/**
+ * Whether `value` is an `Error`, whichever way the runtime created it.
+ *
+ * `util.types.isNativeError` misses the errors that StackBlitz WebContainers
+ * reject asynchronous `fs` calls with: they inherit from `Error`, but the
+ * native constructor did not create them. `instanceof Error` misses errors
+ * from another realm, such as the ones code under Jest's VM contexts catches.
+ * Either check passing is enough.
+ */
+export function isError (value: unknown): value is Error {
+  return util.types.isNativeError(value) || value instanceof Error
 }

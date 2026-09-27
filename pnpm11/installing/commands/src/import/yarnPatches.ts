@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { writeSettings } from '@pnpm/config.writer'
+import { isError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
 import { semverUtils, structUtils } from '@yarnpkg/core'
@@ -134,7 +134,7 @@ async function isFile (filePath: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(filePath)).isFile()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

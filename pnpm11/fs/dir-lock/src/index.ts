@@ -2,7 +2,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 const OWNER_FILE = 'owner'
 const POLL_INTERVAL_MS = 50
@@ -160,5 +161,5 @@ function processLiveness (pid: number): 'alive' | 'ended' | 'unknown' {
 }
 
 function isErrorCode (err: unknown, code: string): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === code
+  return isError(err) && 'code' in err && err.code === code
 }

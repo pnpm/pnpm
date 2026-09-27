@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import * as yaml from 'yaml'
 
 import { CHANGES_DIR } from './intents.js'
@@ -40,7 +39,7 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
   try {
     content = await fs.readFile(ledgerPath, 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
     }
     throw err

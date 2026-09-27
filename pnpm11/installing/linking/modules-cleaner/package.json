@@ -34,6 +34,7 @@
     "@pnpm/bins.remover": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

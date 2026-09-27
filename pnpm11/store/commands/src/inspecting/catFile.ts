@@ -1,8 +1,7 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import type { Config } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { getStorePath } from '@pnpm/store.path'
 import { renderHelp } from 'render-help'
@@ -51,7 +50,7 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
   try {
     return gfs.readFileSync(filePath, 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
     }
     throw err

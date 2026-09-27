@@ -5,9 +5,8 @@ import { isIP } from 'node:net'
 import path from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { BinaryFetcher, FetchFunction, FetchResult } from '@pnpm/fetching.fetcher-base'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type { StoreIndex } from '@pnpm/store.index'
@@ -42,7 +41,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
     try {
       archiveFilters.set(name, { pattern, regex: new RegExp(pattern) })
     } catch (err: unknown) {
-      const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+      const detail = isError(err) ? `: ${err.message}` : ''
       throw new PnpmError(
         'INVALID_ARCHIVE_FILTER',
         `Invalid archive filter regex for "${name}"${detail}: ${pattern}`
@@ -283,7 +282,7 @@ async function mkdirWithoutFollowingSymlinks (root: string, relativeDir: string,
     try {
       await fsPromises.mkdir(dir) // eslint-disable-line no-await-in-loop
     } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
+      if (!(isError(err) && 'code' in err && err.code === 'EEXIST')) throw err
       if (!(await fsPromises.lstat(dir)).isDirectory()) { // eslint-disable-line no-await-in-loop
         throw new PnpmError('PATH_TRAVERSAL', `Refusing to extract into "${dir}" because it is not a directory`)
       }

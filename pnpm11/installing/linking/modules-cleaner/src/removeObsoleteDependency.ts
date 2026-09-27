@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { rimraf } from '@zkochan/rimraf'
 import validateNpmPackageName from 'validate-npm-package-name'
 
@@ -13,7 +13,7 @@ export async function removeObsoleteDependency (modulesDir: string, alias: strin
       await fs.rmdir(path.join(modulesDir, alias.split('/')[0]))
     } catch (err: unknown) {
       if (
-        !util.types.isNativeError(err) ||
+        !isError(err) ||
         !('code' in err) ||
         err.code !== 'ENOENT' && err.code !== 'ENOTEMPTY'
       ) {

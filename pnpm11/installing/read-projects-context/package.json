@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",

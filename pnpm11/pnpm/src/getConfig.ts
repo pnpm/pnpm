@@ -1,12 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { packageManager } from '@pnpm/cli.meta'
 import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
 import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
@@ -92,7 +91,7 @@ export async function installConfigDepsAndLoadHooks (
       if (!opts?.tolerateConfigDependenciesErrors) {
         throw err
       }
-      const errorMessage = util.types.isNativeError(err) ? err.message : String(err)
+      const errorMessage = isError(err) ? err.message : String(err)
       logger.debug({
         message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
         err,

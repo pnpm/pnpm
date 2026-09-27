@@ -1,9 +1,8 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { AllowBuild, DepPath, PackageManifest } from '@pnpm/types'
@@ -71,7 +70,7 @@ export async function preparePackage (opts: PreparePackageOptions, gitRootDir: s
       await runLifecycleHook(newScriptName, manifest, execOpts)
     }
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     Object.assign(err, {
       code: 'ERR_PNPM_PREPARE_PACKAGE',
     })

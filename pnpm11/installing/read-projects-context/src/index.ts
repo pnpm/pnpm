@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import type {
@@ -85,7 +85,7 @@ async function realpath (path: ProjectRootDir): Promise<ProjectRootDirRealPath> 
   try {
     return await fs.realpath(path) as ProjectRootDirRealPath
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return path as unknown as ProjectRootDirRealPath
     }
     throw err

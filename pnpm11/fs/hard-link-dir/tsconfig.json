@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/logger"
     },
     {

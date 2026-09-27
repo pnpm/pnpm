@@ -8,14 +8,14 @@ if (!global['pnpm__startedAt']) {
 }
 import fs from 'node:fs'
 import path from 'node:path'
-import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
-import { PnpmError, redactAndSanitize } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
 import { finishWorkers } from '@pnpm/worker'
@@ -468,7 +468,7 @@ async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () =
  * error opens its message with the code, so naming it again would repeat it.
  */
 function describeFailure (err: unknown): string {
-  if (!utilTypes.isNativeError(err)) return redactAndSanitize(String(err))
+  if (!isError(err)) return redactAndSanitize(String(err))
   const code = 'code' in err ? String(err.code) : ''
   const described = code === '' || err.message.startsWith(code) ? err.message : `${code}: ${err.message}`
   return redactAndSanitize(described)

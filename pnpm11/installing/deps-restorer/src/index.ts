@@ -1,6 +1,5 @@
 import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getProjectNodePath, type LinkBinOptions, linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildModules, linkBinsOfRuntimeDependencies, lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
@@ -26,7 +25,7 @@ import {
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import * as dp from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
@@ -1231,7 +1230,7 @@ async function removeBinsOfWorkspaceHoists (hoistedDependencies: HoistedDependen
     try {
       stats = await fs.lstat(link)
     } catch (err: unknown) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') return
       throw err
     }
     if (stats.isSymbolicLink()) await removeOrphanBins(link)
@@ -1275,7 +1274,7 @@ async function readCommandNames (binsDir: string): Promise<Set<string>> {
   try {
     entries = await fs.readdir(binsDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return new Set()
     throw err
   }
   if (process.platform !== 'win32') return new Set(entries)
@@ -1335,7 +1334,7 @@ async function workspaceHoistPointsToProject (projectId: ProjectId, aliases: Rec
       const target = await fs.readlink(destination)
       return path.resolve(path.dirname(destination), target) === projectDir
     } catch (error: unknown) {
-      if (util.types.isNativeError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return false
+      if (isError(error) && 'code' in error && (error.code === 'ENOENT' || error.code === 'EINVAL')) return false
       throw error
     }
   }))).some(Boolean)

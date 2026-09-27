@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
+import { isError } from '@pnpm/error'
 import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
 
 export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
@@ -58,5 +58,5 @@ async function isDanglingLink (entry: string): Promise<boolean> {
 }
 
 function hasErrorCode (error: unknown, ...codes: string[]): boolean {
-  return util.types.isNativeError(error) && 'code' in error && codes.includes(String(error.code))
+  return isError(error) && 'code' in error && codes.includes(String(error.code))
 }

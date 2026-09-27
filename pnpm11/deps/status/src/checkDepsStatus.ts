@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -8,7 +7,7 @@ import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrid
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
@@ -152,7 +151,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
   try {
     return await _checkDepsStatus(opts, workspaceState)
   } catch (error) {
-    if (util.types.isNativeError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
+    if (isError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
       return {
         upToDate: false,
         issue: error.message,
@@ -164,7 +163,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
     // In the worst-case scenario, the install will run redundantly.
     return {
       upToDate: undefined,
-      issue: util.types.isNativeError(error) ? error.message : undefined,
+      issue: isError(error) ? error.message : undefined,
       workspaceState,
     }
   }
@@ -451,7 +450,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       try {
         wantedLockfileStats = fs.statSync(path.join(workspaceDir, wantedLockfileName))
       } catch (error) {
-        if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+        if (isError(error) && 'code' in error && error.code === 'ENOENT') {
           wantedLockfileStats = undefined
         } else {
           throw error
@@ -547,7 +546,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     } catch (err) {
       return {
         upToDate: false,
-        issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
+        issue: (isError(err) && 'message' in err) ? err.message : undefined,
         workspaceState,
       }
     }
@@ -669,7 +668,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       } catch (err) {
         return {
           upToDate: false,
-          issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined,
+          issue: (isError(err) && 'message' in err) ? err.message : undefined,
           workspaceState,
         }
       }
@@ -1020,7 +1019,7 @@ function scanWantedLockfiles (lockfileDirs: string[], lastValidatedTimestamp: nu
       try {
         stats = fs.statSync(path.join(lockfileDir, lockfileName))
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') continue
+        if (isError(err) && 'code' in err && err.code === 'ENOENT') continue
         throw err
       }
       foundInDir = true
@@ -1041,7 +1040,7 @@ function gitBranchLockfileNames (lockfileDir: string, wantedLockfileName: string
   try {
     branchLockfileNames = getGitBranchLockfileNamesSync(lockfileDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       branchLockfileNames = []
     } else {
       throw err

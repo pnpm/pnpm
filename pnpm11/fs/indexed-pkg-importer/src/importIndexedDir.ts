@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs, { lstatWithRetry, renameFileWithRetry, unlinkWithRetry, withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
@@ -140,7 +140,7 @@ function importIntoSharedDir (dirImport: IndexedDirImport): void {
     fs.mkdirSync(newDir)
     created = true
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
   }
   if (created) {
     try {
@@ -241,7 +241,7 @@ function dirFitsAt (dir: string): boolean {
   try {
     return lstatWithRetry(dir).isDirectory()
   } catch (err) {
-    return util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'
+    return isError(err) && 'code' in err && err.code === 'ENOENT'
   }
 }
 
@@ -256,7 +256,7 @@ function clearDirBlockingFile (dest: string): void {
   try {
     stats = lstatWithRetry(dest)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   if (stats.isDirectory()) {
@@ -276,7 +276,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
     try {
       stats = lstatWithRetry(dir)
     } catch (err) {
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') return
       throw err
     }
     if (stats.isDirectory()) continue
@@ -296,7 +296,7 @@ function clearDirentBlockingDir (newDir: string, relativeDir: string): void {
 // failure.
 function retryWithFixedFileMap (err: unknown, dirImport: IndexedDirImport): boolean {
   const { importer, newDir, filenames, opts } = dirImport
-  if (!util.types.isNativeError(err) || !('code' in err)) return false
+  if (!isError(err) || !('code' in err)) return false
   if (err.code === 'EEXIST') {
     const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
     if (conflictingFileNames.size === 0) return false
@@ -341,7 +341,7 @@ function tryExclusiveImport (
   try {
     fs.mkdirSync(newDir)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST') return false
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return false
     throw err
   }
   // We exclusively created newDir, so no other process writes into it directly
@@ -567,7 +567,7 @@ function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): bo
   } catch (err: unknown) {
     // Creating a symlink on Windows needs a privilege that a junction does
     // not, and a file has no junction to fall back to.
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EPERM') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EPERM') throw err
     if (!isDir) return false
     fs.symlinkSync(path.join(links.finalDir, path.relative(links.writtenDir, resolved)), dest, 'junction')
   }
@@ -578,7 +578,7 @@ function realpathOrSelf (file: string): string {
   try {
     return fs.realpathSync(file)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return file
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return file
     throw err
   }
 }
@@ -587,7 +587,7 @@ function isDirectory (file: string): boolean {
   try {
     return fs.statSync(file).isDirectory()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -646,7 +646,7 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
   try {
     renameEvenAcrossDevices(src, dest)
   } catch (err: unknown) {
-    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
+    switch (isError(err) && 'code' in err && err.code) {
       case 'ENOENT':
       // If src directory doesn't exist, there is nothing to do
         return
@@ -665,7 +665,7 @@ function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
     gfs.renameSync(src, dest)
   } catch (err: unknown) {
-    if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
+    if (!(isError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     fsx.copySync(src, dest)
   }
 }

@@ -1,11 +1,10 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import * as find from 'empathic/find'
 import { safeExeca as execa } from 'execa'
@@ -162,7 +161,7 @@ async function applyCatalogChangesToProjects (params: {
   try {
     currManifestContent = await fs.promises.readFile(path.join(params.workspaceDir, 'pnpm-workspace.yaml'), 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (isError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
       currManifestContent = ''
     } else {
       throw err
@@ -208,7 +207,7 @@ async function loadProjects (
       try {
         manifestContent = await fs.promises.readFile(path.join(rootDir, 'package.json'), 'utf8')
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (isError(err) && (err as NodeJS.ErrnoException).code === 'ENOENT') {
           return {
             rootDir,
             manifest: {} as BaseManifest,
@@ -309,7 +308,7 @@ async function getMergeBase (commit: string, workspaceDir: string): Promise<stri
     const { stdout } = await execa('git', ['merge-base', '--end-of-options', commit, 'HEAD'], { cwd: workspaceDir })
     return (stdout as string).trim() || commit
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     const exitCode = 'exitCode' in err ? err.exitCode : undefined
     if (exitCode === 1 || exitCode === 128) return commit
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err && err.stderr ? err.stderr as string : err.message}`, { cause: err })
@@ -346,7 +345,7 @@ async function getChangedDirsSinceCommit (
       ], { cwd: workspaceDir })
     ).stdout as string
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${'stderr' in err ? err.stderr as string : ''}`)
   }
   const changedDirs = new Map<string, ChangeType>()

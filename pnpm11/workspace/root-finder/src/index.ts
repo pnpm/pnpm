@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { isWorkspaceProjectDir } from '@pnpm/workspace.package-patterns'
 import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 import * as find from 'empathic/find'
@@ -79,7 +78,7 @@ async function hasProjectManifest (dir: string): Promise<boolean> {
   } catch (err: unknown) {
     // The directory pnpm was pointed at may not exist. Reporting that is the
     // job of the command that needs it, not of the workspace lookup.
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
     throw err
   }
   return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))
@@ -90,7 +89,7 @@ function hasProjectManifestSync (dir: string): boolean {
   try {
     entries = fs.readdirSync(dir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
     throw err
   }
   return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))

@@ -2,9 +2,8 @@ import assert from 'node:assert'
 import fs from 'node:fs'
 import path from 'node:path'
 import { URL } from 'node:url'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
@@ -53,7 +52,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
         })
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       throw gitFetchError(err, resolution.repo, opts.pkg?.name)
     }
     let pkgDir: string
@@ -74,7 +73,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
+      assert(isError(err))
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
@@ -218,7 +217,7 @@ async function hasGitSubmodules (location: string): Promise<boolean> {
   try {
     return (await fs.promises.stat(path.join(location, '.gitmodules'))).isFile()
   } catch (err: unknown) {
-    assert(util.types.isNativeError(err))
+    assert(isError(err))
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
     throw err
   }

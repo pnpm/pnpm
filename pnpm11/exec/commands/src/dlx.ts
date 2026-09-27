@@ -1,6 +1,5 @@
 import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { getAutomaticallyIgnoredBuilds } from '@pnpm/building.commands'
@@ -15,7 +14,7 @@ import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { engineName, getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
@@ -204,7 +203,7 @@ export async function handler (
         // The link created by the other process is just as up-to-date as the link the current process was attempting
         // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
         // the other link stay. The current process should yield.
-        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
+        if (!isError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
           throw error
         }
       }
@@ -262,7 +261,7 @@ export async function handler (
     })
     await waitForTracked(child)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
+    if (isError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
         exitCode: err.exitCode as number,
       }
@@ -299,7 +298,7 @@ async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'eng
     // from the resolution's bin info is what `execa` resolves against.
     // Multi-bin packages require `--package=<spec> <bin>` to disambiguate,
     // which short-circuits `getBinName` upstream and never enters this path.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return scopeless(pkgName)
     }
     throw err
@@ -460,7 +459,7 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
       return undefined
     }
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return undefined
     }
     throw err

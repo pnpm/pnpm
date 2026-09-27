@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { logger as createLogger } from '@pnpm/logger'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -123,7 +122,7 @@ async function dirExists (dir: string): Promise<boolean> {
     await fs.promises.stat(dir)
     return true
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

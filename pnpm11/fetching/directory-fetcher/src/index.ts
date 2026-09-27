@@ -1,8 +1,8 @@
 import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
+import { isError } from '@pnpm/error'
 import type {
   DirectoryFetcher,
   DirectoryFetcherOptions,
@@ -73,7 +73,7 @@ async function dirExists (dir: string): Promise<boolean> {
     await fs.stat(dir)
     return true
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -165,7 +165,7 @@ async function realFileStat (filePath: string): Promise<FileStatResult | null> {
     return { filePath, stat }
   } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return null
     }
@@ -181,7 +181,7 @@ async function fileStat (filePath: string): Promise<FileStatResult | null> {
     }
   } catch (err: unknown) {
     // Broken symlinks are skipped
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
       return null
     }

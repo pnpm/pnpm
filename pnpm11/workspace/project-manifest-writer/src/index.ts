@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { type CommentSpecifier, insertComments } from '@pnpm/text.comments-parser'
 import type { ProjectManifest } from '@pnpm/types'
 import { patchDocument } from '@pnpm/yaml.document-sync'
@@ -76,7 +75,7 @@ async function readFileIfExists (filePath: string): Promise<string | undefined> 
   try {
     return await fs.readFile(filePath, 'utf8')
   } catch (err) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
   }
   return undefined
 }

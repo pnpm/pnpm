@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { removeBinsOfDependency } from '@pnpm/bins.remover'
@@ -14,6 +13,7 @@ import type {
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
@@ -204,7 +204,7 @@ async function pathExistsNoFollow (p: string): Promise<boolean> {
     await fs.promises.lstat(p)
     return true
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -230,7 +230,7 @@ async function makeRealDir (parent: string, name: string): Promise<string | null
   try {
     await fs.promises.mkdir(dir)
   } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
     if (!await isRealDir(dir)) return null
   }
   return dir
@@ -262,7 +262,7 @@ export async function removeOrphanBins (pkgDir: string): Promise<void> {
   try {
     binsDirStats = await fs.promises.lstat(binsDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
   // Unlinking through a symlinked `.bin` would delete files outside the install root.
@@ -434,7 +434,7 @@ async function isRealDir (dir: string): Promise<boolean> {
   try {
     return (await fs.promises.lstat(dir)).isDirectory()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }

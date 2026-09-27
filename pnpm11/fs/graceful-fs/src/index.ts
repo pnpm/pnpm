@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import util, { promisify } from 'node:util'
+import { promisify } from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs from 'graceful-fs'
 
 const FILE_LOCK_RETRY_BUDGET_MS = 60_000
@@ -40,7 +41,7 @@ function withEagainRetry<T extends unknown[], R> (
       try {
         return fn(...args)
       } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'EAGAIN' && attempts < maxRetries) {
+        if (isError(err) && 'code' in err && err.code === 'EAGAIN' && attempts < maxRetries) {
           attempts++
           // Exponential backoff: wait 2^attempts milliseconds, max 300ms
           const delay = Math.min(Math.pow(2, attempts), 300)
@@ -166,7 +167,7 @@ function createFileLockRetry (): FileLockRetry {
 
 export function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
   return (process.platform === 'win32' || isWsl()) &&
-    util.types.isNativeError(err) &&
+    isError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
 }

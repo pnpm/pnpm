@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfsPromises from '@pnpm/fs.graceful-fs'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 
@@ -345,7 +345,7 @@ async function isSymbolicLink (file: string, fs_: ShimDirFs): Promise<boolean> {
   try {
     return (await fs_.lstat(file)).isSymbolicLink()
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
     throw err
   }
 }
@@ -450,7 +450,7 @@ async function exists (file: string, opts: InternalOptions): Promise<boolean> {
 }
 
 function isMissingPathError (err: unknown): boolean {
-  return util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
+  return isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')
 }
 
 export function getExeExtension (): string {

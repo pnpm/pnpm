@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/fs.symlink-dependency'
 import { rimraf } from '@zkochan/rimraf'
@@ -168,7 +168,7 @@ async function removePublishModulesLink (project: ProjectToLink): Promise<void> 
   try {
     stats = await fs.promises.lstat(link)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return
     throw err
   }
   if (!stats.isSymbolicLink()) return
@@ -181,7 +181,7 @@ async function safeRealpath (target: string): Promise<string | null> {
   try {
     return await fs.promises.realpath(target)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

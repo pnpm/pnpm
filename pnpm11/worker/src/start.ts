@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 import { parentPort } from 'node:worker_threads'
 
 import { pkgRequiresBuild, storedRequiresBuildNeedsManifestCheck } from '@pnpm/building.pkg-requires-build'
 import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { symlinkDependencySync } from '@pnpm/fs.symlink-dependency'
 import {
@@ -214,7 +213,7 @@ function readManifestFromCafs (filesMap: FilesMap): DependencyManifest | undefin
   try {
     return parseJsonBufferSync(fs.readFileSync(manifestPath)) as DependencyManifest
   } catch (err: unknown) {
-    if (err instanceof SyntaxError || (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+    if (err instanceof SyntaxError || (isError(err) && 'code' in err && err.code === 'ENOENT')) {
       return undefined
     }
     throw err
@@ -292,7 +291,7 @@ function makeIgnoreFromPattern (pattern: string): (filename: string) => boolean 
   try {
     regex = new RegExp(pattern)
   } catch (err: unknown) {
-    const detail = util.types.isNativeError(err) ? `: ${err.message}` : ''
+    const detail = isError(err) ? `: ${err.message}` : ''
     throw new PnpmError(
       'INVALID_IGNORE_FILE_PATTERN',
       `Invalid ignoreFilePattern regex${detail}: ${pattern}`

@@ -1,9 +1,8 @@
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { createShortHash } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
@@ -40,7 +39,7 @@ export async function getRegisteredProjects (storeDir: string): Promise<string[]
   try {
     entries = await fs.readdir(registryDir, { withFileTypes: true })
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err
@@ -59,11 +58,11 @@ export async function getRegisteredProjects (storeDir: string): Promise<string[]
       target = await fs.readlink(linkPath)
     } catch (err: unknown) {
       // If the file is not a symlink (EINVAL) or doesn't exist (ENOENT), ignore it
-      if (util.types.isNativeError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EINVAL')) {
+      if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EINVAL')) {
         return
       }
       // For permission errors etc, inform the user
-      const message = util.types.isNativeError(err) ? err.message : String(err)
+      const message = isError(err) ? err.message : String(err)
       throw new PnpmError('PROJECT_REGISTRY_ENTRY_INACCESSIBLE',
         `Cannot read project registry entry "${linkPath}": ${message}`,
         {
@@ -80,13 +79,13 @@ export async function getRegisteredProjects (storeDir: string): Promise<string[]
       projects.push(absoluteTarget)
     } catch (err: unknown) {
       // Only clean up if project directory no longer exists
-      if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      if (isError(err) && 'code' in err && err.code === 'ENOENT') {
         await fs.unlink(linkPath)
         globalInfo(`Removed stale project registry entry: ${absoluteTarget}`)
         return
       }
       // Can't access project - throw error to prevent incorrect pruning
-      const message = util.types.isNativeError(err) ? err.message : String(err)
+      const message = isError(err) ? err.message : String(err)
       throw new PnpmError('PROJECT_INACCESSIBLE',
         `Cannot access registered project "${absoluteTarget}": ${message}`,
         {

@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import type { Finder, PackageManifest } from '@pnpm/types'
@@ -113,7 +112,7 @@ function describePackage (pkg: PackageManifest): string {
 
 /**
  * Errors are matched by shape, not by class, because asynchronous module customization
- * hooks forward them from their own realm, where `util.types.isNativeError()` returns false.
+ * hooks forward them from their own realm, where `isError()` returns false.
  * See https://github.com/pnpm/pnpm/issues/11701
  */
 function isModuleNotFoundError (err: unknown): boolean {
@@ -129,7 +128,7 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
 }
 
 function toError (err: unknown): Error {
-  if (util.types.isNativeError(err) || err instanceof Error) return err
+  if (isError(err) || err instanceof Error) return err
   try {
     return new Error(String(err), { cause: err })
   } catch {
