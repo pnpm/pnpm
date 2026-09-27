@@ -15,6 +15,7 @@ import type {
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
 import { isError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -370,6 +371,9 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
+      await Promise.all(Object.entries(depNode.packageRootLinks ?? {}).map(([alias, target]) =>
+        symlinkDependency(path.join(depNode.dir, target), path.join(depNode.dir, 'node_modules'), alias)
+      ))
       return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
     })
   )

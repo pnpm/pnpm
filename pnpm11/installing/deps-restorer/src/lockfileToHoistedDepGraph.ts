@@ -371,6 +371,7 @@ async function fetchDeps (
     }
     opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByPkgId, opts)
+    opts.graph[dir].packageRootLinks = getPackageRootLinks(pkgSnapshot, opts.include)
   }))
   return depHierarchy
 }
@@ -386,6 +387,22 @@ async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: stri
     }
     throw err
   }
+}
+
+function getPackageRootLinks (pkgSnapshot: PackageSnapshot, include: IncludedDependencies): Record<string, string> | undefined {
+  let links: Record<string, string> | undefined
+  const allDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  for (const [alias, ref] of Object.entries(allDeps)) {
+    const target = dp.packageRootLinkTarget(ref)
+    if (target != null) {
+      links ??= {}
+      links[alias] = target
+    }
+  }
+  return links
 }
 
 function getChildren (

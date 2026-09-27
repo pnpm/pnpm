@@ -11,6 +11,7 @@ import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/wo
 import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type WantedLocalDependency }
+export { fileSpecToPackageRootLink } from './packageRootLink.js'
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest

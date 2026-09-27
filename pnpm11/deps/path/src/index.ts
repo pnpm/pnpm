@@ -306,3 +306,22 @@ const RUNTIME_DEP_PATH_RE = /^(?:node|bun|deno)@runtime:/
 export function isRuntimeDepPath (depPath: DepPath): boolean {
   return RUNTIME_DEP_PATH_RE.test(depPath)
 }
+
+/**
+ * The prefix of a lockfile reference to a directory inside the package that
+ * declares it, such as `link:<root>/typings/css-tree`. `<root>` stands for
+ * the declaring package's own directory, which is only known where that
+ * package is placed on disk.
+ */
+export const PACKAGE_ROOT_LINK_PREFIX = 'link:<root>/'
+
+/**
+ * The path, relative to the declaring package's directory, that a
+ * {@link PACKAGE_ROOT_LINK_PREFIX} reference points to, or `undefined` for
+ * any other reference.
+ */
+export function packageRootLinkTarget (reference: string): string | undefined {
+  return reference.startsWith(PACKAGE_ROOT_LINK_PREFIX)
+    ? reference.slice(PACKAGE_ROOT_LINK_PREFIX.length)
+    : undefined
+}

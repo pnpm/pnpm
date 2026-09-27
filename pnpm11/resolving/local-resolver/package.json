@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
