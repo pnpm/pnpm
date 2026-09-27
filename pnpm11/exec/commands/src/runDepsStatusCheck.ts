@@ -37,9 +37,6 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
-  if (opts.verifyDepsBeforeRun === 'install' || opts.verifyDepsBeforeRun === 'prompt') {
-    refuseInstallDroppingIgnoredSettings(opts)
-  }
 
   switch (opts.verifyDepsBeforeRun) {
     case 'install':
@@ -111,6 +108,7 @@ function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOp
  * predecessor's install left them out of date.
  */
 async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]): Promise<void> {
+  refuseInstallDroppingIgnoredSettings(opts)
   const root = opts.workspaceDir ?? opts.dir
   let lock: DirLock | undefined
   let waited = false
