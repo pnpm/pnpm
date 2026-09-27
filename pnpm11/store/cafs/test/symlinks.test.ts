@@ -47,6 +47,7 @@ describe('normalizeSymlinkTarget()', () => {
     ['a/../../escape', 'target', 'is outside the package'],
     ['/tmp/escape', 'target', 'is outside the package'],
     ['a//link', 'target', 'is not a plain relative path'],
+    ['a\\link', 'target', 'is not a plain relative path'],
     ['link', '', 'is empty'],
   ])('rejects the link at %s to "%s", which %s', (linkPath, target) => {
     expect(normalizeSymlinkTarget(linkPath, target)).toBeUndefined()
