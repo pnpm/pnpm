@@ -41,6 +41,8 @@ test('runLifecycleHook() quotes arguments for the emulator rather than for cmd o
 
 // cmd's JSON quoting would leave `$PNPM_QUOTING_TEST` for sh to expand,
 // so the recorded arguments show which shell the quoting was chosen for.
+// The mocked `is-windows` already runs the Windows quoting branch here.
+// A real Windows host has no POSIX shell at a fixed path to configure.
 const skipOnRealWindows = process.platform === 'win32' ? test.skip : test
 
 skipOnRealWindows.each([false, true])('runLifecycleHook() quotes arguments for a configured non-cmd scriptShell on Windows (shellEmulator: %s)', async (shellEmulator) => {
