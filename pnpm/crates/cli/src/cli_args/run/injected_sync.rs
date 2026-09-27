@@ -3,7 +3,7 @@
 
 use super::{RunContext, Value};
 use pnpm_injected_deps_syncer::{
-    InjectedEditWatch, SyncInjectedDeps, injected_edit_dirs, sync_injected_deps,
+    InjectedEditWatch, SyncInjectedDeps, injected_edit_sources, sync_injected_deps,
     watch_injected_edits,
 };
 
@@ -14,8 +14,8 @@ pub(super) fn start_injected_edit_watch(
     if !syncs_injected_deps_after(ctx, name) {
         return None;
     }
-    let (source, targets) = injected_edit_dirs(&injected_sync_opts(ctx))?;
-    Some(watch_injected_edits(source, targets))
+    let sources = injected_edit_sources(&injected_sync_opts(ctx));
+    (!sources.is_empty()).then(|| watch_injected_edits(sources))
 }
 
 pub(super) fn sync_injected_deps_after(ctx: &RunContext<'_>, name: &str) -> miette::Result<()> {

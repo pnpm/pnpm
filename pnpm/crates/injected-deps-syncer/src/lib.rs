@@ -286,27 +286,48 @@ fn resolved_injected_targets(
     )
 }
 
-/// The source directory and injected copies a running script should publish.
-///
-/// `None` when the package has no name, no workspace, or no injected copies,
-/// or when the modules manifest cannot be read. [`sync_injected_deps`]
-/// reports that error after the script, so it does not stop the script from
-/// starting.
+/// A source directory and the injected copies a running script should
+/// publish from it.
+pub struct InjectedEditSource {
+    pub source: PathBuf,
+    pub targets: Vec<PathBuf>,
+}
+
+/// The same sources [`sync_injected_deps`] patches from: the
+/// `publishConfig.directory` of the manifest read before the script, and the
+/// project root when that differs. Empty when the package has no name, no
+/// workspace, or no injected copies, or when the modules manifest cannot be
+/// read. [`sync_injected_deps`] reports that error after the script, so it
+/// does not stop the script from starting.
 #[must_use]
-pub fn injected_edit_dirs(opts: &SyncInjectedDeps<'_>) -> Option<(PathBuf, Vec<PathBuf>)> {
-    opts.pkg_name?;
-    let workspace_dir = opts.workspace_dir?;
-    let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
-    let modules = read_workspace_modules(opts.workspace_modules_dir)
-        .inspect_err(|error| {
+pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSource> {
+    let (Some(_), Some(workspace_dir)) = (opts.pkg_name, opts.workspace_dir) else {
+        return Vec::new();
+    };
+    let modules = match read_workspace_modules(opts.workspace_modules_dir) {
+        Ok(modules) => modules,
+        Err(error) => {
             tracing::debug!(
                 target: "pacquet::sync_injected_deps",
                 "Not publishing injected dependencies while the script is running: {error}",
             );
+            return Vec::new();
+        }
+    };
+    let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
+    let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
+    let mut sources = vec![content_source_dir.clone()];
+    if content_source_dir != pkg_root_dir {
+        sources.push(pkg_root_dir);
+    }
+    sources
+        .into_iter()
+        .filter_map(|source| {
+            let targets =
+                resolved_injected_targets(opts, workspace_dir, &source, modules.as_ref())?;
+            Some(InjectedEditSource { source, targets })
         })
-        .ok()?;
-    let targets = resolved_injected_targets(opts, workspace_dir, &pkg_root_dir, modules.as_ref())?;
-    Some((pkg_root_dir, targets))
+        .collect()
 }
 
 /// Polls injected copies until [`InjectedEditWatch::stop`] or drop.
@@ -343,14 +364,16 @@ const PUBLISH_INTERVAL: Duration = Duration::from_millis(200);
 /// already-copied file is not republished: its inode differs and its
 /// modification time was preserved.
 #[must_use]
-pub fn watch_injected_edits(source: PathBuf, targets: Vec<PathBuf>) -> InjectedEditWatch {
+pub fn watch_injected_edits(sources: Vec<InjectedEditSource>) -> InjectedEditWatch {
     let (stop, stopped) = mpsc::channel::<()>();
     let thread = thread::spawn(move || {
         let edited_since = SystemTime::now()
             .checked_sub(Duration::from_secs(2))
             .unwrap_or(SystemTime::UNIX_EPOCH);
         loop {
-            publish_to_targets(&source, &targets, edited_since);
+            for source in &sources {
+                publish_to_targets(source, edited_since);
+            }
             if !matches!(stopped.recv_timeout(PUBLISH_INTERVAL), Err(RecvTimeoutError::Timeout)) {
                 break;
             }
@@ -359,7 +382,15 @@ pub fn watch_injected_edits(source: PathBuf, targets: Vec<PathBuf>) -> InjectedE
     InjectedEditWatch { stop: Some(stop), thread: Some(thread) }
 }
 
-fn publish_to_targets(source: &Path, targets: &[PathBuf], edited_since: SystemTime) {
+fn publish_to_targets(
+    InjectedEditSource { source, targets }: &InjectedEditSource,
+    edited_since: SystemTime,
+) {
+    // A publish directory the script has not built yet reads back empty,
+    // which would empty the injected copies.
+    if !source.is_dir() {
+        return;
+    }
     for target in targets {
         if let Err(error) = dir_patcher::publish_edits(source, target, edited_since) {
             tracing::debug!(
