@@ -41,8 +41,8 @@ pub(super) fn regular_children_match(
 }
 /// Whether the symlink layout writes a link for `alias` inside the
 /// snapshot's slot: a resolved child is linked unless the installability
-/// pass skipped it, and a `link:` child only when the layout knows the
-/// lockfile dir.
+/// pass skipped it, a link into the package itself always is, and any other
+/// `link:` child only when the layout knows the lockfile dir.
 pub(super) fn layout_links_child(
     alias: &pnpm_lockfile::PkgName,
     dep_ref: &pnpm_lockfile::SnapshotDepRef,
@@ -52,7 +52,8 @@ pub(super) fn layout_links_child(
     if let Some(target) = dep_ref.resolve(alias) {
         !skipped.contains(&target)
     } else {
-        dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
+        dep_ref.package_root_link_target().is_some()
+            || dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
     }
 }
 /// Whether the slot carries the link the symlink layout writes for

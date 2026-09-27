@@ -9,6 +9,7 @@ pub use hoist_plan::{
 
 mod direct_links;
 mod hoist_plan;
+mod package_root_links;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
@@ -282,6 +283,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         dir_clone_cache: dir_clone_cache.as_ref(),
     })
     .map_err(HoistedLinkerError::LinkHoistedModules)?;
+    package_root_links::link_hoisted_package_root_links(lockfile, walked.graph.values())?;
     link_selected_hoisted_direct_dependencies(
         config,
         inputs.projects.walker_lockfile_dir,

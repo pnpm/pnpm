@@ -34,6 +34,10 @@ test('a file: dependency pointing inside a registry package is linked to that di
   await install(manifest, testDefaults({ frozenLockfile: true }))
 
   expect(project.requireModule('@pnpm.e2e/pkg-with-internal-file-dep')()).toBe('internal child')
+
+  await install(manifest, testDefaults({ frozenLockfile: false, preferFrozenLockfile: false }))
+
+  expect(readYamlFileSync<LockfileFile>(path.resolve('pnpm-lock.yaml'))).toStrictEqual(lockfile)
 })
 
 test('a file: dependency pointing inside a registry package is linked with the hoisted node-linker', async () => {

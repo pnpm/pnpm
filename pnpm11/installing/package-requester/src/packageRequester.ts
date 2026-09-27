@@ -16,6 +16,7 @@ import { type PickedFetcher, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
+import { fileSpecToPackageRootLink } from '@pnpm/resolving.local-resolver'
 import {
   type AtomicResolution,
   classifyResolution,
@@ -29,7 +30,6 @@ import {
   selectPlatformVariant,
   type TarballResolution,
 } from '@pnpm/resolving.resolver-base'
-import { fileSpecToPackageRootLink } from '@pnpm/resolving.local-resolver'
 import {
   normalizeBundledManifest,
 } from '@pnpm/store.cafs'

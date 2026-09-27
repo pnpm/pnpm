@@ -6,9 +6,9 @@ use super::{
     current_pkg_from_lockfile, emit_deprecation_if_needed, ensure_same_registry_revision,
     extract_peer_dependencies, is_exotic_resolved_via, is_update_target, lock_recoverable,
     node_alias, node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
-    overlay_version_view, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, pkg_is_leaf, pkgs_info_from_ids,
-    project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
+    overlay_version_view, package_root_link_result, parent_ids_contain_sequence,
+    peer_shadowed_dependencies, pin_locked_version, pin_patched_revision, pkg_is_leaf,
+    pkgs_info_from_ids, project_relative_cache_scope, register_peer_dep_names, resolve_reused_node,
     resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node,
     wanted_lockfile_contains_satisfying_entry,
 };
@@ -115,6 +115,9 @@ pub(super) async fn resolve_edge<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    if let Some(result) = package_root_link_result(wanted) {
+        return Ok(Some(Arc::new(result)));
+    }
     let base = edge_opts(ctx, wanted, edge, prior_key);
     let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
