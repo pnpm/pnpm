@@ -42,7 +42,8 @@ pub use named_registry::{
 };
 pub use named_registry_resolver::NamedRegistryResolver;
 pub use npm_resolver::{
-    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, normalize_tarball_url,
+    NpmResolver, RegistryMetadataClient, RegistryMetadataFormat, detect_min_release_age_violation,
+    normalize_tarball_url,
 };
 pub use parse_bare_specifier::{
     JsrRegistryPackageSpec, NamedRegistryPackageSpec, ParseNamedRegistrySpecifierError,

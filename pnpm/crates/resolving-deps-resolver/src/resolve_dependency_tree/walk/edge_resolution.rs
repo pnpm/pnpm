@@ -75,7 +75,7 @@ where
         return Ok(NodeSeed::Done(None));
     };
 
-    if let Some(violation) = result.policy_violation.clone() {
+    if let Some(violation) = recheck_against_minimum_release_age(ctx, &result) {
         lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
@@ -206,6 +206,34 @@ pub(super) fn edge_cache_key(
         ctx.update_cache_scope(),
         update_target,
     ))
+}
+
+/// Returns the policy violation to record for `result`. A violation with
+/// any other code is returned unchanged. A `minimumReleaseAge` violation
+/// is returned only if the package was published after the base
+/// `published_by` cutoff and `published_by_exclude` does not cover it.
+///
+/// The resolver flags a pick against the cutoff it picked with, which
+/// `resolutionMode: time-based` tightens below the `minimumReleaseAge`
+/// cutoff for subdependencies. The picking cutoff is never later than
+/// the `minimumReleaseAge` one, so every real violation is flagged first.
+fn recheck_against_minimum_release_age(
+    ctx: &TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation> {
+    let violation = result.policy_violation.as_ref()?;
+    if violation.code != pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE {
+        return Some(violation.clone());
+    }
+    let policy = &ctx.options.base.policy;
+    pnpm_resolving_npm_resolver::detect_min_release_age_violation(
+        &violation.name,
+        &violation.version,
+        result.package.published_at.as_deref(),
+        &violation.resolution,
+        policy.published_by,
+        policy.published_by_exclude.as_ref(),
+    )
 }
 
 /// What a freshly resolved edge settled before its node seeds.

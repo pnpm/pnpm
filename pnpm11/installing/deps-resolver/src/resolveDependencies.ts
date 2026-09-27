@@ -28,7 +28,7 @@ import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
 import type { PatchInfo } from '@pnpm/patching.types'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
-import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
+import { detectMinReleaseAgeViolation, MINIMUM_RELEASE_AGE_VIOLATION_CODE, parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   type DirectoryResolution,
@@ -2358,8 +2358,9 @@ async function resolveDependency (
     // here; collect them onto the shared context so resolveDependencyTree
     // can hand the full set to the install command between
     // resolveDependencyTree and resolvePeers.
-    if (pkgResponse.body.policyViolation) {
-      ctx.resolutionPolicyViolations.push(pkgResponse.body.policyViolation)
+    const policyViolation = recheckAgainstMinimumReleaseAge(ctx, pkgResponse.body)
+    if (policyViolation) {
+      ctx.resolutionPolicyViolations.push(policyViolation)
     }
 
     // Check if exotic dependencies are disallowed in subdependencies
@@ -2636,6 +2637,32 @@ async function resolveDependency (
   } finally {
     finishPackageResolution()
   }
+}
+
+/**
+ * Returns the policy violation to record for a resolved package. A violation
+ * with any other code is returned unchanged. A `minimumReleaseAge` violation
+ * is returned only if the package was published after `ctx.maximumPublishedBy`
+ * and `ctx.publishedByExclude` does not cover it.
+ *
+ * The resolver flags a pick against the cutoff it picked with, which
+ * `resolutionMode: time-based` tightens below the `minimumReleaseAge` cutoff
+ * for subdependencies. The picking cutoff is never later than the
+ * `minimumReleaseAge` one, so every real violation is flagged first.
+ */
+function recheckAgainstMinimumReleaseAge (
+  ctx: Pick<ResolutionContext, 'maximumPublishedBy' | 'publishedByExclude'>,
+  { policyViolation: violation, publishedAt }: { policyViolation?: ResolutionPolicyViolation, publishedAt?: string }
+): ResolutionPolicyViolation | undefined {
+  if (violation?.code !== MINIMUM_RELEASE_AGE_VIOLATION_CODE) return violation
+  return detectMinReleaseAgeViolation({
+    name: violation.name,
+    version: violation.version,
+    publishedAt,
+    resolution: violation.resolution,
+    publishedBy: ctx.maximumPublishedBy,
+    publishedByExclude: ctx.publishedByExclude,
+  })
 }
 
 function hasRegistryRevisionSpecifier (specifier: string): boolean {

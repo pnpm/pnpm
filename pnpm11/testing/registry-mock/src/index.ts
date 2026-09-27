@@ -45,6 +45,14 @@ export function bravoDepMatureUpTo101MinimumReleaseAge (): number {
   return (Date.now() - new Date('2022-03-01T00:00:00.000Z').getTime()) / (60 * 1000)
 }
 
+/**
+ * A `minimumReleaseAge` (in minutes) under which `@pnpm.e2e/bravo@1.0.0`
+ * (2022-04-01) is mature and `@pnpm.e2e/bravo-dep@1.1.0` (2022-05-01) is not.
+ */
+export function bravoMatureBravoDep110ImmatureMinimumReleaseAge (): number {
+  return (Date.now() - new Date('2022-04-15T00:00:00.000Z').getTime()) / (60 * 1000)
+}
+
 export interface AddDistTagOptions {
   package: string
   version: string
