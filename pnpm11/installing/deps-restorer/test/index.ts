@@ -797,7 +797,7 @@ test.each([['isolated'], ['hoisted']] as const)('using side effects cache with n
   storeIndexes.push(storeIndex)
   const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({

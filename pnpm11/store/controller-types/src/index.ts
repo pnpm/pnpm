@@ -265,6 +265,8 @@ export interface ImportOptions {
   sourceExists?: boolean
   keepModulesDir?: boolean
   safeToSkip?: boolean
+  /** Symlinks to create in the package, keyed by their path relative to it, with their targets. */
+  symlinks?: Map<string, string>
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined

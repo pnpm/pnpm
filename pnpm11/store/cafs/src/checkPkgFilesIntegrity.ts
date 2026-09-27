@@ -4,11 +4,12 @@ import util from 'node:util'
 
 import { PnpmError } from '@pnpm/error'
 import gfs, { withFileLockRetry } from '@pnpm/fs.graceful-fs'
-import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects } from '@pnpm/store.cafs-types'
+import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
+import { splitSymlinks } from './symlinks.js'
 
 const CHUNK_SIZE = 64 * 1024
 // Windows has neither flag; there the descriptor check below stands alone.
@@ -53,7 +54,7 @@ export function takeVerifiedFileIntegrity (): VerifiedFileIntegrity {
 export interface VerifyResult {
   passed: boolean
   filesMap: FilesMap
-  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
+  sideEffectsMaps?: Map<string, SideEffectsFilesMap>
   sideEffectsDiffs?: SideEffects
   remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
 }
@@ -81,22 +82,22 @@ export function checkPkgFilesIntegrity (
   const verified = _checkFilesIntegrity(pkgIndex.files)
   if (!verified.passed) return verified
 
-  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
+  const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
-      if (added) {
-        const result = _checkFilesIntegrity(added)
+    for (const [sideEffectName, diff] of pkgIndex.sideEffects) {
+      if (diff.added) {
+        const result = _checkFilesIntegrity(diff.added)
         if (!result.passed) {
           // Skip invalid side effects
           continue
-        } else {
-          sideEffectsMaps.set(sideEffectName, { added: result.filesMap, deleted })
         }
-      } else if (deleted) {
-        sideEffectsMaps.set(sideEffectName, { deleted })
+        const filesMap = toSideEffectsFilesMap({ added: diff.added, deleted: diff.deleted }, result.filesMap, pkgIndex.files)
+        if (filesMap) sideEffectsMaps.set(sideEffectName, filesMap)
+      } else if (diff.deleted) {
+        sideEffectsMaps.set(sideEffectName, { deleted: diff.deleted })
       }
     }
   }
@@ -124,25 +125,20 @@ export function buildFileMapsFromIndex (
     filesMap.set(f, filename)
   }
 
-  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
+  const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
   if (pkgIndex.sideEffects) {
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
-      const sideEffectEntry: { added?: FilesMap, deleted?: string[] } = {}
-
-      if (added) {
+    for (const [sideEffectName, diff] of pkgIndex.sideEffects) {
+      if (diff.added) {
         const addedFilesMap: FilesMap = new Map()
-        for (const [f, fstat] of added) {
+        for (const [f, fstat] of diff.added) {
           const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
           addedFilesMap.set(f, filename)
         }
-        sideEffectEntry.added = addedFilesMap
+        const filesMap = toSideEffectsFilesMap({ added: diff.added, deleted: diff.deleted }, addedFilesMap, pkgIndex.files)
+        if (filesMap) sideEffectsMaps.set(sideEffectName, filesMap)
+      } else {
+        sideEffectsMaps.set(sideEffectName, diff.deleted ? { deleted: diff.deleted } : {})
       }
-
-      if (deleted) {
-        sideEffectEntry.deleted = deleted
-      }
-
-      sideEffectsMaps.set(sideEffectName, sideEffectEntry)
     }
   }
 
@@ -153,6 +149,18 @@ export function buildFileMapsFromIndex (
     sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
     remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
   }
+}
+
+function toSideEffectsFilesMap (
+  diff: { added: PackageFiles, deleted?: string[] },
+  addedFilesMap: FilesMap,
+  baseFiles: PackageFiles
+): SideEffectsFilesMap | undefined {
+  const split = splitSymlinks(diff, addedFilesMap, baseFiles.keys())
+  if (split == null) return undefined
+  const filesMap: SideEffectsFilesMap = { added: split.added, deleted: diff.deleted }
+  if (split.symlinks.size > 0) filesMap.symlinks = split.symlinks
+  return filesMap
 }
 
 function matchingSideEffects (

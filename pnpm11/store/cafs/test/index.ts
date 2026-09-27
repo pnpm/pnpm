@@ -102,8 +102,8 @@ describe('cafs', () => {
     fs.writeFileSync(path.join(srcDir, 'lib/index.js'), '// comment 2', 'utf8')
     await symlinkDir(path.join(srcDir, 'lib'), path.join(srcDir, 'lib-symlink'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
     expect(filesIndex.get('symlink.js')).toBeDefined()
     expect(filesIndex.get('symlink.js')).toStrictEqual(filesIndex.get('index.js'))
     expect(filesIndex.get('lib/index.js')).toBeDefined()
@@ -127,8 +127,8 @@ describe('cafs', () => {
     // Create a symlink pointing to the file outside the package
     fs.symlinkSync(secretFile, path.join(srcDir, 'leak.txt'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -152,8 +152,8 @@ describe('cafs', () => {
     // Create a symlink to the outside directory
     fs.symlinkSync(outsideDir, path.join(srcDir, 'leak-dir'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(true)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(true)
 
     // The legitimate file should be included
     expect(filesIndex.get('legit.txt')).toBeDefined()
@@ -178,8 +178,8 @@ describe('cafs', () => {
     // Create a symlinked node_modules directory at the root
     await symlinkDir(targetDir, path.join(srcDir, 'node_modules'))
 
-    const { filesIndex, hasSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
-    expect(hasSymlinks).toBe(false)
+    const { filesIndex, hasUnrecordedSymlinks } = createCafs(storeDir).addFilesFromDir(srcDir)
+    expect(hasUnrecordedSymlinks).toBe(false)
 
     // The legitimate file should be included
     expect(filesIndex.get('index.js')).toBeDefined()

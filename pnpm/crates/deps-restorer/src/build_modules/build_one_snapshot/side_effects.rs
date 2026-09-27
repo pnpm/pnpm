@@ -1,6 +1,6 @@
 use super::{
     super::{
-        BuildModulesError, HashMap, PackageKey, Path, PathBuf, Reporter, materialize_side_effects,
+        BuildModulesError, PackageKey, Path, Reporter, materialize_side_effects,
         store_index_key_for_resolution,
     },
     BuildCandidate, BuildOneSnapshot, global_slot_carries_overlay, report_broken_slot,
@@ -91,7 +91,7 @@ pub(super) fn already_built<Reporter: self::Reporter>(
 pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    cached: (&str, &HashMap<String, PathBuf>),
+    cached: (&str, &pnpm_store_dir::SideEffectsOverlay),
     named: (&str, &str),
 ) -> Result<bool, BuildModulesError> {
     let (key, overlay) = cached;
@@ -162,7 +162,7 @@ pub(super) enum OverlayOutcome {
 fn lock_slot_missing_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Option<Option<pnpm_fs::DirLock>> {
     if global_slot_carries_overlay(context, snapshot_key, overlay) {
         return None;
@@ -183,7 +183,7 @@ fn lock_slot_missing_overlay(
 pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     pkg_dir: &Path,
-    overlay: &HashMap<String, PathBuf>,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> OverlayOutcome {
     match materialize_side_effects::<Reporter>(
         context.directories.logged_methods,
@@ -295,8 +295,11 @@ pub(super) fn upload_and_publish(
         cache_key,
         writer,
     )?;
+    // Remote artifacts are read by pnpm versions that restore a recorded
+    // symlink as a regular file.
     if upload.has_side_effects
         && let Some(diff) = diff
+        && !diff.has_symlinks()
         && let Some(graph) = context.progress.dep_graph
         && let Err(error) = publisher.publish(
             snapshot_key,

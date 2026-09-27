@@ -76,7 +76,7 @@ test('patch package with exact version', async () => {
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
@@ -172,7 +172,7 @@ test('patch package with version range', async () => {
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
@@ -544,7 +544,7 @@ test('patch package when scripts are ignored', async () => {
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest
@@ -633,7 +633,7 @@ test('patch package when the package is not in allowBuilds list', async () => {
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
   expect(filesIndex.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;patch=${patchFileHash}`
   expect(filesIndex.sideEffects!.has(sideEffectsKey)).toBeTruthy()
   expect(filesIndex.sideEffects!.get(sideEffectsKey)!.added).toBeTruthy()
   const patchedFileDigest = filesIndex.sideEffects!.get(sideEffectsKey)!.added!.get('index.js')?.digest

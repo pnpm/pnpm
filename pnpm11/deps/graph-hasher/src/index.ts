@@ -112,6 +112,13 @@ export function calcDepStateInputKey<T extends string> (
   return result
 }
 
+/**
+ * The side-effects diff format the cache key names. Format 2 records the
+ * symlinks a build creates, which a pnpm version reading format 1 would
+ * restore as regular files, so the two formats are kept under separate keys.
+ */
+export const SIDE_EFFECTS_FORMAT_KEY = 'format=2'
+
 export function calcDepState<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
@@ -134,7 +141,7 @@ export function calcDepState<T extends string> (
   }
 ): string {
   const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
-  let result = engineName(ownPin ?? opts.nodeVersion)
+  let result = `${engineName(ownPin ?? opts.nodeVersion)};${SIDE_EFFECTS_FORMAT_KEY}`
   if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash({
       depsGraph,

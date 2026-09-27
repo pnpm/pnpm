@@ -31,6 +31,7 @@ import {
 } from './getFilePathInCafs.js'
 import { normalizeBundledManifest } from './normalizeBundledManifest.js'
 import { parseJsonBufferSync } from './parseJson.js'
+import { isSymlinkMode, normalizeSymlinkTarget, SYMLINK_MODE } from './symlinks.js'
 import { writeBufferToCafs } from './writeBufferToCafs.js'
 
 export const HASH_ALGORITHM = 'sha512'
@@ -46,11 +47,14 @@ export {
   type FileType,
   getFilePathByModeInCafs,
   type Integrity,
+  isSymlinkMode,
+  normalizeSymlinkTarget,
   type PackageFileInfo,
   type PackageFiles,
   type PackageFilesIndex,
   type SideEffects,
   type SideEffectsDiff,
+  SYMLINK_MODE,
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,
   verifyFileIntegrity,
@@ -66,7 +70,7 @@ export interface CreateCafsOpts {
 }
 
 export interface CafsFunctions {
-  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean }) => AddToStoreResult
+  addFilesFromDir: (dirname: string, opts?: { files?: string[], readManifest?: boolean, includeNodeModules?: boolean, recordSymlinks?: boolean }) => AddToStoreResult
   addFilesFromTarball: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => AddToStoreResult
   addFilesFromTarballBounded: (tarballBuffer: Buffer, readManifest?: boolean, ignore?: (filename: string) => boolean) => Promise<AddToStoreResult>
   addFile: (buffer: Buffer, mode: number) => FileWriteResult

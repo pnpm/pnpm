@@ -370,10 +370,13 @@ function addFilesFromDir (
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, hasSymlinks, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, hasUnrecordedSymlinks, manifest } = cafs.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
+    // A side-effects entry never reaches Windows with a symlink in it:
+    // creating one there needs a privilege most users lack.
+    recordSymlinks: sideEffectsCacheKey != null && process.platform !== 'win32',
   })
   if (appendManifest && manifest == null) {
     manifest = appendManifest
@@ -400,7 +403,7 @@ function addFilesFromDir (
         },
       }
     }
-    if (hasSymlinks) {
+    if (hasUnrecordedSymlinks) {
       if (existingFilesIndex.sideEffects?.delete(sideEffectsCacheKey)) {
         if (existingFilesIndex.sideEffects.size === 0) {
           existingFilesIndex.sideEffects = undefined
