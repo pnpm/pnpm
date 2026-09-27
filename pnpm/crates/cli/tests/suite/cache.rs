@@ -655,7 +655,7 @@ fn prune_help_says_older_versions_depend_on_pruned_dirs() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("pnpm 12.3 and earlier, depend on these"),
+        stdout.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these"),
         "help should say older versions depend on the pruned directories: {stdout}",
     );
     drop(root);
