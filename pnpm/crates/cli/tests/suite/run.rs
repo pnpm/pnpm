@@ -911,14 +911,17 @@ mod shell_emulator {
             .output()
             .expect("spawn pacquet run");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let unwrapped: String = stderr
-            .chars()
-            .filter(|&c| !c.is_whitespace() && c != '│')
-            .collect();
+        // miette wraps long words too, so a path can be split anywhere.
+        let unwrap = |text: &str| -> String {
+            text.chars()
+                .filter(|&c| !c.is_whitespace() && c != '│')
+                .collect()
+        };
+        let unwrapped = unwrap(&stderr);
         assert!(!output.status.success(), "got: {output:?}");
         assert!(
-            unwrapped.contains("TheconfiguredscriptShellwasnotfound")
-                && unwrapped.contains(&missing_shell.display().to_string()),
+            unwrapped.contains(&unwrap("The configured scriptShell was not found"))
+                && unwrapped.contains(&unwrap(&missing_shell.display().to_string())),
             "the error must name the configured scriptShell, got: {stderr}",
         );
         assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
