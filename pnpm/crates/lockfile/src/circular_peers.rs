@@ -52,6 +52,9 @@ impl<'a> PeerCycleWalk<'a> {
 
     /// Whether a walk out of `start` reaches a node already on it.
     fn walk_from(&mut self, start: &PackageKey) -> bool {
+        if !self.explored.insert(start.clone()) {
+            return false;
+        }
         self.on_path.insert(start.clone());
         let mut walk = vec![(start.clone(), self.peer_targets(start))];
         while let Some((key, mut targets)) = walk.pop() {
