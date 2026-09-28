@@ -69,6 +69,18 @@ fn new_keys_and_strings_follow_the_quoting_of_the_file() {
 }
 
 #[test]
+fn keeps_comments_in_a_container_that_empties_or_fills() {
+    let emptied = edit("{\n  overrides: {\n    // note\n    foo: '1',\n  },\n}", |value| {
+        value["overrides"] = json!({});
+    });
+    assert_eq!(emptied, "{\n  overrides: {\n    // note\n  },\n}");
+    let filled = edit("{\n  files: [\n    // note\n  ],\n}", |value| {
+        value["files"] = json!(["dist"]);
+    });
+    assert!(filled.contains("// note"), "{filled}");
+}
+
+#[test]
 fn grows_and_shrinks_arrays_in_place() {
     let source = "{\n  files: ['a', 'b', 'c'], // files note\n  keywords: ['x'],\n}";
     let edited = edit(source, |value| {

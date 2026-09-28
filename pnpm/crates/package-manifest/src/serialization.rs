@@ -401,8 +401,10 @@ fn serialize_json5(
     if let Some(edited) = crate::json5::sync(text, &original, value)
         && parse_project_manifest(path, &edited).is_ok_and(|edited| edited == *value)
     {
-        let edited = edited.strip_suffix('\n').unwrap_or(&edited);
-        return Ok(edited.strip_suffix('\r').unwrap_or(edited).to_owned());
+        return Ok(edited
+            .strip_suffix('\n')
+            .unwrap_or(&edited)
+            .to_owned());
     }
     let serialized = crate::json5::stringify(value, indent);
     let restored = crate::json5::restore_comments(text, &serialized);
