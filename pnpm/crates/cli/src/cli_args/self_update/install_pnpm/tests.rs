@@ -516,6 +516,27 @@ fn reuse_global_engine_skips_a_group_it_cannot_relink() {
     assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
 }
 
+/// On arm64 musl Linux a pre-v12 `@pnpm/exe` crashes at startup, so a
+/// global one left by an earlier self-update must not be reused there.
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_pnpm_exe_where_the_javascript_pnpm_is_wanted() {
+    let javascript_pnpm = pnpm_package_to_install_on("11.26.0", "linux", "arm64", "musl");
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "11.26.0", true);
+
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
+        .expect("scan the global packages dir");
+    assert!(reused.is_none(), "the native engine is not reused");
+
+    let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "11.26.0", false);
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
+        .expect("scan the global packages dir")
+        .expect("the JavaScript pnpm is reused");
+    assert_eq!(reused.package_name, PNPM_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
 #[cfg(unix)]
 fn reuse_target_engine(global_dir: &std::path::Path, version: &str) -> Option<InstallPnpmResult> {
     reuse_global_engine(global_dir, pnpm_package_to_install(version), version)

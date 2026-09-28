@@ -188,12 +188,17 @@ fn engine_alias_at_version(pkg: &GlobalPackageInfo, version: &str) -> Option<&'s
 /// alias it was installed as, instead of downloading it again. Every
 /// candidate is tried: a group that cannot be relinked (a pre-v12 JS `pnpm`
 /// where the native `@pnpm/exe` is wanted, say) must not hide a usable one.
+/// Where the JavaScript `pnpm` is wanted, only that package qualifies: a
+/// native engine at that version does not run on this host.
 fn reuse_global_engine(
     global_pkg_dir: &Path,
     package: PnpmPackageToInstall,
     version: &str,
 ) -> miette::Result<Option<InstallPnpmResult>> {
     for (existing, name) in find_global_engines(global_pkg_dir, version)? {
+        if !package.links_native_binary && name != package.name {
+            continue;
+        }
         let existing_package = PnpmPackageToInstall { name, ..package };
         if reuse_cached_engine(&existing.install_dir, existing_package, version) {
             return Ok(Some(InstallPnpmResult {
