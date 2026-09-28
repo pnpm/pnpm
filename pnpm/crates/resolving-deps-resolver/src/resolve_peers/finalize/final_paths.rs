@@ -10,7 +10,9 @@ pub(crate) struct FinalDepPaths {
     pub(crate) by_node_id: HashMap<NodeId, DepPath>,
     /// The peer ids each peer-suffixed final depPath was built from, so a
     /// pass that later retargets those peers can build the suffix again.
+    /// Empty unless [`Walker::build_final_dep_paths`] was asked for them.
     pub(crate) peer_ids: HashMap<DepPath, Vec<PeerId>>,
+    record_peer_ids: bool,
     visiting: HashSet<NodeId>,
 }
 
@@ -20,11 +22,11 @@ impl Walker<'_> {
     /// SCCs, or self-loops) keep the `name@version` collapse; every other
     /// peer slot carries the peer's own depPath. The cycle detection
     /// runs synchronously over the already-walked graph.
-    pub(in super::super) fn build_final_dep_paths(&self) -> FinalDepPaths {
+    pub(in super::super) fn build_final_dep_paths(&self, record_peer_ids: bool) -> FinalDepPaths {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
         let context = FinalPeerContext { scc_of: &scc_of, cyclic_peer_names: &cyclic_peer_names };
-        let mut final_dep_paths = FinalDepPaths::default();
+        let mut final_dep_paths = FinalDepPaths { record_peer_ids, ..FinalDepPaths::default() };
         let mut node_ids: Vec<NodeId> = self.nodes.external_peers
             .keys()
             .cloned()
@@ -64,7 +66,9 @@ impl Walker<'_> {
         let suffix = create_peer_dep_graph_hash(&peer_ids, self.opts.peers_suffix_max_length);
         let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
         let dep_path = DepPath::from(format!("{}{}", self.tree.packages[pkg_id].id, suffix));
-        final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
+        if final_dep_paths.record_peer_ids {
+            final_dep_paths.peer_ids.insert(dep_path.clone(), peer_ids);
+        }
         final_dep_paths.by_node_id.insert(node_id.clone(), dep_path.clone());
         final_dep_paths.visiting.remove(node_id);
         dep_path

@@ -4,7 +4,7 @@ use std::{borrow::Cow, collections::hash_map::Entry};
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
-    dependencies_graph::DependenciesGraph,
+    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     resolve_peers::split_peer_suffix_segments,
 };
 
@@ -20,9 +20,10 @@ pub(crate) struct PeerSuffixes<'a> {
 /// suffix names the variant that absorbed it.
 ///
 /// Rewrites the graph keys, the child edges and each importer's direct
-/// deps. When several nodes end up with one name, a node already keyed by
-/// it wins, otherwise the lowest old depPath does, and the nodes only the
-/// losers reached are dropped.
+/// deps. Nodes that end up with one name merge the way the peer resolution
+/// merges records that share a depPath: a node already keyed by it, else
+/// the lowest old depPath, keeps its edges and gains the aliases only the
+/// others had.
 pub(super) fn rename_survivors(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
@@ -56,6 +57,7 @@ fn survivor_renames(
     peer_suffixes: &PeerSuffixes<'_>,
 ) -> Vec<(DepPath, DepPath)> {
     let mut namer = SurvivorNamer {
+        graph,
         collapsed,
         peer_suffixes,
         names: HashMap::default(),
@@ -72,8 +74,8 @@ fn survivor_renames(
     renames
 }
 
-/// Move each renamed node to its new key. Returns whether any node was
-/// dropped because its new key was already taken.
+/// Move each renamed node to its new key. Returns whether a node merged
+/// into one already holding its new key.
 fn rekey(graph: &mut DependenciesGraph, renames: &[(DepPath, DepPath)]) -> bool {
     let renamed_nodes: Vec<_> = renames
         .iter()
@@ -89,13 +91,28 @@ fn rekey(graph: &mut DependenciesGraph, renames: &[(DepPath, DepPath)]) -> bool 
                 node.dep_path = entry.key().clone();
                 entry.insert(node);
             }
-            Entry::Occupied(_) => merged = true,
+            Entry::Occupied(mut entry) => {
+                merge_edges(entry.get_mut(), node);
+                merged = true;
+            }
         }
     }
     merged
 }
 
+/// Add the child aliases, optional children and transitive peers only
+/// `other` has to `kept`. Where both have an alias, `kept`'s edge stays.
+fn merge_edges(kept: &mut DependenciesGraphNode, other: DependenciesGraphNode) {
+    let edges = &mut kept.edges;
+    for (alias, child) in other.edges.children {
+        edges.children.entry(alias).or_insert(child);
+    }
+    edges.optional_children.extend(other.edges.optional_children);
+    edges.transitive_peer_dependencies.extend(other.edges.transitive_peer_dependencies);
+}
+
 struct SurvivorNamer<'a> {
+    graph: &'a DependenciesGraph,
     collapsed: &'a HashMap<DepPath, DepPath>,
     peer_suffixes: &'a PeerSuffixes<'a>,
     names: HashMap<DepPath, DepPath>,
@@ -124,9 +141,12 @@ impl<'a> SurvivorNamer<'a> {
         let peer_suffixes: &'a PeerSuffixes<'a> = self.peer_suffixes;
         let peer_ids: Cow<'a, [PeerId]> = match peer_suffixes.peer_ids.get(dep_path) {
             Some(peer_ids) => Cow::Borrowed(peer_ids),
-            // A depPath the peer resolution did not emit as final is the
-            // provisional one it put in a suffix to break a cycle. Its
-            // segments are read back from the text.
+            // A graph node without recorded peer ids has no peer suffix, even
+            // when its package id ends in parentheses.
+            None if self.graph.contains_key(dep_path) => return None,
+            // What is left is a provisional depPath the peer resolution put
+            // in a suffix to break a cycle. Its segments are read back from
+            // the text.
             None => split_peer_suffix_segments(suffix)?
                 .into_iter()
                 .map(|segment| PeerId::DepPath(DepPath::from(segment)))

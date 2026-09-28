@@ -345,7 +345,8 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir);
+    let mut finished =
+        finish_workspace_graph(&walker, &importers, lockfile_dir, dedupe_peer_dependents_enabled);
     if dedupe_injected_deps_enabled {
         dedupe_injected_deps(
             &mut finished.graph,
@@ -437,12 +438,13 @@ fn finish_workspace_graph(
     walker: &Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
+    record_peer_ids: bool,
 ) -> FinishedWorkspaceGraph {
     let FinalDepPaths {
         by_node_id: final_dep_paths,
         peer_ids,
         ..
-    } = walker.build_final_dep_paths();
+    } = walker.build_final_dep_paths(record_peer_ids);
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {

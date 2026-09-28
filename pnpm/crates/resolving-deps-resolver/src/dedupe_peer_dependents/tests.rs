@@ -1,16 +1,34 @@
 use super::{DirectByImporter, PeerSuffixes, dedupe_peer_dependents, deduplicate_dep_paths};
-use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
+use crate::{
+    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    resolve_peers::split_peer_suffix_segments,
+};
+use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
-/// Peer suffixes read back from the depPaths' text.
-fn text_suffixes() -> PeerSuffixes<'static> {
-    static NO_PEER_IDS: std::sync::LazyLock<HashMap<DepPath, Vec<PeerId>>> =
-        std::sync::LazyLock::new(HashMap::default);
-    PeerSuffixes { peer_ids: &NO_PEER_IDS, max_length: 1000 }
+/// The peer ids the peer resolution records for every node that resolved
+/// peers, read back from the depPath's text.
+fn recorded_peer_ids(graph: &DependenciesGraph) -> HashMap<DepPath, Vec<PeerId>> {
+    graph
+        .iter()
+        .filter(|(_, node)| !node.edges.resolved_peer_names.is_empty())
+        .filter_map(|(dep_path, _)| {
+            let peers_index = index_of_dep_path_suffix(dep_path.as_str()).peers_index?;
+            let segments = split_peer_suffix_segments(&dep_path.as_str()[peers_index..])?;
+            let peer_ids = segments
+                .into_iter()
+                .map(|segment| PeerId::DepPath(DepPath::from(segment)))
+                .collect();
+            Some((dep_path.clone(), peer_ids))
+        })
+        .collect()
+}
+
+fn suffixes(peer_ids: &HashMap<DepPath, Vec<PeerId>>) -> PeerSuffixes<'_> {
+    PeerSuffixes { peer_ids, max_length: 1000 }
 }
 
 fn dp(raw: &str) -> DepPath {
@@ -129,7 +147,8 @@ fn rewrites_importer_direct_dep_and_prunes_orphan() {
         BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-subset"]["foo"], dp(QUX_VARIANT));
     assert_eq!(direct["project-baz"]["foo"], dp(BAZ_VARIANT));
@@ -182,7 +201,8 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     direct.insert("project3".to_string(), BTreeMap::from([("foo".to_string(), dp(bar2))]));
     direct.insert("project4".to_string(), BTreeMap::from([("foo".to_string(), dp(bar2_baz))]));
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project1"]["foo"], direct["project2"]["foo"]);
     assert_ne!(direct["project1"]["foo"], direct["project3"]["foo"]);
@@ -231,7 +251,8 @@ fn a_consumers_child_edge_follows_the_collapse() {
         BTreeMap::from([("consumer".to_string(), dp(consumer))]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
@@ -259,7 +280,8 @@ fn incompatible_variants_do_not_collapse() {
         BTreeMap::from([("foo".to_string(), dp(QUX_VARIANT))]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-baz"]["foo"], dp(BAZ_VARIANT));
     assert_eq!(direct["project-qux"]["foo"], dp(QUX_VARIANT));
@@ -311,7 +333,8 @@ fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
         direct.insert(importer.to_string(), BTreeMap::from([("parent".to_string(), dp(parent))]));
     }
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-opt-peer"]["parent"], dp(PARENT_WITH_OPT_PEER));
     assert_eq!(direct["project-other"]["parent"], dp(PARENT_WITH_OTHER));
@@ -383,7 +406,8 @@ fn does_not_collapse_peer_dependents_across_different_peer_versions() {
         ]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project1"]["host"], dp(host1));
     assert_eq!(direct["project2"]["host"], dp(host2));
@@ -425,7 +449,8 @@ fn a_twin_kept_by_the_tie_break_is_renamed_after_the_surviving_peer() {
         BTreeMap::from([("plugin".to_string(), dp(plugin_core_sc))]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-a"]["plugin"], dp(plugin_core_sc));
     assert_eq!(direct["project-b"]["plugin"], dp(plugin_core_sc));
@@ -526,20 +551,20 @@ fn a_name_at_version_peer_is_not_renamed() {
 
 /// A consumer whose suffix named the collapsed variant is renamed to the
 /// key of a consumer that named the surviving one. The collapse kept them
-/// apart because each has a child the other lacks. The node already keyed
-/// by that name wins, and the child only the other one reached does not
-/// linger as an orphan.
+/// apart because each has a child the other lacks. They merge like two
+/// records the peer resolution keys alike: the node already keyed by that
+/// name keeps its edges and gains the alias only the other one had.
 #[test]
-fn a_consumer_renamed_onto_an_existing_key_leaves_no_orphans() {
+fn a_consumer_renamed_onto_an_existing_key_merges_its_children() {
     let subset = "foo@1.0.0(bar@1.0.0)";
     let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
     let via_subset = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))";
     let via_larger = "consumer@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))";
-    let orphan = "leftover@1.0.0";
+    let leftover = "leftover@1.0.0";
     let kept = "kept@1.0.0";
 
     let mut graph = DependenciesGraph::default();
-    for id in ["bar@1.0.0", "baz@1.0.0", orphan, kept] {
+    for id in ["bar@1.0.0", "baz@1.0.0", leftover, kept] {
         graph.insert(dp(id), make_node(id, id, &[], &[]));
     }
     graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
@@ -554,7 +579,12 @@ fn a_consumer_renamed_onto_an_existing_key_leaves_no_orphans() {
     );
     graph.insert(
         dp(via_subset),
-        make_node("consumer@1.0.0", via_subset, &[("foo", subset), ("leftover", orphan)], &["foo"]),
+        make_node(
+            "consumer@1.0.0",
+            via_subset,
+            &[("foo", subset), ("leftover", leftover)],
+            &["foo"],
+        ),
     );
     graph.insert(
         dp(via_larger),
@@ -571,11 +601,58 @@ fn a_consumer_renamed_onto_an_existing_key_leaves_no_orphans() {
         BTreeMap::from([("consumer".to_string(), dp(via_larger))]),
     );
 
-    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
 
     assert_eq!(direct["project-a"]["consumer"], dp(via_larger));
     assert_eq!(direct["project-b"]["consumer"], dp(via_larger));
-    assert_eq!(graph[&dp(via_larger)].edges.children["kept"], dp(kept));
+    let consumer = &graph[&dp(via_larger)];
+    assert_eq!(consumer.edges.children["foo"], dp(larger));
+    assert_eq!(consumer.edges.children["kept"], dp(kept));
+    assert_eq!(consumer.edges.children["leftover"], dp(leftover));
     assert!(!graph.contains_key(&dp(via_subset)));
-    assert!(!graph.contains_key(&dp(orphan)), "only the dropped consumer reached it");
+    assert!(graph.contains_key(&dp(leftover)));
+}
+
+/// A package id may itself end in parentheses, such as a tarball URL. A
+/// node that resolved no peers has no suffix to rename, even when that
+/// ending spells a collapsed variant.
+#[test]
+fn a_package_id_ending_in_parentheses_is_not_read_as_peers() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let tarball = "tarball@https://example.test/t.tgz(foo@1.0.0(bar@1.0.0))";
+
+    let mut graph = DependenciesGraph::default();
+    for id in ["bar@1.0.0", "baz@1.0.0"] {
+        graph.insert(dp(id), make_node(id, id, &[], &[]));
+    }
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node(
+            "foo@1.0.0",
+            larger,
+            &[("bar", "bar@1.0.0"), ("baz", "baz@1.0.0")],
+            &["bar", "baz"],
+        ),
+    );
+    graph.insert(dp(tarball), make_node(tarball, tarball, &[], &[]));
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert(
+        "project".to_string(),
+        BTreeMap::from([
+            ("foo-subset".to_string(), dp(subset)),
+            ("foo".to_string(), dp(larger)),
+            ("tarball".to_string(), dp(tarball)),
+        ]),
+    );
+
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+
+    assert_eq!(direct["project"]["foo-subset"], dp(larger));
+    assert_eq!(direct["project"]["tarball"], dp(tarball));
+    assert!(graph.contains_key(&dp(tarball)));
 }
