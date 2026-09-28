@@ -225,14 +225,14 @@ pub async fn download_verified_to_temp(
     integrity: Option<&Integrity>,
     max_bytes: u64,
 ) -> Result<(File, u64, PathBuf, Integrity), BlobStreamError> {
-    let (len, integrity) = match download_verified(response, &mut write, integrity, max_bytes).await
-    {
-        Ok(res) => res,
-        Err(err) => {
-            write.abandon().await;
-            return Err(err);
-        }
-    };
+    let (_len, integrity) =
+        match download_verified(response, &mut write, integrity, max_bytes).await {
+            Ok(res) => res,
+            Err(err) => {
+                write.abandon().await;
+                return Err(err);
+            }
+        };
     write
         .into_temp_file()
         .await
