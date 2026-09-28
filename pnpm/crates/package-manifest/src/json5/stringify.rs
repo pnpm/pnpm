@@ -97,7 +97,7 @@ fn write_key(out: &mut String, key: &str) {
     }
 }
 
-fn is_identifier(key: &str) -> bool {
+pub(crate) fn is_identifier(key: &str) -> bool {
     let mut characters = key.chars();
     match characters.next() {
         Some(first) if is_id_start(first) => characters.all(is_id_continue),

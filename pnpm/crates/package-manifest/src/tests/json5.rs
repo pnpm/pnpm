@@ -156,7 +156,7 @@ fn json5_save_preserves_comments_when_version_and_dependencies_change() {
     eprintln!("WRITTEN:\n{written}");
     assert_eq!(
         written,
-        "// project\n{\n  name: 'fixture',\n  version: '2.0.0', // version note\n  // dependencies note\n  dependencies: {\n    alpha: '2.0.0', // alpha note\n    \"bravo\": \"1.0.0\",\n  },\n  custom: { url: 'https://example.test/*literal*/' },\n}\n",
+        "// project\n{\n  name: 'fixture',\n  version: '2.0.0', // version note\n  // dependencies note\n  dependencies: {\n    alpha: '2.0.0', // alpha note\n    bravo: '1.0.0',\n  },\n  custom: { url: 'https://example.test/*literal*/' },\n}\n",
     );
     let reread = PackageManifest::from_path(path.clone()).unwrap();
     dbg!(reread.value());

@@ -47,11 +47,25 @@ fn inserts_a_new_key_after_the_key_that_precedes_it_in_the_target() {
     let edited = edit(source, |value| {
         value["dependencies"] = json!({"alpha": "1.0.0", "bravo": "1.0.0", "charlie": "1.0.0"});
     });
-    let order: Vec<_> = ["alpha", "bravo", "charlie"]
-        .iter()
-        .map(|name| edited.find(name).unwrap())
-        .collect();
-    assert!(order.is_sorted(), "{order:?}");
+    assert_eq!(
+        edited,
+        "{\n  dependencies: {\n    alpha: '1.0.0',\n    bravo: '1.0.0',\n    charlie: '1.0.0',\n  },\n}",
+    );
+}
+
+#[test]
+fn new_keys_and_strings_follow_the_quoting_of_the_file() {
+    let bare = "{\n  name: 'fixture',\n}";
+    let edited = edit(bare, |value| {
+        value["dependencies"] = json!({"@scope/pkg": "1.0.0", "is_odd": "it's"});
+    });
+    assert_eq!(
+        edited,
+        "{\n  name: 'fixture',\n  dependencies: {\n    '@scope/pkg': '1.0.0',\n    is_odd: 'it\\'s',\n  },\n}",
+    );
+    let quoted = "{\n  \"name\": \"fixture\"\n}";
+    let edited = edit(quoted, |value| value["version"] = json!("1.0.0"));
+    assert_eq!(edited, "{\n  \"name\": \"fixture\",\n  \"version\": \"1.0.0\"\n}");
 }
 
 #[test]
