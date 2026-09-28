@@ -131,12 +131,13 @@ fn run_cli() -> miette::Result<()> {
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
-    // An up-to-date `pacquet install` finishes here, without paying for
-    // the runtime, the HTTP client, or any worker threads.
-    if args.finished_via_install_fast_path(&config_overrides) {
+    if args.run_completion_if_requested()? {
         return Ok(());
     }
-    if args.run_completion_if_requested()? {
+    configure_rayon_pool();
+    // An up-to-date `pacquet install` finishes here, without paying for
+    // the runtime or the HTTP client.
+    if args.finished_via_install_fast_path(&config_overrides) {
         return Ok(());
     }
     run_cli_command(args, &config_overrides, builtin_command_forced)
@@ -299,10 +300,11 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 
 /// Size rayon's global pool with [`rayon_pool_size`].
 ///
-/// Runs after the repeat-install fast path has declined. In a project
-/// with a `pnpm-workspace.yaml`, that fast path has already built the
-/// pool at rayon's default of one thread per core, so this call leaves
-/// it unsized there (pnpm/tasks#52).
+/// Must run before anything touches rayon. The first parallel iterator
+/// builds the global pool at rayon's default size, after which this
+/// call can no longer size it, so debug builds assert that it did. The
+/// repeat-install fast path uses rayon for workspace discovery.
+///
 /// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
 /// environment variable: a process-env write would leak into every
 /// child the install spawns (lifecycle scripts, `node --version`,
@@ -317,22 +319,22 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 /// runner can spin up far more rayon threads than the kernel will
 /// actually schedule onto our cores (Copilot review on [#292]).
 ///
-/// Best-effort: if another part of the binary already initialised the
-/// pool, leave it alone.
-///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;
     }
     let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-    let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(rayon_pool_size(parallelism))
+    let built = rayon::ThreadPoolBuilder::new()
+        .num_threads(rayon_pool_size(parallelism, RAYON_THREADS_PER_CORE))
         .build_global();
+    let configured = built.is_ok();
+    debug_assert!(configured, "rayon's global pool was built before it was configured: {built:?}");
 }
 
-/// `2 × parallelism`, kept between [`MIN_RAYON_THREADS`] and
-/// [`MAX_RAYON_THREADS`]. The link phase is dominated by clonefile /
+/// `threads_per_core × parallelism`, kept between [`MIN_RAYON_THREADS`]
+/// and [`MAX_RAYON_THREADS`]. See [`RAYON_THREADS_PER_CORE`] for the
+/// multiplier. The link phase is dominated by clonefile /
 /// hardlink syscalls that block the calling thread on the kernel's
 /// metadata journal, not by CPU work, so oversubscribing CPUs gives
 /// more in-flight syscalls and a higher effective throughput.
@@ -362,10 +364,16 @@ fn configure_rayon_pool() {
 /// one host where 2× beat 8 threads, was unchanged at 16
 /// (pnpm/tasks#51). A ceiling of 8 cut Linux system time further and
 /// sped up Windows, but cost that Mac 19%.
-fn rayon_pool_size(parallelism: usize) -> usize {
-    parallelism.saturating_mul(2).clamp(MIN_RAYON_THREADS, MAX_RAYON_THREADS)
+fn rayon_pool_size(parallelism: usize, threads_per_core: usize) -> usize {
+    parallelism.saturating_mul(threads_per_core).clamp(MIN_RAYON_THREADS, MAX_RAYON_THREADS)
 }
 
+/// Two threads per core, except on Windows, where every sweep so far
+/// favoured one (pnpm/tasks#52). Warm frozen installs were 4-5%
+/// faster at 1× on 4- and 8-vCPU runners, and a 16-vCPU runner was
+/// fastest at 4 threads. A fresh install of the 1352-package benchmark
+/// fixture on a 4-vCPU runner took 3.9 s at 1× and 4.5 s at 2×.
+const RAYON_THREADS_PER_CORE: usize = if cfg!(windows) { 1 } else { 2 };
 const MIN_RAYON_THREADS: usize = 4;
 const MAX_RAYON_THREADS: usize = 16;
 
@@ -405,7 +413,6 @@ fn run_cli_command(
 ) -> miette::Result<()> {
     // Arm Windows process-tree cleanup until the command succeeds.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
-    configure_rayon_pool();
     let result =
         block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
     if result.is_ok()

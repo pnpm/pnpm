@@ -48,7 +48,8 @@ fn a_negated_recursive_flag_is_not_recorded_as_coming_from_the_command_line() {
 }
 
 #[test]
-fn rayon_pool_is_twice_the_parallelism_between_4_and_16_threads() {
-    let sizes: Vec<usize> = [1, 2, 3, 4, 8, 9, 32, 256].map(rayon_pool_size).to_vec();
-    assert_eq!(sizes, [4, 4, 6, 8, 16, 16, 16, 16]);
+fn rayon_pool_is_the_scaled_parallelism_between_4_and_16_threads() {
+    let parallelism = [1, 2, 3, 4, 8, 9, 32, 256];
+    assert_eq!(parallelism.map(|cores| rayon_pool_size(cores, 2)), [4, 4, 6, 8, 16, 16, 16, 16]);
+    assert_eq!(parallelism.map(|cores| rayon_pool_size(cores, 1)), [4, 4, 4, 4, 8, 9, 16, 16]);
 }
