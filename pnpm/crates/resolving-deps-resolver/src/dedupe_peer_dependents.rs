@@ -1,9 +1,8 @@
 //! Collapse of duplicate peer-dependent variants.
 //!
-//! Runs after [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`]
+//! Runs before [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`]
 //! in the multi-importer [`fn@crate::resolve_peers_workspace`] pass. When
-//! the same
-//! `pkgIdWithPatchHash` resolved into several peer-suffixed variants
+//! the same `pkgIdWithPatchHash` resolved into several peer-suffixed variants
 //! that differ only by which optional peers they picked up, a smaller
 //! variant whose children + resolved peers are a subset of a larger,
 //! compatible variant collapses into it: every reference to the smaller
