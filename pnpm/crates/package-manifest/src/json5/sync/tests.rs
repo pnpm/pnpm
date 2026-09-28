@@ -18,7 +18,7 @@ fn changes_only_the_changed_string_and_keeps_its_quote() {
     let source = "// top\n{\n  name: 'fixture', // name note\n  version: '1.0.0',\n  \"custom\": -0x10,\n  quoted: \"it's\",\n}\n";
     let edited = edit(source, |value| {
         value["version"] = json!("2.0.0");
-        value["quoted"] = json!("it's \"new\"");
+        value["quoted"] = json!(r#"it's "new""#);
     });
     assert_eq!(
         edited,
