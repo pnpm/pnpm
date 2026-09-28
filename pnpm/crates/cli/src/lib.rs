@@ -299,9 +299,10 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 
 /// Size rayon's global pool with [`rayon_pool_size`].
 ///
-/// Runs after the repeat-install fast path has declined, so commands
-/// that never reach a parallel phase (`--help`, the "Already up to
-/// date" short-circuit) skip the worker-thread spawn cost entirely.
+/// Runs after the repeat-install fast path has declined. In a project
+/// with a `pnpm-workspace.yaml`, that fast path has already built the
+/// pool at rayon's default of one thread per core, so this call leaves
+/// it unsized there (pnpm/tasks#52).
 /// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
 /// environment variable: a process-env write would leak into every
 /// child the install spawns (lifecycle scripts, `node --version`,
