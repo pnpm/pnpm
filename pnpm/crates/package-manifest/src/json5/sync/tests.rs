@@ -1,0 +1,73 @@
+use super::sync;
+use crate::json5::parse;
+use pretty_assertions::assert_eq;
+use serde_json::{Value, json};
+
+fn edit(source: &str, change: impl FnOnce(&mut Value)) -> String {
+    let original = parse(source).unwrap();
+    let mut target = original.clone();
+    change(&mut target);
+    let edited = sync(source, &original, &target).expect("the CST parses the source");
+    eprintln!("EDITED:\n{edited}");
+    assert_eq!(parse(&edited).unwrap(), target);
+    edited
+}
+
+#[test]
+fn changes_only_the_changed_string_and_keeps_its_quote() {
+    let source = "// top\n{\n  name: 'fixture', // name note\n  version: '1.0.0',\n  \"custom\": -0x10,\n  quoted: \"it's\",\n}\n";
+    let edited = edit(source, |value| {
+        value["version"] = json!("2.0.0");
+        value["quoted"] = json!("it's \"new\"");
+    });
+    assert_eq!(
+        edited,
+        "// top\n{\n  name: 'fixture', // name note\n  version: '2.0.0',\n  \"custom\": -0x10,\n  quoted: \"it's \\\"new\\\"\",\n}\n",
+    );
+}
+
+#[test]
+fn removes_a_property_and_keeps_the_comments_of_its_neighbours() {
+    let source = "{\n  dependencies: {\n    alpha: '1.0.0', // alpha note\n    obsolete: '1.0.0',\n    // zulu note\n    zulu: '1.0.0',\n  },\n}";
+    let edited = edit(source, |value| {
+        value["dependencies"]
+            .as_object_mut()
+            .unwrap()
+            .remove("obsolete");
+    });
+    assert_eq!(
+        edited,
+        "{\n  dependencies: {\n    alpha: '1.0.0', // alpha note\n    // zulu note\n    zulu: '1.0.0',\n  },\n}",
+    );
+}
+
+#[test]
+fn inserts_a_new_key_after_the_key_that_precedes_it_in_the_target() {
+    let source = "{\n  dependencies: {\n    alpha: '1.0.0',\n    charlie: '1.0.0',\n  },\n}";
+    let edited = edit(source, |value| {
+        value["dependencies"] = json!({"alpha": "1.0.0", "bravo": "1.0.0", "charlie": "1.0.0"});
+    });
+    let order: Vec<_> = ["alpha", "bravo", "charlie"]
+        .iter()
+        .map(|name| edited.find(name).unwrap())
+        .collect();
+    assert!(order.is_sorted(), "{order:?}");
+}
+
+#[test]
+fn grows_and_shrinks_arrays_in_place() {
+    let source = "{\n  files: ['a', 'b', 'c'], // files note\n  keywords: ['x'],\n}";
+    let edited = edit(source, |value| {
+        value["files"] = json!(["a", "b"]);
+        value["keywords"] = json!(["x", "y"]);
+    });
+    assert!(edited.contains("// files note"), "{edited}");
+    assert!(edited.starts_with("{\n  files: ['a', 'b'],"), "{edited}");
+}
+
+#[test]
+fn returns_none_for_json5_the_cst_cannot_parse() {
+    let source = "{null_value: 1}";
+    let original = parse(source).unwrap();
+    assert_eq!(sync(source, &original, &json!({"null_value": 2})), None);
+}
