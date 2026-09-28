@@ -41,7 +41,7 @@ A filtered copy receives only already-populated probe results; copies created
 before probing do not share subsequent results. The separate `deprecation_probes`
 example can measure this control: use `raw-filtered` or `file-filtered` with 100
 passes. In a separate 12-pair run, fresh filtered scans were 5.4% and 4.4% slower
-respectively. Single unhydrated scans were 4.8% and 1.8% slower. These controls
+respectively. Single fragment scans were 4.8% and 1.8% slower. These controls
 show the cache's cost when probes cannot be reused. See [probe-controls.json](probe-controls.json).
 
 ## Reproduce
