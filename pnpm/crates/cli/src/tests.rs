@@ -1,4 +1,4 @@
-use super::{inject_alias_subcommand, parse_cli_args, prepare_cli_argv};
+use super::{inject_alias_subcommand, parse_cli_args, prepare_cli_argv, rayon_pool_size};
 use std::ffi::OsString;
 
 fn argv(parts: &[&str]) -> Vec<OsString> {
@@ -45,4 +45,10 @@ fn an_explicit_recursive_flag_is_recorded_as_coming_from_the_command_line() {
 fn a_negated_recursive_flag_is_not_recorded_as_coming_from_the_command_line() {
     assert!(!recursive_from_command_line(&["pnpm", "install", "-r", "--no-recursive"]));
     assert!(!recursive_from_command_line(&["pnpm", "install"]));
+}
+
+#[test]
+fn rayon_pool_is_twice_the_parallelism_between_4_and_16_threads() {
+    let sizes: Vec<usize> = [1, 2, 3, 4, 8, 9, 32, 256].map(rayon_pool_size).to_vec();
+    assert_eq!(sizes, [4, 4, 6, 8, 16, 16, 16, 16]);
 }
