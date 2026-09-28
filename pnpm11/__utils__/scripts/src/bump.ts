@@ -39,6 +39,18 @@ type Product = 'pnpm11' | AlphaProduct
 
 const PRODUCTS: readonly Product[] = ['pnpm11', 'pnpm', 'pnpr']
 
+// The alpha products' npm wrappers are `"private": true` in-repo so that a
+// workspace-wide `pnpm publish` never ships them; their generate-packages
+// scripts drop the flag when they are really published. `pnpm version -r`
+// commits a private project's changelog to its CHANGELOG.md, but release.yml
+// and the publish-time changelog composer read the parked section in
+// `.changeset/changelogs/`, so parkPublishedPrivateChangelogs moves it there.
+const PUBLISHED_PRIVATE_PROJECT_DIRS = [
+  'pnpm/npm/pnpm',
+  'pnpm/npm/napi',
+  'pnpr/npm/pnpr',
+] as const
+
 // The module-level consts are still in their temporal dead zone while this
 // file's statements run, so the actual `main()` call sits at the bottom.
 function main (): void {
@@ -48,6 +60,7 @@ function main (): void {
   // changesets), so skip the clean-tree check. Pass the arguments as an argv
   // array (no shell) so a filter value is never interpreted by a shell.
   execFileSync('pnpm', ['version', '-r', '--no-git-checks', ...filterArgs], { cwd: repoRoot, stdio: 'inherit' })
+  parkPublishedPrivateChangelogs(repoRoot, PUBLISHED_PRIVATE_PROJECT_DIRS)
   execFileSync('pnpm', ['update-manifests'], { cwd: repoRoot, stdio: 'inherit' })
 }
 
@@ -92,6 +105,31 @@ export function releaseFilterArgs (selected: ReadonlySet<Product>): string[] {
     .filter((product) => selected.has(product))
     .flatMap((product) => ALPHA_PRODUCT_PACKAGES[product])
     .map((pkg) => `--filter=${pkg}`)
+}
+
+/**
+ * Moves the CHANGELOG.md that `pnpm version -r` wrote for each project in
+ * `projectDirs` to the project's parked section,
+ * `.changeset/changelogs/<name>@<version>.md` (the path `pendingChangelogPath`
+ * of `@pnpm/releasing.versioning` computes; this script runs before the
+ * workspace is installed, so it cannot import it). A project the run did not
+ * release has no CHANGELOG.md and is skipped.
+ */
+export function parkPublishedPrivateChangelogs (repoRoot: string, projectDirs: readonly string[]): void {
+  for (const projectDir of projectDirs) {
+    const changelogPath = path.join(repoRoot, projectDir, 'CHANGELOG.md')
+    if (!fs.existsSync(changelogPath)) continue
+    const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, projectDir, 'package.json'), 'utf8')) as { name: string, version: string }
+    const changelog = fs.readFileSync(changelogPath, 'utf8')
+    const sectionStart = changelog.indexOf(`\n## ${manifest.version}\n`) + 1
+    if (sectionStart === 0 || changelog.includes('\n## ', sectionStart)) {
+      throw new Error(`${changelogPath} must hold exactly one section, for ${manifest.name}@${manifest.version}`)
+    }
+    const parkedPath = path.join(repoRoot, '.changeset', 'changelogs', `${manifest.name}@${manifest.version}`.replaceAll('/', '!') + '.md')
+    fs.mkdirSync(path.dirname(parkedPath), { recursive: true })
+    fs.writeFileSync(parkedPath, changelog.slice(sectionStart))
+    fs.rmSync(changelogPath)
+  }
 }
 
 export function findRepoRoot (startDir: string): string {
