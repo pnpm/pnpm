@@ -58,22 +58,21 @@ pub(super) async fn load_upstream_packument(
     } else {
         None
     };
-    let bytes = match cached {
-        Some(bytes) => Some(bytes),
-        None => {
-            let fetched = timed(
-                "packument:upstream_fetch",
-                name.as_str(),
-                upstream.fetch_packument(name, &CacheValidators::default()),
-            )
-            .await;
-            match fetched {
-                Ok(fetched) => {
-                    cache_upstream_packument(state, namespace, upstream, name, fetched).await?
-                }
-                Err(err) => {
-                    recover_stale_upstream_packument(state, namespace, upstream, name, err).await?
-                }
+    let bytes = if let Some(bytes) = cached {
+        Some(bytes)
+    } else {
+        let fetched = timed(
+            "packument:upstream_fetch",
+            name.as_str(),
+            upstream.fetch_packument(name, &CacheValidators::default()),
+        )
+        .await;
+        match fetched {
+            Ok(fetched) => {
+                cache_upstream_packument(state, namespace, upstream, name, fetched).await?
+            }
+            Err(err) => {
+                recover_stale_upstream_packument(state, namespace, upstream, name, err).await?
             }
         }
     };

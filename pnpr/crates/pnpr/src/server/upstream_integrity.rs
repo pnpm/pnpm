@@ -108,13 +108,13 @@ impl PackumentIntegrityResolver<'_> {
         &self,
         candidate: &MissingIntegrityTarball,
     ) -> Result<Integrity, RegistryError> {
-        let response = match timed(
+        let fetched = timed(
             "tarball:integrity_fetch",
             self.name.as_str(),
             self.upstream.fetch_tarball_response(self.name, &candidate.filename),
         )
-        .await?
-        {
+        .await?;
+        let response = match fetched {
             FetchOutcome::Ok(response) => response,
             FetchOutcome::NotFound => {
                 return Err(tarball_integrity_error(
