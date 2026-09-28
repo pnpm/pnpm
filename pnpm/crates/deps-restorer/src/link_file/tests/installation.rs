@@ -143,9 +143,7 @@ fn hardlink_mode_match_shares_the_store_inode() {
         "a matching-mode store file shares its inode",
     );
 }
-/// A mode miss belongs to one store file, not to the filesystem: the
-/// `Auto` ladder keeps the hardlink tier, like [`is_too_many_links`]
-/// does for a source out of names.
+
 /// A local-directory dependency's file is not a store entry, so it keeps
 /// the mode its project gives it: an executable stays executable, and a
 /// mode no umask would produce still shares the inode.
@@ -188,6 +186,9 @@ fn local_directory_files_keep_their_own_mode() {
     }
 }
 
+/// A mode miss belongs to one store file, not to the filesystem: the
+/// `Auto` ladder keeps the hardlink tier, like [`is_too_many_links`]
+/// does for a source out of names.
 #[test]
 #[cfg(unix)]
 fn auto_keeps_the_hardlink_tier_across_a_mode_mismatch() {
