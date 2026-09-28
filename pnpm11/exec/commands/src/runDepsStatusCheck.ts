@@ -136,8 +136,15 @@ async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): P
   }
 }
 
+/**
+ * Whether `lockfileDir` differs from where the install would keep the
+ * lockfile: the workspace root under a shared lockfile, otherwise the
+ * project the command runs in.
+ */
 function lockfileDirIsPinned (opts: RunDepsStatusCheckOptions): boolean {
-  return opts.lockfileDir != null && path.resolve(opts.lockfileDir) !== path.resolve(opts.workspaceDir ?? opts.dir)
+  if (opts.lockfileDir == null) return false
+  const defaultLockfileDir = opts.sharedWorkspaceLockfile === false ? opts.dir : (opts.workspaceDir ?? opts.dir)
+  return path.resolve(opts.lockfileDir) !== path.resolve(defaultLockfileDir)
 }
 
 /**

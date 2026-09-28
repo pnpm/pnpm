@@ -230,6 +230,22 @@ test('a lockfileDir pinned outside the project counts as install work', async ()
   expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
 })
 
+test('with separate lockfiles, a lockfileDir pinned to the workspace root counts as install work', async () => {
+  const workspace = projectDir()
+  const project = path.join(workspace, 'pkgs/a')
+  fs.mkdirSync(project, { recursive: true })
+  fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'a' }))
+  await runWithoutWorkspaceState(project, {
+    lockfileDir: workspace,
+    rootProjectManifest: { name: 'root' },
+    rootProjectManifestDir: workspace,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: workspace,
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
+})
+
 test('an unreadable workspace counts as install work', async () => {
   const workspace = projectDir()
   fs.mkdirSync(path.join(workspace, 'pkgs/a'), { recursive: true })
