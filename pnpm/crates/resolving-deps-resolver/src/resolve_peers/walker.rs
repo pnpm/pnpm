@@ -464,7 +464,7 @@ impl Walker<'_> {
         if self.tree.all_peer_dep_names.is_empty() {
             return false;
         }
-        self.tree.all_peer_dep_names.contains(&*pkg.name)
+        self.tree.all_peer_dep_names.contains(&**pkg.name())
     }
 
     /// The parent refs an importer's direct deps seed the peer walk with.
@@ -483,7 +483,7 @@ impl Walker<'_> {
             if !self.is_peer_relevant(&direct.alias, pkg) {
                 continue;
             }
-            let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
+            let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, pkg.result())
                 .unwrap_or_else(|| direct.node_id.clone());
             insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
         }

@@ -10,7 +10,7 @@ use std::cell::OnceCell;
 
 /// The package's real name and installed version.
 pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, String) {
-    (package.name.to_string(), package.version.to_string())
+    (package.name().to_string(), package.version().to_string())
 }
 
 /// `peer_name → range` pairs one package declares.
@@ -58,7 +58,7 @@ impl<'workspace> CandidatePeerRanges<'workspace> {
             }
             self.workspace.for_each_package(|package| {
                 index.insert(
-                    format!("{}@{}", package.name, package.version),
+                    format!("{}@{}", package.name(), package.version()),
                     peer_ranges_of(package),
                 );
             });

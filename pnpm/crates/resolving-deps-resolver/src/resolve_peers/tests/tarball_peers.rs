@@ -1,7 +1,21 @@
 use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, PkgResolutionId,
-    ResolvePeersOptions, ResolvedTree, package, resolve_peers, tree_node,
+    ResolvePeersOptions, ResolvedTree, package, resolve_peers, resolve_result, tree_node,
 };
+use crate::resolved_tree::ResolvedPackage;
+
+/// A leaf `provider` fetched from `tarball` and keyed by `id`. It carries no
+/// `name_ver`, so its name comes from the alias and its version from the
+/// fetched manifest.
+fn tarball_provider(id: &str, tarball: &str, version: &str) -> ResolvedPackage {
+    let mut result = resolve_result("provider", version);
+    result.id = PkgResolutionId::from(tarball.to_string());
+    result.alias = Some("provider".to_string());
+    result.package.name_ver = None;
+    result.package.manifest =
+        Some(Arc::new(serde_json::json!({ "name": "provider", "version": version })));
+    ResolvedPackage::new(id.into(), Arc::new(result), BTreeMap::new(), false, true)
+}
 
 #[test]
 fn tarball_peer_versions_preserve_source_identity() {
@@ -10,15 +24,7 @@ fn tarball_peer_versions_preserve_source_identity() {
             let provider_id = format!("provider@{tarball}");
             let provider_node = NodeId::leaf(&provider_id);
             let consumer_node = NodeId::next();
-            let mut provider = package("provider", version, &[], true);
-            provider.id = provider_id.clone().into();
-            let result = Arc::make_mut(&mut provider.result);
-            result.id = PkgResolutionId::from(tarball.to_string());
-            result.alias = Some("provider".to_string());
-            result.package.name_ver = None;
-            result.package.manifest = Some(Arc::new(serde_json::json!({
-                "name": "provider", "version": version,
-            })));
+            let provider = tarball_provider(&provider_id, tarball, version);
             let mut tree = ResolvedTree {
                 direct: vec![
                     DirectDep {
@@ -74,19 +80,6 @@ fn distinct_tarball_providers_with_same_manifest_version_do_not_collapse() {
     let consumer_node = NodeId::next();
     let middle_node = NodeId::next();
 
-    let make_provider = |id: &str, tarball: &str| {
-        let mut provider = package("provider", "1.0.0", &[], true);
-        provider.id = id.into();
-        let result = Arc::make_mut(&mut provider.result);
-        result.id = PkgResolutionId::from(tarball.to_string());
-        result.alias = Some("provider".to_string());
-        result.package.name_ver = None;
-        result.package.manifest = Some(Arc::new(serde_json::json!({
-            "name": "provider", "version": "1.0.0",
-        })));
-        provider
-    };
-
     let middle_children = BTreeMap::from_iter([
         ("consumer".to_string(), consumer_node.clone()),
         ("provider".to_string(), provider_b_node.clone()),
@@ -106,8 +99,8 @@ fn distinct_tarball_providers_with_same_manifest_version_do_not_collapse() {
             },
         ],
         packages: HashMap::from_iter([
-            (provider_a_id.into(), make_provider(provider_a_id, "file:first.tgz")),
-            (provider_b_id.into(), make_provider(provider_b_id, "file:second.tgz")),
+            (provider_a_id.into(), tarball_provider(provider_a_id, "file:first.tgz", "1.0.0")),
+            (provider_b_id.into(), tarball_provider(provider_b_id, "file:second.tgz", "1.0.0")),
             (
                 "middle@1.0.0".into(),
                 package("middle", "1.0.0", &[("consumer", "1.0.0"), ("provider", "1.0.0")], false),

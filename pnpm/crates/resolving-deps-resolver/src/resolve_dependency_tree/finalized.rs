@@ -98,7 +98,7 @@ fn announcement(
             optional: edge.optional,
         })
         .collect();
-    FinalizedPackage { pkg_id: Arc::clone(pkg_id), result: Arc::clone(&package.result), children }
+    FinalizedPackage { pkg_id: Arc::clone(pkg_id), result: Arc::clone(package.result()), children }
 }
 
 /// One sweep's view of the graph. `verdicts` memoises this sweep's
@@ -132,7 +132,12 @@ impl Sweep<'_> {
 
     fn subtree_is_finalized(&mut self, pkg_id: &Arc<str>) -> bool {
         let Some(package) = self.packages.get(pkg_id) else { return false };
-        if !package.peer_dependencies.is_empty() || package.result.id.as_str().starts_with("link:")
+        if !package.peer_dependencies.is_empty()
+            || package
+                .result()
+                .id
+                .as_str()
+                .starts_with("link:")
         {
             return false;
         }

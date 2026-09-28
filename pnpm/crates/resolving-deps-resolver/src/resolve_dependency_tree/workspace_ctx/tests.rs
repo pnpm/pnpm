@@ -488,11 +488,9 @@ fn record_package(workspace: &WorkspaceTreeCtx, pkg_id: &str, peer_names: &[&str
             )
         })
         .collect();
-    lock_recoverable(&workspace.tree.packages)
-        .insert(
-            Arc::from(pkg_id.to_string()),
-            super::ResolvedPackage { peer_dependencies, ..snapshot_package(pkg_id) },
-        );
+    let mut package = snapshot_package(pkg_id);
+    package.peer_dependencies = peer_dependencies;
+    lock_recoverable(&workspace.tree.packages).insert(Arc::from(pkg_id.to_string()), package);
     let mut all_peers = lock_recoverable(&workspace.tree.all_peer_dep_names);
     for name in peer_names {
         if all_peers.insert((*name).to_string()) {

@@ -304,9 +304,9 @@ pub(in super::super) fn level_versions(
     for seed in seeds {
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
-            NodeSeed::Done(Some(dep)) => {
-                packages.get(&dep.id).and_then(|pkg| pkg.result.package.name_ver.as_ref())
-            }
+            NodeSeed::Done(Some(dep)) => packages
+                .get(&dep.id)
+                .and_then(|pkg| pkg.result().package.name_ver.as_ref()),
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
@@ -331,8 +331,9 @@ pub(super) fn pkgs_info_from_ids(
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver =
-                packages.get(id).and_then(|pkg| pkg.result.package.name_ver.as_ref());
+            let name_ver = packages
+                .get(id)
+                .and_then(|pkg| pkg.result().package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
                 id: id.to_string(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),

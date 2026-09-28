@@ -28,7 +28,7 @@ use std::{
 /// Per-name entry in the propagating [`ParentRefs`] map.
 #[derive(Debug, Clone)]
 pub(super) struct ParentRef {
-    /// Shared with [`ResolvedPackage::version`]: a ref is cloned into
+    /// Shared with [`ResolvedPackage::version()`]: a ref is cloned into
     /// every descendant's map that shadows or re-pins it.
     pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet
@@ -284,7 +284,7 @@ impl Walker<'_> {
         if conflicting_peers.is_empty() {
             return false;
         }
-        self.descendant_binds_conflicting_peer(node_id, &parent_pkg.name, &conflicting_peers)
+        self.descendant_binds_conflicting_peer(node_id, parent_pkg.name(), &conflicting_peers)
     }
 
     /// The peers `parent_pkg` declares that the inherited provider's own
@@ -392,7 +392,7 @@ impl Walker<'_> {
         alias == pkg_name
             || self.tree.packages
                 .get(pkg_id)
-                .is_some_and(|pkg| &*pkg.name == pkg_name)
+                .is_some_and(|pkg| &**pkg.name() == pkg_name)
     }
 
     /// A node's children as `(alias, package id, node id)`, from its realized
@@ -464,9 +464,9 @@ pub(super) fn insert_parent_ref(
     pkg: &ResolvedPackage,
     depth: i32,
 ) {
-    let real_name = &*pkg.name;
+    let real_name: &str = pkg.name();
     let parent_ref = ParentRef {
-        version: Arc::clone(&pkg.version),
+        version: Arc::clone(pkg.version()),
         node_id: Some(parent_node_id),
         alias: (direct_alias != real_name).then(|| direct_alias.to_string()),
         depth,

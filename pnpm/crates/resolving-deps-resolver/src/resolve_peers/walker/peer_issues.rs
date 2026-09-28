@@ -161,14 +161,14 @@ impl Walker<'_> {
             && let Some(tree_node) = self.tree.dependencies_tree.get(peer_node_id)
             && let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id)
         {
-            return peer_id_pair(&pkg.result);
+            return peer_id_pair(pkg.result());
         }
         if let Some(dep_path) = self.caches.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }
         let tree_node = &self.tree.dependencies_tree[peer_node_id];
         let pkg = &self.tree.packages[&tree_node.resolved_package_id];
-        peer_id_pair(&pkg.result)
+        peer_id_pair(pkg.result())
     }
 
     /// Resolve `node_id` to the depPath computed during the main walk.
