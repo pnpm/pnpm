@@ -1,9 +1,8 @@
-use super::workspace_settings::WorkspacePolicyFilter;
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
     collect_explicit_settings, default_config_dir, default_state_dir, ensure_windows_dir_envs,
-    resolve_configured_state_dir,
+    resolve_configured_state_dir, workspace_settings::WorkspacePolicyFilter,
 };
 
 impl Config {
