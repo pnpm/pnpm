@@ -200,10 +200,40 @@ fn unparsed_argv_names_no_command_after_an_undeclared_option() {
 
 #[test]
 fn unparsed_ci_is_a_frozen_install() {
-    let input =
-        SwitchInput::from_unparsed_argv(&["pnpm", "ci", "--undeclared"].map(OsString::from))
-            .expect("the command name is unambiguous");
-    assert_eq!(input.frozen_lockfile, Some(true));
+    for argv in [
+        &["pnpm", "ci", "--undeclared"][..],
+        &["pnpm", "ci", "--no-frozen-lockfile", "--undeclared"],
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input =
+            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.frozen_lockfile, Some(true), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_steps_over_short_option_values() {
+    for (argv, dir) in [
+        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], Some("/tmp/attached")),
+        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], Some("/tmp/separate")),
+        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], None),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input =
+            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
+        if let Some(dir) = dir {
+            assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
+        }
+    }
 }
 
 #[test]

@@ -37,7 +37,7 @@ impl SwitchInput {
             index += input.absorb_unparsed_token(token, next, &options)?;
         }
         if input.command.as_deref() == Some("ci") {
-            input.frozen_lockfile.get_or_insert(true);
+            input.frozen_lockfile = Some(true);
         }
         Some(input)
     }
@@ -95,11 +95,13 @@ impl SwitchInput {
             self.command.get_or_insert_with(|| token.to_string());
             return Some(1);
         }
-        if self.command.is_none() && !is_declared_option(token, options) {
-            return None;
+        let width = self
+            .absorb_pin_flag(token, next)
+            .unwrap_or_else(|| self.absorb_global_flag(token, next, options));
+        if self.command.is_some() {
+            return Some(width);
         }
-        self.absorb_pin_flag(token, next)
-            .or_else(|| Some(self.absorb_global_flag(token, next, options)))
+        declared_option_width(token, options)
     }
 
     /// Read one of the install-family options the pin record reads (see
@@ -132,18 +134,33 @@ fn every_option() -> ArgTable {
     options
 }
 
-fn is_declared_option(token: &str, options: &ArgTable) -> bool {
-    if let Some(name) = token.strip_prefix("--") {
-        let name = name.split_once('=').map_or(name, |(name, _)| name);
-        return options.long_consumes_value(name).is_some();
+/// How many argv tokens a declared option spans, or `None` for an option
+/// no command declares.
+fn declared_option_width(token: &str, options: &ArgTable) -> Option<usize> {
+    match token.strip_prefix("--") {
+        Some(name) => declared_long_width(name, options),
+        None => declared_short_cluster_width(token.strip_prefix('-')?, options),
     }
-    token
-        .strip_prefix('-')
-        .is_some_and(|shorts| {
-            shorts
-                .chars()
-                .all(|short| options.short_consumes_value(short).is_some())
-        })
+}
+
+fn declared_long_width(name: &str, options: &ArgTable) -> Option<usize> {
+    let (name, value_attached) = name
+        .split_once('=')
+        .map_or((name, false), |(name, _)| (name, true));
+    let consumes_value = options.long_consumes_value(name)?;
+    Some(if consumes_value && !value_attached { 2 } else { 1 })
+}
+
+/// A cluster ends at its first value-taking short option. The rest of the
+/// token is that option's value, or the next token is.
+fn declared_short_cluster_width(shorts: &str, options: &ArgTable) -> Option<usize> {
+    for (index, short) in shorts.char_indices() {
+        if options.short_consumes_value(short)? {
+            let value_attached = index + short.len_utf8() < shorts.len();
+            return Some(if value_attached { 1 } else { 2 });
+        }
+    }
+    Some(1)
 }
 
 /// Whether `-g` / `--global` was typed before any `--` separator.
