@@ -895,6 +895,49 @@ fn global_interactive_update_without_a_matching_group() {
     drop(root);
 }
 
+/// `--latest` must escape the range saved by a previous global install.
+#[cfg(unix)]
+#[test]
+fn global_update_latest_exceeds_the_saved_range() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@^1.0.0"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .assert()
+        .success();
+
+    let global_dir = pnpm_home.join("global/v11");
+    let group = pnpm_global::find_global_package(&global_dir, "@pnpm.e2e/multi-version-a")
+        .expect("scan global packages")
+        .expect("find updated group");
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(group.install_dir.join("package.json")).expect("read updated manifest"),
+    )
+    .expect("parse updated manifest");
+    assert_eq!(manifest["dependencies"]["@pnpm.e2e/multi-version-a"].as_str(), Some("^2.1.0"));
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g", "@pnpm.e2e/multi-version-a"])
+        .output()
+        .expect("list updated global package");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("@pnpm.e2e/multi-version-a@2.1.0"), "{stdout}");
+
+    drop((root, npmrc_info));
+}
+
 /// `--latest` resolves the `latest` dist-tag, which can point at an older
 /// release than the one installed — that is what rolled a self-updated pnpm
 /// back in pnpm/pnpm#14270. An update must never move a global package
