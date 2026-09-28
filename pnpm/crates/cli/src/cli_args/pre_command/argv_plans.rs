@@ -3,9 +3,7 @@
 
 use super::{
     ConfigOverrides, KeyIssueReporting, OsString, PreCommandInput, PreCommandPlan, SwitchInput,
-    SwitchProcessState,
-    input::{argv_requests_global, argv_requests_project_location},
-    pre_command_plan_from_input,
+    SwitchProcessState, input::UnparsedArgv, pre_command_plan_from_input,
 };
 
 /// The `pnpm --version` path, which clap answers before a command is
@@ -40,21 +38,24 @@ pub(crate) fn switch_plan_for_unparsed_argv(
     argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<Option<PreCommandPlan>> {
-    let Some(switch) = SwitchInput::from_unparsed_argv(argv) else {
+    let Some(UnparsedArgv {
+        switch, global, project_location, ..
+    }) = UnparsedArgv::scan(argv)
+    else {
         return Ok(None);
     };
     // The config commands check the pin only for `--location project`.
     if switch.command
         .as_deref()
         .is_some_and(|command| matches!(command, "config" | "get" | "set"))
-        && !argv_requests_project_location(argv)
+        && !project_location
     {
         return Ok(None);
     }
     let plan = pre_command_plan_from_input(
         &PreCommandInput {
             switch,
-            global: argv_requests_global(argv),
+            global,
             skip_pm_handling: false,
             check_runtimes: false,
             reporter: SwitchInput::reporter_flags_from_version_argv(argv),

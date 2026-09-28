@@ -6,10 +6,7 @@ use super::{
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{
-            PinFlags, SwitchPaths, argv_requests_global, argv_requests_project_location,
-            frozen_lockfile_flag,
-        },
+        pre_command::input::{PinFlags, SwitchPaths, UnparsedArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -162,7 +159,7 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
         "-g",
     ]
     .map(OsString::from);
-    let input = SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+    let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
     assert_eq!(input.command.as_deref(), Some("install"));
     assert_eq!(input.paths.dir, PathBuf::from("/tmp/project"));
     assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
@@ -175,12 +172,13 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
             prefer_offline: None,
         },
     );
-    assert!(argv_requests_global(&argv));
+    assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
 
     let version_input = SwitchInput::from_version_argv(&argv);
     assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
 
-    assert!(!argv_requests_global(&["pnpm", "exec", "--", "tool", "-g"].map(OsString::from)));
+    let argv = ["pnpm", "exec", "--", "tool", "-g"].map(OsString::from);
+    assert!(!UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
 }
 
 #[test]
@@ -188,13 +186,13 @@ fn unparsed_argv_names_no_command_after_an_undeclared_option() {
     for command in ["config", "get", "set", "install"] {
         let argv =
             ["pnpm", "--undeclared", "value", command, "--also-undeclared"].map(OsString::from);
-        assert!(SwitchInput::from_unparsed_argv(&argv).is_none(), "{command}");
+        assert!(unparsed_switch_input(&argv).is_none(), "{command}");
     }
 
     let argv = ["pnpm", "--no-color", "--filter", "pkg", "install", "--undeclared", "value"].map(
         OsString::from,
     );
-    let input = SwitchInput::from_unparsed_argv(&argv).expect("every option before it is declared");
+    let input = unparsed_switch_input(&argv).expect("every option before it is declared");
     assert_eq!(input.command.as_deref(), Some("install"));
 }
 
@@ -209,8 +207,7 @@ fn unparsed_ci_is_a_frozen_install() {
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        let input =
-            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
         assert_eq!(input.frozen_lockfile, Some(true), "{argv:?}");
     }
 }
@@ -229,8 +226,7 @@ fn unparsed_argv_steps_over_short_option_values() {
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        let input =
-            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        let input = unparsed_switch_input(&argv).expect("the command name is unambiguous");
         assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
         assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
     }
@@ -241,15 +237,13 @@ fn unparsed_argv_names_a_command_by_its_own_name() {
     for (alias, command) in
         [("c", "config"), ("ic", "ci"), ("clean-install", "ci"), ("rt", "runtime")]
     {
-        let input =
-            SwitchInput::from_unparsed_argv(&["pnpm", alias, "--undeclared"].map(OsString::from))
-                .expect("the command name is unambiguous");
+        let input = unparsed_switch_input(&["pnpm", alias, "--undeclared"].map(OsString::from))
+            .expect("the command name is unambiguous");
         assert_eq!(input.command.as_deref(), Some(command), "{alias}");
     }
-    let input = SwitchInput::from_unparsed_argv(&["pnpm", "install-clean", "--undeclared"].map(
-        OsString::from,
-    ))
-    .expect("the command name is unambiguous");
+    let input =
+        unparsed_switch_input(&["pnpm", "install-clean", "--undeclared"].map(OsString::from))
+            .expect("the command name is unambiguous");
     assert_eq!(input.frozen_lockfile, Some(true));
 }
 
@@ -260,14 +254,20 @@ fn unparsed_argv_reads_global_in_a_short_cluster() {
         (&["pnpm", "add", "-Eg", "pkg", "--undeclared"], true),
         (&["pnpm", "-Cg", "add", "pkg", "--undeclared"], false),
         (&["pnpm", "add", "pkg", "--undeclared"], false),
+        (&["pnpm", "add", "--filter", "-g", "pkg", "--undeclared"], false),
     ] {
         let argv = argv
             .iter()
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        assert_eq!(argv_requests_global(&argv), expected, "{argv:?}");
+        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
+        assert_eq!(scan.global, expected, "{argv:?}");
     }
+
+    // `-gE` may be the undeclared option's value.
+    let argv = ["pnpm", "add", "pkg", "--undeclared", "-gE"].map(OsString::from);
+    assert!(UnparsedArgv::scan(&argv).is_none());
 }
 
 #[test]
@@ -283,7 +283,8 @@ fn unparsed_argv_reads_the_project_location() {
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        assert_eq!(argv_requests_project_location(&argv), expected, "{argv:?}");
+        let scan = UnparsedArgv::scan(&argv).expect("the command line is unambiguous");
+        assert_eq!(scan.project_location, expected, "{argv:?}");
     }
 }
 
@@ -1232,3 +1233,7 @@ snapshots:
 ";
 
 mod switch_target;
+
+fn unparsed_switch_input(argv: &[OsString]) -> Option<SwitchInput> {
+    UnparsedArgv::scan(argv).map(|scan| scan.switch)
+}

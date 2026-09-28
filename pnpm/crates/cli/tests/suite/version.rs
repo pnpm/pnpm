@@ -154,30 +154,61 @@ fn version_flag_switches_to_project_package_manager_version() {
 /// rejected by this one before it switches (pnpm/pnpm#16353).
 #[test]
 fn unknown_option_goes_to_the_pinned_pnpm() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
 
-    let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["install", "--only-the-pinned-pnpm-knows"])
-        .output()
-        .expect("run pacquet install with an unknown option");
-    dbg!(&output);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stderr.contains("unexpected argument"), "this pnpm rejected the option: {stderr}");
-    assert!(
-        stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
-        "the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
-    );
+    for command in ["install", "i"] {
+        let output = test_command(pacquet_in(&workspace), root.path())
+            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .args([command, "--only-the-pinned-pnpm-knows"])
+            .output()
+            .expect("run pacquet with an unknown option");
+        dbg!(&output);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            !stderr.contains("unexpected argument"),
+            "{command}: this pnpm rejected it: {stderr}",
+        );
+        assert!(
+            stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
+            "{command}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+/// A command the parsed command line would not switch keeps this pnpm's
+/// rejection: a config command outside `--location project`, reached
+/// through its alias, and a global command, with `-g` in a short cluster.
+#[test]
+fn unknown_option_stays_rejected_for_commands_that_do_not_switch() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+
+    for args in [
+        &["c", "list", "--only-the-pinned-pnpm-knows"][..],
+        &["add", "-gE", "is-positive", "--only-the-pinned-pnpm-knows"],
+    ] {
+        let output = test_command(pacquet_in(&workspace), root.path())
+            .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .args(args)
+            .output()
+            .expect("run pacquet with an unknown option");
+        dbg!(&output);
+        assert!(!output.status.success(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("unexpected argument"),
+            "{args:?}",
+        );
+    }
 
     drop((root, mock_instance));
 }
@@ -544,6 +575,15 @@ fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
     let mut command = test_command(command, root);
     command.env("PNPM_CONFIG_REGISTRY", registry).arg("--version");
     command
+}
+
+fn pacquet_in(workspace: &Path) -> Command {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn test_command(mut command: Command, root: &Path) -> Command {

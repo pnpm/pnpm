@@ -5,26 +5,31 @@ use super::{
 use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
 use clap::CommandFactory;
 
-impl SwitchInput {
-    /// The `--version` path. Only the flags typed before the command name
-    /// are read, as there is no command to act on.
-    pub(in crate::cli_args::pre_command) fn from_version_argv(argv: &[OsString]) -> Self {
-        let global_options = ArgTable::top_level(crate::cli_args::grammar());
-        let mut input = Self::unscanned();
-        input.absorb_until_command(argv, &global_options);
-        input
-    }
+/// A command line clap rejected, read without clap. Clap never relocated
+/// its flags around a parsed command, so they are read on both sides of
+/// the command name.
+pub(in crate::cli_args::pre_command) struct UnparsedArgv {
+    pub(in crate::cli_args::pre_command) switch: SwitchInput,
+    /// `--global`, or `-g` in a short cluster such as `-gE`.
+    pub(in crate::cli_args::pre_command) global: bool,
+    /// `--location project`.
+    pub(in crate::cli_args::pre_command) project_location: bool,
+    after_undeclared_option: bool,
+}
 
-    /// A command line clap rejected. Clap never relocated its flags around
-    /// a parsed command, so they are read on both sides of the command name.
-    ///
-    /// `None` when the command name cannot be told apart from an option
-    /// value: an option no command declares comes before it, and whether
-    /// that option takes the next token is unknown. A non-UTF-8 token is
-    /// `None` too.
-    pub(in crate::cli_args::pre_command) fn from_unparsed_argv(argv: &[OsString]) -> Option<Self> {
+impl UnparsedArgv {
+    /// `None` when the command line cannot be read reliably: an option no
+    /// command declares comes before the command name, or right before a
+    /// flag that sets the command's scope, and whether that option takes
+    /// the next token is unknown. A non-UTF-8 token is `None` too.
+    pub(in crate::cli_args::pre_command) fn scan(argv: &[OsString]) -> Option<Self> {
         let options = every_option();
-        let mut input = Self::unscanned();
+        let mut scan = Self {
+            switch: SwitchInput::unscanned(),
+            global: false,
+            project_location: false,
+            after_undeclared_option: false,
+        };
         let mut index = 1;
         while index < argv.len() {
             let token = argv[index].to_str()?;
@@ -34,12 +39,48 @@ impl SwitchInput {
             let next = argv
                 .get(index + 1)
                 .map(OsString::as_os_str);
-            index += input.absorb_unparsed_token(token, next, &options)?;
+            index += scan.absorb(token, next, &options)?;
         }
-        if input.command.as_deref() == Some("ci") {
-            input.frozen_lockfile = Some(true);
+        if scan.switch.command.as_deref() == Some("ci") {
+            scan.switch.frozen_lockfile = Some(true);
         }
-        Some(input)
+        Some(scan)
+    }
+
+    fn absorb(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) -> Option<usize> {
+        if self.absorb_scope_flag(token, next, options) && self.after_undeclared_option {
+            return None;
+        }
+        self.after_undeclared_option =
+            token.starts_with('-') && declared_option_width(token, options).is_none();
+        self.switch.absorb_unparsed_token(token, next, options)
+    }
+
+    /// Read `--global`, `-g` in a short cluster, or `--location`,
+    /// returning whether the token was one of them.
+    fn absorb_scope_flag(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) -> bool {
+        if let Some((value, _)) = long_value(token, "location", next) {
+            self.project_location = value == "project";
+            return true;
+        }
+        let global = token == "--global"
+            || token
+                .strip_prefix('-')
+                .filter(|shorts| !shorts.starts_with('-'))
+                .is_some_and(|shorts| cluster_options(shorts, options).any(|short| short == 'g'));
+        self.global |= global;
+        global
+    }
+}
+
+impl SwitchInput {
+    /// The `--version` path. Only the flags typed before the command name
+    /// are read, as there is no command to act on.
+    pub(in crate::cli_args::pre_command) fn from_version_argv(argv: &[OsString]) -> Self {
+        let global_options = ArgTable::top_level(crate::cli_args::grammar());
+        let mut input = Self::unscanned();
+        input.absorb_until_command(argv, &global_options);
+        input
     }
 
     fn unscanned() -> Self {
@@ -203,22 +244,6 @@ fn canonical_command_name(name: &str) -> String {
         .to_string()
 }
 
-/// Whether `--global` or `-g` was typed before any `--` separator,
-/// including `-g` inside a short cluster such as `-gE`.
-pub(in crate::cli_args::pre_command) fn argv_requests_global(argv: &[OsString]) -> bool {
-    let options = every_option();
-    typed_tokens(argv)
-        .any(|token| {
-            token == "--global"
-                || token
-                    .strip_prefix('-')
-                    .filter(|shorts| !shorts.starts_with('-'))
-                    .is_some_and(|shorts| {
-                        cluster_options(shorts, &options).any(|short| short == 'g')
-                    })
-        })
-}
-
 /// The letters of a short cluster that name options: up to and including
 /// the first one that takes a value, whose value is the rest of the token.
 fn cluster_options<'a>(shorts: &'a str, options: &'a ArgTable) -> impl Iterator<Item = char> + 'a {
@@ -230,23 +255,4 @@ fn cluster_options<'a>(shorts: &'a str, options: &'a ArgTable) -> impl Iterator<
             value_follows = options.short_consumes_value(short) != Some(false);
             named
         })
-}
-
-/// Whether `--location project` was typed before any `--` separator.
-pub(in crate::cli_args::pre_command) fn argv_requests_project_location(argv: &[OsString]) -> bool {
-    let tokens = typed_tokens(argv).collect::<Vec<_>>();
-    tokens
-        .iter()
-        .enumerate()
-        .any(|(index, token)| {
-            let next = tokens.get(index + 1).map(OsStr::new);
-            long_value(token, "location", next).is_some_and(|(value, _)| value == "project")
-        })
-}
-
-fn typed_tokens(argv: &[OsString]) -> impl Iterator<Item = &str> {
-    argv.iter()
-        .skip(1)
-        .map_while(|token| token.to_str())
-        .take_while(|token| *token != "--")
 }
