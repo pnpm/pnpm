@@ -576,8 +576,8 @@ catalogs:
       specifier: ^5.0.0
       version: 5.0.0
     is-subdir:
-      specifier: ^2.0.0
-      version: 2.0.0
+      specifier: ^2.0.1
+      version: 2.0.1
     is-windows:
       specifier: ^1.0.2
       version: 1.0.2
@@ -1082,7 +1082,7 @@ importers:
         version: 3.0.2
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -1561,7 +1561,7 @@ importers:
         version: 6.0.2
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -1656,7 +1656,7 @@ importers:
         version: link:../../core/types
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
@@ -1768,7 +1768,7 @@ importers:
         version: link:../../workspace/task-scheduler
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -1853,7 +1853,7 @@ importers:
         version: 6.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -1986,7 +1986,7 @@ importers:
         version: link:../../workspace/task-scheduler
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       p-defer:
         specifier: 'catalog:'
         version: 4.0.1
@@ -2701,7 +2701,7 @@ importers:
         version: 7.0.4
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -3369,7 +3369,7 @@ importers:
         version: safe-execa@0.3.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.3.3
@@ -4803,7 +4803,7 @@ importers:
         version: link:../../worker
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       rename-overwrite:
         specifier: 'catalog:'
         version: 7.0.1
@@ -5234,7 +5234,7 @@ importers:
         version: link:../../workspace/project-manifest-reader
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       npm-packlist:
         specifier: 'catalog:'
         version: 10.0.4
@@ -5360,7 +5360,7 @@ importers:
         version: link:../../core/types
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       semver:
         specifier: 'catalog:'
         version: 7.8.5
@@ -5810,7 +5810,7 @@ importers:
         version: 2.1.2
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       js-yaml:
         specifier: 'catalog:'
         version: '@zkochan/js-yaml@0.0.11'
@@ -6213,7 +6213,7 @@ importers:
         version: 5.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -6451,7 +6451,7 @@ importers:
         version: 5.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6863,7 +6863,7 @@ importers:
         version: link:../../../core/types
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8664,7 +8664,7 @@ importers:
         version: 6.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -9089,7 +9089,7 @@ importers:
         version: safe-execa@0.3.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       libnpmpublish:
         specifier: 'catalog:'
         version: 11.2.0(supports-color@10.2.2)
@@ -9779,7 +9779,7 @@ importers:
         version: 2.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       p-limit:
         specifier: 'catalog:'
         version: 7.3.3
@@ -10061,7 +10061,7 @@ importers:
         version: 4.0.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       pretty-bytes:
         specifier: 'catalog:'
         version: 7.1.3
@@ -10724,7 +10724,7 @@ importers:
         version: safe-execa@0.3.0
       is-subdir:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       micromatch:
         specifier: 'catalog:'
         version: 4.0.8
@@ -15498,8 +15498,8 @@ packages:
     resolution: {integrity: sha512-2AT6j+gXe/1ueqbW6fLZJiIw3F8iXGJtt0yDrZaBhAZEG1raiTxKWU+IPqMCzQAXOUCKdA4UDMgacKH25XG2Cw==}
     engines: {node: '>=4'}
 
-  is-subdir@2.0.0:
-    resolution: {integrity: sha512-iOXmZKniv4jGFMSYc1K3V/XNl30X1d/m86BKTiDeE2MDULREgBiNpLXsqQKjyETOkWbOyXNQD4M4AZCH51pm7g==}
+  is-subdir@2.0.1:
+    resolution: {integrity: sha512-lHCN190C9bBs4LoyMjt+FzxKBjBwzhdh7v6NiHpi2fUSZho28CN8y6ZH315Uqy3mDKjospIDD5xqE6uPtJi9Ng==}
     engines: {node: '>=22.13'}
 
   is-typedarray@1.0.0:
@@ -23118,7 +23118,7 @@ snapshots:
 
   is-inner-link@5.0.0:
     dependencies:
-      is-subdir: 2.0.0
+      is-subdir: 2.0.1
       resolve-link-target: 3.0.0
 
   is-inside-container@1.0.0:
@@ -23157,7 +23157,7 @@ snapshots:
     dependencies:
       better-path-resolve: 1.0.0
 
-  is-subdir@2.0.0:
+  is-subdir@2.0.1:
     dependencies:
       better-path-resolve: 2.0.0
 

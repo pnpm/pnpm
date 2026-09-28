@@ -365,7 +365,7 @@ catalog:
   ini: 6.0.0
   is-gzip: 2.0.0
   is-inner-link: ^5.0.0
-  is-subdir: ^2.0.0
+  is-subdir: ^2.0.1
   is-windows: ^1.0.2
   isexe: 4.0.0
   jest: 30.4.2

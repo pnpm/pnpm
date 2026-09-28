@@ -275,7 +275,7 @@ export async function recursive (
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
     const calculatedRepositoryRoot = calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir))
-    const isFromWorkspace = isFromRepositoryRoot(calculatedRepositoryRoot)
+    const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = importers.filter(({ rootDir }) => isFromWorkspace(rootDir))
     if (importers.length === 0) return { passed: true }
     let mutation: 'install' | 'installSome' | 'uninstallSome'
@@ -679,14 +679,6 @@ function calculateRepositoryRoot (
     }
   }
   return path.resolve(workspaceDir, relativeRepoRoot)
-}
-
-export function isFromRepositoryRoot (
-  repositoryRoot: string
-): (rootDir: string) => boolean {
-  // is-subdir appends a path separator to the parent directory, so it matches
-  // nothing when the parent is already the filesystem root.
-  return repositoryRoot === path.parse(repositoryRoot).root ? () => true : isSubdir.bind(null, repositoryRoot)
 }
 
 export function matchDependencies (
