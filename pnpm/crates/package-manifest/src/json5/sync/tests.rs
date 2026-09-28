@@ -81,6 +81,24 @@ fn keeps_comments_in_a_container_that_empties_or_fills() {
 }
 
 #[test]
+fn replaces_a_value_of_another_type_in_the_file_style() {
+    let source = "{\n  flag: true,\n  count: 1,\n  empty: null,\n  name: 'x',\n  list: ['a'],\n  nested: { a: 1 },\n  gone: 'z',\n}";
+    let edited = edit(source, |value| {
+        value["flag"] = json!("yes");
+        value["count"] = json!(2);
+        value["empty"] = json!(["new"]);
+        value["name"] = json!(5);
+        value["list"] = json!({"new-key": "v"});
+        value["nested"] = json!(false);
+        value["gone"] = json!(null);
+    });
+    assert_eq!(
+        edited,
+        "{\n  flag: 'yes',\n  count: 2,\n  empty: ['new'],\n  name: 5,\n  list: {\n    'new-key': 'v'\n  },\n  nested: false,\n  gone: null,\n}",
+    );
+}
+
+#[test]
 fn grows_and_shrinks_arrays_in_place() {
     let source = "{\n  files: ['a', 'b', 'c'], // files note\n  keywords: ['x'],\n}";
     let edited = edit(source, |value| {
