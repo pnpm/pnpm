@@ -73,19 +73,43 @@ pub fn check_deps_status_before_run_at(
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
     // only to reach the same verdict inside the check.
-    let Ok(Some(workspace_state)) = pnpm_workspace_state::load_workspace_state(&lockfile_root)
-    else {
-        return cannot_check_deps();
-    };
-    check_discovered_deps(
-        &config,
-        &manifest,
-        workspace_manifest.as_ref(),
-        &workspace_root,
-        &lockfile_root,
-        &workspace_state,
-        selected_project_dirs,
-    )
+    match pnpm_workspace_state::load_workspace_state(&lockfile_root) {
+        Ok(Some(workspace_state)) => check_discovered_deps(
+            &config,
+            &manifest,
+            workspace_manifest.as_ref(),
+            &workspace_root,
+            &lockfile_root,
+            &workspace_state,
+            selected_project_dirs,
+        ),
+        // No state file means this project was never installed on its own.
+        // A dependency-free project an enclosing workspace leaves out has
+        // nothing to install, and spawning one writes a lockfile into a
+        // directory the workspace install left alone.
+        Ok(None)
+            if workspace_dir_opt.is_none()
+                && dependency_free_project_left_out(dir, config.as_ref(), &manifest) =>
+        {
+            Some(crate::RunDepsStatus::UpToDate)
+        }
+        _ => cannot_check_deps(),
+    }
+}
+
+/// A project the enclosing workspace's `packages` patterns do not select,
+/// whose manifest declares no dependencies an install would fetch.
+fn dependency_free_project_left_out(
+    dir: &Path,
+    config: &Config,
+    manifest: &PackageManifest,
+) -> bool {
+    if config.workspace_search_skipped
+        || crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
+    {
+        return false;
+    }
+    pnpm_workspace::left_out_of_enclosing_workspace(dir).unwrap_or(false)
 }
 /// The directory the verify-deps-before-run gate serializes its installs
 /// over: the workspace root, or `dir` outside a workspace. Every gate in one

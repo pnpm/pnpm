@@ -1522,3 +1522,65 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
 
     drop((root, mock_instance));
 }
+
+/// `pnpm run` in a dependency-free project that the workspace patterns
+/// leave out runs the script and writes nothing in that directory
+/// ([pnpm/pnpm#16313](https://github.com/pnpm/pnpm/issues/16313)).
+///
+/// A project with no enclosing workspace still gets an install from its
+/// first `run` (`default_install_action_installs_before_running_the_script`).
+#[test]
+fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write the root manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkgs/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(member.join("package.json"), json!({ "name": "a", "version": "1.0.0" }).to_string())
+        .expect("write the member manifest");
+    let scripts = workspace.join("scripts");
+    fs::create_dir_all(&scripts).expect("create the left-out project");
+    let marker = scripts.join("ran.txt");
+    fs::write(
+        scripts.join("package.json"),
+        json!({
+            "scripts": {
+                "hi": "node -e \"require('fs').writeFileSync('ran.txt','ok')\"",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the left-out manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_in(&scripts)
+        .with_args(["run", "hi"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap_or_default(),
+        "ok",
+        "the script must write its marker"
+    );
+    assert!(
+        !scripts.join("node_modules").exists(),
+        "pnpm run must not install a project that declares no dependencies:\n{stderr}",
+    );
+    assert!(
+        !scripts.join("pnpm-lock.yaml").exists(),
+        "pnpm run must not write a lockfile for a project that declares no dependencies:\n{stderr}",
+    );
+
+    drop(root);
+}

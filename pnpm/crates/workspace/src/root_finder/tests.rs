@@ -1,6 +1,6 @@
 use super::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, INVALID_WORKSPACE_MANIFEST_FILENAMES,
-    find_workspace_dir, find_workspace_dir_from_env_with,
+    find_workspace_dir, find_workspace_dir_from_env_with, left_out_of_enclosing_workspace,
 };
 use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
 use pretty_assertions::assert_eq;
@@ -169,7 +169,10 @@ fn empty_pnpm_config_env_var_falls_back_to_npm_config() {
 
 /// <https://github.com/pnpm/pnpm/issues/3561>
 mod workspace_membership {
-    use super::{TempDir, WORKSPACE_MANIFEST_FILENAME, find_workspace_dir, fs};
+    use super::{
+        TempDir, WORKSPACE_MANIFEST_FILENAME, find_workspace_dir, fs,
+        left_out_of_enclosing_workspace,
+    };
     use pretty_assertions::assert_eq;
 
     fn prepare_workspace(packages: &str) -> TempDir {
@@ -217,5 +220,24 @@ mod workspace_membership {
         let tmp = prepare_workspace("packages:\n  - packages/**\n");
         let found = find_workspace_dir(tmp.path()).unwrap();
         assert_eq!(found.as_deref(), Some(tmp.path()));
+    }
+
+    #[test]
+    fn unlisted_project_is_left_out_of_the_enclosing_workspace() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        assert!(left_out_of_enclosing_workspace(&tmp.path().join("docs")).unwrap());
+    }
+
+    #[test]
+    fn listed_project_is_not_left_out() {
+        let tmp = prepare_workspace("packages:\n  - packages/**\n");
+        assert!(!left_out_of_enclosing_workspace(&tmp.path().join("packages/pkg-1")).unwrap());
+    }
+
+    #[test]
+    fn a_directory_with_no_enclosing_workspace_is_not_left_out() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("package.json"), "{}").unwrap();
+        assert!(!left_out_of_enclosing_workspace(tmp.path()).unwrap());
     }
 }

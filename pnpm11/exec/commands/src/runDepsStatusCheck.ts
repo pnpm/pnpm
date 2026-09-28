@@ -5,11 +5,13 @@ import path from 'node:path'
 import { confirm } from '@inquirer/prompts'
 import { type Config, getIgnoredLockfilePnpmFieldKeys, type VerifyDepsBeforeRun } from '@pnpm/config.reader'
 import { createHexHash } from '@pnpm/crypto.hash'
-import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
+import { checkDepsStatus, type CheckDepsStatusOptions, type CheckDepsStatusResult, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { isError, PnpmError } from '@pnpm/error'
 import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
+import type { ProjectManifest } from '@pnpm/types'
+import { leftOutOfEnclosingWorkspace } from '@pnpm/workspace.root-finder'
 import { realpathMissing } from 'realpath-missing'
 
 const INSTALL_LOCK_NAMESPACE = 'pnpm-verify-deps-install-locks'
@@ -33,7 +35,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
 
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
-  if (!needsInstall(upToDate, opts)) return
+  if (await installNotRequired(opts, upToDate, workspaceState)) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
@@ -102,6 +104,37 @@ function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOp
 }
 
 /**
+ * A dependency-free project an enclosing workspace leaves out has nothing
+ * to install. Spawning one would write a lockfile into a directory the
+ * workspace install left alone.
+ */
+async function installNotRequired (
+  opts: RunDepsStatusCheckOptions,
+  upToDate: boolean | undefined,
+  workspaceState: CheckDepsStatusResult['workspaceState']
+): Promise<boolean> {
+  if (!needsInstall(upToDate, opts)) return true
+  if (workspaceState != null) return false
+  return dependencyFreeProjectLeftOut(opts)
+}
+
+async function dependencyFreeProjectLeftOut (opts: RunDepsStatusCheckOptions): Promise<boolean> {
+  if (opts.workspaceDir != null || hasRuntimeDependencies(opts)) return false
+  return leftOutOfEnclosingWorkspace(opts.dir)
+}
+
+function hasRuntimeDependencies (opts: RunDepsStatusCheckOptions): boolean {
+  if (manifestHasRuntimeDependencies(opts.rootProjectManifest)) return true
+  return opts.allProjects?.some(project => manifestHasRuntimeDependencies(project.manifest)) ?? false
+}
+
+function manifestHasRuntimeDependencies (manifest: ProjectManifest | undefined): boolean {
+  if (manifest == null) return false
+  return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
+    .some(group => group != null && Object.keys(group).length > 0)
+}
+
+/**
  * Installs while holding the workspace's gate lock, so concurrent `run` and
  * `exec` gates on one stale tree start one install rather than one each,
  * racing in the same `node_modules`. A gate that found the lock held
@@ -127,7 +160,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
   try {
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
-      if (!needsInstall(upToDate, opts)) return
+      if (await installNotRequired(opts, upToDate, workspaceState)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
     const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined

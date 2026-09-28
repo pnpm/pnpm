@@ -4511,6 +4511,9 @@ importers:
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
+      '@pnpm/workspace.root-finder':
+        specifier: workspace:*
+        version: link:../../workspace/root-finder
       '@pnpm/workspace.task-scheduler':
         specifier: workspace:*
         version: link:../../workspace/task-scheduler

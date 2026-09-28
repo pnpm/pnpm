@@ -530,7 +530,7 @@ fn lockfile_inputs_block_fast_path(
     None
 }
 
-fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
+pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
         .into_iter()
