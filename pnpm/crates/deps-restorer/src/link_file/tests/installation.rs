@@ -4,7 +4,7 @@ use super::{
         clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
         recover_from_concurrent_import,
     },
-    write_source,
+    STORE_ENTRY, STORE_EXEC_ENTRY, write_source,
 };
 #[cfg(unix)]
 use super::{
@@ -54,7 +54,7 @@ fn copy_restores_executable_mode_from_cas_suffix() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let src = write_source(tmp.path(), STORE_EXEC_ENTRY, b"#!/usr/bin/env node\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
     let dst = tmp.path().join("nested/dst");
     fs::create_dir_all(dst.parent().unwrap()).unwrap();
@@ -76,7 +76,7 @@ fn copy_does_not_widen_non_exec_mode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"private data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"private data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(0o600)).unwrap();
     let dst = tmp.path().join("nested/dst");
     fs::create_dir_all(dst.parent().unwrap()).unwrap();
@@ -101,7 +101,7 @@ fn hardlink_mode_mismatch_copies_at_the_store_entry_mode() {
 
     let tmp = tempdir().unwrap();
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
     let dst = tmp.path().join("dst.txt");
 
@@ -130,7 +130,7 @@ fn hardlink_mode_match_shares_the_store_inode() {
 
     let tmp = tempdir().unwrap();
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
     let dst = tmp.path().join("dst.txt");
 
@@ -146,6 +146,48 @@ fn hardlink_mode_match_shares_the_store_inode() {
 /// A mode miss belongs to one store file, not to the filesystem: the
 /// `Auto` ladder keeps the hardlink tier, like [`is_too_many_links`]
 /// does for a source out of names.
+/// A local-directory dependency's file is not a store entry, so it keeps
+/// the mode its project gives it: an executable stays executable, and a
+/// mode no umask would produce still shares the inode.
+#[test]
+#[cfg(unix)]
+fn local_directory_files_keep_their_own_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    for mode in [0o755, 0o700, 0o640] {
+        let src = write_source(tmp.path(), &format!("project/bin/run-{mode:o}"), b"#!/bin/sh\n");
+        fs::set_permissions(&src, fs::Permissions::from_mode(mode)).unwrap();
+
+        let copied = tmp
+            .path()
+            .join(format!("copied-{mode:o}"));
+        link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &copied)
+            .expect("copy a local-directory file");
+        assert_eq!(
+            fs::metadata(&copied)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            mode,
+            "the copy keeps the project file's mode",
+        );
+
+        let linked = tmp
+            .path()
+            .join(format!("linked-{mode:o}"));
+        link_file::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Hardlink,
+            &src,
+            &linked,
+        )
+        .expect("hardlink a local-directory file");
+        assert_eq!(super::inode(&src), super::inode(&linked), "the project file is hardlinked");
+    }
+}
+
 #[test]
 #[cfg(unix)]
 fn auto_keeps_the_hardlink_tier_across_a_mode_mismatch() {
@@ -154,7 +196,7 @@ fn auto_keeps_the_hardlink_tier_across_a_mode_mismatch() {
     let state = AtomicU8::new(LINK_STATE_HARDLINK);
     let tmp = tempdir().unwrap();
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
     let dst = tmp.path().join("dst.txt");
     let logged = AtomicU8::new(0);
@@ -174,8 +216,8 @@ fn clone_tier_aligns_modes_to_the_current_umask() {
 
     let tmp = tempdir().unwrap();
     for (name, contents) in [
-        ("1b59d9-exec", b"#!/usr/bin/env node\n".as_slice()),
-        ("1b59d9", b"private data\n".as_slice()),
+        (STORE_EXEC_ENTRY, b"#!/usr/bin/env node\n".as_slice()),
+        (STORE_ENTRY, b"private data\n".as_slice()),
     ] {
         let expected = pnpm_fs::file_mode::store_entry_mode(
             pnpm_fs::file_mode::cas_path_is_executable(name.as_ref()),
@@ -215,7 +257,7 @@ fn recover_from_concurrent_import_preserves_hardlink_with_desired_mode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = tmp.path().join("dst");
 
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
@@ -244,7 +286,7 @@ fn recover_from_concurrent_import_replaces_hardlink_with_mismatched_mode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = tmp.path().join("dst");
 
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
@@ -284,7 +326,7 @@ fn eexist_restores_executable_mode_from_cas_suffix() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let src = write_source(tmp.path(), STORE_EXEC_ENTRY, b"#!/usr/bin/env node\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
     let dst = write_source(tmp.path(), "dst", b"#!/usr/bin/env node\n");
     fs::set_permissions(&dst, fs::Permissions::from_mode(0o644)).unwrap();
@@ -318,7 +360,7 @@ fn eexist_aligns_a_non_exec_target_without_adding_exec_bits() {
 
     let tmp = tempdir().unwrap();
     let expected = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
-    let src = write_source(tmp.path(), "1b59d9", b"private data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"private data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(expected | 0o004)).unwrap();
     let dst = write_source(tmp.path(), "dst", b"private data\n");
     fs::set_permissions(&dst, fs::Permissions::from_mode(0o600)).unwrap();
@@ -346,7 +388,7 @@ fn eexist_aligns_a_non_exec_target_without_adding_exec_bits() {
 #[cfg(unix)]
 fn eexist_recovery_tolerates_a_target_its_writer_replaced() {
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let src = write_source(tmp.path(), STORE_EXEC_ENTRY, b"#!/usr/bin/env node\n");
     let dst = tmp.path().join("dst");
 
     recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst)
@@ -362,7 +404,7 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let src = write_source(tmp.path(), STORE_EXEC_ENTRY, b"#!/usr/bin/env node\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
     let dst = write_source(tmp.path(), "dst", b"#!/usr/bin/env node\n");
     fs::set_permissions(&dst, fs::Permissions::from_mode(0o644)).unwrap();
@@ -381,7 +423,7 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
 #[test]
 fn not_found_without_a_target_propagates() {
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = tmp.path().join("dst");
 
     let error =
@@ -406,7 +448,7 @@ fn not_found_without_a_source_propagates() {
 #[test]
 fn other_import_errors_propagate() {
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
     let error = recover_from_concurrent_import(
@@ -683,7 +725,7 @@ fn eexist_does_not_align_hardlinked_target_sharing_store_inode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let store_mode = 0o600;
     fs::set_permissions(&src, fs::Permissions::from_mode(store_mode)).unwrap();
     let dst = tmp.path().join("dst");
