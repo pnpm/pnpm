@@ -1,0 +1,10 @@
+# @pnpm/scripts
+
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/releasing.versioning@1100.3.4
+  - @pnpm/workspace.projects-reader@1101.1.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.2.1
