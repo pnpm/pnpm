@@ -66,6 +66,23 @@ fn json5_version_bump_keeps_json5_style() {
 }
 
 #[test]
+fn json5_save_falls_back_to_reserializing_when_the_cst_cannot_parse_the_file() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json5");
+    fs::write(&path, "// comment\n{\n  null_value: 1,\n  version: '1.0.0',\n}\n").unwrap();
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.value_mut()["version"] = json!("1.0.1");
+    manifest.save().unwrap();
+    let written = fs::read_to_string(&path).unwrap();
+    eprintln!("WRITTEN:\n{written}");
+    assert!(written.starts_with("// comment\n"), "{written}");
+    assert_eq!(
+        PackageManifest::from_path(path).unwrap().value(),
+        &json!({"null_value": 1, "version": "1.0.1"}),
+    );
+}
+
+#[test]
 fn json5_reads_bom_comments_and_json5_syntax() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json5");
@@ -137,9 +154,10 @@ fn json5_save_preserves_comments_when_version_and_dependencies_change() {
     manifest.save().unwrap();
     let written = fs::read_to_string(&path).unwrap();
     eprintln!("WRITTEN:\n{written}");
-    for comment in ["// project", "// version note", "// dependencies note", "// alpha note"] {
-        assert!(written.contains(comment), "missing {comment}");
-    }
+    assert_eq!(
+        written,
+        "// project\n{\n  name: 'fixture',\n  version: '2.0.0', // version note\n  // dependencies note\n  dependencies: {\n    alpha: '2.0.0', // alpha note\n    \"bravo\": \"1.0.0\",\n  },\n  custom: { url: 'https://example.test/*literal*/' },\n}\n",
+    );
     let reread = PackageManifest::from_path(path.clone()).unwrap();
     dbg!(reread.value());
     assert_eq!(reread.value()["version"], "2.0.0");

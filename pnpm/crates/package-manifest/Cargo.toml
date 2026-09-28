@@ -16,6 +16,7 @@ pnpm-yaml-document-sync = { workspace = true }
 
 derive_more = { workspace = true }
 json5 = { workspace = true }
+jsonc-parser = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 serde = { workspace = true }
