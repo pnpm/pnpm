@@ -1,11 +1,10 @@
 //! Repeated version selection, including the cached minimum-release-age view.
-use core::hint::black_box;
 use pnpm_registry::{MirrorFile, Package, PackageVersions};
 use pnpm_resolving_npm_resolver::{
     PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
     pick_package_from_meta, pick_version_by_version_range,
 };
-use std::{io::Write, time::Instant};
+use std::{hint::black_box, io::Write, time::Instant};
 
 fn metadata(file_backed: bool) -> Package {
     let mut releases = serde_json::Map::new();

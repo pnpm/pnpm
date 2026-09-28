@@ -1,7 +1,6 @@
 //! Repeated deprecation scans of immutable metadata, without manifest hydration.
-use core::hint::black_box;
 use pnpm_registry::{MirrorFile, Package, PackageVersions};
-use std::{io::Write, time::Instant};
+use std::{hint::black_box, io::Write, time::Instant};
 
 fn metadata(file_backed: bool) -> PackageVersions {
     let mut fragments = Vec::new();
