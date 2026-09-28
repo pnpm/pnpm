@@ -1,0 +1,13 @@
+# @pnpm/pnpr
+
+## 0.1.0-alpha.14
+
+### Minor Changes
+
+- The pnpr resolver no longer connects to loopback, private, link-local, or other non-public addresses, including the `169.254.169.254` cloud metadata endpoint. The check applies to the address each connection is made to, so an allowlisted registry host that resolves to an internal address is refused too. Addresses of pnpr's own `public_url` host stay reachable. List any other non-public network the resolver must reach, such as an internal upstream registry's, under `routes.allowedPrivateNetworks`. Transitive git and tarball dependencies are now checked against the fetch allowlist before pnpr contacts their host. Git fetches over `http(s)` connect only to the addresses pnpr checked, with git 2.37 or later [#12705](https://github.com/pnpm/pnpm/issues/12705).
+
+### Patch Changes
+
+- Sped up Cargo dependency resolution across sparse-index registries. Expired Cargo sparse-index cache files are removed automatically [#14611](https://github.com/pnpm/pnpm/issues/14611).
+
+- Installing through a `pnpr` server now links a workspace project at the directory its `publishConfig.directory` names, instead of linking the project root. An install that resolves through a server which does not forward the setting fails with `ERR_PNPM_PNPR_PUBLISH_DIRECTORY_MISMATCH` instead of writing a lockfile that points at the wrong directory, and the server rejects a `publishConfig.directory` that points outside its project [#14460](https://github.com/pnpm/pnpm/issues/14460).

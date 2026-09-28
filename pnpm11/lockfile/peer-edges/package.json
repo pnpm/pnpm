@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.peer-edges",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "Find the lockfile entries that only satisfy an optional peer dependency",
   "keywords": [
     "pnpm",
