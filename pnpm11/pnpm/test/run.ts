@@ -819,3 +819,36 @@ testOnPosix('run and recursive run execute lifecycle hooks from the package-spec
     expect(result.stdout.toString()).toContain('custom-hook')
   }
 })
+
+test('run in a dependency-free project the workspace leaves out writes nothing', async () => {
+  prepare({ name: 'root', private: true })
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['pkgs/*'] })
+  fs.mkdirSync('pkgs/a', { recursive: true })
+  fs.writeFileSync('pkgs/a/package.json', JSON.stringify({ name: 'a', version: '1.0.0' }))
+  fs.mkdirSync('scripts')
+  fs.writeFileSync('scripts/package.json', JSON.stringify({
+    scripts: {
+      hi: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\',\'ok\')"',
+    },
+  }))
+
+  await execPnpm(['install'])
+
+  execPnpmSync(['run', 'hi'], { cwd: path.resolve('scripts'), expectSuccess: true })
+  expect(fs.readFileSync('scripts/ran.txt', 'utf8')).toBe('ok')
+  expect(fs.existsSync('scripts/node_modules')).toBe(false)
+  expect(fs.existsSync('scripts/pnpm-lock.yaml')).toBe(false)
+})
+
+test('run in a project with nothing to install writes nothing', async () => {
+  prepare({
+    scripts: {
+      hi: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\',\'ok\')"',
+    },
+  })
+
+  execPnpmSync(['run', 'hi'], { expectSuccess: true })
+  expect(fs.readFileSync('ran.txt', 'utf8')).toBe('ok')
+  expect(fs.existsSync('node_modules')).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
