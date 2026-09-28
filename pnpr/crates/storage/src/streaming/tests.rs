@@ -239,7 +239,7 @@ async fn cache_stream_without_expected_integrity_returns_computed_sha512() {
 
     assert_eq!(downloaded, bytes);
     assert_eq!(integrity.await.unwrap().to_string(), sha512_integrity(bytes));
-    assert_eq!(tokio::fs::read(cache.join("~public/test/foo/foo-1.0.0.tgz")).await.unwrap(), bytes,);
+    assert_eq!(tokio::fs::read(cache.join("~public/test/foo/foo-1.0.0.tgz")).await.unwrap(), bytes);
 }
 
 async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {

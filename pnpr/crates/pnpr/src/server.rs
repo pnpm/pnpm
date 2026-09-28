@@ -54,6 +54,7 @@ use revision_tarballs::{
 mod upstream_tarballs;
 use upstream_tarballs::{cached_upstream_tarball, serve_tarball_via_upstream};
 
+mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
     load_packument_for_read, load_upstream_packument, read_source_packument,

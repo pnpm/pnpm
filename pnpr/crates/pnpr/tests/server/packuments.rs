@@ -1,12 +1,14 @@
 use super::{
     Body, Duration, GzDecoder, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes,
-    body_json, config_for, enable_osv, foo_packument, json, osv_database, router,
+    body_json, config_for, enable_osv, foo_packument, json, osv_database, router, sha1_hex_of,
+    sha512_integrity,
 };
 use std::io::Read;
 
 #[tokio::test]
 async fn packument_is_proxied_cached_and_rewritten() {
     let mut upstream = mockito::Server::new_async().await;
+    let tarball = b"legacy-packument-tarball";
     let packument = json!({
         "name": "foo",
         "versions": {
@@ -15,7 +17,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
                 "version": "1.0.0",
                 "dist": {
                     "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
-                    "shasum": "deadbeef"
+                    "shasum": sha1_hex_of(tarball)
                 }
             }
         }
@@ -25,6 +27,12 @@ async fn packument_is_proxied_cached_and_rewritten() {
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_body(tarball)
         .expect(1)
         .create_async()
         .await;
@@ -49,7 +57,8 @@ async fn packument_is_proxied_cached_and_rewritten() {
         body["versions"]["1.0.0"]["dist"]["tarball"],
         "http://example.test/foo/-/foo-1.0.0.tgz",
     );
-    assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], sha1_hex_of(tarball));
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(tarball));
 
     let cached = app
         .clone()
@@ -63,6 +72,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     assert_eq!(cached.status(), StatusCode::OK);
 
     packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -75,7 +85,10 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
             "1.0.0": {
                 "name": "foo",
                 "version": "1.0.0",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo tarball"),
+                },
             }
         }
     });
@@ -91,7 +104,10 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
             "1.0.0": {
                 "name": "bare",
                 "version": "1.0.0",
-                "dist": { "tarball": format!("{}/bare/-/bare-1.0.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/bare/-/bare-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"bare tarball"),
+                },
             }
         }
     });
@@ -108,7 +124,10 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
             "1.0.0": {
                 "name": "garbled",
                 "version": "1.0.0",
-                "dist": { "tarball": format!("{}/garbled/-/garbled-1.0.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/garbled/-/garbled-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"garbled tarball"),
+                },
             }
         }
     });
@@ -215,12 +234,18 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
             "1.0.0": {
                 "name": "foo",
                 "version": "1.0.0",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo 1.0.0"),
+                },
             },
             "1.1.0": {
                 "name": "foo",
                 "version": "1.1.0",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo 1.1.0"),
+                },
             },
         },
     });
@@ -334,17 +359,26 @@ async fn osv_filters_packument_identity_mismatches() {
             "1.0.0": {
                 "name": "foo",
                 "version": "1.0.0",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo 1.0.0"),
+                },
             },
             "1.1.0": {
                 "name": "foo",
                 "version": "9.9.9",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo 1.1.0"),
+                },
             },
             "safe-key": {
                 "name": "foo",
                 "version": "1.2.0",
-                "dist": { "tarball": format!("{}/foo/-/foo-1.2.0.tgz", upstream.url()) },
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.2.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(b"foo 1.2.0"),
+                },
             },
         },
     });

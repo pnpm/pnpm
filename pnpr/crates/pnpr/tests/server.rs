@@ -475,7 +475,8 @@ fn foo_packument(upstream_url: &str) -> Value {
                 "version": "1.0.0",
                 "dist": {
                     "tarball": format!("{upstream_url}/foo/-/foo-1.0.0.tgz"),
-                    "shasum": "deadbeef",
+                    "shasum": sha1_hex_of(b"foo tarball"),
+                    "integrity": sha512_integrity(b"foo tarball"),
                 },
             },
         },

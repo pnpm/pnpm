@@ -39,6 +39,7 @@ fn ensure_supported_hash(integrity: &Integrity) -> Result<(), ssri::Error> {
 
 enum HashState {
     Verify(IntegrityChecker, Integrity),
+    VerifyAndCompute(IntegrityChecker, IntegrityOpts),
     Compute(IntegrityOpts),
 }
 
@@ -46,6 +47,10 @@ impl HashState {
     fn input(&mut self, chunk: &[u8]) {
         match self {
             Self::Verify(checker, _) => checker.input(chunk),
+            Self::VerifyAndCompute(checker, opts) => {
+                checker.input(chunk);
+                opts.input(chunk);
+            }
             Self::Compute(opts) => opts.input(chunk),
         }
     }
@@ -53,6 +58,10 @@ impl HashState {
     fn result(self) -> Result<Integrity, ssri::Error> {
         match self {
             Self::Verify(checker, target) => checker.result().map(|_| target),
+            Self::VerifyAndCompute(checker, opts) => {
+                checker.result()?;
+                Ok(opts.result())
+            }
             Self::Compute(opts) => Ok(opts.result()),
         }
     }
@@ -234,7 +243,7 @@ pub async fn download_verified_to_temp(
     max_bytes: u64,
 ) -> Result<(File, u64, PathBuf, Integrity), BlobStreamError> {
     let (_len, integrity) =
-        match download_verified(response, &mut write, integrity, max_bytes).await {
+        match download_verified(response, &mut write, integrity, false, max_bytes).await {
             Ok(res) => res,
             Err(err) => {
                 write.abandon().await;
@@ -248,45 +257,110 @@ pub async fn download_verified_to_temp(
         .map(|(f, l, p)| (f, l, p, integrity))
 }
 
+pub async fn download_verified_to_cache(
+    response: ThrottledResponse,
+    write: BlobWrite,
+    integrity: Option<&Integrity>,
+    max_bytes: u64,
+) -> Result<Integrity, BlobStreamError> {
+    download_to_cache(response, write, integrity, false, max_bytes).await
+}
+
+pub async fn download_verified_to_cache_with_expected_integrity(
+    response: ThrottledResponse,
+    write: BlobWrite,
+    integrity: &Integrity,
+    max_bytes: u64,
+) -> Result<Integrity, BlobStreamError> {
+    download_to_cache(response, write, Some(integrity), true, max_bytes).await
+}
+
+async fn download_to_cache(
+    response: ThrottledResponse,
+    mut write: BlobWrite,
+    integrity: Option<&Integrity>,
+    compute_sha512: bool,
+    max_bytes: u64,
+) -> Result<Integrity, BlobStreamError> {
+    let (_, integrity) =
+        match download_verified(response, &mut write, integrity, compute_sha512, max_bytes).await {
+            Ok(result) => result,
+            Err(err) => {
+                write.abandon().await;
+                return Err(err);
+            }
+        };
+    write.finalize().await.map_err(BlobStreamError::Io)?;
+    Ok(integrity)
+}
+
 async fn download_verified(
     response: ThrottledResponse,
     write: &mut BlobWrite,
     integrity: Option<&Integrity>,
+    compute_sha512: bool,
     max_bytes: u64,
 ) -> Result<(u64, Integrity), BlobStreamError> {
     let url = response.url().to_string();
-    if let Some(received) = response.content_length()
-        && received > max_bytes
-    {
-        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
-    }
+    ensure_content_length(response.content_length(), max_bytes)?;
     let mut upstream = Box::pin(response.bytes_stream());
-    let mut hash_state = match integrity {
-        Some(i) => {
-            let checker = integrity_checker(i).map_err(BlobStreamError::Integrity)?;
-            HashState::Verify(checker, i.clone())
-        }
-        None => HashState::Compute(IntegrityOpts::new().algorithm(Algorithm::Sha512)),
-    };
+    let mut hash_state = hash_state(integrity, compute_sha512)?;
     let mut written = 0u64;
     while let Some(chunk_result) = upstream.next().await {
-        let chunk = match chunk_result {
-            Ok(chunk) => chunk,
-            Err(source) => return Err(BlobStreamError::Upstream { url, source }),
-        };
-        let received = written.saturating_add(chunk.len() as u64);
-        if received > max_bytes {
-            return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
-        }
-        if let Err(err) = write.write_all(&chunk).await {
-            return Err(BlobStreamError::Io(err));
-        }
+        let chunk =
+            chunk_result.map_err(|source| BlobStreamError::Upstream { url: url.clone(), source })?;
+        let received = ensure_chunk_size(written, chunk.len() as u64, max_bytes)?;
+        write.write_all(&chunk).await.map_err(BlobStreamError::Io)?;
         hash_state.input(&chunk);
         written = received;
     }
 
     let integrity = hash_state.result().map_err(BlobStreamError::Integrity)?;
     Ok((written, integrity))
+}
+
+fn hash_state(
+    integrity: Option<&Integrity>,
+    compute_sha512: bool,
+) -> Result<HashState, BlobStreamError> {
+    match integrity {
+        Some(integrity) => {
+            let checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
+            if compute_sha512 {
+                Ok(HashState::VerifyAndCompute(
+                    checker,
+                    IntegrityOpts::new().algorithm(Algorithm::Sha512),
+                ))
+            } else {
+                Ok(HashState::Verify(checker, integrity.clone()))
+            }
+        }
+        None => Ok(HashState::Compute(IntegrityOpts::new().algorithm(Algorithm::Sha512))),
+    }
+}
+
+fn ensure_content_length(
+    content_length: Option<u64>,
+    max_bytes: u64,
+) -> Result<(), BlobStreamError> {
+    if let Some(received) = content_length
+        && received > max_bytes
+    {
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
+    }
+    Ok(())
+}
+
+fn ensure_chunk_size(
+    written: u64,
+    chunk_size: u64,
+    max_bytes: u64,
+) -> Result<u64, BlobStreamError> {
+    let received = written.saturating_add(chunk_size);
+    if received > max_bytes {
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
+    }
+    Ok(received)
 }
 
 /// Stream a cached file as a response body. Caller is responsible for
