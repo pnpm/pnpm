@@ -119,7 +119,9 @@ fn config_with(project_dir: &Path, project_config: ProjectConfig) -> Config {
         package_configs: Some(IndexMap::from([("a".to_string(), project_config)])),
         ..Config::default()
     };
-    config.anchor_dedicated_project(project_dir, Some("a"));
+    config
+        .anchor_dedicated_project(project_dir, Some("a"))
+        .expect("anchor the project");
     config
 }
 
@@ -142,7 +144,9 @@ fn overlays_the_named_project_only() {
         package_configs: Some(IndexMap::from([("a".to_string(), project_config)])),
         ..Config::default()
     };
-    sibling.anchor_dedicated_project(&workspace.path().join("apps/b"), Some("b"));
+    sibling
+        .anchor_dedicated_project(&workspace.path().join("apps/b"), Some("b"))
+        .expect("anchor the project");
     assert_eq!(sibling.overrides, None);
     assert!(!sibling.save_exact);
     assert_eq!(sibling.save_prefix, None);
@@ -158,7 +162,9 @@ fn a_nameless_project_keeps_the_workspace_settings() {
         )])),
         ..Config::default()
     };
-    config.anchor_dedicated_project(&workspace.path().join("a"), None);
+    config
+        .anchor_dedicated_project(&workspace.path().join("a"), None)
+        .expect("anchor the project");
     assert!(!config.save_exact);
 }
 
@@ -191,7 +197,9 @@ fn hoist_true_does_not_restore_a_cleared_hoist_pattern() {
         )])),
         ..Config::default()
     };
-    config.anchor_dedicated_project(&workspace.path().join("a"), Some("a"));
+    config
+        .anchor_dedicated_project(&workspace.path().join("a"), Some("a"))
+        .expect("anchor the project");
     assert!(config.hoist);
     assert_eq!(config.hoist_pattern, None);
 }

@@ -5,6 +5,8 @@ use std::{fs, path::Path, process::Command};
 
 const NESTED_MANIFEST_WARNING: &str = r#"[WARN] The settings in services/inner/pnpm-workspace.yaml do not apply, because services/inner is a project of this workspace. pnpm reads settings only from the pnpm-workspace.yaml at the workspace root. Move the settings there, or add "!services/inner" to the root's "packages" to keep that project a separate workspace."#;
 
+const OWN_LOCKFILE_NESTED_MANIFEST_WARNING: &str = r#"[WARN] The settings "overrides" in services/inner/pnpm-workspace.yaml do not apply, because services/inner is a project of this workspace. A project that keeps its own lockfile reads only the catalogs of its own pnpm-workspace.yaml, and every other setting from the pnpm-workspace.yaml at the workspace root. Move the settings there, or add "!services/inner" to the root's "packages" to keep that project a separate workspace."#;
+
 fn write_workspace_with_nested_manifest(workspace: &Path, extra_settings: &str) {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -54,7 +56,7 @@ fn a_workspace_with_a_lockfile_per_project_warns_once() {
     write_workspace_with_nested_manifest(&workspace, "sharedWorkspaceLockfile: false\n");
 
     let stdout = install(&workspace, &[]);
-    assert_eq!(stdout.matches(NESTED_MANIFEST_WARNING).count(), 1, "{stdout}");
+    assert_eq!(stdout.matches(OWN_LOCKFILE_NESTED_MANIFEST_WARNING).count(), 1, "{stdout}");
 }
 
 #[test]

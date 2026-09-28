@@ -70,7 +70,7 @@ impl RebuildArgs {
             return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
         }
 
-        let cfg = installed_project_config(cfg, &manifest_path);
+        let cfg = installed_project_config(cfg, &manifest_path)?;
         let state = State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
         Box::pin(self.run::<Reporter>(state, workspace_selection)).await
     }
@@ -102,13 +102,15 @@ impl RebuildArgs {
         let run_node = |project_dir: PathBuf| {
             let args = self.clone();
             let mut project_config = base_config.clone();
-            project_config.anchor_dedicated_project(
-                &project_dir,
-                names.get(&project_dir).map(String::as_str),
-            );
+            let anchored = project_config
+                .anchor_dedicated_project(&project_dir, names.get(&project_dir).map(String::as_str))
+                .map_err(miette::Report::new);
             let first_error = &first_error;
             async move {
-                let result = args.rebuild_project::<Reporter>(project_config, &project_dir).await;
+                let result = match anchored {
+                    Ok(()) => args.rebuild_project::<Reporter>(project_config, &project_dir).await,
+                    Err(error) => Err(error),
+                };
                 match result {
                     Ok(()) => TaskCompletion::Passed,
                     Err(error) => {

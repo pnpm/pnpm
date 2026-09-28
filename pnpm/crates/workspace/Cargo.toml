@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-catalogs-types = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-local-spec = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 

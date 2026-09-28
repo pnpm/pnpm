@@ -8,20 +8,27 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path, process::Command};
 
-const FOO: &str = "@pnpm.e2e/foo";
+pub(crate) const FOO: &str = "@pnpm.e2e/foo";
 
 fn pacquet_install(workspace: &Path) -> std::process::Output {
+    pacquet_ok(workspace, &["install"])
+}
+
+/// Run pnpm with `args` in `dir`, which must succeed.
+pub(crate) fn pacquet_ok(dir: &Path, args: &[&str]) -> std::process::Output {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
-        .with_current_dir(workspace)
-        .with_arg("install")
+        .with_current_dir(dir)
+        .with_args(args)
         .output()
-        .expect("run pnpm install");
-    assert!(output.status.success(), "install failed: {output:?}");
+        .expect("run pnpm");
+    assert!(output.status.success(), "pnpm {args:?} failed: {output:?}");
     output
 }
 
-fn write_package(dir: &Path, name: &str) {
+/// A project named `name` in `dir` that takes `@pnpm.e2e/foo` from the
+/// default catalog.
+pub(crate) fn write_package(dir: &Path, name: &str) {
     fs::create_dir_all(dir).expect("create the project dir");
     fs::write(
         dir.join("package.json"),
@@ -31,12 +38,12 @@ fn write_package(dir: &Path, name: &str) {
     .expect("write package.json");
 }
 
-fn write_workspace_manifest(dir: &Path, yaml: &str) {
+pub(crate) fn write_workspace_manifest(dir: &Path, yaml: &str) {
     fs::create_dir_all(dir).expect("create the manifest dir");
     fs::write(dir.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
 }
 
-fn append_workspace_yaml(workspace: &Path, extra: &str) {
+pub(crate) fn append_workspace_yaml(workspace: &Path, extra: &str) {
     let path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
     if !yaml.ends_with('\n') {
@@ -47,7 +54,7 @@ fn append_workspace_yaml(workspace: &Path, extra: &str) {
 }
 
 /// The `(specifier, version)` the lockfile's default catalog records for foo.
-fn foo_catalog_snapshot(workspace: &Path) -> (String, String) {
+pub(crate) fn foo_catalog_snapshot(workspace: &Path) -> (String, String) {
     let text = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
     let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse pnpm-lock.yaml");
     let entry = lockfile.catalogs
@@ -58,7 +65,7 @@ fn foo_catalog_snapshot(workspace: &Path) -> (String, String) {
     (entry.specifier.clone(), entry.version.clone())
 }
 
-fn pair(specifier: &str, version: &str) -> (String, String) {
+pub(crate) fn pair(specifier: &str, version: &str) -> (String, String) {
     (specifier.to_string(), version.to_string())
 }
 

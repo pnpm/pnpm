@@ -41,7 +41,7 @@ impl ListArgs {
         let mut outputs = Vec::new();
         for (project_dir, project) in &selection.selected {
             let project_config =
-                dedicated_project_config(config, project_dir, project.package.manifest_name());
+                dedicated_project_config(config, project_dir, project.package.manifest_name())?;
             let output = self.render_projects(
                 &project_config,
                 std::slice::from_ref(project_dir),
@@ -79,7 +79,7 @@ impl ListArgs {
         let mut projects = Vec::new();
         for (project_dir, project) in &selection.selected {
             let project_config =
-                dedicated_project_config(config, project_dir, project.package.manifest_name());
+                dedicated_project_config(config, project_dir, project.package.manifest_name())?;
             projects.extend(
                 self.load_project_hierarchies(
                     &project_config,
@@ -101,8 +101,10 @@ pub(super) fn dedicated_project_config(
     config: &Config,
     project_dir: &Path,
     project_name: Option<&str>,
-) -> Config {
+) -> miette::Result<Config> {
     let mut project_config = config.clone();
-    project_config.anchor_dedicated_project(project_dir, project_name);
     project_config
+        .anchor_dedicated_project(project_dir, project_name)
+        .map_err(miette::Report::new)?;
+    Ok(project_config)
 }

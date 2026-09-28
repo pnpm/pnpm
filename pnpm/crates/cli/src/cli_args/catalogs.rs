@@ -38,3 +38,18 @@ pub(crate) fn workspace_catalogs<'a>(
         .as_deref()
         .map(|workspace_dir| WorkspaceCatalogs { catalogs, workspace_dir })
 }
+
+/// Pack the project in `project_dir` against its own catalogs when it
+/// resolves against them, as the install does; see
+/// [`Config::adopt_project_catalogs`].
+pub(crate) fn use_own_project_catalogs(
+    manifest: &mut pnpm_pack::PackManifestOptions,
+    config: &Config,
+    project_dir: &std::path::Path,
+) -> miette::Result<()> {
+    if let Some(catalogs) = config.own_project_catalogs(project_dir).map_err(miette::Report::new)? {
+        manifest.catalogs = catalogs;
+        manifest.catalogs_dir = Some(project_dir.to_path_buf());
+    }
+    Ok(())
+}

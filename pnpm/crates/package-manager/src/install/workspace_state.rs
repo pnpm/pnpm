@@ -180,6 +180,20 @@ pub(crate) fn configured_or_discovered_workspace_dir(
     }
 }
 
+/// The directory of the `pnpm-workspace.yaml` whose catalogs the project in
+/// `manifest_dir` resolves against, and that catalog changes are written
+/// to: the project's own under [`Config::adopt_project_catalogs`], else the
+/// workspace's.
+pub(crate) fn catalogs_manifest_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
+    match &config.project_catalogs_dir {
+        Some(dir) => Ok(Some(dir.clone())),
+        None => configured_or_discovered_workspace_dir(config, manifest_dir),
+    }
+}
+
 /// The directory `pnpm-lock.yaml` lives in, which is what importer ids,
 /// reporter prefixes and the workspace-state file are all named relative
 /// to. A pinned `lockfileDir` wins outright; otherwise dedicated

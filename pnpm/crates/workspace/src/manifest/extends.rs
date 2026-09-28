@@ -6,6 +6,7 @@ use super::{
     WorkspaceManifest, read_declared_workspace_manifest,
 };
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_local_spec::LocalSpec;
 use std::path::{Path, PathBuf};
 use wax::{
     Glob,
@@ -58,7 +59,8 @@ impl Resolver {
     }
 
     /// The catalogs of the manifest `target` points at, the inherited ones
-    /// included. `None` for a glob match without a manifest.
+    /// included, with local paths moved to be relative to `referenced_by`.
+    /// `None` for a glob match without a manifest.
     fn target_catalogs(
         &mut self,
         referenced_by: &Path,
@@ -84,6 +86,7 @@ impl Resolver {
         }
         let mut catalogs = self.inherited(&target.dir, &manifest)?;
         merge(&mut catalogs, manifest.declared_catalogs());
+        reanchor(&mut catalogs, &target.dir, referenced_by);
         Ok(Some(catalogs))
     }
 }
@@ -191,6 +194,17 @@ fn manifest_pattern(pattern: &str) -> String {
 
 fn is_glob(value: &str) -> bool {
     value.contains(['*', '?', '{', '}', '[', ']'])
+}
+
+/// Move the entries of `catalogs` that name a local path, written relative
+/// to `from`, to be relative to `to`.
+fn reanchor(catalogs: &mut Catalogs, from: &Path, to: &Path) {
+    let specifiers = catalogs.values_mut().flat_map(|catalog| catalog.values_mut());
+    for specifier in specifiers {
+        if let Some(spec) = LocalSpec::parse_filesystem(specifier, from) {
+            *specifier = spec.render(Some(to));
+        }
+    }
 }
 
 /// Add `overlay` to `catalogs` entry by entry, `overlay` winning.

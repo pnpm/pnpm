@@ -176,7 +176,7 @@ fn scan_project_manifest_tarballs(
         }
         let scan = FieldTarballScan {
             catalogs: check.catalogs,
-            workspace_dir: check.config.workspace_dir.as_deref(),
+            workspace_dir: check.config.catalogs_dir(),
             project_dir,
             field,
             group: *group,

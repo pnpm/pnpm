@@ -126,6 +126,7 @@ mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;
 mod prefix;
+mod project_catalogs;
 mod prune;
 mod publish;
 mod publish_recursive;

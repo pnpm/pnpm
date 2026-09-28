@@ -272,7 +272,7 @@ pub(in super::super) fn ignored_builds<'a>(
     let config = super::super::pipelines::installed_project_config(
         (ctx.loaders.config)()?,
         ctx.locations.manifest_path,
-    );
+    )?;
     let output = super::super::ignored_builds::render_ignored_builds(config)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))

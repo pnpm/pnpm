@@ -234,7 +234,7 @@ impl ListArgs {
         request: &TreeRequest<'_>,
     ) -> miette::Result<Vec<DependencyNode>> {
         let manifest = crate::cli_args::deps_tree::build::read_project_manifest(project_dir);
-        let config = &dedicated_project_config(config, project_dir, manifest.name.as_deref());
+        let config = &dedicated_project_config(config, project_dir, manifest.name.as_deref())?;
         let state = LoadedState::load(
             project_dir,
             Some(config.modules_dir.as_path()),

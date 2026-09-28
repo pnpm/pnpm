@@ -235,6 +235,7 @@ fn create_config(
         catalog_prune: false,
         minimum_release_age_exclude_prune: false,
         catalogs: None,
+        project_catalogs_dir: None,
         save_catalog_name: None,
         save_prefix: None,
         save_exact: false,

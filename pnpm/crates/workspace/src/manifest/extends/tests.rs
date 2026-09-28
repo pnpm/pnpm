@@ -176,3 +176,22 @@ fn a_manifest_without_extends_inherits_nothing() {
 
     assert_eq!(inherited(tmp.path()), Catalogs::new());
 }
+
+#[test]
+fn inherited_local_paths_stay_relative_to_the_manifest_declaring_them() {
+    let tmp = TempDir::new().unwrap();
+    write_manifest(
+        &tmp.path().join("shared"),
+        "catalog:\n  local: file:./vendor/local\n  linked: link:../linked\n  foo: ^1.0.0\n",
+    );
+    write_manifest(tmp.path(), "extends: ./shared\n");
+
+    assert_eq!(
+        inherited(tmp.path()),
+        default_catalog(&[
+            ("foo", "^1.0.0"),
+            ("linked", "link:linked"),
+            ("local", "file:shared/vendor/local"),
+        ]),
+    );
+}

@@ -19,7 +19,7 @@ fn a_dedicated_project_gets_its_own_internal_dir_under_a_global_virtual_store() 
     let global_virtual_store_dir = config.global_virtual_store_dir.clone();
     let project_dir = workspace().join("packages/member");
 
-    config.anchor_dedicated_project(&project_dir, None);
+    config.anchor_dedicated_project(&project_dir, None).expect("anchor the project");
 
     assert_eq!(config.virtual_store_dir, project_dir.join("node_modules").join(".pnpm"));
     assert_eq!(config.global_virtual_store_dir, global_virtual_store_dir);
@@ -40,7 +40,9 @@ fn an_explicit_virtual_store_dir_is_not_reanchored_under_a_global_virtual_store(
     );
     config.virtual_store_dir.clone_from(&store_root);
 
-    config.anchor_dedicated_project(&workspace().join("packages/member"), None);
+    config
+        .anchor_dedicated_project(&workspace().join("packages/member"), None)
+        .expect("anchor the project");
 
     assert_eq!(config.virtual_store_dir, store_root);
 }

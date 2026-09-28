@@ -144,18 +144,20 @@ fn licensed_lockfiles(
             .collect();
         return Ok(vec![LicensedLockfile { lockfile_dir, project_config: None, importer_ids }]);
     }
-    Ok(projects
+    projects
         .into_iter()
         .map(|(project_dir, name)| {
             let mut project_config = config.clone();
-            project_config.anchor_dedicated_project(&project_dir, name.as_deref());
-            LicensedLockfile {
+            project_config
+                .anchor_dedicated_project(&project_dir, name.as_deref())
+                .map_err(miette::Report::new)?;
+            Ok(LicensedLockfile {
                 importer_ids: vec![importer_id_from_root_dir(&project_dir, &project_dir)],
                 lockfile_dir: project_dir,
                 project_config: Some(project_config),
-            }
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// The directory and manifest name of each project whose dependencies

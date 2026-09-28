@@ -29,6 +29,7 @@ pub use crate::{
     },
 };
 pub use pnpm_matcher as matcher;
+pub use project_catalogs::ProjectCatalogsError;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
@@ -310,6 +311,8 @@ mod setting_types;
 mod registry_options;
 
 mod layout;
+
+mod project_catalogs;
 
 mod loading;
 

@@ -270,7 +270,7 @@ fn a_bare_local_path_entry_resolves_from_the_workspace_directory() {
     drop((root, npmrc_info));
 }
 
-fn read_packed_manifest(tarball: &Path) -> serde_json::Value {
+pub(crate) fn read_packed_manifest(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;
 
     let bytes = fs::read(tarball).expect("read tarball");

@@ -357,12 +357,14 @@ impl PublishArgs {
                     config,
                 )
             });
-        let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
-            &self.flags.manifest,
-            config,
-            before_packing_hooks,
-            workspace_packages,
-        )?;
+        let mut manifest =
+            crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
+                &self.flags.manifest,
+                config,
+                before_packing_hooks,
+                workspace_packages,
+            )?;
+        crate::cli_args::catalogs::use_own_project_catalogs(&mut manifest, config, dir)?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             workspace_dir: config.workspace_dir.clone(),
