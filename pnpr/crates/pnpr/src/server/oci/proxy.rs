@@ -171,7 +171,7 @@ impl Request {
                     .map_err(|err| tarball_stream_error(err, key, &filename))?;
             return Ok(tarball_response(body, None));
         }
-        let (file, len, path, _integrity) =
+        let (file, len, path, _) =
             streaming::download_verified_to_temp(response, write, Some(&integrity), limit)
                 .await
                 .map_err(|err| tarball_stream_error(err, key, &filename))?;
