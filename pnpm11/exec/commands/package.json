@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1101.1.5",
+  "version": "1101.1.6",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
