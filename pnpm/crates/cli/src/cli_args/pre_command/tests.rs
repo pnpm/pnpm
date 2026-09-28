@@ -218,9 +218,10 @@ fn unparsed_ci_is_a_frozen_install() {
 #[test]
 fn unparsed_argv_steps_over_short_option_values() {
     for (argv, dir) in [
-        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], Some("/tmp/attached")),
-        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], Some("/tmp/separate")),
-        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], None),
+        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], "/tmp/attached"),
+        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], "/tmp/separate"),
+        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], "/tmp/clustered"),
+        (&["pnpm", "-rC/tmp/attached-cluster", "install", "--undeclared"], "/tmp/attached-cluster"),
     ] {
         let argv = argv
             .iter()
@@ -230,9 +231,7 @@ fn unparsed_argv_steps_over_short_option_values() {
         let input =
             SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
         assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
-        if let Some(dir) = dir {
-            assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
-        }
+        assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
     }
 }
 

@@ -95,6 +95,7 @@ impl SwitchInput {
             self.command.get_or_insert_with(|| token.to_string());
             return Some(1);
         }
+        self.absorb_clustered_dir(token, next, options);
         let width = self
             .absorb_pin_flag(token, next)
             .unwrap_or_else(|| self.absorb_global_flag(token, next, options));
@@ -102,6 +103,23 @@ impl SwitchInput {
             return Some(width);
         }
         declared_option_width(token, options)
+    }
+
+    /// Read `-C` inside a short cluster, such as `-rC <dir>`, which
+    /// [`SwitchPaths::absorb_flag`] reads only at the start of a token.
+    fn absorb_clustered_dir(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) {
+        let Some(shorts) = token
+            .strip_prefix('-')
+            .filter(|shorts| !shorts.starts_with('-'))
+        else {
+            return;
+        };
+        if let Some(Some(ShortValue { short: 'C', attached })) =
+            short_cluster_value(shorts, options)
+            && let Some(dir) = attached.map(OsStr::new).or(next)
+        {
+            self.paths.dir = PathBuf::from(dir);
+        }
     }
 
     /// Read one of the install-family options the pin record reads (see
@@ -151,16 +169,30 @@ fn declared_long_width(name: &str, options: &ArgTable) -> Option<usize> {
     Some(if consumes_value && !value_attached { 2 } else { 1 })
 }
 
-/// A cluster ends at its first value-taking short option. The rest of the
-/// token is that option's value, or the next token is.
 fn declared_short_cluster_width(shorts: &str, options: &ArgTable) -> Option<usize> {
+    Some(match short_cluster_value(shorts, options)? {
+        Some(ShortValue { attached: None, .. }) => 2,
+        _ => 1,
+    })
+}
+
+/// The value-taking option that ends a short cluster.
+struct ShortValue<'a> {
+    short: char,
+    /// The rest of the token. `None` when the value is the next token.
+    attached: Option<&'a str>,
+}
+
+/// A cluster ends at its first value-taking short option. `None` when a
+/// letter before it is undeclared, `Some(None)` when no letter takes a value.
+fn short_cluster_value<'a>(shorts: &'a str, options: &ArgTable) -> Option<Option<ShortValue<'a>>> {
     for (index, short) in shorts.char_indices() {
         if options.short_consumes_value(short)? {
-            let value_attached = index + short.len_utf8() < shorts.len();
-            return Some(if value_attached { 1 } else { 2 });
+            let rest = &shorts[index + short.len_utf8()..];
+            return Some(Some(ShortValue { short, attached: (!rest.is_empty()).then_some(rest) }));
         }
     }
-    Some(1)
+    Some(None)
 }
 
 /// Whether `-g` / `--global` was typed before any `--` separator.
