@@ -46,7 +46,7 @@ mod walker;
 
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
-    dedupe_peer_dependents::dedupe_peer_dependents,
+    dedupe_peer_dependents::{PeerSuffixes, dedupe_peer_dependents},
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
@@ -55,7 +55,8 @@ use context::{
     ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
-use pnpm_deps_path::DepPath;
+use finalize::FinalDepPaths;
+use pnpm_deps_path::{DepPath, PeerId};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -357,7 +358,14 @@ pub fn resolve_peers_workspace(
         );
     }
     if dedupe_peer_dependents_enabled {
-        dedupe_peer_dependents(&mut finished.graph, &mut finished.direct_dependencies_by_importer);
+        dedupe_peer_dependents(
+            &mut finished.graph,
+            &mut finished.direct_dependencies_by_importer,
+            &PeerSuffixes {
+                peer_ids: &finished.peer_ids,
+                max_length: walker.opts.peers_suffix_max_length,
+            },
+        );
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
@@ -416,6 +424,7 @@ struct FinishedWorkspaceGraph {
     graph: DependenciesGraph,
     direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
     paths_by_node_id: HashMap<NodeId, DepPath>,
+    peer_ids: HashMap<DepPath, Vec<PeerId>>,
 }
 
 /// Recompute depPaths with full peer suffixes once, after every importer
@@ -426,7 +435,11 @@ fn finish_workspace_graph(
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
 ) -> FinishedWorkspaceGraph {
-    let final_dep_paths = walker.build_final_dep_paths();
+    let FinalDepPaths {
+        by_node_id: final_dep_paths,
+        peer_ids,
+        ..
+    } = walker.build_final_dep_paths();
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {
@@ -450,6 +463,7 @@ fn finish_workspace_graph(
         graph: walker.build_final_graph(&final_dep_paths),
         direct_dependencies_by_importer,
         paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
+        peer_ids,
     }
 }
 

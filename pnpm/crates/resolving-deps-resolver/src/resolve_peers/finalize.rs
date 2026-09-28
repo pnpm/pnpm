@@ -11,6 +11,7 @@ mod graph_edges;
 use graph_edges::{PeerNameTarjan, insert_graph_node, transitive_peer_names};
 
 mod final_paths;
+pub(crate) use final_paths::FinalDepPaths;
 
 use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
