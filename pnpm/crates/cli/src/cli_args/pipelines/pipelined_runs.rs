@@ -172,15 +172,15 @@ where
                 .expect("slot lock is not poisoned")
                 .take(),
         );
-        // An install that had nothing to link returns before it waits, and
-        // the projects that depend on this one still rely on its own
-        // dependencies being installed once it is.
-        let dependencies_succeeded = dependencies_installed.await;
         let failed = result.is_err();
         record_dedicated_result(&self.first_error, result);
         if failed && self.runs.config.bail {
             self.stopped.store(true, Ordering::Release);
         }
+        // An install that had nothing to link returns before it waits, and
+        // the projects that depend on this one still rely on its own
+        // dependencies being installed once it is.
+        let dependencies_succeeded = dependencies_installed.await;
         self.states[index].send_replace(if failed || !dependencies_succeeded {
             Installed::Failed
         } else {
