@@ -1,6 +1,6 @@
 use super::{
     IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile,
+    resolve_lockfile, verify_lockfile,
 };
 use crate::registry::CRATES_IO_SOURCE;
 use cargo_lock::Lockfile;
@@ -1058,3 +1058,43 @@ fn incremental_discovery_asks_for_what_a_full_walk_asks_for() {
 }
 
 mod lockfile_features;
+
+fn locked_foo_and_bar() -> String {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()
+}
+
+#[test]
+fn accepts_a_lockfile_that_satisfies_the_workspace_requirements() {
+    verify_lockfile(METADATA, &locked_foo_and_bar()).unwrap();
+}
+
+#[test]
+fn rejects_a_locked_version_outside_the_workspace_requirement() {
+    let metadata = METADATA.replace("^1.0", "=1.0.5");
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(error.to_string(), "app depends on foo =1.0.5, but Cargo.lock locks foo 1.1.0");
+}
+
+#[test]
+fn rejects_a_dependency_the_lockfile_does_not_lock() {
+    let metadata = METADATA.replace(r#""name": "foo""#, r#""name": "baz""#);
+
+    let error = verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap_err();
+
+    assert_eq!(error.to_string(), "app depends on baz ^1.0, which Cargo.lock does not lock");
+}
+
+#[test]
+fn ignores_path_dependencies_the_lockfile_does_not_lock() {
+    let metadata = METADATA
+        .replace(r#""name": "foo""#, r#""name": "baz""#)
+        .replace(&format!(r#""{CRATES_IO_SOURCE}""#), "null");
+
+    verify_lockfile(&metadata, &locked_foo_and_bar()).unwrap();
+}

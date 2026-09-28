@@ -79,23 +79,34 @@ fn merge_packages<Package: PartialEq>(
 /// compared against the checkout it belongs to, and Cargo may answer with a
 /// path that still carries a symlink from the manifest it was asked about.
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
-    let metadata = workspace_metadata(manifest_path).await?;
+    let (_, metadata) = workspace_metadata(manifest_path).await?;
     canonical_cargo_path(&metadata.workspace_root)
 }
 
-async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetadata> {
-    let metadata = read_cargo_metadata_for_manifest(manifest_path).await?;
-    serde_json::from_str::<CargoWorkspaceMetadata>(&metadata)
+async fn workspace_metadata(manifest_path: &Path) -> Result<(String, CargoWorkspaceMetadata)> {
+    let document = read_cargo_metadata_for_manifest(manifest_path).await?;
+    let metadata = serde_json::from_str::<CargoWorkspaceMetadata>(&document)
         .into_diagnostic()
-        .wrap_err("read Cargo workspace root from metadata")
+        .wrap_err("read Cargo workspace root from metadata")?;
+    Ok((document, metadata))
 }
 
-pub(super) async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>> {
+/// A Cargo workspace together with the `cargo metadata --no-deps` document
+/// that discovered it, so what the install checks against the manifests does
+/// not ask Cargo again.
+pub(super) struct DiscoveredWorkspace {
+    pub(super) root: PathBuf,
+    pub(super) metadata: String,
+}
+
+pub(super) async fn discover_workspace_roots(
+    manifests: &[PathBuf],
+) -> Result<Vec<DiscoveredWorkspace>> {
     let mut pending = manifests
         .iter()
         .map(|manifest| canonical_cargo_path(manifest))
         .collect::<Result<BTreeSet<_>>>()?;
-    let mut roots = BTreeSet::new();
+    let mut roots = BTreeMap::new();
     while !pending.is_empty() {
         let concurrency = if roots.is_empty() { 1 } else { WORKSPACE_INSTALL_CONCURRENCY };
         let batch =
@@ -105,16 +116,39 @@ pub(super) async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Ve
             .buffer_unordered(concurrency)
             .try_collect::<Vec<_>>()
             .await?;
-        for workspace in metadata {
+        for (document, workspace) in metadata {
             let root = canonical_cargo_path(&workspace.workspace_root)?;
             pending.remove(&root.join("Cargo.toml"));
             for package in workspace.packages {
                 pending.remove(&canonical_cargo_path(&package.manifest_path)?);
             }
-            roots.insert(root);
+            roots.entry(root).or_insert(document);
         }
     }
-    Ok(roots.into_iter().collect())
+    Ok(roots
+        .into_iter()
+        .map(|(root, metadata)| DiscoveredWorkspace { root, metadata })
+        .collect())
+}
+
+/// Fail a frozen install when an existing `Cargo.lock` does not satisfy the
+/// dependencies its workspace declares. An absent lockfile is left to
+/// [`read_or_resolve_lockfile`].
+pub(super) fn verify_existing_lockfile(workspace: &DiscoveredWorkspace) -> Result<()> {
+    let path = workspace.root.join("Cargo.lock");
+    let lockfile = match fs::read_to_string(&path) {
+        Ok(lockfile) => lockfile,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("read {}", path.display()));
+        }
+    };
+    pnpm_cargo_resolver::verify_lockfile(&workspace.metadata, &lockfile)
+        .wrap_err_with(|| {
+            format!("{} is out of date, but --frozen-lockfile forbids updating it", path.display())
+        })
 }
 
 fn canonical_cargo_path(path: &Path) -> Result<PathBuf> {
