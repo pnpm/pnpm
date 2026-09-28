@@ -41,11 +41,11 @@ fn range_scans_keep_prerelease_and_build_spelling() {
     assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
     assert_eq!(
         max_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
-        Some("1.2.3-beta.2+build.9")
+        Some("1.2.3-beta.2+build.9"),
     );
     assert_eq!(
         min_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
-        Some("1.2.3-beta.1+build.7")
+        Some("1.2.3-beta.1+build.7"),
     );
     assert_eq!(max_satisfying(&versions, "*"), None);
     assert_eq!(min_satisfying(&versions, "*"), None);
