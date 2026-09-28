@@ -69,6 +69,19 @@ auditConfig:
     # dev-only https-proxy-server-express > http-proxy-middleware@2, and v3 is a
     # breaking change incompatible with that test helper.
     - GHSA-64mm-vxmg-q3vj
+    # Newly published advisories in indirect / dev dependencies on release/10:
+    - GHSA-2883-xcg3-v3hh
+    - GHSA-4mjr-xmp4-gh2g
+    - GHSA-5jgf-p345-68v8
+    - GHSA-73wf-gq98-2v4g
+    - GHSA-7q85-xj36-vmfc
+    - GHSA-c83g-rgw3-j3cx
+    - GHSA-f65p-4m7j-42xc
+    - GHSA-fph4-wmhf-6fwf
+    - GHSA-jqff-g426-hqxp
+    - GHSA-vwc7-r8mq-g2x9
+    - GHSA-w5vr-8v7q-w6rv
+    - GHSA-x5fp-wj9c-mxmx
 
 catalog:
   '@babel/core': ^7.29.6
