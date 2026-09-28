@@ -42,14 +42,10 @@ impl Editor {
             return;
         }
         match (original, target, node.as_object(), node.as_array()) {
-            (Value::Object(original), Value::Object(target), Some(object), _)
-                if !original.is_empty() && !target.is_empty() =>
-            {
+            (Value::Object(original), Value::Object(target), Some(object), _) => {
                 self.sync_object(&object, original, target);
             }
-            (Value::Array(original), Value::Array(target), _, Some(array))
-                if !original.is_empty() && !target.is_empty() =>
-            {
+            (Value::Array(original), Value::Array(target), _, Some(array)) => {
                 self.sync_array(&array, original, target);
             }
             (_, Value::String(text), _, _) if let Some(literal) = node.as_string_lit() => {
@@ -94,12 +90,7 @@ impl Editor {
             let Some(property) = object.get(key) else { continue };
             match (target.get(key), property.value()) {
                 (Some(new), Some(value)) => self.sync_node(value, old, new),
-                (Some(new), None) => {
-                    property.set_value(input_value(new));
-                    property
-                        .value()
-                        .inspect(|value| self.restyle(value));
-                }
+                (Some(_), None) => {}
                 (None, _) => property.remove(),
             }
         }
