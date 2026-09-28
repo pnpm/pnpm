@@ -358,14 +358,7 @@ pub fn resolve_peers_workspace(
         );
     }
     if dedupe_peer_dependents_enabled {
-        dedupe_peer_dependents(
-            &mut finished.graph,
-            &mut finished.direct_dependencies_by_importer,
-            &PeerSuffixes {
-                peer_ids: &finished.peer_ids,
-                max_length: walker.opts.peers_suffix_max_length,
-            },
-        );
+        finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
@@ -425,6 +418,16 @@ struct FinishedWorkspaceGraph {
     direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
     paths_by_node_id: HashMap<NodeId, DepPath>,
     peer_ids: HashMap<DepPath, Vec<PeerId>>,
+}
+
+impl FinishedWorkspaceGraph {
+    fn dedupe_peer_dependents(&mut self, peers_suffix_max_length: usize) {
+        dedupe_peer_dependents(
+            &mut self.graph,
+            &mut self.direct_dependencies_by_importer,
+            &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
+        );
+    }
 }
 
 /// Recompute depPaths with full peer suffixes once, after every importer

@@ -18,12 +18,12 @@
 //! equal size would otherwise collapse into whichever happened to be
 //! visited first, producing machine-dependent lockfiles.
 
+pub(crate) use survivor_names::PeerSuffixes;
+
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::collections::BTreeMap;
 
 use pnpm_deps_path::DepPath;
-
-pub(crate) use survivor_names::PeerSuffixes;
 use survivor_names::rename_survivors;
 
 mod survivor_names;
