@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Fixed `pnpm install` reporting success without installing anything when the workspace projects' common ancestor is the filesystem root, such as `/` on POSIX or a drive root like `C:\` on Windows [#16328](https://github.com/pnpm/pnpm/issues/16328).
+`pnpm install` reported success without installing anything when the workspace projects' common ancestor was the filesystem root, such as `/` or a drive root like `C:\`. It now installs these projects [#16328](https://github.com/pnpm/pnpm/issues/16328).
