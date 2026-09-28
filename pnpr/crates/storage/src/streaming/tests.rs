@@ -180,7 +180,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 
     // An upstream that declares an oversize body is rejected up front, before
     // any bytes stream, so the caller turns it into an error response.
-    let err = stream_verified_to_cache(response, write, &integrity, 3).unwrap_err();
+    let err = stream_verified_to_cache(response, write, Some(&integrity), 3).unwrap_err();
     assert!(matches!(err, BlobStreamError::TooLarge { limit: 3, received } if received > 3));
 
     // The temp file the rejected writer held is removed (its `Drop`).

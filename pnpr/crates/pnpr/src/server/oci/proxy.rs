@@ -166,12 +166,13 @@ impl Request {
         let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
         let limit = self.state.inner.config.http.oci.max_blob_bytes;
         if upstream.caches() {
-            let body = streaming::stream_verified_to_cache(response, write, &integrity, limit)
-                .map_err(|err| tarball_stream_error(err, key, &filename))?;
+            let body =
+                streaming::stream_verified_to_cache(response, write, Some(&integrity), limit)
+                    .map_err(|err| tarball_stream_error(err, key, &filename))?;
             return Ok(tarball_response(body, None));
         }
-        let (file, len, path) =
-            streaming::download_verified_to_temp(response, write, &integrity, limit)
+        let (file, len, path, _integrity) =
+            streaming::download_verified_to_temp(response, write, Some(&integrity), limit)
                 .await
                 .map_err(|err| tarball_stream_error(err, key, &filename))?;
         Ok(tarball_response(streaming::stream_file_and_remove(file, path), Some(len)))

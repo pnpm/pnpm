@@ -258,18 +258,18 @@ pub(super) async fn serve_upstream_artifact(
         return match streaming::download_verified_to_temp(
             response,
             write,
-            integrity,
+            Some(integrity),
             MAX_TARBALL_BYTES,
         )
         .await
         {
-            Ok((file, len, tmp_path)) => {
+            Ok((file, len, tmp_path, _integrity)) => {
                 tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
             }
             Err(err) => tarball_stream_error(err, name, filename).into_response(),
         };
     }
-    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(response, write, Some(integrity), MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
         Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
