@@ -1,5 +1,11 @@
 # @pnpm/deps.graph-builder
 
+## 1002.3.18
+
+### Patch Changes
+
+- @pnpm/package-is-installable@1000.0.23
+
 ## 1002.3.17
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.63
+
+### Patch Changes
+
+- e7888e5: `pnpm self-update` now resolves and verifies pnpm through registry, authentication, proxy, and TLS settings from trusted non-project configuration. Project configuration and the default project pnpmfile can no longer redirect the pnpm download or disable engine identity verification.
+- 46bc7c9: pnpm no longer tells you to update itself with Corepack or with `pnpm add -g`:
+
+  - The update notification now suggests `pnpm self-update`, or the [standalone install script](https://pnpm.io/installation) when pnpm is running under Corepack. It used to suggest `corepack use pnpm@<version>`, or `pnpm add -g pnpm` / `pnpm add -g @pnpm/exe` when pnpm was not installed by the standalone script — but `pnpm add -g` refuses to install pnpm and points at `pnpm self-update` anyway, and `@pnpm/exe` is not published for pnpm v12 or newer, where the unscoped `pnpm` package is itself the native executable.
+  - `pnpm self-update` under Corepack now points at the standalone install script too, instead of telling you to update pnpm with Corepack.
+
+- Updated the embedded npm registry signing keys to the set currently advertised by npm.
+- Updated dependencies [e7888e5]
+- Updated dependencies [46bc7c9]
+  - @pnpm/cli-utils@1001.3.17
+  - @pnpm/config@1004.11.7
+  - @pnpm/cli-meta@1000.0.18
+  - @pnpm/client@1001.1.31
+
 ## 1000.1.62
 
 ### Patch Changes

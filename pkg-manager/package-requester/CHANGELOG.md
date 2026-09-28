@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 1011.2.7
+
+### Patch Changes
+
+- @pnpm/package-is-installable@1000.0.23
+
 ## 1011.2.6
 
 ### Patch Changes

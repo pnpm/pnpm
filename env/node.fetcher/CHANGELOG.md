@@ -1,5 +1,16 @@
 # @pnpm/node.fetcher
 
+## 1001.0.34
+
+### Patch Changes
+
+- Updated dependencies [46bc7c9]
+- Updated dependencies
+- Updated dependencies [702ad5f]
+  - @pnpm/fetching.binary-fetcher@1005.0.7
+  - @pnpm/crypto.shasums-file@1001.0.7
+  - @pnpm/node.resolver@1001.0.30
+
 ## 1001.0.33
 
 ### Patch Changes

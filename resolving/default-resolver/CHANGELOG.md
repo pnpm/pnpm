@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 1002.3.15
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.30
+- @pnpm/resolving.bun-resolver@1005.0.18
+- @pnpm/resolving.deno-resolver@1005.0.18
+
 ## 1002.3.14
 
 ### Patch Changes

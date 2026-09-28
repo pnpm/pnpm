@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 1016.4.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1008.0.21
+- @pnpm/build-modules@1007.0.19
+- @pnpm/headless@1010.1.18
+- @pnpm/lockfile.filtering@1001.0.35
+- @pnpm/package-requester@1011.2.7
+- @pnpm/modules-cleaner@1001.0.39
+- @pnpm/get-context@1001.2.12
+- @pnpm/lockfile.verification@1001.2.28
+- @pnpm/lockfile.settings-checker@1001.1.4
+
 ## 1016.4.5
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 1010.1.18
+
+### Patch Changes
+
+- @pnpm/build-modules@1007.0.19
+- @pnpm/package-is-installable@1000.0.23
+- @pnpm/deps.graph-builder@1002.3.18
+- @pnpm/lockfile.filtering@1001.0.35
+- @pnpm/package-requester@1011.2.7
+- @pnpm/modules-cleaner@1001.0.39
+
 ## 1010.1.17
 
 ### Patch Changes
