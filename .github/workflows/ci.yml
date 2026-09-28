@@ -31,9 +31,9 @@ jobs:
     name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
     env:
-      # pnpm 10 never used the global virtual store in CI. With it, pnpm 12 adds
-      # an ESM loader to NODE_OPTIONS, and on Node.js older than 22.15 that stops
-      # ts-node from running the build scripts.
+      # With the global virtual store, pnpm adds an ESM loader to NODE_OPTIONS,
+      # and on Node.js older than 22.15 that stops ts-node from running the
+      # build scripts.
       PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
 
     steps:
