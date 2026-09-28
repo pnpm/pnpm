@@ -248,6 +248,58 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
     drop((root, mock_instance));
 }
 
+/// A slot an earlier install built is linked again, not built again, by an
+/// install into a fresh `node_modules`. The postinstall artifact deleted
+/// from the slot tells the two apart: with the side-effects cache off, only
+/// a rebuild writes it back, which an explicit `rebuild` still does.
+#[test]
+fn gvs_reinstall_does_not_rebuild_a_built_slot() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+    );
+    let allow_builds =
+        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+    set_gvs_workspace_yaml(&workspace, &format!("{allow_builds}sideEffectsCache: false\n"));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+    let pkg =
+        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
+    let artifact = pkg.join("generated-by-postinstall.js");
+    fs::remove_file(&artifact).expect("remove the postinstall artifact");
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!artifact.exists(), "a built slot must not be built again");
+    assert!(
+        is_symlink_or_junction(&workspace.join(
+            "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example"
+        ))
+        .expect("stat the linked package"),
+        "the built slot must be linked into the fresh node_modules",
+    );
+
+    pacquet(&workspace)
+        .with_arg("rebuild")
+        .assert()
+        .success();
+    assert!(artifact.exists(), "an explicit rebuild must build the slot again");
+
+    drop((root, mock_instance));
+}
+
 /// TS: `GVS: approve-builds scenario — install with no builds, then
 /// reinstall with allowBuilds` (`globalVirtualStore.ts:290`). The
 /// hash-directory move is what makes approval safe: the unbuilt slot stays

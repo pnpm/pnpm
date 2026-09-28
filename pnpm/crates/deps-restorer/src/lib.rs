@@ -50,7 +50,7 @@ pub use deps_graph::*;
 pub use dir_clone_cache::*;
 pub use frozen_install_options::{
     FrozenInstallDrivers, FrozenInstallSeed, FrozenLockfileInputs, FrozenPlatformOptions,
-    FrozenProjectInputs, PriorMaterialization,
+    FrozenProjectInputs, PriorMaterialization, SharedFetchCaches,
 };
 pub use hoist::*;
 pub use hoisted_dep_graph::*;

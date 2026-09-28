@@ -175,6 +175,7 @@ fn save_pnpr_lockfile(
         None,
         None,
         None,
+        None,
     ) {
         record_lockfile_verified(
             Some(&state.config.cache_dir),
@@ -396,6 +397,7 @@ fn state_resolution_verifiers(
     build_resolution_verifiers(
         state.config,
         std::sync::Arc::clone(&state.http_client),
+        None,
         None,
         None,
         None,

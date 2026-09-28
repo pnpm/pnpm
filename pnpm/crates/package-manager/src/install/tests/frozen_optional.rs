@@ -92,6 +92,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -198,6 +199,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -335,6 +337,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -481,6 +484,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -606,6 +610,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -735,6 +740,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -849,6 +855,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()
@@ -964,6 +971,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
             catalogs_override: None,
             pnpmfile_hook_override: None,
             workspace_projects_override: None,
+            dedicated: None,
         },
     }
     .run::<SilentReporter>()

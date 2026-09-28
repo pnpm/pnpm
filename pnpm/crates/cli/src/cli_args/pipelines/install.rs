@@ -2,8 +2,8 @@ use super::{
     Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, IndexMap, InstallArgs,
     InstallFamily, InstallFamilyPlan, Path, PathBuf, Reporter, RuntimePolicy, State,
     ThrottledClient, dedicated_project_name, discover_workspace_projects, ecosystem_install,
-    injected_source_dirs, prepare_root_config, project_dependencies, project_names,
-    select_install_family,
+    injected_source_dirs, pipelined_runs::early_starts, prepare_root_config, project_dependencies,
+    project_names, select_install_family,
 };
 use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
 
@@ -174,11 +174,12 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
         InstallFamilyPlan::PerProject(projects) => {
             DedicatedProjectRuns {
                 config: cfg,
-                projects,
+                projects: *projects,
                 require_lockfile,
                 http_client: Some(Arc::clone(&http_client)),
                 prune_excludes: !args.materialization.dry_run,
                 sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
+                pipelined: true,
             }
             .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
@@ -269,11 +270,13 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             names,
             covers_workspace: true,
             injected_source_dirs,
+            early_starts: early_starts(cfg, &projects),
         },
         require_lockfile,
         http_client: Some(http_client),
         prune_excludes: !args.materialization.dry_run,
         sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
+        pipelined: true,
     }
     .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
     .await

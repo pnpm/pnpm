@@ -461,6 +461,40 @@ pub struct InstallFetching<'a> {
     pub http_client_arc: Arc<ThrottledClient>,
 }
 
+/// One project's install among the per-project installs a command runs in a
+/// workspace whose projects keep their own lockfiles.
+#[derive(Clone)]
+pub struct DedicatedProjectInstall {
+    /// The caches the install shares with the command's other installs,
+    /// instead of caches of its own that it drops as soon as it is done
+    /// with them.
+    pub caches: SharedInstallCaches,
+    /// Awaited before the install links the project's dependencies and runs
+    /// its lifecycle scripts, the first steps that can read what the
+    /// installs of the workspace projects it depends on produce. `None`
+    /// waits for nothing.
+    pub dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+}
+
+/// Resolves once the installs of the workspace projects a project depends
+/// on are done: `true` when the project's install may go on, `false` when
+/// it must stop because one of them failed.
+pub type WorkspaceDependenciesInstalled =
+    futures_util::future::Shared<futures_util::future::BoxFuture<'static, bool>>;
+
+/// The caches the per-project installs of one command share when their
+/// projects keep their own lockfiles: the packuments the resolver reads,
+/// the registry lookups of the lockfile verifiers, and the store-side
+/// caches of [`pnpm_deps_restorer::SharedFetchCaches`]. Projects of one
+/// workspace mostly depend on the same packages, so each of those is
+/// loaded, parsed and verified once instead of once per project.
+#[derive(Default, Clone)]
+pub struct SharedInstallCaches {
+    pub packuments: Arc<InMemoryPackageMetaCache>,
+    pub verifier_lookups: pnpm_resolving_npm_resolver::VerifierLookups,
+    pub fetch: pnpm_deps_restorer::SharedFetchCaches,
+}
+
 pub struct InstallProjects<DependencyGroupList> {
     pub dependency_groups: DependencyGroupList,
     /// `supportedArchitectures` after merging
@@ -496,6 +530,9 @@ pub struct InstallProjects<DependencyGroupList> {
     /// root importer still comes from [`InstallInvocation::manifest`], siblings from this
     /// list. `None` (every CLI install) walks the workspace on disk.
     pub workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
+    /// Set when this install is one project's among several a command runs
+    /// in a workspace whose projects keep their own lockfiles.
+    pub dedicated: Option<DedicatedProjectInstall>,
 }
 
 struct InstallRunOptions<'install, 'selection> {

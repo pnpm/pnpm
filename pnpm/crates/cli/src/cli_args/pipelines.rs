@@ -43,12 +43,8 @@ use pnpm_injected_deps_syncer::{injected_source_dirs, sync_injected_deps_of_modu
 use pnpm_network::ThrottledClient;
 use pnpm_package_manager::{PathNode, graph_sequencer};
 use pnpm_reporter::Reporter;
-use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
-};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    future::Future,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -97,7 +93,7 @@ pub(crate) enum InstallFamilyPlan {
     /// each installed independently against its own `pnpm-lock.yaml`,
     /// `node_modules`, and virtual store. Dependency-ready projects run under
     /// the workspace-concurrency limit.
-    PerProject(DedicatedProjects),
+    PerProject(Box<DedicatedProjects>),
 }
 
 #[derive(Clone, Copy)]
@@ -145,6 +141,9 @@ pub(crate) struct DedicatedProjects {
     /// The sources whose injected copies are synced once every project ran
     /// its lifecycle scripts, taken from the manifests read before they ran.
     injected_source_dirs: HashSet<PathBuf>,
+    /// The projects a pipelined run may start ahead of the workspace
+    /// projects they depend on. See [`pipelined_runs::early_starts`].
+    early_starts: HashSet<PathBuf>,
 }
 
 impl DedicatedProjects {
@@ -166,11 +165,13 @@ impl DedicatedProjects {
                 .filter(|project| selection.project_dependencies.contains_key(&project.root_dir))
                 .map(|project| (project.root_dir.as_path(), Some(project.manifest.value()))),
         );
+        let early_starts = pipelined_runs::early_starts(config, &selection.projects);
         DedicatedProjects {
             dependencies: selection.project_dependencies,
             names,
             covers_workspace,
             injected_source_dirs,
+            early_starts,
         }
     }
 
@@ -223,84 +224,11 @@ struct DedicatedProjectRuns<'a> {
     /// their injected copies are synced once all of them ran. See
     /// [`sync_dedicated_injected_deps`].
     sync_injected_deps: bool,
-}
-
-impl DedicatedProjectRuns<'_> {
-    async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
-    where
-        Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
-    {
-        self.run_projects(run).await?;
-        if self.prune_excludes && self.projects.covers_workspace {
-            prune_after_dedicated_installs(self.config)?;
-        }
-        if self.sync_injected_deps {
-            let project_dirs: Vec<PathBuf> = self.projects.dependencies
-                .keys()
-                .cloned()
-                .collect();
-            sync_dedicated_injected_deps(
-                self.config,
-                &project_dirs,
-                &DedicatedSync {
-                    names: &self.projects.names,
-                    source_dirs: &self.projects.injected_source_dirs,
-                },
-            )?;
-        }
-        Ok(())
-    }
-
-    async fn run_projects<Runner, RunFuture>(&self, run: Runner) -> miette::Result<()>
-    where
-        Runner: Fn(State) -> RunFuture + Sync,
-        RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
-    {
-        let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
-        let config = self.config;
-        let require_lockfile = self.require_lockfile;
-        let http_client = &self.http_client;
-        let names = &self.projects.names;
-        let run = &run;
-        let run_node = |project_dir: PathBuf| {
-            let first_error = &first_error;
-            let http_client = http_client.as_ref().map(Arc::clone);
-            async move {
-                let result = match init_dedicated_project_state(
-                    config,
-                    &project_dir,
-                    names.get(&project_dir).map(String::as_str),
-                    require_lockfile,
-                    http_client,
-                ) {
-                    // A project's install blocks its thread in places, such as
-                    // while its lifecycle scripts run. On its own task, the
-                    // other projects' installs move to another worker then.
-                    Ok(state) => tokio::spawn(run(state)).await
-                        .unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic())),
-                    Err(error) => Err(error),
-                };
-                record_dedicated_result(first_error, result)
-            }
-        };
-        let on_node_skipped: fn(&PathBuf) = |_| {};
-        schedule_graph_async(
-            &self.projects.dependencies,
-            &ScheduleGraphAsyncOptions::new(
-                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
-                self.config.bail,
-                &run_node,
-                &on_node_skipped,
-            )
-            .continue_on_failure(!self.config.bail),
-        )
-        .await;
-        first_error
-            .into_inner()
-            .expect("dedicated install error lock is not poisoned")
-            .map_or(Ok(()), Err)
-    }
+    /// Whether the projects run pipelined: each resolves and materializes
+    /// without waiting for the workspace projects it depends on, and waits
+    /// for them only before it links its dependencies and runs its scripts.
+    /// Only an install, which changes no manifest, runs pipelined.
+    pipelined: bool,
 }
 
 /// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
@@ -401,40 +329,6 @@ fn project_dependencies(
         .collect()
 }
 
-/// Build the project-anchored `State` for one project of a
-/// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
-/// output paths and per-project settings under `project_dir` via
-/// [`Config::anchor_dedicated_project`], and initialize the state. The
-/// clone is leaked because [`State::init`] needs a `&'static Config`. The
-/// leak is bounded by the project count, happens once per CLI invocation,
-/// and is reclaimed at process exit, the same lifetime deploy's derived
-/// install config has.
-fn init_dedicated_project_state(
-    cfg: &Config,
-    project_dir: &Path,
-    project_name: Option<&str>,
-    require_lockfile: bool,
-    http_client: Option<Arc<ThrottledClient>>,
-) -> miette::Result<State> {
-    let mut project_config = cfg.clone();
-    project_config.anchor_dedicated_project(project_dir, project_name);
-    let project_config = Config::leak(project_config);
-    let manifest_path = project_dir.join("package.json");
-    match http_client {
-        Some(http_client) => {
-            let lockfile = State::lazy_lockfile(project_config, &manifest_path, require_lockfile);
-            State::init_with_lockfile_and_http_client(
-                manifest_path,
-                project_config,
-                lockfile,
-                http_client,
-            )
-        }
-        None => State::init(manifest_path, project_config, require_lockfile),
-    }
-    .wrap_err_with(|| format!("initialize the state for {}", project_dir.display()))
-}
-
 pub(in crate::cli_args) fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
     let manifest_dir = manifest_path
         .parent()
@@ -464,22 +358,6 @@ pub(in crate::cli_args) fn keeps_project_lockfiles(config: &Config) -> bool {
     !config.shares_one_lockfile() && config.workspace_dir.is_some()
 }
 
-fn record_dedicated_result(
-    first_error: &std::sync::Mutex<Option<miette::Report>>,
-    result: miette::Result<()>,
-) -> TaskCompletion {
-    match result {
-        Ok(()) => TaskCompletion::Passed,
-        Err(error) => {
-            first_error
-                .lock()
-                .expect("dedicated install error lock is not poisoned")
-                .get_or_insert(error);
-            TaskCompletion::Failed
-        }
-    }
-}
-
 fn precomputed_workspace_cycles(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     cfg: &Config,
@@ -490,8 +368,10 @@ fn precomputed_workspace_cycles(
     )
 }
 
+mod dedicated_runs;
 mod install;
 mod nested_workspace_manifests;
+mod pipelined_runs;
 mod selection;
 
 mod mutation;

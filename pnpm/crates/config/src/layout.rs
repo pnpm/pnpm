@@ -155,8 +155,8 @@ impl Config {
     /// raw value (recovered from [`explicit_settings`]) and is re-resolved
     /// against `dir`, so a multi-component or absolute setting keeps its
     /// full shape — [`Path::join`] leaves an absolute value absolute.
-    /// Global-virtual-store installs keep their store-anchored
-    /// `virtual_store_dir`.
+    /// Under a global virtual store a `virtualStoreDir` names the store's
+    /// root, so it is not re-anchored.
     ///
     /// [`explicit_settings`]: Self::explicit_settings
     pub fn anchor_lockfile_paths(&mut self, dir: &Path) {
@@ -174,12 +174,14 @@ impl Config {
     }
 
     /// Put the virtual store at `<modules_dir>/.pnpm`, pnpm's default,
-    /// unless `virtualStoreDir` is set or a global virtual store is on,
-    /// whose virtual store is store-anchored and follows nothing.
+    /// unless `virtualStoreDir` is set.
+    ///
+    /// A global virtual store follows too: [`Self::virtual_store_dir`]
+    /// stays project-local under it (the store-anchored path lives in
+    /// [`Self::global_virtual_store_dir`]), and holds the project's current
+    /// lockfile and hidden hoisted modules, pnpm's `internalPnpmDir`.
     pub(crate) fn follow_modules_dir_with_virtual_store(&mut self) {
-        if !self.enable_global_virtual_store
-            && !self.explicit_settings.contains_key("virtualStoreDir")
-        {
+        if !self.explicit_settings.contains_key("virtualStoreDir") {
             self.virtual_store_dir = self.modules_dir.join(".pnpm");
         }
     }

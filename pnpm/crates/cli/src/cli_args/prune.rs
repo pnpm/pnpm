@@ -51,6 +51,7 @@ impl PruneArgs {
             manifest,
             lockfile,
             resolved_packages,
+            dedicated: _,
         } = &state;
 
         let dependency_groups: Vec<DependencyGroup> =

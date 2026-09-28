@@ -142,6 +142,7 @@ async fn run_rejects_configured_patches_dir_outside_project() {
         .expect("package manifest"),
         lockfile: pnpm_lockfile::LazyLockfile::disabled(),
         resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
+        dedicated: None,
     };
 
     let err = PatchRemoveArgs { patches: vec!["pkg@1.0.0".to_string()] }
@@ -178,6 +179,7 @@ async fn run_keeps_patch_file_still_used_by_remaining_entries() {
         .expect("package manifest"),
         lockfile: pnpm_lockfile::LazyLockfile::disabled(),
         resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
+        dedicated: None,
     };
 
     PatchRemoveArgs { patches: vec!["first@1.0.0".to_string()] }

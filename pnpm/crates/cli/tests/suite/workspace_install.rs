@@ -1557,7 +1557,9 @@ fn shared_workspace_lockfile_false_installs_independent_projects_concurrently() 
     assert!(workspace.join("started-second").is_file());
 }
 
+mod dedicated_global_virtual_store;
 mod freshness;
+mod pipelined;
 
 #[cfg(unix)]
 #[test]
