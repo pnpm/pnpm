@@ -15,8 +15,7 @@ use futures_util::{Stream, StreamExt, stream};
 use pnpm_network::ThrottledResponse;
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 use std::{io, path::PathBuf, pin::Pin};
-use tokio::sync::oneshot;
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::{fs::File, io::AsyncReadExt, sync::oneshot};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
