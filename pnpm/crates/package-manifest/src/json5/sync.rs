@@ -2,11 +2,12 @@ use super::stringify::{is_identifier, quote_string};
 use jsonc_parser::{
     ParseOptions,
     cst::{
-        CstArray, CstContainerNode, CstInputValue, CstLeafNode, CstNode, CstObject, CstRootNode,
-        CstStringLit,
+        CstArray, CstContainerNode, CstInputValue, CstLeafNode, CstNode, CstObject, CstObjectProp,
+        CstRootNode, CstStringLit,
     },
 };
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 
 #[cfg(test)]
 mod tests;
@@ -86,26 +87,27 @@ impl Editor {
         original: &Map<String, Value>,
         target: &Map<String, Value>,
     ) {
+        let properties = properties_by_name(object);
         for (key, old) in original {
-            let Some(property) = object.get(key) else { continue };
+            let Some(property) = properties.get(key) else { continue };
             match (target.get(key), property.value()) {
                 (Some(new), Some(value)) => self.sync_node(value, old, new),
                 (Some(_), None) => {}
-                (None, _) => property.remove(),
+                (None, _) => property.clone().remove(),
             }
         }
-        let mut index = 0;
+        let mut previous: Option<CstObjectProp> = None;
         for (key, value) in target {
-            if let Some(property) = object.get(key) {
-                index = property.property_index();
-            } else {
-                self.restyle(
-                    &object
-                        .insert(index, key, input_value(value))
-                        .into(),
-                );
+            if let Some(property) = properties.get(key) {
+                previous = Some(property.clone());
+                continue;
             }
-            index += 1;
+            let index = previous
+                .as_ref()
+                .map_or(0, |property| property.property_index() + 1);
+            let property = object.insert(index, key, input_value(value));
+            self.restyle(&property.clone().into());
+            previous = Some(property);
         }
     }
 
@@ -181,6 +183,19 @@ fn requote_in_place(literal: &CstStringLit, text: &str) {
         .next()
         .unwrap_or('\'');
     literal.set_raw_value(quote_string(text, quote));
+}
+
+/// The properties of `object` by decoded name, looked up once so a save
+/// does not rescan the object for every key. The first of duplicate names
+/// wins, as with [`CstObject::get`].
+fn properties_by_name(object: &CstObject) -> HashMap<String, CstObjectProp> {
+    let mut properties = HashMap::new();
+    for property in object.properties() {
+        if let Some(name) = property.decoded_name() {
+            properties.entry(name).or_insert(property);
+        }
+    }
+    properties
 }
 
 fn replace(node: CstNode, value: CstInputValue) -> Option<CstNode> {

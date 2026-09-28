@@ -54,6 +54,19 @@ fn inserts_a_new_key_after_the_key_that_precedes_it_in_the_target() {
 }
 
 #[test]
+fn keeps_the_order_on_disk_and_chains_new_keys_after_their_predecessor() {
+    let source = "{\n  deps: {\n    zeta: '1',\n    alpha: '1',\n    delta: '1',\n  },\n}";
+    let edited = edit(source, |value| {
+        value["deps"] =
+            json!({"alpha": "1", "beta": "1", "charlie": "1", "delta": "1", "zeta": "1"});
+    });
+    assert_eq!(
+        edited,
+        "{\n  deps: {\n    zeta: '1',\n    alpha: '1',\n    beta: '1',\n    charlie: '1',\n    delta: '1',\n  },\n}",
+    );
+}
+
+#[test]
 fn new_keys_and_strings_follow_the_quoting_of_the_file() {
     let bare = "{\n  name: 'fixture',\n}";
     let edited = edit(bare, |value| {
