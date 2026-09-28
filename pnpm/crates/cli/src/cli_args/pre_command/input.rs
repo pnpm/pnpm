@@ -1,4 +1,4 @@
-pub(super) use argv_scan::argv_requests_global;
+pub(super) use argv_scan::{argv_requests_global, argv_requests_project_location};
 
 mod argv_scan;
 mod reporter_flags;
