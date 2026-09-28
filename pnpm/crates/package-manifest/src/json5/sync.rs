@@ -2,7 +2,8 @@ use super::stringify::{is_identifier, quote_string};
 use jsonc_parser::{
     ParseOptions,
     cst::{
-        CstContainerNode, CstInputValue, CstLeafNode, CstNode, CstObject, CstRootNode, CstStringLit,
+        CstArray, CstContainerNode, CstInputValue, CstLeafNode, CstNode, CstObject, CstRootNode,
+        CstStringLit,
     },
 };
 use serde_json::{Map, Value};
@@ -49,38 +50,37 @@ impl Editor {
             (Value::Array(original), Value::Array(target), _, Some(array))
                 if !original.is_empty() && !target.is_empty() =>
             {
-                for (element, (old, new)) in array
-                    .elements()
-                    .into_iter()
-                    .zip(original.iter().zip(target))
-                {
-                    self.sync_node(element, old, new);
-                }
-                for element in array
-                    .elements()
-                    .into_iter()
-                    .skip(target.len())
-                    .rev()
-                {
-                    element.remove();
-                }
-                for value in target.iter().skip(original.len()) {
-                    self.restyle(&array.append(input_value(value)));
-                }
+                self.sync_array(&array, original, target);
             }
             (_, Value::String(text), _, _) if let Some(literal) = node.as_string_lit() => {
-                let quote = literal
-                    .raw_value()
-                    .chars()
-                    .next()
-                    .unwrap_or('\'');
-                literal.set_raw_value(quote_string(text, quote));
+                requote_in_place(&literal, text);
             }
             _ => {
                 if let Some(node) = replace(node, input_value(target)) {
                     self.restyle(&node);
                 }
             }
+        }
+    }
+
+    fn sync_array(&mut self, array: &CstArray, original: &[Value], target: &[Value]) {
+        for (element, (old, new)) in array
+            .elements()
+            .into_iter()
+            .zip(original.iter().zip(target))
+        {
+            self.sync_node(element, old, new);
+        }
+        for element in array
+            .elements()
+            .into_iter()
+            .skip(target.len())
+            .rev()
+        {
+            element.remove();
+        }
+        for value in target.iter().skip(original.len()) {
+            self.restyle(&array.append(input_value(value)));
         }
     }
 
@@ -180,6 +180,16 @@ impl Style {
             literal.set_raw_value(quote_string(&text, self.quote));
         }
     }
+}
+
+/// Write `text` into `literal` with the quote it already uses.
+fn requote_in_place(literal: &CstStringLit, text: &str) {
+    let quote = literal
+        .raw_value()
+        .chars()
+        .next()
+        .unwrap_or('\'');
+    literal.set_raw_value(quote_string(text, quote));
 }
 
 fn replace(node: CstNode, value: CstInputValue) -> Option<CstNode> {
