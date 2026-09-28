@@ -197,14 +197,19 @@ fn optional_peer_edges<'a>(
 
 fn is_optional_peer(package: &PackageMetadata, alias: &PkgName) -> bool {
     let alias = alias.to_string();
-    let declared = package.peer_dependencies
-        .as_ref()
-        .is_some_and(|peers| peers.contains_key(&alias));
-    declared
+    declares_peer(package, &alias)
         && package.peer_dependencies_meta
             .as_ref()
             .and_then(|meta| meta.get(&alias))
             .is_some_and(|meta| meta.optional)
+}
+
+/// Whether `alias` is a peer `package` declares. Whether that peer is also
+/// optional is [`is_optional_peer`]'s question.
+pub(crate) fn declares_peer(package: &PackageMetadata, alias: &str) -> bool {
+    package.peer_dependencies
+        .as_ref()
+        .is_some_and(|peers| peers.contains_key(alias))
 }
 
 /// The sorted indices of the importers that list `target`. Targets with the
@@ -263,7 +268,10 @@ fn reach_from_importers_not_in(
     reached
 }
 
-fn all_entries(snapshot: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
+/// Every entry of `snapshot`, in the order the walk follows them.
+pub(crate) fn all_entries(
+    snapshot: &SnapshotEntry,
+) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
     snapshot.dependencies
         .iter()
         .chain(snapshot.optional_dependencies.iter())
@@ -301,60 +309,3 @@ fn remove_entries(entries: &mut Option<HashMap<PkgName, SnapshotDepRef>>, aliase
 
 #[cfg(test)]
 mod tests;
-
-/// Detects if there are circular peer dependency chains in the lockfile.
-///
-/// Returns `true` if any package can reach itself through its peer
-/// dependency chain, indicating a circular dependency.
-#[must_use]
-pub fn has_circular_peers(snapshots: &HashMap<PackageKey, SnapshotEntry>) -> bool {
-    let mut visited: HashSet<PackageKey> = HashSet::new();
-    let mut recursion_stack: HashSet<PackageKey> = HashSet::new();
-
-    fn has_cycle_from(
-        key: &PackageKey,
-        snapshots: &HashMap<PackageKey, SnapshotEntry>,
-        visited: &mut HashSet<PackageKey>,
-        recursion_stack: &mut HashSet<PackageKey>,
-    ) -> bool {
-        if recursion_stack.contains(key) {
-            return true;
-        }
-        if visited.contains(key) {
-            return false;
-        }
-
-        visited.insert(key.clone());
-        recursion_stack.insert(key.clone());
-
-        let Some(snapshot) = snapshots.get(key) else {
-            recursion_stack.remove(key);
-            return false;
-        };
-
-        for (_, dep_ref) in all_entries(snapshot) {
-            let target_opt = dep_ref.resolve(&key.name);
-            let Some(target) = target_opt else { continue };
-            if !snapshots.contains_key(&target) {
-                continue;
-            }
-            if has_cycle_from(&target, snapshots, visited, recursion_stack) {
-                recursion_stack.remove(key);
-                return true;
-            }
-        }
-
-        recursion_stack.remove(key);
-        false
-    }
-
-    for key in snapshots.keys() {
-        if !visited.contains(key)
-            && has_cycle_from(key, snapshots, &mut visited, &mut recursion_stack)
-        {
-            return true;
-        }
-    }
-
-    false
-}

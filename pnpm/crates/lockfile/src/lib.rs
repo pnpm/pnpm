@@ -2,6 +2,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use catalog_snapshots::*;
+pub use circular_peers::*;
 pub use comver::*;
 pub use env_lockfile::*;
 pub use filter_by_importers::*;
@@ -30,6 +31,7 @@ pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
 mod catalog_snapshots;
+mod circular_peers;
 mod comver;
 mod env_lockfile;
 mod filter_by_importers;
