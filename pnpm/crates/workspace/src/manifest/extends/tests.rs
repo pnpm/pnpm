@@ -221,3 +221,15 @@ fn an_invalid_glob_is_an_error() {
         )
     ));
 }
+
+#[cfg(unix)]
+#[test]
+fn a_manifest_extending_itself_through_a_symlink_is_an_error() {
+    let tmp = TempDir::new().unwrap();
+    std::os::unix::fs::symlink(".", tmp.path().join("link")).unwrap();
+    write_manifest(tmp.path(), "extends: ./link\n");
+
+    let error = read_workspace_manifest(tmp.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(error, ReadWorkspaceManifestError::ExtendsCycle { .. }));
+}

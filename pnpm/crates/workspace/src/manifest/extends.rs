@@ -26,7 +26,8 @@ pub(super) fn inherited_catalogs(
 
 /// Walks `extends` references, remembering the manifests on the current path
 /// so that one extending itself, directly or not, is reported rather than
-/// followed forever.
+/// followed forever. The manifests are told apart by their real directory,
+/// so that a symlink back to one of them is a cycle too.
 #[derive(Default)]
 struct Resolver {
     ancestors: Vec<PathBuf>,
@@ -42,10 +43,11 @@ impl Resolver {
         let dir = pnpm_fs::lexical_normalize(
             &std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf()),
         );
-        if self.ancestors.contains(&dir) {
+        let real_dir = std::fs::canonicalize(&dir).unwrap_or_else(|_| dir.clone());
+        if self.ancestors.contains(&real_dir) {
             return Err(ReadWorkspaceManifestError::ExtendsCycle { dir });
         }
-        self.ancestors.push(dir.clone());
+        self.ancestors.push(real_dir);
         let mut inherited = Catalogs::new();
         for entry in extends.entries() {
             for target in targets(&dir, entry)? {
