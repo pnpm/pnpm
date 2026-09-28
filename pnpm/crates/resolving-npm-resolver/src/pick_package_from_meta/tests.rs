@@ -21,6 +21,37 @@ fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
 }
 
+#[test]
+fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
+    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+
+    for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
+        let expected = Some(versions[0].to_string());
+        assert_eq!(max_version(&versions), expected);
+        assert_eq!(max_satisfying(&versions, "^1"), expected);
+        assert_eq!(min_satisfying(&versions, "^1"), expected);
+    }
+}
+
+#[test]
+fn range_scans_keep_prerelease_and_build_spelling() {
+    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+
+    let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
+    assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
+    assert_eq!(
+        max_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.2+build.9")
+    );
+    assert_eq!(
+        min_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.1+build.7")
+    );
+    assert_eq!(max_satisfying(&versions, "*"), None);
+    assert_eq!(min_satisfying(&versions, "*"), None);
+    assert_eq!(max_version(&["invalid"]), None);
+}
+
 fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> PackageVersion {
     PackageVersion {
         name: name.to_string(),
