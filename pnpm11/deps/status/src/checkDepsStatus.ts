@@ -382,7 +382,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
         (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
-        modulesDirStats?.isDirectory() !== true && hasDependencies(project))
+        modulesDirStats?.isDirectory() !== true && !isEmpty({
+          ...project.manifest.dependencies,
+          ...project.manifest.devDependencies,
+        }))
       // Under dedupeDirectDeps a project whose direct dependencies resolve to
       // the root's targets gets nothing linked, so the linker never creates
       // its modules directory; it is installed all the same.
@@ -422,8 +425,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
       if (selectedProjectDirs != null) {
         const notInstalled = await findProjectMissingFromCurrentLockfile(
-          allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && hasDependencies(project)),
-          { sharedWorkspaceLockfile, workspaceDir }
+          allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && declaresDependencies(project)),
+          createCurrentLockfileLocator({ ...opts, workspaceDir })
         )
         if (notInstalled != null) {
           return {
@@ -1210,10 +1213,33 @@ function missingModulesDirIssue (project: Project): string {
   return `Workspace package ${id} has dependencies but does not have a modules directory`
 }
 
-function hasDependencies (project: Project): boolean {
-  return !isEmpty({
-    ...project.manifest.dependencies,
-    ...project.manifest.devDependencies,
+function declaresDependencies (project: Project): boolean {
+  return DEPENDENCIES_FIELDS.some((field) => !isEmpty(project.manifest[field] ?? {}))
+}
+
+interface CurrentLockfileLocation {
+  virtualStoreDir: string
+  importerId: ProjectId
+}
+
+/**
+ * Where the install that last materialized `project` wrote the current
+ * lockfile, and the importer id it has there. The current lockfile always
+ * lives in the `.pnpm` directory of the root modules directory, whatever
+ * `virtualStoreDir` says.
+ */
+function createCurrentLockfileLocator (
+  opts: Pick<CheckDepsStatusOptions, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'> & { workspaceDir: string }
+): (project: Project) => CurrentLockfileLocation {
+  if (opts.sharedWorkspaceLockfile) {
+    const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
+    const virtualStoreDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules', '.pnpm')
+    return (project) => ({ virtualStoreDir, importerId: getLockfileImporterId(lockfileDir, project.rootDir) })
+  }
+  const modulesDirOf = createProjectModulesDirResolver(opts)
+  return (project) => ({
+    virtualStoreDir: path.join(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules', '.pnpm'),
+    importerId: '.' as ProjectId,
   })
 }
 
@@ -1226,16 +1252,16 @@ function hasDependencies (project: Project): boolean {
  */
 async function findProjectMissingFromCurrentLockfile (
   projects: Project[],
-  opts: { sharedWorkspaceLockfile?: boolean, workspaceDir: string }
+  locateCurrentLockfile: (project: Project) => CurrentLockfileLocation
 ): Promise<Project | undefined> {
-  if (projects.length === 0) return undefined
-  const readCurrentLockfileIn = async (lockfileDir: string) =>
-    readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
-  const sharedCurrentLockfile = opts.sharedWorkspaceLockfile ? readCurrentLockfileIn(opts.workspaceDir) : undefined
+  const currentLockfiles = new Map<string, Promise<LockfileObject | null>>()
   for (const project of projects) {
+    const { virtualStoreDir, importerId } = locateCurrentLockfile(project)
+    if (!currentLockfiles.has(virtualStoreDir)) {
+      currentLockfiles.set(virtualStoreDir, readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false }))
+    }
     // eslint-disable-next-line no-await-in-loop
-    const currentLockfile = await (sharedCurrentLockfile ?? readCurrentLockfileIn(project.rootDir))
-    const importerId = opts.sharedWorkspaceLockfile ? getLockfileImporterId(opts.workspaceDir, project.rootDir) : '.' as ProjectId
+    const currentLockfile = await currentLockfiles.get(virtualStoreDir)
     const importer = currentLockfile?.importers[importerId]
     if (importer == null || !directDependenciesRecorded(importer, currentLockfile?.packages ?? {})) {
       return project

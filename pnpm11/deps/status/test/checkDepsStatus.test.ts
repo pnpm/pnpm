@@ -2519,7 +2519,17 @@ describe('checkDepsStatus - filtered install', () => {
 
   async function checkAfterFilteredInstall (
     selectedProject: 'root' | 'pkg-a',
-    { selectedBy = 'graph', strayModulesDir = false }: { selectedBy?: 'graph' | 'dir', strayModulesDir?: boolean } = {}
+    {
+      selectedBy = 'graph',
+      strayModulesDir = false,
+      modulesDir = 'node_modules',
+      siblingDependencyField = 'dependencies',
+    }: {
+      selectedBy?: 'graph' | 'dir'
+      strayModulesDir?: boolean
+      modulesDir?: string
+      siblingDependencyField?: 'dependencies' | 'optionalDependencies'
+    } = {}
   ) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
     try {
@@ -2529,7 +2539,7 @@ describe('checkDepsStatus - filtered install', () => {
       const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
       const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
       const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: '1.0.0' } }
-      const siblingManifest = { name: 'pkg-a', version: '1.0.0', dependencies: { bar: '1.0.0' } }
+      const siblingManifest = { name: 'pkg-a', version: '1.0.0', [siblingDependencyField]: { bar: '1.0.0' } }
       const mockWorkspaceState: WorkspaceState = {
         lastValidatedTimestamp,
         pnpmfiles: [],
@@ -2559,20 +2569,23 @@ describe('checkDepsStatus - filtered install', () => {
       // The filtered install materialized the root's modules directory and left
       // the project it did not select without one, unless something else
       // created it.
-      const existingModulesDirs = new Set([path.join(rootDir, 'node_modules')])
-      if (strayModulesDir) existingModulesDirs.add(path.join(siblingDir, 'node_modules'))
+      const existingModulesDirs = new Set([path.join(rootDir, modulesDir)])
+      if (strayModulesDir) existingModulesDirs.add(path.join(siblingDir, modulesDir))
       // The current lockfile keeps every importer but records only the
       // packages of the project the install selected.
-      jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue({
+      const currentLockfile: LockfileObject = {
         lockfileVersion: '9.0',
         importers: {
           ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
-          ['pkg-a' as ProjectId]: { specifiers: { bar: '1.0.0' }, dependencies: { bar: '1.0.0' } },
+          ['pkg-a' as ProjectId]: { specifiers: { bar: '1.0.0' }, [siblingDependencyField]: { bar: '1.0.0' } },
         },
         packages: {
           ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-aaa' } },
         },
-      })
+      }
+      const currentLockfileDir = path.join(workspaceDir, modulesDir, '.pnpm')
+      jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async (virtualStoreDir: string) =>
+        virtualStoreDir === currentLockfileDir ? currentLockfile : null)
       jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
         if (existingModulesDirs.has(filePath)) return beforeValidation
         if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
@@ -2596,6 +2609,7 @@ describe('checkDepsStatus - filtered install', () => {
           : { dir: selectedProject === 'root' ? rootDir : siblingDir }),
         workspaceDir,
         sharedWorkspaceLockfile: true,
+        modulesDir,
         rootProjectManifest: rootManifest,
         rootProjectManifestDir: workspaceDir,
         pnpmfile: [],
@@ -2644,6 +2658,17 @@ describe('checkDepsStatus - filtered install', () => {
       upToDate: false,
       issue: 'Workspace package pkg-a has dependencies but was not installed',
     })
+  })
+
+  it('holds a selected project with only optional dependencies to the current lockfile', async () => {
+    expect(await checkAfterFilteredInstall('pkg-a', { strayModulesDir: true, siblingDependencyField: 'optionalDependencies' })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package pkg-a has dependencies but was not installed',
+    })
+  })
+
+  it('reads the current lockfile from the configured modules directory', async () => {
+    expect((await checkAfterFilteredInstall('root', { modulesDir: 'custom_modules' })).upToDate).toBe(true)
   })
 
   // https://github.com/pnpm/pnpm/issues/16322
