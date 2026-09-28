@@ -1,7 +1,9 @@
-use std::{fmt::Write, path::Path};
+use std::{collections::HashMap, path::Path};
 
 use super::has_circular_peers;
-use crate::Lockfile;
+use crate::{
+    Lockfile, PackageKey, PackageMetadata, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
+};
 
 fn parse(text: &str) -> Lockfile {
     Lockfile::parse(text, Path::new("pnpm-lock.yaml"))
@@ -14,6 +16,10 @@ fn has_cycle(lockfile: &Lockfile) -> bool {
         lockfile.snapshots.as_ref().expect("snapshots"),
         lockfile.packages.as_ref().expect("packages"),
     )
+}
+
+fn key(text: &str) -> PackageKey {
+    text.parse().expect("parse package key")
 }
 
 fn lockfile(packages: &str, snapshots: &str) -> Lockfile {
@@ -241,26 +247,56 @@ fn a_link_entry_binds_no_peer() {
     assert!(!has_cycle(&lockfile));
 }
 
+/// `length` packages, each peering on the next, cloned from one parsed
+/// package and snapshot so a chain that outgrows the stack costs no more to
+/// build than one that did not.
+fn peer_chain(
+    length: usize,
+) -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>) {
+    let template = lockfile(
+        "
+  p0@1.0.0:
+    resolution: {integrity: sha512-p}
+",
+        "
+  p0@1.0.0: {}
+",
+    );
+    let blank = key("p0@1.0.0");
+    let metadata = template.packages
+        .expect("packages")
+        .remove(&blank)
+        .expect("p0 package");
+    let entry = template.snapshots
+        .expect("snapshots")
+        .remove(&blank)
+        .expect("p0 snapshot");
+    let version: PkgVerPeer = "1.0.0".parse().expect("parse version");
+
+    let mut packages = HashMap::new();
+    let mut snapshots = HashMap::new();
+    for index in 0..length {
+        let key = key(&format!("p{index}@1.0.0"));
+        let next = format!("p{}", index + 1);
+        let alias: PkgName = next.parse().expect("parse alias");
+        let (mut peer_dependencies, mut dependencies) = (None, None);
+        if index + 1 < length {
+            peer_dependencies = Some(HashMap::from([(next, "^1.0.0".to_owned())]));
+            dependencies = Some(HashMap::from([(alias, SnapshotDepRef::Plain(version.clone()))]));
+        }
+        let mut node = metadata.clone();
+        node.peer_dependencies = peer_dependencies;
+        packages.insert(key.clone(), node);
+        let mut node = entry.clone();
+        node.dependencies = dependencies;
+        snapshots.insert(key, node);
+    }
+    (snapshots, packages)
+}
+
 /// A chain of this length leaves a recursive walk no stack to run on.
 #[test]
 fn a_peer_chain_deeper_than_the_stack_does_not_overflow_it() {
-    const LENGTH: usize = 50_000;
-    let mut packages = String::new();
-    let mut snapshots = String::new();
-    for index in 0..LENGTH {
-        writeln!(packages, "\n  p{index}@1.0.0:\n    resolution: {{integrity: sha512-p}}").unwrap();
-        if index + 1 < LENGTH {
-            write!(packages, "    peerDependencies:\n      p{}: ^1.0.0\n", index + 1).unwrap();
-            writeln!(
-                snapshots,
-                "\n  p{index}@1.0.0:\n    dependencies:\n      p{}: 1.0.0",
-                index + 1,
-            )
-            .unwrap();
-        } else {
-            writeln!(snapshots, "\n  p{index}@1.0.0: {{}}").unwrap();
-        }
-    }
-    let lockfile = lockfile(&packages, &snapshots);
-    assert!(!has_cycle(&lockfile));
+    let (snapshots, packages) = peer_chain(50_000);
+    assert!(!has_circular_peers(&snapshots, &packages));
 }
