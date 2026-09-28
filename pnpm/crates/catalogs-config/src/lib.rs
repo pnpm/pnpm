@@ -22,7 +22,8 @@ pub enum InvalidCatalogsConfigurationError {
 }
 
 /// Project the catalog-shaped fields from a parsed workspace manifest
-/// into a single flat [`Catalogs`] map.
+/// into a single flat [`Catalogs`] map: the catalogs it inherits through
+/// `extends`, overridden entry by entry by the ones it declares itself.
 pub fn get_catalogs_from_workspace_manifest(
     workspace_manifest: Option<&WorkspaceManifest>,
 ) -> Result<Catalogs, InvalidCatalogsConfigurationError> {
@@ -32,20 +33,13 @@ pub fn get_catalogs_from_workspace_manifest(
 
     check_default_catalog_is_defined_once(manifest)?;
 
-    // `catalogs` is applied after writing `default`, so an explicit
-    // `catalogs.default` overrides the (already-validated to be absent)
-    // `catalog` field. With `catalog`/`catalogs.default` mutually
-    // exclusive only one branch ever populates the key.
-    let mut catalogs = Catalogs::new();
-    if let Some(default) = &manifest.catalog {
-        catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), default.clone());
+    let mut catalogs = manifest.inherited_catalogs.clone();
+    for (name, catalog) in manifest.declared_catalogs() {
+        catalogs
+            .entry(name)
+            .or_default()
+            .extend(catalog);
     }
-    if let Some(named) = &manifest.catalogs {
-        for (name, catalog) in named {
-            catalogs.insert(name.clone(), catalog.clone());
-        }
-    }
-
     Ok(catalogs)
 }
 

@@ -474,6 +474,8 @@ pub struct WorkspaceSettings {
     /// See [`Self::packages`].
     pub catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
     /// See [`Self::packages`].
+    pub extends: Option<pnpm_workspace::WorkspaceExtends>,
+    /// See [`Self::packages`].
     pub only_built_dependencies: Option<Vec<String>>,
     /// See [`Self::packages`].
     pub never_built_dependencies: Option<Vec<String>>,

@@ -24,6 +24,7 @@ mod cargo_install;
 mod cat_file;
 mod cat_index;
 mod catalog;
+mod catalog_extends;
 mod catalog_local_deps;
 mod change;
 mod ci_frozen_lockfile;
