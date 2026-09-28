@@ -32,6 +32,7 @@
 
 pub(crate) use context::{SharedChain, split_peer_suffix_segments};
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{
     CandidatePeerRanges, peers_accept_provided_versions, resolved_name_and_version,
 };

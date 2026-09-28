@@ -4,8 +4,8 @@ use std::{borrow::Cow, collections::hash_map::Entry};
 
 use crate::{
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    resolve_peers::split_peer_suffix_segments,
+    dependencies_graph::DependenciesGraph,
+    resolve_peers::{merge_additional_edges, split_peer_suffix_segments},
 };
 
 /// How the peer resolution built the suffixes of the depPaths it emitted.
@@ -21,9 +21,8 @@ pub(crate) struct PeerSuffixes<'a> {
 ///
 /// Rewrites the graph keys, the child edges and each importer's direct
 /// deps. Nodes that end up with one name merge the way the peer resolution
-/// merges records that share a depPath: a node already keyed by it, else
-/// the lowest old depPath, keeps its edges and gains the aliases only the
-/// others had.
+/// merges records that share a depPath (`merge_additional_edges`), into the
+/// node already keyed by it, else the one with the lowest old depPath.
 pub(super) fn rename_survivors(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
@@ -34,18 +33,20 @@ pub(super) fn rename_survivors(
     if renames.is_empty() {
         return;
     }
-    let merged = rekey(graph, &renames);
-    let renames: HashMap<DepPath, DepPath> = renames.into_iter().collect();
+    let names: HashMap<&DepPath, &DepPath> = renames
+        .iter()
+        .map(|(old, new)| (old, new))
+        .collect();
     let dep_paths = graph
         .values_mut()
         .flat_map(|node| node.edges.children.values_mut())
         .chain(direct_by_importer.values_mut().flat_map(|direct| direct.values_mut()));
     for dep_path in dep_paths {
-        if let Some(name) = renames.get(dep_path) {
+        if let Some(&name) = names.get(dep_path) {
             *dep_path = name.clone();
         }
     }
-    if merged {
+    if rekey(graph, &renames) {
         prune_unreachable(graph, direct_by_importer);
     }
 }
@@ -74,8 +75,9 @@ fn survivor_renames(
     renames
 }
 
-/// Move each renamed node to its new key. Returns whether a node merged
-/// into one already holding its new key.
+/// Move each renamed node to its new key, once every edge already names
+/// the new keys. Returns whether a node merged into one already holding
+/// its new key.
 fn rekey(graph: &mut DependenciesGraph, renames: &[(DepPath, DepPath)]) -> bool {
     let renamed_nodes: Vec<_> = renames
         .iter()
@@ -84,31 +86,28 @@ fn rekey(graph: &mut DependenciesGraph, renames: &[(DepPath, DepPath)]) -> bool 
             (new.clone(), node)
         })
         .collect();
-    let mut merged = false;
+    let mut colliding = Vec::new();
     for (new, mut node) in renamed_nodes {
         match graph.entry(new) {
             Entry::Vacant(entry) => {
                 node.dep_path = entry.key().clone();
                 entry.insert(node);
             }
-            Entry::Occupied(mut entry) => {
-                merge_edges(entry.get_mut(), node);
-                merged = true;
-            }
+            Entry::Occupied(entry) => colliding.push((entry.key().clone(), node)),
         }
     }
-    merged
-}
-
-/// Add the child aliases, optional children and transitive peers only
-/// `other` has to `kept`. Where both have an alias, `kept`'s edge stays.
-fn merge_edges(kept: &mut DependenciesGraphNode, other: DependenciesGraphNode) {
-    let edges = &mut kept.edges;
-    for (alias, child) in other.edges.children {
-        edges.children.entry(alias).or_insert(child);
+    if colliding.is_empty() {
+        return false;
     }
-    edges.optional_children.extend(other.edges.optional_children);
-    edges.transitive_peer_dependencies.extend(other.edges.transitive_peer_dependencies);
+    let transitive_by_dep_path: HashMap<DepPath, HashSet<String>> = graph
+        .iter()
+        .map(|(dep_path, node)| (dep_path.clone(), node.edges.transitive_peer_dependencies.clone()))
+        .collect();
+    for (dep_path, node) in colliding {
+        let kept = graph.get_mut(&dep_path).expect("a colliding key is held by a graph node");
+        merge_additional_edges(kept, node, &transitive_by_dep_path);
+    }
+    true
 }
 
 struct SurvivorNamer<'a> {

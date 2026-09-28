@@ -656,3 +656,76 @@ fn a_package_id_ending_in_parentheses_is_not_read_as_peers() {
     assert_eq!(direct["project"]["tarball"], dp(tarball));
     assert!(graph.contains_key(&dp(tarball)));
 }
+
+/// When the consumers merged by a rename disagree on an alias, the child
+/// is chosen the way the peer resolution chooses between records that
+/// share a depPath: the one whose peers the consumer's own suffix names
+/// wins over a peerless one.
+#[test]
+fn a_rename_merge_picks_the_child_whose_peers_the_consumer_provides() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let via_subset = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))";
+    let via_larger = "consumer@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))";
+    let shared_plain = "shared@1.0.0";
+    let shared_with_foo = "shared@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))";
+
+    let mut graph = DependenciesGraph::default();
+    for id in ["bar@1.0.0", "baz@1.0.0", "only@1.0.0", "leftover@1.0.0", "kept@1.0.0"] {
+        graph.insert(dp(id), make_node(id, id, &[], &[]));
+    }
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node(
+            "foo@1.0.0",
+            larger,
+            &[("bar", "bar@1.0.0"), ("baz", "baz@1.0.0")],
+            &["bar", "baz"],
+        ),
+    );
+    graph.insert(
+        dp(shared_plain),
+        make_node("shared@1.0.0", shared_plain, &[("only", "only@1.0.0")], &[]),
+    );
+    graph.insert(
+        dp(shared_with_foo),
+        make_node("shared@1.0.0", shared_with_foo, &[("foo", larger)], &["foo"]),
+    );
+    graph.insert(
+        dp(via_subset),
+        make_node(
+            "consumer@1.0.0",
+            via_subset,
+            &[("foo", subset), ("leftover", "leftover@1.0.0"), ("shared", shared_with_foo)],
+            &["foo"],
+        ),
+    );
+    graph.insert(
+        dp(via_larger),
+        make_node(
+            "consumer@1.0.0",
+            via_larger,
+            &[("foo", larger), ("kept", "kept@1.0.0"), ("shared", shared_plain)],
+            &["foo"],
+        ),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert(
+        "project-a".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(via_subset))]),
+    );
+    direct.insert(
+        "project-b".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(via_larger))]),
+    );
+
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+
+    assert_eq!(direct["project-a"]["consumer"], dp(via_larger));
+    let consumer = &graph[&dp(via_larger)];
+    assert_eq!(consumer.edges.children["shared"], dp(shared_with_foo));
+    assert!(!graph.contains_key(&dp(shared_plain)));
+}
