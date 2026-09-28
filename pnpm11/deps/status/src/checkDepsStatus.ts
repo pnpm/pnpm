@@ -499,7 +499,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
-          assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, {
+            wantedLockfileDir: workspaceDir,
+            filteredInstall: workspaceState.filteredInstall,
+          })
         }
         readWantedLockfileAndDir = async () => ({
           wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
@@ -519,7 +522,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
           const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
-          assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
+          assertLockfilesEqual(currentLockfile, wantedLockfile, {
+            wantedLockfileDir,
+            filteredInstall: workspaceState.filteredInstall,
+          })
         }
 
         return {
@@ -655,7 +661,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (!wantedLockfileIsMissing && currentLockfileStats && modifiedAtOrAfter(wantedLockfileStats, currentLockfileStats.mtime.valueOf())) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
-      assertLockfilesEqual(currentLockfile, wantedLockfile, rootProjectManifestDir)
+      assertLockfilesEqual(currentLockfile, wantedLockfile, { wantedLockfileDir: rootProjectManifestDir })
     }
 
     if (!manifestStats) {

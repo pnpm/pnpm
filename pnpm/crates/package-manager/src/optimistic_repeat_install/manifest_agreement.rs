@@ -3,8 +3,10 @@
 use super::{
     Config, DependencyGroup, FileMtime, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
     PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
-    current_lockfile::assert_wanted_lockfile_equals_current, file_mtime, modified_at_or_after,
-    mtime_ms,
+    current_lockfile::{
+        assert_wanted_lockfile_equals_current, assert_wanted_lockfile_equals_filtered_current,
+    },
+    file_mtime, modified_at_or_after, mtime_ms,
 };
 use pnpm_lockfile::StalenessReason;
 use pnpm_modules_yaml::IncludedDependencies;
@@ -175,11 +177,20 @@ fn projects_to_content_check<'a>(
         // A wanted lockfile newer than the last validation must equal what
         // the previous install materialized.
         if modified_at_or_after(wanted.mtime, state.last_validated_timestamp) {
-            assert_wanted_lockfile_equals_current(
-                wanted.wanted,
-                check.config,
-                check.layout.included,
-            )?;
+            if state.filtered_install {
+                assert_wanted_lockfile_equals_filtered_current(
+                    wanted.wanted,
+                    check.config,
+                    check.layout.included,
+                    check.workspace_root,
+                )?;
+            } else {
+                assert_wanted_lockfile_equals_current(
+                    wanted.wanted,
+                    check.config,
+                    check.layout.included,
+                )?;
+            }
         }
         return Ok(modified);
     }
