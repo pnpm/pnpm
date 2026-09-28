@@ -31,7 +31,7 @@ pub use projects::{
 pub use projects_graph_view::GraphPkg;
 pub use root_finder::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, WORKSPACE_DIR_ENV_VARS,
-    find_workspace_dir, find_workspace_dir_from_env, left_out_of_enclosing_workspace,
+    find_workspace_dir, find_workspace_dir_from_env,
 };
 
 mod api;

@@ -78,23 +78,6 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
     Ok(belongs_to_workspace(&workspace_dir, cwd)?.then_some(workspace_dir))
 }
 
-/// Whether an ancestor `pnpm-workspace.yaml` exists and its `packages`
-/// patterns do not select `dir`.
-///
-/// [`find_workspace_dir`] returns `None` both for this and for a directory
-/// with no workspace above it. Callers that treat those differently, such
-/// as the verify-deps gate, use this to tell them apart. A `workspaceDir`
-/// from the environment forces that workspace, so this returns `false`.
-pub fn left_out_of_enclosing_workspace(dir: &Path) -> Result<bool, FindWorkspaceDirError> {
-    if find_workspace_dir_from_env().is_some() {
-        return Ok(false);
-    }
-    let Some(workspace_dir) = find_workspace_dir_by_walk(dir)? else {
-        return Ok(false);
-    };
-    Ok(!belongs_to_workspace(&workspace_dir, dir)?)
-}
-
 /// [`crate::projects::belongs_to_workspace`], with `packages:` read from the
 /// workspace manifest the walk just found — and only when the answer turns on
 /// it, since every command run inside a workspace passes through here.

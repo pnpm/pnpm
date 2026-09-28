@@ -32,8 +32,12 @@ export async function findWorkspaceDir (cwd: string): Promise<string | undefined
     return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
   }
   const realCwd = await getRealPath(cwd)
-  const workspaceDir = enclosingWorkspaceDir(realCwd)
-  if (workspaceDir == null) return undefined
+  const workspaceManifestLocation = find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: realCwd })
+  if (!workspaceManifestLocation) return undefined
+  if (path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
+    throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
+  }
+  const workspaceDir = path.dirname(workspaceManifestLocation)
   return await belongsToWorkspace(workspaceDir, realCwd) ? workspaceDir : undefined
 }
 
@@ -43,36 +47,13 @@ export function findWorkspaceDirSync (cwd: string): string | undefined {
     return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
   }
   const realCwd = getRealPathSync(cwd)
-  const workspaceDir = enclosingWorkspaceDir(realCwd)
-  if (workspaceDir == null) return undefined
-  return belongsToWorkspaceSync(workspaceDir, realCwd) ? workspaceDir : undefined
-}
-
-/**
- * Whether an ancestor `pnpm-workspace.yaml` exists and its `packages`
- * patterns do not select `dir`.
- *
- * `findWorkspaceDir` returns undefined both for this and for a directory
- * with no workspace above it. The verify-deps gate has to tell them apart,
- * because a dependency-free project the workspace leaves out must not get
- * its own lockfile when a script runs. A `workspaceDir` from the
- * environment forces that workspace, so this returns false.
- */
-export async function leftOutOfEnclosingWorkspace (dir: string): Promise<boolean> {
-  if (getWorkspaceDirFromEnv()) return false
-  const realDir = await getRealPath(dir)
-  const workspaceDir = enclosingWorkspaceDir(realDir)
-  if (workspaceDir == null) return false
-  return !await belongsToWorkspace(workspaceDir, realDir)
-}
-
-function enclosingWorkspaceDir (realCwd: string): string | undefined {
   const workspaceManifestLocation = find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: realCwd })
   if (!workspaceManifestLocation) return undefined
   if (path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
     throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
   }
-  return path.dirname(workspaceManifestLocation)
+  const workspaceDir = path.dirname(workspaceManifestLocation)
+  return belongsToWorkspaceSync(workspaceDir, realCwd) ? workspaceDir : undefined
 }
 
 function getWorkspaceDirFromEnv (): string | undefined {

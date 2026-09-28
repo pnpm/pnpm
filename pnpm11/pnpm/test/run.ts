@@ -839,3 +839,16 @@ test('run in a dependency-free project the workspace leaves out writes nothing',
   expect(fs.existsSync('scripts/node_modules')).toBe(false)
   expect(fs.existsSync('scripts/pnpm-lock.yaml')).toBe(false)
 })
+
+test('run in a project with nothing to install writes nothing', async () => {
+  prepare({
+    scripts: {
+      hi: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\',\'ok\')"',
+    },
+  })
+
+  execPnpmSync(['run', 'hi'], { expectSuccess: true })
+  expect(fs.readFileSync('ran.txt', 'utf8')).toBe('ok')
+  expect(fs.existsSync('node_modules')).toBe(false)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})

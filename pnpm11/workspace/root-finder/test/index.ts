@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { findWorkspaceDir, findWorkspaceDirSync, leftOutOfEnclosingWorkspace } from '@pnpm/workspace.root-finder'
+import { findWorkspaceDir, findWorkspaceDirSync } from '@pnpm/workspace.root-finder'
 import { temporaryDirectory } from 'tempy'
 
 const FAKE_PATH = 'FAKE_PATH'
@@ -91,21 +91,6 @@ test('finds the workspace dir from the workspace root that no pattern lists', as
   const workspaceDir = prepareWorkspace(['packages/**'])
 
   expect(await findWorkspaceDir(workspaceDir)).toBe(workspaceDir)
-})
-
-test('a project the workspace does not list is left out of that workspace', async () => {
-  const workspaceDir = prepareWorkspace(['packages/**'])
-
-  expect(await leftOutOfEnclosingWorkspace(path.join(workspaceDir, 'docs'))).toBe(true)
-  expect(await leftOutOfEnclosingWorkspace(path.join(workspaceDir, 'packages/pkg-1'))).toBe(false)
-  expect(await leftOutOfEnclosingWorkspace(workspaceDir)).toBe(false)
-})
-
-test('a directory with no enclosing workspace is not left out', async () => {
-  const dir = fs.realpathSync.native(temporaryDirectory())
-  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-
-  expect(await leftOutOfEnclosingWorkspace(dir)).toBe(false)
 })
 
 test('findWorkspaceDirSync finds actual workspace dir', () => {

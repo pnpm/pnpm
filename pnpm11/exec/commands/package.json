@@ -65,7 +65,6 @@
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
-    "@pnpm/workspace.root-finder": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",

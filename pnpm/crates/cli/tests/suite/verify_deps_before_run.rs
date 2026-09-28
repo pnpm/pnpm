@@ -18,17 +18,22 @@ use serde_json::json;
 use std::{fs, path::Path};
 
 fn write_manifest(workspace: &Path, marker: &Path) {
-    write_named_manifest_with_dependency_groups(
-        workspace,
-        "verify-deps-project",
-        marker,
-        json!({}),
-    );
+    write_named_manifest(workspace, "verify-deps-project", marker);
 }
 
-#[cfg(unix)]
+/// The fixture manifest with a `link:` dependency on a local package, so a
+/// never-installed project has something to install without a registry.
 fn write_named_manifest(workspace: &Path, name: &str, marker: &Path) {
-    write_named_manifest_with_dependency_groups(workspace, name, marker, json!({}));
+    let linked = workspace.join("linked-dep");
+    fs::create_dir_all(&linked).expect("create the linked package");
+    fs::write(linked.join("package.json"), json!({ "name": "linked-dep" }).to_string())
+        .expect("write the linked package manifest");
+    write_named_manifest_with_dependency_groups(
+        workspace,
+        name,
+        marker,
+        json!({ "dependencies": { "linked-dep": "link:./linked-dep" } }),
+    );
 }
 
 #[cfg(unix)]
@@ -368,12 +373,14 @@ fn error_action_follows_the_dependency_state() {
         .assert()
         .success();
 
-    // Deleting pnpm-lock.yaml in a dependency-less project leaves no
-    // current lockfile to stand in for it, so the check fails like
-    // pnpm's RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check
-    // must not recreate the file (pnpm's run path never restores the
-    // lockfile; only the install command does).
+    // Deleting pnpm-lock.yaml and the current lockfile leaves nothing to
+    // stand in for it, so the check fails like pnpm's
+    // RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check must not
+    // recreate the file (pnpm's run path never restores the lockfile; only
+    // the install command does).
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    fs::remove_file(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("remove the current lockfile");
     let output = pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()
@@ -1067,12 +1074,7 @@ fn filtered_exec_installs_only_the_selected_projects() {
     for name in ["project", "other"] {
         let project = workspace.join("packages").join(name);
         fs::create_dir_all(&project).expect("create workspace project");
-        write_named_manifest_with_dependency_groups(
-            &project,
-            name,
-            &project.join("marker.txt"),
-            json!({}),
-        );
+        write_named_manifest(&project, name, &project.join("marker.txt"));
     }
 
     let output = pacquet_in(&workspace)
@@ -1526,9 +1528,6 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
 /// `pnpm run` in a dependency-free project that the workspace patterns
 /// leave out runs the script and writes nothing in that directory
 /// ([pnpm/pnpm#16313](https://github.com/pnpm/pnpm/issues/16313)).
-///
-/// A project with no enclosing workspace still gets an install from its
-/// first `run` ([`default_install_action_installs_before_running_the_script`]).
 #[test]
 fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -1708,6 +1707,56 @@ fn run_in_a_left_out_project_with_only_an_optional_peer_writes_nothing() {
         !scripts.join("pnpm-lock.yaml").exists(),
         "pnpm run must not write a lockfile for a project that declares only an optional peer:\n{stderr}",
     );
+
+    drop(root);
+}
+
+/// `pnpm run` in a never-installed project outside any workspace that has
+/// nothing to install runs the script and writes nothing.
+#[test]
+fn run_in_a_project_with_nothing_to_install_writes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    write_named_manifest_with_dependency_groups(&workspace, "scripts-only", &marker, json!({}));
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+    assert!(!workspace.join("node_modules").exists(), "pnpm run must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "pnpm run must not write a lockfile");
+
+    drop(root);
+}
+
+/// An install lifecycle script is work for the install, so the first
+/// `pnpm run` still installs and runs it.
+#[cfg(unix)]
+#[test]
+fn run_installs_a_project_whose_only_install_work_is_a_lifecycle_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    let prepared = workspace.join("prepared.txt");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "prepare-only",
+            "scripts": {
+                "hello": format!(r#"touch "{}""#, marker.display()),
+                "prepare": format!(r#"touch "{}""#, prepared.display()),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+    assert!(prepared.exists(), "the gate must install and run the prepare script");
 
     drop(root);
 }

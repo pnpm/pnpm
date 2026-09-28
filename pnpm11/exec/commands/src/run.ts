@@ -188,7 +188,6 @@ export type RunOpts =
   | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
-  | 'ignoreWorkspace'
   | 'engineStrict'
   | 'extendNodePath'
   | 'extraBinPaths'

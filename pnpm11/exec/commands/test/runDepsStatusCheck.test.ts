@@ -30,6 +30,7 @@ jest.unstable_mockModule('@inquirer/prompts', () => ({
 }))
 
 const { runDepsStatusCheck } = await import('../src/runDepsStatusCheck.js')
+type RunDepsStatusCheckOptions = Parameters<typeof runDepsStatusCheck>[0]
 
 beforeEach(() => {
   checkDepsStatus.mockReset()
@@ -72,6 +73,7 @@ test('installs when dependency status is unavailable for an unexpected reason', 
     preferWorkspacePackages: false,
     rootProjectManifest: {
       name: 'root',
+      dependencies: { a: '1.0.0' },
     },
     rootProjectManifestDir: process.cwd(),
     verifyDepsBeforeRun: 'install',
@@ -83,127 +85,100 @@ test('installs when dependency status is unavailable for an unexpected reason', 
   })
 })
 
-test('ignore-workspace does not read an enclosing workspace manifest', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-ignore-workspace-'))
-  const project = path.join(root, 'project')
-  fs.mkdirSync(project)
-  fs.writeFileSync(path.join(root, 'pnpm-workspace.yml'), 'packages:\n  - .\n')
-  checkDepsStatus.mockResolvedValue({
-    upToDate: undefined,
-    issue: 'Cannot check whether dependencies are outdated',
-    workspaceState: undefined,
-  })
+test('does not install a never-installed project that has nothing to install', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, { rootProjectManifest: { name: 'scripts-only', scripts: { hi: 'echo hi' } } })
 
-  await runDepsStatusCheck({
-    dir: project,
-    excludeLinksFromLockfile: false,
-    ignoreWorkspace: true,
-    linkWorkspacePackages: false,
-    pnpmfile: [],
-    preferWorkspacePackages: false,
-    rootProjectManifest: {
-      name: 'left-out',
-    },
-    rootProjectManifestDir: project,
-    verifyDepsBeforeRun: 'install',
-  })
-
-  expect(runPnpmCli).toHaveBeenCalledWith(['install'], {
-    cwd: project,
-    reporter: undefined,
-  })
+  expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
-test('a required peer in a left-out project is installed when auto-install-peers is on', async () => {
-  const project = leftOutProject()
-  checkDepsStatus.mockResolvedValue({
-    upToDate: undefined,
-    issue: 'Cannot check whether dependencies are outdated',
-    workspaceState: undefined,
-  })
+test.each([
+  ['a dependency', { devDependencies: { a: '1.0.0' } }],
+  ['an install lifecycle script', { scripts: { prepare: 'echo prepare' } }],
+  ['a pnpm:devPreinstall script', { scripts: { 'pnpm:devPreinstall': 'echo dev' } }],
+] satisfies Array<[string, Partial<ProjectManifest>]>)('installs a never-installed project that declares %s', async (_, fields) => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, { rootProjectManifest: { name: 'project', ...fields } })
 
-  await runDepsStatusCheck({
-    dir: project,
-    autoInstallPeers: true,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: false,
-    pnpmfile: [],
-    preferWorkspacePackages: false,
-    rootProjectManifest: {
-      name: 'left-out',
-      peerDependencies: { a: '1.0.0' },
-    },
-    rootProjectManifestDir: project,
-    verifyDepsBeforeRun: 'install',
-  })
-
-  expect(runPnpmCli).toHaveBeenCalledWith(['install'], {
-    cwd: project,
-    reporter: undefined,
-  })
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
 })
 
-test('an optional peer in a left-out project is not installed', async () => {
-  const project = leftOutProject()
-  checkDepsStatus.mockResolvedValue({
-    upToDate: undefined,
-    issue: 'Cannot check whether dependencies are outdated',
-    workspaceState: undefined,
+test('installs a never-installed project that has a binding.gyp', async () => {
+  const project = projectDir()
+  fs.writeFileSync(path.join(project, 'binding.gyp'), '{}')
+  await runWithoutWorkspaceState(project, { rootProjectManifest: { name: 'native' } })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
+})
+
+test('installs a never-installed workspace when any project has a dependency', async () => {
+  const workspace = projectDir()
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root' },
+    allProjects: [
+      { rootDir: workspace, manifest: { name: 'root' } },
+      { rootDir: path.join(workspace, 'pkgs/a'), manifest: { name: 'a', dependencies: { b: '1.0.0' } } },
+    ] as RunDepsStatusCheckOptions['allProjects'],
+    workspaceDir: workspace,
   })
 
-  await runDepsStatusCheck({
-    dir: project,
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
+})
+
+test('a required peer is installed when auto-install-peers is on', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, {
     autoInstallPeers: true,
-    excludeLinksFromLockfile: false,
-    linkWorkspacePackages: false,
-    pnpmfile: [],
-    preferWorkspacePackages: false,
+    rootProjectManifest: { name: 'peers', peerDependencies: { a: '1.0.0' } },
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
+})
+
+test('an optional peer is not installed', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, {
+    autoInstallPeers: true,
     rootProjectManifest: {
-      name: 'left-out',
+      name: 'peers',
       peerDependencies: { a: '1.0.0' },
       peerDependenciesMeta: { a: { optional: true } },
     },
-    rootProjectManifestDir: project,
-    verifyDepsBeforeRun: 'install',
   })
 
   expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
-test('a required peer in a left-out project is not installed when auto-install-peers is off', async () => {
-  const project = leftOutProject()
+test('a required peer is not installed when auto-install-peers is off', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, {
+    autoInstallPeers: false,
+    rootProjectManifest: { name: 'peers', peerDependencies: { a: '1.0.0' } },
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
+function projectDir (): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-verify-deps-'))
+}
+
+async function runWithoutWorkspaceState (dir: string, opts: Partial<RunDepsStatusCheckOptions>): Promise<void> {
   checkDepsStatus.mockResolvedValue({
-    upToDate: undefined,
+    upToDate: false,
     issue: 'Cannot check whether dependencies are outdated',
     workspaceState: undefined,
   })
-
   await runDepsStatusCheck({
-    dir: project,
-    autoInstallPeers: false,
+    dir,
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: false,
     pnpmfile: [],
     preferWorkspacePackages: false,
-    rootProjectManifest: {
-      name: 'left-out',
-      peerDependencies: { a: '1.0.0' },
-    },
-    rootProjectManifestDir: project,
+    rootProjectManifestDir: dir,
     verifyDepsBeforeRun: 'install',
+    ...opts,
   })
-
-  expect(runPnpmCli).not.toHaveBeenCalled()
-})
-
-function leftOutProject (): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-left-out-peer-'))
-  const project = path.join(root, 'scripts')
-  fs.mkdirSync(project)
-  fs.writeFileSync(path.join(project, 'package.json'), '{"name":"left-out"}\n')
-  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"root","private":true}\n')
-  fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'pkgs/*'\n")
-  return project
 }
 
 test('installs only the selected projects when a filter is set', async () => {
@@ -221,6 +196,7 @@ test('installs only the selected projects when a filter is set', async () => {
     preferWorkspacePackages: false,
     rootProjectManifest: {
       name: 'root',
+      dependencies: { a: '1.0.0' },
     },
     rootProjectManifestDir: process.cwd(),
     verifyDepsBeforeRun: 'install',
@@ -304,7 +280,7 @@ test('installs when the ignored "pnpm" field holds no setting the lockfile recor
 })
 
 function withPnpmField (pnpm: Record<string, unknown>): ProjectManifest {
-  const manifest = { name: 'root', pnpm }
+  const manifest = { name: 'root', dependencies: { foo: '1.0.0' }, pnpm }
   return manifest
 }
 

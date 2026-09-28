@@ -5,6 +5,7 @@ use super::{
     },
     build_project_manifests_list, configured_or_discovered_workspace_dir, lazy_wanted_lockfile,
     lockfile_root_for,
+    nothing_to_install::projects_have_nothing_to_install,
 };
 use std::borrow::Cow;
 
@@ -72,109 +73,33 @@ pub fn check_deps_status_before_run_at(
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
-    // only to reach the same verdict inside the check.
-    deps_status_from_state(
-        &GateDirs {
-            dir,
-            workspace_root: &workspace_root,
-            lockfile_root: &lockfile_root,
-            workspace_dir: workspace_dir_opt.as_deref(),
-        },
-        config.as_ref(),
-        &manifest,
-        workspace_manifest.as_ref(),
-        selected_project_dirs,
-    )
-}
-
-struct GateDirs<'a> {
-    dir: &'a Path,
-    workspace_root: &'a Path,
-    lockfile_root: &'a Path,
-    workspace_dir: Option<&'a Path>,
-}
-
-fn deps_status_from_state(
-    dirs: &GateDirs<'_>,
-    config: &Config,
-    manifest: &PackageManifest,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    selected_project_dirs: &[&Path],
-) -> Option<crate::RunDepsStatus> {
-    match pnpm_workspace_state::load_workspace_state(dirs.lockfile_root) {
+    // only to reach the same verdict inside the check. Projects are walked
+    // only when the manifest itself gives an install nothing to do.
+    match pnpm_workspace_state::load_workspace_state(&lockfile_root) {
         Ok(Some(workspace_state)) => check_discovered_deps(
-            config,
-            manifest,
-            workspace_manifest,
-            dirs.workspace_root,
-            dirs.lockfile_root,
+            &config,
+            &manifest,
+            workspace_manifest.as_ref(),
+            &workspace_root,
+            &lockfile_root,
             &workspace_state,
             selected_project_dirs,
         ),
-        // No state file means this project was never installed on its own.
-        // A dependency-free project an enclosing workspace leaves out has
-        // nothing to install, and spawning one writes a lockfile into a
-        // directory the workspace install left alone.
+        // Nothing was installed here yet. Spawning an install for projects
+        // that give it nothing to do would only leave a lockfile and
+        // `node_modules` behind.
         Ok(None)
-            if dependency_free_project_left_out(dirs.dir, config, dirs.workspace_dir, manifest) =>
+            if projects_have_nothing_to_install(
+                &config,
+                &manifest,
+                workspace_manifest.as_ref(),
+                &workspace_root,
+            ) =>
         {
             Some(crate::RunDepsStatus::UpToDate)
         }
         _ => cannot_check_deps(),
     }
-}
-
-/// A project the enclosing workspace's `packages` patterns do not select,
-/// whose manifest declares nothing an install would fetch.
-///
-/// Required `peerDependencies` count when `autoInstallPeers` is enabled,
-/// because that install fetches them. Optional peers do not.
-fn dependency_free_project_left_out(
-    dir: &Path,
-    config: &Config,
-    workspace_dir: Option<&Path>,
-    manifest: &PackageManifest,
-) -> bool {
-    if workspace_dir.is_some()
-        || config.workspace_search_skipped
-        || manifest_installs_dependencies(config, manifest)
-    {
-        return false;
-    }
-    pnpm_workspace::left_out_of_enclosing_workspace(dir).unwrap_or(false)
-}
-
-fn manifest_installs_dependencies(config: &Config, manifest: &PackageManifest) -> bool {
-    crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
-        || (config.auto_install_peers && manifest_has_required_peers(manifest))
-}
-
-fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
-    let Some(peers) = manifest
-        .value()
-        .get("peerDependencies")
-        .and_then(serde_json::Value::as_object)
-    else {
-        return false;
-    };
-    let meta = manifest
-        .value()
-        .get("peerDependenciesMeta")
-        .and_then(serde_json::Value::as_object);
-    peers
-        .keys()
-        .any(|name| !peer_dependency_is_optional(meta, name))
-}
-
-fn peer_dependency_is_optional(
-    meta: Option<&serde_json::Map<String, serde_json::Value>>,
-    name: &str,
-) -> bool {
-    meta.and_then(|meta| meta.get(name))
-        .and_then(serde_json::Value::as_object)
-        .and_then(|entry| entry.get("optional"))
-        .and_then(serde_json::Value::as_bool)
-        == Some(true)
 }
 
 /// The directory the verify-deps-before-run gate serializes its installs
