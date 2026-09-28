@@ -271,7 +271,8 @@ impl SlotJob {
 /// The global pool is sized for the link phase, at up to two threads per
 /// core. On it, these imports compete with the resolver, which is the
 /// critical path until it finishes (pnpm/tasks#52). `None` if the pool
-/// cannot be built, and the caller runs the import on the global pool.
+/// cannot be built. The caller then runs the import on its own thread,
+/// and the import's parallel iterator runs on the global pool.
 fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
         let parallelism =
