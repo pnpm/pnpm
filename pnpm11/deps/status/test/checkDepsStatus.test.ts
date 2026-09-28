@@ -2517,7 +2517,10 @@ describe('checkDepsStatus - filtered install', () => {
     jest.clearAllMocks()
   })
 
-  async function checkAfterFilteredInstall (selectedProject: 'root' | 'pkg-a', selectedBy: 'graph' | 'dir' = 'graph') {
+  async function checkAfterFilteredInstall (
+    selectedProject: 'root' | 'pkg-a',
+    { selectedBy = 'graph', strayModulesDir = false }: { selectedBy?: 'graph' | 'dir', strayModulesDir?: boolean } = {}
+  ) {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-check-deps-filtered-'))
     try {
       const lastValidatedTimestamp = Date.now() - 10_000
@@ -2526,7 +2529,7 @@ describe('checkDepsStatus - filtered install', () => {
       const rootDirRealPath = await fs.realpath(workspaceDir) as ProjectRootDirRealPath
       const siblingDir = path.join(workspaceDir, 'pkg-a') as ProjectRootDir
       const rootManifest = { name: 'root', version: '1.0.0', dependencies: { foo: '1.0.0' } }
-      const siblingManifest = { name: 'pkg-a', version: '1.0.0', dependencies: { foo: '1.0.0' } }
+      const siblingManifest = { name: 'pkg-a', version: '1.0.0', dependencies: { bar: '1.0.0' } }
       const mockWorkspaceState: WorkspaceState = {
         lastValidatedTimestamp,
         pnpmfiles: [],
@@ -2554,8 +2557,22 @@ describe('checkDepsStatus - filtered install', () => {
       jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) =>
         filePath.endsWith('pnpm-lock.yaml') ? beforeValidation : undefined)
       // The filtered install materialized the root's modules directory and left
-      // the project it did not select without one.
+      // the project it did not select without one, unless something else
+      // created it.
       const existingModulesDirs = new Set([path.join(rootDir, 'node_modules')])
+      if (strayModulesDir) existingModulesDirs.add(path.join(siblingDir, 'node_modules'))
+      // The current lockfile keeps every importer but records only the
+      // packages of the project the install selected.
+      jest.mocked(lockfileFs.readCurrentLockfile).mockResolvedValue({
+        lockfileVersion: '9.0',
+        importers: {
+          ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
+          ['pkg-a' as ProjectId]: { specifiers: { bar: '1.0.0' }, dependencies: { bar: '1.0.0' } },
+        },
+        packages: {
+          ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-aaa' } },
+        },
+      })
       jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
         if (existingModulesDirs.has(filePath)) return beforeValidation
         if (filePath.endsWith('pnpm-lock.yaml')) return beforeValidation
@@ -2578,6 +2595,7 @@ describe('checkDepsStatus - filtered install', () => {
           ? { selectedProjectsGraph: selectedProject === 'root' ? { [rootDir]: rootNode } : { [siblingDir]: siblingNode } }
           : { dir: selectedProject === 'root' ? rootDir : siblingDir }),
         workspaceDir,
+        sharedWorkspaceLockfile: true,
         rootProjectManifest: rootManifest,
         rootProjectManifestDir: workspaceDir,
         pnpmfile: [],
@@ -2612,10 +2630,19 @@ describe('checkDepsStatus - filtered install', () => {
   // A non-recursive command has no selected projects graph, so the project it
   // runs in is the one held to the requirement.
   it('holds the project a non-recursive command runs in to the modules-directory requirement', async () => {
-    expect((await checkAfterFilteredInstall('root', 'dir')).upToDate).toBe(true)
-    expect(await checkAfterFilteredInstall('pkg-a', 'dir')).toMatchObject({
+    expect((await checkAfterFilteredInstall('root', { selectedBy: 'dir' })).upToDate).toBe(true)
+    expect(await checkAfterFilteredInstall('pkg-a', { selectedBy: 'dir' })).toMatchObject({
       upToDate: false,
       issue: 'Workspace package pkg-a has dependencies but does not have a modules directory',
+    })
+  })
+
+  // A modules directory does not prove that the filtered install materialized
+  // the selected project. The current lockfile has to record its dependencies.
+  it('is outdated when the selected project has a modules directory but the current lockfile lacks its dependencies', async () => {
+    expect(await checkAfterFilteredInstall('pkg-a', { strayModulesDir: true })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package pkg-a has dependencies but was not installed',
     })
   })
 

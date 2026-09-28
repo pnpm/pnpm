@@ -666,6 +666,39 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
     );
 }
 
+/// A modules directory does not prove that the filtered install materialized
+/// a selected project. It must also be an importer of the current lockfile.
+#[test]
+fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    fs::write(
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+    )
+    .unwrap();
+
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "Workspace package a has dependencies but was not installed"
+        ),
+        "a selected project the current lockfile does not list is outdated",
+    );
+
+    let root_only = [dir.path()];
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &root_only),
+        RunDepsStatus::UpToDate,
+        "a selected project without dependencies needs no importer",
+    );
+}
+
 const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
 
 importers:

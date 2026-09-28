@@ -4015,6 +4015,9 @@ importers:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
+      '@pnpm/deps.path':
+        specifier: workspace:*
+        version: link:../path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error

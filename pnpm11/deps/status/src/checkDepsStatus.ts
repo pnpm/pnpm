@@ -7,6 +7,7 @@ import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrid
 import { type Config, type ConfigContext, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import { refToRelative } from '@pnpm/deps.path'
 import { isError, PnpmError } from '@pnpm/error'
 import { createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -381,10 +382,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     if (selectedProjectDirs == null || selectedProjectDirs.size > 0) {
       const withoutModulesDir = allManifestStats.filter(({ modulesDirStats, project }) =>
         (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
-        modulesDirStats?.isDirectory() !== true && !isEmpty({
-          ...project.manifest.dependencies,
-          ...project.manifest.devDependencies,
-        }))
+        modulesDirStats?.isDirectory() !== true && hasDependencies(project))
       // Under dedupeDirectDeps a project whose direct dependencies resolve to
       // the root's targets gets nothing linked, so the linker never creates
       // its modules directory; it is installed all the same.
@@ -420,6 +418,19 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
           upToDate: false,
           issue: missingModulesDirIssue(missingRecordedModulesDir),
           workspaceState,
+        }
+      }
+      if (selectedProjectDirs != null) {
+        const notInstalled = await findProjectMissingFromCurrentLockfile(
+          allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && hasDependencies(project)),
+          { sharedWorkspaceLockfile, workspaceDir }
+        )
+        if (notInstalled != null) {
+          return {
+            upToDate: false,
+            issue: `Workspace package ${notInstalled.manifest.name ?? notInstalled.rootDir} has dependencies but was not installed`,
+            workspaceState,
+          }
         }
       }
     }
@@ -1197,6 +1208,48 @@ function recordedInAnotherDirectory (workspaceState: WorkspaceState, projectDir:
 function missingModulesDirIssue (project: Project): string {
   const id = project.manifest.name ?? project.rootDir
   return `Workspace package ${id} has dependencies but does not have a modules directory`
+}
+
+function hasDependencies (project: Project): boolean {
+  return !isEmpty({
+    ...project.manifest.dependencies,
+    ...project.manifest.devDependencies,
+  })
+}
+
+/**
+ * The first of `projects` that the current lockfile does not record as
+ * installed. After a filtered install, a modules directory does not prove
+ * that the install materialized a project. The current lockfile keeps every
+ * importer, so a project counts as installed only when the current lockfile
+ * records a package for each of its direct dependencies that is not a link.
+ */
+async function findProjectMissingFromCurrentLockfile (
+  projects: Project[],
+  opts: { sharedWorkspaceLockfile?: boolean, workspaceDir: string }
+): Promise<Project | undefined> {
+  if (projects.length === 0) return undefined
+  const readCurrentLockfileIn = async (lockfileDir: string) =>
+    readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  const sharedCurrentLockfile = opts.sharedWorkspaceLockfile ? readCurrentLockfileIn(opts.workspaceDir) : undefined
+  for (const project of projects) {
+    // eslint-disable-next-line no-await-in-loop
+    const currentLockfile = await (sharedCurrentLockfile ?? readCurrentLockfileIn(project.rootDir))
+    const importerId = opts.sharedWorkspaceLockfile ? getLockfileImporterId(opts.workspaceDir, project.rootDir) : '.' as ProjectId
+    const importer = currentLockfile?.importers[importerId]
+    if (importer == null || !directDependenciesRecorded(importer, currentLockfile?.packages ?? {})) {
+      return project
+    }
+  }
+  return undefined
+}
+
+function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNullable<LockfileObject['packages']>): boolean {
+  return DEPENDENCIES_FIELDS.every((field) =>
+    Object.entries(importer[field] ?? {}).every(([alias, ref]) => {
+      const depPath = refToRelative(ref, alias)
+      return depPath == null || packages[depPath] != null
+    }))
 }
 
 function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
