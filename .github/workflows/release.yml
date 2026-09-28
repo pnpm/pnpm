@@ -65,9 +65,10 @@ jobs:
       # binaries the platform packages ship.
       - name: Stage @pnpm/exe (OIDC)
         run: .github/scripts/npm-staged-publication.sh stage '@pnpm/exe' next-10 pnpm/artifacts/exe
-      # The platform packages were never staged, so trusted publishing is enough
-      # for them. They publish without a token, so a failed OIDC exchange fails
-      # the release instead of falling back to NPM_TOKEN.
+      # No version of the platform packages has staged-publish evidence, so
+      # trusted publishing is enough for them. They publish without a token, so
+      # a failed OIDC exchange fails the release instead of falling back to
+      # NPM_TOKEN.
       - name: Publish platform packages (OIDC)
         run: pnpm --filter='./pnpm/artifacts/*' --filter='!@pnpm/exe' publish --tag=latest-10 --access=public --provenance
       - name: Publish internal workspace packages (static token)
