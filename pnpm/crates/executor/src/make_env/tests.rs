@@ -537,9 +537,7 @@ fn package_manager_environment_preserves_native_node_paths() {
 fn write_executable(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
     std::fs::write(path, "#!/bin/sh\nexit 0\n").expect("write fake node");
-    let mut perms = std::fs::metadata(path)
-        .expect("stat fake node")
-        .permissions();
+    let mut perms = std::fs::metadata(path).expect("stat fake node").permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(path, perms).expect("chmod fake node");
 }
@@ -563,11 +561,11 @@ fn resolve_node_execpath_prefers_node_then_execpath_then_path() {
         ("npm_node_execpath".to_string(), execpath.to_string_lossy().into_owned()),
         ("PATH".to_string(), path_dir.to_string_lossy().into_owned()),
     ]);
-    assert_eq!(resolve_node_execpath_in(&parent, false), Some(node.clone()));
+    assert_eq!(resolve_node_execpath_in(&parent, false), Some(node));
 
     let mut parent = parent;
     parent.insert("NODE".to_string(), "/does/not/exist".to_string());
-    assert_eq!(resolve_node_execpath_in(&parent, false), Some(execpath.clone()));
+    assert_eq!(resolve_node_execpath_in(&parent, false), Some(execpath));
 
     parent.insert("npm_node_execpath".to_string(), "relative/node".to_string());
     assert_eq!(resolve_node_execpath_in(&parent, false), Some(path_dir.join("node")));
@@ -618,19 +616,7 @@ fn build_env_stamps_the_inherited_node_anchor_when_path_lacks_node() {
         parent,
         false,
     );
-    assert_eq!(
-        built
-            .env
-            .get("NODE")
-            .map(String::as_str),
-        Some(anchor.as_str())
-    );
-    assert_eq!(
-        built
-            .env
-            .get("npm_node_execpath")
-            .map(String::as_str),
-        Some(anchor.as_str())
-    );
+    assert_eq!(built.env.get("NODE").map(String::as_str), Some(anchor.as_str()));
+    assert_eq!(built.env.get("npm_node_execpath").map(String::as_str), Some(anchor.as_str()));
     assert!(!built.env.contains_key("npm_config__auth"));
 }

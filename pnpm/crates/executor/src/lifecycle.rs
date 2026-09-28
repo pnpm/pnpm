@@ -255,19 +255,9 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     // and avoids one call to `env::vars()` per stage over a
     // thread-shared global.
     let parent_env: HashMap<String, String> = env::vars().collect();
-    // Resolve the node anchor once for the whole run and share it
-    // across stages, so project scripts and dependency builds stamp
-    // the same `NODE` even when `PATH` holds no node directory. An
-    // explicit caller anchor still wins.
-    let node_anchor = crate::make_env::resolve_node_execpath_in(&parent_env, cfg!(windows));
-    let environment = crate::ScriptEnvironment {
-        node_execpath: opts
-            .environment
-            .node_execpath
-            .or(node_anchor.as_deref()),
-        ..opts.environment
-    };
-    let anchored = RunPostinstallHooks { environment, ..*opts };
+    // Every stage resolves its node anchor through `build_env`, which
+    // recovers an inherited executable `$NODE` even when the caller
+    // passes no anchor and `PATH` holds no node directory.
 
     let mut ran_any = false;
 
@@ -283,7 +273,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
             continue;
         }
 
-        run_lifecycle_hook::<Reporter>(stage, &script, &anchored, &manifest, &parent_env)?;
+        run_lifecycle_hook::<Reporter>(stage, &script, opts, &manifest, &parent_env)?;
         ran_any = true;
     }
 
@@ -465,10 +455,8 @@ fn prepare_lifecycle_path(
     // Direct `run_lifecycle_hook` callers pass no anchor of their own;
     // fall back to the `NODE` stamp `build_env` just derived so
     // `Always` still prepends its directory.
-    let node_for_path = opts
-        .environment
-        .node_execpath
-        .or_else(|| built.env.get("NODE").map(Path::new));
+    let node_for_path =
+        opts.environment.node_execpath.or_else(|| built.env.get("NODE").map(Path::new));
     let path_env = extend_path(
         opts.pkg_root,
         opts.execution.wd_bin_dir,

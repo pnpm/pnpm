@@ -91,10 +91,7 @@ fn build_env_for_platform(
     // An explicit caller anchor wins; otherwise the inherited one
     // above keeps `NODE` valid when it is the only source.
     let environment = crate::ScriptEnvironment {
-        node_execpath: opts
-            .environment
-            .node_execpath
-            .or(node_anchor.as_deref()),
+        node_execpath: opts.environment.node_execpath.or(node_anchor.as_deref()),
         ..opts.environment
     };
     stamp_executables(&mut env, &environment, opts.pkg_root, is_windows);
@@ -293,20 +290,15 @@ pub(crate) fn resolve_node_execpath_in(
             }
         }
     }
-    find_node_in_path(
-        path_value(parent_env)
-            .as_deref()
-            .map(OsStr::new),
-    )
+    find_node_in_path(path_value(parent_env).as_deref().map(OsStr::new))
 }
 
 /// Read `key` from `env`, case-insensitively on Windows where
 /// `Command::env` collapses key casing at spawn time.
 fn lookup_env(env: &HashMap<String, String>, key: &str, is_windows: bool) -> Option<String> {
     if is_windows {
-        env.iter().find_map(|(k, v)| {
-            k.eq_ignore_ascii_case(key).then(|| v.clone())
-        })
+        env.iter()
+            .find_map(|(k, v)| k.eq_ignore_ascii_case(key).then(|| v.clone()))
     } else {
         env.get(key).cloned()
     }
@@ -335,10 +327,11 @@ fn is_executable_file(path: &Path) -> bool {
 pub(crate) fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path).find_map(|dir| {
-        let candidate = dir.join(node_name);
-        candidate.is_file().then_some(candidate)
-    })
+    env::split_paths(path)
+        .find_map(|dir| {
+            let candidate = dir.join(node_name);
+            candidate.is_file().then_some(candidate)
+        })
 }
 
 /// Recursively stamp `npm_package_*` env vars from the manifest. JSON

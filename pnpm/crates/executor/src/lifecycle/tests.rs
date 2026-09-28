@@ -1,7 +1,9 @@
+#[cfg(unix)]
+use super::run_lifecycle_hook;
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
     output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
-    read_lifecycle_manifest, run_lifecycle_hook, run_postinstall_hooks,
+    read_lifecycle_manifest, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -852,9 +854,7 @@ fn install_lifecycle_anchors_node_from_inherited_env_when_path_lacks_node() {
     // running Node. It is never executed here, only validated.
     let anchor = dir.path().join("mynode");
     std::fs::write(&anchor, "#!/bin/sh\nexit 0\n").expect("write fake node");
-    let mut perms = std::fs::metadata(&anchor)
-        .expect("stat fake node")
-        .permissions();
+    let mut perms = std::fs::metadata(&anchor).expect("stat fake node").permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&anchor, perms).expect("chmod fake node");
     // A `.bin`-style directory holding a `node` shim, threaded in as
@@ -863,9 +863,7 @@ fn install_lifecycle_anchors_node_from_inherited_env_when_path_lacks_node() {
     std::fs::create_dir(&shim_dir).expect("create shim dir");
     let shim = shim_dir.join("node");
     std::fs::write(&shim, "#!/bin/sh\nexit 0\n").expect("write node shim");
-    let mut perms = std::fs::metadata(&shim)
-        .expect("stat node shim")
-        .permissions();
+    let mut perms = std::fs::metadata(&shim).expect("stat node shim").permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&shim, perms).expect("chmod node shim");
 
