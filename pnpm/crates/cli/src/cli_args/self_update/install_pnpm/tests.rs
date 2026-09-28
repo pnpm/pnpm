@@ -3,7 +3,8 @@ use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
+    package_dir, pnpm_package_to_install, pnpm_package_to_install_on, reuse_cached_engine,
+    run_install,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
@@ -178,6 +179,25 @@ fn native_binary_linking_matches_pnpm_engine_layout() {
     assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
     assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
     assert!(pnpm_package_to_install("not-semver").links_native_binary);
+}
+
+#[test]
+fn arm64_musl_runs_the_javascript_pnpm_below_v12() {
+    let on_alpine_arm64 = |version| pnpm_package_to_install_on(version, "linux", "arm64", "musl");
+    for version in ["11.26.0", "10.20.0", "6.17.1"] {
+        let package = on_alpine_arm64(version);
+        assert_eq!(package.name, PNPM_PACKAGE_NAME, "{version}");
+        assert!(!package.links_native_binary, "{version}");
+    }
+    let v12 = on_alpine_arm64("12.0.0");
+    assert_eq!(v12.name, PNPM_PACKAGE_NAME);
+    assert!(v12.links_native_binary);
+
+    for (arch, libc) in [("x64", "musl"), ("arm64", "glibc")] {
+        let package = pnpm_package_to_install_on("11.26.0", "linux", arch, libc);
+        assert_eq!(package.name, PNPM_EXE_PACKAGE_NAME, "{arch} {libc}");
+        assert!(package.links_native_binary, "{arch} {libc}");
+    }
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under
@@ -493,6 +513,27 @@ fn reuse_global_engine_skips_a_group_it_cannot_relink() {
     let reused = reuse_target_engine(global_dir.path(), "12.3.4").expect("the group is reused");
 
     assert_eq!(reused.package_name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+/// On arm64 musl Linux a pre-v12 `@pnpm/exe` crashes at startup, so a
+/// global one left by an earlier self-update must not be reused there.
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_pnpm_exe_where_the_javascript_pnpm_is_wanted() {
+    let javascript_pnpm = pnpm_package_to_install_on("11.26.0", "linux", "arm64", "musl");
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "11.26.0", true);
+
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
+        .expect("scan the global packages dir");
+    assert!(reused.is_none(), "the native engine is not reused");
+
+    let install_dir = seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "11.26.0", false);
+    let reused = reuse_global_engine(global_dir.path(), javascript_pnpm, "11.26.0")
+        .expect("scan the global packages dir")
+        .expect("the JavaScript pnpm is reused");
+    assert_eq!(reused.package_name, PNPM_PACKAGE_NAME);
     assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
 }
 

@@ -8766,9 +8766,6 @@ importers:
       '@pnpm/linux-x64':
         specifier: workspace:*
         version: link:../linux-x64
-      '@pnpm/linuxstatic-arm64':
-        specifier: workspace:*
-        version: link:../linux-arm64-musl
       '@pnpm/linuxstatic-x64':
         specifier: workspace:*
         version: link:../linux-x64-musl
@@ -8785,12 +8782,6 @@ importers:
   pnpm11/pnpm/artifacts/linux-arm64:
     devDependencies:
       '@pnpm/linux-arm64':
-        specifier: workspace:*
-        version: 'link:'
-
-  pnpm11/pnpm/artifacts/linux-arm64-musl:
-    devDependencies:
-      '@pnpm/linuxstatic-arm64':
         specifier: workspace:*
         version: 'link:'
 

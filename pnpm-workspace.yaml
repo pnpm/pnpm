@@ -166,7 +166,7 @@ versioning:
   #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
-    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
+    - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
   # The TypeScript CLI (`pnpm`) leads an epic that bands every library package
   # under pnpm11/ to the CLI's major: while `pnpm` is on major 11 the libraries
   # live in majors 1100-1199. Members move independently inside the band (patch,

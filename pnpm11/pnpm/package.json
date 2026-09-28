@@ -201,8 +201,7 @@
         "darwin-arm64",
         "linux-arm64",
         "win32-arm64",
-        "linux-x64-musl",
-        "linux-arm64-musl"
+        "linux-x64-musl"
       ]
     }
   },
