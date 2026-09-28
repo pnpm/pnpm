@@ -19,7 +19,7 @@
 //! case that never ends on its own — a `cmd` hosting a batch script, which
 //! answers the event with a "Terminate batch job (Y/N)?" prompt and waits
 //! on the answer forever. `cmd` asks only once the command it ran has
-//! returned, so a child left without child processes of its own for a
+//! returned, so a `cmd` left without child processes of its own for a
 //! grace after the interrupt is ended by pnpm, while one whose script is
 //! still shutting down is waited for
 //! ([pnpm/pnpm#14860](https://github.com/pnpm/pnpm/issues/14860)).
