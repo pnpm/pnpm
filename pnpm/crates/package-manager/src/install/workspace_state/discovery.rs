@@ -83,12 +83,13 @@ pub fn check_deps_status_before_run_at(
 }
 
 /// What the verify-deps gate read before it consults the workspace state.
-struct GateInputs<'a> {
-    config: &'a Config,
-    manifest: &'a PackageManifest,
-    workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
-    workspace_root: &'a Path,
-    lockfile_root: &'a Path,
+#[derive(Clone, Copy)]
+pub(super) struct GateInputs<'a> {
+    pub(super) config: &'a Config,
+    pub(super) manifest: &'a PackageManifest,
+    pub(super) workspace_manifest: Option<&'a pnpm_workspace::WorkspaceManifest>,
+    pub(super) workspace_root: &'a Path,
+    pub(super) lockfile_root: &'a Path,
 }
 
 /// pnpm reports "cannot check" straight from the missing workspace state,
@@ -113,14 +114,7 @@ fn deps_status_from_state(
         // Nothing was installed here yet. Spawning an install for projects
         // that give it nothing to do would only leave a lockfile and
         // `node_modules` behind.
-        Ok(None)
-            if projects_have_nothing_to_install(
-                inputs.config,
-                inputs.manifest,
-                inputs.workspace_manifest,
-                inputs.workspace_root,
-            ) =>
-        {
+        Ok(None) if projects_have_nothing_to_install(inputs) => {
             Some(crate::RunDepsStatus::UpToDate)
         }
         _ => cannot_check_deps(),

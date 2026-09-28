@@ -207,10 +207,10 @@ test('with separate lockfiles, the workspace root\'s pnpm:devPreinstall starts a
   expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
 })
 
-test('a readPackage hook counts as install work', async () => {
+test('a loaded pnpmfile counts as install work', async () => {
   const project = projectDir()
   await runWithoutWorkspaceState(project, {
-    hooks: { readPackage: [(manifest) => manifest] },
+    pnpmfile: [path.join(project, '.pnpmfile.cjs')],
     rootProjectManifest: { name: 'scripts-only' },
   })
 

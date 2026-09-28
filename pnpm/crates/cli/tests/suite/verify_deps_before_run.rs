@@ -1831,3 +1831,35 @@ fn a_pnpmfile_starts_an_install() {
 
     drop(root);
 }
+
+/// Under separate lockfiles the install loads a pnpmfile from the project's
+/// own lockfile directory, so one there counts as install work too.
+#[test]
+fn a_pnpmfile_beside_a_separate_lockfile_starts_an_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root manifest");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - pkgs/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    write_named_manifest_with_dependency_groups(
+        &member,
+        "a",
+        &member.join("marker.txt"),
+        json!({}),
+    );
+    fs::write(member.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
+        .expect("write .pnpmfile.cjs");
+
+    pacquet_in(&member)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(member.join("pnpm-lock.yaml").exists(), "the gate must install");
+
+    drop(root);
+}

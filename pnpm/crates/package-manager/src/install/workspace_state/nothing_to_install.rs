@@ -4,6 +4,7 @@ use super::{
         project_requires_lifecycle_scripts,
     },
     build_project_manifests_list,
+    discovery::GateInputs,
 };
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 
@@ -14,16 +15,19 @@ use pnpm_executor::DEV_PREINSTALL_STAGE;
 /// The projects are the ones the install would cover: every workspace
 /// project under one shared lockfile, otherwise `manifest` alone. A
 /// workspace that cannot be walked counts as having work to do, and so
-/// does a pnpmfile, whose `readPackage` hook can add dependencies.
-pub(super) fn projects_have_nothing_to_install(
-    config: &Config,
-    manifest: &PackageManifest,
-    workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    workspace_root: &Path,
-) -> bool {
+/// does a pnpmfile the install would load from `lockfile_root`, whose
+/// `readPackage` hook can add dependencies.
+pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool {
+    let GateInputs {
+        config,
+        manifest,
+        workspace_manifest,
+        workspace_root,
+        lockfile_root,
+    } = *inputs;
     if project_has_install_work(config, manifest)
         || runs_dev_preinstall(config, manifest, workspace_root)
-        || !crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config).is_empty()
+        || !crate::optimistic_repeat_install::current_pnpmfiles(lockfile_root, config).is_empty()
     {
         return false;
     }

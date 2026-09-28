@@ -122,11 +122,11 @@ async function installNotRequired (
  * Whether an install of a never-installed tree would have nothing to do.
  * `true` only when every project the install would cover declares no
  * dependency, no peer that `autoInstallPeers` fetches, and no install script
- * that runs. A `readPackage` hook can add dependencies, and a workspace that
- * cannot be read may hide some, so both count as install work.
+ * that runs. A loaded pnpmfile's `readPackage` hook can add dependencies, and
+ * a workspace that cannot be read may hide some, so both count as install work.
  */
 async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
-  if ((opts.hooks?.readPackage?.length ?? 0) > 0) return false
+  if (opts.pnpmfile.length > 0) return false
   try {
     return await coveredProjectsHaveNothingToInstall(opts)
   } catch {
