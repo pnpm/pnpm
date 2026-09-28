@@ -327,10 +327,8 @@ fn configure_rayon_pool() {
     let built = rayon::ThreadPoolBuilder::new()
         .num_threads(rayon_pool_size(parallelism))
         .build_global();
-    debug_assert!(
-        built.is_ok(),
-        "rayon's global pool was built before it was configured: {built:?}"
-    );
+    let configured = built.is_ok();
+    debug_assert!(configured, "rayon's global pool was built before it was configured: {built:?}");
 }
 
 /// `2 × parallelism`, kept between [`MIN_RAYON_THREADS`] and
@@ -362,7 +360,7 @@ fn configure_rayon_pool() {
 /// 16-vCPU Windows runner got 10% faster, and a 10-core M1 Max, the
 /// one host where 2× beat 8 threads, was unchanged at 16
 /// (pnpm/tasks#51). A ceiling of 8 cut Linux system time further and
-/// sped up Windows, but cost that Mac 27%.
+/// sped up Windows, but cost that Mac 19%.
 fn rayon_pool_size(parallelism: usize) -> usize {
     parallelism.saturating_mul(2).clamp(MIN_RAYON_THREADS, MAX_RAYON_THREADS)
 }
