@@ -119,15 +119,12 @@ impl<'a> LatestPicker<'a> {
         self.pick_latest(package_name, dry_run, &registry).await
     }
 
-    async fn pick_latest(
-        &self,
-        package_name: &str,
+    fn latest_pick_options<'b>(
+        &'b self,
         dry_run: bool,
-        registry: &str,
-    ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
-        let spec = RegistryPackageSpec::latest_tag(package_name);
-
-        let opts = PickPackageOptions {
+        registry: &'b str,
+    ) -> PickPackageOptions<'b> {
+        PickPackageOptions {
             registry,
             preferred_version_selectors: None,
             pick_lowest_version: false,
@@ -146,7 +143,18 @@ impl<'a> LatestPicker<'a> {
                 refresh_metadata: false,
                 update_checksums: false,
             },
-        };
+        }
+    }
+
+    async fn pick_latest(
+        &self,
+        package_name: &str,
+        dry_run: bool,
+        registry: &str,
+    ) -> Result<Arc<PackageVersion>, ResolveLatestError> {
+        let spec = RegistryPackageSpec::latest_tag(package_name);
+
+        let opts = self.latest_pick_options(dry_run, registry);
         let ctx = pick_package_context(
             self.http_client,
             self.config,

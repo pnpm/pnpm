@@ -173,7 +173,6 @@ fn time_based_fallback_selects_a_mature_version_before_an_immature_maintenance_r
         .assert()
         .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    eprintln!("{lockfile}");
     assert!(lockfile.contains("fallback-child@1.1.0"));
     assert!(!lockfile.contains("fallback-child@1.0.2"));
     parent_mock.assert();

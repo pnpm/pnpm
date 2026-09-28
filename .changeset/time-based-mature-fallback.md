@@ -7,4 +7,4 @@
 "pacquet": patch
 ---
 
-When time-based resolution has no matching version before its cutoff, prefer a version allowed by `minimumReleaseAge` before falling back to an immature version. This avoids unnecessary install failures when a mature matching version is available. Fixes https://github.com/pnpm/pnpm/issues/16298.
+With `resolutionMode: time-based`, a transitive dependency that has no matching version published before the time-based cutoff now resolves to the lowest matching version allowed by `minimumReleaseAge`. pnpm picks a version younger than `minimumReleaseAge` only if no older version matches [#16298](https://github.com/pnpm/pnpm/issues/16298).
