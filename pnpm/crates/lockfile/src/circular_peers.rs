@@ -83,6 +83,9 @@ impl<'a> PeerCycleWalk<'a> {
     fn peer_targets(&self, key: &PackageKey) -> Vec<PackageKey> {
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
         let Some(metadata) = self.packages.get(&key.without_peer()) else { return Vec::new() };
+        if metadata.peer_dependencies.as_ref().is_none_or(HashMap::is_empty) {
+            return Vec::new();
+        }
         all_entries(snapshot)
             .filter(|(alias, _)| declares_peer(metadata, &alias.to_string()))
             .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))

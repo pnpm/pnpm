@@ -268,7 +268,6 @@ fn reach_from_importers_not_in(
     reached
 }
 
-/// Every entry of `snapshot`, in the order the walk follows them.
 pub(crate) fn all_entries(
     snapshot: &SnapshotEntry,
 ) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
