@@ -75,12 +75,15 @@ pub(super) fn all_locked_peer_versions(
     versions
 }
 
-/// The peer name/version pairs the wanted lockfile pinned for `key`.
+/// The peer name/version pairs the wanted lockfile pinned for `key`,
+/// including the peers of every peer provider the suffix names.
 ///
 /// An explicit suffix already spells them out, save for the names an
 /// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
-/// spells out nothing, so the pairs are recovered from the package's
-/// declared peers and the snapshot edges that resolved them.
+/// spells out nothing, so the pairs are recovered from the snapshots
+/// ([`hashed_peer_keys`]). Both spellings of one key must yield the same
+/// pairs: `dedupe` rewrites a long suffix between them, and pins that
+/// depend on the spelling make it flip between two lockfiles.
 /// Nested suffixes need their own provider's snapshot: the outer
 /// snapshot does not name that provider's aliased peers.
 pub(super) fn locked_peer_versions_for_key(
@@ -89,8 +92,12 @@ pub(super) fn locked_peer_versions_for_key(
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
     let mut versions = Vec::new();
+    let mut visited = HashSet::default();
     let mut pending = vec![(key.clone(), snapshot)];
     while let Some((key, snapshot)) = pending.pop() {
+        if !visited.insert(key.clone()) {
+            continue;
+        }
         let metadata = lockfile.packages
             .as_ref()
             .and_then(|packages| packages.get(&key.without_peer()));
@@ -101,7 +108,10 @@ pub(super) fn locked_peer_versions_for_key(
             .collect();
         if explicit.is_empty() {
             if is_hashed_peer_suffix(key.suffix.peer()) {
-                versions.extend(hashed_peer_versions(snapshot, metadata));
+                for (name, peer) in hashed_peer_keys(lockfile, snapshot, metadata) {
+                    versions.push((name, peer.suffix.without_peer().to_string()));
+                    pending.extend(nested_peer(lockfile, peer));
+                }
             }
             continue;
         }
@@ -109,42 +119,117 @@ pub(super) fn locked_peer_versions_for_key(
             restore_aliased_peer_names(snapshot, metadata, &mut explicit);
         }
         versions.extend(explicit);
-        for peer in peers
-            .into_iter()
-            .filter(|peer| !peer.suffix.peer().is_empty())
-        {
-            let nested_snapshot = lockfile.snapshots
-                .as_ref()
-                .and_then(|snapshots| snapshots.get(&peer));
-            pending.push((peer, nested_snapshot));
-        }
+        pending.extend(peers.into_iter().filter_map(|peer| nested_peer(lockfile, peer)));
     }
     versions
 }
 
-fn hashed_peer_versions(
+fn nested_peer(
+    lockfile: &pnpm_lockfile::Lockfile,
+    peer: pnpm_lockfile::PkgNameVerPeer,
+) -> Option<(pnpm_lockfile::PkgNameVerPeer, Option<&pnpm_lockfile::SnapshotEntry>)> {
+    if peer.suffix.peer().is_empty() {
+        return None;
+    }
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&peer));
+    Some((peer, snapshot))
+}
+
+/// The peers a hashed suffix stands for, each with the snapshot key of
+/// its provider: the package's declared peers, read from its own edges,
+/// and the peers its subtree resolved, listed as its
+/// `transitivePeerDependencies` and read from the descendants that
+/// declare them.
+fn hashed_peer_keys(
+    lockfile: &pnpm_lockfile::Lockfile,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
     metadata: Option<&pnpm_lockfile::PackageMetadata>,
-) -> Vec<(String, String)> {
-    let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
+) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
+    let Some(snapshot) = snapshot else {
         return Vec::new();
     };
-    let peer_names = metadata.peer_dependencies
-        .iter()
-        .flatten()
-        .filter_map(|(name, _)| name.parse::<PkgName>().ok())
-        .collect::<HashSet<_>>();
-    snapshot.dependencies
-        .iter()
-        .chain(snapshot.optional_dependencies.iter())
-        .flatten()
-        .filter(|(name, _)| peer_names.contains(*name))
+    let mut keys = Vec::new();
+    if let Some(metadata) = metadata {
+        let peer_names = metadata.peer_dependencies
+            .iter()
+            .flatten()
+            .filter_map(|(name, _)| name.parse::<PkgName>().ok())
+            .collect::<HashSet<_>>();
+        keys.extend(peer_edge_keys(snapshot, |name| peer_names.contains(name)));
+    }
+    for name in snapshot.transitive_peer_dependencies.iter().flatten() {
+        keys.extend(
+            transitive_peer_keys(lockfile, snapshot, name)
+                .into_iter()
+                .map(|key| (name.clone(), key)),
+        );
+    }
+    keys
+}
+
+/// The providers the subtree under `snapshot` resolved `peer_name` to.
+///
+/// Descends only into children that declare the peer, which hold the
+/// edge, or that list it as a transitive peer themselves.
+fn transitive_peer_keys(
+    lockfile: &pnpm_lockfile::Lockfile,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    peer_name: &str,
+) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
+    let Ok(peer) = peer_name.parse::<PkgName>() else {
+        return Vec::new();
+    };
+    let mut providers = Vec::new();
+    let mut visited = HashSet::default();
+    let mut pending = vec![snapshot];
+    while let Some(snapshot) = pending.pop() {
+        for (edge_name, reference) in dependency_edges(snapshot) {
+            let Some(child_key) = reference.resolve(edge_name) else {
+                continue;
+            };
+            let Some(child) = lockfile.snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(&child_key))
+            else {
+                continue;
+            };
+            if !visited.insert(child_key.clone()) {
+                continue;
+            }
+            let declares_peer = lockfile.packages
+                .as_ref()
+                .and_then(|packages| packages.get(&child_key.without_peer()))
+                .and_then(|metadata| metadata.peer_dependencies.as_ref())
+                .is_some_and(|peers| peers.contains_key(peer_name));
+            if declares_peer {
+                providers.extend(
+                    peer_edge_keys(child, |name| *name == peer).map(|(_, provider)| provider),
+                );
+            } else if child.transitive_peer_dependencies
+                .iter()
+                .flatten()
+                .any(|name| name == peer_name)
+            {
+                pending.push(child);
+            }
+        }
+    }
+    providers
+}
+
+fn peer_edge_keys<'a>(
+    snapshot: &'a pnpm_lockfile::SnapshotEntry,
+    is_peer: impl Fn(&PkgName) -> bool + 'a,
+) -> impl Iterator<Item = (String, pnpm_lockfile::PkgNameVerPeer)> + 'a {
+    dependency_edges(snapshot)
+        .filter(move |(name, _)| is_peer(name))
         .filter_map(|(name, reference)| {
             reference
-                .ver_peer()
-                .map(|version| (name.to_string(), version.without_peer().to_string()))
+                .resolve(name)
+                .map(|key| (name.to_string(), key))
         })
-        .collect()
 }
 
 /// Rename the suffix segments an npm alias provides back to the name
