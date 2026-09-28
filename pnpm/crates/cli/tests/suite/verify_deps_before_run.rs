@@ -1528,7 +1528,7 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
 /// ([pnpm/pnpm#16313](https://github.com/pnpm/pnpm/issues/16313)).
 ///
 /// A project with no enclosing workspace still gets an install from its
-/// first `run` (`default_install_action_installs_before_running_the_script`).
+/// first `run` ([`default_install_action_installs_before_running_the_script`]).
 #[test]
 fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -1550,7 +1550,7 @@ fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
         scripts.join("package.json"),
         json!({
             "scripts": {
-                "hi": "node -e \"require('fs').writeFileSync('ran.txt','ok')\"",
+                "hi": r#"node -e "require('fs').writeFileSync('ran.txt','ok')""#,
             },
         })
         .to_string(),
@@ -1571,7 +1571,7 @@ fn run_in_a_dependency_free_project_the_workspace_leaves_out_writes_nothing() {
     assert_eq!(
         fs::read_to_string(&marker).unwrap_or_default(),
         "ok",
-        "the script must write its marker"
+        "the script must write its marker",
     );
     assert!(
         !scripts.join("node_modules").exists(),
