@@ -13,7 +13,8 @@ use pnpm_executor::DEV_PREINSTALL_STAGE;
 ///
 /// The projects are the ones the install would cover: every workspace
 /// project under one shared lockfile, otherwise `manifest` alone. A
-/// workspace that cannot be walked counts as having work to do.
+/// workspace that cannot be walked counts as having work to do, and so
+/// does a pnpmfile, whose `readPackage` hook can add dependencies.
 pub(super) fn projects_have_nothing_to_install(
     config: &Config,
     manifest: &PackageManifest,
@@ -22,6 +23,7 @@ pub(super) fn projects_have_nothing_to_install(
 ) -> bool {
     if project_has_install_work(config, manifest)
         || runs_dev_preinstall(config, manifest, workspace_root)
+        || !crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config).is_empty()
     {
         return false;
     }

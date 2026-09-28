@@ -195,6 +195,41 @@ test('with separate lockfiles, a sibling\'s dependencies do not start an install
   expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
+test('with separate lockfiles, the workspace root\'s pnpm:devPreinstall starts an install', async () => {
+  const workspace = projectDir()
+  fs.writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'root', scripts: { 'pnpm:devPreinstall': 'echo dev' } }))
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root', scripts: { 'pnpm:devPreinstall': 'echo dev' } },
+    sharedWorkspaceLockfile: false,
+    workspaceDir: workspace,
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
+})
+
+test('a readPackage hook counts as install work', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, {
+    hooks: { readPackage: [(manifest) => manifest] },
+    rootProjectManifest: { name: 'scripts-only' },
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
+})
+
+test('an unreadable workspace counts as install work', async () => {
+  const workspace = projectDir()
+  fs.mkdirSync(path.join(workspace, 'pkgs/a'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'pkgs/a/package.json'), '{ not json')
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root' },
+    workspaceDir: workspace,
+    workspacePackagePatterns: ['pkgs/*'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
+})
+
 test('a required peer is installed when auto-install-peers is on', async () => {
   const project = projectDir()
   await runWithoutWorkspaceState(project, {

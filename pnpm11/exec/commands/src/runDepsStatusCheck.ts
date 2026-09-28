@@ -119,16 +119,33 @@ async function installNotRequired (
 }
 
 /**
- * Checks the projects the install would cover. With separate lockfiles, a
- * non-recursive install covers only the project the command runs in.
- * Otherwise the root project is checked first, and the workspace is walked
- * only when the root gives an install nothing to do. A non-recursive command
- * gets no `allProjects`, so the workspace is read here.
+ * Whether an install of a never-installed tree would have nothing to do.
+ * `true` only when every project the install would cover declares no
+ * dependency, no peer that `autoInstallPeers` fetches, and no install script
+ * that runs. A `readPackage` hook can add dependencies, and a workspace that
+ * cannot be read may hide some, so both count as install work.
  */
 async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
+  if ((opts.hooks?.readPackage?.length ?? 0) > 0) return false
+  try {
+    return await coveredProjectsHaveNothingToInstall(opts)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * With separate lockfiles, a non-recursive install covers only the project
+ * the command runs in. Otherwise it covers the whole workspace, which a
+ * non-recursive command does not get as `allProjects`.
+ */
+async function coveredProjectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
   if (opts.sharedWorkspaceLockfile === false && opts.workspaceDir != null && opts.allProjects == null) {
     const manifest = await safeReadProjectManifestOnly(opts.dir)
-    return manifest == null || !projectHasInstallWork(opts.dir, manifest, opts)
+    return manifest == null || !(
+      projectHasInstallWork(opts.dir, manifest, opts) ||
+      (path.resolve(opts.dir) === path.resolve(opts.workspaceDir) && runsScript(manifest, 'pnpm:devPreinstall', opts))
+    )
   }
   const root = opts.rootProjectManifest
   if (

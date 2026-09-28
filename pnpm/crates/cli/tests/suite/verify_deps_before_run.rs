@@ -1808,3 +1808,26 @@ fn a_member_dev_preinstall_does_not_start_an_install() {
 
     drop(root);
 }
+
+/// A pnpmfile's `readPackage` hook can add dependencies to a manifest that
+/// declares none, so a pnpmfile counts as install work.
+#[test]
+fn a_pnpmfile_starts_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "scripts-only",
+        &workspace.join("marker.txt"),
+        json!({}),
+    );
+    fs::write(workspace.join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
+        .expect("write .pnpmfile.cjs");
+
+    pacquet
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "the gate must install");
+
+    drop(root);
+}
