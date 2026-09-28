@@ -103,6 +103,30 @@ test.each([
   expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: project, reporter: undefined })
 })
 
+test('does not install a never-installed project whose install scripts are ignored', async () => {
+  const project = projectDir()
+  await runWithoutWorkspaceState(project, {
+    ignoreScripts: true,
+    rootProjectManifest: { name: 'prepare-only', scripts: { prepare: 'echo prepare' } },
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
+test('a pnpm:devPreinstall script of a workspace member does not start an install', async () => {
+  const workspace = projectDir()
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root' },
+    allProjects: [
+      { rootDir: workspace, manifest: { name: 'root' } },
+      { rootDir: path.join(workspace, 'pkgs/a'), manifest: { name: 'a', scripts: { 'pnpm:devPreinstall': 'echo dev' } } },
+    ] as RunDepsStatusCheckOptions['allProjects'],
+    workspaceDir: workspace,
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
 test('installs a never-installed project that has a binding.gyp', async () => {
   const project = projectDir()
   fs.writeFileSync(path.join(project, 'binding.gyp'), '{}')
@@ -123,6 +147,34 @@ test('installs a never-installed workspace when any project has a dependency', a
   })
 
   expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
+})
+
+test('a non-recursive command installs a never-installed workspace whose member has a dependency', async () => {
+  const workspace = projectDir()
+  fs.writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.mkdirSync(path.join(workspace, 'pkgs/a'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'pkgs/a/package.json'), JSON.stringify({ name: 'a', dependencies: { b: '1.0.0' } }))
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root' },
+    workspaceDir: workspace,
+    workspacePackagePatterns: ['pkgs/*'],
+  })
+
+  expect(runPnpmCli).toHaveBeenCalledWith(['install'], { cwd: workspace, reporter: undefined })
+})
+
+test('a non-recursive command skips the install of a never-installed workspace with nothing to install', async () => {
+  const workspace = projectDir()
+  fs.writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.mkdirSync(path.join(workspace, 'pkgs/a'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'pkgs/a/package.json'), JSON.stringify({ name: 'a' }))
+  await runWithoutWorkspaceState(workspace, {
+    rootProjectManifest: { name: 'root' },
+    workspaceDir: workspace,
+    workspacePackagePatterns: ['pkgs/*'],
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
 test('a required peer is installed when auto-install-peers is on', async () => {

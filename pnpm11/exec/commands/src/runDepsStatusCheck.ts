@@ -13,6 +13,7 @@ import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
+import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { realpathMissing } from 'realpath-missing'
 
 const INSTALL_LOCK_NAMESPACE = 'pnpm-verify-deps-install-locks'
@@ -22,7 +23,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd'>> {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, Partial<Pick<Config, 'filter' | 'filterProd' | 'ignoreScripts' | 'workspacePackagePatterns'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -36,7 +37,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
 
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
-  if (installNotRequired(opts, upToDate, workspaceState)) return
+  if (await installNotRequired(opts, upToDate, workspaceState)) return
 
   const command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
   const install = lockedInstall.bind(null, opts, command)
@@ -104,50 +105,67 @@ function needsInstall (upToDate: boolean | undefined, opts: RunDepsStatusCheckOp
   return upToDate === false || opts.allProjects != null || opts.rootProjectManifest != null
 }
 
-function installNotRequired (
+async function installNotRequired (
   opts: RunDepsStatusCheckOptions,
   upToDate: boolean | undefined,
   workspaceState: CheckDepsStatusResult['workspaceState']
-): boolean {
+): Promise<boolean> {
   if (!needsInstall(upToDate, opts)) return true
   // Nothing was installed here yet. Spawning an install for projects that
   // give it nothing to do would only leave a lockfile and node_modules behind.
-  return workspaceState == null && projectsHaveNothingToInstall(opts)
-}
-
-function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): boolean {
-  const projects = [
-    ...(opts.rootProjectManifest != null && opts.rootProjectManifestDir != null
-      ? [{ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest }]
-      : []),
-    ...(opts.allProjects ?? []),
-  ]
-  return projects.every(({ rootDir, manifest }) => !projectHasInstallWork(rootDir, manifest, opts.autoInstallPeers))
-}
-
-function projectHasInstallWork (
-  rootDir: string,
-  manifest: ProjectManifest,
-  autoInstallPeers: boolean | undefined
-): boolean {
-  return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
-    .some(group => group != null && Object.keys(group).length > 0) ||
-    (autoInstallPeers === true && hasRequiredPeers(manifest)) ||
-    hasInstallScripts(rootDir, manifest)
+  if (workspaceState != null) return false
+  return projectsHaveNothingToInstall(opts)
 }
 
 /**
- * Required peers are fetched when auto-install-peers is on. Optional ones are not.
+ * Checks the root project first, and walks the workspace only when the root
+ * gives an install nothing to do. A non-recursive command gets no
+ * `allProjects`, so the workspace is read here.
+ */
+async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
+  const root = opts.rootProjectManifest
+  if (
+    root != null &&
+    opts.rootProjectManifestDir != null &&
+    (projectHasInstallWork(opts.rootProjectManifestDir, root, opts) || runsScript(root, 'pnpm:devPreinstall', opts))
+  ) return false
+  const projects = opts.allProjects ?? (
+    opts.workspaceDir == null
+      ? []
+      : await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
+        patterns: opts.workspacePackagePatterns ?? ['.'],
+        modulesDir: opts.modulesDir,
+        modulesDirsByProjectName: opts.modulesDirsByProjectName,
+      })
+  )
+  return projects.every(({ rootDir, manifest }) => !projectHasInstallWork(rootDir, manifest, opts))
+}
+
+function projectHasInstallWork (rootDir: string, manifest: ProjectManifest, opts: RunDepsStatusCheckOptions): boolean {
+  return [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies]
+    .some(group => group != null && Object.keys(group).length > 0) ||
+    (opts.autoInstallPeers === true && hasRequiredPeers(manifest)) ||
+    PROJECT_LIFECYCLE_STAGES.some(stage => runsScript(manifest, stage, opts)) ||
+    (!opts.ignoreScripts && hasImplicitGypBuild(rootDir, manifest))
+}
+
+/**
+ * Whether the manifest declares at least one peer that is not marked
+ * optional. The caller decides whether `autoInstallPeers` fetches them.
  */
 function hasRequiredPeers (manifest: ProjectManifest): boolean {
   return Object.keys(manifest.peerDependencies ?? {})
     .some(name => manifest.peerDependenciesMeta?.[name]?.optional !== true)
 }
 
-function hasInstallScripts (rootDir: string, manifest: ProjectManifest): boolean {
-  const scripts = manifest.scripts ?? {}
-  if ([...PROJECT_LIFECYCLE_STAGES, 'pnpm:devPreinstall'].some(stage => scripts[stage] != null)) return true
-  // A binding.gyp gets an implicit `node-gyp rebuild` install script.
+function runsScript (manifest: ProjectManifest, stage: string, opts: RunDepsStatusCheckOptions): boolean {
+  return !opts.ignoreScripts && manifest.scripts?.[stage] != null
+}
+
+/**
+ * A binding.gyp gets an implicit `node-gyp rebuild` install script.
+ */
+function hasImplicitGypBuild (rootDir: string, manifest: ProjectManifest): boolean {
   return manifest.gypfile !== false && existsSync(path.join(rootDir, 'binding.gyp'))
 }
 
@@ -177,7 +195,7 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
   try {
     if (waited) {
       const { upToDate, workspaceState } = await checkDepsStatus(opts)
-      if (installNotRequired(opts, upToDate, workspaceState)) return
+      if (await installNotRequired(opts, upToDate, workspaceState)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
     const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined

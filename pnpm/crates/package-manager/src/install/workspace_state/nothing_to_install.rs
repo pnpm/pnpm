@@ -20,7 +20,9 @@ pub(super) fn projects_have_nothing_to_install(
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
     workspace_root: &Path,
 ) -> bool {
-    if project_has_install_work(config, manifest) {
+    if project_has_install_work(config, manifest)
+        || runs_dev_preinstall(config, manifest, workspace_root)
+    {
         return false;
     }
     if !config.shares_one_lockfile() {
@@ -43,12 +45,19 @@ fn project_has_install_work(config: &Config, manifest: &PackageManifest) -> bool
         .expect("manifest path always has a parent dir");
     crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
         || (config.auto_install_peers && manifest_has_required_peers(manifest))
-        || project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES)
-        || matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
+        || (!config.ignore_scripts
+            && project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES))
 }
 
-/// Required `peerDependencies` are fetched when `autoInstallPeers` is on.
-/// Optional ones are not.
+/// `pnpm:devPreinstall` runs only from the workspace root's manifest.
+fn runs_dev_preinstall(config: &Config, manifest: &PackageManifest, workspace_root: &Path) -> bool {
+    !config.ignore_scripts
+        && manifest.path().parent() == Some(workspace_root)
+        && matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
+}
+
+/// Whether the manifest declares at least one peer that is not marked
+/// optional. The caller decides whether `autoInstallPeers` fetches them.
 fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
     let Some(peers) = manifest
         .value()

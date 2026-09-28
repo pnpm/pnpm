@@ -4508,6 +4508,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.projects-reader':
+        specifier: workspace:*
+        version: link:../../workspace/projects-reader
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter

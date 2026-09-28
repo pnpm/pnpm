@@ -1760,3 +1760,51 @@ fn run_installs_a_project_whose_only_install_work_is_a_lifecycle_script() {
 
     drop(root);
 }
+
+/// With `ignoreScripts`, the install would not run a lifecycle script, so
+/// the script alone does not start one.
+#[test]
+fn ignored_lifecycle_scripts_do_not_start_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "prepare-only", "scripts": { "prepare": "exit 1" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["--config.ignore-scripts=true", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules").exists(), "the gate must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "the gate must not write a lockfile");
+
+    drop(root);
+}
+
+/// `pnpm:devPreinstall` runs only from the workspace root, so a member that
+/// declares it gives the install nothing to do.
+#[test]
+fn a_member_dev_preinstall_does_not_start_an_install() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkgs/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let member = workspace.join("pkgs/a");
+    fs::create_dir_all(&member).expect("create the workspace member");
+    fs::write(
+        member.join("package.json"),
+        json!({ "name": "a", "scripts": { "pnpm:devPreinstall": "exit 1" } }).to_string(),
+    )
+    .expect("write the member manifest");
+
+    pacquet
+        .with_args(["exec", "node", "-e", "0"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules").exists(), "the gate must not install");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "the gate must not write a lockfile");
+
+    drop(root);
+}
