@@ -6,7 +6,10 @@ use super::{
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+        pre_command::input::{
+            PinFlags, SwitchPaths, argv_requests_global, argv_requests_project_location,
+            frozen_lockfile_flag,
+        },
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -140,6 +143,112 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             Some(Path::new("/tmp/store")),
             "spelling: {spelling}",
         );
+    }
+}
+
+#[test]
+fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
+    let argv = [
+        "pnpm",
+        "--store-dir",
+        "/tmp/store",
+        "install",
+        "--auto-dedupe",
+        "--dir",
+        "/tmp/project",
+        "--frozen-lockfile",
+        "--lockfile-dir=/tmp/lockfile",
+        "--offline",
+        "-g",
+    ]
+    .map(OsString::from);
+    let input = SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+    assert_eq!(input.command.as_deref(), Some("install"));
+    assert_eq!(input.paths.dir, PathBuf::from("/tmp/project"));
+    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+    assert_eq!(input.frozen_lockfile, Some(true));
+    assert_eq!(
+        input.pin_flags,
+        PinFlags {
+            lockfile_dir: Some(PathBuf::from("/tmp/lockfile")),
+            offline: Some(true),
+            prefer_offline: None,
+        },
+    );
+    assert!(argv_requests_global(&argv));
+
+    let version_input = SwitchInput::from_version_argv(&argv);
+    assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
+
+    assert!(!argv_requests_global(&["pnpm", "exec", "--", "tool", "-g"].map(OsString::from)));
+}
+
+#[test]
+fn unparsed_argv_names_no_command_after_an_undeclared_option() {
+    for command in ["config", "get", "set", "install"] {
+        let argv =
+            ["pnpm", "--undeclared", "value", command, "--also-undeclared"].map(OsString::from);
+        assert!(SwitchInput::from_unparsed_argv(&argv).is_none(), "{command}");
+    }
+
+    let argv = ["pnpm", "--no-color", "--filter", "pkg", "install", "--undeclared", "value"].map(
+        OsString::from,
+    );
+    let input = SwitchInput::from_unparsed_argv(&argv).expect("every option before it is declared");
+    assert_eq!(input.command.as_deref(), Some("install"));
+}
+
+#[test]
+fn unparsed_ci_is_a_frozen_install() {
+    for argv in [
+        &["pnpm", "ci", "--undeclared"][..],
+        &["pnpm", "ci", "--no-frozen-lockfile", "--undeclared"],
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input =
+            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.frozen_lockfile, Some(true), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_steps_over_short_option_values() {
+    for (argv, dir) in [
+        (&["pnpm", "-C/tmp/attached", "install", "--undeclared"][..], "/tmp/attached"),
+        (&["pnpm", "-C", "/tmp/separate", "install", "--undeclared"], "/tmp/separate"),
+        (&["pnpm", "-rC", "/tmp/clustered", "install", "--undeclared"], "/tmp/clustered"),
+        (&["pnpm", "-rC/tmp/attached-cluster", "install", "--undeclared"], "/tmp/attached-cluster"),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let input =
+            SwitchInput::from_unparsed_argv(&argv).expect("the command name is unambiguous");
+        assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
+        assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
+    }
+}
+
+#[test]
+fn unparsed_argv_reads_the_project_location() {
+    for (argv, expected) in [
+        (&["pnpm", "config", "set", "key", "value", "--location", "project"][..], true),
+        (&["pnpm", "config", "--location=project", "set", "key", "value"][..], true),
+        (&["pnpm", "config", "--location", "global", "set", "key", "value"][..], false),
+        (&["pnpm", "config", "set", "key", "value", "--", "--location=project"][..], false),
+    ] {
+        let argv = argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        assert_eq!(argv_requests_project_location(&argv), expected, "{argv:?}");
     }
 }
 

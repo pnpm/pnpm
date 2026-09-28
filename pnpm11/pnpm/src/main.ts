@@ -87,10 +87,13 @@ export async function main (inputArgv: string[]): Promise<void> {
     return
   }
 
-  if (unknownOptions.size > 0 && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
-    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-    process.exitCode = 1
-    return
+  // The pnpm the project pins may know an option this one does not, so the
+  // unknown options are reported only once no switch to that pnpm happened.
+  const rejectUnknownOptions = unknownOptions.size > 0 && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))
+  if (rejectUnknownOptions) {
+    for (const unknownOption of unknownOptions.keys()) {
+      delete cliOptions[unknownOption]
+    }
   }
 
   let config: Config & {
@@ -144,19 +147,27 @@ export async function main (inputArgv: string[]): Promise<void> {
             // it only writes to the lockfile when the project opted in (via
             // `devEngines.packageManager`, or a v12+ `packageManager` pin).
             checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
-            await tolerateWhenPrintingVersion(printingVersion, async () => {
-              await syncEnvLockfile(config, context)
-            })
+            if (!rejectUnknownOptions) {
+              await tolerateWhenPrintingVersion(printingVersion, async () => {
+                await syncEnvLockfile(config, context)
+              })
+            }
           }
         }
-      } else if (cmd === 'fetch' && !isExecutedByCorepack()) {
+      } else if (cmd === 'fetch' && !isExecutedByCorepack() && !rejectUnknownOptions) {
         await fetchLockedPackageManager(config, context)
       }
-      if (cmd != null && !cliOptions.global) {
+      if (cmd != null && !cliOptions.global && !rejectUnknownOptions) {
         for (const runtime of getWantedRuntimes(context)) {
           checkRuntime(runtime)
         }
       }
+    }
+    if (rejectUnknownOptions) {
+      printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+      process.exitCode = 1
+      await finishWorkers()
+      return
     }
     // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
     // delegate to the `config` command internally. They are not rewritten to

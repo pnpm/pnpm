@@ -120,12 +120,8 @@ fn run_cli() -> miette::Result<()> {
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);
     let (command, argv) = prepare_cli_argv(argv);
-    let mut args = match parse_cli_args(command, argv.clone()) {
-        Ok(args) => args,
-        Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
-            return print_version(&argv, &child_argv, &config_overrides);
-        }
-        Err(err) => err.exit(),
+    let Some(mut args) = parse_or_answer(command, &argv, &child_argv, &config_overrides)? else {
+        return Ok(());
     };
     configure_cli_args(&mut args)?;
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
@@ -141,6 +137,30 @@ fn run_cli() -> miette::Result<()> {
         return Ok(());
     }
     run_cli_command(args, &config_overrides, builtin_command_forced)
+}
+
+/// Parse argv into a command to run, or `None` when the command line was
+/// already answered without one: the version was printed, or the pnpm the
+/// project pins took a command line clap rejected.
+fn parse_or_answer(
+    command: clap::Command,
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<Option<CliArgs>> {
+    match parse_cli_args(command, argv.to_vec()) {
+        Ok(args) => Ok(Some(args)),
+        Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
+            print_version(argv, child_argv, config_overrides).map(|()| None)
+        }
+        Err(err) if err.kind() == clap::error::ErrorKind::UnknownArgument => {
+            if dispatched_unparsed_to_pinned_pnpm(argv, child_argv, config_overrides)? {
+                return Ok(None);
+            }
+            err.exit()
+        }
+        Err(err) => err.exit(),
+    }
 }
 
 /// Parse argv, recording whether `--dir` or `-r` came from the command line.
@@ -215,7 +235,26 @@ fn dispatched_to_pinned_pnpm(
     config_overrides: &ConfigOverrides,
     child_argv: &[OsString],
 ) -> miette::Result<bool> {
-    let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
+    let plan = cli_args::pre_command::pre_command_plan(args, config_overrides)?;
+    execute_pre_command_plan(plan, child_argv)
+}
+
+/// Whether the pnpm the project pins took a command line this one rejected.
+/// A newer or older pnpm may accept an option this one does not know.
+fn dispatched_unparsed_to_pinned_pnpm(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<bool> {
+    let plan = cli_args::pre_command::switch_plan_for_unparsed_argv(argv, config_overrides)?;
+    execute_pre_command_plan(plan, child_argv)
+}
+
+fn execute_pre_command_plan(
+    plan: Option<cli_args::pre_command::PreCommandPlan>,
+    child_argv: &[OsString],
+) -> miette::Result<bool> {
+    let Some(plan) = plan else {
         return Ok(false);
     };
     block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))

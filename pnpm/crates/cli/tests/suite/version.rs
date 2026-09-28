@@ -150,6 +150,54 @@ fn version_flag_switches_to_project_package_manager_version() {
     drop((root, mock_instance));
 }
 
+/// An option only the pinned pnpm knows reaches that pnpm, instead of being
+/// rejected by this one before it switches (pnpm/pnpm#16353).
+#[test]
+fn unknown_option_goes_to_the_pinned_pnpm() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["install", "--only-the-pinned-pnpm-knows"])
+        .output()
+        .expect("run pacquet install with an unknown option");
+    dbg!(&output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stderr.contains("unexpected argument"), "this pnpm rejected the option: {stderr}");
+    assert!(
+        stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
+        "the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn unknown_option_is_rejected_without_a_pin_to_switch_to() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"project"}"#).expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .args(["install", "--only-the-pinned-pnpm-knows"])
+        .output()
+        .expect("run pacquet install with an unknown option");
+    dbg!(&output);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+
+    drop(root);
+}
+
 /// The engine is installed into the shared global virtual store and the
 /// directory the install runs from is thrown away. A project that selects
 /// the hoisted linker must not drag the engine into that directory
