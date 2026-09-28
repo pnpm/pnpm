@@ -16,7 +16,7 @@ use crate::{
 };
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{cell::OnceCell, collections::BTreeMap, sync::Arc};
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
 /// caches shared by every hoist round of a workspace resolve. Replaces
@@ -76,6 +76,9 @@ impl PeerHoistDiscovery {
                 self.caches = PeerDiscoveryCaches::default();
                 workspace.rebuild_discovery_tree(&mut self.tree, &mut self.cursor);
             }
+            // The refreshed view may carry new child edges, which the SCC
+            // table is a function of. It is rebuilt on the next walk.
+            self.caches.canonical_cycles.sccs.take();
             self.synced_children_rewrites = Some(children_rewrites);
             self.synced_revision = Some(revision);
         }
@@ -111,12 +114,28 @@ pub(crate) struct PeerDiscoveryCaches {
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
     pub(super) peer_provider_children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
     pub(super) peer_provider_index_peer_names: HashSet<String>,
+    pub(super) canonical_cycles: CanonicalCycleGate,
+}
+
+/// The persistent state of the canonical cycle gate
+/// ([`Walker::cuts_cycle_edge`]): the SCC table the gate reads and the
+/// shared record-only occurrence per canonical back-edge target.
+#[derive(Debug, Default)]
+pub(super) struct CanonicalCycleGate {
+    /// Children-graph SCC ids: every intra-SCC edge whose target is not
+    /// canonically later (package-id order) is cut, the same cut at
+    /// every occurrence, so realized subtrees are entry-independent and
+    /// no walk path can revisit a package. A function of the tree view's
+    /// `children_by_id`, so it is built once per view on first use and
+    /// shared by every walker over that view: [`PeerHoistDiscovery`]
+    /// drops it whenever it refreshes the view.
+    pub(super) sccs: OnceCell<Arc<HashMap<Arc<str>, usize>>>,
     /// The shared record-only occurrence per canonical back-edge
     /// target; persisted so later rounds reuse instead of re-creating
     /// (and re-walking) them. Entries are validated against the current
     /// tree on lookup, so a walker over a different tree view recreates
     /// what its tree lacks.
-    pub(super) canonical_backedge_nodes: HashMap<std::sync::Arc<str>, NodeId>,
+    pub(super) backedge_nodes: HashMap<Arc<str>, NodeId>,
 }
 
 /// What one peer-hoist discovery pass reports back to the hoist loop —

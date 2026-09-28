@@ -133,13 +133,6 @@ pub(super) struct PeerWalkTraversal {
     /// persistent [`PeerDiscoveryCaches`], so the pruned-provider
     /// fallback keeps its per-call meaning.
     pub(super) visited_this_call: HashSet<NodeId>,
-    /// Children-graph SCC ids behind the canonical cycle gate: every
-    /// intra-SCC edge whose target is not canonically later
-    /// (package-id order) is cut, the same cut at every occurrence, so
-    /// realized subtrees are entry-independent and no walk path can
-    /// revisit a package. Built lazily once per walker; the tree's
-    /// children are frozen for the walker's lifetime.
-    children_sccs: std::cell::OnceCell<Arc<HashMap<Arc<str>, usize>>>,
     /// Canonical back-edge targets realized but not yet walked; the
     /// walk drivers drain this after their direct-dep loops.
     pub(super) pending_canonical_nodes: Vec<NodeId>,
@@ -203,7 +196,6 @@ impl<'tree> Walker<'tree> {
                 in_progress: HashSet::default(),
                 discovery,
                 visited_this_call: HashSet::default(),
-                children_sccs: std::cell::OnceCell::new(),
                 pending_canonical_nodes: Vec::new(),
                 in_canonical_drain: false,
             },
@@ -232,10 +224,12 @@ impl<'tree> Walker<'tree> {
         self.caches
     }
 
-    /// The children-graph SCC table behind the canonical cycle gate;
-    /// see [`PeerWalkTraversal::children_sccs`].
+    /// The children-graph SCC table behind the canonical cycle gate; see
+    /// [`CanonicalCycleGate::sccs`](super::discovery::CanonicalCycleGate::sccs).
+    /// The tree's children are frozen for the walker's lifetime, so the
+    /// table is built at most once per tree view.
     pub(super) fn canonical_scc(&self) -> Arc<HashMap<Arc<str>, usize>> {
-        Arc::clone(self.traversal.children_sccs.get_or_init(|| {
+        Arc::clone(self.caches.canonical_cycles.sccs.get_or_init(|| {
             Arc::new(children_scc_ids(self.tree))
         }))
     }
@@ -257,7 +251,7 @@ impl<'tree> Walker<'tree> {
 
     /// The shared record-only node a canonical back-edge references;
     /// created lazily and queued for the driver's importer-context
-    /// walk. See [`crate::resolve_peers::discovery::PeerDiscoveryCaches::canonical_backedge_nodes`].
+    /// walk. See [`CanonicalCycleGate::backedge_nodes`](super::discovery::CanonicalCycleGate::backedge_nodes).
     pub(super) fn canonical_backedge_node(&mut self, pkg_id: &Arc<str>, depth: i32) -> NodeId {
         if self.tree.packages.get(&**pkg_id).is_some_and(|pkg| pkg.is_leaf) {
             let node_id = NodeId::leaf(pkg_id);
@@ -274,7 +268,7 @@ impl<'tree> Walker<'tree> {
             }
             return node_id;
         }
-        if let Some(node_id) = self.caches.canonical_backedge_nodes.get(&**pkg_id)
+        if let Some(node_id) = self.caches.canonical_cycles.backedge_nodes.get(&**pkg_id)
             && self.tree.dependencies_tree.contains_key(node_id)
         {
             return node_id.clone();
@@ -289,7 +283,7 @@ impl<'tree> Walker<'tree> {
                 true,
             ),
         );
-        self.caches.canonical_backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
+        self.caches.canonical_cycles.backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
         self.traversal.pending_canonical_nodes.push(node_id.clone());
         node_id
     }
