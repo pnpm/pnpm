@@ -2,7 +2,7 @@ use super::{
     Arc, CurrentProviderSource, DepPath, HashMap, LockedPinContext, MissingPeerInfo, NodeId,
     NodePeers, NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain,
     TreeChildren, Walker, create_peer_dep_graph_hash, get_peer_version_range,
-    index_of_dep_path_suffix, pkg_name_version, satisfies_with_prereleases,
+    index_of_dep_path_suffix, satisfies_with_prereleases,
 };
 
 impl Walker<'_> {}
@@ -135,8 +135,10 @@ impl Walker<'_> {
         }
         let peer_tree_node = self.tree.dependencies_tree.get(peer_node_id)?;
         let peer_pkg = self.tree.packages.get(&peer_tree_node.resolved_package_id)?;
-        let (_, peer_version) = pkg_name_version(&peer_pkg.result);
-        if !satisfies_with_prereleases(&peer_version, &get_peer_version_range(&peer_dep.version)) {
+        if !satisfies_with_prereleases(
+            &peer_pkg.version,
+            &get_peer_version_range(&peer_dep.version),
+        ) {
             return None;
         }
         // Upstream builds the pinned ref through `toPkgByName`,
@@ -145,7 +147,7 @@ impl Walker<'_> {
         Some((
             peer_name.to_string(),
             ParentRef {
-                version: peer_version,
+                version: Arc::clone(&peer_pkg.version),
                 node_id: Some(peer_node_id.clone()),
                 alias: Some(peer_name.to_string()),
                 depth: peer_tree_node.depth,

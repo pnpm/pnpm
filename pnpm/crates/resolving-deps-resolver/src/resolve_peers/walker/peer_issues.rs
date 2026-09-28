@@ -12,7 +12,7 @@ impl Walker<'_> {
     /// See [`crate::PeerResolutionScope::hoist_missing_scope`](crate::PeerResolutionScope::hoist_missing_scope).
     pub(in super::super) fn missing_issue_suppressed(
         &self,
-        ancestor_pkg_ids: &SharedChain<String>,
+        ancestor_pkg_ids: &SharedChain<Arc<str>>,
         peer_name: &str,
     ) -> bool {
         let Some(scope) = self.opts.scope.hoist_missing_scope.as_ref() else { return false };
@@ -23,7 +23,7 @@ impl Walker<'_> {
         &mut self,
         peer_name: &str,
         issue: MissingPeer,
-        ancestor_pkg_ids: &SharedChain<String>,
+        ancestor_pkg_ids: &SharedChain<Arc<str>>,
     ) {
         if self.traversal.in_canonical_drain {
             return;
@@ -40,7 +40,7 @@ impl Walker<'_> {
         }
     }
 
-    pub(in super::super) fn issue_parents(&self, chain: &SharedChain<String>) -> ParentChain {
+    pub(in super::super) fn issue_parents(&self, chain: &SharedChain<Arc<str>>) -> ParentChain {
         if self.traversal.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
     }
 
@@ -53,8 +53,8 @@ impl Walker<'_> {
         peer_name: &str,
         peer_dep: &PeerDep,
         parent_refs: &ParentRefs,
-        chain: &SharedChain<String>,
-        ancestor_pkg_ids: &SharedChain<String>,
+        chain: &SharedChain<Arc<str>>,
+        ancestor_pkg_ids: &SharedChain<Arc<str>>,
         resolved: &mut HashMap<String, NodeId>,
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
@@ -92,7 +92,7 @@ impl Walker<'_> {
                         .or_default()
                         .push(PeerDependencyIssue {
                             wanted_range: comparable_range.text.clone(),
-                            found_version: parent.version.clone(),
+                            found_version: parent.version.to_string(),
                             optional,
                             parents,
                             resolved_from: ParentChain::default(),
@@ -109,8 +109,8 @@ impl Walker<'_> {
         &mut self,
         peer_name: &str,
         peer_dep: &PeerDep,
-        chain: &SharedChain<String>,
-        ancestor_pkg_ids: &SharedChain<String>,
+        chain: &SharedChain<Arc<str>>,
+        ancestor_pkg_ids: &SharedChain<Arc<str>>,
         comparable_range: &ComparablePeerRange,
     ) {
         let raw_range = peer_dep.version.as_str();
@@ -198,12 +198,12 @@ impl Walker<'_> {
         }
     }
 
-    pub(super) fn owned_package(&mut self, pkg_id: &str) -> Arc<ResolvedPackage> {
+    pub(super) fn owned_package(&mut self, pkg_id: &Arc<str>) -> Arc<ResolvedPackage> {
         if let Some(pkg) = self.providers.packages_by_id.get(pkg_id) {
             return Arc::clone(pkg);
         }
         let pkg = Arc::new(self.tree.packages[pkg_id].clone());
-        self.providers.packages_by_id.insert(pkg_id.to_string(), Arc::clone(&pkg));
+        self.providers.packages_by_id.insert(Arc::clone(pkg_id), Arc::clone(&pkg));
         pkg
     }
 

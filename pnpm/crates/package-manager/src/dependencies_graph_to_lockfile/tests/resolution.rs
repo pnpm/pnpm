@@ -114,36 +114,36 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
         direct: vec![DirectDep {
             alias: "outer".to_string(),
             node_id: outer_node_id.clone(),
-            id: outer_id.to_string(),
+            id: Arc::<str>::clone(&outer_id),
         }],
         packages: HashMap::from_iter([
             (
                 Arc::<str>::clone(&outer_id),
-                ResolvedPackage {
-                    id: Arc::<str>::clone(&outer_id),
-                    result: Arc::new(make_resolve_result(
+                ResolvedPackage::new(
+                    Arc::<str>::clone(&outer_id),
+                    Arc::new(make_resolve_result(
                         "outer",
                         "1.0.0",
                         json!({ "name": "outer", "version": "1.0.0" }),
                     )),
-                    peer_dependencies: BTreeMap::new(),
-                    optional: false,
-                    is_leaf: false,
-                },
+                    BTreeMap::new(),
+                    false,
+                    false,
+                ),
             ),
             (
                 Arc::<str>::clone(&inner_id),
-                ResolvedPackage {
-                    id: Arc::<str>::clone(&inner_id),
-                    result: Arc::new(make_resolve_result(
+                ResolvedPackage::new(
+                    Arc::<str>::clone(&inner_id),
+                    Arc::new(make_resolve_result(
                         "inner",
                         "1.0.0",
                         json!({ "name": "inner", "version": "1.0.0" }),
                     )),
-                    peer_dependencies: BTreeMap::new(),
-                    optional: true,
-                    is_leaf: true,
-                },
+                    BTreeMap::new(),
+                    true,
+                    true,
+                ),
             ),
         ]),
         dependencies_tree: HashMap::from_iter([(

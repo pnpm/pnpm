@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, BTreeSet, DepPath, FinalPeerContext, HashMap, HashSet, NodeId, PeerId,
     PeerNameTarjan, PeerSccPass, Walker, create_peer_dep_graph_hash, link_path_to_peer_version,
-    peer_id_pair, pkg_name,
+    peer_id_pair,
 };
 
 impl Walker<'_> {
@@ -202,7 +202,7 @@ impl Walker<'_> {
         let mut graph: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
         for (pkg_id, edges) in edges_of_pkg {
             graph
-                .entry(pkg_name(&self.tree.packages[pkg_id].result))
+                .entry(self.tree.packages[pkg_id].name.to_string())
                 .or_default()
                 .extend(edges);
         }

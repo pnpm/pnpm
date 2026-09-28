@@ -1,6 +1,6 @@
 use super::{
     DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
-    get_peer_version_range, index_of_dep_path_suffix,
+    get_peer_version_range, index_of_dep_path_suffix, pkg_name,
 };
 
 pub(super) fn version_gte(left: &str, right: &str) -> bool {
@@ -107,36 +107,6 @@ pub(in super::super) fn remap_link_node_id(
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
-/// The package name and version used for peer compatibility checks.
-/// Uses the fetched manifest version when the resolver omits
-/// [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`].
-pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
-    let version = result.package.name_ver
-        .as_ref()
-        .map(|name_ver| name_ver.suffix.to_string())
-        .or_else(|| {
-            result.package.manifest
-                .as_ref()?
-                .get("version")?
-                .as_str()
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| result.id.as_str().to_string());
-    (pkg_name(result), version)
-}
-
-/// The name half of [`fn@pkg_name_version`], for callers that would
-/// discard the version. `PkgName` holds scope and bare name separately,
-/// so rendering either half allocates.
-pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
-    if let Some(name_ver) = result.package.name_ver.as_ref() {
-        return name_ver.name.to_string();
-    }
-    result.alias
-        .clone()
-        .unwrap_or_else(|| result.id.as_str().to_string())
-}
-
 /// The `name@version` identity a peer contributes to a depPath's peer suffix.
 ///
 /// A package resolved from a named registry keeps its `<registryName>:` in the
@@ -144,8 +114,9 @@ pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
 /// registries render one suffix, so two variants of the dependent, each bound
 /// to a different peer artifact, would collapse onto a single depPath.
 ///
-/// Separate from [`pkg_name_version`] on purpose: that version also feeds
-/// semver comparisons, which a qualified string would break.
+/// Separate from [`pkg_name_version`](crate::resolved_tree::pkg_name_version)
+/// on purpose: that version also feeds semver comparisons, which a qualified
+/// string would break.
 pub(in super::super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
     let name = pkg_name(result);
     let version = result.package.name_ver

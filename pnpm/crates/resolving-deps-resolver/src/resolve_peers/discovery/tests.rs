@@ -28,15 +28,11 @@ fn cached_subtree_reuse_reports_no_peer_providers() {
 
     let mut tree = ResolvedTree {
         direct: vec![
-            DirectDep {
-                alias: "mid".to_string(),
-                node_id: mid.clone(),
-                id: "mid@1.0.0".to_string(),
-            },
+            DirectDep { alias: "mid".to_string(), node_id: mid.clone(), id: "mid@1.0.0".into() },
             DirectDep {
                 alias: "peerx".to_string(),
                 node_id: peerx.clone(),
-                id: "peerx@1.0.0".to_string(),
+                id: "peerx@1.0.0".into(),
             },
         ],
         packages: HashMap::from_iter([
@@ -89,7 +85,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
 
     // A marker in the persistent caches makes reset-vs-merge observable.
-    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
+    engine.caches.pure_pkgs.insert("marker@1.0.0".into(), DepPath::from("marker@1.0.0"));
     // Production rewrites happen inside `extend_tree`, which always
     // bumps the revision; mirror that pairing.
     workspace.tree.record_children_rewrite();
@@ -100,7 +96,7 @@ fn discovery_engine_rebuilds_after_a_children_ownership_rewrite() {
         "an ownership rewrite must discard walk state derived before it",
     );
 
-    engine.caches.pure_pkgs.insert("marker@1.0.0".to_string(), DepPath::from("marker@1.0.0"));
+    engine.caches.pure_pkgs.insert("marker@1.0.0".into(), DepPath::from("marker@1.0.0"));
     workspace.tree.bump_revision();
     engine.discover(&workspace, &[], &[], ResolvePeersOptions::default());
     assert!(

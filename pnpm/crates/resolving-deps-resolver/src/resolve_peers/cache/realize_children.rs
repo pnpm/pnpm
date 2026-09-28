@@ -62,13 +62,13 @@ impl Walker<'_> {
     pub(in super::super) fn previously_resolved_children(
         &mut self,
         parent_node_ids: &SharedChain<NodeId>,
-        parent_pkg_ids_chain: &SharedChain<String>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
         current_pkg_id: &str,
     ) -> BTreeMap<String, NodeId> {
         let mut children = BTreeMap::new();
         if !parent_pkg_ids_chain
             .iter()
-            .any(|pkg_id| pkg_id == current_pkg_id)
+            .any(|pkg_id| &**pkg_id == current_pkg_id)
         {
             return children;
         }
@@ -146,7 +146,7 @@ impl Walker<'_> {
             .get(&*lazy.pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let canonical_scc = self.canonical_scc();
-        let full_chain = lazy.parent_ids.pushed(lazy.pkg_id.to_string());
+        let full_chain = lazy.parent_ids.pushed(Arc::clone(&lazy.pkg_id));
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
         for &edge_index in provider_edge_indices {
@@ -225,7 +225,7 @@ impl Walker<'_> {
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,
-            full_chain: &parent_ids.pushed(pkg_id.to_string()),
+            full_chain: &parent_ids.pushed(Arc::clone(&pkg_id)),
             pkg_id: &pkg_id,
             child_depth: depth + 1,
             previewed,

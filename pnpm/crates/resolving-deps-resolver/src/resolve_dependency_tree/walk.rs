@@ -62,7 +62,7 @@ use crate::{
     lockfile_reuse::{current_pkg_from_lockfile, prior_child_key},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, peer_shadowed_dependencies},
-    resolved_tree::{DirectDep, ResolvedPackage},
+    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedPackage},
 };
 
 use super::{
@@ -113,7 +113,7 @@ pub(super) async fn resolve_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: WantedDependency,
-    ancestor_ids: &Arc<Vec<String>>,
+    ancestor_ids: &AncestorPkgIds,
     depth: i32,
     parent_optional: bool,
     reuse: ReuseSource,
@@ -185,14 +185,14 @@ pub(super) struct PendingNode {
 }
 
 pub(super) struct PendingNodeIdentity {
-    id: String,
+    id: Arc<str>,
     alias: String,
     node_id: NodeId,
 }
 
 pub(super) struct PendingNodeAncestry {
-    parent_ancestors: Arc<Vec<String>>,
-    next_ancestors: Arc<Vec<String>>,
+    parent_ancestors: AncestorPkgIds,
+    next_ancestors: AncestorPkgIds,
     depth: i32,
     current_is_optional: bool,
 }
@@ -211,7 +211,7 @@ struct SeededPackage<'a> {
 
 /// The parent-side context one child edge resolves in.
 pub(super) struct ChildEdge<'e> {
-    pub(super) ancestor_ids: &'e Arc<Vec<String>>,
+    pub(super) ancestor_ids: &'e AncestorPkgIds,
     pub(super) depth: i32,
     pub(super) parent_optional: bool,
     pub(super) reuse: ReuseSource,

@@ -1,3 +1,7 @@
+pub(crate) use package_identity::{pkg_name, pkg_name_version};
+
+mod package_identity;
+
 use crate::node_id::NodeId;
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::{ResolutionPolicyViolation, ResolveResult};
@@ -63,20 +67,26 @@ pub struct ChildEdge {
     pub optional: bool,
 }
 
+/// The `pkgIdWithPatchHash` chain from an importer's direct dependency
+/// down to a node's parent, root first. Each id is the same allocation
+/// as the package's key in [`ResolvedTree::packages`], so extending the
+/// chain by one node copies pointers, not strings.
+pub type AncestorPkgIds = Arc<Vec<Arc<str>>>;
+
 /// Ancestor package ids for a lazy occurrence. The dependency walk keeps its
 /// already-built contiguous vector as the base, while peer discovery appends
 /// shallow vectors of shared string storage instead of copying every package
 /// id for each context-sensitive revisit.
 #[derive(Debug, Default, Clone)]
 pub struct AncestorIds {
-    base: Arc<Vec<String>>,
+    base: AncestorPkgIds,
     appended: Arc<Vec<Arc<str>>>,
 }
 
 impl AncestorIds {
     /// The dependency walk's contiguous base ids, in order.
     pub fn base_ids(&self) -> impl Iterator<Item = &str> {
-        self.base.iter().map(String::as_str)
+        self.base.iter().map(|id| &**id)
     }
 
     /// The ids peer discovery appended after the base, in order.
@@ -85,16 +95,16 @@ impl AncestorIds {
     }
 
     #[must_use]
-    pub fn pushed(&self, id: String) -> Self {
+    pub fn pushed(&self, id: Arc<str>) -> Self {
         let mut appended = Vec::with_capacity(self.appended.len() + 1);
         appended.extend(self.appended.iter().cloned());
-        appended.push(Arc::from(id));
+        appended.push(id);
         Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
     }
 }
 
-impl From<Arc<Vec<String>>> for AncestorIds {
-    fn from(base: Arc<Vec<String>>) -> Self {
+impl From<AncestorPkgIds> for AncestorIds {
+    fn from(base: AncestorPkgIds) -> Self {
         Self { base, appended: Arc::new(Vec::new()) }
     }
 }
@@ -113,10 +123,11 @@ pub struct DirectDep {
     /// [`ResolvedTree::dependencies_tree`].
     pub node_id: NodeId,
     /// `pkgIdWithPatchHash` of the resolved package — same value as
-    /// `dependencies_tree[node_id].resolved_package_id`. Carried at
-    /// the edge for callers that only need the dedup key and want to
-    /// avoid the tree lookup.
-    pub id: String,
+    /// `dependencies_tree[node_id].resolved_package_id`, and the same
+    /// allocation as the package's key in [`ResolvedTree::packages`].
+    /// Carried at the edge for callers that only need the dedup key and
+    /// want to avoid the tree lookup.
+    pub id: Arc<str>,
 }
 
 /// One resolved package, deduped by `pkgIdWithPatchHash`.
@@ -129,6 +140,14 @@ pub struct DirectDep {
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
     pub id: Arc<str>,
+    /// The package's real name, rendered once from [`Self::result`]:
+    /// the peer walk reads it at every occurrence it visits, and
+    /// rendering a scoped name allocates.
+    pub name: Arc<str>,
+    /// The version peer ranges are checked against: the resolved
+    /// `name_ver` version, else the fetched manifest's `version`, else
+    /// the resolution id. Rendered once, like [`Self::name`].
+    pub version: Arc<str>,
     /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves

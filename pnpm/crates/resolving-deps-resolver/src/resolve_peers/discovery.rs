@@ -105,11 +105,11 @@ impl PeerHoistDiscovery {
 #[derive(Debug, Default)]
 pub(crate) struct PeerDiscoveryCaches {
     pub(super) node_dep_paths: HashMap<NodeId, DepPath>,
-    pub(super) pure_pkgs: HashMap<String, DepPath>,
-    pub(super) peers_cache: HashMap<String, Vec<PeersCacheItem>>,
+    pub(super) pure_pkgs: HashMap<Arc<str>, DepPath>,
+    pub(super) peers_cache: HashMap<Arc<str>, Vec<PeersCacheItem>>,
     pub(super) parent_pkgs_of_node: HashMap<NodeId, Arc<HashMap<String, ParentPkgInfo>>>,
     pub(super) retained_peer_node_ids: HashSet<NodeId>,
-    pub(super) peer_provider_children_by_pkg_id: HashMap<String, PeerProviderChildren>,
+    pub(super) peer_provider_children_by_pkg_id: HashMap<Arc<str>, PeerProviderChildren>,
     pub(super) peer_provider_index_peer_names: HashSet<String>,
     /// The shared record-only occurrence per canonical back-edge
     /// target; persisted so later rounds reuse instead of re-creating
@@ -131,7 +131,7 @@ pub(crate) struct PeerDiscoveryResult {
     pub(crate) peer_dependency_issues: PeerDependencyIssues,
     /// Ancestor `pkgIdWithPatchHash` chains recorded per missing-peer
     /// issue, consumed by [`fn@apply_hoist_missing_scope`].
-    missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<String>>>,
+    missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<Arc<str>>>>,
     /// The pass's subtree missing-peer summaries, one per walked direct
     /// dep. Read through
     /// [`index_missing_names`](fn@crate::resolve_peers::index_missing_names)

@@ -43,8 +43,7 @@ use crate::{
         context::{
             ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
             SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, peer_id_pair, pkg_name_version, remap_link_node_id,
-            satisfies_with_prereleases,
+            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -80,7 +79,7 @@ pub(super) struct Walker<'tree> {
 pub(super) struct PeerWalkOutput {
     pub(super) graph: DependenciesGraph,
     pub(super) issues: PeerDependencyIssues,
-    pub(super) missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<String>>>,
+    pub(super) missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<Arc<str>>>>,
     /// Graph edges whose target `NodeId` had no `DepPath` yet at the
     /// time we built the parent's `graph_children` map — typically
     /// because the target is a later sibling direct dep that the walker
@@ -165,7 +164,7 @@ pub(super) struct PeerWalkProviders {
     /// providers for the must-win guard. Swapped per importer by the
     /// workspace entry point.
     pub(super) current_provider_sources: Vec<CurrentProviderSource>,
-    packages_by_id: HashMap<String, Arc<ResolvedPackage>>,
+    packages_by_id: HashMap<Arc<str>, Arc<ResolvedPackage>>,
 }
 
 impl<'tree> Walker<'tree> {
@@ -465,8 +464,7 @@ impl Walker<'_> {
         if self.tree.all_peer_dep_names.is_empty() {
             return false;
         }
-        let (real_name, _) = pkg_name_version(&pkg.result);
-        self.tree.all_peer_dep_names.contains(&real_name)
+        self.tree.all_peer_dep_names.contains(&*pkg.name)
     }
 
     /// The parent refs an importer's direct deps seed the peer walk with.
@@ -495,8 +493,8 @@ impl Walker<'_> {
 
 /// The ancestor package-id chain a node's children see. A package already on
 /// the chain is not repeated, so a cycle cannot grow it without bound.
-fn chain_with_pkg_id(chain: &SharedChain<String>, pkg_id: &Arc<str>) -> SharedChain<String> {
-    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(pkg_id.to_string()) }
+fn chain_with_pkg_id(chain: &SharedChain<Arc<str>>, pkg_id: &Arc<str>) -> SharedChain<Arc<str>> {
+    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(Arc::clone(pkg_id)) }
 }
 
 #[cfg(test)]

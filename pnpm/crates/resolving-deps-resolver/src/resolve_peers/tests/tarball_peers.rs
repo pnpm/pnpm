@@ -24,12 +24,12 @@ fn tarball_peer_versions_preserve_source_identity() {
                     DirectDep {
                         alias: "consumer".to_string(),
                         node_id: consumer_node.clone(),
-                        id: "consumer@1.0.0".to_string(),
+                        id: "consumer@1.0.0".into(),
                     },
                     DirectDep {
                         alias: "provider".to_string(),
                         node_id: provider_node.clone(),
-                        id: provider_id.clone(),
+                        id: provider_id.clone().into(),
                     },
                 ],
                 packages: HashMap::from_iter([
@@ -97,12 +97,12 @@ fn distinct_tarball_providers_with_same_manifest_version_do_not_collapse() {
             DirectDep {
                 alias: "middle".to_string(),
                 node_id: middle_node.clone(),
-                id: "middle@1.0.0".to_string(),
+                id: "middle@1.0.0".into(),
             },
             DirectDep {
                 alias: "provider".to_string(),
                 node_id: provider_a_node.clone(),
-                id: provider_a_id.to_string(),
+                id: provider_a_id.into(),
             },
         ],
         packages: HashMap::from_iter([

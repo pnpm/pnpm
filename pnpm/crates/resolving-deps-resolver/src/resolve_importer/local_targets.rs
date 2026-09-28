@@ -103,7 +103,7 @@ pub(super) fn build_workspace_root_deps(
     let mut out = Vec::with_capacity(direct.len());
     let mut named = HashSet::default();
     for dep in direct {
-        let Some(pkg) = snapshot.packages.get(dep.id.as_str()) else { continue };
+        let Some(pkg) = snapshot.packages.get(&dep.id) else { continue };
         let Some(pkg_name) = resolved_pkg_name(&pkg.result) else { continue };
         named.insert(dep.alias.as_str());
         out.push(WorkspaceRootDep {

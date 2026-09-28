@@ -16,13 +16,10 @@ use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
     node_id::NodeId,
     resolve_peers::{
-        context::{
-            SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names, pkg_name,
-            pkg_name_version,
-        },
+        context::{SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names},
         walker::{MissingPeerInfo, Walker},
     },
-    resolved_tree::ResolvedPackage,
+    resolved_tree::{ResolvedPackage, pkg_name_version},
 };
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
 use pnpm_resolving_resolver_base::ResolveResult;
@@ -75,7 +72,7 @@ pub(super) struct WalkedNode<'a> {
 
 pub(super) struct WalkedNodeAncestry<'a> {
     pub(super) parent_node_ids: &'a SharedChain<NodeId>,
-    pub(super) parent_pkg_ids_chain: &'a SharedChain<String>,
+    pub(super) parent_pkg_ids_chain: &'a SharedChain<Arc<str>>,
     pub(super) depth: i32,
 }
 

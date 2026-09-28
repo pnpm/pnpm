@@ -31,7 +31,7 @@ pub(super) fn assign_level_owners<'seed>(
     let winners: Vec<usize> = {
         let mut best: HashMap<&str, usize> = HashMap::default();
         for (index, pending) in level.iter().enumerate() {
-            let best_so_far = *best.entry(pending.identity.id.as_str()).or_insert(index);
+            let best_so_far = *best.entry(&pending.identity.id).or_insert(index);
             let standing = &level[best_so_far];
             // Depth joins the comparison even though one level shares
             // it, so this cannot drift from [`ChildrenOwner::wins_over`]
@@ -39,7 +39,7 @@ pub(super) fn assign_level_owners<'seed>(
             if (standing.ancestry.depth, &standing.ancestry.parent_ancestors)
                 > (pending.ancestry.depth, &pending.ancestry.parent_ancestors)
             {
-                best.insert(pending.identity.id.as_str(), index);
+                best.insert(&pending.identity.id, index);
             }
         }
         let mut winners: Vec<usize> = best.into_values().collect();
@@ -81,7 +81,7 @@ pub(super) fn install_owner_peer_dependencies(
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
-    let Some(existing) = packages.get_mut(pending.identity.id.as_str()) else { return Ok(()) };
+    let Some(existing) = packages.get_mut(&pending.identity.id) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
         return Ok(());
     }
@@ -212,7 +212,7 @@ pub(super) fn record_walked_children(
             .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
-            pkg_id: Arc::from(dep.id),
+            pkg_id: dep.id,
             optional,
         });
         realized.insert(dep.alias, dep.node_id);
@@ -235,7 +235,7 @@ pub(super) fn seeded_dep(seed: &NodeSeed) -> Option<DirectDep> {
         NodeSeed::Pending(pending) => Some(DirectDep {
             alias: pending.identity.alias.clone(),
             node_id: pending.identity.node_id.clone(),
-            id: pending.identity.id.clone(),
+            id: Arc::clone(&pending.identity.id),
         }),
     }
 }
@@ -304,9 +304,9 @@ pub(in super::super) fn level_versions(
     for seed in seeds {
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
-            NodeSeed::Done(Some(dep)) => packages
-                .get(dep.id.as_str())
-                .and_then(|pkg| pkg.result.package.name_ver.as_ref()),
+            NodeSeed::Done(Some(dep)) => {
+                packages.get(&dep.id).and_then(|pkg| pkg.result.package.name_ver.as_ref())
+            }
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
@@ -325,17 +325,16 @@ pub(in super::super) fn level_versions(
 /// counterpart of pnpm's `getPkgsInfoFromIds`).
 pub(super) fn pkgs_info_from_ids(
     ctx: &TreeCtx,
-    ancestor_ids: &[String],
+    ancestor_ids: &[Arc<str>],
 ) -> Vec<SkippedOptionalDependencyParent> {
     let packages = lock_recoverable(&ctx.workspace.tree.packages);
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver = packages
-                .get(id.as_str())
-                .and_then(|pkg| pkg.result.package.name_ver.as_ref());
+            let name_ver =
+                packages.get(id).and_then(|pkg| pkg.result.package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
-                id: id.clone(),
+                id: id.to_string(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),
                 version: name_ver.map(|name_ver| name_ver.suffix.to_string()).unwrap_or_default(),
             }
