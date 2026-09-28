@@ -201,3 +201,85 @@ fn is_deprecated_ignores_unrelated_key_text() {
     );
     assert!(!package.versions.is_deprecated("1.0.0"));
 }
+
+#[test]
+fn deprecation_probe_cache_survives_filtered_copies_without_hydration() {
+    let package = parse_package(
+        r#"{"name":"foo","dist-tags":{},"versions":{
+        "1.0.0":{"deprecated":"use 2.x"},"2.0.0":{}
+    }}"#,
+    );
+    for (version, expected) in [("1.0.0", true), ("2.0.0", false)] {
+        assert_eq!(package.versions.is_deprecated(version), expected);
+        let filtered = package.versions.filtered(|candidate| candidate == version);
+        let slot = filtered.slot(version).unwrap();
+        assert_eq!(slot.deprecated.get(), Some(&expected));
+        assert!(slot.parsed.get().is_none());
+        assert_eq!(filtered.is_deprecated(version), expected);
+    }
+}
+
+#[test]
+fn failed_hydration_takes_precedence_over_cached_deprecation_probe() {
+    let package = parse_package(
+        r#"{"name":"foo","dist-tags":{},"versions":{
+        "1.0.0":{"deprecated":"use 2.x","version":false}
+    }}"#,
+    );
+    assert!(package.versions.is_deprecated("1.0.0"));
+    assert!(package.versions.get("1.0.0").is_none());
+    assert!(!package.versions.is_deprecated("1.0.0"));
+}
+
+#[test]
+fn file_backed_deprecation_probe_does_not_hydrate() {
+    use crate::{MirrorFile, PackageVersions};
+    use std::io::Write;
+
+    let json = r#"{"name":"foo","version":"1.0.0","deprecated":true,"dist":{"tarball":"https://r/foo.tgz"}}"#;
+    let mut file = tempfile::tempfile().unwrap();
+    file.write_all(json.as_bytes()).unwrap();
+    let mirror = MirrorFile::try_hold(file, usize::MAX).unwrap();
+    let versions =
+        PackageVersions::from_file_spans(&mirror, [("1.0.0".into(), 0, json.len() as u32)]);
+    for _ in 0..3 {
+        assert!(versions.is_deprecated("1.0.0"));
+        assert!(
+            versions
+                .slot("1.0.0")
+                .unwrap()
+                .parsed
+                .get()
+                .is_none()
+        );
+    }
+    assert!(
+        versions
+            .get("1.0.0")
+            .unwrap()
+            .deprecated
+            .is_some()
+    );
+}
+
+#[test]
+fn unreadable_mirror_probe_does_not_cache_a_false_result() {
+    use crate::{MirrorFile, PackageVersions};
+
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let write_only = std::fs::OpenOptions::new()
+        .write(true)
+        .open(file.path())
+        .unwrap();
+    let mirror = MirrorFile::try_hold(write_only, usize::MAX).unwrap();
+    let versions = PackageVersions::from_file_spans(&mirror, [("1.0.0".into(), 0, 8)]);
+    assert!(!versions.is_deprecated("1.0.0"));
+    assert!(
+        versions
+            .slot("1.0.0")
+            .unwrap()
+            .deprecated
+            .get()
+            .is_none()
+    );
+}
