@@ -18,8 +18,10 @@
 //! every attached process at once. What a child needs ending there is the
 //! case that never ends on its own — a `cmd` hosting a batch script, which
 //! answers the event with a "Terminate batch job (Y/N)?" prompt and waits
-//! on the answer forever. A child still running once the interrupt's grace
-//! has passed is ended by pnpm
+//! on the answer forever. `cmd` asks only once the command it ran has
+//! returned, so a child left without child processes of its own for a
+//! grace after the interrupt is ended by pnpm, while one whose script is
+//! still shutting down is waited for
 //! ([pnpm/pnpm#14860](https://github.com/pnpm/pnpm/issues/14860)).
 //!
 //! A child that shares pnpm's process group has the terminal's interrupt
@@ -47,7 +49,10 @@ use std::{
     },
 };
 #[cfg(windows)]
-use std::{sync::atomic::AtomicBool, time::Duration};
+use std::{
+    sync::atomic::AtomicBool,
+    time::{Duration, Instant},
+};
 
 /// The number of interrupts pnpm relays to a child before it stops
 /// waiting for that child. Once every child it reaches has had them, the
@@ -155,16 +160,18 @@ pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
     }
 }
 
-/// Open a termination handle for the child while it is provably alive:
+/// Open a handle to end and await the child while it is provably alive:
 /// pnpm still holds its own handle for a child it just spawned, so the
 /// process object — and its pid — cannot have been recycled.
 #[cfg(windows)]
 fn open_child_handle(pid: i32) -> *mut std::ffi::c_void {
-    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    };
 
     // SAFETY: a plain query by pid; a null result only means the child
     // cannot be ended through it later, which the termination path skips.
-    unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid as u32) }
+    unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, 0, pid as u32) }
 }
 
 /// Take the first free entry for `target`, or extend the list with one.
@@ -450,53 +457,179 @@ unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::
     }
     let mut still_listening = false;
     visit_targets(|entry, target| {
-        let step = entry.relays.fetch_add(1, Ordering::Relaxed);
-        if step >= RELAYED_INTERRUPTS {
-            return;
-        }
-        still_listening = true;
-        // A child that is a `cmd` hosting a batch script answers the event
-        // with a "Terminate batch job (Y/N)?" prompt and waits on an answer
-        // forever, so waiting it out would hold the terminal hostage
-        // ([pnpm/pnpm#14860](https://github.com/pnpm/pnpm/issues/14860)).
-        // pnpm ends the child itself instead: after a grace on the first
-        // interrupt, which a child shutting down cleanly does not outlast,
-        // and at once on the next one.
-        if step == 0 {
-            terminate_child_after_grace(entry, target);
-        } else {
-            terminate_child(entry, target);
-        }
+        still_listening |= interrupt_child(entry, target);
     });
     windows_sys::core::BOOL::from(still_listening)
 }
 
-/// How long a child may keep shutting down after the console's interrupt
-/// before pnpm ends it. The event reached every attached process at once,
-/// so a child still running past the grace is not shutting down: it is
-/// stuck, the way `cmd` waits on its batch-termination answer.
+/// Handle the console's interrupt for the child holding `entry` and report
+/// whether pnpm keeps waiting for it.
+///
+/// A child that is a `cmd` hosting a batch script answers the event with a
+/// "Terminate batch job (Y/N)?" prompt once the command it ran returns, and
+/// waits on the answer forever, so waiting it out would hold the terminal
+/// hostage ([pnpm/pnpm#14860](https://github.com/pnpm/pnpm/issues/14860)).
+/// pnpm ends such a child itself: on the first interrupt once it has sat
+/// without child processes for a grace, and at once on the next one.
+#[cfg(windows)]
+fn interrupt_child(entry: &RelayEntry, target: i32) -> bool {
+    let step = entry.relays.fetch_add(1, Ordering::Relaxed);
+    if step >= RELAYED_INTERRUPTS {
+        return false;
+    }
+    if step == 0 {
+        end_child_once_idle(entry, target);
+    } else {
+        terminate_child(entry, target);
+    }
+    true
+}
+
+/// How long a child may sit without child processes of its own after the
+/// console's interrupt before pnpm ends it. A script still shutting down
+/// keeps its process running under the shell, however long that takes, so
+/// only a shell whose command has returned and that has not exited itself
+/// outlasts the grace: `cmd` waiting on its batch-termination answer.
 #[cfg(windows)]
 const WINDOWS_INTERRUPT_GRACE: Duration = Duration::from_secs(1);
+
+/// How often the child's process tree is checked during the grace.
+#[cfg(windows)]
+const WINDOWS_INTERRUPT_POLL_MS: u32 = 100;
 
 /// The exit code a process ended by `Ctrl+C` reports, so a child pnpm has
 /// to end reads the same as one the console event ended on its own.
 #[cfg(windows)]
 const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
 
-/// End `pid` once the grace passes, unless the child has left the relay
-/// entry by then. A failed thread spawn ends the child at once instead: a
-/// panic would abort the process from this non-unwinding console callback,
-/// and waiting out a stuck child is the one outcome to preclude.
+/// End `pid` once it has had no child processes for the grace, unless it
+/// exits first.
+///
+/// The watch runs on a handle of its own, which pins the process object,
+/// so the pid it checks cannot be recycled under it and the process it
+/// ends is always the child. A failed thread spawn ends the child at once
+/// instead: a panic would abort the process from this non-unwinding
+/// console callback, and waiting out a stuck child is the one outcome to
+/// preclude.
 #[cfg(windows)]
-fn terminate_child_after_grace(entry: &'static RelayEntry, pid: i32) {
-    let spawned = std::thread::Builder::new()
-        .spawn(move || {
-            std::thread::sleep(WINDOWS_INTERRUPT_GRACE);
-            terminate_child(entry, pid);
-        });
-    if spawned.is_err() {
+fn end_child_once_idle(entry: &RelayEntry, pid: i32) {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, HANDLE, WAIT_TIMEOUT},
+        System::Threading::{TerminateProcess, WaitForSingleObject},
+    };
+
+    let Some(handle) = duplicate_child_handle(entry, pid) else {
+        return;
+    };
+    let watch = move || {
+        let process = handle as HANDLE;
+        let mut idle_since = Instant::now();
+        // SAFETY: `process` is this thread's own handle, opened with the
+        // access both calls need, and closed only below.
+        unsafe {
+            while WaitForSingleObject(process, WINDOWS_INTERRUPT_POLL_MS) == WAIT_TIMEOUT {
+                if has_child_processes(pid as u32) {
+                    idle_since = Instant::now();
+                } else if idle_since.elapsed() >= WINDOWS_INTERRUPT_GRACE {
+                    TerminateProcess(process, STATUS_CONTROL_C_EXIT);
+                    break;
+                }
+            }
+            CloseHandle(process);
+        }
+    };
+    if std::thread::Builder::new().spawn(watch).is_err() {
+        // SAFETY: the thread never started, so the handle is still ours.
+        unsafe {
+            CloseHandle(handle as HANDLE);
+        }
         terminate_child(entry, pid);
     }
+}
+
+/// A handle of the caller's own to the child holding `entry`, when the
+/// entry still names `pid`. It is passed around as an address because a
+/// raw handle cannot cross threads.
+#[cfg(windows)]
+fn duplicate_child_handle(entry: &RelayEntry, pid: i32) -> Option<usize> {
+    use windows_sys::Win32::{
+        Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE},
+        System::Threading::GetCurrentProcess,
+    };
+
+    if pid <= 0 {
+        return None;
+    }
+    let mut duplicate: HANDLE = ptr::null_mut();
+    entry.lock_handle();
+    // Under the lock the entry cannot turn over, as in `terminate_child`.
+    let handle = entry.handle.load(Ordering::Relaxed);
+    let duplicated = entry.target.load(Ordering::Relaxed) == pid
+        && !handle.is_null()
+        // SAFETY: the lock keeps the source handle open for the call, and
+        // `duplicate` is a stack local that outlives it.
+        && unsafe {
+            DuplicateHandle(
+                GetCurrentProcess(),
+                handle,
+                GetCurrentProcess(),
+                &raw mut duplicate,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
+        } != 0;
+    entry.unlock_handle();
+    duplicated.then_some(duplicate as usize)
+}
+
+/// Whether any process names `pid` as its parent, other than the console
+/// host Windows starts for a console process that has no console to share.
+///
+/// A process left behind by an earlier holder of the pid reads as a child
+/// too, and so does everything when the snapshot fails. Either only keeps
+/// pnpm waiting, and the next interrupt still ends the child.
+#[cfg(windows)]
+fn has_child_processes(pid: u32) -> bool {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+            TH32CS_SNAPPROCESS,
+        },
+    };
+
+    // SAFETY: the snapshot handle is checked before use and closed below,
+    // and `process` is a stack local with `dwSize` set as the API requires.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return true;
+        }
+        let mut process: PROCESSENTRY32W = std::mem::zeroed();
+        process.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut found = false;
+        let mut more = Process32FirstW(snapshot, &raw mut process) != 0;
+        while more {
+            if process.th32ParentProcessID == pid && !is_console_host(&process.szExeFile) {
+                found = true;
+                break;
+            }
+            more = Process32NextW(snapshot, &raw mut process) != 0;
+        }
+        CloseHandle(snapshot);
+        found
+    }
+}
+
+/// Whether a NUL-terminated executable name is `conhost.exe`.
+#[cfg(windows)]
+fn is_console_host(exe_file: &[u16]) -> bool {
+    let len = exe_file
+        .iter()
+        .position(|&unit| unit == 0)
+        .unwrap_or(exe_file.len());
+    String::from_utf16_lossy(&exe_file[..len]).eq_ignore_ascii_case("conhost.exe")
 }
 
 /// Close the handle a finished child left in an entry it no longer
