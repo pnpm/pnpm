@@ -223,7 +223,7 @@ pub(super) async fn fetch_upstream_tarball(
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
     match streaming::stream_verified_to_cache(response, write, Some(integrity), MAX_TARBALL_BYTES) {
-        Ok(body) => tarball_response(body, None),
+        Ok((body, _integrity)) => tarball_response(body, None),
         Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
 }

@@ -270,7 +270,7 @@ pub(super) async fn serve_upstream_artifact(
         };
     }
     match streaming::stream_verified_to_cache(response, write, Some(integrity), MAX_TARBALL_BYTES) {
-        Ok(body) => tarball_response(body, None),
+        Ok((body, _integrity)) => tarball_response(body, None),
         Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
 }

@@ -15,6 +15,7 @@ use futures_util::{Stream, StreamExt, stream};
 use pnpm_network::ThrottledResponse;
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 use std::{io, path::PathBuf, pin::Pin};
+use tokio::sync::oneshot;
 use tokio::{fs::File, io::AsyncReadExt};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
@@ -80,12 +81,14 @@ pub enum BlobStreamError {
 /// temporary cache file. Headers and earlier chunks may already have reached
 /// the client, so clients must still verify the received bytes. Dropping the
 /// connection also abandons the temporary file through [`BlobWrite`]'s `Drop`.
+/// The integrity receiver resolves after the complete stream is hashed and is
+/// dropped if the stream fails or is cancelled.
 pub fn stream_verified_to_cache(
     response: ThrottledResponse,
     write: BlobWrite,
     integrity: Option<&Integrity>,
     max_bytes: u64,
-) -> Result<Body, BlobStreamError> {
+) -> Result<(Body, oneshot::Receiver<Integrity>), BlobStreamError> {
     // Reject an upstream that already declares an oversize body up front, so it
     // surfaces as an error response instead of a failure mid-stream.
     if let Some(received) = response.content_length()
@@ -100,16 +103,18 @@ pub fn stream_verified_to_cache(
         }
         None => HashState::Compute(IntegrityOpts::new().algorithm(Algorithm::Sha512)),
     };
+    let (integrity_sender, integrity_receiver) = oneshot::channel();
     let state = TeeState {
         url: redact_url(response.url()),
         upstream: Box::pin(response.bytes_stream()),
         write: Some(write),
         hash_state,
+        integrity_sender: Some(integrity_sender),
         written: 0,
         max_bytes,
     };
     let body = stream::unfold(Some(state), |state| async move { next_tee_chunk(state?).await });
-    Ok(Body::from_stream(body))
+    Ok((Body::from_stream(body), integrity_receiver))
 }
 
 /// Advance the tee by one upstream chunk.
@@ -167,7 +172,10 @@ async fn cache_chunk(write: Option<BlobWrite>, chunk: &[u8]) -> Option<BlobWrite
 /// integrity it was fetched under.
 async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
     match state.hash_state.result() {
-        Ok(_) => {
+        Ok(integrity) => {
+            if let Some(sender) = state.integrity_sender.take() {
+                let _ = sender.send(integrity);
+            }
             finalize(state.write.take()).await;
             None
         }
@@ -215,6 +223,7 @@ struct TeeState {
     upstream: Pin<Box<dyn Stream<Item = io::Result<Bytes>> + Send>>,
     write: Option<BlobWrite>,
     hash_state: HashState,
+    integrity_sender: Option<oneshot::Sender<Integrity>>,
     written: u64,
     max_bytes: u64,
 }

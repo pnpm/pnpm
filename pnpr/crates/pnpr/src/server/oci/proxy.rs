@@ -166,7 +166,7 @@ impl Request {
         let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
         let limit = self.state.inner.config.http.oci.max_blob_bytes;
         if upstream.caches() {
-            let body =
+            let (body, _integrity) =
                 streaming::stream_verified_to_cache(response, write, Some(&integrity), limit)
                     .map_err(|err| tarball_stream_error(err, key, &filename))?;
             return Ok(tarball_response(body, None));

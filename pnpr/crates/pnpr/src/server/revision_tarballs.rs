@@ -65,7 +65,7 @@ pub(super) async fn serve_upstream_revision_tarball(
         return uncached_revision_tarball(response, write, digest, integrity).await;
     }
     match streaming::stream_verified_to_cache(response, write, Some(integrity), MAX_TARBALL_BYTES) {
-        Ok(body) => revision_tarball_response(body, None, digest, integrity),
+        Ok((body, _integrity)) => revision_tarball_response(body, None, digest, integrity),
         Err(err) => {
             tarball_stream_error_for_package(err, "registry revision", digest).into_response()
         }
