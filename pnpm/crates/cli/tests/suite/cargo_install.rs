@@ -4,7 +4,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SOURCE;
-use pnpm_testing_utils::git_repo::GitRepoFixture;
+use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -336,7 +336,7 @@ fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
         &manifest,
         fs::read_to_string(&manifest)
             .expect("read Cargo manifest")
-            .replace("demo = \"1\"", "demo = \"=1.0.1\""),
+            .replace(r#"demo = "1""#, r#"demo = "=1.0.1""#),
     )
     .expect("write Cargo manifest");
 
@@ -347,8 +347,10 @@ fn frozen_install_rejects_a_lockfile_that_does_not_satisfy_the_manifest() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("A frozen install must fail on a stale Cargo.lock: {output:?}");
     assert!(!output.status.success());
-    assert!(stderr.contains("Cargo.lock"), "{stderr}");
-    assert!(stderr.contains("demo"), "{stderr}");
+    assert_diagnostic_contains(
+        &stderr,
+        "app depends on demo =1.0.1, but Cargo.lock locks demo 1.0.0",
+    );
     assert_eq!(fs::read(root.path().join("Cargo.lock")).expect("read Cargo.lock"), lockfile);
 }
 
