@@ -876,3 +876,86 @@ fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {
 
     drop((root, mock_instance));
 }
+
+fn write_workspace_with_injected_peer_consumer(
+    workspace: &std::path::Path,
+    peer_provider_spec: &str,
+) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\n  - peer\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let projects = [
+        ("peer", serde_json::json!({ "name": "is-positive", "version": "1.0.0" })),
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "is-positive": "^1.0.0" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "private": true,
+                "dependencies": { "lib": "workspace:*", "is-positive": peer_provider_spec },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+        ),
+    ];
+    for (dir, manifest) in projects {
+        fs::create_dir_all(workspace.join(dir)).expect("mkdir project");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write project package.json");
+    }
+}
+
+/// Generates the lockfile, removes every `node_modules`, and installs again
+/// with `--frozen-lockfile`, which must accept the lockfile it just wrote.
+fn assert_frozen_install_accepts_fresh_lockfile(peer_provider_spec: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_injected_peer_consumer(&workspace, peer_provider_spec);
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    for dir in ["node_modules", "app/node_modules", "lib/node_modules", "peer/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("app/node_modules/lib/package.json").exists(),
+        "the frozen install must materialize the injected copy of lib",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/16332>.
+#[test]
+fn frozen_install_accepts_injected_dependency_whose_peer_is_a_workspace_link() {
+    assert_frozen_install_accepts_fresh_lockfile("workspace:*");
+}
+
+#[test]
+fn frozen_install_accepts_injected_dependency_with_an_unmet_peer() {
+    assert_frozen_install_accepts_fresh_lockfile("2.0.0");
+}
