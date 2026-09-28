@@ -127,6 +127,44 @@ fn a_peer_chain_that_ends_in_a_leaf_is_not_a_cycle() {
     assert!(!has_cycle(&lockfile));
 }
 
+/// The walk starts at `a`, which is on no cycle: only the two packages
+/// below it close one.
+#[test]
+fn a_cycle_below_the_entry_point_is_found() {
+    let lockfile = lockfile(
+        "
+  a@1.0.0:
+    resolution: {integrity: sha512-a}
+    peerDependencies:
+      b: ^1.0.0
+
+  b@1.0.0:
+    resolution: {integrity: sha512-b}
+    peerDependencies:
+      c: ^1.0.0
+
+  c@1.0.0:
+    resolution: {integrity: sha512-c}
+    peerDependencies:
+      b: ^1.0.0
+",
+        "
+  a@1.0.0:
+    dependencies:
+      b: 1.0.0
+
+  b@1.0.0:
+    dependencies:
+      c: 1.0.0
+
+  c@1.0.0:
+    dependencies:
+      b: 1.0.0
+",
+    );
+    assert!(has_cycle(&lockfile));
+}
+
 #[test]
 fn a_cycle_is_found_beside_a_chain_that_has_none() {
     let lockfile = lockfile(
@@ -197,6 +235,8 @@ fn a_peer_suffixed_snapshot_is_declared_by_its_bare_key() {
     assert!(has_cycle(&lockfile));
 }
 
+/// The record for `b@2.0.0` is there, so the entry can only end the chain
+/// because `snapshots:` holds nothing for it.
 #[test]
 fn a_peer_entry_the_lockfile_has_no_snapshot_for_ends_the_chain() {
     let lockfile = lockfile(
@@ -210,6 +250,11 @@ fn a_peer_entry_the_lockfile_has_no_snapshot_for_ends_the_chain() {
     resolution: {integrity: sha512-b}
     peerDependencies:
       a: ^1.0.0
+
+  b@2.0.0:
+    resolution: {integrity: sha512-b2}
+    peerDependencies:
+      a: ^1.0.0
 ",
         "
   a@1.0.0:
@@ -217,6 +262,57 @@ fn a_peer_entry_the_lockfile_has_no_snapshot_for_ends_the_chain() {
       b: 2.0.0
 
   b@1.0.0:
+    dependencies:
+      a: 1.0.0
+",
+    );
+    assert!(!has_cycle(&lockfile));
+}
+
+/// An npm alias names its target in the value, and `resolve` reads it from
+/// there rather than from the alias the declaration is keyed by.
+#[test]
+fn an_aliased_peer_entry_leads_to_its_target() {
+    let lockfile = lockfile(
+        "
+  a@1.0.0:
+    resolution: {integrity: sha512-a}
+    peerDependencies:
+      renamed-leaf: ^1.0.0
+
+  leaf@1.0.0:
+    resolution: {integrity: sha512-leaf}
+    peerDependencies:
+      renamed-a: ^1.0.0
+",
+        "
+  a@1.0.0:
+    dependencies:
+      renamed-leaf: leaf@1.0.0
+
+  leaf@1.0.0:
+    dependencies:
+      renamed-a: a@1.0.0
+",
+    );
+    assert!(has_cycle(&lockfile));
+}
+
+#[test]
+fn a_snapshot_the_packages_lack_declares_no_peer() {
+    let lockfile = lockfile(
+        "
+  a@1.0.0:
+    resolution: {integrity: sha512-a}
+    peerDependencies:
+      orphan: ^1.0.0
+",
+        "
+  a@1.0.0:
+    dependencies:
+      orphan: 1.0.0
+
+  orphan@1.0.0:
     dependencies:
       a: 1.0.0
 ",

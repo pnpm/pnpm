@@ -10,10 +10,8 @@ use crate::{
 /// Whether a peer binding of `snapshots` leads a snapshot back to itself.
 ///
 /// The graph has one node per snapshot key and one edge per entry whose
-/// alias the dependent declares in `packages` as a peer, so two packages
-/// that depend on each other without peers form no cycle, and neither does
-/// a peer chain that ends in a leaf. `packages` is the lockfile's
-/// `packages:` map, which is where the peer declarations live.
+/// alias the dependent declares in `packages` as a peer. `packages` is the
+/// lockfile's `packages:` map, which is where the peer declarations live.
 #[must_use]
 pub fn has_circular_peers(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
@@ -27,10 +25,10 @@ pub fn has_circular_peers(
 struct PeerCycleWalk<'a> {
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     packages: &'a HashMap<PackageKey, PackageMetadata>,
-    /// The nodes a walk has reached and not yet left. One that is here
-    /// alone has been searched, so reaching it again settles nothing.
+    /// Every node a walk has reached. One that is no longer in `on_path`
+    /// has been searched, so reaching it again settles nothing.
     explored: HashSet<PackageKey>,
-    /// The nodes the walk in progress runs through. Reaching one of these
+    /// The nodes the walk in progress is inside. Reaching one of these
     /// closes a cycle.
     on_path: HashSet<PackageKey>,
 }
@@ -43,7 +41,6 @@ impl<'a> PeerCycleWalk<'a> {
         Self { snapshots, packages, explored: HashSet::new(), on_path: HashSet::new() }
     }
 
-    /// Walks out of every node, reporting the first cycle.
     fn run(mut self) -> bool {
         // The walk only reads the snapshots, so holding the reference
         // separately leaves the borrow of `self` for the search.
@@ -78,14 +75,14 @@ impl<'a> PeerCycleWalk<'a> {
     }
 
     /// The keys the peer bindings of `key` lead to, skipping the entries
-    /// that bind no peer and the ones the lockfile holds no snapshot for.
+    /// that bind no peer. A target the lockfile holds no snapshot for has
+    /// no bindings of its own, so the chain ends there.
     fn peer_targets(&self, key: &PackageKey) -> Vec<PackageKey> {
-        let Some(metadata) = self.packages.get(&key.without_peer()) else { return Vec::new() };
         let Some(snapshot) = self.snapshots.get(key) else { return Vec::new() };
+        let Some(metadata) = self.packages.get(&key.without_peer()) else { return Vec::new() };
         all_entries(snapshot)
             .filter(|(alias, _)| declares_peer(metadata, &alias.to_string()))
             .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-            .filter(|target| self.snapshots.contains_key(target))
             .collect()
     }
 }
