@@ -124,6 +124,13 @@ describe('parkPublishedPrivateChangelogs', () => {
     expect(fs.existsSync(path.join(dir, 'pnpm/npm/pnpm/CHANGELOG.md'))).toBe(true)
   })
 
+  test('refuses a changelog that holds an older section before the released one', () => {
+    writeProject('pnpm/npm/pnpm', { name: 'pacquet', version: '12.8.0' }, `# pacquet\n\n## 12.7.0\n\n- Old.\n\n${section}`)
+
+    expect(() => parkPublishedPrivateChangelogs(dir, ['pnpm/npm/pnpm'])).toThrow(/exactly one section, for pacquet@12\.8\.0/)
+    expect(fs.existsSync(path.join(dir, 'pnpm/npm/pnpm/CHANGELOG.md'))).toBe(true)
+  })
+
   test('refuses a changelog without a section for the released version', () => {
     writeProject('pnpm/npm/pnpm', { name: 'pacquet', version: '12.9.0' }, `# pacquet\n\n${section}`)
 

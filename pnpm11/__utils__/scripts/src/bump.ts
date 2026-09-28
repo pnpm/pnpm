@@ -121,8 +121,9 @@ export function parkPublishedPrivateChangelogs (repoRoot: string, projectDirs: r
     if (!fs.existsSync(changelogPath)) continue
     const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, projectDir, 'package.json'), 'utf8')) as { name: string, version: string }
     const changelog = fs.readFileSync(changelogPath, 'utf8')
+    const versionHeadings = changelog.split('\n').filter((line) => line.startsWith('## '))
     const sectionStart = changelog.indexOf(`\n## ${manifest.version}\n`) + 1
-    if (sectionStart === 0 || changelog.includes('\n## ', sectionStart)) {
+    if (sectionStart === 0 || versionHeadings.length !== 1) {
       throw new Error(`${changelogPath} must hold exactly one section, for ${manifest.name}@${manifest.version}`)
     }
     const parkedPath = path.join(repoRoot, '.changeset', 'changelogs', `${manifest.name}@${manifest.version}`.replaceAll('/', '!') + '.md')
