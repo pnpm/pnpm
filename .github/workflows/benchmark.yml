@@ -30,14 +30,11 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+    - name: Install pnpm and Node
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
-        standalone: false
-
-    - name: Setup Node
-      run: pnpm env use -g 24.6.0
-      timeout-minutes: 1
+        runtime: node@24.6.0
+        install: false
 
     - name: Install hyperfine
       run: |

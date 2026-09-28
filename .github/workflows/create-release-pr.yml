@@ -22,6 +22,11 @@ jobs:
   create-release-pr:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: ubuntu-latest
+    env:
+      # With the global virtual store, pnpm adds an ESM loader to NODE_OPTIONS,
+      # and on Node.js older than 22.15 that stops ts-node from running the
+      # build scripts.
+      PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
     steps:
     - name: Checkout
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -31,13 +36,11 @@ jobs:
         # single-use remote URL in the "Commit and push" step.
         persist-credentials: false
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
-
-    - name: Setup Node
-      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+    - name: Install pnpm and Node
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
       with:
-        node-version: 20
+        runtime: node@20
+        install: false
 
     # Base the release on the tip of the target branch, fetched explicitly so the
     # run is correct even when dispatched from another ref. A force-push reuses
@@ -111,7 +114,7 @@ jobs:
     # disable CI's frozen-lockfile default for it.
     - name: Bump versions
       env:
-        npm_config_frozen_lockfile: 'false'
+        pnpm_config_frozen_lockfile: 'false'
       run: pnpm bump
 
     - name: Check for changes

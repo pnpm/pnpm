@@ -345,8 +345,6 @@ gitChecks: false
 hoistPattern:
   - jest-runner
 
-managePackageManagerVersions: true
-
 minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:

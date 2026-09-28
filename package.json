@@ -17,7 +17,7 @@
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && pnpm run --no-sort --workspace-concurrency=1 -r _test",
     "test-branch": "pnpm pretest && pnpm lint && git remote set-branches --add origin release/10 && git fetch origin release/10 && pnpm run test-pkgs-branch",
-    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/release/10] run --no-sort _test",
+    "test-pkgs-branch": "pnpm remove-temp-dir && pnpm --workspace-concurrency=1 --filter=...[origin/release/10] run --no-sort --if-present _test",
     "compile-only": "ts-node __utils__/scripts/src/typecheck-only.ts && pnpm -F pnpm compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",
     "make-lcov": "shx mkdir -p coverage && lcov-result-merger './packages/*/coverage/lcov.info' 'coverage/lcov.info'",
@@ -26,7 +26,6 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-10 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --tag=latest-10 --access=public && pnpm publish --filter=pnpm --tag=next-10 --access=public",
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {
@@ -65,5 +64,5 @@
   "engines": {
     "pnpm": ">=9.6.0"
   },
-  "packageManager": "pnpm@10.33.1"
+  "packageManager": "pnpm@12.7.0"
 }
