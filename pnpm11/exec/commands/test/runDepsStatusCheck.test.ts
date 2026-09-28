@@ -177,6 +177,24 @@ test('a non-recursive command skips the install of a never-installed workspace w
   expect(runPnpmCli).not.toHaveBeenCalled()
 })
 
+test('with separate lockfiles, a sibling\'s dependencies do not start an install', async () => {
+  const workspace = projectDir()
+  const project = path.join(workspace, 'pkgs/a')
+  fs.mkdirSync(project, { recursive: true })
+  fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'a' }))
+  fs.mkdirSync(path.join(workspace, 'pkgs/b'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'pkgs/b/package.json'), JSON.stringify({ name: 'b', dependencies: { c: '1.0.0' } }))
+  await runWithoutWorkspaceState(project, {
+    rootProjectManifest: { name: 'root', dependencies: { d: '1.0.0' } },
+    rootProjectManifestDir: workspace,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: workspace,
+    workspacePackagePatterns: ['pkgs/*'],
+  })
+
+  expect(runPnpmCli).not.toHaveBeenCalled()
+})
+
 test('a required peer is installed when auto-install-peers is on', async () => {
   const project = projectDir()
   await runWithoutWorkspaceState(project, {

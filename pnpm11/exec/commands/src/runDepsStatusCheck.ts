@@ -13,6 +13,7 @@ import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { DirLock } from '@pnpm/fs.dir-lock'
 import { globalWarn } from '@pnpm/logger'
 import type { ProjectManifest } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { realpathMissing } from 'realpath-missing'
 
@@ -118,11 +119,17 @@ async function installNotRequired (
 }
 
 /**
- * Checks the root project first, and walks the workspace only when the root
- * gives an install nothing to do. A non-recursive command gets no
- * `allProjects`, so the workspace is read here.
+ * Checks the projects the install would cover. With separate lockfiles, a
+ * non-recursive install covers only the project the command runs in.
+ * Otherwise the root project is checked first, and the workspace is walked
+ * only when the root gives an install nothing to do. A non-recursive command
+ * gets no `allProjects`, so the workspace is read here.
  */
 async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
+  if (opts.sharedWorkspaceLockfile === false && opts.workspaceDir != null && opts.allProjects == null) {
+    const manifest = await safeReadProjectManifestOnly(opts.dir)
+    return manifest == null || !projectHasInstallWork(opts.dir, manifest, opts)
+  }
   const root = opts.rootProjectManifest
   if (
     root != null &&
