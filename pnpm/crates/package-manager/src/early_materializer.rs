@@ -266,18 +266,18 @@ impl SlotJob {
 }
 
 /// Dedicated rayon pool for the imports that run while resolution is
-/// still going.
+/// still going, sized by [`early_link_pool_size`].
 ///
 /// The global pool is sized for the link phase, at up to two threads per
 /// core. On it, these imports compete with the resolver, which is the
-/// critical path until it finishes. One thread per core keeps the
-/// fan-out they had while the fast path left the global pool at rayon's
-/// default (pnpm/tasks#52). `None` if the pool cannot be built, and the
-/// caller runs the import on the global pool.
+/// critical path until it finishes (pnpm/tasks#52). `None` if the pool
+/// cannot be built, and the caller runs the import on the global pool.
 fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        let parallelism =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
         rayon::ThreadPoolBuilder::new()
-            .num_threads(std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get))
+            .num_threads(early_link_pool_size(rayon::current_num_threads(), parallelism))
             .thread_name(|index| format!("early-link-{index}"))
             .build()
             .map_err(|error| {
@@ -290,6 +290,12 @@ fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
             .ok()
     });
     POOL.as_ref()
+}
+
+/// One thread per core, never more than the global pool has. The global
+/// pool carries the CLI's ceiling, or the caller's `RAYON_NUM_THREADS`.
+fn early_link_pool_size(global_pool_threads: usize, parallelism: usize) -> usize {
+    global_pool_threads.min(parallelism).max(1)
 }
 
 /// Wait for the prefetch of `mem_cache_key` to land its CAS path map in

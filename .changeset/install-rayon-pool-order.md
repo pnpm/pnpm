@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` without `--frozen-lockfile` now links with as many worker threads as a frozen install when the project has a `pnpm-workspace.yaml`. Such installs used one thread per core.
+`pnpm install` without `--frozen-lockfile` is faster on some machines in projects with a `pnpm-workspace.yaml`. Those installs linked with one worker thread per core, half of what a frozen install uses.
