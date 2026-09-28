@@ -288,8 +288,7 @@ pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<()> {
 
 /// `create_dir_all` that, on Unix, gives each directory it creates the
 /// group permission and setgid bits of the nearest ancestor that already
-/// existed (see `grant_inherited_dir_mode`, which exists only on Unix).
-/// Directories that were already present are not modified.
+/// existed. Directories that were already present are not modified.
 pub fn create_dir_all_inheriting_mode(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     let template = if dir.is_dir() { None } else { nearest_existing_ancestor(dir) };
@@ -474,8 +473,8 @@ fn ignore_unchangeable(result: io::Result<()>) -> io::Result<()> {
     }
 }
 
-/// Bits the Unix-only `grant_inherited_dir_mode` adds to a new directory
-/// under a directory with `template_mode`.
+/// The group permission and setgid bits a new directory inherits from an
+/// ancestor with `template_mode`.
 #[must_use]
 pub fn inherited_dir_bits(template_mode: u32) -> u32 {
     if template_mode & (0o020 | 0o2000) == 0 {
