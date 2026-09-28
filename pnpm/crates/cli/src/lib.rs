@@ -368,11 +368,12 @@ fn rayon_pool_size(parallelism: usize, threads_per_core: usize) -> usize {
     parallelism.saturating_mul(threads_per_core).clamp(MIN_RAYON_THREADS, MAX_RAYON_THREADS)
 }
 
-/// Two threads per core, except on Windows, where every sweep so far
-/// favoured one (pnpm/tasks#52). Warm frozen installs were 4-5%
-/// faster at 1× on 4- and 8-vCPU runners, and a 16-vCPU runner was
-/// fastest at 4 threads. A fresh install of the 1352-package benchmark
-/// fixture on a 4-vCPU runner took 3.9 s at 1× and 4.5 s at 2×.
+/// Two threads per core, except on Windows, where the sweeps mostly
+/// favoured one (pnpm/tasks#52). Warm frozen installs were 4-5% faster
+/// at 1× on 4- and 8-vCPU runners. A fresh install of the 1352-package
+/// benchmark fixture took 3.9 s at 1× and 4.5 s at 2× on a 4-vCPU
+/// runner, and was even on an 8-vCPU one. A 16-vCPU runner was fastest
+/// at 4 threads, below what this multiplier gives it.
 const RAYON_THREADS_PER_CORE: usize = if cfg!(windows) { 1 } else { 2 };
 const MIN_RAYON_THREADS: usize = 4;
 const MAX_RAYON_THREADS: usize = 16;

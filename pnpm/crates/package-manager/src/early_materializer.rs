@@ -269,12 +269,10 @@ impl SlotJob {
 /// still going.
 ///
 /// The global pool is sized for the link phase, at up to two threads per
-/// core. Running these imports on it lets them take CPU from the
-/// resolver, which is the critical path until it finishes: a
-/// `lockfile: false` install against a registry was 5-7% slower on 4-
-/// and 8-vCPU Linux runners at 2× than at 1× (pnpm/tasks#52). One
-/// thread per core keeps the fan-out these imports had before the
-/// global pool was sized. `None` if the pool cannot be built, and the
+/// core. On it, these imports compete with the resolver, which is the
+/// critical path until it finishes. One thread per core keeps the
+/// fan-out they had while the fast path left the global pool at rayon's
+/// default (pnpm/tasks#52). `None` if the pool cannot be built, and the
 /// caller runs the import on the global pool.
 fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
     static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
