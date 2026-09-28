@@ -584,7 +584,7 @@ fn an_aliasing_override_survives_a_re_resolve_of_the_locked_child() {
     fs::write(
         &workspace_yaml_path,
         format!(
-            "{workspace_yaml}overrides:\n  '@pnpm.e2e/foo@*': npm:@pnpm.e2e/pkg-with-1-dep@100.0.0\n"
+            "{workspace_yaml}overrides:\n  '@pnpm.e2e/foo@*': npm:@pnpm.e2e/pkg-with-1-dep@100.0.0\n",
         ),
     )
     .expect("write aliasing override");
