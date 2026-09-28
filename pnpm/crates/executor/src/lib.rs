@@ -19,7 +19,7 @@ pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
 pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;
 pub use script_options::{ScriptEnvironment, ScriptExecutionOptions, ScriptInvocation};
-pub use shell::{ScriptShellError, SelectedShell, select_shell};
+pub use shell::{ScriptShellError, SelectedShell, select_shell, use_shell_emulator};
 pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
 
 mod bundled_node_gyp;
