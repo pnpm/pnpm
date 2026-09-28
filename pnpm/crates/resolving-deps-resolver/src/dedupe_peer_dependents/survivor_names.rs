@@ -99,10 +99,16 @@ fn rekey(graph: &mut DependenciesGraph, renames: &[(DepPath, DepPath)]) -> bool 
     if colliding.is_empty() {
         return false;
     }
-    let transitive_by_dep_path: HashMap<DepPath, HashSet<String>> = graph
+    let mut transitive_by_dep_path: HashMap<DepPath, HashSet<String>> = graph
         .iter()
         .map(|(dep_path, node)| (dep_path.clone(), node.edges.transitive_peer_dependencies.clone()))
         .collect();
+    for (dep_path, node) in &colliding {
+        transitive_by_dep_path
+            .entry(dep_path.clone())
+            .or_default()
+            .extend(node.edges.transitive_peer_dependencies.iter().cloned());
+    }
     for (dep_path, node) in colliding {
         let kept = graph.get_mut(&dep_path).expect("a colliding key is held by a graph node");
         merge_additional_edges(kept, node, &transitive_by_dep_path);

@@ -729,3 +729,79 @@ fn a_rename_merge_picks_the_child_whose_peers_the_consumer_provides() {
     assert_eq!(consumer.edges.children["shared"], dp(shared_with_foo));
     assert!(!graph.contains_key(&dp(shared_plain)));
 }
+
+/// A child and its parent both collide in one rename. The child's merged
+/// transitive peers decide the parent's choice between the two `c`
+/// children: `x` is transitive for the merged `c`, so its `(x@1.0.0)`
+/// segment does not count as a peer the parent fails to provide.
+#[test]
+fn a_parent_merge_sees_the_transitive_peers_of_a_merged_child() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let c_old = "c@1.0.0(foo@1.0.0(bar@1.0.0))(x@1.0.0)";
+    let c_new = "c@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))(x@1.0.0)";
+    let c_plain = "c@1.0.0";
+    let p_old = "p@1.0.0(foo@1.0.0(bar@1.0.0))";
+    let p_new = "p@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))";
+
+    let mut graph = DependenciesGraph::default();
+    for id in ["bar@1.0.0", "baz@1.0.0", "x@1.0.0", "a@1.0.0", "b@1.0.0", "d@1.0.0"] {
+        graph.insert(dp(id), make_node(id, id, &[], &[]));
+    }
+    for id in ["pa@1.0.0", "pb@1.0.0"] {
+        graph.insert(dp(id), make_node(id, id, &[], &[]));
+    }
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node(
+            "foo@1.0.0",
+            larger,
+            &[("bar", "bar@1.0.0"), ("baz", "baz@1.0.0")],
+            &["bar", "baz"],
+        ),
+    );
+    let mut c_old_node = make_node(
+        "c@1.0.0",
+        c_old,
+        &[("foo", subset), ("x", "x@1.0.0"), ("a", "a@1.0.0")],
+        &["foo", "x"],
+    );
+    c_old_node.edges.transitive_peer_dependencies.insert("x".to_string());
+    graph.insert(dp(c_old), c_old_node);
+    graph.insert(
+        dp(c_new),
+        make_node(
+            "c@1.0.0",
+            c_new,
+            &[("foo", larger), ("x", "x@1.0.0"), ("b", "b@1.0.0")],
+            &["foo", "x"],
+        ),
+    );
+    graph.insert(dp(c_plain), make_node("c@1.0.0", c_plain, &[("d", "d@1.0.0")], &[]));
+    graph.insert(
+        dp(p_old),
+        make_node("p@1.0.0", p_old, &[("foo", subset), ("c", c_old), ("pa", "pa@1.0.0")], &["foo"]),
+    );
+    graph.insert(
+        dp(p_new),
+        make_node(
+            "p@1.0.0",
+            p_new,
+            &[("foo", larger), ("c", c_plain), ("pb", "pb@1.0.0")],
+            &["foo"],
+        ),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert("project-a".to_string(), BTreeMap::from([("p".to_string(), dp(p_old))]));
+    direct.insert("project-b".to_string(), BTreeMap::from([("p".to_string(), dp(p_new))]));
+    direct.insert("project-c".to_string(), BTreeMap::from([("c".to_string(), dp(c_new))]));
+
+    let peer_ids = recorded_peer_ids(&graph);
+    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+
+    assert_eq!(direct["project-a"]["p"], dp(p_new));
+    assert_eq!(graph[&dp(p_new)].edges.children["c"], dp(c_new));
+    assert!(graph[&dp(c_new)].edges.transitive_peer_dependencies.contains("x"));
+}
