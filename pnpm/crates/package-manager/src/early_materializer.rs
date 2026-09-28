@@ -28,7 +28,7 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
+        Arc, LazyLock, Mutex,
         atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
     },
     time::Duration,
@@ -204,9 +204,14 @@ impl SlotJob {
         }
         let shared = Arc::clone(shared);
         let package_url = std::mem::take(&mut self.package_url);
-        let outcome =
-            tokio::task::spawn_blocking(move || self.import_slot::<Reporter>(&shared, &cas_paths))
-                .await;
+        let outcome = tokio::task::spawn_blocking(move || {
+            let import = || self.import_slot::<Reporter>(&shared, &cas_paths);
+            match early_link_pool() {
+                Some(pool) => pool.install(import),
+                None => import(),
+            }
+        })
+        .await;
         match outcome {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::debug!(
@@ -258,6 +263,35 @@ impl SlotJob {
         shared.materialized.fetch_add(1, Ordering::AcqRel);
         Ok::<(), String>(())
     }
+}
+
+/// Dedicated rayon pool for the imports that run while resolution is
+/// still going.
+///
+/// The global pool is sized for the link phase, at up to two threads per
+/// core. Running these imports on it lets them take CPU from the
+/// resolver, which is the critical path until it finishes: a
+/// `lockfile: false` install against a registry was 5-7% slower on 4-
+/// and 8-vCPU Linux runners at 2× than at 1× (pnpm/tasks#52). One
+/// thread per core keeps the fan-out these imports had before the
+/// global pool was sized. `None` if the pool cannot be built, and the
+/// caller runs the import on the global pool.
+fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get))
+            .thread_name(|index| format!("early-link-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "failed to build the early-materialization pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    });
+    POOL.as_ref()
 }
 
 /// Wait for the prefetch of `mem_cache_key` to land its CAS path map in
