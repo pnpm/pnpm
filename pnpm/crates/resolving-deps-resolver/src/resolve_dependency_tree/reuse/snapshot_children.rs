@@ -78,9 +78,8 @@ where
                 alias: Some(child_alias.clone()),
                 // The snapshot pins the exact version; carry it as
                 // the bare specifier so the per-wanted dedup cache
-                // key is stable and a fresh fallback (if reuse were
-                // ever disabled) would still target the right pin.
-                bare_specifier: Some(child_key.suffix.without_peer().to_string()),
+                // key is stable.
+                bare_specifier: Some(pinned_specifier(child_alias, child_key)),
                 ..WantedDependency::default()
             };
             let next_ancestors = Arc::clone(&context.ancestry.next_ancestors);
@@ -101,6 +100,24 @@ where
         })
         .pipe(future::try_join_all)
         .await
+}
+
+/// The specifier that resolves `alias` to exactly the locked `key`. An
+/// aliased child (an `npm:` alias, often written by an override) names its
+/// real package, so a child that falls through to a fresh resolve fetches
+/// that package rather than a same-numbered version of `alias`.
+pub(super) fn pinned_specifier(alias: &str, key: &PkgNameVerPeer) -> String {
+    let version = key.suffix.without_peer();
+    if key.name.to_string() == alias {
+        return version.to_string();
+    }
+    if let Some((registry_name, version)) = key.suffix.registry_qualified() {
+        return format!("{registry_name}:{}@{version}", key.name);
+    }
+    match key.suffix.version_semver() {
+        Some(version) => format!("npm:{}@{version}", key.name),
+        None => version.to_string(),
+    }
 }
 
 pub(super) fn record_reused_children(
