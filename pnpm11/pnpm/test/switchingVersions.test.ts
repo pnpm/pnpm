@@ -39,6 +39,19 @@ test('switch to the pinned pnpm version although a task setting is only known to
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('switch to the pinned pnpm version although an option is only known to it (pnpm/pnpm#16353)', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help', '--lock'], { env, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('Version 9.3.0')
+})
+
 test('child pnpm processes select the version for their own directory', () => {
   prepare()
   const rootDir = process.cwd()

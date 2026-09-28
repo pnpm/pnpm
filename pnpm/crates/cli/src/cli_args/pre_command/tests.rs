@@ -6,7 +6,7 @@ use super::{
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
+        pre_command::input::{PinFlags, SwitchPaths, argv_requests_global, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -141,6 +141,31 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             "spelling: {spelling}",
         );
     }
+}
+
+#[test]
+fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
+    let argv = [
+        "pnpm",
+        "--store-dir",
+        "/tmp/store",
+        "install",
+        "--auto-dedupe",
+        "--dir",
+        "/tmp/project",
+        "-g",
+    ]
+    .map(OsString::from);
+    let input = SwitchInput::from_unparsed_argv(&argv);
+    assert_eq!(input.command.as_deref(), Some("install"));
+    assert_eq!(input.paths.dir, PathBuf::from("/tmp/project"));
+    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+    assert!(argv_requests_global(&argv));
+
+    let version_input = SwitchInput::from_version_argv(&argv);
+    assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
+
+    assert!(!argv_requests_global(&["pnpm", "exec", "--", "tool", "-g"].map(OsString::from)));
 }
 
 #[test]

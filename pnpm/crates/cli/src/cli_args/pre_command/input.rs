@@ -1,10 +1,13 @@
+pub(super) use argv_scan::argv_requests_global;
+
+mod argv_scan;
+mod reporter_flags;
+
 use super::{
     ArgTable, CliArgs, CliCommand, ColorMode, Config, ConfigLocation, ConfigSubcommand,
     InstallArgs, LockfileDirArg, LogEvent, OsStr, OsString, PACKAGE_MANAGER_SWITCH_ENV_VARS, Path,
     PathBuf, ReporterFlags, resolve_bool_override,
 };
-
-mod reporter_flags;
 
 pub(super) struct PreCommandInput {
     pub(super) switch: SwitchInput,
@@ -320,44 +323,6 @@ impl SwitchInput {
             .ok()
             .and_then(|cwd| super::super::prefix::find_local_prefix(&cwd).ok())
             .unwrap_or_else(|| PathBuf::from("."))
-    }
-
-    pub(super) fn from_version_argv(argv: &[OsString]) -> Self {
-        let global_options = ArgTable::top_level(super::super::grammar());
-        let mut input = Self {
-            paths: SwitchPaths {
-                dir: Self::local_prefix_or_cwd(),
-                state_dir: None,
-                store_dir: None,
-                npmrc_auth_file: None,
-            },
-            command: None,
-            frozen_lockfile: None,
-            pin_flags: PinFlags::default(),
-            color: None,
-            ignore_workspace: false,
-        };
-        let mut index = 1;
-        while index < argv.len() {
-            let Some(token) = argv[index].to_str() else {
-                // A non-UTF-8 token is not a flag this pass knows, and
-                // naming no command keeps the caller out of the skip list.
-                input.command = Some(String::new());
-                break;
-            };
-            if token == "--" {
-                break;
-            }
-            if !token.starts_with('-') {
-                input.command = Some(token.to_string());
-                break;
-            }
-            let next = argv
-                .get(index + 1)
-                .map(OsString::as_os_str);
-            index += input.absorb_global_flag(token, next, &global_options);
-        }
-        input
     }
 
     /// Read one global flag this pass cares about, returning how many
