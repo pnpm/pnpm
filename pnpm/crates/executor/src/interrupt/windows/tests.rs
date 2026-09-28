@@ -7,11 +7,8 @@
 //! no real console is needed and the children other tests register are
 //! never touched: a child that never exits on its own and has no child
 //! processes stands in for that `cmd`.
-#![cfg(windows)]
-
-use super::{
-    STATUS_CONTROL_C_EXIT, SignalRelay, WINDOWS_INTERRUPT_GRACE, interrupt_child, relay_to_child,
-};
+use super::{STATUS_CONTROL_C_EXIT, WINDOWS_INTERRUPT_GRACE, interrupt_child};
+use crate::interrupt::{SignalRelay, relay_to_child};
 use pretty_assertions::assert_eq;
 use std::{
     path::{Path, PathBuf},
