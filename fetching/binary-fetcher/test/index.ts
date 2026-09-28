@@ -137,6 +137,33 @@ describe('extractZipToTarget security', () => {
       })
     })
 
+    it('should not follow a symlink in the target directory', async () => {
+      const targetDir = tempy.directory()
+      const outsideDir = tempy.directory()
+      fs.symlinkSync(outsideDir, path.join(targetDir, 'bin'), 'junction')
+      const zip = new AdmZip()
+      zip.addFile('bin/node', Buffer.from('#!/bin/sh\necho "node"'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+
+      const mockFetch = createMockFetch(zipBuffer)
+
+      await expect(
+        downloadAndUnpackZip(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          mockFetch as any,
+          {
+            url: 'https://example.com/node.zip',
+            integrity,
+            basename: '',
+          },
+          targetDir
+        )
+      ).rejects.toThrow()
+
+      expect(fs.existsSync(path.join(outsideDir, 'node'))).toBe(false)
+    })
+
     // Windows-specific: backslash is a path separator only on Windows
     // On Unix, backslash is a valid filename character, so this test only runs on Windows
     const isWindows = process.platform === 'win32'
