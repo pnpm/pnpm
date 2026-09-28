@@ -649,6 +649,44 @@ test('filtered install', async () => {
   }
 })
 
+// https://github.com/pnpm/pnpm/issues/16322
+test('filtered install accepts a touched lockfile with unchanged contents', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/bar': '=100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm([...CONFIG, '--filter=foo', 'install', '--frozen-lockfile'])
+
+  const newerThanTheLastValidation = new Date(loadWorkspaceState(process.cwd())!.lastValidatedTimestamp + 10_000)
+  fs.utimesSync('pnpm-lock.yaml', newerThanTheLastValidation, newerThanTheLastValidation)
+
+  const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+  expect(stdout.toString()).toContain('hello from foo')
+})
+
 test('filtered exec installs only the selected projects', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {

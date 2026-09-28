@@ -629,6 +629,48 @@ fn separate_lockfiles_filtered_recursive_run_checks_selected_project() {
     drop(root);
 }
 
+/// A filtered install leaves the other projects out of the current lockfile.
+/// A lockfile that is only newer, such as one a Docker `COPY` wrote, must not
+/// make the run gate treat it as outdated (pnpm/pnpm#16322).
+#[cfg(unix)]
+#[test]
+fn filtered_install_accepts_a_touched_lockfile_with_unchanged_contents() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), json!({ "name": "root" }).to_string())
+        .expect("write the root package.json");
+
+    let project_a = workspace.join("packages/project-a");
+    let project_b = workspace.join("packages/project-b");
+    fs::create_dir_all(&project_a).expect("create project-a");
+    fs::create_dir_all(&project_b).expect("create project-b");
+    let marker_a = project_a.join("marker-a.txt");
+    write_named_manifest(&project_a, "project-a", &marker_a);
+    write_named_manifest(&project_b, "project-b", &project_b.join("marker-b.txt"));
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    bump_mtime(&workspace.join("pnpm-lock.yaml"));
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "project-a", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker_a.exists(), "project-a script must run");
+
+    drop(root);
+}
+
 /// With `sharedWorkspaceLockfile: false` and project-specific `packageConfigs`
 /// overrides, running a script inside the project or via `--filter` right
 /// after install must not fail the `verifyDepsBeforeRun` check (pnpm/pnpm#15545).
