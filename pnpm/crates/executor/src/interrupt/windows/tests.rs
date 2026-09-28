@@ -49,7 +49,7 @@ fn spawn_node(script: &str) -> Child {
 /// runs a script, and exiting with its code.
 fn spawn_cmd_running_node(script: &str) -> Child {
     Command::new("cmd")
-        .raw_arg(format!("/d /s /c \"\"{}\" -e \"{script}\"\"", node_binary().display()))
+        .raw_arg(format!(r#"/d /s /c ""{}" -e "{script}"""#, node_binary().display()))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
