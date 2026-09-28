@@ -771,9 +771,11 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     let config =
         Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
     assert_eq!(
-        config.virtual_store_dir, global_path,
+        config.effective_virtual_store_dir(),
+        global_path,
         "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
     );
+    assert_eq!(config.virtual_store_dir, project.path().join("node_modules/.pnpm"));
 }
 
 /// Workspace-only keys in the global `config.yaml` are silently

@@ -420,6 +420,9 @@ impl ConfigOverrides {
             .clone()
             .or_else(|| config.workspace_dir.clone())
             .unwrap_or_else(|| dir.to_path_buf());
+        if let Some(raw) = &self.virtual_store_dir {
+            config.set_virtual_store_dir(lexical_normalize(&anchor.join(raw)));
+        }
         config.anchor_lockfile_paths(&anchor);
         let virtual_store_dir_explicit = config.explicit_settings.contains_key("virtualStoreDir");
         let global_virtual_store_dir_explicit =

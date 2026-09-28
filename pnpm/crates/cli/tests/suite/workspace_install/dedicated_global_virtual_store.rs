@@ -1,5 +1,6 @@
 use super::{_utils, CommandExtra, fs, pacquet_at, two_project_workspace};
 use assert_cmd::assert::OutputAssertExt;
+use std::fmt::Write as _;
 
 /// Under a global virtual store, each project of a workspace that keeps a
 /// lockfile per project still records what it installed in its own
@@ -8,6 +9,15 @@ use assert_cmd::assert::OutputAssertExt;
 /// packages as its own.
 #[test]
 fn dedicated_projects_keep_their_own_current_lockfile_under_a_global_virtual_store() {
+    assert_dedicated_project_state(None);
+}
+
+#[test]
+fn dedicated_projects_keep_state_local_with_an_explicit_global_virtual_store() {
+    assert_dedicated_project_state(Some("shared-links"));
+}
+
+fn assert_dedicated_project_state(virtual_store_dir: Option<&str>) {
     let manifest = |name: &str, dependency: &str| {
         serde_json::json!({
             "name": name,
@@ -18,7 +28,11 @@ fn dedicated_projects_keep_their_own_current_lockfile_under_a_global_virtual_sto
     let fixture =
         two_project_workspace(&manifest("pkg-a", "is-positive"), &manifest("pkg-b", "is-negative"));
     let workspace = &fixture.workspace;
-    _utils::enable_gvs_in_workspace_yaml(workspace, "sharedWorkspaceLockfile: false\n");
+    let mut settings = "sharedWorkspaceLockfile: false\n".to_string();
+    if let Some(dir) = virtual_store_dir {
+        writeln!(settings, "virtualStoreDir: {dir}").unwrap();
+    }
+    _utils::enable_gvs_in_workspace_yaml(workspace, &settings);
 
     pacquet_at(workspace)
         .with_arg("install")
@@ -40,6 +54,16 @@ fn dedicated_projects_keep_their_own_current_lockfile_under_a_global_virtual_sto
         !root_current.contains("is-positive") && !root_current.contains("is-negative"),
         "the root must not record its projects' packages:\n{root_current}",
     );
+
+    if let Some(dir) = virtual_store_dir {
+        let shared_store = fs::canonicalize(workspace.join(dir)).unwrap();
+        assert!(!shared_store.join("lock.yaml").exists(), "shared store: {shared_store:?}");
+        let package = fs::canonicalize(workspace.join("pkg-a/node_modules/is-positive")).unwrap();
+        assert!(
+            package.starts_with(&shared_store),
+            "package: {package:?}, store: {shared_store:?}",
+        );
+    }
 
     drop(fixture);
 }

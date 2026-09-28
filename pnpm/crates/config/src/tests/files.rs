@@ -36,7 +36,10 @@ pub fn yaml_global_virtual_store_dir_wins_over_derivation() {
     let yaml_gvs = tmp.path().join("my-shared-store");
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
-        format!("enableGlobalVirtualStore: true\nglobalVirtualStoreDir: {}\n", yaml_gvs.display()),
+        format!(
+            "enableGlobalVirtualStore: true\nvirtualStoreDir: other-store\nglobalVirtualStoreDir: {}\n",
+            yaml_gvs.display(),
+        ),
     )
     .expect("write to pnpm-workspace.yaml");
     let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");

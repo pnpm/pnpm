@@ -303,19 +303,15 @@ pub struct Config {
     #[default = true]
     pub symlink: bool,
 
-    /// The directory with links to the store. All direct and indirect dependencies of the
-    /// project are linked into this directory.
-    ///
-    /// When [`enable_global_virtual_store`] is `true` and the user has not
-    /// explicitly set this field, [`Config::current`] re-points it at
-    /// `<store_dir>/v11/links`. The `v11/` segment comes from appending
-    /// `STORE_VERSION` to the configured `storeDir` before the
-    /// `join(storeDir, 'links')` step runs — so the join lands one level
-    /// deeper than the configured root.
-    ///
-    /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
+    /// The project-local virtual store, or the internal directory holding
+    /// the current lockfile and hidden hoisted modules when
+    /// [`Self::enable_global_virtual_store`] is on.
     #[default(_code = "default_virtual_store_dir()")]
     pub virtual_store_dir: PathBuf,
+
+    /// The resolved explicit `virtualStoreDir` setting, retained separately
+    /// when [`Self::virtual_store_dir`] is the project-local internal directory.
+    pub configured_virtual_store_dir: Option<PathBuf>,
 
     /// When `true`, the virtual store is shared across every project on
     /// the machine: packages live under `<store_dir>/v11/links/...` and
@@ -328,22 +324,9 @@ pub struct Config {
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
-    /// The shared global-virtual-store directory. When
-    /// [`enable_global_virtual_store`] is `true` this is the same path as
-    /// [`virtual_store_dir`]; when `false`, it is still computed as
-    /// `<store_dir>/v11/links` (an unconditional assignment) even though
-    /// no install path consults it in that mode today.
-    ///
-    /// Populated by [`Config::current`] after yaml has been applied; the
-    /// `SmartDefault` value is overwritten there with the path derived
-    /// from the resolved `store_dir` / `virtual_store_dir`. The default
-    /// here is only meaningful when `Config::new()` is used in isolation
-    /// (mostly tests), and matches the derivation's own fallback so
-    /// such a config never points the shared store at the working
-    /// directory.
-    ///
-    /// [`enable_global_virtual_store`]: Self::enable_global_virtual_store
-    /// [`virtual_store_dir`]: Self::virtual_store_dir
+    /// The shared package store used when [`Self::enable_global_virtual_store`]
+    /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from
+    /// `globalVirtualStoreDir`, `virtualStoreDir`, or `<store_dir>/links`.
     #[default(_code = "default_store_dir::<Host>().links()")]
     pub global_virtual_store_dir: PathBuf,
 

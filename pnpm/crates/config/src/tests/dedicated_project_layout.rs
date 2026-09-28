@@ -1,4 +1,4 @@
-use super::{Config, PathBuf, assert_eq};
+use super::{Config, HostNoHome, PathBuf, assert_eq, fs, tempdir};
 
 fn workspace() -> PathBuf {
     std::env::temp_dir().join("workspace")
@@ -25,22 +25,20 @@ fn a_dedicated_project_gets_its_own_internal_dir_under_a_global_virtual_store() 
     assert_eq!(config.global_virtual_store_dir, global_virtual_store_dir);
 }
 
-/// Under a global virtual store, `virtualStoreDir` names the store's root,
-/// which every project shares.
 #[test]
-fn an_explicit_virtual_store_dir_is_not_reanchored_under_a_global_virtual_store() {
-    let mut config = global_virtual_store_config();
-    let store_root = std::env::temp_dir().join("links");
-    config.explicit_settings.insert(
-        "virtualStoreDir".to_string(),
-        store_root
-            .to_string_lossy()
-            .into_owned()
-            .into(),
-    );
-    config.virtual_store_dir.clone_from(&store_root);
+fn an_explicit_global_virtual_store_keeps_dedicated_project_state_local() {
+    let root = tempdir().unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "enableGlobalVirtualStore: true\nvirtualStoreDir: links\nmodulesDir: vendor\n",
+    )
+    .unwrap();
+    let mut config = Config::new().current::<HostNoHome>(root.path()).unwrap();
+    let project_dir = root.path().join("packages/member");
 
-    config.anchor_dedicated_project(&workspace().join("packages/member"), None);
+    config.anchor_dedicated_project(&project_dir, None);
+    config.apply_global_virtual_store_derivation(true, false);
 
-    assert_eq!(config.virtual_store_dir, store_root);
+    assert_eq!(config.virtual_store_dir, project_dir.join("vendor/.pnpm"));
+    assert_eq!(config.global_virtual_store_dir, root.path().join("links"));
 }

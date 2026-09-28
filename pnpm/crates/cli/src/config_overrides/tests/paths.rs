@@ -404,10 +404,19 @@ fn the_modules_and_virtual_store_dirs_are_anchored_at_the_workspace_root() {
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
     let workspace_dir = PathBuf::from("/workspace");
-    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
-    overrides.apply(&mut config, Path::new("/workspace/pkg"));
-    assert_eq!(config.modules_dir, workspace_dir.join("custom_modules"));
-    assert_eq!(config.virtual_store_dir, workspace_dir.join("custom_store"));
+    for enable_global_virtual_store in [false, true] {
+        let mut config = Config {
+            workspace_dir: Some(workspace_dir.clone()),
+            enable_global_virtual_store,
+            ..Config::default()
+        };
+        overrides.apply(&mut config, Path::new("/workspace/pkg"));
+        assert_eq!(config.modules_dir, workspace_dir.join("custom_modules"));
+        assert_eq!(config.effective_virtual_store_dir(), workspace_dir.join("custom_store"));
+        let internal_dir =
+            if enable_global_virtual_store { "custom_modules/.pnpm" } else { "custom_store" };
+        assert_eq!(config.virtual_store_dir, workspace_dir.join(internal_dir));
+    }
 }
 
 #[test]

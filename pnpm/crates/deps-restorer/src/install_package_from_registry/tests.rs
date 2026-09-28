@@ -80,6 +80,7 @@ fn create_config(
         node_package_map_type: Default::default(),
         symlink: false,
         virtual_store_dir: virtual_store_dir.to_path_buf(),
+        configured_virtual_store_dir: None,
         enable_global_virtual_store: false,
         global_shims: Default::default(),
         virtual_store_only: false,

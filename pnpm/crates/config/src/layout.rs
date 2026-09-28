@@ -6,71 +6,38 @@ use super::{
 };
 
 impl Config {
-    /// Resolve relative patch file paths in
-    /// [`Config::patched_dependencies`] against
-    /// [`Config::workspace_dir`], compute SHA-256 hashes, and bucket
-    /// the entries into a [`PatchGroupRecord`](super::PatchGroupRecord).
-    ///
-    /// Resolves each configured patch path against the workspace dir,
-    /// then hashes the files.
-    ///
-    /// Returns `Ok(None)` when either field is unset (no yaml
-    /// found or no `patchedDependencies` key). Returns `Err(_)`
-    /// when any patch file can't be hashed or any key has an
-    /// invalid semver range.
-    ///
-    /// IO-heavy; call once per install rather than at every site
-    /// that needs the resolved record.
-    /// Derive [`Self::global_virtual_store_dir`] from
-    /// `enable_global_virtual_store` + the existing `store_dir` /
-    /// `virtual_store_dir` fields.
-    ///
-    /// Pacquet diverges from pnpm on *which* field carries the GVS path:
-    ///
-    /// - **pnpm**: mutates `virtualStoreDir` in place when GVS is
-    ///   on and the user hasn't pinned it, so every consumer that
-    ///   reads `virtualStoreDir` ends up looking at `<storeDir>/links`.
-    /// - **Pacquet**: keeps `virtual_store_dir` at its project-local
-    ///   value (`<cwd>/node_modules/.pnpm` by default, or the user's
-    ///   yaml-pinned path) and writes the GVS path into the separate
-    ///   `global_virtual_store_dir` field. The install layer picks the
-    ///   right field through [`crate::Config::enable_global_virtual_store`]
-    ///   (or, in practice, through `pnpm_package_manager::VirtualStoreLayout`).
-    ///
-    /// The reason: pacquet still has a non-frozen
-    /// `InstallWithFreshLockfile` path that pnpm doesn't have.
-    /// Mutating `virtual_store_dir` would redirect that path to
-    /// `<storeDir>/links` too — but the issue (pnpm/pacquet#432)
-    /// scopes GVS to frozen-lockfile installs. Splitting the field
-    /// keeps the fresh-lockfile path on the project-local layout
-    /// while the frozen-lockfile path consumes the GVS-derived value.
-    ///
-    /// `virtual_store_dir_explicit` carries the "did the user set
-    /// `virtualStoreDir` in yaml" signal `SmartDefault` cannot express
-    /// on its own. When `true` *and* GVS is on, `global_virtual_store_dir`
-    /// mirrors `virtual_store_dir` (the user picked the GVS root via the
-    /// shared key). `global_virtual_store_dir_explicit` is the analogous
-    /// signal for the dedicated `globalVirtualStoreDir` yaml key — when
-    /// set, that value wins and the derivation leaves
-    /// `global_virtual_store_dir` alone. Otherwise the field falls back
-    /// to `<store_dir>/links`, an unconditional
-    /// `globalVirtualStoreDir = storeDir/links` assignment for the unset
-    /// case.
+    /// Derive the shared store from the configured paths and keep project
+    /// state in `<modules_dir>/.pnpm` while the global virtual store is on.
+    /// An explicit `globalVirtualStoreDir` takes precedence over
+    /// `virtualStoreDir`, which takes precedence over `<store_dir>/links`.
     pub fn apply_global_virtual_store_derivation(
         &mut self,
         virtual_store_dir_explicit: bool,
         global_virtual_store_dir_explicit: bool,
     ) {
-        if global_virtual_store_dir_explicit {
-            // User pinned the dedicated GVS key in yaml — honor it.
-            return;
+        if !global_virtual_store_dir_explicit {
+            self.global_virtual_store_dir =
+                if self.enable_global_virtual_store && virtual_store_dir_explicit {
+                    self.configured_virtual_store_dir
+                        .get_or_insert_with(|| self.virtual_store_dir.clone())
+                        .clone()
+                } else {
+                    self.store_dir.links()
+                };
         }
-        self.global_virtual_store_dir =
-            if self.enable_global_virtual_store && virtual_store_dir_explicit {
-                self.virtual_store_dir.clone()
-            } else {
-                self.store_dir.links()
-            };
+        if self.enable_global_virtual_store {
+            self.virtual_store_dir = self.modules_dir.join(".pnpm");
+        } else if virtual_store_dir_explicit && let Some(dir) = &self.configured_virtual_store_dir {
+            self.virtual_store_dir.clone_from(dir);
+        }
+    }
+
+    /// Retain the resolved `virtualStoreDir` setting independently of
+    /// [`Self::virtual_store_dir`], which becomes project-local under a
+    /// global virtual store.
+    pub fn set_virtual_store_dir(&mut self, dir: std::path::PathBuf) {
+        self.configured_virtual_store_dir = Some(dir.clone());
+        self.virtual_store_dir = dir;
     }
 
     /// The directory owning the `pnpm-lock.yaml` that covers
@@ -167,21 +134,23 @@ impl Config {
             };
         match self.explicit_settings.get("virtualStoreDir").and_then(serde_json::Value::as_str) {
             Some(raw) if !self.enable_global_virtual_store => {
-                self.virtual_store_dir = dir.join(raw);
+                self.set_virtual_store_dir(dir.join(raw));
             }
             _ => self.follow_modules_dir_with_virtual_store(),
         }
     }
 
     /// Put the virtual store at `<modules_dir>/.pnpm`, pnpm's default,
-    /// unless `virtualStoreDir` is set.
+    /// unless `virtualStoreDir` is set and the global virtual store is off.
     ///
     /// A global virtual store follows too: [`Self::virtual_store_dir`]
     /// stays project-local under it (the store-anchored path lives in
     /// [`Self::global_virtual_store_dir`]), and holds the project's current
     /// lockfile and hidden hoisted modules, pnpm's `internalPnpmDir`.
     pub(crate) fn follow_modules_dir_with_virtual_store(&mut self) {
-        if !self.explicit_settings.contains_key("virtualStoreDir") {
+        if self.enable_global_virtual_store
+            || !self.explicit_settings.contains_key("virtualStoreDir")
+        {
             self.virtual_store_dir = self.modules_dir.join(".pnpm");
         }
     }

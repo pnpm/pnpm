@@ -11,6 +11,24 @@ use super::{
 };
 
 #[test]
+fn a_global_store_overlay_keeps_project_state_local() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "virtualStoreDir: custom-store\n")
+        .unwrap();
+    let shared_store = root.path().join("shared-store");
+    let overlay = ConfigOverlay {
+        enable_global_virtual_store: Some(true),
+        global_virtual_store_dir: Some(shared_store.clone()),
+        ..ConfigOverlay::default()
+    };
+
+    let config = build_config(root.path(), &overlay).unwrap();
+
+    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(config.effective_virtual_store_dir(), shared_store);
+}
+
+#[test]
 fn concurrent_publication_retains_one_interned_config() {
     const CALLER_COUNT: usize = 32;
     let temp_dir = tempfile::tempdir().expect("create temporary config directory");

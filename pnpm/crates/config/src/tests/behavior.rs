@@ -270,10 +270,18 @@ pub fn gvs_user_pinned_virtual_store_routes_into_global_virtual_store_dir() {
         format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", user_path.display()),
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.enable_global_virtual_store);
-    assert_eq!(config.virtual_store_dir, user_path);
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, user_path);
+
+    config.apply_global_virtual_store_derivation(true, false);
+    assert_eq!(config.global_virtual_store_dir, user_path);
+    assert_eq!(config.effective_virtual_store_dir(), user_path);
+
+    config.enable_global_virtual_store = false;
+    config.apply_global_virtual_store_derivation(true, false);
+    assert_eq!(config.virtual_store_dir, user_path);
 }
 
 /// A single-project install (no `pnpm-workspace.yaml` anywhere)

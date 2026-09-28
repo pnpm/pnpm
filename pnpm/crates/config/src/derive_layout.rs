@@ -127,8 +127,8 @@ impl Config {
         // A pinned `lockfileDir` moves the root `node_modules` and the
         // virtual store with it. Applied after every source has had its
         // say so the anchor uses the final value, and before the
-        // global-virtual-store derivation, which may re-point
-        // `virtual_store_dir` at the store.
+        // global-virtual-store derivation, which separates the shared
+        // package store from the project's internal directory.
         if let Some(lockfile_dir) = self.lockfile_dir.clone() {
             self.anchor_lockfile_paths(&lockfile_dir);
         } else if self.explicit_settings.contains_key("modulesDir") {
