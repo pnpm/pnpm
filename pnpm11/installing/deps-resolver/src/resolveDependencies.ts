@@ -2290,6 +2290,7 @@ async function resolveDependency (
         defaultTag: ctx.defaultTag,
         ignoreScripts: ctx.ignoreScripts,
         publishedBy: options.publishedBy,
+        fallbackPublishedBy: ctx.maximumPublishedBy,
         publishedByExclude: ctx.publishedByExclude,
         pickLowestVersion: options.pickLowestVersion,
         downloadPriority: -options.currentDepth,

@@ -111,6 +111,7 @@ impl SharedResolveOptions<'_> {
                 ..Default::default()
             },
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                fallback_published_by: None,
                 published_by: self.policy.published_by,
                 published_by_exclude: self.policy.published_by_exclude.clone(),
                 trust_policy: self.policy.trust_policy,

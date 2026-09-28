@@ -413,6 +413,8 @@ export interface ResolveOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  /** Release-age cutoff to try when the time-based cutoff has no match. */
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   projectDir: string
   lockfileDir: string

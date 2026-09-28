@@ -161,6 +161,8 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  /** Release-age cutoff to try when the time-based cutoff has no match. */
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean

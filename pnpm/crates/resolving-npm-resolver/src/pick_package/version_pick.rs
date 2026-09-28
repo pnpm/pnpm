@@ -45,6 +45,7 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
 pub(super) struct PickerOpts<'a> {
     pub(super) preferred_version_selectors: Option<&'a VersionSelectors>,
     pub(super) published_by: Option<DateTime<Utc>>,
+    pub(super) fallback_published_by: Option<DateTime<Utc>>,
     pub(super) published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub(super) pick_lowest_version: bool,
     pub(super) include_latest_tag: bool,
@@ -126,6 +127,7 @@ pub(super) fn pick_matching_version_final(
             let fallback = PickerOpts {
                 preferred_version_selectors: picker_opts.preferred_version_selectors,
                 published_by: None,
+                fallback_published_by: None,
                 published_by_exclude: None,
                 pick_lowest_version: picker_opts.pick_lowest_version,
                 include_latest_tag: picker_opts.include_latest_tag,
@@ -137,11 +139,9 @@ pub(super) fn pick_matching_version_final(
     }
 }
 
-/// `publishedBy` is active: it narrows which versions are on offer, and
-/// `pick_lowest_version` decides which end of what is left to take. The
-/// fallback deliberately drops the maturity filter so a range no mature
-/// version satisfies still yields a pick, which the install layer
-/// reports as a violation.
+/// Picks within the selection cutoff, then the release-age cutoff when it
+/// is later. Only the final fallback drops the maturity filter, leaving
+/// violation handling to the install layer.
 pub(super) fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -158,18 +158,36 @@ pub(super) fn pick_respecting_min_release_age(
         if mature.is_some() {
             return Ok(mature);
         }
+        pick_release_age_fallback(picker_opts, target_spec, meta)
+    })
+}
+
+fn pick_release_age_fallback(
+    picker_opts: &PickerOpts<'_>,
+    target_spec: &RegistryPackageSpec,
+    meta: &Package,
+) -> Result<Option<Arc<PackageVersion>>, PickPackageFromMetaError> {
+    if picker_opts.fallback_published_by > picker_opts.published_by {
         let fallback_opts = PickPackageFromMetaOptions {
-            preferred_version_selectors: picker_opts.preferred_version_selectors,
-            published_by: None,
-            published_by_exclude: None,
+            published_by: picker_opts.fallback_published_by,
+            ..meta_opts(picker_opts)
         };
-        pick_package_from_meta(
+        let mature = pick_package_from_meta(
             pick_lowest_version_by_version_range,
             &fallback_opts,
             meta,
             target_spec,
-        )
-    })
+        )?;
+        if mature.is_some() {
+            return Ok(mature);
+        }
+    }
+    let fallback_opts = PickPackageFromMetaOptions {
+        preferred_version_selectors: picker_opts.preferred_version_selectors,
+        published_by: None,
+        published_by_exclude: None,
+    };
+    pick_package_from_meta(pick_lowest_version_by_version_range, &fallback_opts, meta, target_spec)
 }
 
 /// `publishedBy` is off: respect `pickLowestVersion`.

@@ -95,3 +95,87 @@ fn strict_install_reports_a_time_based_subdep_against_the_minimum_release_age_cu
 
     drop((root, npmrc_info));
 }
+
+#[test]
+fn time_based_fallback_selects_a_mature_version_before_an_immature_maintenance_release() {
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    // Lockfile-only resolution needs integrity metadata but does not fetch the tarball.
+    let integrity = ssri::Integrity::from(b"lockfile-only fixture".as_slice()).to_string();
+    let manifest = |name: &str, version: &str| {
+        serde_json::json!({
+            "name": name,
+            "version": version,
+            "dist": {
+                "tarball": format!("{registry}{name}-{version}.tgz"),
+                "integrity": integrity,
+            },
+        })
+    };
+    let mut parent = manifest("fallback-parent", "1.0.0");
+    parent["dependencies"] = serde_json::json!({ "fallback-child": "^1.0.0" });
+    let parent_mock = server
+        .mock("GET", "/fallback-parent")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "name": "fallback-parent",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": parent },
+                "time": { "1.0.0": "2022-04-01T00:00:00Z" },
+            })
+            .to_string(),
+        )
+        .create();
+    let child_mock = server
+        .mock("GET", "/fallback-child")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "name": "fallback-child",
+                "dist-tags": { "latest": "1.1.0" },
+                "versions": {
+                    "1.0.0": manifest("fallback-child", "1.0.0"),
+                    "1.0.2": manifest("fallback-child", "1.0.2"),
+                    "1.1.0": manifest("fallback-child", "1.1.0"),
+                },
+                "time": {
+                    "1.0.0": "2022-02-01T00:00:00Z",
+                    "1.0.2": "2022-06-01T00:00:00Z",
+                    "1.1.0": "2022-05-01T00:00:00Z",
+                },
+            })
+            .to_string(),
+        )
+        .create();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}\n")).expect("write registry");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "fallback-parent": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write manifest");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock after epoch")
+        .as_secs();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: ../store\ncacheDir: ../cache\n")
+        .expect("write workspace settings");
+    set_minimum_release_age(&workspace, (now - 1_652_572_800) / 60);
+    append_workspace_yaml_key(&workspace, "resolutionMode", "time-based");
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", true);
+    append_workspace_yaml_key(&workspace, "overrides", "\n  fallback-child: ^1.0.2");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("fallback-child@1.1.0"));
+    assert!(!lockfile.contains("fallback-child@1.0.2"));
+    parent_mock.assert();
+    child_mock.assert();
+    drop(root);
+}
