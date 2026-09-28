@@ -131,13 +131,13 @@ fn run_cli() -> miette::Result<()> {
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
+    if args.run_completion_if_requested()? {
+        return Ok(());
+    }
     configure_rayon_pool();
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime or the HTTP client.
     if args.finished_via_install_fast_path(&config_overrides) {
-        return Ok(());
-    }
-    if args.run_completion_if_requested()? {
         return Ok(());
     }
     run_cli_command(args, &config_overrides, builtin_command_forced)
@@ -340,7 +340,8 @@ fn configure_rayon_pool() {
 /// on macOS APFS, 2× was the knee — fewer threads underutilize the
 /// journal, way more (100+) loses to context switching and per-thread
 /// fixed costs (`user` time scales linearly past 50 without any
-/// wall-time payoff).
+/// wall-time payoff). That knee holds up to the ceiling below. Past 16
+/// threads, 2× no longer pays off.
 ///
 /// **Floor of 4 threads is intentional.** A 1-2-CPU CI runner left
 /// at `2 × parallelism` would be capped to 2-4 rayon threads, and
