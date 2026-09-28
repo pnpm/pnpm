@@ -65,6 +65,12 @@ fn build_env_for_platform(
     parent_env: HashMap<String, String>,
     is_windows: bool,
 ) -> EnvBuild {
+    // Resolve the node anchor before filtering: [`filter_parent_env`]
+    // drops an inherited `NODE` because it is a per-call stamp, so the
+    // knowledge would be lost on installs whose `PATH` holds no node
+    // directory. The anchor re-stamps below; everything else stays
+    // scrubbed.
+    let node_anchor = resolve_node_execpath_in(&parent_env, is_windows);
     // 1. Start from the parent env, stripping `npm_package_*` (we
     //    regenerate them below) and the `(npm|pnpm)_config_*` auth
     //    keys, plus the per-call stamps we re-derive (`NODE`,
@@ -82,7 +88,16 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    stamp_executables(&mut env, &opts.environment, opts.pkg_root, is_windows);
+    // An explicit caller anchor wins; otherwise the inherited one
+    // above keeps `NODE` valid when it is the only source.
+    let environment = crate::ScriptEnvironment {
+        node_execpath: opts
+            .environment
+            .node_execpath
+            .or(node_anchor.as_deref()),
+        ..opts.environment
+    };
+    stamp_executables(&mut env, &environment, opts.pkg_root, is_windows);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -246,18 +261,84 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
         .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
+/// Resolve the `node` binary anchoring install lifecycle children.
+///
+/// Source priority: an inherited `$NODE` pointing at an executable
+/// file, then `$npm_node_execpath` under the same check, then a
+/// `node` lookup along `PATH`. Returns `None` when no source
+/// resolves, in which case the child simply carries no `NODE` stamp.
+/// There is no fallback to the running executable: pacquet itself is
+/// not Node, so guessing would stamp a binary that cannot run scripts.
+#[must_use]
+pub fn resolve_node_execpath() -> Option<PathBuf> {
+    resolve_node_execpath_in(&env::vars().collect(), cfg!(windows))
+}
+
+/// [`resolve_node_execpath`] driven by an explicit env map instead of
+/// the process-global env, so [`build_env`] stays deterministic given
+/// its inputs and tests can seed fixtures without touching globals.
+pub(crate) fn resolve_node_execpath_in(
+    parent_env: &HashMap<String, String>,
+    is_windows: bool,
+) -> Option<PathBuf> {
+    for key in ["NODE", "npm_node_execpath"] {
+        if let Some(raw) = lookup_env(parent_env, key, is_windows)
+            && !raw.is_empty()
+        {
+            let candidate = PathBuf::from(&raw);
+            // The child runs with another working directory, so only an
+            // absolute path stays valid there.
+            if candidate.is_absolute() && is_executable_file(&candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    find_node_in_path(
+        path_value(parent_env)
+            .as_deref()
+            .map(OsStr::new),
+    )
+}
+
+/// Read `key` from `env`, case-insensitively on Windows where
+/// `Command::env` collapses key casing at spawn time.
+fn lookup_env(env: &HashMap<String, String>, key: &str, is_windows: bool) -> Option<String> {
+    if is_windows {
+        env.iter().find_map(|(k, v)| {
+            k.eq_ignore_ascii_case(key).then(|| v.clone())
+        })
+    } else {
+        env.get(key).cloned()
+    }
+}
+
+/// Whether `path` names a file the child can execute. The mode-bit
+/// check is POSIX-only; on Windows executability is decided by the
+/// file type, which [`Path::is_file`] already covers.
+fn is_executable_file(path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path)
+            .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+    }
+    #[cfg(not(unix))]
+    {
+        path.is_file()
+    }
+}
+
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
 /// `parent_env`'s PATH (not the process-global env) so [`build_env`]
 /// stays deterministic given its inputs — matching the docstring
 /// contract.
-fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
+pub(crate) fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path)
-        .find_map(|dir| {
-            let candidate = dir.join(node_name);
-            candidate.is_file().then_some(candidate)
-        })
+    env::split_paths(path).find_map(|dir| {
+        let candidate = dir.join(node_name);
+        candidate.is_file().then_some(candidate)
+    })
 }
 
 /// Recursively stamp `npm_package_*` env vars from the manifest. JSON

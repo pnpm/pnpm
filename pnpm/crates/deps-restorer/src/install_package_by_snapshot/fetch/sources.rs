@@ -109,6 +109,9 @@ impl InstallPackageBySnapshot<'_> {
             && allow_build(&fetch.package_key.without_peer().to_string()) != Some(false);
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
+        // Anchor the prepare scripts to the running Node when the
+        // parent `PATH` holds no node directory.
+        let node_anchor = pnpm_executor::resolve_node_execpath();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
             scripts: pnpm_git_fetcher::PrepareScriptOptions {
                 ignore: config.ignore_scripts,
@@ -116,7 +119,7 @@ impl InstallPackageBySnapshot<'_> {
                 user_agent: Some(&config.user_agent),
                 prepend_node_path: exec_scripts_prepend_node_path(config),
                 shell: None,
-                node_execpath: None,
+                node_execpath: node_anchor.as_deref(),
                 npm_execpath: None,
                 pnpm_execpath: PNPM_EXECPATH.as_deref(),
             },
@@ -211,6 +214,9 @@ impl InstallPackageBySnapshot<'_> {
                 && (fetch.allow_build)(&fetch.package_key.without_peer().to_string())
                     != Some(false),
         );
+        // Anchor the prepare scripts to the running Node when the
+        // parent `PATH` holds no node directory.
+        let node_anchor = pnpm_executor::resolve_node_execpath();
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
             scripts: pnpm_git_fetcher::PrepareScriptOptions {
                 ignore: config.ignore_scripts,
@@ -218,7 +224,7 @@ impl InstallPackageBySnapshot<'_> {
                 user_agent: Some(&config.user_agent),
                 prepend_node_path: fetch.scripts_prepend_node_path,
                 shell: None,
-                node_execpath: None,
+                node_execpath: node_anchor.as_deref(),
                 npm_execpath: None,
                 pnpm_execpath: PNPM_EXECPATH.as_deref(),
             },

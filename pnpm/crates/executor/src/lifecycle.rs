@@ -255,6 +255,19 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     // and avoids one call to `env::vars()` per stage over a
     // thread-shared global.
     let parent_env: HashMap<String, String> = env::vars().collect();
+    // Resolve the node anchor once for the whole run and share it
+    // across stages, so project scripts and dependency builds stamp
+    // the same `NODE` even when `PATH` holds no node directory. An
+    // explicit caller anchor still wins.
+    let node_anchor = crate::make_env::resolve_node_execpath_in(&parent_env, cfg!(windows));
+    let environment = crate::ScriptEnvironment {
+        node_execpath: opts
+            .environment
+            .node_execpath
+            .or(node_anchor.as_deref()),
+        ..opts.environment
+    };
+    let anchored = RunPostinstallHooks { environment, ..*opts };
 
     let mut ran_any = false;
 
@@ -270,7 +283,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
             continue;
         }
 
-        run_lifecycle_hook::<Reporter>(stage, &script, opts, &manifest, &parent_env)?;
+        run_lifecycle_hook::<Reporter>(stage, &script, &anchored, &manifest, &parent_env)?;
         ran_any = true;
     }
 
@@ -449,6 +462,13 @@ fn prepare_lifecycle_path(
     // Lookup is case-insensitive because Windows preserves the
     // system casing (typically `Path`) on env keys.
     let original_path = path_value(&built.env).map(OsString::from);
+    // Direct `run_lifecycle_hook` callers pass no anchor of their own;
+    // fall back to the `NODE` stamp `build_env` just derived so
+    // `Always` still prepends its directory.
+    let node_for_path = opts
+        .environment
+        .node_execpath
+        .or_else(|| built.env.get("NODE").map(Path::new));
     let path_env = extend_path(
         opts.pkg_root,
         opts.execution.wd_bin_dir,
@@ -456,7 +476,7 @@ fn prepare_lifecycle_path(
         opts.execution.node_gyp_bin,
         opts.execution.extra_bin_paths,
         opts.execution.prepend_node_path,
-        opts.environment.node_execpath,
+        node_for_path,
     );
 
     Ok(path_env)

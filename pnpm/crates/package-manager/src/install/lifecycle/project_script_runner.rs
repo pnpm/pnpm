@@ -28,11 +28,16 @@ pub(super) fn run_project_stages(
         project_dir,
         config.modules_dir_name(),
     );
+    // Anchor install lifecycle children to the running Node when the
+    // parent `PATH` holds no node directory (version managers
+    // spawning with a reduced env). Resolved once per project run and
+    // shared by every stage below.
+    let node_anchor = pnpm_executor::resolve_node_execpath();
     let dep_path = project_dir.to_string_lossy();
     stages(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: workspace_root,
-            node_execpath: None,
+            node_execpath: node_anchor.as_deref(),
             npm_execpath: None,
             node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(&config.user_agent),

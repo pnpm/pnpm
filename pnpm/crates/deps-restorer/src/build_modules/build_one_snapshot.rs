@@ -397,10 +397,14 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     extra_bin_paths: &[PathBuf],
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
+    // Anchor build children to the running Node when the parent `PATH`
+    // holds no node directory. Resolved per snapshot and shared by
+    // every stage the snapshot runs.
+    let node_anchor = pnpm_executor::resolve_node_execpath();
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: context.directories.lockfile_dir,
-            node_execpath: None,
+            node_execpath: node_anchor.as_deref(),
             npm_execpath: None,
             node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(context.scripts.user_agent),

@@ -1,7 +1,8 @@
 use super::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
     VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
-    is_delegation_marker, is_stamping_key, sanitize_env_key, stamp_package,
+    is_delegation_marker, is_stamping_key, resolve_node_execpath_in, sanitize_env_key,
+    stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -528,4 +529,108 @@ fn package_manager_environment_preserves_native_node_paths() {
         .expect("spawn shell");
     assert!(output.status.success());
     assert_eq!(output.stdout, [node.as_slice(), b"\n", node.as_slice(), b"\n"].concat());
+}
+
+/// Write an executable shell file at `path`, standing in for a real
+/// `node` binary in resolver fixtures.
+#[cfg(unix)]
+fn write_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(path, "#!/bin/sh\nexit 0\n").expect("write fake node");
+    let mut perms = std::fs::metadata(path)
+        .expect("stat fake node")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(path, perms).expect("chmod fake node");
+}
+
+/// The anchor prefers an executable `$NODE` over every other source,
+/// then `$npm_node_execpath`, then a `node` file along `PATH`.
+#[cfg(unix)]
+#[test]
+fn resolve_node_execpath_prefers_node_then_execpath_then_path() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let node = dir.path().join("mynode");
+    let execpath = dir.path().join("othernode");
+    write_executable(&node);
+    write_executable(&execpath);
+    let path_dir = dir.path().join("pathbin");
+    std::fs::create_dir(&path_dir).expect("create path dir");
+    std::fs::write(path_dir.join("node"), "not executable, just a file").expect("write path node");
+
+    let parent = HashMap::from([
+        ("NODE".to_string(), node.to_string_lossy().into_owned()),
+        ("npm_node_execpath".to_string(), execpath.to_string_lossy().into_owned()),
+        ("PATH".to_string(), path_dir.to_string_lossy().into_owned()),
+    ]);
+    assert_eq!(resolve_node_execpath_in(&parent, false), Some(node.clone()));
+
+    let mut parent = parent;
+    parent.insert("NODE".to_string(), "/does/not/exist".to_string());
+    assert_eq!(resolve_node_execpath_in(&parent, false), Some(execpath.clone()));
+
+    parent.insert("npm_node_execpath".to_string(), "relative/node".to_string());
+    assert_eq!(resolve_node_execpath_in(&parent, false), Some(path_dir.join("node")));
+}
+
+/// A relative `$NODE` cannot survive the child's working directory,
+/// so it is skipped instead of stamped.
+#[cfg(unix)]
+#[test]
+fn resolve_node_execpath_ignores_a_relative_node_without_a_path_fallback() {
+    let parent = HashMap::from([
+        ("NODE".to_string(), "relative/node".to_string()),
+        ("PATH".to_string(), "/does/not/exist".to_string()),
+    ]);
+    assert_eq!(resolve_node_execpath_in(&parent, false), None);
+}
+
+/// With no `PATH` entry and no usable inherited variable, there is no
+/// anchor to stamp. The resolver invents none.
+#[test]
+fn resolve_node_execpath_returns_none_without_a_source() {
+    assert_eq!(resolve_node_execpath_in(&HashMap::new(), false), None);
+    assert_eq!(resolve_node_execpath_in(&HashMap::new(), true), None);
+}
+
+/// `build_env` re-stamps an inherited executable `$NODE` even when
+/// the caller passes no anchor and `PATH` holds no node directory.
+/// Nothing else leaks through: the auth key stays scrubbed.
+#[cfg(unix)]
+#[test]
+fn build_env_stamps_the_inherited_node_anchor_when_path_lacks_node() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let node = dir.path().join("mynode");
+    write_executable(&node);
+    let anchor = node.to_string_lossy().into_owned();
+
+    let parent = HashMap::from([
+        ("NODE".to_string(), anchor.clone()),
+        ("PATH".to_string(), "/does/not/exist".to_string()),
+        ("npm_config__auth".to_string(), "should-not-leak".to_string()),
+    ]);
+    let extra = empty_extra();
+    let pkg_root = Path::new("/pkg");
+    let init_cwd = Path::new("/init");
+    let built = build_env_for_platform(
+        &base_opts(pkg_root, init_cwd, &extra),
+        &json!({ "name": "x", "version": "1.0.0" }),
+        parent,
+        false,
+    );
+    assert_eq!(
+        built
+            .env
+            .get("NODE")
+            .map(String::as_str),
+        Some(anchor.as_str())
+    );
+    assert_eq!(
+        built
+            .env
+            .get("npm_node_execpath")
+            .map(String::as_str),
+        Some(anchor.as_str())
+    );
+    assert!(!built.env.contains_key("npm_config__auth"));
 }

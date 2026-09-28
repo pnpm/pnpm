@@ -1,7 +1,7 @@
 use super::{
     LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
     output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
-    read_lifecycle_manifest, run_postinstall_hooks,
+    read_lifecycle_manifest, run_lifecycle_hook, run_postinstall_hooks,
 };
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
@@ -829,4 +829,92 @@ fn gypfile_false_leaves_an_explicit_install_script_alone() {
         "scripts": { "install": "node install.js" },
     });
     assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node install.js"));
+}
+
+/// Regression for pnpm/pnpm#16308: a clean install whose parent `PATH`
+/// holds no node directory (a version manager spawning with a reduced
+/// env) must still stamp `NODE` and `npm_node_execpath` into lifecycle
+/// children from the inherited anchor. The probe script asserts both
+/// stamps and resolves a `.bin`-style `node` shim, so it fails while
+/// the anchor is dropped and passes once it is threaded through.
+///
+/// Unix-only: the probe body relies on POSIX `test` and `command -v`.
+/// The hook runs with an explicit parent env instead of the process
+/// env, so the test mutates no global state and stays safe alongside
+/// parallel tests.
+#[cfg(unix)]
+#[test]
+fn install_lifecycle_anchors_node_from_inherited_env_when_path_lacks_node() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    let dir = tempdir().expect("create temp dir");
+    // The inherited anchor: an executable file standing in for the
+    // running Node. It is never executed here, only validated.
+    let anchor = dir.path().join("mynode");
+    std::fs::write(&anchor, "#!/bin/sh\nexit 0\n").expect("write fake node");
+    let mut perms = std::fs::metadata(&anchor)
+        .expect("stat fake node")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&anchor, perms).expect("chmod fake node");
+    // A `.bin`-style directory holding a `node` shim, threaded in as
+    // an extra bin path the way install links its own `.bin`.
+    let shim_dir = dir.path().join("shimbin");
+    std::fs::create_dir(&shim_dir).expect("create shim dir");
+    let shim = shim_dir.join("node");
+    std::fs::write(&shim, "#!/bin/sh\nexit 0\n").expect("write node shim");
+    let mut perms = std::fs::metadata(&shim)
+        .expect("stat node shim")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&shim, perms).expect("chmod node shim");
+
+    let pkg_root = dir.path().join("pkg");
+    std::fs::create_dir(&pkg_root).expect("create package root");
+    let manifest = serde_json::json!({ "name": "anchored", "version": "1.0.0" });
+    let script = r#"test -n "$NODE" && test "$npm_node_execpath" = "$NODE" && test -x "$NODE" && command -v node >/dev/null"#;
+
+    // A node-less `PATH` that still resolves the `sh` the runner
+    // spawns, via a symlink to the system shell. The reduced envs in
+    // the wild keep `/bin` on `PATH` and only miss the node
+    // directory; the symlink models exactly that.
+    let path_dir = dir.path().join("pathbin");
+    std::fs::create_dir(&path_dir).expect("create path dir");
+    symlink("/bin/sh", path_dir.join("sh")).expect("link sh");
+
+    // A reduced parent env: `PATH` names no node directory, and the
+    // only node knowledge is the inherited anchor.
+    let parent_env = HashMap::from([
+        ("PATH".to_string(), path_dir.to_string_lossy().into_owned()),
+        ("NODE".to_string(), anchor.to_string_lossy().into_owned()),
+    ]);
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths = vec![shim_dir];
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: &pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
+        dep_path: "/anchored@1.0.0",
+        pkg_root: &pkg_root,
+        root_modules_dir: &pkg_root,
+        unsafe_perm: true,
+        optional: false,
+    };
+
+    run_lifecycle_hook::<SilentReporter>("postinstall", script, &opts, &manifest, &parent_env)
+        .expect("probe script runs clean with the anchor stamped");
 }

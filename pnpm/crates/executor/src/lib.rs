@@ -13,6 +13,7 @@ pub use lifecycle::{
 };
 pub use make_env::{
     EnvBuild, EnvOptions, VERIFY_DEPS_BEFORE_RUN_ENV, build_env, package_manager_env,
+    resolve_node_execpath,
 };
 pub use pnpm_executable::{current_pnpm_exe, is_pnpx_alias};
 pub use process_tracker::{ProcessTracker, SpawnedChild, spawn_child};
