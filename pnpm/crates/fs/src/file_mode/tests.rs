@@ -1,4 +1,4 @@
-use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_executable};
+use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
 use std::path::Path;
 
 #[test]
@@ -22,6 +22,24 @@ fn cas_path_is_executable_matches_trailing_suffix() {
     assert!(!cas_path_is_executable(Path::new("files/1b/59d9")));
     assert!(!cas_path_is_executable(Path::new("files-exec/1b/59d9")));
     assert!(!cas_path_is_executable(Path::new("files/1b/59d9-executable")));
+}
+
+#[test]
+fn is_cas_file_path_matches_the_store_layout_only() {
+    let digest = "59d9".repeat(10);
+    let store = Path::new("store/v11/files/1b");
+    assert!(is_cas_file_path(&store.join(&digest)));
+    assert!(is_cas_file_path(&store.join(format!("{digest}-exec"))));
+    assert!(is_cas_file_path(&store.join("a".repeat(126))));
+
+    assert!(!is_cas_file_path(&store.join(&digest[1..])), "digest shorter than a SHA-1");
+    assert!(!is_cas_file_path(&store.join(digest.to_uppercase())), "uppercase hex");
+    assert!(!is_cas_file_path(&store.join(format!("{digest}.js"))), "not a bare digest");
+    assert!(!is_cas_file_path(&Path::new("files/1b0").join(&digest)), "shard of three digits");
+    assert!(!is_cas_file_path(&Path::new("files/zz").join(&digest)), "non-hex shard");
+    assert!(!is_cas_file_path(&Path::new("dist/1b").join(&digest)), "not under files/");
+    assert!(!is_cas_file_path(&Path::new("1b").join(&digest)), "no files/ ancestor");
+    assert!(!is_cas_file_path(Path::new("project/bin/pnpm-exec")), "a project's own file");
 }
 
 #[cfg(unix)]

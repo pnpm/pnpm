@@ -89,6 +89,38 @@ pub fn cas_path_is_executable(path: &Path) -> bool {
         .is_some_and(|name| name.ends_with("-exec"))
 }
 
+/// Shortest digest [`is_cas_file_path`] accepts, the bound pnpm's
+/// `isCafsFile` uses.
+const CAS_DIGEST_MIN_LENGTH: usize = 40;
+
+/// Whether `path` has the CAFS layout `files/<2 hex digits>/<digest>[-exec]`.
+///
+/// The package importer also materializes local-directory dependencies
+/// from their project's own files. Those files keep the mode their
+/// project gives them, so only a path of this shape is a store entry
+/// whose mode [`store_entry_mode`] re-derives. Matches pnpm's
+/// `isCafsFile`.
+#[must_use]
+pub fn is_cas_file_path(path: &Path) -> bool {
+    fn component(path: Option<&Path>) -> Option<&str> {
+        path?.file_name()?.to_str()
+    }
+    fn is_lower_hex(value: &str) -> bool {
+        value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    }
+    let Some(name) = component(Some(path)) else { return false };
+    let digest = name.strip_suffix("-exec").unwrap_or(name);
+    let shard_dir = path.parent();
+    let Some(shard) = component(shard_dir) else { return false };
+    digest.len() >= CAS_DIGEST_MIN_LENGTH
+        && is_lower_hex(digest)
+        && shard.len() == 2
+        && is_lower_hex(shard)
+        && component(shard_dir.and_then(Path::parent)) == Some("files")
+}
+
 /// Open `path` for permission changes,
 /// refusing to traverse a final symlink.
 ///
