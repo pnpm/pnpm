@@ -74,34 +74,40 @@ pub fn check_deps_status_before_run_at(
     // out-of-sync case) must not pay for the workspace-projects walk
     // only to reach the same verdict inside the check.
     deps_status_from_state(
-        dir,
+        &GateDirs {
+            dir,
+            workspace_root: &workspace_root,
+            lockfile_root: &lockfile_root,
+            workspace_dir: workspace_dir_opt.as_deref(),
+        },
         config.as_ref(),
         &manifest,
-        &workspace_root,
-        &lockfile_root,
-        workspace_dir_opt.as_deref(),
         workspace_manifest.as_ref(),
         selected_project_dirs,
     )
 }
 
+struct GateDirs<'a> {
+    dir: &'a Path,
+    workspace_root: &'a Path,
+    lockfile_root: &'a Path,
+    workspace_dir: Option<&'a Path>,
+}
+
 fn deps_status_from_state(
-    dir: &Path,
+    dirs: &GateDirs<'_>,
     config: &Config,
     manifest: &PackageManifest,
-    workspace_root: &Path,
-    lockfile_root: &Path,
-    workspace_dir: Option<&Path>,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
     selected_project_dirs: &[&Path],
 ) -> Option<crate::RunDepsStatus> {
-    match pnpm_workspace_state::load_workspace_state(lockfile_root) {
+    match pnpm_workspace_state::load_workspace_state(dirs.lockfile_root) {
         Ok(Some(workspace_state)) => check_discovered_deps(
             config,
             manifest,
             workspace_manifest,
-            workspace_root,
-            lockfile_root,
+            dirs.workspace_root,
+            dirs.lockfile_root,
             &workspace_state,
             selected_project_dirs,
         ),
@@ -109,7 +115,9 @@ fn deps_status_from_state(
         // A dependency-free project an enclosing workspace leaves out has
         // nothing to install, and spawning one writes a lockfile into a
         // directory the workspace install left alone.
-        Ok(None) if dependency_free_project_left_out(dir, config, workspace_dir, manifest) => {
+        Ok(None)
+            if dependency_free_project_left_out(dirs.dir, config, dirs.workspace_dir, manifest) =>
+        {
             Some(crate::RunDepsStatus::UpToDate)
         }
         _ => cannot_check_deps(),
