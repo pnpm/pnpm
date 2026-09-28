@@ -6,24 +6,73 @@ use super::{
 };
 
 impl Config {
-    /// Derive the shared store from the configured paths and keep project
-    /// state in `<modules_dir>/.pnpm` while the global virtual store is on.
-    /// An explicit `globalVirtualStoreDir` takes precedence over
-    /// `virtualStoreDir`, which takes precedence over `<store_dir>/links`.
+    /// Resolve relative patch file paths in
+    /// [`Config::patched_dependencies`] against
+    /// [`Config::workspace_dir`], compute SHA-256 hashes, and bucket
+    /// the entries into a [`PatchGroupRecord`](super::PatchGroupRecord).
+    ///
+    /// Resolves each configured patch path against the workspace dir,
+    /// then hashes the files.
+    ///
+    /// Returns `Ok(None)` when either field is unset (no yaml
+    /// found or no `patchedDependencies` key). Returns `Err(_)`
+    /// when any patch file can't be hashed or any key has an
+    /// invalid semver range.
+    ///
+    /// IO-heavy; call once per install rather than at every site
+    /// that needs the resolved record.
+    /// Derive [`Self::global_virtual_store_dir`] from
+    /// `enable_global_virtual_store` + the existing `store_dir` /
+    /// [`Self::configured_virtual_store_dir`] fields.
+    ///
+    /// Pacquet diverges from pnpm on *which* field carries the GVS path:
+    ///
+    /// - **pnpm**: mutates `virtualStoreDir` in place when GVS is
+    ///   on and the user hasn't pinned it, so every consumer that
+    ///   reads `virtualStoreDir` ends up looking at `<storeDir>/links`.
+    /// - **Pacquet**: keeps `virtual_store_dir` at its project-local
+    ///   value and writes the GVS path into the separate
+    ///   `global_virtual_store_dir` field. Under GVS that value is always
+    ///   `<modules_dir>/.pnpm`, pnpm's `internalPnpmDir`, even when
+    ///   `virtualStoreDir` is set; otherwise it is the user's yaml-pinned
+    ///   path, if any. The install layer picks the
+    ///   right field through [`crate::Config::enable_global_virtual_store`]
+    ///   (or, in practice, through `pnpm_package_manager::VirtualStoreLayout`).
+    ///
+    /// The reason: pacquet still has a non-frozen
+    /// `InstallWithFreshLockfile` path that pnpm doesn't have.
+    /// Mutating `virtual_store_dir` would redirect that path to
+    /// `<storeDir>/links` too — but the issue (pnpm/pacquet#432)
+    /// scopes GVS to frozen-lockfile installs. Splitting the field
+    /// keeps the fresh-lockfile path on the project-local layout
+    /// while the frozen-lockfile path consumes the GVS-derived value.
+    ///
+    /// `virtual_store_dir_explicit` carries the "did the user set
+    /// `virtualStoreDir` in yaml" signal `SmartDefault` cannot express
+    /// on its own. When `true` *and* GVS is on, `global_virtual_store_dir`
+    /// is [`Self::configured_virtual_store_dir`] (the user picked the GVS
+    /// root via the shared key). `global_virtual_store_dir_explicit` is the
+    /// analogous signal for the dedicated `globalVirtualStoreDir` yaml key —
+    /// when set, that value wins and the derivation leaves
+    /// `global_virtual_store_dir` alone. Otherwise the field falls back
+    /// to `<store_dir>/links`, an unconditional
+    /// `globalVirtualStoreDir = storeDir/links` assignment for the unset
+    /// case.
+    ///
+    /// The derivation also settles `virtual_store_dir` for the GVS mode it
+    /// finds, so it can run again after any setting it reads changes.
     pub fn apply_global_virtual_store_derivation(
         &mut self,
         virtual_store_dir_explicit: bool,
         global_virtual_store_dir_explicit: bool,
     ) {
         if !global_virtual_store_dir_explicit {
-            self.global_virtual_store_dir =
-                if self.enable_global_virtual_store && virtual_store_dir_explicit {
-                    self.configured_virtual_store_dir
-                        .get_or_insert_with(|| self.virtual_store_dir.clone())
-                        .clone()
-                } else {
-                    self.store_dir.links()
-                };
+            self.global_virtual_store_dir = match &self.configured_virtual_store_dir {
+                Some(dir) if self.enable_global_virtual_store && virtual_store_dir_explicit => {
+                    dir.clone()
+                }
+                _ => self.store_dir.links(),
+            };
         }
         if self.enable_global_virtual_store {
             self.virtual_store_dir = self.modules_dir.join(".pnpm");

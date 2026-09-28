@@ -31,8 +31,8 @@ impl HoistLinks {
 /// targets, then shim the private side's bins.
 ///
 /// Enabling the global virtual store does not move the private target:
-/// pacquet leaves `virtual_store_dir` at its project-local (or
-/// yaml-pinned) value and routes the shared root through
+/// pacquet leaves `virtual_store_dir` at its project-local value and
+/// routes the shared root through
 /// `global_virtual_store_dir` instead — see
 /// [`Config::apply_global_virtual_store_derivation`]. Only the symlink
 /// *target* under the slot dir is GVS-aware, which `layout` resolves.

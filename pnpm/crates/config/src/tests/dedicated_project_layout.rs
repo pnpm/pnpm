@@ -37,7 +37,6 @@ fn an_explicit_global_virtual_store_keeps_dedicated_project_state_local() {
     let project_dir = root.path().join("packages/member");
 
     config.anchor_dedicated_project(&project_dir, None);
-    config.apply_global_virtual_store_derivation(true, false);
 
     assert_eq!(config.virtual_store_dir, project_dir.join("vendor/.pnpm"));
     assert_eq!(config.global_virtual_store_dir, root.path().join("links"));
