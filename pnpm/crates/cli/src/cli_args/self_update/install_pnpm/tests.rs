@@ -3,7 +3,8 @@ use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
-    package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
+    package_dir, pnpm_package_to_install, pnpm_package_to_install_on, reuse_cached_engine,
+    run_install,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
@@ -178,6 +179,25 @@ fn native_binary_linking_matches_pnpm_engine_layout() {
     assert!(!pnpm_package_to_install("6.16.0").links_native_binary);
     assert!(!pnpm_package_to_install("5.18.10").links_native_binary);
     assert!(pnpm_package_to_install("not-semver").links_native_binary);
+}
+
+#[test]
+fn arm64_musl_runs_the_javascript_pnpm_below_v12() {
+    let on_alpine_arm64 = |version| pnpm_package_to_install_on(version, "linux", "arm64", "musl");
+    for version in ["11.26.0", "10.20.0", "6.17.1"] {
+        let package = on_alpine_arm64(version);
+        assert_eq!(package.name, PNPM_PACKAGE_NAME, "{version}");
+        assert!(!package.links_native_binary, "{version}");
+    }
+    let v12 = on_alpine_arm64("12.0.0");
+    assert_eq!(v12.name, PNPM_PACKAGE_NAME);
+    assert!(v12.links_native_binary);
+
+    for (arch, libc) in [("x64", "musl"), ("arm64", "glibc")] {
+        let package = pnpm_package_to_install_on("11.26.0", "linux", arch, libc);
+        assert_eq!(package.name, PNPM_EXE_PACKAGE_NAME, "{arch} {libc}");
+        assert!(package.links_native_binary, "{arch} {libc}");
+    }
 }
 
 /// Lay out a fake engine install: the `pnpm` wrapper and, under

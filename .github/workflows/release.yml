@@ -287,7 +287,7 @@ jobs:
         run: |
           set -euo pipefail
           release_tarballs=$(mktemp -d)
-          for package in pnpm11/pnpm/artifacts/{darwin-arm64,exe,linux-arm64,linux-arm64-musl,linux-x64,linux-x64-musl,win32-arm64,win32-x64} pnpm11/pnpm; do
+          for package in pnpm11/pnpm/artifacts/{darwin-arm64,exe,linux-arm64,linux-x64,linux-x64-musl,win32-arm64,win32-x64} pnpm11/pnpm; do
             package_tarballs="$release_tarballs/${package//\//_}"
             mkdir "$package_tarballs"
             (
