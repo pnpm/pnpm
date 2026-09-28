@@ -1,8 +1,10 @@
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectManifest } from '@pnpm/types'
 
-import { createUpdateMatching, failOnVersionsOfIndirectUpdateSpecs } from '../lib/recursive.js'
+import { createUpdateMatching, failOnVersionsOfIndirectUpdateSpecs, isFromRepositoryRoot } from '../lib/recursive.js'
 
 const INCLUDE_ALL = {
   dependencies: true,
@@ -105,4 +107,17 @@ test('failOnVersionsOfIndirectUpdateSpecs() lets a range or a tag through', () =
       failOnVersionsOfIndirectUpdateSpecs([spec], MANIFESTS, INCLUDE_ALL)
     }).not.toThrow()
   }
+})
+
+test('isFromRepositoryRoot() matches every project when the repository root is the filesystem root', () => {
+  const fsRoot = path.parse(process.cwd()).root
+  expect(isFromRepositoryRoot(fsRoot)(path.join(fsRoot, 'app'))).toBeTruthy()
+  expect(isFromRepositoryRoot(fsRoot)(path.join(fsRoot, 'external', 'projects', 'lib'))).toBeTruthy()
+})
+
+test('isFromRepositoryRoot() filters by subdirectory below the filesystem root', () => {
+  const fsRoot = path.parse(process.cwd()).root
+  const parent = path.join(fsRoot, 'repo')
+  expect(isFromRepositoryRoot(parent)(path.join(parent, 'app'))).toBeTruthy()
+  expect(isFromRepositoryRoot(parent)(path.join(fsRoot, 'other'))).toBeFalsy()
 })
