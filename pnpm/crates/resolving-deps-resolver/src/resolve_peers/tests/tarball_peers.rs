@@ -2,7 +2,7 @@ use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, PkgResolutionId,
     ResolvePeersOptions, ResolvedTree, package, resolve_peers, resolve_result, tree_node,
 };
-use crate::resolved_tree::ResolvedPackage;
+use crate::resolved_tree::{ResolvedPackage, ResolvedPackageInput};
 
 /// A leaf `provider` fetched from `tarball` and keyed by `id`. It carries no
 /// `name_ver`, so its name comes from the alias and its version from the
@@ -14,7 +14,13 @@ fn tarball_provider(id: &str, tarball: &str, version: &str) -> ResolvedPackage {
     result.package.name_ver = None;
     result.package.manifest =
         Some(Arc::new(serde_json::json!({ "name": "provider", "version": version })));
-    ResolvedPackage::new(id.into(), Arc::new(result), BTreeMap::new(), false, true)
+    ResolvedPackage::new(ResolvedPackageInput {
+        id: id.into(),
+        result: Arc::new(result),
+        peer_dependencies: BTreeMap::new(),
+        optional: false,
+        is_leaf: true,
+    })
 }
 
 #[test]

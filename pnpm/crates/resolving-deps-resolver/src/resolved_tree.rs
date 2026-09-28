@@ -1,3 +1,4 @@
+pub use package_identity::ResolvedPackageInput;
 pub(crate) use package_identity::{pkg_name, pkg_name_version};
 
 mod package_identity;

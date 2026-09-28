@@ -5,17 +5,31 @@ use super::{PeerDep, ResolvedPackage};
 use pnpm_resolving_resolver_base::ResolveResult;
 use std::{collections::BTreeMap, sync::Arc};
 
+/// The inputs of [`ResolvedPackage::new`], named so that a construction
+/// site reads as the package it builds. `result` is the resolution the
+/// package wraps; the other fields are the package's fields of the same
+/// name.
+#[derive(Debug)]
+pub struct ResolvedPackageInput {
+    pub id: Arc<str>,
+    pub result: Arc<ResolveResult>,
+    pub peer_dependencies: BTreeMap<String, PeerDep>,
+    pub optional: bool,
+    pub is_leaf: bool,
+}
+
 impl ResolvedPackage {
     /// Build the envelope, rendering [`Self::name()`] and
-    /// [`Self::version()`] from `result` once.
+    /// [`Self::version()`] from the input's `result` once.
     #[must_use]
-    pub fn new(
-        id: Arc<str>,
-        result: Arc<ResolveResult>,
-        peer_dependencies: BTreeMap<String, PeerDep>,
-        optional: bool,
-        is_leaf: bool,
-    ) -> Self {
+    pub fn new(input: ResolvedPackageInput) -> Self {
+        let ResolvedPackageInput {
+            id,
+            result,
+            peer_dependencies,
+            optional,
+            is_leaf,
+        } = input;
         let (name, version) = pkg_name_version(&result);
         ResolvedPackage {
             id,
