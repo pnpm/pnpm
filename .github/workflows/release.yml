@@ -53,28 +53,36 @@ jobs:
         run: pnpm run check:npm-signing-keys
       - name: Check embedded Node.js release keys are in sync with nodejs/release-keys
         run: pnpm run check:node-release-keys
-      # `pnpm`, `@pnpm/exe` and the platform packages publish without a token, so
-      # a failed OIDC exchange fails the release instead of silently falling back
-      # to NPM_TOKEN. Projects that pin a token-published release with
-      # `trustPolicy: no-downgrade` reject it.
+      # `pnpm` and `@pnpm/exe` are staged: CI can stage them through OIDC but
+      # cannot publish them, and a maintainer approves each stage later with
+      # interactive 2FA. Staged versions carry the strongest trust evidence npm
+      # records, and pnpm's `trustPolicy: no-downgrade` compares a version with
+      # every version published before it, including the staged 11.x and 12.x
+      # releases, so anything weaker is rejected as a downgrade.
+      # `--npmrc-auth-file /dev/null` in the staging script keeps a static token
+      # out of those steps.
       # `@pnpm/exe` goes first because its prepublishOnly script builds the
       # binaries the platform packages ship.
-      - name: Publish @pnpm/exe (OIDC)
-        run: pnpm --filter=@pnpm/exe publish --tag=next-10 --access=public
+      - name: Stage @pnpm/exe (OIDC)
+        run: .github/scripts/npm-staged-publication.sh stage '@pnpm/exe' next-10 pnpm/artifacts/exe
+      # No version of the platform packages has staged-publish evidence, so
+      # trusted publishing is enough for them. They publish without a token, so
+      # a failed OIDC exchange fails the release instead of falling back to
+      # NPM_TOKEN.
       - name: Publish platform packages (OIDC)
-        run: pnpm --filter='./pnpm/artifacts/*' --filter='!@pnpm/exe' publish --tag=latest-10 --access=public
+        run: pnpm --filter='./pnpm/artifacts/*' --filter='!@pnpm/exe' publish --tag=latest-10 --access=public --provenance
       - name: Publish internal workspace packages (static token)
         # The other workspace packages don't have trusted publishing configured
         # on npm. The token is removed at the end of the step so it can't reach
-        # the pnpm publication below.
+        # the pnpm staging below.
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           trap 'pnpm config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pnpm publish --filter='!pnpm' --filter='!./pnpm/artifacts/*' --tag=latest-10 --access=public
-      - name: Publish pnpm (OIDC)
-        run: pnpm --filter=pnpm publish --tag=next-10 --access=public
+          pnpm publish --filter='!pnpm' --filter='!./pnpm/artifacts/*' --tag=latest-10 --access=public --provenance
+      - name: Stage pnpm (OIDC)
+        run: .github/scripts/npm-staged-publication.sh stage 'pnpm CLI' next-10 pnpm
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
       - name: Generate release description
