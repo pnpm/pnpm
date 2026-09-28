@@ -76,6 +76,7 @@ jest.unstable_mockModule('@pnpm/engine.pm.commands', () => ({
 }))
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
   isPackageManagerResolved,
+  resolveAndInstallConfigDeps: jest.fn(async () => {}),
   resolvePackageManagerIntegrities,
 }))
 jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({

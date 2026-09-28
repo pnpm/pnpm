@@ -14,11 +14,26 @@ impl WorkspaceSettings {
     /// decisions follow the user out of the repository. The policies therefore
     /// come from the built-in defaults, the global `config.yaml`, and
     /// `PNPM_CONFIG_*` env vars only (plus CLI flags, applied by the caller).
+    ///
+    /// The switch to a `packageManager` pin drops only the trust settings.
+    /// See [`Self::clear_trust_policy`].
     pub fn clear_self_update_policy(&mut self) {
         self.minimum_release_age = None;
         self.minimum_release_age_exclude = None;
         self.minimum_release_age_ignore_missing_time = None;
         self.minimum_release_age_strict = None;
+        self.clear_trust_policy();
+    }
+
+    /// Drop the project's `trustPolicy` settings.
+    ///
+    /// `self-update` and the switch to a `packageManager` pin both download
+    /// a pnpm binary. The project's trust policy does not govern that
+    /// download. Turned on, it blocks the pinned pnpm. Turned off, it accepts
+    /// a release the user meant to reject. The global `config.yaml`,
+    /// `PNPM_CONFIG_*` env vars, and CLI flags still apply. The switch keeps
+    /// the project's release-age settings. `self-update` drops those too.
+    pub fn clear_trust_policy(&mut self) {
         self.trust_policy = None;
         self.trust_policy_exclude = None;
         self.trust_policy_ignore_after = None;

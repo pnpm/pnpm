@@ -237,6 +237,10 @@ fn report_config_warnings(
 
 /// Load the configuration the pre-command pass reads, with the global
 /// CLI flags that reach it applied.
+///
+/// When `resolve_store` is set, this config resolves and installs the
+/// pinned package manager. The project's `trustPolicy` does not apply to
+/// that download. Its release-age settings still do.
 fn load_pre_command_config(
     switch: &SwitchInput,
     config_overrides: &ConfigOverrides,
@@ -249,10 +253,12 @@ fn load_pre_command_config(
         config_overrides,
     );
     config.skip_store_dir_resolution = !resolve_store;
-    let mut config = config
-        .current::<Host>(dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load configuration")?;
+    let loaded = if resolve_store {
+        config.current_for_package_manager_switch::<Host>(dir)
+    } else {
+        config.current::<Host>(dir)
+    };
+    let mut config = loaded.map_err(miette::Report::new).wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {
         config.color = color;

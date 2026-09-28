@@ -971,6 +971,30 @@ describe("forSelfUpdate (the project manifest doesn't set self-update's release-
     expect(config.trustPolicyIgnoreAfter).toBeUndefined()
   })
 
+  test('a package manager switch ignores the workspace trust policy and keeps the release age', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      minimumReleaseAge: 4320,
+      trustPolicy: 'no-downgrade',
+      trustPolicyExclude: ['pnpm'],
+      trustPolicyIgnoreAfter: 525600,
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+      ignoreProjectTrustPolicy: true,
+      env: { PNPM_CONFIG_TRUST_POLICY: 'off' },
+    })
+
+    expect(config.trustPolicy).toBe('off')
+    expect(config.trustPolicyExclude).toBeUndefined()
+    expect(config.trustPolicyIgnoreAfter).toBeUndefined()
+    expect(config.minimumReleaseAge).toBe(4320)
+  })
+
   test('a workspace manifest cannot override CI detection', async () => {
     prepareEmpty()
 

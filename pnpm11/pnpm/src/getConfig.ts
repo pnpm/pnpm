@@ -24,6 +24,7 @@ export async function getConfig (
     workspaceDir: string | undefined
     onlyInheritDlxSettingsFromLocal?: boolean
     forSelfUpdate?: boolean
+    ignoreProjectTrustPolicy?: boolean
     printWarnings?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
@@ -35,6 +36,7 @@ export async function getConfig (
     workspaceDir: opts.workspaceDir,
     onlyInheritDlxSettingsFromLocal: opts.onlyInheritDlxSettingsFromLocal,
     forSelfUpdate: opts.forSelfUpdate,
+    ignoreProjectTrustPolicy: opts.ignoreProjectTrustPolicy,
   })
   context.cliOptions = cliOptions
   applyDerivedConfig(config)
@@ -48,6 +50,33 @@ export async function getConfig (
   }
 
   return { config, context }
+}
+
+/**
+ * Config for downloading the pnpm named by `packageManager`.
+ *
+ * The project's `trustPolicy` is left out. Release-age settings, and a trust
+ * policy from the global config, the environment, or CLI flags, stay.
+ * Callers that have no CLI options, such as the unit tests, keep `config`.
+ */
+export async function configWithoutProjectTrustPolicy (
+  config: Config,
+  context: ConfigContext
+): Promise<Config> {
+  const cliOptions = context.cliOptions as CliOptions | undefined
+  if (cliOptions == null) return config
+  const { config: trusted } = await getConfig(cliOptions, {
+    excludeReporter: true,
+    ignoreProjectTrustPolicy: true,
+    printWarnings: false,
+    workspaceDir: config.workspaceDir,
+  })
+  return {
+    ...config,
+    trustPolicy: trusted.trustPolicy,
+    trustPolicyExclude: trusted.trustPolicyExclude,
+    trustPolicyIgnoreAfter: trusted.trustPolicyIgnoreAfter,
+  }
 }
 
 /**

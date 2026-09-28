@@ -4,6 +4,16 @@ use super::{
     collect_explicit_settings, fs, note_declared_registries, resolve_configured_state_dir,
 };
 
+/// Which policies from the project manifest a command may ignore.
+#[derive(Clone, Copy)]
+pub(super) enum WorkspacePolicyFilter {
+    Apply,
+    /// `self-update` ignores release-age and trust policies.
+    SelfUpdate,
+    /// The switch to a `packageManager` pin ignores trust policy only.
+    PackageManagerSwitch,
+}
+
 impl Config {
     /// Apply the workspace layer and anchor paths to its location. A missing file
     /// is silent; read and parse errors propagate during workspace discovery.
@@ -12,7 +22,7 @@ impl Config {
         workspace_yaml: Option<(PathBuf, Option<WorkspaceSettings>)>,
         explicit: &mut ExplicitPaths,
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
-        for_self_update: bool,
+        policy: WorkspacePolicyFilter,
     ) -> Result<(), LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -71,7 +81,7 @@ impl Config {
                     &base_dir,
                     explicit,
                     declared_registries,
-                    for_self_update,
+                    policy,
                 )?;
             }
         }
@@ -86,7 +96,7 @@ impl Config {
         base_dir: &Path,
         explicit: &mut ExplicitPaths,
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
-        for_self_update: bool,
+        policy: WorkspacePolicyFilter,
     ) -> Result<(), LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -113,8 +123,10 @@ impl Config {
         // "explicitly set" when the workspace yaml leaves it unset.
         explicit.note(&settings);
         settings.substitute_env_untrusted::<Sys>();
-        if for_self_update {
-            settings.clear_self_update_policy();
+        match policy {
+            WorkspacePolicyFilter::Apply => {}
+            WorkspacePolicyFilter::SelfUpdate => settings.clear_self_update_policy(),
+            WorkspacePolicyFilter::PackageManagerSwitch => settings.clear_trust_policy(),
         }
         self.workspace_key_issues = settings.key_issues.clone();
         note_declared_registries(declared_registries, &settings);

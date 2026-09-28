@@ -1,3 +1,4 @@
+use super::workspace_settings::WorkspacePolicyFilter;
 use super::{
     AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
     LoadWorkspaceYamlError, NpmrcAuth, Path, WorkspaceSettings, build_package_manager_bootstrap,
@@ -30,7 +31,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        self.current_inner::<Sys>(start_dir, false)
+        self.current_inner::<Sys>(start_dir, WorkspacePolicyFilter::Apply)
     }
 
     /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
@@ -43,13 +44,26 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        self.current_inner::<Sys>(start_dir, true)
+        self.current_inner::<Sys>(start_dir, WorkspacePolicyFilter::SelfUpdate)
+    }
+
+    /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
+    /// not contribute `trustPolicy`. Release-age settings still do. See
+    /// [`WorkspaceSettings::clear_trust_policy`].
+    pub fn current_for_package_manager_switch<Sys>(
+        self,
+        start_dir: &std::path::Path,
+    ) -> Result<Self, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        self.current_inner::<Sys>(start_dir, WorkspacePolicyFilter::PackageManagerSwitch)
     }
 
     pub(super) fn current_inner<Sys>(
         mut self,
         start_dir: &std::path::Path,
-        for_self_update: bool,
+        policy: WorkspacePolicyFilter,
     ) -> Result<Self, LoadWorkspaceYamlError>
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
@@ -113,7 +127,7 @@ impl Config {
             workspace_yaml,
             &mut explicit,
             &mut declared_registries,
-            for_self_update,
+            policy,
         )?;
 
         // Apply `_auth` routes after workspace yaml (so they win over

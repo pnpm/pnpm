@@ -182,6 +182,64 @@ pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_trust_po
 }
 
 #[test]
+pub fn package_manager_switch_ignores_workspace_trust_policy_and_keeps_release_age() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "trustPolicy: no-downgrade\ntrustPolicyExclude:\n  - pnpm\ntrustPolicyIgnoreAfter: 525600\nminimumReleaseAge: 4320\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    let config = Config::new()
+        .current_for_package_manager_switch::<HostNoHome>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.trust_policy, TrustPolicy::Off);
+    assert_eq!(config.trust_policy_exclude, None);
+    assert_eq!(config.trust_policy_ignore_after, None);
+    assert_eq!(config.minimum_release_age, Some(4320));
+}
+
+#[test]
+pub fn package_manager_switch_keeps_an_env_trust_policy() {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "trustPolicy: off\ntrustPolicyExclude:\n  - pnpm\n",
+    )
+    .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithTrustPolicyEnv;
+    impl EnvVar for HostWithTrustPolicyEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_TRUST_POLICY" => Some("no-downgrade".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithTrustPolicyEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithTrustPolicyEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithTrustPolicyEnv);
+    host_current_dir!(HostWithTrustPolicyEnv);
+
+    let config = Config::new()
+        .current_for_package_manager_switch::<HostWithTrustPolicyEnv>(tmp.path())
+        .expect("config loads");
+
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude, None);
+}
+
+#[test]
 pub fn self_update_config_keeps_non_policy_workspace_settings() {
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")

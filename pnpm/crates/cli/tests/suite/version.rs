@@ -150,6 +150,41 @@ fn version_flag_switches_to_project_package_manager_version() {
     drop((root, mock_instance));
 }
 
+/// pnpm 10.34.5 is a trust downgrade on the public registry. The project's
+/// `trustPolicy` still has to let the switch download it (pnpm/pnpm#16319).
+#[test]
+fn version_flag_switches_to_a_trust_downgraded_package_manager_pin() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@10.34.5"}"#)
+        .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("trustPolicy: no-downgrade\n");
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("trust downgrade"),
+        "the packageManager pin must not be subject to the project's trustPolicy: {stderr}",
+    );
+    assert!(output.status.success(), "pacquet --version should succeed: {stderr}");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "10.34.5\n");
+
+    drop((root, mock_instance));
+}
+
 /// The engine is installed into the shared global virtual store and the
 /// directory the install runs from is thrown away. A project that selects
 /// the hoisted linker must not drag the engine into that directory

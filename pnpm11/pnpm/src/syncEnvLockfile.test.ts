@@ -33,6 +33,7 @@ const { isPackageManagerResolved } = await import('@pnpm/installing.env-installe
 
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
   isPackageManagerResolved,
+  resolveAndInstallConfigDeps: jest.fn(async () => {}),
   resolvePackageManagerIntegrities,
 }))
 

@@ -5,6 +5,8 @@ import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import semver from 'semver'
 
+import { configWithoutProjectTrustPolicy } from './getConfig.js'
+
 /**
  * Records the currently running pnpm version in the env lockfile's
  * `packageManagerDependencies` entry when the project opts in to
@@ -40,7 +42,8 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   ) return
 
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
-  const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
+  const downloadConfig = await configWithoutProjectTrustPolicy(config, context)
+  const store = await createStoreController({ ...downloadConfig, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
   try {
     await resolvePackageManagerIntegrities(packageManager.version, {
       envLockfile,

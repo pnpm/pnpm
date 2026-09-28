@@ -129,6 +129,11 @@ export async function getConfig (opts: {
    * {@link SELF_UPDATE_SKIPPED_SETTINGS}.
    */
   forSelfUpdate?: boolean
+  /**
+   * Set when resolving the pnpm named by `packageManager`. The project's
+   * `trustPolicy` does not govern that download. Release-age settings still do.
+   */
+  ignoreProjectTrustPolicy?: boolean
 }): Promise<{ config: Config, context: ConfigContext, warnings: string[] }> {
   if (opts.onlyInheritDlxSettingsFromLocal) {
     const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
@@ -594,7 +599,9 @@ export async function getConfig (opts: {
           projectManifest: pnpmConfig.rootProjectManifest,
           skipSettings: opts.forSelfUpdate
             ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
-            : PROJECT_MANIFEST_SKIPPED_KEYS,
+            : opts.ignoreProjectTrustPolicy
+              ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...PACKAGE_MANAGER_SWITCH_SKIPPED_SETTINGS])
+              : PROJECT_MANIFEST_SKIPPED_KEYS,
           workspaceDir: pnpmConfig.workspaceDir,
           workspaceManifest,
         })
@@ -1375,6 +1382,17 @@ const SELF_UPDATE_SKIPPED_SETTINGS = [
 ] as const satisfies ReadonlyArray<keyof Config>
 
 /**
+ * Trust settings the project manifest does not contribute when pnpm downloads
+ * the version named by `packageManager`. Release-age settings still apply.
+ * The same trust keys are in {@link SELF_UPDATE_SKIPPED_SETTINGS}.
+ */
+const PACKAGE_MANAGER_SWITCH_SKIPPED_SETTINGS = [
+  'trustPolicy',
+  'trustPolicyExclude',
+  'trustPolicyIgnoreAfter',
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
  * Where the machine keeps what it holds across runs, which no project chooses.
  *
  * A repository setting one would redirect where pnpm writes: `pnpm login`'s
@@ -1573,6 +1591,7 @@ function parseStringValuedJsonObject (value: string, variable: string): Record<s
 type SkippableKey =
   | ProjectManifestSkippedKey
   | typeof SELF_UPDATE_SKIPPED_SETTINGS[number]
+  | typeof PACKAGE_MANAGER_SWITCH_SKIPPED_SETTINGS[number]
   | typeof GLOBAL_CONFIG_ONLY_SKIPPED_KEYS[number]
 
 const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = new Set([

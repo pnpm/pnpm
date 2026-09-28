@@ -23,6 +23,25 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
+test('switch to the pinned pnpm when the project trustPolicy would reject it', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@10.34.5',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicy: 'no-downgrade',
+  })
+
+  const { stdout, stderr } = execPnpmSync(['--version'], {
+    env: { PNPM_HOME: pnpmHome },
+    expectSuccess: true,
+  })
+
+  expect(stderr.toString()).not.toContain('trust downgrade')
+  expect(stdout.toString()).toContain('10.34.5')
+})
+
 test('switch to the pinned pnpm version although a task setting is only known to it', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
