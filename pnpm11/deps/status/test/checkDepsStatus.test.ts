@@ -2569,8 +2569,8 @@ describe('checkDepsStatus - filtered install', () => {
       // The filtered install materialized the root's modules directory and left
       // the project it did not select without one, unless something else
       // created it.
-      const existingModulesDirs = new Set([path.join(rootDir, modulesDir)])
-      if (strayModulesDir) existingModulesDirs.add(path.join(siblingDir, modulesDir))
+      const existingModulesDirs = new Set([path.resolve(rootDir, modulesDir)])
+      if (strayModulesDir) existingModulesDirs.add(path.resolve(siblingDir, modulesDir))
       // The current lockfile keeps every importer but records only the
       // packages of the project the install selected.
       const currentLockfile: LockfileObject = {
@@ -2583,7 +2583,7 @@ describe('checkDepsStatus - filtered install', () => {
           ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-aaa' } },
         },
       }
-      const currentLockfileDir = path.join(workspaceDir, modulesDir, '.pnpm')
+      const currentLockfileDir = path.join(path.resolve(workspaceDir, modulesDir), '.pnpm')
       jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async (virtualStoreDir: string) =>
         virtualStoreDir === currentLockfileDir ? currentLockfile : null)
       jest.mocked(fsUtils.safeStat).mockImplementation(async (filePath: string) => {
@@ -2669,6 +2669,8 @@ describe('checkDepsStatus - filtered install', () => {
 
   it('reads the current lockfile from the configured modules directory', async () => {
     expect((await checkAfterFilteredInstall('root', { modulesDir: 'custom_modules' })).upToDate).toBe(true)
+    const absoluteModulesDir = path.join(os.tmpdir(), 'pnpm-check-deps-absolute-modules')
+    expect((await checkAfterFilteredInstall('root', { modulesDir: absoluteModulesDir })).upToDate).toBe(true)
   })
 
   // https://github.com/pnpm/pnpm/issues/16322

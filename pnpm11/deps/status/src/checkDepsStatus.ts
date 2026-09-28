@@ -1233,12 +1233,12 @@ function createCurrentLockfileLocator (
 ): (project: Project) => CurrentLockfileLocation {
   if (opts.sharedWorkspaceLockfile) {
     const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
-    const virtualStoreDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules', '.pnpm')
+    const virtualStoreDir = path.join(path.resolve(lockfileDir, opts.modulesDir ?? 'node_modules'), '.pnpm')
     return (project) => ({ virtualStoreDir, importerId: getLockfileImporterId(lockfileDir, project.rootDir) })
   }
   const modulesDirOf = createProjectModulesDirResolver(opts)
   return (project) => ({
-    virtualStoreDir: path.join(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules', '.pnpm'),
+    virtualStoreDir: path.join(path.resolve(project.rootDir, modulesDirOf(project.manifest.name) ?? 'node_modules'), '.pnpm'),
     importerId: '.' as ProjectId,
   })
 }
