@@ -116,9 +116,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
                 node_id.clone(),
                 crate::resolved_tree::DependenciesTreeNode::new(
                     Arc::from(pkg_id),
-                    crate::resolved_tree::TreeChildren::Lazy {
-                        parent_ids: Arc::new(Vec::new()).into(),
-                    },
+                    crate::resolved_tree::TreeChildren::Lazy,
                     0,
                     true,
                 ),

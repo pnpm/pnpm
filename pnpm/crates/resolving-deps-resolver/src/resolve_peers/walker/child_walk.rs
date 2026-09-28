@@ -1,35 +1,31 @@
 use super::{
-    AncestorIds, Arc, BTreeMap, ChildAliases, ChildEdge, ChildOutputs, ChildParentRefs,
-    DeferredChildContext, DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs,
-    PeersCacheItem, ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker,
-    insert_parent_ref,
+    Arc, BTreeMap, ChildAliases, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
+    DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeersCacheItem,
+    ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker, insert_parent_ref,
 };
 
 impl Walker<'_> {}
 
 impl Walker<'_> {
-    /// The still-lazy children a discovery walk descends into directly, with
-    /// the ancestor chain they see. `None` outside discovery, or once the
-    /// node's children have been realized.
+    /// The still-lazy children a discovery walk descends into directly.
+    /// `None` outside discovery, or once the node's children have been
+    /// realized.
     pub(super) fn discovery_children(
         &self,
         node_id: &NodeId,
         pkg_id: &Arc<str>,
-    ) -> Option<(Arc<Vec<ChildEdge>>, AncestorIds)> {
-        if !self.traversal.discovery {
+    ) -> Option<Arc<Vec<ChildEdge>>> {
+        if !self.traversal.discovery
+            || !matches!(self.tree.dependencies_tree[node_id].children, TreeChildren::Lazy)
+        {
             return None;
         }
-        let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree[node_id].children
-        else {
-            return None;
-        };
-        Some((
+        Some(
             self.tree.children_by_id
                 .get(&**pkg_id)
                 .cloned()
                 .unwrap_or_default(),
-            parent_ids.pushed(Arc::clone(pkg_id)),
-        ))
+        )
     }
 
     pub(super) fn resolve_deferred_children(
@@ -40,7 +36,6 @@ impl Walker<'_> {
         let DeferredChildren {
             pkg_id,
             children,
-            parent_ids,
             provider_children,
             depth,
         } = deferred;
@@ -55,8 +50,7 @@ impl Walker<'_> {
                     continue;
                 }
                 let child_node_id = self.child_node_id_for_edge(edge, Some(provider_children));
-                let child_output =
-                    self.resolve_deferred_edge(edge, child_node_id, parent_ids, depth, walk);
+                let child_output = self.resolve_deferred_edge(edge, child_node_id, depth, walk);
                 child_outputs.push(&edge.alias, child_output, &child_aliases, false);
             }
         }
@@ -67,7 +61,6 @@ impl Walker<'_> {
         &mut self,
         edge: &ChildEdge,
         child_node_id: NodeId,
-        parent_ids: &AncestorIds,
         parent_depth: i32,
         walk: &NodeWalkContext<'_>,
     ) -> NodeOutput {
@@ -77,7 +70,6 @@ impl Walker<'_> {
         self.resolve_deferred_child(&DeferredChildContext {
             edge,
             node_id: child_node_id,
-            parent_ids,
             walk,
             depth: parent_depth + 1,
         })

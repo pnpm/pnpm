@@ -48,9 +48,7 @@ use crate::{
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
     },
-    resolved_tree::{
-        AncestorIds, ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
-    },
+    resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
 use pnpm_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
@@ -260,7 +258,7 @@ impl<'tree> Walker<'tree> {
                     node_id.clone(),
                     crate::resolved_tree::DependenciesTreeNode::new(
                         Arc::clone(pkg_id),
-                        TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                        TreeChildren::Lazy,
                         depth,
                         true,
                     ),
@@ -278,7 +276,7 @@ impl<'tree> Walker<'tree> {
             node_id.clone(),
             crate::resolved_tree::DependenciesTreeNode::new(
                 Arc::clone(pkg_id),
-                TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                TreeChildren::Lazy,
                 depth,
                 true,
             ),

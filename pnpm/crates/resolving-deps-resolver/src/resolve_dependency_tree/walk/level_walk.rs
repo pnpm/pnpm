@@ -3,9 +3,8 @@ use super::{
     NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
     RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeCtx, catalogs_for_children, claim_children_owner,
-    extract_peer_dependencies, insert_tree_node, is_current_children_owner, lazy_children,
-    lock_recoverable, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    extract_peer_dependencies, insert_tree_node, is_current_children_owner, lock_recoverable,
+    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -97,8 +96,7 @@ pub(super) fn install_owner_peer_dependencies(
 ///
 /// An occurrence walks only when it owns its package's children and
 /// nothing has recorded them under its context; every other one reads
-/// them from the owner's recording, under its own `parent_ids` cycle
-/// break.
+/// them from the owner's recording.
 pub(super) fn settle_seeds(
     ctx: &TreeCtx,
     seeds: Vec<NodeSeed>,
@@ -122,8 +120,7 @@ pub(super) fn settle_seeds(
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, crate::resolved_tree::TreeChildren::Lazy);
             continue;
         };
         if !pending.resolves_children_through_catalogs
@@ -133,8 +130,7 @@ pub(super) fn settle_seeds(
                 &children_context(ctx, &pending, &claim),
             )
         {
-            let children = lazy_children(&pending.ancestry.parent_ancestors);
-            insert_walked_node(ctx, &pending, children);
+            insert_walked_node(ctx, &pending, crate::resolved_tree::TreeChildren::Lazy);
             continue;
         }
         frontier.push(FrontierNode {
@@ -197,7 +193,7 @@ pub(super) fn record_walked_children(
     seeds: &[NodeSeed],
 ) -> (crate::resolved_tree::TreeChildren, bool) {
     if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
-        return (lazy_children(&pending.ancestry.parent_ancestors), false);
+        return (crate::resolved_tree::TreeChildren::Lazy, false);
     }
     let optional_by_alias: HashMap<&str, bool> = child_specs
         .iter()
@@ -224,7 +220,7 @@ pub(super) fn record_walked_children(
         by_id,
         children_context(ctx, pending, claim),
     )
-    .into_children(realized, &pending.ancestry.parent_ancestors)
+    .into_children(realized)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
@@ -269,11 +265,6 @@ pub(super) fn insert_walked_node(
     children: crate::resolved_tree::TreeChildren,
 ) {
     let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
-    remember_node_parent_ids(
-        ctx,
-        &pending.identity.node_id,
-        Arc::clone(&pending.ancestry.parent_ancestors),
-    );
     insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 

@@ -6,8 +6,7 @@
 pub(super) use children_ownership::{
     ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
     claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    lazy_children, make_non_owner_nodes_lazy, record_children, recorded_children_match,
-    register_peer_dep_names, remember_node_parent_ids,
+    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
 };
 
 pub(super) use cache_keys::{
@@ -46,8 +45,7 @@ use crate::{
     node_id::NodeId,
     resolve_peers::MissingNames,
     resolved_tree::{
-        AncestorIds, AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-        ResolvedTree,
+        AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
     },
 };
 
@@ -111,7 +109,6 @@ pub(crate) struct WorkspaceTreeStorage {
     pub(super) packages: Mutex<HashMap<Arc<str>, ResolvedPackage>>,
     dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
     pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
-    node_parent_ids_by_id: Mutex<HashMap<NodeId, AncestorPkgIds>>,
     /// Reverse index over `dependencies_tree`: every occurrence node
     /// recorded for a `pkgIdWithPatchHash`. Keeps
     /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's

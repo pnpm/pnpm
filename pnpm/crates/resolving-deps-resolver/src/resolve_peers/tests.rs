@@ -429,9 +429,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
             node_id.clone(),
             crate::resolved_tree::DependenciesTreeNode::new(
                 Arc::from(id),
-                crate::resolved_tree::TreeChildren::Lazy {
-                    parent_ids: Arc::new(Vec::new()).into(),
-                },
+                crate::resolved_tree::TreeChildren::Lazy,
                 0,
                 true,
             ),

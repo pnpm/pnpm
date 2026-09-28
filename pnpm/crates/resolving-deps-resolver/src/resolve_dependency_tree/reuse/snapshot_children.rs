@@ -2,8 +2,8 @@ use super::{
     AncestorPkgIds, Arc, BTreeMap, ChildrenOwnerClaim, Cow, DirectDep, HashMap, HashSet, NodeId,
     ParentPkgAliases, PeerDep, Pipe, PkgName, PkgNameVerPeer, RecordedChildrenContext,
     ResolveDependencyTreeError, Resolver, ReuseSource, SnapshotDepRef, SnapshotEntry, TreeCtx,
-    UpdateReuseScope, WantedDependency, future, is_current_children_owner, lazy_children,
-    record_children, resolve_node,
+    UpdateReuseScope, WantedDependency, future, is_current_children_owner, record_children,
+    resolve_node,
 };
 
 /// The per-node context [`reused_children`] walks one reused node's snapshot
@@ -17,7 +17,6 @@ pub(super) struct ReusedChildren<'a> {
 }
 
 pub(super) struct ReusedNodeAncestry<'a> {
-    pub(super) ancestor_ids: &'a AncestorPkgIds,
     pub(super) next_ancestors: AncestorPkgIds,
     pub(super) depth: i32,
     pub(super) current_is_optional: bool,
@@ -31,7 +30,6 @@ impl<'a> ReusedNodeAncestry<'a> {
         current_is_optional: bool,
     ) -> Self {
         Self {
-            ancestor_ids: edge.ancestor_ids,
             next_ancestors: Arc::new(
                 edge.ancestor_ids
                     .iter()
@@ -58,11 +56,11 @@ where
     Chain: Resolver + ?Sized,
 {
     if !claim.owns_children {
-        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
+        return Ok((crate::resolved_tree::TreeChildren::Lazy, false));
     }
     let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
     if !is_current_children_owner(ctx, context.id, &claim.owner) {
-        return Ok((lazy_children(context.ancestry.ancestor_ids), false));
+        return Ok((crate::resolved_tree::TreeChildren::Lazy, false));
     }
     Ok(record_reused_children(ctx, claim, &context, child_results))
 }
@@ -159,7 +157,7 @@ pub(super) fn record_reused_children(
             update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         },
     );
-    recording.into_children(realized, context.ancestry.ancestor_ids)
+    recording.into_children(realized)
 }
 
 /// `(install_alias, resolved_snapshot_key)` for every non-`link:` child

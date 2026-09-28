@@ -878,9 +878,7 @@ fn assert_descendant_walk_skips_cut_cycle_edge(realized_zed: bool) {
     } else {
         crate::resolved_tree::DependenciesTreeNode::new(
             Arc::from("zed@1.0.0"),
-            crate::resolved_tree::TreeChildren::Lazy {
-                parent_ids: Arc::new(vec!["app@1.0.0".into(), "shadow@1.0.0".into()]).into(),
-            },
+            crate::resolved_tree::TreeChildren::Lazy,
             2,
             true,
         )

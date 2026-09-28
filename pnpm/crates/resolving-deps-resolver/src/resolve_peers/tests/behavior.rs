@@ -199,7 +199,7 @@ fn realizing_children_shares_the_edge_package_id() {
         parent.clone(),
         crate::resolved_tree::DependenciesTreeNode::new(
             "parent@1.0.0".into(),
-            crate::resolved_tree::TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
+            crate::resolved_tree::TreeChildren::Lazy,
             0,
             true,
         ),

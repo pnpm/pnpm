@@ -10,9 +10,9 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
-        let TreeChildren::Lazy { .. } = &self.tree.dependencies_tree.get(node_id)?.children else {
+        if !matches!(self.tree.dependencies_tree.get(node_id)?.children, TreeChildren::Lazy) {
             return None;
-        };
+        }
         self.find_fast_hit_for_lazy(parent_refs, pkg_id)
     }
 
