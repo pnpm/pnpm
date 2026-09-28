@@ -301,3 +301,60 @@ fn remove_entries(entries: &mut Option<HashMap<PkgName, SnapshotDepRef>>, aliase
 
 #[cfg(test)]
 mod tests;
+
+/// Detects if there are circular peer dependency chains in the lockfile.
+///
+/// Returns `true` if any package can reach itself through its peer
+/// dependency chain, indicating a circular dependency.
+#[must_use]
+pub fn has_circular_peers(snapshots: &HashMap<PackageKey, SnapshotEntry>) -> bool {
+    let mut visited: HashSet<PackageKey> = HashSet::new();
+    let mut recursion_stack: HashSet<PackageKey> = HashSet::new();
+
+    fn has_cycle_from(
+        key: &PackageKey,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+        visited: &mut HashSet<PackageKey>,
+        recursion_stack: &mut HashSet<PackageKey>,
+    ) -> bool {
+        if recursion_stack.contains(key) {
+            return true;
+        }
+        if visited.contains(key) {
+            return false;
+        }
+
+        visited.insert(key.clone());
+        recursion_stack.insert(key.clone());
+
+        let Some(snapshot) = snapshots.get(key) else {
+            recursion_stack.remove(key);
+            return false;
+        };
+
+        for (_, dep_ref) in all_entries(snapshot) {
+            let target_opt = dep_ref.resolve(&key.name);
+            let Some(target) = target_opt else { continue };
+            if !snapshots.contains_key(&target) {
+                continue;
+            }
+            if has_cycle_from(&target, snapshots, visited, recursion_stack) {
+                recursion_stack.remove(key);
+                return true;
+            }
+        }
+
+        recursion_stack.remove(key);
+        false
+    }
+
+    for key in snapshots.keys() {
+        if !visited.contains(key)
+            && has_cycle_from(key, snapshots, &mut visited, &mut recursion_stack)
+        {
+            return true;
+        }
+    }
+
+    false
+}
