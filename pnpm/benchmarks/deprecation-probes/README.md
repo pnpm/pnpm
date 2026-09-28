@@ -13,7 +13,7 @@ These are resolver-stage benchmarks, not whole-install timings. The example call
 cached minimum-release-age view. File-backed modes use a temporary local mirror.
 Metadata construction and process startup are outside the timer.
 
-Base: `15a5da5864020375be4c46c905807364f0e941b2`. Candidate: this patch. Twelve alternating
+Base: `15a5da5864020375be4c46c905807364f0e941b2`. Measured candidate: `907e764c45`. Twelve alternating
 paired process runs on macOS 26.7, arm64, 14 logical CPUs; Rust 1.97.0, the
 repository release profile (opt-level 3, fat LTO, one codegen unit). No benchmark
 or compilation jobs from this task ran concurrently. Other machine load was not

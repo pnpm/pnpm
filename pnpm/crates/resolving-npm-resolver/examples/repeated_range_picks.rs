@@ -1,10 +1,11 @@
 //! Repeated version selection, including the cached minimum-release-age view.
+use core::hint::black_box;
 use pnpm_registry::{MirrorFile, Package, PackageVersions};
 use pnpm_resolving_npm_resolver::{
     PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
     pick_package_from_meta, pick_version_by_version_range,
 };
-use std::{hint::black_box, io::Write, time::Instant};
+use std::{io::Write, time::Instant};
 
 fn metadata(file_backed: bool) -> Package {
     let mut releases = serde_json::Map::new();
@@ -43,7 +44,7 @@ fn main() {
     let mode = args.get(1).map_or("raw", String::as_str);
     let picks: usize = args
         .get(2)
-        .map_or(100, |s| s.parse().unwrap());
+        .map_or(100, |value| value.parse().unwrap());
     let meta = metadata(mode.starts_with("file"));
     let opts = PickPackageFromMetaOptions {
         published_by: mode
@@ -52,9 +53,9 @@ fn main() {
         ..Default::default()
     };
     let specs: Vec<_> = (0..32)
-        .map(|i| RegistryPackageSpec {
+        .map(|index| RegistryPackageSpec {
             name: "probe".into(),
-            fetch_spec: format!("<=1.0.{}", 999 - i),
+            fetch_spec: format!("<=1.0.{}", 999 - index),
             spec_type: RegistryPackageSpecType::Range,
             revision: None,
             normalized_bare_specifier: None,
