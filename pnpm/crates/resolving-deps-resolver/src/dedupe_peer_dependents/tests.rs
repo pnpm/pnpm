@@ -523,3 +523,59 @@ fn a_name_at_version_peer_is_not_renamed() {
     assert_eq!(direct["project-consumer"]["consumer"], dp(consumer));
     assert_eq!(graph[&dp(consumer)].edges.children["foo"], dp(larger));
 }
+
+/// A consumer whose suffix named the collapsed variant is renamed to the
+/// key of a consumer that named the surviving one. The collapse kept them
+/// apart because each has a child the other lacks. The node already keyed
+/// by that name wins, and the child only the other one reached does not
+/// linger as an orphan.
+#[test]
+fn a_consumer_renamed_onto_an_existing_key_leaves_no_orphans() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let via_subset = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))";
+    let via_larger = "consumer@1.0.0(foo@1.0.0(bar@1.0.0)(baz@1.0.0))";
+    let orphan = "leftover@1.0.0";
+    let kept = "kept@1.0.0";
+
+    let mut graph = DependenciesGraph::default();
+    for id in ["bar@1.0.0", "baz@1.0.0", orphan, kept] {
+        graph.insert(dp(id), make_node(id, id, &[], &[]));
+    }
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node(
+            "foo@1.0.0",
+            larger,
+            &[("bar", "bar@1.0.0"), ("baz", "baz@1.0.0")],
+            &["bar", "baz"],
+        ),
+    );
+    graph.insert(
+        dp(via_subset),
+        make_node("consumer@1.0.0", via_subset, &[("foo", subset), ("leftover", orphan)], &["foo"]),
+    );
+    graph.insert(
+        dp(via_larger),
+        make_node("consumer@1.0.0", via_larger, &[("foo", larger), ("kept", kept)], &["foo"]),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert(
+        "project-a".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(via_subset))]),
+    );
+    direct.insert(
+        "project-b".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(via_larger))]),
+    );
+
+    dedupe_peer_dependents(&mut graph, &mut direct, &text_suffixes());
+
+    assert_eq!(direct["project-a"]["consumer"], dp(via_larger));
+    assert_eq!(direct["project-b"]["consumer"], dp(via_larger));
+    assert_eq!(graph[&dp(via_larger)].edges.children["kept"], dp(kept));
+    assert!(!graph.contains_key(&dp(via_subset)));
+    assert!(!graph.contains_key(&dp(orphan)), "only the dropped consumer reached it");
+}
