@@ -195,3 +195,29 @@ fn inherited_local_paths_stay_relative_to_the_manifest_declaring_them() {
         ]),
     );
 }
+
+#[test]
+fn a_glob_may_name_the_manifest_file_itself() {
+    let tmp = TempDir::new().unwrap();
+    write_manifest(&tmp.path().join("configs/a"), "catalog:\n  foo: 1.0.0\n");
+    write_manifest(&tmp.path().join("configs/b"), "catalog:\n  bar: 1.0.0\n");
+    write_manifest(tmp.path(), "extends: configs/*/pnpm-workspace.yaml\n");
+
+    assert_eq!(inherited(tmp.path()), default_catalog(&[("bar", "1.0.0"), ("foo", "1.0.0")]));
+}
+
+#[test]
+fn an_invalid_glob_is_an_error() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("packages")).unwrap();
+    write_manifest(tmp.path(), "extends: 'packages/[a'\n");
+
+    let error = read_workspace_manifest(tmp.path()).unwrap_err();
+    dbg!(&error);
+    assert!(matches!(
+        error,
+        ReadWorkspaceManifestError::Invalid(
+            InvalidWorkspaceManifestError::InvalidExtendsPattern { .. }
+        )
+    ));
+}
