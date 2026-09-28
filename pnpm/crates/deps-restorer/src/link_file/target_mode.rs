@@ -2,8 +2,8 @@
 
 use std::{fs, io, path::Path};
 
-/// The permissions the copy tier gives a copy of `source_file`: its
-/// [`desired_mode`], or the source's own permissions when it has none.
+/// The permissions the copy tier gives a copy of `source_file`: the
+/// store-entry mode for a store entry, or the source's own permissions.
 pub(super) fn desired_permissions(source_file: &Path) -> io::Result<fs::Permissions> {
     #[cfg(unix)]
     if let Some(mode) = desired_mode(source_file) {

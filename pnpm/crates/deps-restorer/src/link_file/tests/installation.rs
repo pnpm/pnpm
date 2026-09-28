@@ -4,12 +4,12 @@ use super::{
         clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
         recover_from_concurrent_import,
     },
-    STORE_ENTRY, STORE_EXEC_ENTRY, write_source,
+    STORE_ENTRY, write_source,
 };
 #[cfg(unix)]
 use super::{
     super::{LINK_STATE_COPY, import_into_fresh_target},
-    EaccesLinks, EpermLinks, FreshClone,
+    EaccesLinks, EpermLinks, FreshClone, STORE_EXEC_ENTRY,
 };
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]

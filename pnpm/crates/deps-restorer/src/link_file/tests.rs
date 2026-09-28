@@ -25,6 +25,7 @@ fn write_source(dir: &Path, name: &str, contents: &[u8]) -> PathBuf {
 const STORE_ENTRY: &str = "files/1b/59d9e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8";
 
 /// An executable store entry, relative to the store directory.
+#[cfg(unix)]
 const STORE_EXEC_ENTRY: &str = "files/1b/59d9e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8-exec";
 
 /// A filesystem that refuses `link(2)` with `EPERM`: what a FUSE
