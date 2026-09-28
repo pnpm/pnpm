@@ -142,7 +142,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
-    let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
+    let body = stream_verified_to_cache(response, write, Some(&integrity), u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
     // Pull the first chunk so the tee writes the body's start to the tmp file.
     chunks
