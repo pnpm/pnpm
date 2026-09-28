@@ -131,13 +131,12 @@ fn run_cli() -> miette::Result<()> {
     if dispatched_to_pinned_pnpm(&args, &config_overrides, &child_argv)? {
         return Ok(());
     }
-    if args.run_completion_if_requested()? {
+    // An up-to-date `pacquet install` finishes here, without paying for
+    // the runtime, the HTTP client, or any worker threads.
+    if args.finished_via_install_fast_path(&config_overrides) {
         return Ok(());
     }
-    configure_rayon_pool();
-    // An up-to-date `pacquet install` finishes here, without paying for
-    // the runtime or the HTTP client.
-    if args.finished_via_install_fast_path(&config_overrides) {
+    if args.run_completion_if_requested()? {
         return Ok(());
     }
     run_cli_command(args, &config_overrides, builtin_command_forced)
@@ -300,10 +299,9 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 
 /// Size rayon's global pool with [`rayon_pool_size`].
 ///
-/// Must run before anything touches rayon. The first parallel iterator
-/// builds the global pool at rayon's default size, after which this
-/// call can no longer size it, so debug builds assert that it did.
-///
+/// Runs after the repeat-install fast path has declined, so commands
+/// that never reach a parallel phase (`--help`, the "Already up to
+/// date" short-circuit) skip the worker-thread spawn cost entirely.
 /// Deliberately NOT communicated via the `RAYON_NUM_THREADS`
 /// environment variable: a process-env write would leak into every
 /// child the install spawns (lifecycle scripts, `node --version`,
@@ -318,17 +316,18 @@ fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> V
 /// runner can spin up far more rayon threads than the kernel will
 /// actually schedule onto our cores (Copilot review on [#292]).
 ///
+/// Best-effort: if another part of the binary already initialised the
+/// pool, leave it alone.
+///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
 fn configure_rayon_pool() {
     if std::env::var_os("RAYON_NUM_THREADS").is_some() {
         return;
     }
     let parallelism = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-    let built = rayon::ThreadPoolBuilder::new()
+    let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(rayon_pool_size(parallelism))
         .build_global();
-    let configured = built.is_ok();
-    debug_assert!(configured, "rayon's global pool was built before it was configured: {built:?}");
 }
 
 /// `2 × parallelism`, kept between [`MIN_RAYON_THREADS`] and
@@ -405,6 +404,7 @@ fn run_cli_command(
 ) -> miette::Result<()> {
     // Arm Windows process-tree cleanup until the command succeeds.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
+    configure_rayon_pool();
     let result =
         block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
     if result.is_ok()
