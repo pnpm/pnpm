@@ -124,14 +124,20 @@ async function installNotRequired (
  * dependency, no peer that `autoInstallPeers` fetches, and no install script
  * that runs. A loaded pnpmfile's `readPackage` hook can add dependencies, and
  * a workspace that cannot be read may hide some, so both count as install work.
+ * So does a `lockfileDir` pinned outside the project, whose importers this
+ * check does not resolve.
  */
 async function projectsHaveNothingToInstall (opts: RunDepsStatusCheckOptions): Promise<boolean> {
-  if (opts.pnpmfile.length > 0) return false
+  if (opts.pnpmfile.length > 0 || lockfileDirIsPinned(opts)) return false
   try {
     return await coveredProjectsHaveNothingToInstall(opts)
   } catch {
     return false
   }
+}
+
+function lockfileDirIsPinned (opts: RunDepsStatusCheckOptions): boolean {
+  return opts.lockfileDir != null && path.resolve(opts.lockfileDir) !== path.resolve(opts.workspaceDir ?? opts.dir)
 }
 
 /**

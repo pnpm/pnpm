@@ -16,7 +16,8 @@ use pnpm_executor::DEV_PREINSTALL_STAGE;
 /// project under one shared lockfile, otherwise `manifest` alone. A
 /// workspace that cannot be walked counts as having work to do, and so
 /// does a pnpmfile the install would load from `lockfile_root`, whose
-/// `readPackage` hook can add dependencies.
+/// `readPackage` hook can add dependencies. So does a `lockfileDir` pinned
+/// away from `manifest`, whose importers this check does not resolve.
 pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool {
     let GateInputs {
         config,
@@ -25,7 +26,8 @@ pub(super) fn projects_have_nothing_to_install(inputs: &GateInputs<'_>) -> bool 
         workspace_root,
         lockfile_root,
     } = *inputs;
-    if project_has_install_work(config, manifest)
+    if manifest.path().parent() != Some(lockfile_root)
+        || project_has_install_work(config, manifest)
         || runs_dev_preinstall(config, manifest, workspace_root)
         || !crate::optimistic_repeat_install::current_pnpmfiles(lockfile_root, config).is_empty()
     {

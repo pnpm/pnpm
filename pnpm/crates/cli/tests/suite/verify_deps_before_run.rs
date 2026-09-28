@@ -1863,3 +1863,28 @@ fn a_pnpmfile_beside_a_separate_lockfile_starts_an_install() {
 
     drop(root);
 }
+
+/// A `lockfileDir` pinned away from the project leaves the importers to the
+/// install, so the gate keeps it.
+#[test]
+fn a_pinned_lockfile_dir_starts_an_install() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let project = workspace.join("project");
+    fs::create_dir_all(&project).expect("create the project");
+    write_named_manifest_with_dependency_groups(
+        &project,
+        "scripts-only",
+        &project.join("marker.txt"),
+        json!({}),
+    );
+
+    let output = pacquet_in(&project)
+        .with_args([&format!("--config.lockfile-dir={}", workspace.display()), "run", "hello"])
+        .output()
+        .expect("run the script");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the script must run:\n{stderr}");
+    assert!(stderr.contains("Done in"), "the gate must install:\n{stderr}");
+
+    drop(root);
+}
